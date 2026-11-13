@@ -135,10 +135,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={
-            @selected_project.build_system in [:xcode, :mix, :cargo] and
-              Tuist.FeatureFlags.coverage_enabled?(@selected_account, @selected_project)
-          }
+          :if={Tuist.Tests.Coverage.supported?(@selected_project)}
           label={dgettext("dashboard", "Code Coverage")}
           icon="umbrella"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}

@@ -17,7 +17,7 @@ defmodule TuistWeb.CoverageDetailLive do
   import TuistWeb.Helpers.TestLabels
 
   alias Noora.Filter
-  alias Tuist.FeatureFlags
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
@@ -38,8 +38,8 @@ defmodule TuistWeb.CoverageDetailLive do
   @reload_delay to_timeout(second: 15)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    if !FeatureFlags.coverage_enabled?(account, project) do
-      raise NotFoundError, dgettext("dashboard_tests", "Code coverage is not enabled for this account.")
+    if !Coverage.supported?(project) do
+      raise NotFoundError, dgettext("dashboard_tests", "Code coverage isn't available for this project's build system.")
     end
 
     socket =

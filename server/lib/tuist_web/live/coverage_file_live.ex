@@ -15,7 +15,6 @@ defmodule TuistWeb.CoverageFileLive do
 
   import TuistWeb.Coverage.Components
 
-  alias Tuist.FeatureFlags
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
@@ -30,8 +29,8 @@ defmodule TuistWeb.CoverageFileLive do
   @page_size 20
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    if !FeatureFlags.coverage_enabled?(account, project) do
-      raise NotFoundError, dgettext("dashboard_tests", "Code coverage is not enabled for this account.")
+    if !Coverage.supported?(project) do
+      raise NotFoundError, dgettext("dashboard_tests", "Code coverage isn't available for this project's build system.")
     end
 
     path = params["path"] |> List.wrap() |> Enum.join("/")

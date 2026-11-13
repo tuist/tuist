@@ -44,6 +44,11 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
 
   defp structured(%{"structuredContent" => content}), do: content
 
+  defp gradle_handles(conn, handles) do
+    project = ProjectsFixtures.project_fixture(account_id: conn.assigns.current_subject.account.id, build_system: :gradle)
+    Map.put(handles, "project_handle", project.name)
+  end
+
   describe "get_coverage" do
     test "reads the default branch's latest complete commit", %{conn: conn, handles: handles} do
       assert %{"branch" => "main", "git_commit_sha" => "a", "complete" => true, "coverage" => 66.7} =
@@ -68,17 +73,15 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
                GetCoverage.call(conn, Map.put(handles, "git_commit_sha", "c"))
     end
 
-    test "is not available while the account does not have code coverage", %{conn: conn, handles: handles} do
-      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
-
+    test "is not available for a project whose build system has no coverage", %{conn: conn, handles: handles} do
       assert %{
                "isError" => true,
-               "content" => [%{"text" => "Code coverage is in early access and is not enabled for this account."}]
-             } = GetCoverage.call(conn, handles)
+               "content" => [%{"text" => "Code coverage isn't available for this project's build system."}]
+             } = GetCoverage.call(conn, gradle_handles(conn, handles))
     end
 
-    test "refuses someone without access to the project before saying anything else", %{handles: handles} do
-      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
+    test "refuses someone without access to the project before saying anything else", %{conn: conn, handles: handles} do
+      handles = gradle_handles(conn, handles)
       other = AccountsFixtures.user_fixture(preload: [:account])
       conn = %Plug.Conn{assigns: %{current_subject: other}}
 

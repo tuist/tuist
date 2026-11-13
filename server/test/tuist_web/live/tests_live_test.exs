@@ -185,33 +185,14 @@ defmodule TuistWeb.TestsLiveTest do
     refute has_element?(lv, "[data-part='selective-testing']")
   end
 
-  test "lists Code Coverage in the sidebar only for Xcode and Mix projects", %{
+  test "lists Code Coverage in the sidebar for Xcode, Mix and Cargo projects in every account", %{
     conn: conn,
     organization: organization
   } do
-    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, once: false] do
-      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
-      coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests")
-
-      assert has_element?(lv, "a[href='#{coverage_path}']") == visible?,
-             "expected Code Coverage visible?=#{visible?} for #{build_system} projects"
-    end
-  end
-
-  test "lists Code Coverage only for Mix projects while the account doesn't have the coverage flag", %{
-    conn: conn,
-    organization: organization
-  } do
+    # Production, where coverage once needed an account flag.
     stub(Tuist.Environment, :env, fn -> :prod end)
 
-    stub(FunWithFlags, :enabled?, fn
-      :xcode_coverage, _opts -> false
-      flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
-    end)
-
-    for {build_system, visible?} <- [xcode: false, mix: true] do
+    for {build_system, visible?} <- [xcode: true, bazel: false, gradle: false, mix: true, cargo: true, once: false] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 

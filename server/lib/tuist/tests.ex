@@ -647,8 +647,9 @@ defmodule Tuist.Tests do
   # The repository the run's remote names, in the project's account, or 0 when
   # the run reported no remote: a commit is only related to others through
   # the repository's graph.
-  # A run only joins a repository, and only records the files it changed, while
-  # coverage is on for its project: both exist for coverage and test selection.
+  # A run only joins a repository, and only records the files it changed, when
+  # its project has coverage (`Coverage.supported?/1`): both exist for coverage
+  # and test selection.
   # The xcresult processor carries the id the run resolved when it was reported.
   defp repository_id(%{submission_auth: "network_trusted"}), do: 0
 
@@ -656,9 +657,8 @@ defmodule Tuist.Tests do
 
   defp repository_id(attrs) do
     with url when is_binary(url) and url != "" <- Map.get(attrs, :git_remote_url_origin),
-         %Project{account_id: account_id, account: account} = project <-
-           Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
-         true <- Tuist.FeatureFlags.coverage_enabled?(account, project),
+         %Project{account_id: account_id} = project <- Tuist.Projects.get_project_by_id(Map.get(attrs, :project_id)),
+         true <- Coverage.supported?(project),
          id when is_integer(id) <- GitHistory.repository_id(account_id, url) do
       id
     else

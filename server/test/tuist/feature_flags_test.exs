@@ -113,39 +113,32 @@ defmodule Tuist.FeatureFlagsTest do
     end
   end
 
-  describe "coverage_enabled?/2" do
-    test "Mix projects have coverage in every account; other projects follow the account's flag" do
-      account = %Account{id: 42, name: "tuist"}
-      stub(Environment, :env, fn -> :prod end)
-
-      for flag? <- [true, false], build_system <- [:mix, :xcode, :gradle, :bazel] do
-        stub(FunWithFlags, :enabled?, fn :xcode_coverage, [for: ^account] -> flag? end)
-
-        assert FeatureFlags.coverage_enabled?(account, %Project{build_system: build_system}) ==
-                 (flag? or build_system == :mix)
-      end
-    end
-  end
-
   describe "test_impact_analysis_enabled?/2" do
-    test "canary and production require the account flag and coverage for the project" do
+    test "canary and production require the account flag" do
       account = %Account{id: 42, name: "tuist"}
-      stub(Environment, :env, fn -> :prod end)
 
-      for flag? <- [true, false], coverage? <- [true, false] do
-        stub(FunWithFlags, :enabled?, fn
-          :test_impact_analysis, [for: ^account] -> flag?
-          :xcode_coverage, [for: ^account] -> coverage?
-        end)
+      for env <- [:can, :prod], flag? <- [true, false] do
+        stub(Environment, :env, fn -> env end)
+        stub(FunWithFlags, :enabled?, fn :test_impact_analysis, [for: ^account] -> flag? end)
 
-        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) ==
-                 (flag? and coverage?)
+        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) == flag?
       end
     end
 
-    test "other environments enable it for projects with coverage" do
+    test "other environments enable it for projects with coverage only" do
+      account = %Account{id: 42, name: "tuist"}
       stub(Environment, :env, fn -> :stag end)
-      assert FeatureFlags.test_impact_analysis_enabled?(%Account{id: 42, name: "tuist"}, %Project{build_system: :xcode})
+
+      assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode})
+      refute FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :bazel})
+    end
+
+    test "a project without coverage never gets it, whatever the account flag" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+      stub(FunWithFlags, :enabled?, fn :test_impact_analysis, [for: ^account] -> true end)
+
+      refute FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :gradle})
     end
   end
 

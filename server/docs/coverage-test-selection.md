@@ -22,7 +22,7 @@ Coverage is a second strategy for selective testing, chosen per project in the b
 
 ### Enabling it
 
-The server decides whether a project selects: `Tuist.FeatureFlags.test_impact_analysis_enabled?/3` requires coverage for the project (`coverage_enabled?/3`) and the `:test_impact_analysis` account flag. Like `:xcode_coverage`, the flag needs an explicit toggle on canary and production and is on everywhere else. `test_impact_analysis_account_enabled?/2` is its per-account side, which `Tuist.Ops.FeatureFlags` reports. It's a separate flag from `:xcode_coverage` because some accounts already have coverage, and `coverage_enabled?/3` is always true for Mix projects. No per-run flag turns it on: the project's configuration is the opt-in.
+The server decides whether a project selects: `Tuist.FeatureFlags.test_impact_analysis_enabled?/3` requires coverage for the project (`Tuist.Tests.Coverage.supported?/1`, its build system's) and the `:test_impact_analysis` account flag, which needs an explicit toggle on canary and production and is on everywhere else. `test_impact_analysis_account_enabled?/2` is its per-account side, which `Tuist.Ops.FeatureFlags` reports. Coverage itself is on for every account, so the flag alone gates selection. No per-run flag turns it on: the project's configuration is the opt-in.
 
 When the project isn't enabled, the baseline request answers `not_enabled`, the client runs default selective testing without deepening, diffing or calling the runs endpoint, and nothing is stored. The runs endpoint answers 404, and the Test Selection sidebar item is hidden.
 

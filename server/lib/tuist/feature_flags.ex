@@ -4,6 +4,7 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Observability
   alias Tuist.Projects.Project
+  alias Tuist.Tests.Coverage
 
   @doc "Default-off account opt-in to Pulse; configured tenant ownership and membership still apply."
   def pulse_enabled?(account, flags \\ nil) do
@@ -262,60 +263,27 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether code coverage is ingested, processed and shown for a project of the
-  account. Mix and Cargo projects have it in every account. Every other build
-  system (Xcode's coverage and test selection) is in early access behind
-  `xcode_coverage_enabled?/2`.
-  """
-  def coverage_enabled?(account, project, flags \\ nil)
-
-  def coverage_enabled?(_account, %Project{build_system: :mix}, _flags), do: true
-  def coverage_enabled?(_account, %Project{build_system: :cargo}, _flags), do: true
-  def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
-
-  @doc """
   Whether coverage-based test selection (test impact analysis) runs for a
-  project: the project needs coverage (`coverage_enabled?/3`) and its account
-  the `:test_impact_analysis` flag. Like `:xcode_coverage`, canary and
-  production require an explicit toggle while development, test, and staging
-  default to enabled.
+  project: the project needs coverage (`Tuist.Tests.Coverage.supported?/1`)
+  and its account the `:test_impact_analysis` flag. Canary and production
+  require an explicit toggle while development, test, and staging default to
+  enabled.
   """
   def test_impact_analysis_enabled?(account, project, flags \\ nil) do
-    coverage_enabled?(account, project, flags) and
-      Observability.feature_flag_evaluated(
-        :test_impact_analysis,
-        account,
-        Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags)
-      )
-  end
-
-  @doc """
-  Whether code coverage is ingested, processed and shown for the account's
-  projects other than Mix and Cargo ones (see `coverage_enabled?/3`). Canary and
-  production require an explicit `:xcode_coverage` FunWithFlags toggle for the
-  account while the feature is in early access, so its data model and API can
-  still change. Development, test, and staging default to enabled.
-  """
-  def xcode_coverage_enabled?(account, flags \\ nil)
-
-  def xcode_coverage_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:xcode_coverage, :unknown, false)
-
-  def xcode_coverage_enabled?(account, flags) do
-    Observability.feature_flag_evaluated(
-      :xcode_coverage,
-      account,
-      Environment.env() not in [:can, :prod] or flag_enabled?(:xcode_coverage, account, flags)
-    )
+    Coverage.supported?(project) and test_impact_analysis_account_enabled?(account, flags)
   end
 
   @doc """
   The account's side of `test_impact_analysis_enabled?/3`, without a project:
-  its `:test_impact_analysis` toggle and Xcode coverage. It's what
-  `Tuist.Ops.FeatureFlags`, whose evaluations are per account, reports.
+  its `:test_impact_analysis` toggle. It's what `Tuist.Ops.FeatureFlags`,
+  whose evaluations are per account, reports.
   """
   def test_impact_analysis_account_enabled?(account, flags \\ nil) do
-    xcode_coverage_enabled?(account, flags) and
-      (Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags))
+    Observability.feature_flag_evaluated(
+      :test_impact_analysis,
+      account,
+      Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags)
+    )
   end
 
   @doc """
