@@ -1,0 +1,189 @@
+create table json2_table (
+    ts timestamp time index,
+    j  json2
+) with (
+    'append_mode' = 'true',
+    'sst_format' = 'flat',
+);
+
+insert into json2_table (ts, j)
+values (1, '{"a": {"b": 1}, "c": "s1", "d": [{"e": {"f": 0.1}}]}'),
+       (2, '{"a": {"b": -2}, "c": "s2", "d": [{"e": {"f": 0.2}}]}');
+
+admin flush_table('json2_table');
+
+insert into json2_table (ts, j)
+values (3, '{"a": {"b": 3}, "c": "s3"}');
+
+insert into json2_table
+values (4, '{"a": {"b": -4}, "d": [{"e": {"g": -0.4}}]}'),
+       (5, '{"a": {}, "c": "s5"}'),
+       (6, '{"c": "s6"}');
+
+admin flush_table('json2_table');
+
+admin compact_table('json2_table', 'swcs', '86400');
+
+insert into json2_table
+values (7, '{"a": {"b": "s7"}, "c": [1], "d": [{"e": {"g": -0.7}}]}'),
+       (8, '{"a": {"b": 8}, "c": "s8"}');
+
+admin flush_table('json2_table');
+
+insert into json2_table
+values (9, '{"a": {"x": true}, "c": "s9", "d": [{"e": {"g": -0.9}}]}'),
+       (10, '{"a": {"b": 10}, "y": false}');
+
+-- SQLNESS REPLACE (peers.*) REDACTED
+explain select j.a.b from json2_table;
+
+-- SQLNESS REPLACE (peers.*) REDACTED
+explain select j.a.x::bool from json2_table;
+
+select j.a.b from json2_table order by ts;
+
+select j.a, j.a.x from json2_table order by ts;
+
+select j, j.a from json2_table order by ts;
+
+select j from json2_table where j.a.b = 1;
+
+select j.c, j.y from json2_table order by ts;
+
+select j from json2_table order by ts;
+
+select * from json2_table order by ts;
+
+select count(*) from (select j from json2_table group by j);
+
+select count(*) from (select distinct j from json2_table);
+
+select ts, j from (select ts, j from json2_table) order by ts;
+
+select
+    ts,
+    j,
+    row_number() over (order by ts) as row_num
+from json2_table
+order by ts;
+
+select json_get(j, '') from json2_table order by ts;
+
+select json_get(j, '$') from json2_table order by ts;
+
+select json_get(j, '.') from json2_table order by ts;
+
+select json_get(j, '$.') from json2_table order by ts;
+
+select j.a.b + 1 from json2_table order by ts;
+
+select j.d from json2_table order by ts;
+
+drop table json2_table;
+
+-- A JSON null in a dynamically typed field must remain SQL NULL when the
+-- field is projected to the default string type, rather than becoming "null".
+create table json2_variant_null (
+    ts timestamp time index,
+    j json2
+) with (
+    'append_mode' = 'true',
+    'sst_format' = 'flat'
+);
+
+insert into json2_variant_null values
+    (1, '{"payload":{"value":1}}'),
+    (2, '{"payload":"text"}'),
+    (3, '{"payload":null}');
+
+select ts, j.payload, j.payload is null as payload_is_null
+from json2_variant_null
+order by ts;
+
+admin flush_table('json2_variant_null');
+
+select ts, j.payload, j.payload is null as payload_is_null
+from json2_variant_null
+order by ts;
+
+drop table json2_variant_null;
+
+create table json2_finite_paths (
+    ts timestamp time index,
+    j json2(
+        max_auto_expanded_paths = 1,
+        hint string
+    )
+)
+with (
+    'append_mode' = 'true',
+    'sst_format' = 'flat'
+);
+
+show create table json2_finite_paths;
+
+insert into json2_finite_paths values
+    (1, '{"hint":"h1","alpha":1,"conflict":1}'),
+    (2, '{"hint":"h2","alpha":2,"conflict":"text"}');
+
+admin flush_table('json2_finite_paths');
+
+insert into json2_finite_paths values
+    (3, '{"hint":"h3","beta":3,"conflict":true}'),
+    (4, '{"hint":"h4","beta":4,"conflict":"other"}');
+
+admin flush_table('json2_finite_paths');
+
+select
+    ts,
+    j,
+    j.hint,
+    j.alpha::bigint as alpha,
+    j.beta::bigint as beta,
+    j.conflict
+from json2_finite_paths
+order by ts;
+
+admin compact_table('json2_finite_paths');
+
+select
+    ts,
+    j,
+    j.hint,
+    j.alpha::bigint as alpha,
+    j.beta::bigint as beta,
+    j.conflict
+from json2_finite_paths
+order by ts;
+
+drop table json2_finite_paths;
+
+-- A newly added JSON2 column must not read data from a dropped column with the
+-- same name in an older SST. Column identity is determined by column id, not
+-- by the parquet root name.
+create table json2_drop_add_same_name (
+    ts timestamp time index,
+    b json2
+) with (
+    'append_mode' = 'true',
+    'sst_format' = 'flat',
+);
+
+insert into json2_drop_add_same_name
+values (1, '{"a": "old"}');
+
+admin flush_table('json2_drop_add_same_name');
+
+alter table json2_drop_add_same_name drop column b;
+alter table json2_drop_add_same_name add column b json2;
+
+insert into json2_drop_add_same_name
+values (2, '{"a": "new"}');
+
+admin flush_table('json2_drop_add_same_name');
+
+select ts, b.a
+from json2_drop_add_same_name
+order by ts;
+
+drop table json2_drop_add_same_name;

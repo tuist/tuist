@@ -1,0 +1,371 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::collections::HashMap;
+use std::num::NonZeroUsize;
+
+use async_trait::async_trait;
+use snafu::ensure;
+
+use crate::BytesRef;
+use crate::bitmap::BitmapType;
+use crate::inverted_index::create::InvertedIndexCreator;
+use crate::inverted_index::create::sort::{SortOutput, Sorter};
+use crate::inverted_index::error::{InconsistentRowCountSnafu, Result};
+use crate::inverted_index::format::writer::InvertedIndexWriter;
+
+type IndexName = String;
+type SegmentRowCount = NonZeroUsize;
+
+/// Factory type to produce `Sorter` instances associated with an index name and segment row count
+pub type SorterFactory = Box<dyn Fn(IndexName, SegmentRowCount) -> Box<dyn Sorter> + Send>;
+
+/// `SortIndexCreator` orchestrates indexing by sorting input data for each named index
+/// and writing to an inverted index writer
+pub struct SortIndexCreator {
+    /// Factory for producing `Sorter` instances
+    sorter_factory: SorterFactory,
+
+    /// Map of index names to sorters
+    sorters: HashMap<IndexName, Box<dyn Sorter>>,
+
+    /// Number of rows in each segment, used to produce sorters
+    segment_row_count: NonZeroUsize,
+
+    /// Indexes whose sorter asked to spill its buffer.
+    pending_spills: Vec<IndexName>,
+}
+
+#[async_trait]
+impl InvertedIndexCreator for SortIndexCreator {
+    /// Inserts `n` values or nulls into the sorter for the specified index.
+    ///
+    /// If the index does not exist, a new index is created even if `n` is 0.
+    /// Caller may leverage this behavior to create indexes with no data.
+    fn push_with_name_n(
+        &mut self,
+        index_name: &str,
+        value: Option<BytesRef<'_>>,
+        n: usize,
+    ) -> bool {
+        let sorter = match self.sorters.get_mut(index_name) {
+            Some(sorter) => sorter,
+            None => {
+                let sorter = (self.sorter_factory)(index_name.to_string(), self.segment_row_count);
+                self.sorters.entry(index_name.to_string()).or_insert(sorter)
+            }
+        };
+        if sorter.push_n(value, n) {
+            self.pending_spills.push(index_name.to_string());
+            return true;
+        }
+        false
+    }
+
+    async fn spill(&mut self) -> Result<()> {
+        for index_name in std::mem::take(&mut self.pending_spills) {
+            if let Some(sorter) = self.sorters.get_mut(&index_name) {
+                sorter.spill().await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Finalizes the sorting for all indexes and writes them using the inverted index writer
+    async fn finish(
+        &mut self,
+        writer: &mut dyn InvertedIndexWriter,
+        bitmap_type: BitmapType,
+    ) -> Result<()> {
+        let mut output_row_count = None;
+        for (index_name, mut sorter) in self.sorters.drain() {
+            let SortOutput {
+                segment_null_bitmap,
+                sorted_stream,
+                total_row_count,
+            } = sorter.output().await?;
+
+            let expected_row_count = *output_row_count.get_or_insert(total_row_count);
+            ensure!(
+                expected_row_count == total_row_count,
+                InconsistentRowCountSnafu {
+                    index_name,
+                    total_row_count,
+                    expected_row_count,
+                }
+            );
+
+            writer
+                .add_index(index_name, segment_null_bitmap, sorted_stream, bitmap_type)
+                .await?;
+        }
+
+        let total_row_count = output_row_count.unwrap_or_default() as _;
+        let segment_row_count = self.segment_row_count as _;
+        writer.finish(total_row_count, segment_row_count).await
+    }
+}
+
+impl SortIndexCreator {
+    /// Creates a new `SortIndexCreator` with the given sorter factory and index writer
+    pub fn new(sorter_factory: SorterFactory, segment_row_count: NonZeroUsize) -> Self {
+        Self {
+            sorter_factory,
+            sorters: HashMap::new(),
+            segment_row_count,
+            pending_spills: Vec::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
+
+    use common_base::BitVec;
+    use futures::{StreamExt, stream};
+
+    use super::*;
+    use crate::Bytes;
+    use crate::bitmap::Bitmap;
+    use crate::inverted_index::error::Error;
+    use crate::inverted_index::format::writer::{MockInvertedIndexWriter, ValueStream};
+
+    #[tokio::test]
+    async fn test_sort_index_creator_basic() {
+        let mut creator =
+            SortIndexCreator::new(NaiveSorter::factory(), NonZeroUsize::new(1).unwrap());
+
+        let index_values = vec![
+            ("a", vec![b"3", b"2", b"1"]),
+            ("b", vec![b"6", b"5", b"4"]),
+            ("c", vec![b"1", b"2", b"3"]),
+        ];
+
+        for (index_name, values) in index_values {
+            for value in values {
+                assert!(!creator.push_with_name(index_name, Some(value)));
+            }
+        }
+
+        let mut mock_writer = MockInvertedIndexWriter::new();
+        mock_writer.expect_add_index().times(3).returning(
+            |name, null_bitmap, stream, bitmap_type| {
+                assert!(null_bitmap.is_empty());
+                assert_eq!(bitmap_type, BitmapType::Roaring);
+                match name.as_str() {
+                    "a" => assert_eq!(stream_to_values(stream), vec![b"1", b"2", b"3"]),
+                    "b" => assert_eq!(stream_to_values(stream), vec![b"4", b"5", b"6"]),
+                    "c" => assert_eq!(stream_to_values(stream), vec![b"1", b"2", b"3"]),
+                    _ => panic!("unexpected index name: {}", name),
+                }
+                Ok(())
+            },
+        );
+        mock_writer
+            .expect_finish()
+            .times(1)
+            .returning(|total_row_count, segment_row_count| {
+                assert_eq!(total_row_count, 3);
+                assert_eq!(segment_row_count.get(), 1);
+                Ok(())
+            });
+
+        creator
+            .finish(&mut mock_writer, BitmapType::Roaring)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sort_index_creator_inconsistent_row_count() {
+        let mut creator =
+            SortIndexCreator::new(NaiveSorter::factory(), NonZeroUsize::new(1).unwrap());
+
+        let index_values = vec![
+            ("a", vec![b"3", b"2", b"1"]),
+            ("b", vec![b"6", b"5", b"4"]),
+            ("c", vec![b"1", b"2"]),
+        ];
+
+        for (index_name, values) in index_values {
+            for value in values {
+                assert!(!creator.push_with_name(index_name, Some(value)));
+            }
+        }
+
+        let mut mock_writer = MockInvertedIndexWriter::new();
+        mock_writer
+            .expect_add_index()
+            .returning(|name, null_bitmap, stream, bitmap_type| {
+                assert!(null_bitmap.is_empty());
+                assert_eq!(bitmap_type, BitmapType::Roaring);
+                match name.as_str() {
+                    "a" => assert_eq!(stream_to_values(stream), vec![b"1", b"2", b"3"]),
+                    "b" => assert_eq!(stream_to_values(stream), vec![b"4", b"5", b"6"]),
+                    "c" => assert_eq!(stream_to_values(stream), vec![b"1", b"2"]),
+                    _ => panic!("unexpected index name: {}", name),
+                }
+                Ok(())
+            });
+        mock_writer.expect_finish().never();
+
+        let res = creator.finish(&mut mock_writer, BitmapType::Roaring).await;
+        assert!(matches!(res, Err(Error::InconsistentRowCount { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_sort_index_creator_create_indexes_without_data() {
+        let mut creator =
+            SortIndexCreator::new(NaiveSorter::factory(), NonZeroUsize::new(1).unwrap());
+
+        assert!(!creator.push_with_name_n("a", None, 0));
+        assert!(!creator.push_with_name_n("b", None, 0));
+        assert!(!creator.push_with_name_n("c", None, 0));
+
+        let mut mock_writer = MockInvertedIndexWriter::new();
+        mock_writer
+            .expect_add_index()
+            .returning(|name, null_bitmap, stream, bitmap_type| {
+                assert!(null_bitmap.is_empty());
+                assert_eq!(bitmap_type, BitmapType::Roaring);
+                assert!(matches!(name.as_str(), "a" | "b" | "c"));
+                assert!(stream_to_values(stream).is_empty());
+                Ok(())
+            });
+        mock_writer
+            .expect_finish()
+            .times(1)
+            .returning(|total_row_count, segment_row_count| {
+                assert_eq!(total_row_count, 0);
+                assert_eq!(segment_row_count.get(), 1);
+                Ok(())
+            });
+
+        creator
+            .finish(&mut mock_writer, BitmapType::Roaring)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sort_index_creator_spills_requested_sorters() {
+        let spilled = Arc::new(Mutex::new(Vec::new()));
+        let factory: SorterFactory = {
+            let spilled = spilled.clone();
+            Box::new(move |index_name, _| {
+                Box::new(SpillRecordingSorter {
+                    index_name,
+                    spilled: spilled.clone(),
+                })
+            })
+        };
+        let mut creator = SortIndexCreator::new(factory, NonZeroUsize::new(1).unwrap());
+
+        assert!(creator.push_with_name("a", Some(b"1")));
+        assert!(!creator.push_with_name("b", Some(b"1")));
+        creator.spill().await.unwrap();
+        assert_eq!(*spilled.lock().unwrap(), vec!["a"]);
+
+        creator.spill().await.unwrap();
+        assert_eq!(*spilled.lock().unwrap(), vec!["a"]);
+    }
+
+    /// Requests a spill on every push to index `a` and records the spills it receives.
+    struct SpillRecordingSorter {
+        index_name: String,
+        spilled: Arc<Mutex<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl Sorter for SpillRecordingSorter {
+        fn push_n(&mut self, _value: Option<BytesRef<'_>>, _n: usize) -> bool {
+            self.index_name == "a"
+        }
+
+        async fn spill(&mut self) -> Result<()> {
+            self.spilled.lock().unwrap().push(self.index_name.clone());
+            Ok(())
+        }
+
+        async fn output(&mut self) -> Result<SortOutput> {
+            unreachable!()
+        }
+    }
+
+    fn set_bit(bit_vec: &mut BitVec, index: usize) {
+        if index >= bit_vec.len() {
+            bit_vec.resize(index + 1, false);
+        }
+        bit_vec.set(index, true);
+    }
+
+    struct NaiveSorter {
+        total_row_count: usize,
+        segment_row_count: NonZeroUsize,
+        values: BTreeMap<Option<Bytes>, BitVec>,
+    }
+
+    impl NaiveSorter {
+        fn factory() -> SorterFactory {
+            Box::new(|_index_name, segment_row_count| {
+                Box::new(NaiveSorter {
+                    total_row_count: 0,
+                    segment_row_count,
+                    values: BTreeMap::new(),
+                })
+            })
+        }
+    }
+
+    #[async_trait]
+    impl Sorter for NaiveSorter {
+        fn push_n(&mut self, value: Option<BytesRef<'_>>, n: usize) -> bool {
+            for _ in 0..n {
+                let segment_index = self.total_row_count / self.segment_row_count;
+                self.total_row_count += 1;
+
+                let bitmap = self.values.entry(value.map(Into::into)).or_default();
+                set_bit(bitmap, segment_index);
+            }
+            false
+        }
+
+        async fn spill(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        async fn output(&mut self) -> Result<SortOutput> {
+            let segment_null_bitmap = self.values.remove(&None).unwrap_or_default();
+            let segment_null_bitmap = Bitmap::BitVec(segment_null_bitmap);
+
+            Ok(SortOutput {
+                segment_null_bitmap,
+                sorted_stream: Box::new(stream::iter(
+                    std::mem::take(&mut self.values)
+                        .into_iter()
+                        .map(|(v, b)| Ok((v.unwrap(), Bitmap::BitVec(b)))),
+                )),
+                total_row_count: self.total_row_count,
+            })
+        }
+    }
+
+    fn stream_to_values(stream: ValueStream) -> Vec<Bytes> {
+        futures::executor::block_on(async {
+            stream.map(|r| r.unwrap().0).collect::<Vec<Bytes>>().await
+        })
+    }
+}

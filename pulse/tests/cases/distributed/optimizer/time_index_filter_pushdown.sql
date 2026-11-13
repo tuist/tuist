@@ -1,0 +1,138 @@
+-- Corresponding to issue TBD
+-- An append-only mito table without primary key, and partitioned by a field column.
+CREATE TABLE
+    IF NOT EXISTS `cpu` (
+        `rack` STRING NULL,
+        `os` STRING NULL,
+        `usage_user` BIGINT NULL,
+        `greptime_timestamp` TIMESTAMP(9) NOT NULL,
+        TIME INDEX (`greptime_timestamp`),
+    ) PARTITION ON COLUMNS (`rack`) (
+        rack < '2',
+        rack >= '2'
+        AND rack < '4',
+        rack >= '4'
+        AND rack < '6',
+        rack >= '6'
+        AND rack < '8',
+        rack >= '8'
+    ) ENGINE = mito
+WITH
+    (append_mode = 'true', sst_format = 'flat');
+
+INSERT INTO
+    cpu
+VALUES
+    ("1", "linux", 10, "2023-06-12 01:04:49"),
+    ("1", "linux", 15, "2023-06-12 01:04:50"),
+    ("3", "windows", 25, "2023-06-12 01:05:00"),
+    ("5", "mac", 30, "2023-06-12 01:03:00"),
+    ("7", "linux", 45, "2023-06-12 02:00:00");
+
+ADMIN FLUSH_TABLE ('cpu');
+
+INSERT INTO
+    cpu
+VALUES
+    ("2", "linux", 20, "2023-06-12 01:04:51"),
+    ("2", "windows", 22, "2023-06-12 01:06:00"),
+    ("4", "mac", 12, "2023-06-12 00:59:00"),
+    ("6", "linux", 35, "2023-06-12 01:04:55"),
+    ("8", "windows", 50, "2023-06-12 02:10:00");
+
+-- SQLNESS SORT_RESULT 3 1
+select
+    count(*)
+from
+    public.cpu
+where
+    greptime_timestamp > '2023-06-12 01:05:00';
+
+-- SQLNESS SORT_RESULT 3 1
+select
+    os,
+    count(*)
+from
+    public.cpu
+where
+    greptime_timestamp > '2023-06-12 01:05:00'
+group by
+    os;
+
+-- Query the row at the latest timestamp through a scalar subquery.
+-- Keep the distributed merge sort visible, but redact the optional local SortExec
+-- that appears when query parallelism is lower than the region count.
+-- SQLNESS REPLACE (-+) -
+-- SQLNESS REPLACE (\s\s+) _
+-- SQLNESS REPLACE (peers.*) REDACTED
+-- SQLNESS REPLACE (?m)^\|_\|_SortExec:.*\n
+EXPLAIN SELECT
+    rack,
+    os,
+    greptime_timestamp
+FROM
+    cpu
+WHERE
+    greptime_timestamp = (
+        SELECT
+            greptime_timestamp
+        FROM
+            cpu
+        ORDER BY
+            greptime_timestamp DESC
+        LIMIT
+            1
+    );
+
+SELECT
+    rack,
+    os,
+    greptime_timestamp
+FROM
+    cpu
+WHERE
+    greptime_timestamp = (
+        SELECT
+            greptime_timestamp
+        FROM
+            cpu
+        ORDER BY
+            greptime_timestamp DESC
+        LIMIT
+            1
+    );
+
+-- The resolved scalar subquery reaches the region scans as a dynamic filter.
+-- SQLNESS REPLACE (-+) -
+-- SQLNESS REPLACE (\s\s+) _
+-- SQLNESS REPLACE (metrics.*) REDACTED
+-- SQLNESS REPLACE (peers.*) REDACTED
+-- SQLNESS REPLACE region=\d+\(\d+,\s+\d+\) region=REDACTED
+-- SQLNESS REPLACE "partition_count":\{(.*?)\} "partition_count":REDACTED
+-- SQLNESS REPLACE "flat_format":\s\w+, "flat_format": REDACTED,
+-- SQLNESS REPLACE (?m)^\|_\|_\|_SortExec:.*\n
+-- SQLNESS REPLACE FilterExec:\sDynamicFilter\s\[[^\]]*\] FilterExec: DynamicFilter [ REDACTED ]
+-- SQLNESS REPLACE "files":\s\[.*?\],\s
+-- SQLNESS REPLACE IS\sNULL\sOR\sgreptime_timestamp@0\s>\s\d+ IS NULL OR greptime_timestamp@0 > REDACTED
+-- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
+-- SQLNESS REPLACE Total\s+rows:\s+\d+ Total rows: REDACTED
+-- SQLNESS REPLACE UnorderedScan:.*"dyn_filters":\s(\["DynamicFilter\s\[[^\]]*\]"\]).* UnorderedScan: REDACTED, "dyn_filters": $1
+EXPLAIN ANALYZE VERBOSE SELECT
+    rack,
+    os,
+    greptime_timestamp
+FROM
+    cpu
+WHERE
+    greptime_timestamp = (
+        SELECT
+            greptime_timestamp
+        FROM
+            cpu
+        ORDER BY
+            greptime_timestamp DESC
+        LIMIT
+            1
+    );
+
+drop table cpu;

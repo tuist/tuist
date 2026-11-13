@@ -1,0 +1,287 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use const_format::concatcp;
+
+pub const SYSTEM_CATALOG_NAME: &str = "system";
+pub const INFORMATION_SCHEMA_NAME: &str = "information_schema";
+pub const PG_CATALOG_NAME: &str = "pg_catalog";
+pub const SYSTEM_CATALOG_TABLE_NAME: &str = "system_catalog";
+pub const DEFAULT_CATALOG_NAME: &str = env!("DEFAULT_CATALOG_NAME");
+pub const DEFAULT_SCHEMA_NAME: &str = "public";
+pub const DEFAULT_PRIVATE_SCHEMA_NAME: &str = concatcp!(DEFAULT_CATALOG_NAME, "_private");
+
+/// Reserves [0,MIN_USER_FLOW_ID) for internal usage.
+/// User defined table id starts from this value.
+pub const MIN_USER_FLOW_ID: u32 = 1024;
+/// Reserves [0,MIN_USER_TABLE_ID) for internal usage.
+/// User defined table id starts from this value.
+pub const MIN_USER_TABLE_ID: u32 = 1024;
+/// the max system table id
+pub const MAX_SYS_TABLE_ID: u32 = MIN_USER_TABLE_ID - 1;
+/// system_catalog table id
+pub const SYSTEM_CATALOG_TABLE_ID: u32 = 0;
+/// scripts table id
+pub const SCRIPTS_TABLE_ID: u32 = 1;
+/// numbers table id
+pub const NUMBERS_TABLE_ID: u32 = 2;
+
+/// ----- Begin of information_schema tables -----
+/// id for information_schema.tables
+pub const INFORMATION_SCHEMA_TABLES_TABLE_ID: u32 = 3;
+/// id for information_schema.columns
+pub const INFORMATION_SCHEMA_COLUMNS_TABLE_ID: u32 = 4;
+/// id for information_schema.engines
+pub const INFORMATION_SCHEMA_ENGINES_TABLE_ID: u32 = 5;
+/// id for information_schema.column_privileges
+pub const INFORMATION_SCHEMA_COLUMN_PRIVILEGES_TABLE_ID: u32 = 6;
+/// id for information_schema.column_statistics
+pub const INFORMATION_SCHEMA_COLUMN_STATISTICS_TABLE_ID: u32 = 7;
+/// id for information_schema.build_info
+pub const INFORMATION_SCHEMA_BUILD_INFO_TABLE_ID: u32 = 8;
+/// id for information_schema.CHARACTER_SETS
+pub const INFORMATION_SCHEMA_CHARACTER_SETS_TABLE_ID: u32 = 9;
+/// id for information_schema.COLLATIONS
+pub const INFORMATION_SCHEMA_COLLATIONS_TABLE_ID: u32 = 10;
+/// id for information_schema.COLLATIONS
+pub const INFORMATION_SCHEMA_COLLATION_CHARACTER_SET_APPLICABILITY_TABLE_ID: u32 = 11;
+/// id for information_schema.CHECK_CONSTRAINTS
+pub const INFORMATION_SCHEMA_CHECK_CONSTRAINTS_TABLE_ID: u32 = 12;
+/// id for information_schema.EVENTS
+pub const INFORMATION_SCHEMA_EVENTS_TABLE_ID: u32 = 13;
+/// id for information_schema.FILES
+pub const INFORMATION_SCHEMA_FILES_TABLE_ID: u32 = 14;
+/// id for information_schema.SCHEMATA
+pub const INFORMATION_SCHEMA_SCHEMATA_TABLE_ID: u32 = 15;
+/// id for information_schema.KEY_COLUMN_USAGE
+pub const INFORMATION_SCHEMA_KEY_COLUMN_USAGE_TABLE_ID: u32 = 16;
+/// id for information_schema.OPTIMIZER_TRACE
+pub const INFORMATION_SCHEMA_OPTIMIZER_TRACE_TABLE_ID: u32 = 17;
+/// id for information_schema.PARAMETERS
+pub const INFORMATION_SCHEMA_PARAMETERS_TABLE_ID: u32 = 18;
+/// id for information_schema.PROFILING
+pub const INFORMATION_SCHEMA_PROFILING_TABLE_ID: u32 = 19;
+/// id for information_schema.REFERENTIAL_CONSTRAINTS
+pub const INFORMATION_SCHEMA_REFERENTIAL_CONSTRAINTS_TABLE_ID: u32 = 20;
+/// id for information_schema.ROUTINES
+pub const INFORMATION_SCHEMA_ROUTINES_TABLE_ID: u32 = 21;
+/// id for information_schema.SCHEMA_PRIVILEGES
+pub const INFORMATION_SCHEMA_SCHEMA_PRIVILEGES_TABLE_ID: u32 = 22;
+/// id for information_schema.TABLE_PRIVILEGES
+pub const INFORMATION_SCHEMA_TABLE_PRIVILEGES_TABLE_ID: u32 = 23;
+/// id for information_schema.TRIGGERS (for mysql)
+pub const INFORMATION_SCHEMA_TRIGGERS_TABLE_ID: u32 = 24;
+/// id for information_schema.GLOBAL_STATUS
+pub const INFORMATION_SCHEMA_GLOBAL_STATUS_TABLE_ID: u32 = 25;
+/// id for information_schema.SESSION_STATUS
+pub const INFORMATION_SCHEMA_SESSION_STATUS_TABLE_ID: u32 = 26;
+/// id for information_schema.PARTITIONS
+pub const INFORMATION_SCHEMA_PARTITIONS_TABLE_ID: u32 = 28;
+/// id for information_schema.REGION_PEERS
+pub const INFORMATION_SCHEMA_REGION_PEERS_TABLE_ID: u32 = 29;
+/// id for information_schema.columns
+pub const INFORMATION_SCHEMA_TABLE_CONSTRAINTS_TABLE_ID: u32 = 30;
+/// id for information_schema.cluster_info
+pub const INFORMATION_SCHEMA_CLUSTER_INFO_TABLE_ID: u32 = 31;
+/// id for information_schema.VIEWS
+pub const INFORMATION_SCHEMA_VIEW_TABLE_ID: u32 = 32;
+/// id for information_schema.FLOWS
+pub const INFORMATION_SCHEMA_FLOW_TABLE_ID: u32 = 33;
+/// id for information_schema.procedure_info
+pub const INFORMATION_SCHEMA_PROCEDURE_INFO_TABLE_ID: u32 = 34;
+/// id for information_schema.region_statistics
+pub const INFORMATION_SCHEMA_REGION_STATISTICS_TABLE_ID: u32 = 35;
+/// id for information_schema.process_list
+pub const INFORMATION_SCHEMA_PROCESS_LIST_TABLE_ID: u32 = 36;
+/// id for information_schema.ssts_manifest
+pub const INFORMATION_SCHEMA_SSTS_MANIFEST_TABLE_ID: u32 = 37;
+/// id for information_schema.ssts_storage
+pub const INFORMATION_SCHEMA_SSTS_STORAGE_TABLE_ID: u32 = 38;
+/// id for information_schema.ssts_index_meta
+pub const INFORMATION_SCHEMA_SSTS_INDEX_META_TABLE_ID: u32 = 39;
+/// id for information_schema.alerts
+pub const INFORMATION_SCHEMA_ALERTS_TABLE_ID: u32 = 40;
+/// id for information_schema.region_info
+pub const INFORMATION_SCHEMA_REGION_INFO_TABLE_ID: u32 = 41;
+/// id for information_schema.table_semantics
+pub const INFORMATION_SCHEMA_TABLE_SEMANTICS_TABLE_ID: u32 = 42;
+/// id for information_schema.statistics
+pub const INFORMATION_SCHEMA_STATISTICS_TABLE_ID: u32 = 43;
+/// id for information_schema.recycle_bin
+pub const INFORMATION_SCHEMA_RECYCLE_BIN_TABLE_ID: u32 = 44;
+/// id for information_schema.flow_statistics
+pub const INFORMATION_SCHEMA_FLOW_STATISTICS_TABLE_ID: u32 = 45;
+/// id for information_schema.PLUGINS
+pub const INFORMATION_SCHEMA_PLUGINS_TABLE_ID: u32 = 47;
+/// id for information_schema.USER_PRIVILEGES
+pub const INFORMATION_SCHEMA_USER_PRIVILEGES_TABLE_ID: u32 = 48;
+/// id for information_schema.PROCESSLIST (for mysql)
+pub const INFORMATION_SCHEMA_PROCESSLIST_TABLE_ID: u32 = 49;
+
+// ----- End of information_schema tables -----
+
+// Computed system tables under `greptime_private` (same virtual-table id space
+// as the information_schema tables above).
+/// id for greptime_private.semantic_entities (computed entity registry)
+pub const SEMANTIC_ENTITIES_TABLE_ID: u32 = 45;
+/// id for greptime_private.semantic_relationships (computed edge set)
+pub const SEMANTIC_RELATIONSHIPS_TABLE_ID: u32 = 46;
+
+/// ----- Begin of pg_catalog tables -----
+pub const PG_CATALOG_TABLE_ID_START: u32 = 256;
+// Please leave at 128 table ids for Postgres
+// ----- End of pg_catalog tables -----
+
+pub const MITO_ENGINE: &str = "mito";
+pub const MITO2_ENGINE: &str = "mito2";
+pub const METRIC_ENGINE: &str = "metric";
+
+pub fn default_engine() -> &'static str {
+    MITO_ENGINE
+}
+
+pub const FILE_ENGINE: &str = "file";
+
+pub const SEMANTIC_TYPE_PRIMARY_KEY: &str = "TAG";
+pub const SEMANTIC_TYPE_FIELD: &str = "FIELD";
+pub const SEMANTIC_TYPE_TIME_INDEX: &str = "TIMESTAMP";
+
+const SYSTEM_SCHEMA_NAMES: [&str; 3] = [
+    INFORMATION_SCHEMA_NAME,
+    PG_CATALOG_NAME,
+    DEFAULT_PRIVATE_SCHEMA_NAME,
+];
+
+/// Returns the canonical name of the system schema `schema` refers to, ignoring ASCII
+/// case, or `None` if it is not one.
+///
+/// Only system schemas are matched case-insensitively, as MySQL does; user schema names
+/// keep the case they were created with.
+pub fn system_schema_name(schema: &str) -> Option<&'static str> {
+    SYSTEM_SCHEMA_NAMES
+        .into_iter()
+        .find(|name| schema.eq_ignore_ascii_case(name))
+}
+
+pub fn is_readonly_schema(schema: &str) -> bool {
+    matches!(schema, INFORMATION_SCHEMA_NAME)
+}
+
+/// Returns true for tables that must reject DDL/DML: everything in a read-only
+/// schema, plus computed system tables overlaid on a writable schema (the
+/// entity-graph tables under `greptime_private`).
+pub fn is_readonly_table(schema: &str, table: &str) -> bool {
+    is_readonly_schema(schema)
+        || (schema == DEFAULT_PRIVATE_SCHEMA_NAME
+            && matches!(
+                table,
+                SEMANTIC_ENTITIES_TABLE_NAME | SEMANTIC_RELATIONSHIPS_TABLE_NAME
+            ))
+}
+
+/// Returns true for tables whose *definition* is system-owned while their rows
+/// are user-written: created with a canonical schema on first write; user
+/// CREATE/ALTER/RENAME-into rejected; DML and DROP/TRUNCATE allowed (the next
+/// write recreates the table). Currently only the declared-edge table.
+pub fn is_ddl_reserved_table(schema: &str, table: &str) -> bool {
+    schema == DEFAULT_PRIVATE_SCHEMA_NAME && table == SEMANTIC_RELATIONSHIPS_DECLARED_TABLE_NAME
+}
+
+// ---- special table and fields ----
+pub const TRACE_ID_COLUMN: &str = "trace_id";
+pub const SPAN_ID_COLUMN: &str = "span_id";
+pub const SPAN_NAME_COLUMN: &str = "span_name";
+/// Column containing span attributes as JSON/JSON2.
+pub const SPAN_ATTRIBUTES_COLUMN: &str = "span_attributes";
+/// Column containing instrumentation scope attributes as JSON2.
+pub const SCOPE_ATTRIBUTES_COLUMN: &str = "scope_attributes";
+/// Column containing resource attributes as JSON2.
+pub const RESOURCE_ATTRIBUTES_COLUMN: &str = "resource_attributes";
+pub const SERVICE_NAME_COLUMN: &str = "service_name";
+pub const PARENT_SPAN_ID_COLUMN: &str = "parent_span_id";
+// More fixed columns/values of the `greptime_trace_v1` data model, shared by
+// the ingest side (`servers::otlp::trace` re-exports them) and the read-time
+// graph derivation so the two cannot silently drift.
+pub const TRACE_TIMESTAMP_COLUMN: &str = "timestamp";
+pub const SPAN_KIND_COLUMN: &str = "span_kind";
+pub const SPAN_STATUS_CODE_COLUMN: &str = "span_status_code";
+pub const DURATION_NANO_COLUMN: &str = "duration_nano";
+pub const SPAN_KIND_CLIENT: &str = "SPAN_KIND_CLIENT";
+pub const SPAN_KIND_SERVER: &str = "SPAN_KIND_SERVER";
+pub const SPAN_STATUS_ERROR: &str = "STATUS_CODE_ERROR";
+pub const TRACE_TABLE_NAME: &str = "opentelemetry_traces";
+pub const TRACE_TABLE_NAME_SESSION_KEY: &str = "trace_table_name";
+// ---- End of special table and fields ----
+
+/// Generate the trace services table name from the trace table name by adding `_services` suffix.
+pub fn trace_services_table_name(trace_table_name: &str) -> String {
+    format!("{}_services", trace_table_name)
+}
+
+/// Generate the trace operations table name from the trace table name by adding `_operations` suffix.
+pub fn trace_operations_table_name(trace_table_name: &str) -> String {
+    format!("{}_operations", trace_table_name)
+}
+// ---- End of special table and fields ----
+
+// ---- Entity relationship graph tables (live in `greptime_private`) ----
+// The `semantic_` prefix ties them to the semantic layer they derive from
+// (`greptime.semantic.entity.*` declarations, `information_schema.table_semantics`);
+// no `__` prefix is needed since `greptime_private` already scopes them.
+/// Computed entity registry: the node set of the observability graph, derived at
+/// read time from tables that declared `greptime.semantic.entity.*` identities.
+pub const SEMANTIC_ENTITIES_TABLE_NAME: &str = "semantic_entities";
+/// Computed relationship set: the edge set of the observability graph, derived at
+/// read time (`calls`/`runs_on`/... ) and unioned with the declared-edge table.
+pub const SEMANTIC_RELATIONSHIPS_TABLE_NAME: &str = "semantic_relationships";
+/// Physical table of hand-declared edges, unioned into the computed
+/// `semantic_relationships`; see [`is_ddl_reserved_table`] for its lifecycle.
+pub const SEMANTIC_RELATIONSHIPS_DECLARED_TABLE_NAME: &str = "semantic_relationships_declared";
+
+/// Width of the window the graph derivation bins observations into. Sources
+/// synthesizing observations must land a row in every window they describe,
+/// so this is shared rather than restated per crate.
+pub const SEMANTIC_GRAPH_WINDOW_NANOS: i64 = 60 * 1_000_000_000;
+
+// Column names of the graph tables: `catalog` exposes these schemas and the
+// read-time plans in `operator` must project exactly them.
+pub const OBSERVED_AT_COLUMN: &str = "observed_at";
+pub const WINDOW_START_COLUMN: &str = "window_start";
+pub const WINDOW_END_COLUMN: &str = "window_end";
+pub const FRESH_UNTIL_COLUMN: &str = "fresh_until";
+pub const ENTITY_TYPE_COLUMN: &str = "entity_type";
+pub const ENTITY_ID_COLUMN: &str = "entity_id";
+pub const ENTITY_ID_ATTRS_COLUMN: &str = "entity_id_attrs";
+pub const ENTITY_SCOPE_COLUMN: &str = "scope";
+pub const ENTITY_DESCRIPTIVE_COLUMN: &str = "descriptive";
+pub const SOURCE_TABLES_COLUMN: &str = "source_tables";
+pub const SRC_TYPE_COLUMN: &str = "src_type";
+pub const SRC_ID_COLUMN: &str = "src_id";
+pub const DST_TYPE_COLUMN: &str = "dst_type";
+pub const DST_ID_COLUMN: &str = "dst_id";
+pub const REL_TYPE_COLUMN: &str = "rel_type";
+pub const PROVENANCE_COLUMN: &str = "provenance";
+pub const CONFIDENCE_COLUMN: &str = "confidence";
+pub const REQUEST_COUNT_COLUMN: &str = "request_count";
+pub const UNMATCHED_COUNT_COLUMN: &str = "unmatched_count";
+pub const ERROR_COUNT_COLUMN: &str = "error_count";
+pub const DURATION_SUM_COLUMN: &str = "duration_sum";
+pub const DURATION_COUNT_COLUMN: &str = "duration_count";
+pub const DURATION_MAX_COLUMN: &str = "duration_max";
+pub const EDGE_ATTRIBUTES_COLUMN: &str = "attributes";
+// Declared-edge table only.
+pub const VALID_FROM_COLUMN: &str = "valid_from";
+pub const VALID_UNTIL_COLUMN: &str = "valid_until";
+pub const GENERATION_ID_COLUMN: &str = "generation_id";
+// ---- End of entity relationship graph tables ----

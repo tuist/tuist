@@ -1,0 +1,26 @@
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
+[target.riscv64gc-unknown-linux-gnu]
+linker = "riscv64-linux-gnu-gcc"
+
+[alias]
+sqlness = "run --bin sqlness-runner --target-dir target/sqlness --"
+
+[registry]
+# Requires cargo 1.100+; older cargo ignores this key. Only registry crates
+# carry a publish time, so git dependencies (our GreptimeTeam forks) are exempt.
+global-min-publish-age = "7 days"
+
+[unstable.git]
+shallow_index = true
+shallow_deps = true
+[unstable.gitoxide]
+fetch = true
+checkout = true
+list_files = true
+internal_use_git2 = false
+
+# Avoid globally injecting a checkout-specific workspace path. The version build script
+# resolves the absolute workspace path from layout at build time; set CARGO_WORKSPACE_DIR
+# explicitly when this repo is built as a submodule.
