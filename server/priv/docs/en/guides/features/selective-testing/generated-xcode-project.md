@@ -105,7 +105,7 @@ The strategy requires:
 
 - **Coverage uploads.** Tuist selects tests by the coverage that earlier runs uploaded, so `tuist test` fails to load a manifest that sets `.coverage()` with `upload: false`.
 - **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.5.0 or later** [linked by your test targets](#linking-testcoverageattribution). It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
-- **Test runs on your default branch without selection.** Run `tuist test --no-selective-testing` there, and on any other branch where tests shouldn't be skipped. Those runs execute every test and become the baselines later runs compare against.
+- **Full test runs, often enough.** A run with `tuist test --no-selective-testing` executes every test and becomes a baseline. A selective run compares against the nearest one in its commit's history on the same platform, at most 20 commits with uploaded coverage back, and applies no coverage without one. Where and how often to run them depends on how your team works, such as on every commit of your default branch, nightly, or on release branches. We recommend the default branch: a full run there also catches, before a change ships, what coverage can't see, such as a fixture or a service a test depends on.
 
 With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run.
 
@@ -176,7 +176,8 @@ struct DiscountTests {
 }
 ```
 
-- **Tests must not overlap.** Swift Testing runs a process's tests in parallel by default, and coverage counters can't tell tests that run at the same time apart, so those tests record no coverage of their own and always run. Keep parallelization off for the test target: Tuist generates schemes with it off unless a project's `testingOptions` include `.parallelizable` or `.swiftTestingOnlyParallelizable`, or a testable target sets `parallelization`, and passing `-parallel-testing-enabled NO` to `tuist test` turns it off for one run. `.serialized` only orders a suite's own tests, so it's enough only when the target has a single suite. XCTest needs nothing: parallel testing runs each test clone in its own process.
+- **Tests must not overlap.** Swift Testing runs a process's tests in parallel by default, and coverage counters can't tell tests that run at the same time apart, so those tests record no coverage of their own and always run. `.serialized` only orders a suite's own tests, so it's enough only when the target has a single suite. XCTest needs nothing: parallel testing runs each test clone in its own process.
+- **Turn parallelization off per test target.** Each test target runs in a process of its own, hosted ones included, so you can turn it off only for the targets you want selected test by test, and the scheme's other targets keep running in parallel. No separate scheme is needed. Set it on the testable target, `.testableTarget(target: "CheckoutTests", parallelization: .disabled)`, which also runs that target's XCTest tests without clones. Schemes Tuist generates take it from the project's `testingOptions`, off unless they include `.parallelizable` or `.swiftTestingOnlyParallelizable`. Passing `-parallel-testing-enabled YES` or `NO` to `tuist test` overrides every target's setting for that run.
 - **Skipping needs Swift 6.3 (Xcode 26.4) or later.** The trait cancels the tests Tuist didn't select and reports them as skipped. With earlier versions, the tests still record coverage, but the ones Tuist didn't select run anyway.
 
 ### Tests that always run {#tests-that-always-run}
@@ -196,6 +197,8 @@ final class NetworkTests: XCTestCase {
     @objc static let unskippableTests = ["testParsesTheFixtures"]
 }
 ```
+
+It only applies in test targets that run. A target whose hash already passed, or none of whose tests Tuist selected, is skipped whole and never starts, so its unskippable tests don't run either.
 
 See the [TestCoverageAttribution README](https://github.com/tuist/TestCoverageAttribution#unskippable-tests) for every option.
 
