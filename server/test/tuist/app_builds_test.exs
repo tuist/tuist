@@ -1141,6 +1141,119 @@ defmodule Tuist.AppBuildsTest do
       assert Enum.map(previews, & &1.id) == [simulator_then_device.id]
     end
 
+    test "replaces an older preview when a newer one covers its platforms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      simulator_only =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          supported_platforms: [:ios_simulator],
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      AppBuildsFixtures.app_build_fixture(
+        preview: simulator_only,
+        type: :app_bundle,
+        supported_platforms: [:ios_simulator]
+      )
+
+      device_and_simulator =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          supported_platforms: [:ios_simulator, :ios],
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      AppBuildsFixtures.app_build_fixture(
+        preview: device_and_simulator,
+        type: :app_bundle,
+        supported_platforms: [:ios_simulator]
+      )
+
+      AppBuildsFixtures.app_build_fixture(preview: device_and_simulator, type: :ipa, supported_platforms: [:ios])
+
+      # When
+      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert Enum.map(previews, & &1.id) == [device_and_simulator.id]
+    end
+
+    test "ignores builds whose upload has not finished" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      older =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          supported_platforms: [:ios_simulator],
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      AppBuildsFixtures.app_build_fixture(preview: older, type: :app_bundle, supported_platforms: [:ios_simulator])
+
+      newer =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          supported_platforms: [:ios_simulator],
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      AppBuildsFixtures.app_build_fixture(preview: newer, type: :app_bundle, supported_platforms: [:ios_simulator])
+      # A device upload started on the newer preview but never completed, so its
+      # platform was never merged into the preview.
+      AppBuildsFixtures.app_build_fixture(preview: newer, type: :ipa, supported_platforms: [:ios])
+
+      # When
+      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert Enum.map(previews, & &1.id) == [newer.id]
+    end
+
+    test "hides a preview without platforms only when the same app has one with platforms on its branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      with_platforms =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "feature",
+          supported_platforms: [:ios],
+          inserted_at: ~U[2021-01-01 01:00:00Z]
+        )
+
+      other_branch =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "develop",
+          supported_platforms: [],
+          inserted_at: ~U[2021-01-01 03:00:00Z]
+        )
+
+      _same_branch =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "feature",
+          supported_platforms: [],
+          inserted_at: ~U[2021-01-01 02:00:00Z]
+        )
+
+      # When
+      previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
+      # Then
+      assert previews |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([with_platforms.id, other_branch.id])
+    end
+
     test "keeps the latest preview of an app whose previews have no platforms" do
       # Given
       project = ProjectsFixtures.project_fixture()
