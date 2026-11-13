@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "5f234be6aa38328bcf1e52a661e7e83df30423fadcb5af45b3ed065b189b9c8e",
+  "hash": "3d95524ecf468e2970d19c720fd3829d8a793378aae322cdee348892786b9a17",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "e73c1beba59eaa924236ce5bedf6f2a1a8fe36862373c494829d0f359d9dc1a0"
                 },
                 "## Pull/merge request comments {#pullmerge-request-comments}": {
-                  "content_hash": "1c99ba14f5569a7b6a138160ca9f44292ef76b6bdb52adb362d9b25c0b42a6e4"
+                  "content_hash": "f6a046518fdcac10c59dda364c2032c04ed413ad0b0ff937fc17d5aa37795866"
                 },
                 "## Size thresholds {#size-thresholds}": {
                   "content_hash": "8d66eac03a05e0ab8838e41771495a5752615c22178a43486b9f2237f369e3ca"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "058c1a0478552afdacf74eb7fa8307fb59d4a67b7aca55587fc2f17fdd1c7c5d",
+          "hash": "f62e6745a99eb958269ca62a4dc3e9116f27eafea34a4c2c50dc25b1f6867fef",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
           "metadata": {
-            "content_hash": "4f1841d713647db8a55ec2b444cda008865a39397e0996f4ef28e63474768f23"
+            "content_hash": "bb70a00876b3f9ee81ce0ab06943d633ede1dd36d2c83a39c71b3e88a9a5e7c3"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "5f234be6aa38328bcf1e52a661e7e83df30423fadcb5af45b3ed065b189b9c8e",
+      "hash": "3d95524ecf468e2970d19c720fd3829d8a793378aae322cdee348892786b9a17",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a44d3304327b37be930de45a30410dca212f72b46e7aa5cf3d7173dd5b270eed",
+  "output_hash": "5cf91c673db0fc3c73fff5460999150ffe158053861107da85a4e006cdcc6141",
   "output_path": "server/priv/docs/zh_Hant/guides/features/bundle-insights/_shared.md",
   "protection_state": "recorded",
   "provider": "",
@@ -263,8 +263,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
+  "source_commit_sha": "4f898204f78a918142651ad3d36e1bc912cb6c1f",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/_shared.md",
-  "translated_at": "2026-11-06T16:45:30.538292Z",
-  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
+  "translated_at": "2026-11-13T14:44:39.653346Z",
+  "translation_session_id": "01a1d55c-6b9e-78c1-b839-7703cf151f90"
 }

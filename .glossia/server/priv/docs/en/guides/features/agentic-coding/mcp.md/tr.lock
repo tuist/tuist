@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "485768f6e95d54cafa00274e54602bf63cef2ae145c9b38edd89fb79489e2d51",
+  "hash": "cf6cead429ba13f749e2c68b71833a5cc8b022d99f628c16c6ef0b5723a9d617",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,10 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Model Context Protocol": {
-                  "content_hash": "ec60952f1f70340747e394306a158a274b347fc9d225e870b20075f4d80a8424"
+                  "content_hash": "efca65ba86fbd000287edd1a1aeadfb0466b9c347b0a12e4873a7c672fd3d62a"
+                },
+                "## Agents in Amp orbs and Claude Code cloud sessions": {
+                  "content_hash": "c79a34c9d1cd74e73daaa1cc7c8d4892b62313a9913fa811b163a44b81dfb81a"
                 },
                 "## Build-system integrations use two credentials": {
                   "content_hash": "eb027d2d76f919530b579db51cec2c0032bee83c83286e029c25e3000caccfc1"
@@ -35,7 +38,7 @@
                   "content_hash": "2754eafd8e752cb6dc5adb1feeb5ff92eef864da76417043cb52be4f4536c1b3"
                 },
                 "### Pulse": {
-                  "content_hash": "ec68450370df89f22cca6149cf79f915928864ed89b96b9a480cda7fc2fa246e"
+                  "content_hash": "ba4efcb7a54e26ec4a575b0c1b9f5bef0da8ecd254c94704a93fb88c7f242301"
                 },
                 "### Tools": {
                   "content_hash": "375339b6975176eee068df783423d82cdfaf6465103fb1231e720c2ba17c59e2"
@@ -46,11 +49,14 @@
                 "#### Account tokens": {
                   "content_hash": "5ff48a86344ab02ec828d42b5ebb2c762123c70a74db57e9b5c66bf0fb6398d2"
                 },
+                "#### Amp workspaces": {
+                  "content_hash": "0f01dd173b9590d7ca68004bcf3a1f81d7bfa5fd8c5828b5b49af68f128606d3"
+                },
                 "#### Automations": {
                   "content_hash": "0cf6808fb16ba2ded689a8eb80950c39440f1fbce612d55cde8ecab4fb2f8e26"
                 },
                 "#### Bazel invocations": {
-                  "content_hash": "fb58622a75d287041dfe19613209185a4feea26947166139eb1efe8746d8a50c"
+                  "content_hash": "cf39bba25607ee21b876d9527a41454c848f9b954cfd6c21ef21c6518b633e6a"
                 },
                 "#### Build traces": {
                   "content_hash": "c86c54d7d983d88c2e6a2ab558f52fb1c13c882a6df459982726b9e4e5d9973c"
@@ -64,8 +70,11 @@
                 "#### Cargo builds": {
                   "content_hash": "ed44687f9af41f66d81ee390965cc33edcff710946d610e04f541e2cc6394fb7"
                 },
+                "#### Claude environments": {
+                  "content_hash": "24cc199aad32dbfd8a1b0a72a67bd8762816912b353555e1e01a05a66f0ab1e1"
+                },
                 "#### Continuous-integration runners": {
-                  "content_hash": "ad89c8341c370a98b4890bd8adaa6efddfc61112829e299f26ab13bb30b35e56"
+                  "content_hash": "fa33e009cee799d06cddf47e0c4f027a00792cf3322b53bf5e24023cadb39e54"
                 },
                 "#### Documentation and community search": {
                   "content_hash": "be0281c95f07aa659c0e782cf4b415c0a9b0cdf9f4aba8f926dc8fa8ef8aff0e"
@@ -77,7 +86,7 @@
                   "content_hash": "523df7dff63c17a7ec6882b295d128efc58440b140649c490684c2c4b7693a0e"
                 },
                 "#### Gradle builds": {
-                  "content_hash": "d3ca6fba27b784ec0b8ea19ef64239ea44c49310115b4c42276f8573c0d983e8"
+                  "content_hash": "3ad8159042f5346c465e70de01266eb79651b620d7985636844267ac2d15d20e"
                 },
                 "#### Gradle integration prompt features": {
                   "content_hash": "2780de881b82675f156aeda61362068ce842ad926e6b7999fb5ae1636e96e459"
@@ -98,7 +107,7 @@
                   "content_hash": "68d4d961127f060ae6f8e8c6003a4e7cd673508a405ea4677c4f4a375a1f38eb"
                 },
                 "#### Sandboxes": {
-                  "content_hash": "121e32c377964047501188fbb197184aeed2397626a3257183a677e05ebf36be"
+                  "content_hash": "a4610ec691d8dc6b39af89ec29f0b923830649fb34009d47dd056a4a42a5122b"
                 },
                 "#### Source-backed answers": {
                   "content_hash": "c49cd881ec13ebd3498414893a10faebd03e291e1d58d284520bef22b2f3f722"
@@ -125,11 +134,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "185d59c6171189a43a9a051964ba9ee568ce17926007f3415157db085a2ac25a",
+          "hash": "616cadbbd824bb9b5ac985771b6a6f7327d545172b1c8947aaf7e9ebd7ce2393",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "5375ca865f385cb253762573fdc2619077189c665e57e05d622e36f11cd2143a"
+            "content_hash": "e8fb364fa05b90376eb35c24dae1d166e479f35e9973b4ca96c43057a95a3fb7"
           }
         },
         {
@@ -356,14 +365,14 @@
         }
       ],
       "details": {},
-      "hash": "485768f6e95d54cafa00274e54602bf63cef2ae145c9b38edd89fb79489e2d51",
+      "hash": "cf6cead429ba13f749e2c68b71833a5cc8b022d99f628c16c6ef0b5723a9d617",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "63b7c15ec0c9f4dcbced5a5bbdff9ea36c08d8533f6e2a573198dee6fc10155b",
+  "output_hash": "88a6e0a9998b483c7867c18cbc00529b7ec488570a2c364541013f607cac163f",
   "output_path": "server/priv/docs/tr/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -388,8 +397,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8f7933fe8972241f7a6c52eb98e3b72e0fe65dbd",
+  "source_commit_sha": "4f898204f78a918142651ad3d36e1bc912cb6c1f",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-07T09:07:26.005064Z",
-  "translation_session_id": "01a1b534-eddc-7391-8ac6-9f3a957602c6"
+  "translated_at": "2026-11-13T14:44:38.730687Z",
+  "translation_session_id": "01a1d55c-6b9e-78c1-b839-7703cf151f90"
 }

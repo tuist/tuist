@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a1ce6a0d9d657eb4c1be372fe8d98d5f5a8dee2404cc77c1932dd5ad224c24ba",
+  "hash": "a4faa55f15e34f378d813f92fa9a9584fc9da988e329809f074f8e47d7cd894d",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Build Insights {#build-insights}": {
-                  "content_hash": "e11632c7391c461b2571aed2aae8386951472625d5ddb39f5c2d35f3cd3252ca"
+                  "content_hash": "4bdd818ee709c635b10cd4698ba632c7443bfd67c99846be38627f69678fc440"
                 },
                 "Preamble": {
                   "content_hash": "4bb6e9c1b48d97ecc2f0f88edac9e564640fefe9bd5ccfced155862e1d9eccb6"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0d4d0a89c6567f438d2a1a19f05d13469a7650d55cb58c27569ff396ae00f45f",
+          "hash": "9a25b4f579463c68a029dee048547c7534103032842e6d642200ed93982e4986",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/build-insights.md",
           "metadata": {
-            "content_hash": "14c7c3a19fb65de15d3b42fb211429893fccfc63fc0b3dd33c458b7c6eb5ae46"
+            "content_hash": "f4ba28e6e0bc81cec42822fa4e9bee615efed500c48b6b114edd589889aaab35"
           }
         },
         {
@@ -221,14 +221,14 @@
         }
       ],
       "details": {},
-      "hash": "a1ce6a0d9d657eb4c1be372fe8d98d5f5a8dee2404cc77c1932dd5ad224c24ba",
+      "hash": "a4faa55f15e34f378d813f92fa9a9584fc9da988e329809f074f8e47d7cd894d",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/build-insights.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "39b42022c1025de4d5db637befa4135d32573a7a6ca573683f643f0c0fe9f4da",
+  "output_hash": "679395c85774e4a3c3886abec57d7310aa81c5a1f68d99ab62bd1e86a49d464c",
   "output_path": "server/priv/docs/zh_Hant/guides/features/build-insights.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "b5d0ae8f0fc6f3571b57e76a4b1b7f1e23ac200f",
+  "source_commit_sha": "4f898204f78a918142651ad3d36e1bc912cb6c1f",
   "source_path": "server/priv/docs/en/guides/features/build-insights.md",
-  "translated_at": "2026-11-06T16:14:22.244862Z",
-  "translation_session_id": "01a1b1a1-7590-734d-8ccf-e3b04f251e96"
+  "translated_at": "2026-11-13T14:44:39.164785Z",
+  "translation_session_id": "01a1d55c-6b9e-78c1-b839-7703cf151f90"
 }
