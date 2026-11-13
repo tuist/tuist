@@ -72,6 +72,27 @@ struct ContentHashingIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider, .withMockedXcodeController)
+    func xcconfigArchitectureExclusionsAreRecordedPerSDK() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let xcconfig = root.appending(component: "Base.xcconfig")
+        try "EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64\n".write(to: xcconfig.url, atomically: true, encoding: .utf8)
+        let target = Target.test(name: "Feature", destinations: [.iPhone, .mac], product: .framework, sources: [source1])
+        let project = Project.test(
+            path: root, sourceRootPath: root,
+            settings: Settings(configurations: [.debug("Debug"): Configuration(settings: [:], xcconfig: xcconfig)]),
+            targets: [target]
+        )
+        let graphTarget = GraphTarget(path: root, target: target, project: project)
+        let result = try await subject.contentHashes(
+            for: Graph.test(projects: [root: project]), configuration: nil, defaultConfiguration: nil,
+            excludedTargets: [], destination: nil, coverage: .off
+        )
+        let hash = try #require(result[graphTarget])
+        #expect(Set(hash.binaryCacheFingerprints.keys) == ["ios-device", "ios-simulator", "macos-device"])
+        #expect(hash.binaryCacheArchitectures == ["ios-simulator": ["arm64"]])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider, .withMockedXcodeController)
     func artifactFormatSeparatesExactAndSDKKeysFromEarlierDebuggingProducts() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
         let target = Target.test(name: "Feature", destinations: [.iPhone, .mac], product: .framework, sources: [source1])

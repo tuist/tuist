@@ -311,31 +311,112 @@ struct BinaryCacheStorageTests {
         #expect(try await reader.fetch([item("changed", [:])], cacheCategory: .binaries).isEmpty)
     }
 
-    @Test(.inTemporaryDirectory) func unsupportedArchitectureUsesExactTargetAction() async throws {
+    @Test(.inTemporaryDirectory) func arm64OnlySimulatorWarmStoresSDKSlicesThatArm64ConsumersRead() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(
+            at: artifact, variants: ["ios-device", "ios-simulator"], architectures: ["ios-simulator": [.arm64]]
+        )
+        let remote = MemoryREAPICache()
+        let sdk = fingerprints.filter { $0.key != "macos-device" }
+        let warm = item("warm", sdk, architectures: ["ios-simulator": ["arm64"]], requiresSDKSlices: true)
+        #expect(try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([warm: [artifact]], cacheCategory: .binaries) == [warm])
+        #expect(await remote.actions.count == 2)
+        #expect(await remote.actions.values.allSatisfy { $0.outputDirectories.first?.path == "slice" })
+
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        let simulator = item(
+            "simulator-consumer", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["arm64"]]
+        )
+        let restored = try #require(try await reader.fetch([simulator], cacheCategory: .binaries).values.first)
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored) == ["ios-simulator": ["arm64"]])
+        #expect(await remote.downloads[REAPI.digest(Data("ios-device".utf8))] == nil)
+        #expect(await remote.downloads[REAPI.digest(Data("ios-simulator".utf8))] == 1)
+    }
+
+    @Test(.inTemporaryDirectory) func arm64OnlySimulatorWarmPlansNoRebuildOnceItsSlicesExist() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let cache = subject(directory.appending(component: "cache"))
+        let targets = [(GraphTarget.test(target: .test(name: "Shared", product: .framework)), "target-hash")]
+        let inputs = ["target-hash": ["ios-simulator": "simulator-inputs"]]
+        let architectures = ["target-hash": ["ios-simulator": ["arm64"]]]
+        let plan = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, architectures: architectures, sdkSelection: .simulators,
+            storage: cache, preserving: []
+        ).batches
+        #expect(plan.map(\.variant) == [.iosSimulator])
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["ios-simulator"], architectures: ["ios-simulator": [.arm64]])
+        let warm = item(
+            "target-hash", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["arm64"]],
+            requiresSDKSlices: true
+        )
+        #expect(try await cache.store([warm: [artifact]], cacheCategory: .binaries) == [warm])
+        #expect(try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, architectures: architectures, sdkSelection: .simulators,
+            storage: cache, preserving: []
+        ).batches.isEmpty)
+        #expect(try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, sdkSelection: .simulators, storage: cache, preserving: []
+        ).batches.map(\.variant) == [.iosSimulator])
+    }
+
+    @Test(.inTemporaryDirectory) func consumersBuildingStandardArchitecturesNeverReadReducedSlices() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["ios-simulator"], architectures: ["ios-simulator": [.arm64]])
+        let remote = MemoryREAPICache()
+        let warm = item(
+            "warm", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["arm64"]], requiresSDKSlices: true
+        )
+        #expect(try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([warm: [artifact]], cacheCategory: .binaries) == [warm])
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        #expect(try await reader.fetch([item("standard", ["ios-simulator": "simulator-inputs"])], cacheCategory: .binaries)
+            .isEmpty)
+        #expect(try await reader.fetch(
+            [item("x86_64", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["x86_64"]])],
+            cacheCategory: .binaries
+        ).isEmpty)
+        #expect(await remote.downloads.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func undeclaredNarrowerSlicesKeepTheExactTargetAction() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["macos-device"], architectures: ["macos-device": [.arm64]])
+        let remote = MemoryREAPICache()
+        let target = item("undeclared", ["macos-device": "mac-inputs"])
+        #expect(try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([target: [artifact]], cacheCategory: .binaries) == [target])
+        let exact = try BinaryCacheAction(name: target.name, targetHash: target.hash)
+        #expect(await remote.actions[exact.digest]?.outputDirectories.first?.path == "outputs")
+        #expect(await remote.actions.count == 1)
+        let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([target], cacheCategory: .binaries).values.first)
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored)["macos-device"] == ["arm64"])
+        await #expect(throws: CacheUploadError.self) {
+            try await subject(directory.appending(component: "sdk-producer"), remote: MemoryREAPICache())
+                .store(
+                    [item("sdk-warm", ["macos-device": "mac-inputs"], requiresSDKSlices: true): [artifact]],
+                    cacheCategory: .binaries
+                )
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func arm64ConsumersFallBackToStandardSlices() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let artifact = directory.appending(component: "Shared.xcframework")
         try await makeArtifact(at: artifact, variants: ["ios-simulator"])
-        let plist = artifact.appending(component: "Info.plist").url
-        var info = try #require(PropertyListSerialization
-            .propertyList(
-                from: await FileSystem().readFile(at: AbsolutePath(validating: plist.path)),
-                format: nil
-            ) as? [String: Any])
-        var libraries = try #require(info["AvailableLibraries"] as? [[String: Any]])
-        libraries[0]["SupportedArchitectures"] = ["arm64"]
-        info["AvailableLibraries"] = libraries
-        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: plist)
         let remote = MemoryREAPICache()
-        let target = item("custom-architectures", ["ios-simulator": "simulator-inputs"])
+        let warm = item("warm", ["ios-simulator": "simulator-inputs"], requiresSDKSlices: true)
         _ = try await subject(directory.appending(component: "producer"), remote: remote)
-            .store([target: [artifact]], cacheCategory: .binaries)
-        let exact = try BinaryCacheAction(name: target.name, targetHash: target.hash)
-        #expect(await remote.actions[exact.digest]?.outputDirectories.first?.path == "outputs")
-        let reader = subject(directory.appending(component: "reader"), remote: remote)
-        let restored = try #require(try await reader.fetch([target], cacheCategory: .binaries).values.first)
-        #expect(try await XCFrameworkCoverageService().coverage(at: restored)["ios-simulator"] == ["arm64"])
-        #expect(try await reader.fetch([item("other", target.metadata.binaryCacheFingerprints)], cacheCategory: .binaries)
-            .isEmpty)
+            .store([warm: [artifact]], cacheCategory: .binaries)
+        let consumer = item("arm64", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["arm64"]])
+        let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([consumer], cacheCategory: .binaries).values.first)
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored)["ios-simulator"] == ["arm64", "x86_64"])
     }
 
     @Test(.inTemporaryDirectory) func selectiveTestsKeepTheirExistingStorage() async throws {
@@ -657,11 +738,25 @@ struct BinaryCacheStorageTests {
         ), remote: remote)
     }
 
-    private func item(_ hash: String, _ fingerprints: [String: String]) -> CacheStorableItem {
-        CacheStorableItem(name: "Shared", hash: hash, metadata: .init(binaryCacheFingerprints: fingerprints))
+    private func item(
+        _ hash: String,
+        _ fingerprints: [String: String],
+        architectures: [String: [String]] = [:],
+        requiresSDKSlices: Bool = false
+    ) -> CacheStorableItem {
+        CacheStorableItem(name: "Shared", hash: hash, metadata: .init(
+            binaryCacheFingerprints: fingerprints,
+            requiresSDKSlices: requiresSDKSlices,
+            binaryCacheArchitectures: architectures
+        ))
     }
 
-    private func makeArtifact(at path: AbsolutePath, variants: Set<String>, name: String = "Shared") async throws {
+    private func makeArtifact(
+        at path: AbsolutePath,
+        variants: Set<String>,
+        name: String = "Shared",
+        architectures: [String: [BinaryArchitecture]] = [:]
+    ) async throws {
         let fileSystem = FileSystem()
         try await fileSystem.makeDirectory(at: path)
         let libraries = try BinaryCacheVariant.allCases.filter { variants.contains($0.rawValue) }.map { variant in
@@ -669,7 +764,7 @@ struct BinaryCacheStorageTests {
                 identifier: variant.rawValue, path: try RelativePath(validating: "\(name).framework"), mergeable: false,
                 platform: variant == .macos ? .macOS : .iOS,
                 platformVariant: variant == .iosSimulator ? .simulator : variant == .catalyst ? .maccatalyst : nil,
-                architectures: Array(variant.architectures)
+                architectures: architectures[variant.rawValue] ?? Array(variant.architectures)
             )
         }
         for library in libraries {

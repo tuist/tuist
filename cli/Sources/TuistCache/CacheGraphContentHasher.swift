@@ -120,12 +120,21 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         )
 
         if !Environment.current.isLegacyModuleCacheEnabled {
+            let architectureResolver = BinaryCacheArchitectureResolver(environmentXCConfig: environmentXCConfig())
             let fingerprints = try await BinaryCacheFingerprintHasher(contentHasher: contentHasher).fingerprints(
                 graph: hashingGraph, targets: Set(hashes.keys),
-                additionalStrings: targetAdditionalStrings, targetHashes: hashes
+                additionalStrings: targetAdditionalStrings, targetHashes: hashes,
+                architectureResolver: architectureResolver
             )
             for (target, values) in fingerprints {
                 hashes[target]?.binaryCacheFingerprints = values
+                for key in values.keys {
+                    guard let variant = BinaryCacheVariant(rawValue: key),
+                          let architectures = try await architectureResolver.architectures(of: target, variant: variant),
+                          architectures.isStrictSubset(of: variant.architectures)
+                    else { continue }
+                    hashes[target]?.binaryCacheArchitectures[key] = architectures.map(\.rawValue).sorted()
+                }
             }
         }
 
@@ -140,6 +149,14 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
                 hash
             )
         })
+    }
+
+    private func environmentXCConfig() -> AbsolutePath? {
+        guard let value = Environment.current.variables["XCODE_XCCONFIG_FILE"], !value.isEmpty else { return nil }
+        return try? AbsolutePath(
+            validating: value,
+            relativeTo: AbsolutePath(validating: FileManager.default.currentDirectoryPath)
+        )
     }
 
     private func graphByScopingSettings(in graph: Graph, to configuration: String) -> Graph {

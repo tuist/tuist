@@ -16,17 +16,18 @@ public struct BinaryCacheFingerprintHasher {
         graph: Graph,
         targets: Set<GraphTarget>,
         additionalStrings: @escaping (GraphTarget) -> [String],
-        targetHashes: [GraphTarget: TargetContentHash] = [:]
+        targetHashes: [GraphTarget: TargetContentHash] = [:],
+        architectureResolver: BinaryCacheArchitectureResolver = BinaryCacheArchitectureResolver()
     ) async throws -> [GraphTarget: [String: String]] {
         let worker = Worker(
             graph: graph, targets: targets, additionalStrings: additionalStrings,
-            contentHasher: contentHasher, targetHashes: targetHashes
+            contentHasher: contentHasher, targetHashes: targetHashes, architectureResolver: architectureResolver
         )
         var result: [GraphTarget: [String: String]] = [:]
         for target in targets
             where [.framework, .staticFramework, .staticLibrary, .dynamicLibrary].contains(target.target.product)
         {
-            // Other platforms keep exact-hash lookup until their SDK/architecture coverage is modeled.
+            // Other platforms keep exact-hash lookup until their SDK coverage is modeled.
             guard target.target.destinations.allSatisfy({ [.iOS, .macOS].contains($0.platform) }) else { continue }
             let variants = BinaryCacheVariant.allCases
                 .filter { variant in target.target.destinations.contains { $0.platformFilter == variant.platformFilter } }
@@ -51,6 +52,7 @@ private final class Worker {
     let targets: [GraphHashedTarget: GraphTarget]
     let additionalStrings: (GraphTarget) -> [String]
     let targetContentHasher: TargetContentHasher
+    let architectureResolver: BinaryCacheArchitectureResolver
     var sharedSubhashes: [GraphHashedTarget: TargetContentHashSubhashes] = [:]
     var hashes: [Key: String] = [:]
     var hashedPaths: [AbsolutePath: String] = [:]
@@ -60,8 +62,10 @@ private final class Worker {
         targets: Set<GraphTarget>,
         additionalStrings: @escaping (GraphTarget) -> [String],
         contentHasher: ContentHashing,
-        targetHashes: [GraphTarget: TargetContentHash]
+        targetHashes: [GraphTarget: TargetContentHash],
+        architectureResolver: BinaryCacheArchitectureResolver
     ) {
+        self.architectureResolver = architectureResolver
         targetContentHasher = TargetContentHasher(contentHasher: contentHasher)
         traverser = GraphTraverser(graph: graph)
         for (target, value) in targetHashes {
@@ -78,10 +82,12 @@ private final class Worker {
         let variant: BinaryCacheVariant = target.target.product == .macro ? .macos : requestedVariant
         let key = Key(target: .init(projectPath: target.path, targetName: target.target.name), variant: variant)
         if let cached = hashes[key] { return cached }
-        guard target.target.destinations.contains(where: { $0.platformFilter == variant.platformFilter }),
-              supportsStandardArchitectures(target.project.settings),
-              target.target.settings.map(supportsStandardArchitectures) ?? true
-        else { return nil }
+        guard target.target.destinations.contains(where: { $0.platformFilter == variant.platformFilter }) else { return nil }
+        if BinaryCacheArchitectureResolver.declaresArchitectures(target) {
+            guard let architectures = try await architectureResolver.architectures(of: target, variant: variant),
+                  architectures.isSubset(of: variant.architectures)
+            else { return nil }
+        }
         var model = target.target
         model.destinations = model.destinations.filter { $0.platformFilter == variant.platformFilter }
         model.deploymentTargets = DeploymentTargets(
@@ -130,13 +136,5 @@ private final class Worker {
         traverser.resourceBundleDependencies(path: target.path, name: target.target.name)
             .union(traverser.embeddableFrameworks(path: target.path, name: target.target.name))
             .map(\.hashIdentifier).sorted()
-    }
-
-    private func supportsStandardArchitectures(_ settings: Settings) -> Bool {
-        let keys = Array(settings.base.keys) + Array(settings.baseDebug.keys)
-            + settings.configurations.values.compactMap { $0 }.flatMap(\.settings.keys)
-        return !keys.contains { key in
-            ["ARCHS", "EXCLUDED_ARCHS", "VALID_ARCHS"].contains { key == $0 || key.hasPrefix($0 + "[") }
-        }
     }
 }
