@@ -551,13 +551,8 @@ load-balancer telemetry under `cluster="tuist-management"`, so it remains
 available when a workload cluster is unreachable. Alert queries and setup
 instructions live in
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
-Its independent management-local Pulse backend is a separate Flux child,
-not a dependency on production. Bootstrap its private bucket and management-vault
-items using the [Pulse prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
-The apply workflow retains Cloud-only collection until backend/ESO readiness;
-after bootstrap, reconcile monitoring and verify fresh `cluster="tuist-management"`
-samples in both destinations. This does not switch management alerts or remove
-their external heartbeat/no-data protection.
+Its collectors write only to Grafana Cloud; the management-local Pulse backend
+no longer receives telemetry.
 
 ## 8. Production air-gapped license
 

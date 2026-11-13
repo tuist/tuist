@@ -31,110 +31,6 @@ k8s-monitoring:
             controller:
               replicas: 2
 
-
-    # Independently deployed in-cluster Pulse. Features leave
-    # `destinations` empty, so every feature sends to all compatible
-    # destinations. Metrics/logs share Cloud's processing; traces are unsampled.
-    # Separate write queues keep Pulse retries independent of Cloud delivery.
-    # Basic auth carries the tenant as the username.
-    pulse-metrics:
-      type: prometheus
-      url: http://pulse.observability.svc.cluster.local:4000/api/v1/write
-      auth:
-        type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
-      secret:
-        create: false
-        name: pulse-credentials
-        namespace: observability
-      extraLabels:
-        env: production
-
-    pulse-logs:
-      # The upstream Loki destination does not expose WAL configuration.
-      # Buffer on disk so a full Pulse retry queue cannot block Cloud or Faro.
-      type: custom
-      ecosystem: loki
-      logs:
-        enabled: true
-        target: loki.write.pulse_logs.receiver
-      config: |
-        loki.write "pulse_logs" {
-          wal {
-            enabled = true
-            max_segment_age = "1h"
-          }
-          endpoint {
-            url = "http://pulse.observability.svc.cluster.local:4000/loki/api/v1/push"
-            tenant_id = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["tenantId"])
-            basic_auth {
-              username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["pulse-username"])
-              password = remote.kubernetes.secret.pulse_logs.data["pulse-password"]
-            }
-          }
-          external_labels = {
-            cluster = "tuist-production",
-            k8s_cluster_name = "tuist-production",
-            env = "production",
-          }
-        }
-        remote.kubernetes.secret "pulse_logs" {
-          name = "pulse-credentials"
-          namespace = "observability"
-        }
-
-    pulse-traces:
-      type: otlp
-      url: http://pulse.observability.svc.cluster.local:4000
-      protocol: http
-      metrics:
-        enabled: false
-      logs:
-        enabled: false
-      traces:
-        enabled: true
-      auth:
-        type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
-      secret:
-        create: false
-        name: pulse-credentials
-        namespace: observability
-      # Pulse rejects requests above 10,000 records or 4 MiB; the default
-      # 8192-span trigger with no ceiling can exceed both under load.
-      processors:
-        # Trace-ID routing keeps span pairs together before aggregation.
-        # Never send these to Cloud: Tempo already generates its own copies.
-        serviceGraphMetrics:
-          enabled: true
-          destinations: [pulse-metrics]
-          receiver:
-            otlp:
-              grpc:
-                maxReceivedMessageSize: 20MB
-          collector:
-            controller:
-              replicas: 1
-              nodeSelector:
-                node.cluster.x-k8s.io/pool: general
-            alloy:
-              resources:
-                requests:
-                  cpu: 100m
-                  memory: 128Mi
-                limits:
-                  memory: 512Mi
-        batch:
-          size: 2048
-          maxSize: 2048
-        attributes:
-          actions:
-            - action: insert
-              key: deployment.environment
-              value: production
-
   # Put the OTLP receiver on the tailnet.
   #
   # The xcresult-processor runs inside macOS Tart VMs whose only network
@@ -156,10 +52,6 @@ k8s-monitoring:
   # pointed at this hostname (see xcresultProcessor.extraEnv in the tuist
   # chart's production values).
   collectors:
-    alloy-control-plane:
-      includeDestinations:
-        - grafana-cloud-metrics
-        - pulse-metrics
     alloy-receiver:
       service:
         annotations:

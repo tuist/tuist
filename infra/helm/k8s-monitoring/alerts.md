@@ -9131,7 +9131,7 @@ list/watch RBAC for `coordination.k8s.io/leases`. Its built-in
 No new exporter, privileged host access or RBAC expansion is required.
 `values.yaml` adds the metric to the KSM scrape allowlist, drops non-node Lease
 timestamps before forwarding, and retains it in nonproduction remote write.
-The same policy feeds Grafana Cloud and Pulse. Preserve `cluster`, `namespace`
+Preserve `cluster`, `namespace`
 and `lease`; the node inventory's pool label must also survive aggregation.
 
 After approval, deploy collection to staging first, then canary and production.
@@ -9164,7 +9164,7 @@ promtool for pending periods, age boundaries, missing data, duplicate scrapes,
 cross-cluster isolation, recovery and Tart exclusion.
 `python3 test-kubelet-telemetry.py` renders all three overlays and passes fixture
 metrics through the shipped Alloy relabel and remote-write rules into a local
-Prometheus receiver, testing both Cloud and Pulse configurations. It requires
+Prometheus receiver, testing the Cloud configuration. It requires
 Helm, yq, Prometheus and Docker; `ALLOY_BINARY` can select a local Alloy v1.15.0
 binary instead of Docker. Neither check provisions Grafana rules. LogQL must
 also be replayed with Loki; promtool cannot execute it.
