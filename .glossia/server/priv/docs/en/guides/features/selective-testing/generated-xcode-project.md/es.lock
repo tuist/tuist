@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d4ee647e2c003193f8603ad0946a4b66daed9be2c16919e124dddfe51d0b16ac",
+  "hash": "496b499c692356adb032a41b96da15ab557e0c086ba3998a56173645d06a4c36",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,7 +26,7 @@
                   "content_hash": "ce9538072b794e7eb627d1cadc13d4ec298c7ab3f5fa2a325beef91aa7d02bd7"
                 },
                 "## Coverage-based test selection {#coverage-based-test-selection}": {
-                  "content_hash": "7794e36fc81a2ac46d36a27883441cd32d1199eb886821c3c1c84585f6256305"
+                  "content_hash": "88faec7d828e01ecdcedad5e020e90c5d3d03661c2a01c9448d71365dd68928f"
                 },
                 "## Investigating misses on the dashboard {#investigating-misses-on-the-dashboard}": {
                   "content_hash": "28e66b10aff1d4c38287b03bc614ecf9c9aefb52fe14030d85461694ca8eb32a"
@@ -37,8 +37,17 @@
                 "## Separate build and test jobs {#separate-build-and-test-jobs}": {
                   "content_hash": "bbe1d6d69865a7d24456c2bd09cb07ac98b10b4a04a92b624d00b7a388e72644"
                 },
+                "### Linking TestCoverageAttribution {#linking-testcoverageattribution}": {
+                  "content_hash": "7a8940ee8e62dcc5f9d0d12dcc38c44910300b72252b4636874df6a692e15d8c"
+                },
+                "### Swift Testing {#swift-testing}": {
+                  "content_hash": "8015b97707cb640c2d67b56ff8e1b76210a44f41b4ae509d0e1ab00c85869f59"
+                },
+                "### Tests that always run {#tests-that-always-run}": {
+                  "content_hash": "25ef6b88e21777e11cc8452169c1dc94b06ff06cd31224006758dae93831cc52"
+                },
                 "### Which flag should I use? {#which-flag-should-i-use}": {
-                  "content_hash": "1e16fde94b9d1f4f98586cb856e65678ba245dbdaa51d76731e064cd3147bbe3"
+                  "content_hash": "c732a3ece8ea3eebfa3a51a2fc7937499c2c5f38135aeba3a73ec1bb6e49d24e"
                 },
                 "Preamble": {
                   "content_hash": "2ba9571cbb32820978b1d69d624361efd578acdf18a89dbfc227fcb75b565f86"
@@ -47,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2bd9649f81a81c6673ed249c1d5fe7b8596ee255ef50f649b364c736187e0ab9",
+          "hash": "810f06d529de80698d99f4e2d5a3fa9cd9643d4e95c621daf64fddfbd263f060",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/selective-testing/generated-xcode-project.md",
           "metadata": {
-            "content_hash": "189710baf92a570fc351923923370f8e72d5606576244c2583b0e12fd08941f9"
+            "content_hash": "0c63c94efc5078970599610cd73f22e64f07524c5896b29134049281938d0b0f"
           }
         },
         {
@@ -269,14 +278,14 @@
         }
       ],
       "details": {},
-      "hash": "d4ee647e2c003193f8603ad0946a4b66daed9be2c16919e124dddfe51d0b16ac",
+      "hash": "496b499c692356adb032a41b96da15ab557e0c086ba3998a56173645d06a4c36",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/selective-testing/generated-xcode-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "a0bab865fcd92b68e5acb2b492c79df684693c297131177f0a748ab60db19bee",
+  "output_hash": "6a6eadd96bed7aeb8af6dd6a45ed09cec129c29d50a6322f6ad089d5dd8a7f06",
   "output_path": "server/priv/docs/es/guides/features/selective-testing/generated-xcode-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -299,8 +308,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
+  "source_commit_sha": "dbf39aca1be3c3fe3629c66ebb48e390bc00668d",
   "source_path": "server/priv/docs/en/guides/features/selective-testing/generated-xcode-project.md",
-  "translated_at": "2026-11-13T16:38:12.785265Z",
-  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
+  "translated_at": "2026-11-13T19:01:16.940354Z",
+  "translation_session_id": "01a1d646-7503-79da-bd6b-e38fb43b8d53"
 }
