@@ -469,7 +469,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             sdkSelection: cacheDestination.sdkSelection
         )
 
-        Logger.current.notice("Generating project for testing", metadata: .section)
+        Logger.current.info("Generating project for testing", metadata: .section)
         let (_, graph, mapperEnvironment) = try await TestImpactSelector.$current.withValue(testImpactSelector) {
             try await testGenerator.generateWithGraph(
                 path: path,
