@@ -229,6 +229,10 @@ RUN . /etc/os-release \
         unzip \
         wget \
         xz-utils \
+        # actions/cache compresses with zstd when it is on PATH, as on
+        # GitHub's hosted image; without it, single-threaded gzip spends about
+        # 22 s of a 2 vCPU job per GB saved, against 5 s.
+        zstd \
         build-essential \
         autoconf \
         automake \
