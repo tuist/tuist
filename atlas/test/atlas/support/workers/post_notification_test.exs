@@ -27,8 +27,6 @@ defmodule Atlas.Support.Workers.PostNotificationTest do
       |> Repo.insert!()
 
     stub(Config, :slack_channel_id, fn -> "C-SUPPORT" end)
-    stub(Config, :slack_filtered_channel_id, fn -> "C-FILTERED" end)
-    stub(API, :find_message_by_metadata, fn :company, _, _, _ -> {:ok, nil} end)
 
     args = %{
       "event" => "inbound_received",
@@ -39,20 +37,10 @@ defmodule Atlas.Support.Workers.PostNotificationTest do
     %{args: args}
   end
 
-  test "uses the last delivery attempt to fall back for unknown filtered-channel errors", %{args: args} do
-    expect(API, :post_message, fn :company, "C-FILTERED", _, _, _ -> {:error, "restricted_action"} end)
+  test "completes a no-action inbound without posting to Slack", %{args: args} do
+    reject(&API.find_message_by_metadata/4)
+    reject(&API.post_message/5)
 
-    expect(API, :post_message, fn :company, "C-SUPPORT", _, _, opts ->
-      assert opts[:client_msg_id] == args["notification_id"]
-      {:ok, %{"channel" => "C-SUPPORT", "ts" => "1724515200.000100"}}
-    end)
-
-    assert :ok = perform_job(PostNotification, args, attempt: 5, max_attempts: 5)
-  end
-
-  test "retries an unknown filtered-channel error before the last delivery attempt", %{args: args} do
-    expect(API, :post_message, fn :company, "C-FILTERED", _, _, _ -> {:error, "restricted_action"} end)
-
-    assert {:error, "restricted_action"} = perform_job(PostNotification, args, attempt: 1, max_attempts: 5)
+    assert :ok = perform_job(PostNotification, args)
   end
 end

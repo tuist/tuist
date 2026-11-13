@@ -1,0 +1,3249 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::collections::{BTreeSet, HashSet};
+use std::pin::Pin;
+use std::sync::Arc;
+
+use arrow::datatypes::{DataType, IntervalDayTime, TimeUnit};
+use common_catalog::consts::{DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME, MITO_ENGINE};
+use common_error::ext::BoxedError;
+use common_function::aggrs::aggr_wrapper::{StateMergeHelper, StateWrapper};
+use common_recordbatch::adapter::RecordBatchMetrics;
+use common_recordbatch::error::Result as RecordBatchResult;
+use common_recordbatch::{OrderOption, RecordBatch, RecordBatchStream, SendableRecordBatchStream};
+use common_telemetry::init_default_ut_logging;
+use datafusion::datasource::DefaultTableSource;
+use datafusion::execution::SessionState;
+use datafusion::functions_aggregate::expr_fn::avg;
+use datafusion::functions_aggregate::min_max::{max, min};
+use datafusion::functions_nested::expr_fn::make_array;
+use datafusion::prelude::SessionContext;
+use datafusion_common::tree_node::TreeNodeRecursion;
+use datafusion_common::{ExprSchema, JoinType, ScalarValue, TableReference};
+use datafusion_expr::expr::{Exists, NullTreatment, ScalarFunction};
+use datafusion_expr::utils::split_conjunction;
+use datafusion_expr::{
+    AggregateUDF, Expr, ExprSchemable as _, Extension, LogicalPlanBuilder, Operator, Subquery,
+    binary_expr, col, lit,
+};
+use datafusion_functions::datetime::date_bin;
+use datafusion_functions::datetime::expr_fn::now;
+use datafusion_functions::unicode::expr_fn::substring;
+use datatypes::data_type::ConcreteDataType;
+use datatypes::schema::{ColumnSchema, SchemaBuilder, SchemaRef};
+use futures::Stream;
+use futures::task::{Context, Poll};
+use pretty_assertions::assert_eq;
+use promql::extension_plan::{HistogramFold, HistogramFoldOperation};
+use regex::Regex;
+use store_api::data_source::DataSource;
+use store_api::storage::ScanRequest;
+use table::metadata::{
+    FilterPushDownType, TableId, TableInfoBuilder, TableInfoRef, TableMeta, TableType,
+};
+use table::table::adapter::DfTableProviderAdapter;
+use table::table::numbers::NumbersTable;
+use table::{Table, TableRef};
+
+use super::*;
+use crate::optimizer::count_wildcard::CountWildcardToTimeIndexRule;
+
+fn collect_merge_scan_remote_dyn_filter_producer_ids(
+    plan: &LogicalPlan,
+    producer_ids: &mut BTreeSet<RemoteDynFilterProducerId>,
+) {
+    let mut producer_id_list = Vec::new();
+    collect_merge_scan_remote_dyn_filter_producer_id_list(plan, &mut producer_id_list);
+    producer_ids.extend(producer_id_list);
+}
+
+struct MergeScanRemoteDynFilterProducerIdCollector<'a> {
+    producer_ids: &'a mut Vec<RemoteDynFilterProducerId>,
+}
+
+impl TreeNodeRewriter for MergeScanRemoteDynFilterProducerIdCollector<'_> {
+    type Node = LogicalPlan;
+
+    fn f_up(&mut self, node: Self::Node) -> DfResult<Transformed<Self::Node>> {
+        if let LogicalPlan::Extension(extension) = &node
+            && let Some(merge_scan) = extension
+                .node
+                .as_any()
+                .downcast_ref::<MergeScanLogicalPlan>()
+        {
+            self.producer_ids.push(
+                merge_scan
+                    .remote_dyn_filter_producer_id()
+                    .expect("MergeScan remote dynamic filter producer id must be assigned"),
+            );
+        }
+
+        Ok(Transformed::no(node))
+    }
+}
+
+fn collect_merge_scan_remote_dyn_filter_producer_id_list(
+    plan: &LogicalPlan,
+    producer_ids: &mut Vec<RemoteDynFilterProducerId>,
+) {
+    let _ = plan
+        .clone()
+        .rewrite_with_subqueries(&mut MergeScanRemoteDynFilterProducerIdCollector { producer_ids })
+        .unwrap();
+}
+
+fn assert_remote_table_scan_filters_are_safe(plan: &LogicalPlan) {
+    let mut checked_filters = 0;
+    assert_remote_table_scan_filters_are_safe_inner(plan, false, &mut checked_filters);
+    assert!(
+        checked_filters > 0,
+        "expected at least one remote TableScan filter in plan:\n{plan}"
+    );
+}
+
+fn assert_remote_table_scan_filters_are_safe_inner(
+    plan: &LogicalPlan,
+    in_merge_scan_remote_input: bool,
+    checked_filters: &mut usize,
+) {
+    if let LogicalPlan::Extension(extension) = plan
+        && let Some(merge_scan) = extension
+            .node
+            .as_any()
+            .downcast_ref::<MergeScanLogicalPlan>()
+    {
+        assert_remote_table_scan_filters_are_safe_inner(merge_scan.input(), true, checked_filters);
+    }
+
+    if in_merge_scan_remote_input && let LogicalPlan::TableScan(table_scan) = plan {
+        for filter in &table_scan.filters {
+            assert_table_scan_filter_is_remote_safe(table_scan, filter);
+            *checked_filters += 1;
+        }
+    }
+
+    for child in plan.inputs() {
+        assert_remote_table_scan_filters_are_safe_inner(
+            child,
+            in_merge_scan_remote_input,
+            checked_filters,
+        );
+    }
+}
+
+fn assert_table_scan_filter_is_remote_safe(
+    table_scan: &datafusion_expr::logical_plan::TableScan,
+    filter: &Expr,
+) {
+    filter
+        .apply(|expr| match expr {
+            Expr::Exists(_)
+            | Expr::InSubquery(_)
+            | Expr::ScalarSubquery(_)
+            | Expr::SetComparison(_)
+            | Expr::OuterReferenceColumn(_, _) => {
+                panic!("remote TableScan filter contains non-scan-local expression: {filter}")
+            }
+            _ => Ok(TreeNodeRecursion::Continue),
+        })
+        .unwrap();
+
+    let mut columns = HashSet::new();
+    expr_to_columns(filter, &mut columns).unwrap();
+    for column in columns {
+        assert!(
+            table_scan
+                .projected_schema
+                .field_from_column(&column)
+                .is_ok(),
+            "remote TableScan filter references non-scan column {column}: {filter}\nscan schema: {:?}",
+            table_scan.projected_schema
+        );
+    }
+}
+
+pub(crate) struct TestTable;
+
+impl TestTable {
+    pub fn table_with_name(table_id: TableId, name: String) -> TableRef {
+        Self::table_with_filter_pushdown(table_id, name, FilterPushDownType::Unsupported)
+    }
+
+    pub fn table_with_filter_pushdown(
+        table_id: TableId,
+        name: String,
+        filter_pushdown: FilterPushDownType,
+    ) -> TableRef {
+        let data_source = Arc::new(TestDataSource::new(Self::schema()));
+        let table = Table::new(
+            Self::table_info(table_id, name, "test_engine".to_string()),
+            filter_pushdown,
+            data_source,
+        );
+        Arc::new(table)
+    }
+
+    pub fn schema() -> SchemaRef {
+        let column_schemas = vec![
+            ColumnSchema::new("pk1", ConcreteDataType::string_datatype(), false),
+            ColumnSchema::new("pk2", ConcreteDataType::string_datatype(), false),
+            ColumnSchema::new("pk3", ConcreteDataType::string_datatype(), false),
+            ColumnSchema::new(
+                "ts",
+                ConcreteDataType::timestamp_millisecond_datatype(),
+                false,
+            )
+            .with_time_index(true),
+            ColumnSchema::new("number", ConcreteDataType::uint32_datatype(), true),
+        ];
+        let schema = SchemaBuilder::try_from_columns(column_schemas)
+            .unwrap()
+            .build()
+            .unwrap();
+        Arc::new(schema)
+    }
+
+    pub fn table_info(table_id: TableId, name: String, engine: String) -> TableInfoRef {
+        let table_meta = TableMeta {
+            schema: Self::schema(),
+            primary_key_indices: vec![0, 1, 2],
+            value_indices: vec![4],
+            engine,
+            next_column_id: 5,
+            options: Default::default(),
+            created_on: Default::default(),
+            updated_on: Default::default(),
+            partition_key_indices: vec![0, 1],
+            column_ids: vec![0, 1, 2, 3, 4],
+        };
+
+        let table_info = TableInfoBuilder::default()
+            .table_id(table_id)
+            .name(name)
+            .catalog_name(DEFAULT_CATALOG_NAME)
+            .schema_name(DEFAULT_SCHEMA_NAME)
+            .table_version(0)
+            .table_type(TableType::Base)
+            .meta(table_meta)
+            .build()
+            .unwrap();
+        Arc::new(table_info)
+    }
+}
+
+struct TestDataSource {
+    schema: SchemaRef,
+}
+
+impl TestDataSource {
+    pub fn new(schema: SchemaRef) -> Self {
+        Self { schema }
+    }
+}
+
+impl DataSource for TestDataSource {
+    fn get_stream(&self, request: ScanRequest) -> Result<SendableRecordBatchStream, BoxedError> {
+        let projected_schema = match request.projection.as_deref() {
+            Some(projection) => Arc::new(self.schema.try_project(projection).unwrap()),
+            None => self.schema.clone(),
+        };
+        Ok(Box::pin(EmptyStream {
+            schema: projected_schema,
+        }))
+    }
+}
+
+struct EmptyStream {
+    schema: SchemaRef,
+}
+
+impl RecordBatchStream for EmptyStream {
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+
+    fn output_ordering(&self) -> Option<&[OrderOption]> {
+        None
+    }
+
+    fn metrics(&self) -> Option<RecordBatchMetrics> {
+        None
+    }
+}
+
+impl Stream for EmptyStream {
+    type Item = RecordBatchResult<RecordBatch>;
+
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(None)
+    }
+}
+
+fn find_merge_scan(plan: &LogicalPlan) -> Option<&MergeScanLogicalPlan> {
+    if let LogicalPlan::Extension(extension) = plan
+        && let Some(merge_scan) = extension
+            .node
+            .as_any()
+            .downcast_ref::<MergeScanLogicalPlan>()
+    {
+        return Some(merge_scan);
+    }
+
+    plan.inputs().into_iter().find_map(find_merge_scan)
+}
+
+fn find_table_scan<'a>(
+    plan: &'a LogicalPlan,
+    table_name: &str,
+) -> Option<&'a datafusion_expr::logical_plan::TableScan> {
+    if let LogicalPlan::TableScan(table_scan) = plan
+        && table_scan.table_name.to_string() == table_name
+    {
+        return Some(table_scan);
+    }
+
+    plan.inputs()
+        .into_iter()
+        .find_map(|input| find_table_scan(input, table_name))
+}
+
+fn find_merge_scan_for_table<'a>(
+    plan: &'a LogicalPlan,
+    table_name: &str,
+) -> Option<&'a MergeScanLogicalPlan> {
+    if let LogicalPlan::Extension(extension) = plan
+        && let Some(merge_scan) = extension
+            .node
+            .as_any()
+            .downcast_ref::<MergeScanLogicalPlan>()
+        && find_table_scan(merge_scan.input(), table_name).is_some()
+    {
+        return Some(merge_scan);
+    }
+
+    plan.inputs()
+        .into_iter()
+        .find_map(|input| find_merge_scan_for_table(input, table_name))
+}
+
+fn has_filter_above_table_scan(plan: &LogicalPlan, table_name: &str, predicate: &Expr) -> bool {
+    if let LogicalPlan::Filter(filter) = plan
+        && split_conjunction(&filter.predicate).contains(&predicate)
+        && find_table_scan(filter.input.as_ref(), table_name).is_some()
+    {
+        return true;
+    }
+
+    plan.inputs()
+        .into_iter()
+        .any(|input| has_filter_above_table_scan(input, table_name, predicate))
+}
+
+#[test]
+fn frontend_only_histogram_folds_stay_above_merge_scan() {
+    let table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(table),
+    )));
+    let input = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    for (name, operation, histogram_column) in [
+        (
+            "mixed",
+            HistogramFoldOperation::Quantile(0.5.into()),
+            Some("pk2".to_string()),
+        ),
+        (
+            "fraction",
+            HistogramFoldOperation::Fraction {
+                lower: 0.0.into(),
+                upper: 1.0.into(),
+            },
+            None,
+        ),
+    ] {
+        let fold = HistogramFold::new_with_operation(
+            "pk1".to_string(),
+            "number".to_string(),
+            "ts".to_string(),
+            operation,
+            histogram_column,
+            input.clone(),
+        )
+        .unwrap();
+        let plan = LogicalPlan::Extension(Extension {
+            node: Arc::new(fold),
+        });
+        assert!(
+            DFLogicalSubstraitConvertor
+                .encode(&plan, DefaultSerializer)
+                .is_err(),
+            "{name}"
+        );
+
+        let result = DistPlannerAnalyzer {}
+            .analyze(plan, &ConfigOptions::default())
+            .unwrap();
+        let result_text = result.to_string();
+        assert!(
+            result_text.contains("HistogramFold:"),
+            "{name}\n{result_text}"
+        );
+
+        let remote_input = find_merge_scan(&result).unwrap().input();
+        let remote_text = remote_input.to_string();
+        assert!(
+            !remote_text.contains("HistogramFold:"),
+            "{name}\n{remote_text}"
+        );
+        DFLogicalSubstraitConvertor
+            .encode(remote_input, DefaultSerializer)
+            .unwrap();
+    }
+}
+
+/// `Categorizer` calls `Unnest` commutative, so the Substrait check in `should_expand` is
+/// the only thing keeping it on the frontend. It also sits above an encodable projection,
+/// which pins the rewriter to the whole-plan check rather than to the root node alone.
+#[test]
+fn unencodable_unnest_stays_above_merge_scan() {
+    let table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            col("pk1"),
+            make_array(vec![col("number")]).alias("numbers"),
+        ])
+        .unwrap()
+        .unnest_column("numbers")
+        .unwrap()
+        .build()
+        .unwrap();
+    assert!(
+        DFLogicalSubstraitConvertor
+            .encode(&plan, DefaultSerializer)
+            .is_err()
+    );
+
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan, &ConfigOptions::default())
+        .unwrap();
+    let result_text = result.to_string();
+    assert!(result_text.contains("Unnest:"), "{result_text}");
+
+    let remote_input = find_merge_scan(&result).unwrap().input();
+    let remote_text = remote_input.to_string();
+    assert!(!remote_text.contains("Unnest:"), "{remote_text}");
+    assert!(remote_text.contains("make_array"), "{remote_text}");
+    DFLogicalSubstraitConvertor
+        .encode(remote_input, DefaultSerializer)
+        .unwrap();
+}
+
+#[test]
+fn dictionary_literals_are_unwrapped_before_pushdown() {
+    let table = Arc::new(Table::new(
+        TestTable::table_info(0, "t".to_string(), MITO_ENGINE.to_string()),
+        FilterPushDownType::Inexact,
+        Arc::new(TestDataSource::new(TestTable::schema())),
+    ));
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(table),
+    )));
+    let literal = Expr::Literal(
+        ScalarValue::Dictionary(
+            Box::new(DataType::UInt32),
+            Box::new(ScalarValue::Utf8(Some("host-a".to_string()))),
+        ),
+        None,
+    );
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .filter(col("pk1").eq(literal))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan, &ConfigOptions::default())
+        .unwrap();
+    assert!(
+        result
+            .to_string()
+            .contains("Filter: t.pk1 = Utf8(\"host-a\")")
+    );
+
+    let remote_input = find_merge_scan(&result).unwrap().input();
+    assert!(
+        remote_input
+            .to_string()
+            .contains("partial_filters=[t.pk1 = Utf8(\"host-a\")]")
+    );
+    DFLogicalSubstraitConvertor
+        .encode(remote_input, DefaultSerializer)
+        .unwrap();
+}
+
+#[test]
+fn dictionary_literals_in_values_keep_their_schema() {
+    let literal = Expr::Literal(
+        ScalarValue::Dictionary(
+            Box::new(DataType::UInt32),
+            Box::new(ScalarValue::Utf8(Some("host-a".to_string()))),
+        ),
+        None,
+    );
+    let plan = LogicalPlanBuilder::values(vec![vec![literal]])
+        .unwrap()
+        .build()
+        .unwrap();
+    let schema = plan.schema().clone();
+
+    let transformed = plan
+        .transform_down_with_subqueries(&unwrap_dictionary_literals)
+        .unwrap()
+        .data;
+
+    assert_eq!(&schema, transformed.schema());
+    assert!(
+        transformed
+            .to_string()
+            .contains("Dictionary(UInt32, Utf8(\"host-a\"))")
+    );
+}
+
+#[test]
+fn like_filters_are_pushed_down() {
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone() as _));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider as _)
+        .unwrap();
+
+    let like = |negated, pattern: &str, escape_char, case_insensitive| {
+        Expr::Like(datafusion_expr::expr::Like::new(
+            negated,
+            Box::new(col("t.pk1")),
+            Box::new(lit(pattern.to_string())),
+            escape_char,
+            case_insensitive,
+        ))
+    };
+    // Substrait has no negated LIKE, so `NOT LIKE` comes back as `NOT (.. LIKE ..)`.
+    for (predicate, decoded) in [
+        (
+            like(false, "% timeout %", None, false),
+            like(false, "% timeout %", None, false),
+        ),
+        (
+            like(true, "% timeout %", None, false),
+            Expr::Not(Box::new(like(false, "% timeout %", None, false))),
+        ),
+        (
+            like(false, "% timeout %", None, true),
+            like(false, "% timeout %", None, true),
+        ),
+        (
+            like(false, "100!% done", Some('!'), false),
+            like(false, "100!% done", Some('!'), false),
+        ),
+    ] {
+        let plan = LogicalPlanBuilder::scan_with_filters("t", table_source.clone(), None, vec![])
+            .unwrap()
+            .filter(predicate.clone())
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let result = DistPlannerAnalyzer {}
+            .analyze(plan, &ConfigOptions::default())
+            .unwrap();
+        let remote_input = find_merge_scan(&result).unwrap().input();
+        assert!(
+            has_filter_above_table_scan(remote_input, "t", &predicate),
+            "{result}"
+        );
+
+        let bytes = DFLogicalSubstraitConvertor
+            .encode(remote_input, DefaultSerializer)
+            .unwrap();
+        let decoded_plan =
+            futures::executor::block_on(DFLogicalSubstraitConvertor.decode(bytes, ctx.state()))
+                .unwrap();
+        assert!(
+            has_filter_above_table_scan(&decoded_plan, "t", &decoded),
+            "{decoded_plan}"
+        );
+    }
+}
+
+fn try_encode_decode_substrait(plan: &LogicalPlan, state: SessionState) {
+    let sub_plan_bytes = substrait::DFLogicalSubstraitConvertor
+        .encode(plan, crate::query_engine::DefaultSerializer)
+        .unwrap();
+    let inner = sub_plan_bytes.clone();
+    let inner_state = state.clone();
+    let decoded_plan = futures::executor::block_on(async move {
+        substrait::DFLogicalSubstraitConvertor
+            .decode(inner, inner_state)
+            .await
+    }).inspect_err(|e|{
+        use prost::Message;
+        let sub_plan = substrait::substrait_proto_df::proto::Plan::decode(sub_plan_bytes).unwrap();
+        common_telemetry::error!("Failed to decode substrait plan: {e},substrait plan: {sub_plan:#?}\nlogical plan: {plan:#?}");
+    })
+    .unwrap();
+
+    assert_eq!(*plan, decoded_plan);
+}
+
+#[test]
+fn expand_proj_sort_proj() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![col("number"), col("pk1"), col("pk2"), col("pk3")])
+        .unwrap()
+        .project(vec![
+            col("number"),
+            col("pk1"),
+            col("pk3"),
+            col("pk1").eq(col("pk2")),
+        ])
+        .unwrap()
+        .sort(vec![col("t.pk1 = t.pk2").sort(true, true)])
+        .unwrap()
+        .project(vec![col("number")])
+        .unwrap()
+        .project(vec![col("number")])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: t.number",
+        "  MergeSort: t.pk1 = t.pk2 ASC NULLS FIRST",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: t.number, t.pk1 = t.pk2",
+        "  Projection: t.number, t.pk1 = t.pk2", // notice both projections added `t.pk1 = t.pk2` column requirement
+        "    Sort: t.pk1 = t.pk2 ASC NULLS FIRST",
+        "      Projection: t.number, t.pk1, t.pk3, t.pk2 = t.pk1 AS t.pk1 = t.pk2",
+        "        Projection: t.number, t.pk1, t.pk2, t.pk3", // notice this projection doesn't add `t.pk1 = t.pk2` column requirement
+        "          TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_sort_partial_proj() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![col("number"), col("pk1"), col("pk2"), col("pk3")])
+        .unwrap()
+        .project(vec![
+            col("number"),
+            col("pk1"),
+            col("pk3"),
+            col("pk1").eq(col("pk2")),
+        ])
+        .unwrap()
+        .sort(vec![col("t.pk1 = t.pk2").sort(true, true)])
+        .unwrap()
+        .project(vec![col("number"), col("t.pk1 = t.pk2").alias("eq_sorted")])
+        .unwrap()
+        .project(vec![col("number")])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: t.number",
+        "  MergeSort: eq_sorted ASC NULLS FIRST", // notice how `eq_sorted` is used here
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: t.number, eq_sorted", // notice how `eq_sorted` is added not `t.pk1 = t.pk2`
+        "  Projection: t.number, t.pk1 = t.pk2 AS eq_sorted",
+        "    Sort: t.pk1 = t.pk2 ASC NULLS FIRST",
+        "      Projection: t.number, t.pk1, t.pk3, t.pk2 = t.pk1 AS t.pk1 = t.pk2",
+        "        Projection: t.number, t.pk1, t.pk2, t.pk3", // notice this projection doesn't add `t.pk1 = t.pk2` column requirement
+        "          TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_sort_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: t.pk1, t.pk2, t.pk3, t.ts, t.number",
+        "  Limit: skip=0, fetch=10",
+        "    MergeSort: t.pk1 ASC NULLS LAST",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Sort: t.pk1 ASC NULLS LAST",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// Test merge sort can apply enforce dist requirement columns correctly and use the aliased column correctly, as there is
+/// a aliased sort column, there is no need to add a duplicate sort column using it's original column name
+#[test]
+fn expand_sort_alias_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .project(vec![col("pk1").alias("something")])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: something",
+        "  Limit: skip=0, fetch=10",
+        "    MergeSort: something ASC NULLS LAST",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.pk1 AS something",
+        "    Sort: t.pk1 ASC NULLS LAST",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// FIXME(discord9): alias to same name with col req makes it ambiguous
+/// for now since it bugged, will use fallback plan rewriter to only push down table scan node
+#[test]
+fn expand_sort_alias_conflict_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .project(vec![col("pk2").alias("pk1")])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan.clone(), &config);
+    assert!(result.is_err(), "Expected error for ambiguous alias");
+    assert!(format!("{result:?}").contains("AmbiguousReference"));
+
+    let mut config = ConfigOptions::default();
+    config.extensions.insert(DistPlannerOptions {
+        allow_query_fallback: true,
+    });
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.pk2 AS pk1",
+        "    Sort: t.pk1 ASC NULLS LAST",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_sort_alias_conflict_but_not_really_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .project(vec![col("pk2").alias("t.pk1")])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: t.pk1",
+        "  Limit: skip=0, fetch=10",
+        "    MergeSort: t.pk1 ASC NULLS LAST",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.pk2 AS t.pk1, t.pk1",
+        "    Sort: t.pk1 ASC NULLS LAST",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// TODO(discord9): it is possible to expand `Sort` and `Limit` in the same step,
+/// but it's too complicated to implement now, and probably not worth it since `Limit` already
+/// greatly reduces the amount of data to sort.
+#[test]
+fn expand_limit_sort() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Sort: t.pk1 ASC NULLS LAST",
+        "  Projection: t.pk1, t.pk2, t.pk3, t.ts, t.number",
+        "    Limit: skip=0, fetch=10",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_sort_limit_sort() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Sort: t.pk1 ASC NULLS LAST",
+        "  Projection: t.pk1, t.pk2, t.pk3, t.ts, t.number",
+        "    Limit: skip=0, fetch=10",
+        "      MergeSort: t.pk1 ASC NULLS LAST",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Sort: t.pk1 ASC NULLS LAST",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// test plan like:
+/// ```
+/// Aggregate: min(t.number)
+///  Projection: t.number
+/// ```
+/// which means aggr introduce new column requirements that shouldn't be updated in lower projection
+///
+/// this help test expand need actually add new column requirements
+/// because ``Limit` doesn't introduce new column requirements
+/// only `Sort/Aggregate` does, and for now since `aggregate` get expanded immediately, it's col requirements are not used anyway
+#[test]
+fn expand_proj_step_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![col("number")])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: min(t.number)",
+        "  Aggregate: groupBy=[[]], aggr=[[__min_merge(__min_state(t.number)) AS min(t.number)]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__min_state(t.number)]]",
+        "  Projection: t.number", // This Projection shouldn't add new column requirements
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// Shouldn't push down the fake partition column aggregate(which is steppable)
+/// as the `pk1` is a alias for `pk3` which is not partition column
+#[test]
+fn expand_proj_alias_fake_part_col_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            col("number"),
+            col("pk3").alias("pk1"),
+            col("pk2").alias("pk3"),
+        ])
+        .unwrap()
+        .project(vec![
+            col("number"),
+            col("pk1").alias("pk2"),
+            col("pk3").alias("pk1"),
+        ])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: pk1, pk2, min(t.number)",
+        "  Aggregate: groupBy=[[pk1, pk2]], aggr=[[__min_merge(__min_state(t.number)) AS min(t.number)]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[pk1, pk2]], aggr=[[__min_state(t.number)]]",
+        "  Projection: t.number, pk1 AS pk2, pk3 AS pk1",
+        "    Projection: t.number, t.pk3 AS pk1, t.pk2 AS pk3",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_alias_aliased_part_col_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            col("number"),
+            col("pk1").alias("pk3"),
+            col("pk2").alias("pk4"),
+        ])
+        .unwrap()
+        .project(vec![
+            col("number"),
+            col("pk3").alias("pk42"),
+            col("pk4").alias("pk43"),
+        ])
+        .unwrap()
+        .aggregate(vec![col("pk42"), col("pk43")], vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: pk42, pk43, min(t.number)",
+        "  MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[pk42, pk43]], aggr=[[min(t.number)]]",
+        "  Projection: t.number, pk3 AS pk42, pk4 AS pk43",
+        "    Projection: t.number, t.pk1 AS pk3, t.pk2 AS pk4",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// `substr(pk1, 1, 1)` maps rows from different partitions to the same group, so the
+/// aggregate has to be merged on the frontend even though it references `pk1`.
+#[test]
+fn expand_expr_over_part_col_aggr() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(
+            vec![substring(col("pk1"), lit(1i64), lit(1i64)), col("pk2")],
+            vec![min(col("number"))],
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: substr(t.pk1,Int64(1),Int64(1)), t.pk2, min(t.number)",
+        "  Aggregate: groupBy=[[substr(t.pk1,Int64(1),Int64(1)), t.pk2]], aggr=[[__min_merge(__min_state(t.number)) AS min(t.number)]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[substr(t.pk1, Int64(1), Int64(1)), t.pk2]], aggr=[[__min_state(t.number)]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// notice that step aggr then part col aggr seems impossible as the partition columns for part col aggr
+/// can't pass through the step aggr without making step aggr also a part col aggr
+/// so here only test part col aggr -> step aggr case
+#[test]
+fn expand_part_col_aggr_step_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![max(col("number"))])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![min(col("max(t.number)"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: min(max(t.number))",
+        "  Aggregate: groupBy=[[]], aggr=[[__min_merge(__min_state(max(t.number))) AS min(max(t.number))]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__min_state(max(t.number))]]",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[max(t.number)]]",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_step_aggr_step_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![max(col("number"))])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![min(col("max(t.number)"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Aggregate: groupBy=[[]], aggr=[[min(max(t.number))]]",
+        "  Projection: max(t.number)",
+        "    Aggregate: groupBy=[[]], aggr=[[__max_merge(__max_state(t.number)) AS max(t.number)]]",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__max_state(t.number)]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_part_col_aggr_part_col_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![max(col("number"))])
+        .unwrap()
+        .aggregate(
+            vec![col("pk1"), col("pk2")],
+            vec![min(col("max(t.number)"))],
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let expected_original = [
+        // See DataFusion #14860 for change details.
+        "Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(max(t.number))]]",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[max(t.number)]]",
+        "    TableScan: t",
+    ]
+    .join("\n");
+    assert_eq!(expected_original, plan.to_string());
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: t.pk1, t.pk2, min(max(t.number))",
+        "  MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(max(t.number))]]",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[max(t.number)]]",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_step_aggr_proj() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![col("pk1")], vec![min(col("number"))])
+        .unwrap()
+        .project(vec![col("min(t.number)")])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: min(t.number)",
+        "  Projection: t.pk1, min(t.number)",
+        "    Aggregate: groupBy=[[t.pk1]], aggr=[[__min_merge(__min_state(t.number)) AS min(t.number)]]",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[t.pk1]], aggr=[[__min_state(t.number)]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// Make sure that `SeriesDivide` special handling correctly clean up column requirements from it's previous sort
+#[test]
+fn expand_complex_col_req_sort_pql() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source.clone(), None, vec![])
+        .unwrap()
+        .sort(vec![
+            col("pk1").sort(true, false),
+            col("pk2").sort(true, false),
+            col("pk3").sort(true, false), // make some col req here
+        ])
+        .unwrap()
+        .build()
+        .unwrap();
+    let plan = SeriesDivide::new(
+        vec!["pk1".to_string(), "pk2".to_string(), "pk3".to_string()],
+        "ts".to_string(),
+        plan,
+    );
+    let plan = LogicalPlan::Extension(datafusion_expr::Extension {
+        node: Arc::new(plan),
+    });
+
+    let plan = LogicalPlanBuilder::from(plan)
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .sort(vec![
+            col("pk1").sort(true, false),
+            col("pk2").sort(true, false),
+        ])
+        .unwrap()
+        .project(vec![col("pk1"), col("pk2")])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        "Projection: t.pk1, t.pk2",
+        "  MergeSort: t.pk1 ASC NULLS LAST, t.pk2 ASC NULLS LAST",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: t.pk1, t.pk2",
+        "  Sort: t.pk1 ASC NULLS LAST, t.pk2 ASC NULLS LAST",
+        "    Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        r#"      PromSeriesDivide: tags=["pk1", "pk2", "pk3"]"#,
+        "        Sort: t.pk1 ASC NULLS LAST, t.pk2 ASC NULLS LAST, t.pk3 ASC NULLS LAST",
+        "          TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// should only expand `Sort`, notice `Sort` before `Aggregate` usually can and
+/// will be optimized out, and dist planner shouldn't handle that case, but
+/// for now, still handle that be expanding the `Sort` node
+#[test]
+fn expand_proj_sort_step_aggr_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .project(vec![Expr::Column(Column::new(
+            Some(TableReference::bare("t")),
+            "number",
+        ))])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![min(col("number"))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Limit: skip=0, fetch=10",
+        "  Aggregate: groupBy=[[]], aggr=[[min(t.number)]]",
+        "    Projection: t.number",
+        "      MergeSort: t.pk1 ASC NULLS LAST",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: t.number, t.pk1",
+        "  Sort: t.pk1 ASC NULLS LAST",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_sort_limit_step_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk1").sort(true, false)])
+        .unwrap()
+        .project(vec![Expr::Column(Column::new(
+            Some(TableReference::bare("t")),
+            "number",
+        ))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Aggregate: groupBy=[[]], aggr=[[min(t.number)]]",
+        "  Projection: t.number",
+        "    Limit: skip=0, fetch=10",
+        "      MergeSort: t.pk1 ASC NULLS LAST",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.number, t.pk1",
+        "    Sort: t.pk1 ASC NULLS LAST",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_limit_step_aggr_sort() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![Expr::Column(Column::new(
+            Some(TableReference::bare("t")),
+            "number",
+        ))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![min(col("number"))])
+        .unwrap()
+        .sort(vec![col("min(t.number)").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Sort: min(t.number) ASC NULLS LAST",
+        "  Aggregate: groupBy=[[]], aggr=[[min(t.number)]]",
+        "    Projection: t.number",
+        "      Limit: skip=0, fetch=10",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.number",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_sort_part_col_aggr_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk3").sort(true, false)])
+        .unwrap()
+        .project(vec![
+            Expr::Column(Column::new(Some(TableReference::bare("t")), "number")),
+            col("pk1"),
+            col("pk2"),
+        ])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Limit: skip=0, fetch=10",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "    Projection: t.number, t.pk1, t.pk2",
+        "      MergeSort: t.pk3 ASC NULLS LAST",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: t.number, t.pk1, t.pk2, t.pk3",
+        "  Sort: t.pk3 ASC NULLS LAST",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_sort_limit_part_col_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("pk3").sort(true, false)])
+        .unwrap()
+        .project(vec![
+            Expr::Column(Column::new(Some(TableReference::bare("t")), "number")),
+            col("pk1"),
+            col("pk2"),
+        ])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "  Projection: t.number, t.pk1, t.pk2",
+        "    Limit: skip=0, fetch=10",
+        "      MergeSort: t.pk3 ASC NULLS LAST",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.number, t.pk1, t.pk2, t.pk3",
+        "    Sort: t.pk3 ASC NULLS LAST",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+#[test]
+fn expand_proj_part_col_aggr_limit_sort() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            Expr::Column(Column::new(Some(TableReference::bare("t")), "number")),
+            col("pk1"),
+            col("pk2"),
+        ])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .sort(vec![col("pk2").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Sort: t.pk2 ASC NULLS LAST",
+        "  Projection: t.pk1, t.pk2, min(t.number)",
+        "    Limit: skip=0, fetch=10",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "    Projection: t.number, t.pk1, t.pk2",
+        "      TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_part_col_aggr_sort_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            Expr::Column(Column::new(Some(TableReference::bare("t")), "number")),
+            col("pk1"),
+            col("pk2"),
+        ])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .sort(vec![col("pk2").sort(true, false)])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: t.pk1, t.pk2, min(t.number)",
+        "  Limit: skip=0, fetch=10",
+        "    MergeSort: t.pk2 ASC NULLS LAST",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Sort: t.pk2 ASC NULLS LAST",
+        "    Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "      Projection: t.number, t.pk1, t.pk2",
+        "        TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn test_simplify_select_now_expression() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone()));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider.clone() as _)
+        .unwrap();
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source.clone(), None, vec![])
+        .unwrap()
+        .project(vec![now()])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+
+    common_telemetry::info!("Analyzed plan: {}", result);
+
+    let result_str = result.to_string();
+    // Normalize timestamp values to make test deterministic
+    let re = Regex::new(r"TimestampNanosecond\(\d+,").unwrap();
+    let normalized = re.replace_all(&result_str, "TimestampNanosecond(<TIME>,");
+
+    let expected = [
+        "Projection: now()",
+        "  MergeScan [is_placeholder=false, remote_input=[",
+        r#"Projection: TimestampNanosecond(<TIME>, None) AS now()"#,
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, normalized);
+}
+
+#[test]
+fn sibling_merge_scans_have_unique_remote_dyn_filter_producer_ids() {
+    init_default_ut_logging();
+    let left_table = TestTable::table_with_name(0, "left_table".to_string());
+    let right_table = TestTable::table_with_name(1, "right_table".to_string());
+
+    let left_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(left_table),
+    )));
+    let right_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(right_table),
+    )));
+
+    let left_sorted =
+        LogicalPlanBuilder::scan_with_filters("left_table", left_source, None, vec![])
+            .unwrap()
+            .sort(vec![col("pk1").sort(true, false)])
+            .unwrap()
+            .build()
+            .unwrap();
+
+    let right_sorted =
+        LogicalPlanBuilder::scan_with_filters("right_table", right_source, None, vec![])
+            .unwrap()
+            .sort(vec![col("pk1").sort(true, false)])
+            .unwrap()
+            .build()
+            .unwrap();
+
+    let plan = LogicalPlanBuilder::from(left_sorted)
+        .cross_join(right_sorted)
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let mut producer_ids = Vec::new();
+    collect_merge_scan_remote_dyn_filter_producer_id_list(&result, &mut producer_ids);
+    let unique_producer_ids = producer_ids.iter().copied().collect::<BTreeSet<_>>();
+
+    assert!(
+        producer_ids.len() >= 2,
+        "Expected at least 2 RemoteDynFilterProducerIds, got {}: {producer_ids:?}",
+        producer_ids.len()
+    );
+    assert_eq!(
+        producer_ids.len(),
+        unique_producer_ids.len(),
+        "Expected all sibling RemoteDynFilterProducerIds to be unique, got ids: {producer_ids:?}"
+    );
+}
+
+#[tokio::test]
+async fn having_bound_reaches_remote_scan_before_aggregate_splitting() {
+    for pushdown in [FilterPushDownType::Inexact, FilterPushDownType::Exact] {
+        let table = TestTable::table_with_filter_pushdown(0, "t".to_string(), pushdown);
+        let ctx = SessionContext::new();
+        ctx.register_table("t", Arc::new(DfTableProviderAdapter::new(table)))
+            .unwrap();
+        // Both region-local groups and groups requiring coordinator aggregation
+        // must receive the bound before MIN/SUM become state aggregates.
+        for group_by in ["pk1, pk2", "pk3"] {
+            let sql = format!(
+                "SELECT {group_by}, MIN(CAST(ts AS BIGINT)) FROM t GROUP BY {group_by}
+                 HAVING SUM(CASE WHEN number > 0 AND CAST(ts AS BIGINT) >= 10
+                     AND CAST(ts AS BIGINT) < 20 THEN 1 ELSE 0 END) > 0"
+            );
+            let state = ctx.state();
+            let plan = state.create_logical_plan(&sql).await.unwrap();
+            let plan = state
+                .analyzer()
+                .execute_and_check(plan, state.config_options(), |_, _| {})
+                .unwrap();
+            let planned = DistPlannerAnalyzer
+                .analyze(plan, state.config_options())
+                .unwrap();
+            let remote = find_merge_scan_for_table(&planned, "t").unwrap().input();
+            let scan = find_table_scan(remote, "t").unwrap();
+            let bound = datafusion_expr::cast(col("t.ts"), DataType::Int64).lt(lit(20_i64));
+            assert!(scan.filters.contains(&bound), "{planned}");
+            assert!(
+                planned.to_string().contains("> Int64(0)"),
+                "HAVING must remain: {planned}"
+            );
+            assert_remote_table_scan_filters_are_safe(&planned);
+        }
+    }
+}
+
+#[tokio::test]
+async fn frontend_having_does_not_reinfer_remote_bounds() {
+    let ctx = SessionContext::new();
+    for (id, name) in [(0, "t"), (1, "u")] {
+        let table = TestTable::table_with_filter_pushdown(
+            id,
+            name.to_string(),
+            FilterPushDownType::Inexact,
+        );
+        ctx.register_table(name, Arc::new(DfTableProviderAdapter::new(table)))
+            .unwrap();
+    }
+    for source in [
+        "SELECT t.pk3, t.ts, t.number FROM t JOIN u ON t.pk1 = u.pk1",
+        "SELECT pk3, ts, number FROM t UNION ALL SELECT pk3, ts, number FROM u",
+    ] {
+        let sql = format!(
+            "SELECT s.pk3, MIN(CAST(s.ts AS BIGINT)) FROM ({source}) s
+            GROUP BY s.pk3 HAVING SUM(CASE WHEN s.number > 0 AND CAST(s.ts AS BIGINT) < 20
+            THEN 1 ELSE 0 END) > 0"
+        );
+        let state = ctx.state();
+        let plan = state.create_logical_plan(&sql).await.unwrap();
+        let plan = state
+            .analyzer()
+            .execute_and_check(plan, state.config_options(), |_, _| {})
+            .unwrap();
+        let planned = DistPlannerAnalyzer
+            .analyze(plan, state.config_options())
+            .unwrap();
+        let remote = find_merge_scan_for_table(&planned, "t").unwrap().input();
+        let scan = find_table_scan(remote, "t").unwrap();
+        let bound = datafusion_expr::cast(col("t.ts"), DataType::Int64).lt(lit(20_i64));
+        assert!(scan.filters.contains(&bound), "{planned}");
+
+        let config = datafusion_optimizer::OptimizerContext::new();
+        let rule_only = Optimizer::with_rules(vec![Arc::new(InferAggregateInputBoundsRule)]);
+        assert_eq!(
+            planned,
+            rule_only
+                .optimize(planned.clone(), &config, |_, _| {})
+                .unwrap()
+        );
+
+        let mut optimizer = Optimizer::new();
+        let index = optimizer
+            .rules
+            .iter()
+            .position(|rule| rule.name() == "push_down_filter")
+            .unwrap();
+        optimizer
+            .rules
+            .insert(index, Arc::new(InferAggregateInputBoundsRule));
+        let optimized = optimizer.optimize(planned, &config, |_, _| {}).unwrap();
+        // MergeScan hides remote filters from this walk. Only HAVING should
+        // remain on the frontend, not another copy of the input bound.
+        let mut filters = 0;
+        optimized
+            .apply(|plan| {
+                filters += usize::from(matches!(plan, LogicalPlan::Filter(_)));
+                Ok(TreeNodeRecursion::Continue)
+            })
+            .unwrap();
+        assert_eq!(1, filters, "{optimized}");
+        assert_eq!(
+            optimized,
+            optimizer
+                .optimize(optimized.clone(), &config, |_, _| {})
+                .unwrap()
+        );
+    }
+}
+
+#[test]
+fn pre_merge_scan_optimizer_eliminates_projected_false_filter() {
+    init_default_ut_logging();
+    let left_table =
+        TestTable::table_with_filter_pushdown(0, "i1".to_string(), FilterPushDownType::Inexact);
+    let right_table =
+        TestTable::table_with_filter_pushdown(1, "i2".to_string(), FilterPushDownType::Inexact);
+
+    let left_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(left_table),
+    )));
+    let right_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(right_table),
+    )));
+
+    let left = LogicalPlanBuilder::scan_with_filters("i1", left_source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+    let right = LogicalPlanBuilder::scan_with_filters("i2", right_source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let plan = LogicalPlanBuilder::from(left)
+        .cross_join(right)
+        .unwrap()
+        .project(vec![lit(false).alias("cond")])
+        .unwrap()
+        .filter(col("cond"))
+        .unwrap()
+        .sort(vec![col("cond").sort(true, true)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    assert_eq!("EmptyRelation: rows=0", result.to_string());
+}
+
+#[test]
+fn test_simplify_now_expression() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source.clone(), None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    // CAST(t.ts AS Timestamp(Millisecond, Some("+00:00")))
+    let ts_cast_type = DataType::Timestamp(TimeUnit::Millisecond, Some("+00:00".into()));
+
+    let ts_expr = col("ts").cast_to(&ts_cast_type, plan.schema()).unwrap();
+
+    // CAST(now() - interval AS Timestamp(Millisecond, Some("+00:00")))
+    let interval = lit(ScalarValue::new_interval_mdn(0, 0, 2700000000000)); // 2700s = 45m
+    let right_expr = binary_expr(now(), Operator::Minus, interval);
+    let right_expr_cast = right_expr.cast_to(&ts_cast_type, plan.schema()).unwrap();
+
+    let filter_expr = ts_expr.lt_eq(right_expr_cast);
+
+    // Projection: t.b, count(Int64(1))
+    //   Aggregate: groupBy=[[my_table.b]], aggr=[[count(my_table.ts) AS count(Int64(1))]]
+    //     Filter: CAST(my_table.ts AS Timestamp(Millisecond, Some("+00:00"))) <= CAST(now() - IntervalMonthDayNano("IntervalMonthDayNano { months: 0, days: 0, nanoseconds: 2700000000000 }") AS Timestamp(Millisecond, Some("+00:00")))
+    //       TableScan: my_table
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .filter(filter_expr)
+        .unwrap()
+        .aggregate(
+            vec![col("pk1")],
+            vec![
+                datafusion::functions_aggregate::expr_fn::count(col("ts")).alias("count(Int64(1))"),
+            ],
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let plan_str = result.to_string();
+    common_telemetry::info!("Analyzed plan: {}", plan_str);
+
+    // If simplified, "now()" should be replaced by a literal.
+    assert!(
+        !plan_str.contains("now()"),
+        "Plan should be simplified but contains now(): {}",
+        plan_str
+    );
+}
+
+#[test]
+fn expand_proj_limit_part_col_aggr_sort() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            Expr::Column(Column::new(Some(TableReference::bare("t")), "number")),
+            col("pk1"),
+            col("pk2"),
+        ])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .sort(vec![col("pk2").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    // Pre-MergeScan optimizer intentionally excludes PushDownLimit, so the
+    // remote plan shows an explicit Limit node instead of `fetch=10` on
+    // TableScan.
+    let expected = [
+        "Sort: t.pk2 ASC NULLS LAST",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "    Projection: t.number, t.pk1, t.pk2",
+        "      Limit: skip=0, fetch=10",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.number, t.pk1, t.pk2",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn expand_proj_limit_sort_part_col_aggr() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![
+            Expr::Column(Column::new(Some(TableReference::bare("t")), "number")),
+            col("pk1"),
+            col("pk2"),
+        ])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .sort(vec![col("pk2").sort(true, false)])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    // Pre-MergeScan optimizer intentionally excludes PushDownLimit, so the
+    // remote plan shows an explicit Limit node instead of `fetch=10` on
+    // TableScan.
+    let expected = [
+        "Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "  Sort: t.pk2 ASC NULLS LAST",
+        "    Projection: t.number, t.pk1, t.pk2",
+        "      Limit: skip=0, fetch=10",
+        "        MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.number, t.pk1, t.pk2",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// Notice how this limit can't be push down, or results will be wrong
+#[test]
+fn expand_step_aggr_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![col("pk1")], vec![min(col("number"))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.pk1, min(t.number)",
+        "    Aggregate: groupBy=[[t.pk1]], aggr=[[__min_merge(__min_state(t.number)) AS min(t.number)]]",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[t.pk1]], aggr=[[__min_state(t.number)]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// Test how avg get expanded
+#[test]
+fn expand_step_aggr_avg_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![col("pk1")], vec![avg(col("number"))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Limit: skip=0, fetch=10",
+        "  Projection: t.pk1, avg(t.number)",
+        "    Aggregate: groupBy=[[t.pk1]], aggr=[[__avg_merge(__avg_state(t.number)) AS avg(t.number)]]",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[t.pk1]], aggr=[[__avg_state(CAST(t.number AS Float64))]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// `count(*)` and `count(1)` are rewritten to `count(ts)` with their names preserved, so
+/// all three share one state expression and must share one state column.
+#[test]
+fn expand_step_aggr_count_wildcard_and_time_index() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(
+            Vec::<Expr>::new(),
+            vec![
+                datafusion::functions_aggregate::count::count_all(),
+                datafusion::functions_aggregate::expr_fn::count(lit(1i64)),
+                datafusion::functions_aggregate::expr_fn::count(col("ts")),
+            ],
+        )
+        .unwrap()
+        .project(vec![
+            col("count(*)").alias("a"),
+            col("count(Int64(1))"),
+            col("count(t.ts)").alias("b"),
+        ])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let plan = CountWildcardToTimeIndexRule.analyze(plan, &config).unwrap();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: count(*) AS a, count(Int64(1)), count(t.ts) AS b",
+        "  Projection: count(*), count(Int64(1)), count(t.ts)",
+        "    Aggregate: groupBy=[[]], aggr=[[__count_merge(__count_state(t.ts)) AS count(*), __count_merge(__count_state(t.ts)) AS count(Int64(1)), __count_merge(__count_state(t.ts)) AS count(t.ts)]]",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__count_state(t.ts)]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// After the `count(*)` rewrite, `count(ts)` and the casts of `ts` are different states with
+/// the same schema name, as schema names hide casts. The output alias `t.ts` and the second
+/// cast make sure a renamed state never takes a name that is already allocated.
+#[test]
+fn expand_step_aggr_count_wildcard_and_cast_time_index() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(
+            Vec::<Expr>::new(),
+            vec![
+                datafusion::functions_aggregate::count::count_all(),
+                datafusion::functions_aggregate::expr_fn::count(datafusion_expr::cast(
+                    col("ts"),
+                    DataType::Int64,
+                ))
+                .alias("t.ts"),
+                datafusion::functions_aggregate::expr_fn::count(datafusion_expr::cast(
+                    col("ts"),
+                    DataType::Utf8,
+                ))
+                .alias("c"),
+            ],
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let plan = CountWildcardToTimeIndexRule.analyze(plan, &config).unwrap();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: count(*), t.ts, c",
+        "  Aggregate: groupBy=[[]], aggr=[[__count_merge(__count_state(t.ts)) AS count(*), __count_merge(__count_state(t.ts)_1) AS t.ts, __count_merge(__count_state(t.ts)_2) AS c]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__count_state(t.ts), __count_state(CAST(t.ts AS Int64)) AS __count_state(t.ts)_1, __count_state(CAST(t.ts AS Utf8)) AS __count_state(t.ts)_2]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// notice how `Limit` can still get expanded
+#[test]
+fn expand_part_col_aggr_limit() {
+    // use logging for better debugging
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![col("pk1"), col("pk2")], vec![min(col("number"))])
+        .unwrap()
+        .limit(0, Some(10))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: t.pk1, t.pk2, min(t.number)",
+        "  Limit: skip=0, fetch=10",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Limit: skip=0, fetch=10",
+        "  Aggregate: groupBy=[[t.pk1, t.pk2]], aggr=[[min(t.number)]]",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[ignore = "Projection is disabled for https://github.com/apache/arrow-datafusion/issues/6489"]
+#[test]
+fn transform_simple_projection_filter() {
+    let numbers_table = NumbersTable::table(0);
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(numbers_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .filter(col("number").lt(lit(10)))
+        .unwrap()
+        .project(vec![col("number")])
+        .unwrap()
+        .distinct()
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Distinct:",
+        "  MergeScan [is_placeholder=false]",
+        "    Distinct:",
+        "      Projection: t.number",
+        "        Filter: t.number < Int32(10)",
+        "          TableScan: t",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn transform_aggregator() {
+    let numbers_table = NumbersTable::table(0);
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(numbers_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![avg(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = "Projection: avg(t.number)\
+        \n  MergeScan [is_placeholder=false, remote_input=[\
+        \nAggregate: groupBy=[[]], aggr=[[avg(t.number)]]\
+        \n  TableScan: t\
+        \n]]";
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn transform_distinct_order() {
+    let numbers_table = NumbersTable::table(0);
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(numbers_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .distinct()
+        .unwrap()
+        .sort(vec![col("number").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: t.number",
+        "  MergeScan [is_placeholder=false, remote_input=[
+Sort: t.number ASC NULLS LAST
+  Distinct:
+    TableScan: t
+]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn transform_single_limit() {
+    let numbers_table = NumbersTable::table(0);
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(numbers_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .limit(0, Some(1))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = "Projection: t.number\
+        \n  MergeScan [is_placeholder=false, remote_input=[
+Limit: skip=0, fetch=1
+  TableScan: t
+]]";
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn transform_unalighed_join_with_alias() {
+    let left = NumbersTable::table(0);
+    let right = NumbersTable::table(1);
+    let left_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(left),
+    )));
+    let right_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(right),
+    )));
+
+    let right_plan = LogicalPlanBuilder::scan_with_filters("t", right_source, None, vec![])
+        .unwrap()
+        .alias("right")
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", left_source, None, vec![])
+        .unwrap()
+        .join_on(
+            right_plan,
+            JoinType::LeftSemi,
+            vec![col("t.number").eq(col("right.number"))],
+        )
+        .unwrap()
+        .limit(0, Some(1))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Limit: skip=0, fetch=1",
+        "  LeftSemi Join: t.number = right.number",
+        "    Projection: t.number",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "TableScan: t",
+        "]]",
+        "    Projection: right.number",
+        "      MergeScan [is_placeholder=false, remote_input=[",
+        "SubqueryAlias: right",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn transform_subquery_sort_alias() {
+    init_default_ut_logging();
+
+    let test_table = TestTable::table_with_name(0, "numbers".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .alias("a")
+        .unwrap()
+        .sort(vec![col("a.number").sort(true, false)])
+        .unwrap()
+        .build()
+        .unwrap();
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: a.pk1, a.pk2, a.pk3, a.ts, a.number",
+        "  MergeSort: a.number ASC NULLS LAST",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Sort: a.number ASC NULLS LAST",
+        "  SubqueryAlias: a",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn transform_sort_subquery_alias() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "numbers".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .sort(vec![col("t.number").sort(true, false)])
+        .unwrap()
+        .alias("a")
+        .unwrap()
+        .build()
+        .unwrap();
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let expected = [
+        "Projection: a.pk1, a.pk2, a.pk3, a.ts, a.number",
+        "  MergeSort: a.number ASC NULLS LAST",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "SubqueryAlias: a",
+        "  Sort: t.number ASC NULLS LAST",
+        "    TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn remote_dyn_filter_producer_ids_do_not_collide_between_subquery_and_outer_plan() {
+    let test_table = TestTable::table_with_name(0, "numbers".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let subquery_plan =
+        LogicalPlanBuilder::scan_with_filters("inner", table_source.clone(), None, vec![])
+            .unwrap()
+            .build()
+            .unwrap();
+    let subquery = Subquery {
+        subquery: Arc::new(subquery_plan),
+        outer_ref_columns: Default::default(),
+        spans: Default::default(),
+    };
+    let outer_plan = LogicalPlanBuilder::scan_with_filters("outer", table_source, None, vec![])
+        .unwrap()
+        .filter(Expr::Exists(Exists {
+            subquery,
+            negated: false,
+        }))
+        .unwrap()
+        .build()
+        .unwrap();
+    let rewritten = DistPlannerAnalyzer {}.try_push_down(outer_plan).unwrap();
+
+    let mut producer_ids = BTreeSet::new();
+    collect_merge_scan_remote_dyn_filter_producer_ids(&rewritten, &mut producer_ids);
+
+    assert_eq!(producer_ids.len(), 2);
+}
+
+#[test]
+fn date_bin_ts_group_by() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+    let date_bin_call = Expr::ScalarFunction(ScalarFunction::new_udf(
+        date_bin(),
+        vec![
+            lit(datafusion_common::ScalarValue::IntervalDayTime(Some(
+                IntervalDayTime::new(0, 60 * 1000), // 1 minute in millis
+            ))),
+            col("ts"),
+        ],
+    ));
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(vec![date_bin_call], vec![min(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+
+    let expected = [
+        r#"Projection: date_bin(IntervalDayTime("IntervalDayTime { days: 0, milliseconds: 60000 }"),t.ts), min(t.number)"#,
+        r#"  Aggregate: groupBy=[[date_bin(IntervalDayTime("IntervalDayTime { days: 0, milliseconds: 60000 }"),t.ts)]], aggr=[[__min_merge(__min_state(t.number)) AS min(t.number)]]"#,
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        r#"Aggregate: groupBy=[[date_bin(IntervalDayTime("IntervalDayTime { days: 0, milliseconds: 60000 }"), t.ts)]], aggr=[[__min_state(t.number)]]"#,
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn ignore_nulls_aggregate_stays_on_frontend() {
+    use datafusion::functions_aggregate::first_last::last_value;
+
+    let table = TestTable::table_with_name(0, "t".to_string());
+    let source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(table),
+    )));
+    let input = LogicalPlanBuilder::scan_with_filters("t", source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+    for (group_by, null_treatment) in [
+        (
+            vec![col("pk1"), col("pk2")],
+            Some(NullTreatment::IgnoreNulls),
+        ),
+        (vec![col("number")], Some(NullTreatment::IgnoreNulls)),
+        (vec![col("pk1"), col("pk2")], None),
+        (
+            vec![col("pk1"), col("pk2")],
+            Some(NullTreatment::RespectNulls),
+        ),
+    ] {
+        let mut ignored = last_value(col("number"), vec![]);
+        let Expr::AggregateFunction(func) = &mut ignored else {
+            panic!("expected aggregate expression");
+        };
+        func.params.null_treatment = null_treatment;
+        let aggregate_exprs = if null_treatment == Some(NullTreatment::IgnoreNulls) {
+            let mut ordinary = last_value(col("number"), vec![]);
+            let Expr::AggregateFunction(func) = &mut ordinary else {
+                panic!("expected aggregate expression");
+            };
+            func.params.null_treatment = None;
+            vec![ordinary.alias("ordinary"), ignored.alias("ignored")]
+        } else {
+            vec![ignored]
+        };
+        let plan = LogicalPlanBuilder::from(input.clone())
+            .aggregate(group_by, aggregate_exprs)
+            .unwrap()
+            .build()
+            .unwrap();
+        let analyzed = DistPlannerAnalyzer {}
+            .analyze(plan.clone(), &ConfigOptions::default())
+            .unwrap();
+        if null_treatment == Some(NullTreatment::IgnoreNulls) {
+            let LogicalPlan::Aggregate(aggregate) = &analyzed else {
+                panic!("IGNORE NULLS aggregate must remain on the frontend: {analyzed}");
+            };
+            let remote_input = find_merge_scan(&analyzed).unwrap().input();
+            assert!(
+                !matches!(remote_input, LogicalPlan::Aggregate(_)),
+                "remote input contains aggregate: {remote_input}"
+            );
+            let Some(func) =
+                common_function::aggrs::aggr_wrapper::get_aggr_func(&aggregate.aggr_expr[1])
+            else {
+                unreachable!();
+            };
+            assert_eq!(Some(NullTreatment::IgnoreNulls), func.params.null_treatment);
+        } else {
+            let remote_input = find_merge_scan(&analyzed).unwrap().input();
+            assert!(matches!(remote_input, LogicalPlan::Aggregate(_)));
+        }
+    }
+}
+
+#[test]
+fn test_last_value_order_by() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone() as _));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider.clone() as _)
+        .unwrap();
+    ctx.register_udaf(AggregateUDF::new_from_impl(
+        StateWrapper::new(
+            datafusion::functions_aggregate::first_last::last_value_udaf()
+                .as_ref()
+                .clone(),
+        )
+        .unwrap(),
+    ));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source.clone(), None, vec![])
+        .unwrap()
+        .aggregate(
+            Vec::<Expr>::new(),
+            vec![datafusion::functions_aggregate::first_last::last_value(
+                col("ts"),
+                vec![col("ts").sort(true, true)],
+            )],
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    try_encode_decode_substrait(&plan, ctx.state());
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+
+    let expected = [
+        "Projection: last_value(t.ts) ORDER BY [t.ts ASC NULLS FIRST]",
+        "  Aggregate: groupBy=[[]], aggr=[[__last_value_merge(__last_value_state(t.ts) ORDER BY [t.ts ASC NULLS FIRST]) AS last_value(t.ts) ORDER BY [t.ts ASC NULLS FIRST]]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__last_value_state(t.ts) ORDER BY [t.ts ASC NULLS FIRST]]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+
+    let LogicalPlan::Aggregate(aggr_plan) = plan else {
+        panic!("expect Aggregate plan");
+    };
+    let split = StateMergeHelper::split_aggr_node(aggr_plan).unwrap();
+
+    try_encode_decode_substrait(&split.lower_state, ctx.state());
+}
+
+/// try remove the order by to see if it still works
+#[test]
+fn test_last_value_no_order_by() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone() as _));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider.clone() as _)
+        .unwrap();
+    ctx.register_udaf(AggregateUDF::new_from_impl(
+        StateWrapper::new(
+            datafusion::functions_aggregate::first_last::last_value_udaf()
+                .as_ref()
+                .clone(),
+        )
+        .unwrap(),
+    ));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .aggregate(
+            Vec::<Expr>::new(),
+            vec![datafusion::functions_aggregate::first_last::last_value(
+                col("ts"),
+                vec![],
+            )],
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let LogicalPlan::Aggregate(aggr_plan) = plan.clone() else {
+        panic!("expect Aggregate plan");
+    };
+    let split = StateMergeHelper::split_aggr_node(aggr_plan).unwrap();
+
+    try_encode_decode_substrait(&split.lower_state, ctx.state());
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+
+    let expected = [
+        "Projection: last_value(t.ts)",
+        "  Aggregate: groupBy=[[]], aggr=[[__last_value_merge(__last_value_state(t.ts)) AS last_value(t.ts)]]",
+        "    MergeScan [is_placeholder=false, remote_input=[",
+        "Aggregate: groupBy=[[]], aggr=[[__last_value_state(t.ts)]]",
+        "  TableScan: t",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn test_table_scan_projection() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone() as _));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider.clone() as _)
+        .unwrap();
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, Some(vec![3]), vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+    let expected = [
+        "Projection: t.ts",
+        "  MergeScan [is_placeholder=false, remote_input=[",
+        "TableScan: t projection=[ts]",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn test_table_scan_cast_projection_pushdown() {
+    init_default_ut_logging();
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone() as _));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider.clone() as _)
+        .unwrap();
+
+    let scan = LogicalPlanBuilder::scan_with_filters("t", table_source, Some(vec![3]), vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+    let ts_cast_type = DataType::Timestamp(TimeUnit::Millisecond, Some("+00:00".into()));
+    let ts_cast_expr = col("ts").cast_to(&ts_cast_type, scan.schema()).unwrap();
+    let plan = LogicalPlanBuilder::from(scan)
+        .project(vec![ts_cast_expr.alias("ts")])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+    let expected = [
+        "Projection: ts",
+        "  MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: CAST(t.ts AS Timestamp(ms, \"+00:00\")) AS ts",
+        "  TableScan: t projection=[ts]",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+#[test]
+fn test_cast_filter_simplified_after_pushdown() {
+    // This test invokes `DistPlannerAnalyzer` directly rather than the full
+    // query `SessionState`, so the globally-registered `ConstNormalizationRule`
+    // does not run here. The native timestamp filter below proves the focused
+    // pre-MergeScan pass can do this by running DataFusion `SimplifyExpressions`
+    // after `PushDownFilter` has pushed the alias predicate through the cast
+    // projection into `TableScan.filters`.
+    init_default_ut_logging();
+    let test_table =
+        TestTable::table_with_filter_pushdown(0, "t".to_string(), FilterPushDownType::Inexact);
+    let table_provider = Arc::new(DfTableProviderAdapter::new(test_table));
+    let table_source = Arc::new(DefaultTableSource::new(table_provider.clone() as _));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t"), table_provider.clone() as _)
+        .unwrap();
+
+    let scan = LogicalPlanBuilder::scan_with_filters("t", table_source, Some(vec![3]), vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+    let ts_cast_type = DataType::Timestamp(TimeUnit::Second, None);
+    let ts_cast_expr = col("ts").cast_to(&ts_cast_type, scan.schema()).unwrap();
+    let plan = LogicalPlanBuilder::from(scan)
+        .project(vec![ts_cast_expr.alias("ts")])
+        .unwrap()
+        .filter(col("ts").gt_eq(lit(ScalarValue::TimestampSecond(Some(10), None))))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+    let expected = [
+        "Projection: ts",
+        "  MergeScan [is_placeholder=false, remote_input=[",
+        "Projection: CAST(t.ts AS Timestamp(s)) AS ts",
+        "  Filter: t.ts >= TimestampMillisecond(10000, None)",
+        "    TableScan: t projection=[ts], partial_filters=[t.ts >= TimestampMillisecond(10000, None)]",
+        "]]",
+    ]
+    .join("\n");
+    assert_eq!(expected, result.to_string());
+}
+
+/// Test that static side-local predicates on a JOIN input reach the remote
+/// region TableScan before MergeScan wrapping (issue #8338).
+///
+/// Plan shape: Filter(t1.pk1 = 'v') -> Join(t1.number = t2.number) -> TableScan(t1), TableScan(t2)
+///
+/// After PushDownFilter runs, the side-local filter should be pushed into the
+/// left child branch (inside the MergeScan remote_input), making it visible for
+/// time-index / bloom / skipping pruning.
+#[test]
+fn test_join_side_local_filter_pushdown_into_merge_scan() {
+    init_default_ut_logging();
+    let left_table =
+        TestTable::table_with_filter_pushdown(0, "t1".to_string(), FilterPushDownType::Inexact);
+    let right_table =
+        TestTable::table_with_filter_pushdown(1, "t2".to_string(), FilterPushDownType::Inexact);
+    let left_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(left_table),
+    )));
+    let right_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(right_table),
+    )));
+
+    let right_plan = LogicalPlanBuilder::scan_with_filters("t2", right_source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    // Plan: Filter -> Join -> TableScan(left), TableScan(right)
+    let plan = LogicalPlanBuilder::scan_with_filters("t1", left_source, None, vec![])
+        .unwrap()
+        .join_on(
+            right_plan,
+            JoinType::Inner,
+            vec![col("t1.number").eq(col("t2.number"))],
+        )
+        .unwrap()
+        .filter(col("t1.pk1").eq(lit("v"))) // side-local filter on left partition column
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    assert_remote_table_scan_filters_are_safe(&result);
+
+    let predicate = col("t1.pk1").eq(lit("v"));
+    let t1_remote_input = find_merge_scan_for_table(&result, "t1")
+        .expect("expected MergeScan for t1")
+        .input();
+    let t1_scan = find_table_scan(t1_remote_input, "t1").expect("expected t1 TableScan");
+    assert!(
+        t1_scan
+            .filters
+            .iter()
+            .flat_map(|filter| split_conjunction(filter))
+            .any(|filter| filter == &predicate),
+        "expected t1 TableScan to contain the pushed predicate: {t1_remote_input}"
+    );
+
+    // Inexact provider pushdown must retain the predicate in an ancestor Filter.
+    assert!(
+        has_filter_above_table_scan(t1_remote_input, "t1", &predicate),
+        "expected an ancestor Filter for t1 to retain the pushed predicate: {t1_remote_input}"
+    );
+
+    let t2_remote_input = find_merge_scan_for_table(&result, "t2")
+        .expect("expected MergeScan for t2")
+        .input();
+    assert!(
+        !find_table_scan(t2_remote_input, "t2")
+            .expect("expected t2 TableScan")
+            .filters
+            .iter()
+            .flat_map(|filter| split_conjunction(filter))
+            .any(|filter| filter == &predicate),
+        "t2 TableScan must not contain t1's predicate: {t2_remote_input}"
+    );
+}
+
+/// LEFT JOIN preserves the left side, so a left-local WHERE predicate is safe
+/// to push into the left scan before MergeScan wrapping.
+#[test]
+fn test_left_join_left_side_filter_pushdown_into_merge_scan() {
+    init_default_ut_logging();
+    let left_table =
+        TestTable::table_with_filter_pushdown(0, "t1".to_string(), FilterPushDownType::Inexact);
+    let right_table =
+        TestTable::table_with_filter_pushdown(1, "t2".to_string(), FilterPushDownType::Inexact);
+    let left_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(left_table),
+    )));
+    let right_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(right_table),
+    )));
+
+    let right_plan = LogicalPlanBuilder::scan_with_filters("t2", right_source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t1", left_source, None, vec![])
+        .unwrap()
+        .join_on(
+            right_plan,
+            JoinType::Left,
+            vec![col("t1.number").eq(col("t2.number"))],
+        )
+        .unwrap()
+        .filter(col("t1.pk1").eq(lit("v")))
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    assert_remote_table_scan_filters_are_safe(&result);
+
+    let plan_str = result.to_string();
+    assert!(
+        plan_str.contains("TableScan: t1, partial_filters=[t1.pk1 = Utf8(\"v\")]"),
+        "Expected left-side TableScan partial_filters under LEFT JOIN, got:\n{plan_str}"
+    );
+    let scan_filter_pos = plan_str
+        .find("TableScan: t1, partial_filters=[t1.pk1 = Utf8(\"v\")]")
+        .unwrap();
+    let join_pos = plan_str.find("Left Join").unwrap();
+    assert!(
+        scan_filter_pos > join_pos,
+        "Left-side filter should be pushed below LEFT JOIN into MergeScan remote_input:\n{plan_str}"
+    );
+}
+
+/// Negative case: cross-table predicate t1.pk1 = t2.pk2 should NOT become a
+/// side-local scan filter but remain as a join filter.
+#[test]
+fn test_join_cross_table_predicate_not_pushed_to_single_side() {
+    init_default_ut_logging();
+    let left_table =
+        TestTable::table_with_filter_pushdown(0, "t1".to_string(), FilterPushDownType::Inexact);
+    let right_table =
+        TestTable::table_with_filter_pushdown(1, "t2".to_string(), FilterPushDownType::Inexact);
+    let left_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(left_table),
+    )));
+    let right_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(right_table),
+    )));
+
+    let right_plan = LogicalPlanBuilder::scan_with_filters("t2", right_source, None, vec![])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    // Plan: Filter(t1.pk1 = t2.pk2) -> Join(t1.number = t2.number) -> ...
+    // The filter involves columns from both tables, so PushDownFilter should
+    // keep it as a join filter (not push into a single side's scan).
+    let plan = LogicalPlanBuilder::scan_with_filters("t1", left_source, None, vec![])
+        .unwrap()
+        .join_on(
+            right_plan,
+            JoinType::Inner,
+            vec![col("t1.number").eq(col("t2.number"))],
+        )
+        .unwrap()
+        .filter(col("t1.pk1").eq(col("t2.pk2"))) // cross-table predicate
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    assert_remote_table_scan_filters_are_safe(&result);
+
+    let plan_str = result.to_string();
+    // The cross-table predicate should NOT appear as a filter on a single table's
+    // scan inside a MergeScan remote_input. It should remain as part of the
+    // Join's filter.
+    // The key assertion: it should NOT appear as "Filter: t1.pk1 = t2.pk2"
+    assert!(
+        !plan_str.contains("Filter: t1.pk1 = t2.pk2"),
+        "Cross-table predicate should not become a side-local Filter:\n{plan_str}"
+    );
+    assert!(
+        plan_str.contains("t1.pk1 = t2.pk2") || plan_str.contains("t2.pk2 = t1.pk1"),
+        "Cross-table predicate should remain in the join plan:\n{plan_str}"
+    );
+    assert!(
+        !plan_str.contains("partial_filters=[t1.pk1 = t2.pk2]")
+            && !plan_str.contains("partial_filters=[t2.pk2 = t1.pk1]")
+            && !plan_str.contains("full_filters=[t1.pk1 = t2.pk2]")
+            && !plan_str.contains("full_filters=[t2.pk2 = t1.pk1]"),
+        "Cross-table predicate should not become a single-side TableScan filter:\n{plan_str}"
+    );
+}
+
+/// When `ScheduledTimeExtension` is injected into `ConfigOptions`, the
+/// `SimplifyExpressions` pass (driven by `PatchOptimizerContext`) uses the
+/// scheduled time instead of wall-clock time. The remote sub-plan must contain
+/// the scheduled literal — not a variable wall-clock value.
+#[test]
+fn scheduled_now_yields_stable_literal_in_remote_plan() {
+    init_default_ut_logging();
+    let scheduled_time =
+        chrono::DateTime::<chrono::Utc>::from_timestamp_millis(1700000000000).unwrap();
+    let scheduled_ns = 1700000000000000000i64;
+
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+
+    // Build a plan with `now()` in filter and both `now()` and its
+    // `current_timestamp()` alias in projection.
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source.clone(), None, vec![])
+        .unwrap()
+        .filter(binary_expr(now(), Operator::LtEq, col("ts")))
+        .unwrap()
+        .project(vec![now(), now().alias("current_timestamp()")])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let mut config = ConfigOptions::default();
+    config.extensions.insert(ScheduledTimeExtension {
+        scheduled_time: Some(scheduled_time),
+    });
+
+    let result = DistPlannerAnalyzer {}
+        .analyze(plan.clone(), &config)
+        .unwrap();
+    let result_str = result.to_string();
+    common_telemetry::info!("Analyzed plan with scheduled time: {}", result_str);
+
+    // The top-level should still say `Projection: now()` (schema recovery).
+    assert!(
+        result_str.contains("Projection: now()"),
+        "Expected top-level Projection: now(), got:\n{result_str}"
+    );
+    assert!(
+        result_str.contains("current_timestamp()"),
+        "Expected top-level current_timestamp() alias, got:\n{result_str}"
+    );
+
+    // The remote sub-plan must contain the scheduled-time literal, i.e.
+    // `TimestampNanosecond(1700000000000000000, None)`.
+    let expected_literal = format!("TimestampNanosecond({scheduled_ns}, None)");
+    assert!(
+        result_str.contains(&expected_literal),
+        "Expected remote plan literal '{expected_literal}', got:\n{result_str}"
+    );
+
+    // The remote sub-plan must contain the simplified literal (TimestampNanosecond).
+    let remote_section = if let Some(idx) = result_str.find("remote_input=[") {
+        &result_str[idx..]
+    } else {
+        ""
+    };
+    assert!(
+        remote_section.contains("TimestampNanosecond("),
+        "Remote plan should contain TimestampNanosecond literal:\n{result_str}"
+    );
+
+    // Absent the extension (default config), the same plan simplifies to a
+    // wall-clock literal — the remote_input contains a variable timestamp.
+    let default_config = ConfigOptions::default();
+    let wall_result = DistPlannerAnalyzer {}
+        .analyze(plan, &default_config)
+        .unwrap();
+    let wall_str = wall_result.to_string();
+    // The wall-clock result must NOT contain the scheduled literal.
+    assert!(
+        !wall_str.contains(&expected_literal),
+        "Wall-clock result should not contain scheduled literal {expected_literal}:\n{wall_str}"
+    );
+    // It should still simplify to a literal (TimestampNanosecond present in remote).
+    let wall_remote = if let Some(idx) = wall_str.find("remote_input=[") {
+        &wall_str[idx..]
+    } else {
+        ""
+    };
+    assert!(
+        wall_remote.contains("TimestampNanosecond("),
+        "Wall-clock remote plan should contain TimestampNanosecond:\n{wall_str}"
+    );
+}
+
+/// `current_timestamp()` is an alias of `now()` in DataFusion, but keep a
+/// dedicated SQL-level regression: when it appears in a side-local filter, it
+/// must be folded to the scheduled literal before the filter interacts with the
+/// pre-MergeScan pushdown / remote planning path.
+#[test]
+fn scheduled_current_timestamp_filter_folds_before_remote_pushdown() {
+    init_default_ut_logging();
+    let scheduled_time =
+        chrono::DateTime::<chrono::Utc>::from_timestamp_millis(1700000000000).unwrap();
+
+    let left_table =
+        TestTable::table_with_filter_pushdown(0, "t1".to_string(), FilterPushDownType::Inexact);
+    let right_table =
+        TestTable::table_with_filter_pushdown(1, "t2".to_string(), FilterPushDownType::Inexact);
+    let left_provider = Arc::new(DfTableProviderAdapter::new(left_table));
+    let right_provider = Arc::new(DfTableProviderAdapter::new(right_table));
+    let ctx = SessionContext::new();
+    ctx.register_table(TableReference::bare("t1"), left_provider)
+        .unwrap();
+    ctx.register_table(TableReference::bare("t2"), right_provider)
+        .unwrap();
+
+    let plan = futures::executor::block_on(async {
+        ctx.sql(
+            "SELECT t1.number \
+             FROM t1 JOIN t2 ON t1.number = t2.number \
+             WHERE t1.ts < date_trunc('second', current_timestamp())",
+        )
+        .await
+        .unwrap()
+    })
+    .into_unoptimized_plan();
+    assert!(
+        plan.to_string().contains("current_timestamp") || plan.to_string().contains("now()"),
+        "Unoptimized plan should contain the time function spelling before analysis:\n{plan}"
+    );
+
+    let mut config = ConfigOptions::default();
+    config.extensions.insert(ScheduledTimeExtension {
+        scheduled_time: Some(scheduled_time),
+    });
+
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    assert_remote_table_scan_filters_are_safe(&result);
+
+    let result_str = result.to_string();
+    common_telemetry::info!("Analyzed current_timestamp filter plan: {}", result_str);
+    let remote_section = result_str
+        .find("remote_input=[")
+        .map(|idx| &result_str[idx..])
+        .unwrap_or("");
+
+    assert!(
+        remote_section.contains("TableScan: t1") && remote_section.contains("partial_filters="),
+        "Expected left-side filter to be pushed into the remote TableScan:\n{result_str}"
+    );
+    assert!(
+        remote_section.contains("1700000000000000000") || remote_section.contains("1700000000000"),
+        "Expected scheduled timestamp literal in remote filter:\n{result_str}"
+    );
+    assert!(
+        !remote_section.contains("current_timestamp") && !remote_section.contains("now()"),
+        "Remote filter should be folded before pushdown, got:\n{result_str}"
+    );
+}
+
+/// When `ScheduledTimeExtension.scheduled_time` is `None`, the analyzer
+/// must fall back to wall-clock behavior (same as no extension at all).
+#[test]
+fn scheduled_none_falls_back_to_wall_clock() {
+    init_default_ut_logging();
+
+    let test_table = TestTable::table_with_name(0, "t".to_string());
+    let table_source = Arc::new(DefaultTableSource::new(Arc::new(
+        DfTableProviderAdapter::new(test_table),
+    )));
+
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source, None, vec![])
+        .unwrap()
+        .project(vec![now()])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let mut config = ConfigOptions::default();
+    config.extensions.insert(ScheduledTimeExtension {
+        scheduled_time: None,
+    });
+
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let result_str = result.to_string();
+
+    // Must still simplify now() — remotely a literal, top is now().
+    assert!(
+        result_str.contains("Projection: now()"),
+        "Top-level projection: {result_str}"
+    );
+    let remote_section = if let Some(idx) = result_str.find("remote_input=[") {
+        &result_str[idx..]
+    } else {
+        ""
+    };
+    // The literal must be TimestampNanosecond (since fallback uses wall clock).
+    assert!(
+        remote_section.contains("TimestampNanosecond("),
+        "Remote should contain TimestampNanosecond:\n{result_str}"
+    );
+}
+
+/// Regression test for https://github.com/GreptimeTeam/greptimedb/issues/9260:
+/// every scalar subquery level must get its own MergeScan, even when nested
+/// inside another scalar subquery.
+#[test]
+fn expand_nested_scalar_subquery() {
+    init_default_ut_logging();
+    let table_source = || {
+        Arc::new(DefaultTableSource::new(Arc::new(
+            DfTableProviderAdapter::new(TestTable::table_with_name(0, "t".to_string())),
+        ))) as _
+    };
+
+    // Innermost: SELECT max(t.number) FROM t
+    let innermost = LogicalPlanBuilder::scan_with_filters("t", table_source(), None, vec![])
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![max(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+    // Middle: SELECT max(t.number) FROM t WHERE t.number > (<innermost>)
+    let middle = LogicalPlanBuilder::scan_with_filters("t", table_source(), None, vec![])
+        .unwrap()
+        .filter(col("number").gt(Expr::ScalarSubquery(Subquery {
+            subquery: Arc::new(innermost),
+            outer_ref_columns: vec![],
+            spans: Default::default(),
+        })))
+        .unwrap()
+        .aggregate(Vec::<Expr>::new(), vec![max(col("number"))])
+        .unwrap()
+        .build()
+        .unwrap();
+    // Outermost projection: SELECT (<middle>) AS m FROM t
+    let plan = LogicalPlanBuilder::scan_with_filters("t", table_source(), None, vec![])
+        .unwrap()
+        .project(vec![
+            Expr::ScalarSubquery(Subquery {
+                subquery: Arc::new(middle),
+                outer_ref_columns: vec![],
+                spans: Default::default(),
+            })
+            .alias("m"),
+        ])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let config = ConfigOptions::default();
+    let result = DistPlannerAnalyzer {}.analyze(plan, &config).unwrap();
+    let result_str = result.to_string();
+
+    // The main scan and both subquery levels must each be wrapped in a MergeScan.
+    let merge_scan_count = result_str
+        .matches("MergeScan [is_placeholder=false")
+        .count();
+    assert_eq!(
+        3, merge_scan_count,
+        "expected 3 MergeScan nodes (main + 2 subquery levels) in plan:\n{result_str}"
+    );
+    // No bare TableScan may remain outside a MergeScan remote input. The
+    // subquery-aware walk still visits subquery plans, but cannot see into a
+    // MergeScan's hidden remote input (`MergeScanLogicalPlan::inputs()` is
+    // empty), so any TableScan it reaches was not wrapped.
+    result
+        .apply_with_subqueries(|node| {
+            assert!(
+                !matches!(node, LogicalPlan::TableScan(_)),
+                "unwrapped TableScan in plan:\n{result_str}"
+            );
+            Ok(TreeNodeRecursion::Continue)
+        })
+        .unwrap();
+}

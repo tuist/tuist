@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.AppBuilds.Preview
   alias Tuist.Artifacts.Package
+  alias Tuist.Artifacts.PreviewIconWorker
   alias Tuist.Artifacts.ProjectApplicationsWorker
   alias Tuist.Artifacts.Publication
   alias Tuist.Artifacts.RetentionWorker
@@ -13,6 +14,8 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+
+  @png <<137, 80, 78, 71, 13, 10, 26, 10>>
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -34,6 +37,11 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
         nil -> {:error, :not_found}
         bytes -> {:ok, byte_size(bytes)}
       end
+    end)
+
+    stub(Storage, :put_object, fn key, bytes, _ ->
+      Agent.update(store, &Map.put(&1, key, bytes))
+      :ok
     end)
 
     stub(Storage, :upload, fn stream, key, _ ->
@@ -108,6 +116,104 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
              [{:apk, [:android], "23"}, {:app_bundle, [:ios_simulator], "45"}]
 
     assert Repo.get!(Publication, publication.id).projected
+  end
+
+  test "projects Android display names and copies valid icons, falling back without blocking previews", context do
+    android = fn identifier, extra ->
+      Map.merge(
+        %{"schema" => "once.android_application.v1", "signature_verified" => true, "application_id" => identifier},
+        extra
+      )
+    end
+
+    {intent, blobs} =
+      package([
+        {"dev.once.android-install.v1", android.("org.example.named", %{"display_name" => "Named App"}),
+         {@png <> "android", "image/png"}},
+        {"dev.once.android-install.v1", android.("org.example.empty", %{"display_name" => ""}),
+         {@png <> "jpeg", "image/jpeg"}},
+        {"dev.once.android-install.v1", android.("org.example.unnamed", %{}), {"GIF89a not a png", "image/png"}},
+        {"dev.once.android-install.v1", android.("org.example.missing", %{}), "absent"},
+        {"dev.once.android-install.v1", android.("org.example.badname", %{"display_name" => "bad\0name"})},
+        {"dev.once.android-install.v1", android.("org.example.mapname", %{"display_name" => %{"en" => "Map"}})},
+        {"dev.once.android-install.v1",
+         android.("org.example.longname", %{"display_name" => String.duplicate("a", 256)})},
+        {"dev.once.apple-install.v2",
+         %{
+           "schema" => "once.apple_application.v1",
+           "signature_verified" => true,
+           "signing" => "ad_hoc",
+           "platform" => "ios",
+           "sdk_variant" => "simulator",
+           "bundle_identifier" => "org.example.apple",
+           "display_name" => "Apple App"
+         }, {@png <> "apple", "image/png"}},
+        {"dev.tuist.executable.v1",
+         %{
+           "schema" => "tuist.executable.v1",
+           "display_name" => "tool",
+           "platform" => "linux",
+           "architectures" => ["arm64"]
+         }, {@png <> "tool", "image/png"}}
+      ])
+
+    key = Package.key(intent)
+    upload(context, key, blobs)
+    assert json_response(request(context, :post, "/publications/#{key}", intent), :ok)
+    [publication] = Repo.all(Publication)
+    job = %Oban.Job{args: %{"publication_id" => publication.id}}
+
+    icon_jobs = fn -> Enum.filter(Repo.all(Oban.Job), &(&1.worker == "Tuist.Artifacts.PreviewIconWorker")) end
+
+    icon_key = fn preview_id ->
+      Tuist.AppBuilds.icon_storage_key(%{
+        account_handle: context.project.account.name,
+        project_handle: context.project.name,
+        preview_id: preview_id
+      })
+    end
+
+    assert :ok = ProjectApplicationsWorker.perform(job)
+    assert length(Repo.all(Preview)) == 9
+    assert length(icon_jobs.()) == 3
+
+    stub(Storage, :put_object, fn _, _, _ -> {:error, :timeout} end)
+    results = Enum.map(icon_jobs.(), &PreviewIconWorker.perform(%Oban.Job{args: &1.args}))
+    assert Enum.count(results, &match?({:error, _}, &1)) == 2
+    assert length(Repo.all(Preview)) == 9
+
+    stub(Storage, :put_object, fn key, bytes, _ ->
+      Agent.update(context.store, &Map.put(&1, key, bytes))
+      :ok
+    end)
+
+    assert Enum.all?(icon_jobs.(), &(PreviewIconWorker.perform(%Oban.Job{args: &1.args}) == :ok))
+    assert :ok = ProjectApplicationsWorker.perform(job)
+    assert length(icon_jobs.()) == 3
+
+    icons =
+      Map.new(Repo.all(Preview), fn preview ->
+        {{preview.bundle_identifier, preview.display_name}, Agent.get(context.store, &Map.get(&1, icon_key.(preview.id)))}
+      end)
+
+    assert icons == %{
+             {nil, "tool"} => nil,
+             {"org.example.named", "Named App"} => @png <> "android",
+             {"org.example.empty", "org.example.empty"} => nil,
+             {"org.example.unnamed", "org.example.unnamed"} => nil,
+             {"org.example.missing", "org.example.missing"} => nil,
+             {"org.example.badname", "org.example.badname"} => nil,
+             {"org.example.mapname", "org.example.mapname"} => nil,
+             {"org.example.longname", "org.example.longname"} => nil,
+             {"org.example.apple", "Apple App"} => @png <> "apple"
+           }
+
+    # A late icon job must not recreate an icon once its publication expired.
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    publication |> Ecto.Changeset.change(inserted_at: DateTime.add(publication.inserted_at, -31, :day)) |> Repo.update!()
+    Agent.update(context.store, &Map.reject(&1, fn {key, _} -> String.ends_with?(key, "/icon.png") end))
+    assert Enum.all?(icon_jobs.(), &(PreviewIconWorker.perform(%Oban.Job{args: &1.args}) == :ok))
+    refute Enum.any?(Agent.get(context.store, &Map.keys/1), &String.ends_with?(&1, "/icon.png"))
   end
 
   test "projects desktop applications and executables with target compatibility without enrollment", context do
@@ -403,7 +509,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
            "schema" => "once.android_application.v1",
            "signature_verified" => true,
            "application_id" => "org.example.expiry"
-         }}
+         }, {@png <> "expiry", "image/png"}}
       ])
 
     key = Package.key(intent)
@@ -425,6 +531,7 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
 
     assert :ok = ProjectApplicationsWorker.perform(%Oban.Job{args: %{"publication_id" => publication.id}})
     assert Repo.all(Preview) == []
+    assert Enum.all?(Repo.all(Oban.Job), &(&1.worker == "Tuist.Artifacts.ProjectApplicationsWorker"))
     refute Enum.any?(Agent.get(context.store, &Map.keys/1), &String.contains?(&1, "/previews/"))
   end
 
@@ -558,14 +665,36 @@ defmodule TuistWeb.API.ArtifactsControllerTest do
     {members, blobs} =
       interfaces
       |> Enum.with_index()
-      |> Enum.reduce({%{}, %{}}, fn {{interface, metadata}, index}, {members, blobs} ->
+      |> Enum.reduce({%{}, %{}}, fn {member, index}, {members, blobs} ->
+        {interface, metadata, icon} =
+          case member do
+            {interface, metadata} -> {interface, metadata, nil}
+            member -> member
+          end
+
         {payload, blobs} = add_blob(blobs, "mock native payload #{index}", "application/octet-stream")
         {metadata, blobs} = add_blob(blobs, JSON.encode!(metadata), "application/json")
+        payloads = %{"product" => payload, "metadata" => metadata}
+        spec = %{"metadata_payload" => "metadata"}
+
+        # An icon is `{bytes, media_type}`, or a payload name the manifest does not contain.
+        {payloads, spec, blobs} =
+          case icon do
+            nil ->
+              {payloads, spec, blobs}
+
+            {bytes, media_type} ->
+              {icon, blobs} = add_blob(blobs, bytes, media_type)
+              {Map.put(payloads, "icon", icon), Map.put(spec, "icon_payload", "icon"), blobs}
+
+            name ->
+              {payloads, Map.put(spec, "icon_payload", name), blobs}
+          end
 
         manifest = %{
           "schema" => "once.artifact.v1",
-          "payloads" => %{"product" => payload, "metadata" => metadata},
-          "interfaces" => %{interface => %{"payload" => "product", "spec" => %{"metadata_payload" => "metadata"}}}
+          "payloads" => payloads,
+          "interfaces" => %{interface => %{"payload" => "product", "spec" => spec}}
         }
 
         {descriptor, blobs} = add_blob(blobs, JSON.encode!(manifest), "application/vnd.once.artifact.v1+json")

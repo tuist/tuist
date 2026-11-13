@@ -375,10 +375,14 @@ jobs:
       - name: Install emulator runtime libraries
         run: |
           sudo apt-get update -qq
+          # Ubuntu 24.04 renamed libasound2 to libasound2t64 and keeps the
+          # old name only as a virtual package apt cannot install.
+          asound=libasound2
+          if apt-cache show libasound2t64 >/dev/null 2>&1; then asound=libasound2t64; fi
           sudo apt-get install -y --no-install-recommends \
             libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 \
             libxrender1 libpulse0 libnss3 libxkbcommon-x11-0 libxcb-cursor0 \
-            libasound2 libglu1-mesa
+            "$asound" libglu1-mesa
       - name: Verify unprivileged nested KVM acceleration
         run: |
           set -euo pipefail

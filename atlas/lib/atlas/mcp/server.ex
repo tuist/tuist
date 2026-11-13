@@ -233,6 +233,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListOVHInvoices
   alias Atlas.MCP.Tools.ListPeople
   alias Atlas.MCP.Tools.ListPOCs
   alias Atlas.MCP.Tools.ListPostmortemActionItems
@@ -296,6 +297,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SaveErrorAlertRule
   alias Atlas.MCP.Tools.SaveMemory
   alias Atlas.MCP.Tools.SaveMyGmailAttachment
+  alias Atlas.MCP.Tools.SaveOVHInvoice
   alias Atlas.MCP.Tools.SearchApolloOutreach
   alias Atlas.MCP.Tools.SearchAtlas
   alias Atlas.MCP.Tools.SearchDocuments
@@ -424,6 +426,7 @@ defmodule Atlas.MCP.Server do
   @prompts [GenerateEnterpriseContractPrompt]
   @finance_tools [
     ListInvoices,
+    ListOVHInvoices,
     GetFinanceOverview,
     GetFinanceExpenseHistory,
     GetFinanceExpenseReconciliation,
@@ -450,6 +453,7 @@ defmodule Atlas.MCP.Server do
     CreateDocumentUpload,
     FinalizeDocumentUpload,
     SaveMyGmailAttachment,
+    SaveOVHInvoice,
     ListAccountServiceLevels,
     ListAccountIncidentContacts
   ]
@@ -607,6 +611,8 @@ defmodule Atlas.MCP.Server do
     SendMyGmailDraft,
     SearchMySlack,
     SetOVHServerDisplayName,
+    ListOVHInvoices,
+    SaveOVHInvoice,
     RequestClusterElevation,
     ListCodingRepositories,
     UpdateCodingRepositorySettings,
@@ -1065,6 +1071,8 @@ defmodule Atlas.MCP.Server do
               SearchMyGmail,
               GetMyGmailMessage,
               SaveMyGmailAttachment,
+              ListOVHInvoices,
+              SaveOVHInvoice,
               GetMyGmailDraft,
               CreateMyGmailDraft,
               UpdateMyGmailDraft,

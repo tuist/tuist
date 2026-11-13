@@ -150,22 +150,21 @@ defmodule Tuist.Entire.Client do
 
   def region_request(method, repository, path, token, opts \\ []) do
     if trusted_origin?(repository.api_url) do
-      operation =
-        case String.split(path, "/", trim: true) do
-          ["repos", _, "trails"] -> :list_trails
-          ["repos", _, "trails", _] -> :get_trail
-          ["repos", _, "trails", _, "reviews"] -> :create_review
-          ["repos", _, "trails", _, "reviews", _, "comments"] -> :publish_findings
-          ["repos", _, "trails", _, "reviews", _, "comments", _] -> :resolve_finding
-          ["repos", _, "commits", _, "check-runs"] -> :publish_checks
-          _ -> :repository_api
-        end
-
+      operation = path |> String.split("/", trim: true) |> operation()
       request(method, repository.api_url <> "/api/v1" <> path, token, opts, operation)
     else
       {:error, :invalid_repository}
     end
   end
+
+  defp operation(["repos", _, "trails"]), do: :list_trails
+  defp operation(["repos", _, "trails", _]), do: :get_trail
+  defp operation(["repos", _, "trails", _, "reviews"]), do: :create_review
+  defp operation(["repos", _, "trails", _, "reviews", _, "comments"]), do: :publish_findings
+  defp operation(["repos", _, "trails", _, "reviews", _, "comments", _]), do: :resolve_finding
+  defp operation(["repos", _, "trails", _, "discussions" | _]), do: :trail_comment
+  defp operation(["repos", _, "commits", _, "check-runs"]), do: :publish_checks
+  defp operation(_), do: :repository_api
 
   defp plugin_jwt(core, installation_id) do
     now = System.system_time(:second) - 30

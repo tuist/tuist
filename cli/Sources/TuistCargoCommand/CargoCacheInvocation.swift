@@ -80,6 +80,8 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         let allowed = Set([
             "embed-bitcode", "debuginfo", "metadata", "extra-filename", "opt-level", "debug-assertions",
             "overflow-checks", "codegen-units", "panic", "strip", "target-cpu", "target-feature", "split-debuginfo",
+            // Coverage instruments the repository's crates (`CargoCoverage.instruments`); the flag is in the key.
+            "instrument-coverage",
         ])
         guard codegen.allSatisfy({ allowed.contains(String($0.prefix { $0 != "=" })) && $0 != "target-cpu=native" })
         else { return nil }
@@ -479,6 +481,8 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     /// reads one through `env!`/`option_env!` names it in dep-info and is never published.
     static func isIgnored(_ name: String) -> Bool {
         if ignoredEnvironment.contains(name) || ignoredEnvironmentPrefixes.contains(where: name.hasPrefix) { return true }
+        // A target runner starts test binaries; coverage sets one to record them, which compilations never read.
+        if name.hasPrefix("CARGO_TARGET_"), name.hasSuffix("_RUNNER") { return true }
         let keyed = ["CARGO_", "RUSTC_", "RUST_"].contains(where: name.hasPrefix)
             || ["CARGO", "RUSTC", "RUSTFLAGS", "RUSTDOCFLAGS", "OUT_DIR", "SDKROOT", "RUSTUP_TOOLCHAIN"].contains(name)
             || name.hasSuffix("_DEPLOYMENT_TARGET")

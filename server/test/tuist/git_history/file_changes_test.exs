@@ -266,6 +266,127 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert %{changes_ref_id: nil} = listing(repository, "a")
   end
 
+  describe "a write that cannot be done yet" do
+    setup %{repository: repository} do
+      commits(repository, [{"a", []}])
+      head(repository, "main", "a")
+      GitHistory.record_listing(repository, "a", [%{path: "A.swift", git_blob_id: "a1", mode: @mode}], files_count: 2)
+      %{args: %{repository_id: repository, sha: "a"}}
+    end
+
+    test "comes back less and less often, however many times it ran", %{args: args} do
+      assert {:snooze, 30} = perform_job(FileChangesWorker, args, attempt: 1)
+      assert {:snooze, 60} = perform_job(FileChangesWorker, args, attempt: 2)
+      assert {:snooze, 1_920} = perform_job(FileChangesWorker, args, attempt: 7)
+      assert {:snooze, 3_600} = perform_job(FileChangesWorker, args, attempt: 8)
+      assert {:snooze, 3_600} = perform_job(FileChangesWorker, args, attempt: 500)
+    end
+
+    test "is written once the listing's files are all there", %{repository: repository, args: args} do
+      assert {:snooze, 3_600} = perform_job(FileChangesWorker, args, attempt: 40)
+
+      GitHistory.record_listing(repository, "a", [%{path: "B.swift", git_blob_id: "b1", mode: @mode}], complete: false)
+
+      assert :ok = perform_job(FileChangesWorker, args, attempt: 41)
+      assert files(repository, "a") == with_mode(%{"A.swift" => "a1", "B.swift" => "b1"})
+    end
+
+    test "ends once the listing expired", %{repository: repository, args: args} do
+      Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "a"),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
+      )
+
+      assert :ok = perform_job(FileChangesWorker, args, attempt: 41)
+      assert rows(repository) == []
+    end
+  end
+
+  describe "enqueue_unwritten/0" do
+    defp queued(repository) do
+      [worker: FileChangesWorker]
+      |> all_enqueued()
+      |> Enum.filter(&(&1.args["repository_id"] == repository))
+      |> Enum.map(& &1.args["sha"])
+      |> Enum.sort()
+    end
+
+    # The jobs a listing or a move queued are gone, as after they failed
+    # every attempt.
+    defp lose_jobs, do: Repo.delete_all(Oban.Job)
+
+    test "queues a commit on a ref whose listing is stored and not written", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}, {"t", ["c"]}])
+      head(repository, "main", "t")
+      list(repository, "a", %{"A.swift" => "a1"})
+
+      one = [%{path: "A.swift", git_blob_id: "a2", mode: @mode}]
+      GitHistory.record_listing(repository, "b", one, files_count: 1)
+      # Nothing to write these from.
+      GitHistory.record_listing(repository, "c", one, files_count: 1)
+      expire(repository, ["c"])
+      GitHistory.record_listing(repository, "t", one, files_count: 5, truncated: true)
+      lose_jobs()
+
+      assert FileChanges.enqueue_unwritten() == 1
+      assert queued(repository) == ["b"]
+
+      settle()
+      assert changes(repository, "b") == %{"A.swift" => "a2"}
+      lose_jobs()
+      assert FileChanges.enqueue_unwritten() == 0
+      assert queued(repository) == []
+    end
+
+    test "queues a commit no ref owns, which its write gives a detached ref", %{repository: repository} do
+      commits(repository, [{"a", []}, {"m", ["a"]}])
+      head(repository, "main", "a")
+      list(repository, "a", %{"A.swift" => "a1"})
+      GitHistory.record_listing(repository, "m", [%{path: "A.swift", git_blob_id: "a2", mode: @mode}], files_count: 1)
+      lose_jobs()
+
+      assert FileChanges.enqueue_unwritten() == 1
+      assert queued(repository) == ["m"]
+
+      settle()
+      assert changes(repository, "m") == %{"A.swift" => "a2"}
+      lose_jobs()
+      assert FileChanges.enqueue_unwritten() == 0
+    end
+
+    test "queues a commit with no place again, until its listing expires", %{repository: repository} do
+      commits(repository, [{"u", []}])
+      GitHistory.record_listing(repository, "u", [%{path: "A.swift", git_blob_id: "a1", mode: @mode}], files_count: 1)
+      settle()
+
+      assert FileChanges.enqueue_unwritten() == 1
+      settle()
+      assert rows(repository) == []
+
+      expire(repository, ["u"])
+      assert FileChanges.enqueue_unwritten() == 0
+    end
+
+    test "queues a moved commit whose rows are still at the place it left", %{repository: repository} do
+      commits(repository, [{"a", []}, {"f1", ["a"]}])
+      head(repository, "main", "a")
+      head(repository, "feature", "f1")
+      list(repository, "a", %{"A.swift" => "a1"})
+      list(repository, "f1", %{"A.swift" => "a2"})
+      expire(repository, ["f1"])
+
+      head(repository, "main", "f1")
+      lose_jobs()
+
+      FileChanges.enqueue_unwritten()
+      assert queued(repository) == ["f1"]
+
+      settle()
+      main = ref_id(repository, "main")
+      assert %{changes_ref_id: ^main, changes_position: 2} = listing(repository, "f1")
+      assert files(repository, "f1") == with_mode(%{"A.swift" => "a2"})
+    end
+  end
+
   test "a listing read in part records none of the files it lacks as gone", %{repository: repository} do
     commits(repository, [{"a", []}, {"b", ["a"]}])
     head(repository, "main", "b")
@@ -354,6 +475,70 @@ defmodule Tuist.GitHistory.FileChangesTest do
     assert files(repository, "b") == with_mode(%{"A.swift" => "a2", "B.swift" => "b1"})
     assert files(repository, "p1") == with_mode(%{"A.swift" => "a1", "B.swift" => "b2"})
     assert changes(repository, "p1") == %{"A.swift" => "a1", "B.swift" => "b2"}
+  end
+
+  test "a commit listed below more commits than one statement names leaves each with its files", %{
+    repository: repository
+  } do
+    forks = for n <- 1..210, do: "f#{n}"
+    commits(repository, [{"r", []}, {"a", ["r"]}, {"b", ["a"]} | Enum.map(forks, &{&1, ["a"]})])
+    head(repository, "main", "b")
+    for sha <- forks, do: head(repository, "pull/#{sha}", sha)
+
+    list(repository, "r", %{"A.swift" => "a0", "B.swift" => "b0"})
+    list(repository, "b", %{"A.swift" => "a0", "B.swift" => "b1"})
+
+    # Each fork written with the one file it added, without a write per fork.
+    expires_at = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), 90, :day)
+
+    places =
+      Repo.all(
+        from(c in Commit,
+          where: c.repository_id == ^repository and c.sha in ^forks,
+          select: %{sha: c.sha, ref_id: c.ref_id, position: c.position, generation: c.generation}
+        )
+      )
+
+    Repo.insert_all(
+      CommitListing,
+      for place <- places do
+        %{
+          repository_id: repository,
+          sha: place.sha,
+          files_count: 3,
+          truncated: false,
+          inserted_at: DateTime.utc_now(:second),
+          changes_ref_id: place.ref_id,
+          changes_position: place.position,
+          changes_expires_at: expires_at,
+          changes_count: 1
+        }
+      end
+    )
+
+    IngestRepo.insert_all(
+      FileChange,
+      for place <- places do
+        Map.merge(place, %{
+          repository_id: repository,
+          path: "F.swift",
+          git_blob_id: place.sha,
+          mode: @mode,
+          expires_at: DateTime.to_naive(expires_at),
+          row_version: System.os_time(:microsecond),
+          is_deleted: 0
+        })
+      end
+    )
+
+    list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b0"})
+
+    held = for row <- rows(repository), row.path == "A.swift", into: %{}, do: {row.sha, row.git_blob_id}
+    assert held == Map.put(Map.new(["r", "b" | forks], &{&1, "a0"}), "a", "a1")
+    assert files(repository, "f210") == with_mode(%{"A.swift" => "a0", "B.swift" => "b0", "F.swift" => "f210"})
+
+    counts = from(l in CommitListing, where: l.repository_id == ^repository and l.sha in ^forks, select: l.changes_count)
+    assert counts |> Repo.all() |> Enum.uniq() == [2]
   end
 
   test "a branch that keeps receiving commits keeps its rows", %{repository: repository} do
@@ -1194,6 +1379,120 @@ defmodule Tuist.GitHistory.FileChangesTest do
       assert FileChanges.current(repository, "b")
       assert GitHistory.blobs_at(repository, "b", ["Missing.swift" | Map.keys(files)]) == listed
       assert listed == Map.put(files, "Sources/File7.swift", "changed")
+    end
+  end
+
+  describe "a commit written from a selection diff" do
+    # The diff as the client sends it: `path => {status, blob}`.
+    defp write_diff(repository, sha, base, diff, file_limit \\ 200_000) do
+      diff = Enum.map(diff, fn {path, {status, blob}} -> %{path: path, status: status, blob: blob} end)
+      FileChanges.write_from_diff(repository, sha, base, diff, file_limit)
+    end
+
+    defp tree(repository, sha), do: Map.new(GitHistory.commit_files(repository, sha), &{&1.path, &1.git_blob_id})
+
+    test "reads its tree: changed, added and deleted paths, with the base's modes", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}])
+      head(repository, "main", "b")
+      list(repository, "a", %{"A.swift" => "a1", "B.swift" => "b1", "script.sh" => {"s1", @executable}})
+      assert GitHistory.missing_listings(repository, ["b"]) == ["b"]
+
+      assert write_diff(repository, "b", "a", %{
+               "A.swift" => {"M", "a2"},
+               "B.swift" => {"D", ""},
+               "C.swift" => {"A", "c1"},
+               "script.sh" => {"M", "s2"}
+             }) == :written
+
+      assert tree(repository, "b") == %{"A.swift" => "a2", "C.swift" => "c1", "script.sh" => "s2"}
+
+      assert files(repository, "b") == %{
+               "A.swift" => {"a2", @mode},
+               "C.swift" => {"c1", @mode},
+               "script.sh" => {"s2", @executable}
+             }
+
+      assert GitHistory.missing_listings(repository, ["b"]) == []
+      assert GitHistory.listing_complete?(repository, "b")
+      assert %{staged: false, files_count: 3, changes_position: 2} = listing(repository, "b")
+
+      # An upload of the listing afterwards replaces it and reads the same.
+      list(repository, "b", %{"A.swift" => "a2", "C.swift" => "c1", "script.sh" => {"s2", @executable}})
+      assert %{staged: true} = listing(repository, "b")
+      assert tree(repository, "b") == %{"A.swift" => "a2", "C.swift" => "c1", "script.sh" => "s2"}
+    end
+
+    test "from an older ancestor, writes what differs from the written commit right below", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+      head(repository, "main", "c")
+      list(repository, "a", %{"Kept.swift" => "k1", "Reverted.swift" => "r1"})
+      list(repository, "b", %{"Kept.swift" => "k1", "Reverted.swift" => "r2", "AddedInB.swift" => "n1"})
+
+      # `c` puts back what `b` changed and drops what `b` added, so its diff
+      # against `a` names neither.
+      assert write_diff(repository, "c", "a", %{"New.swift" => {"A", "x1"}}) == :written
+
+      assert tree(repository, "c") == %{"Kept.swift" => "k1", "Reverted.swift" => "r1", "New.swift" => "x1"}
+      assert changes(repository, "c") == %{"Reverted.swift" => "r1", "AddedInB.swift" => "", "New.swift" => "x1"}
+      assert tree(repository, "b") == %{"Kept.swift" => "k1", "Reverted.swift" => "r2", "AddedInB.swift" => "n1"}
+    end
+
+    test "below written commits, leaves them their files", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"c", ["b"]}])
+      head(repository, "main", "c")
+      c = %{"Kept.swift" => "k1", "Changed.swift" => "x3"}
+      list(repository, "a", %{"Kept.swift" => "k1", "Changed.swift" => "x1"})
+      list(repository, "c", c)
+
+      assert write_diff(repository, "b", "a", %{"Changed.swift" => {"M", "x2"}, "Added.swift" => {"A", "n1"}}) ==
+               :written
+
+      assert tree(repository, "b") == %{"Kept.swift" => "k1", "Changed.swift" => "x2", "Added.swift" => "n1"}
+      assert tree(repository, "c") == c
+      assert files(repository, "c") == with_mode(c)
+    end
+
+    test "on a detached ref, is still read once a branch takes it over", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}])
+      head(repository, "main", "a")
+      list(repository, "a", %{"A.swift" => "a1"})
+
+      assert write_diff(repository, "b", "a", %{"A.swift" => {"M", "a2"}}) == :written
+      assert [%{name: "detached:b"}] = detached(repository)
+
+      head(repository, "main", "b")
+      settle()
+
+      main = ref_id(repository, "main")
+      assert FileChanges.current(repository, "b") == {main, 2}
+      assert tree(repository, "b") == %{"A.swift" => "a2"}
+      assert GitHistory.missing_listings(repository, ["b"]) == []
+    end
+
+    test "writes nothing when it can't give the commit's tree", %{repository: repository} do
+      commits(repository, [{"a", []}, {"b", ["a"]}, {"u", []}, {"v", ["u"]}])
+      head(repository, "main", "b")
+      list(repository, "a", %{"A.swift" => "a1"})
+      list(repository, "u", %{"U.swift" => "u1"})
+      list(repository, "b", %{"A.swift" => "a1"})
+
+      # Not in the graph yet.
+      assert write_diff(repository, "z", "a", %{"A.swift" => {"M", "a2"}}) == :pending
+      # A base whose file changes are not written: `u` reaches no ref.
+      assert write_diff(repository, "v", "u", %{"U.swift" => {"M", "u2"}}) == :no_base
+      # Already listed.
+      assert write_diff(repository, "b", "a", %{"A.swift" => {"M", "a2"}}) == :listed
+
+      commits(repository, [{"c", ["b"]}])
+      head(repository, "main", "c")
+      # Adds a path the base has, or changes one it lacks.
+      assert write_diff(repository, "c", "b", %{"A.swift" => {"A", "a2"}}) == :mismatch
+      assert write_diff(repository, "c", "b", %{"Missing.swift" => {"M", "m1"}}) == :mismatch
+      assert write_diff(repository, "c", "b", %{"New.swift" => {"A", "n1"}}, 1) == :too_many_files
+
+      for sha <- ["z", "v", "c"], do: assert(listing(repository, sha) == nil)
+      assert GitHistory.missing_listings(repository, ["z", "v", "c"]) == ["z", "v", "c"]
+      assert changes(repository, "c") == %{}
     end
   end
 end

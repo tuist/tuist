@@ -171,6 +171,8 @@ defmodule Atlas.Orbit.ToolPolicy do
     "search_my_gmail",
     "get_my_gmail_message",
     "save_my_gmail_attachment",
+    "ovh_list_invoices",
+    "ovh_save_invoice",
     "get_my_gmail_draft",
     "create_my_gmail_draft",
     "update_my_gmail_draft",

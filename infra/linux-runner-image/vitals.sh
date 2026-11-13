@@ -12,7 +12,7 @@
 #
 # Each line is tagged RUNNER_VITALS so it filters cleanly in Loki.
 # It distinguishes the two leading death modes:
-#   - guest OOM           -> oom_kill increments / kmsg.oom line
+#   - guest OOM           -> vm.oom_kill / oom_kill increment, kmsg.oom line
 #   - CPU/mem starvation  -> cpu.psi / mem.psi avg10 climb, mem.current
 #                            approaching mem.max
 #
@@ -64,6 +64,12 @@ vm_mem() {
       for (i = 1; i <= n; i++) if (key[i] in v) printf "%svm.mem.%s.kb=%s", (out++ ? " " : ""), name[i], v[key[i]]
     }' /proc/meminfo 2>/dev/null || true
 }
+
+# The lowest guest-wide MemAvailable this job reached, as "<avail kB>
+# <total kB>", for memory-report.sh, the job-completed hook. A dip
+# between two samples is missed; the OOM-kill count is not.
+low_file="${TUIST_RUNNER_MEMORY_LOW_FILE:-/tmp/tuist-runner-memory-low}"
+low_avail=""
 
 # Pull a named counter out of cgroup v2 memory.events (e.g. oom_kill).
 events() {
@@ -117,7 +123,19 @@ while :; do
   prev_idle="${cur_idle}"
 
   line="$(date -u +%FT%TZ) RUNNER_VITALS"
-  line="${line} $(vm_mem)"
+  mem="$(vm_mem)"
+  line="${line} ${mem}"
+  # Processes the guest kernel killed for memory, in any container.
+  line="${line} vm.oom_kill=$(awk '$1=="oom_kill"{print $2}' /proc/vmstat 2>/dev/null)"
+  avail="${mem#*vm.mem.avail.kb=}"
+  avail="${avail%% *}"
+  total="${mem#vm.mem.total.kb=}"
+  total="${total%% *}"
+  if [ "${avail}" -ge 0 ] 2>/dev/null && [ "${total}" -gt 0 ] 2>/dev/null &&
+    { [ -z "${low_avail}" ] || [ "${avail}" -lt "${low_avail}" ]; }; then
+    low_avail="${avail}"
+    printf '%s %s\n' "${avail}" "${total}" >"${low_file}" 2>/dev/null || true
+  fi
   line="${line} mem.current=$(field "$cg/memory.current") mem.peak=$(field "$cg/memory.peak") mem.max=$(field "$cg/memory.max") mem.swap=$(field "$cg/memory.swap.current")"
   line="${line} oom=$(events oom) oom_kill=$(events oom_kill)"
   # dind.age.s says how stale the sidecar's last write is: a sidecar

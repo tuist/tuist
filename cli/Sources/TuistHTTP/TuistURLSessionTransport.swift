@@ -16,9 +16,13 @@ import OpenAPIRuntime
 /// `didFinishCollecting` for capturing detailed timing metrics.
 public struct TuistURLSessionTransport: ClientTransport {
     private let session: URLSession?
+    private let streaming: Bool
 
-    public init(session: URLSession? = nil) {
+    /// With `streaming`, the response body arrives as the server sends it (of unknown length, one chunk per line
+    /// where the platform allows), for long-lived responses such as ND-JSON log streams; it can be read only once.
+    public init(session: URLSession? = nil, streaming: Bool = false) {
         self.session = session
+        self.streaming = streaming
     }
 
     public func send(
@@ -29,6 +33,18 @@ public struct TuistURLSessionTransport: ClientTransport {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let urlRequest = try await buildURLRequest(from: request, body: body, baseURL: baseURL)
         let session = resolvedSession()
+
+        if streaming {
+            let (response, chunks) = try await StreamingResponse.start(urlRequest, session: session)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw TuistURLSessionTransportError.invalidResponse(response)
+            }
+            let status = HTTPResponse(
+                status: .init(code: httpResponse.statusCode),
+                headerFields: buildHTTPFields(from: httpResponse)
+            )
+            return (status, HTTPBody(chunks, length: .unknown, iterationBehavior: .single))
+        }
 
         #if canImport(TuistHAR)
             let metricsDelegate = TaskMetricsDelegate()

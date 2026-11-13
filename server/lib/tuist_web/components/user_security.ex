@@ -77,7 +77,6 @@ defmodule TuistWeb.Components.UserSecurity do
                   data-1p-ignore
                   show_prefix={false}
                 />
-                <p>{dgettext("dashboard_auth", "This name is only used in Tuist.")}</p>
               </form>
               <:footer>
                 <.modal_footer>
@@ -163,32 +162,39 @@ defmodule TuistWeb.Components.UserSecurity do
     """
   end
 
-  attr :recovery_code_count, :integer, required: true
   attr :recovery_modal, :string, default: nil
 
   def mfa_controls(assigns) do
     ~H"""
     <div data-part="recovery-controls">
-      <p id="mfa-recovery-count">
-        {dngettext(
-          "dashboard_auth",
-          "%{count} recovery code remaining.",
-          "%{count} recovery codes remaining.",
-          @recovery_code_count
-        )}
-      </p>
       <div data-part="row-actions">
+        <.button_dropdown
+          id="mfa-actions"
+          label={dgettext("dashboard_auth", "Regenerate")}
+          size="medium"
+          align="end"
+          phx-click="open-security-modal"
+          phx-value-id="regenerate-recovery-modal"
+        >
+          <.dropdown_item
+            label={dgettext("dashboard_auth", "Disable")}
+            value="disable"
+            on_click="open-security-modal"
+            phx-value-id="disable-mfa-modal"
+          />
+        </.button_dropdown>
         <.modal
           id="regenerate-recovery-modal"
           title={dgettext("dashboard_auth", "Regenerate recovery codes")}
+          description={
+            dgettext(
+              "dashboard_auth",
+              "Your old codes will stop working and other sessions will be signed out."
+            )
+          }
         >
           <:trigger :let={attrs}>
-            <.button
-              variant="secondary"
-              size="medium"
-              label={dgettext("dashboard_auth", "Regenerate recovery codes")}
-              {attrs}
-            />
+            <button type="button" hidden {attrs}></button>
           </:trigger>
           <form
             id="mfa-regenerate"
@@ -200,12 +206,6 @@ defmodule TuistWeb.Components.UserSecurity do
             data-error={dgettext("dashboard_auth", "Something went wrong. Please try again.")}
           >
             <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-            <p>
-              {dgettext(
-                "dashboard_auth",
-                "Your old codes will stop working and other sessions will be signed out."
-              )}
-            </p>
             <.text_input
               id="mfa-recovery-code"
               name="mfa_code"
@@ -230,7 +230,7 @@ defmodule TuistWeb.Components.UserSecurity do
                   type="submit"
                   form="mfa-regenerate"
                   variant="primary"
-                  label={dgettext("dashboard_auth", "Generate new recovery codes")}
+                  label={dgettext("dashboard_auth", "Generate")}
                 />
               </:action>
             </.modal_footer>
@@ -241,12 +241,7 @@ defmodule TuistWeb.Components.UserSecurity do
           title={dgettext("dashboard_auth", "Disable two-factor authentication")}
         >
           <:trigger :let={attrs}>
-            <.button
-              variant="destructive"
-              size="medium"
-              label={dgettext("dashboard_auth", "Disable two-factor authentication")}
-              {attrs}
-            />
+            <button type="button" hidden {attrs}></button>
           </:trigger>
           <form
             id="mfa-disable"

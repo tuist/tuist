@@ -30,9 +30,11 @@ Improve unnecessary invalidation, task inputs, test setup, and retries first. Sh
 | --- | --- | --- | --- |
 | [Xcode](/marketing-markdown/build-systems/xcode) | Apple toolchains, target graph, incremental builds, compilation cache | Shared compilation outputs, build/test insights, flaky-test workflows, sharding | Existing or generated Xcode project; Xcode 26+ for compilation caching |
 | [Gradle](/marketing-markdown/build-systems/gradle) | Task graph, incremental tasks, build-cache protocol, test execution | Shared task outputs, task/build insights, test history, supported quarantine and sharding | Tuist settings plugin and Gradle build-cache configuration |
-| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, build/test insights, quarantine through the Tuist wrapper | `tuist init` or `tuist bazel setup` in the existing workspace |
+| [Bazel](/marketing-markdown/build-systems/bazel) | Explicit targets, action caching, remote-cache/execution protocols, build events | Remote action cache, Linux remote execution, build/test insights, quarantine through the Tuist wrapper | `tuist init` or `tuist bazel setup` in the existing workspace |
 | [Mix / Elixir](/marketing-markdown/build-systems/elixir) | Dependency management, incremental compilation, ExUnit | Supported compiled-dependency caching, per-file compilation insights, test history, flaky detection and quarantine, balanced test sharding | `tuist_ex` package and `mix tuist.setup` |
 | [Once](/marketing-markdown/build-systems/once) | Cacheable scripts and supported native project graphs, without rewriting project sources or build definitions | Shared action results and live run/action reporting; eligible Linux remote execution for enabled accounts | Script annotations or a supported native project; Tuist provider in canary |
+
+Running Bazel and Gradle side by side, or deciding between them? See [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle).
 
 Support is feature-specific. Previews accept supported mobile apps, macOS apps, and macOS/Linux command-line distributions; bundle insights analyze supported Apple and Android bundles. Their eligibility depends on the artifact and publishing workflow, not just the build-system name.
 

@@ -1492,6 +1492,63 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
+  # A monorepo commit lists every toolchain's build files; only the project's
+  # own build system's decide whether its evidence still holds.
+  test "an Xcode project carries across a commit that changes only Mix's build inputs", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    record_build_inputs(account, %{"Package.resolved" => "one", "server/mix.lock" => "one"}, %{
+      "Package.resolved" => "one",
+      "server/mix.lock" => "two"
+    })
+
+    assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+
+    record_build_inputs(account, %{"Package.resolved" => "one"}, %{"Package.resolved" => "two"})
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+  end
+
+  for {build_system, input} <- [mix: "server/config/runtime.exs", cargo: "crates/cli/Cargo.lock"] do
+    @build_system build_system
+    @input input
+
+    test "a #{build_system} project is not stopped by a commit that changes only Xcode's build inputs", %{
+      project: project,
+      account: account
+    } do
+      track_default_files()
+      project = project |> Ecto.Changeset.change(build_system: @build_system) |> Tuist.Repo.update!()
+      base_run(project, account)
+      head_run(project, account, head_files())
+
+      record_build_inputs(account, %{"Package.resolved" => "one", @input => "one"}, %{
+        "Package.resolved" => "two",
+        @input => "one"
+      })
+
+      assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
+      assert reasons(reported) == []
+
+      record_build_inputs(account, %{@input => "one"}, %{@input => "two"})
+      assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+    end
+  end
+
+  defp record_build_inputs(account, base, head) do
+    repository_id = CoverageFixtures.repository_id(account)
+
+    for {sha, blobs} <- [{"base", base}, {"head", head}] do
+      listing = Enum.map(blobs, fn {path, blob} -> %{path: path, git_blob_id: blob, mode: 0o100644} end)
+      GitHistory.record_listing(repository_id, sha, listing, files_count: length(listing))
+    end
+  end
+
   test "a commit that changes a tracked file carries nothing without reading any evidence", %{
     project: project,
     account: account

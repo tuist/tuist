@@ -1,6 +1,9 @@
 package scaling
 
-import "sort"
+import (
+	"sort"
+	"time"
+)
 
 // PoolDemand is one pool's input to the fleet-capacity allocation.
 // All pools in a single AllocateFleet call share one capacity budget
@@ -30,6 +33,11 @@ type PoolDemand struct {
 	// InUse is `Signals.InUse`: the pool has load now or ran a job in the
 	// last hour. Its floor is funded before the floors of pools that did not.
 	InUse bool
+
+	// LastDemandAt is the pool's `status.lastDemandAt`: when it last had
+	// real work, to within ten minutes. Zero when it never had any. The
+	// floors of pools not in use are funded most recently used first.
+	LastDemandAt time.Time
 
 	// Load is `Signals.Load()` — Pods holding capacity (including
 	// post-job cache and teardown work), plus work waiting for a Pod,
@@ -63,7 +71,10 @@ type PoolDemand struct {
 //     that keeps the next spike off cold-start. Idle warm Pods. The floors
 //     of pools in use (load now, or a job in the last hour) are funded
 //     before those of pools that only hold a learned floor, so a rack
-//     short of seats keeps warm the pools whose jobs are arriving.
+//     short of seats keeps warm the pools whose jobs are arriving. The
+//     floors of pools not in use are then funded whole, most recently
+//     used first (`LastDemandAt`), so an image used this morning stays
+//     warm before one whose only jobs are a nightly run.
 //  3. Headroom — the p95 warm buffer (`Target` above floor+load). Also
 //     idle, the most speculative.
 //
@@ -84,7 +95,8 @@ type PoolDemand struct {
 // Each tier is granted in full when it fits; otherwise it is split
 // proportionally to requested cost, the whole Pods rounding leaves over go
 // to the pools with the largest Target first (grantRemainder), and all
-// lower tiers get nothing.
+// lower tiers get nothing. The floors of pools not in use are the
+// exception: they are granted by recency, as above.
 // Result per pool is in `[load_i, Target_i]`. The algorithm is
 // unit-agnostic: `fleetCapacity` and `PerPodCost` just need to be in
 // the same unit (allocatable memory bytes on both platforms today).
@@ -99,6 +111,7 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string
 	out := make(map[string]int32, len(pools))
 
 	var loadWants, inUseFloorWants, idleFloorWants, headWants []tierWant
+	lastDemand := make(map[string]time.Time, len(pools))
 
 	// Decompose each pool's Target into the three priority tiers.
 	for _, p := range pools {
@@ -127,6 +140,7 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string
 		}
 
 		out[p.Name] = 0
+		lastDemand[p.Name] = p.LastDemandAt
 
 		if load > 0 {
 			loadWants = append(loadWants, tierWant{p.Name, load, p.PerPodCost, target})
@@ -195,10 +209,38 @@ func AllocateFleet(pools []PoolDemand, fleetCapacity int64, shapeCaps map[string
 		remaining = 0
 	}
 
+	// grantByRecency grants the idle floors one pool at a time, most
+	// recently used first, each in whole Pods. A proportional split here
+	// gave a pool whose only jobs run at night as many of a full rack's
+	// seats as one whose fan-outs arrive every working hour.
+	grantByRecency := func(wants []tierWant) bool {
+		sort.SliceStable(wants, func(a, b int) bool {
+			ta, tb := lastDemand[wants[a].name], lastDemand[wants[b].name]
+			if !ta.Equal(tb) {
+				return ta.After(tb)
+			}
+			if wants[a].target != wants[b].target {
+				return wants[a].target > wants[b].target
+			}
+			return wants[a].name < wants[b].name
+		})
+		full := true
+		for _, w := range wants {
+			grant := w.want
+			if fits := remaining / w.cost; fits < int64(grant) {
+				grant = int32(fits)
+				full = false
+			}
+			out[w.name] += grant
+			remaining -= int64(grant) * w.cost
+		}
+		return full
+	}
+
 	// Tier 2: floor (warm guarantee), pools in use first, then tier 3:
 	// headroom — only if floors fit in full. Floors yield to tier-1 load
 	// above; headroom yields to floors.
-	if grantTier(inUseFloorWants) && grantTier(idleFloorWants) {
+	if grantTier(inUseFloorWants) && grantByRecency(idleFloorWants) {
 		grantTier(headWants)
 	}
 
@@ -267,7 +309,8 @@ func grantRemainder(wants []tierWant, granted []int32, remaining int64) {
 // The cap is handed out by the same priority the tiers use — load
 // first, then the warm floor, then headroom — one Pod per pool per
 // round, so two pools contending for a single slot do not both lose it,
-// and in name order so the split is identical on every reconcile.
+// and in name order so the split is identical on every reconcile. The
+// floors of pools not in use go whole, most recently used first.
 //
 // Clamping Target (rather than the tiers directly) is enough: the tier
 // decomposition already clamps load and floor to it.
@@ -311,7 +354,29 @@ func capByShape(pools []PoolDemand, shapeCaps map[string]int32) []PoolDemand {
 
 		granted := make([]int32, len(members))
 		remaining := limit
-		for _, ceiling := range []func(PoolDemand) int32{loadCeiling, inUseFloorCeiling, floorCeiling, targetCeiling} {
+		ceilings := []func(PoolDemand) int32{loadCeiling, inUseFloorCeiling, floorCeiling, targetCeiling}
+		const idleFloorPhase = 2
+		for phase, ceiling := range ceilings {
+			// The floors of pools not in use go whole, most recently used
+			// first, as in AllocateFleet's floor tier. Members are already
+			// in name order, which breaks ties.
+			if phase == idleFloorPhase {
+				order := make([]int, len(members))
+				for j := range order {
+					order[j] = j
+				}
+				sort.SliceStable(order, func(a, b int) bool {
+					return out[members[order[a]]].LastDemandAt.After(out[members[order[b]]].LastDemandAt)
+				})
+				for _, j := range order {
+					grant := clampMax(ceiling(out[members[j]])-granted[j], remaining)
+					if grant > 0 {
+						granted[j] += grant
+						remaining -= grant
+					}
+				}
+				continue
+			}
 			for remaining > 0 {
 				progressed := false
 				for j, i := range members {

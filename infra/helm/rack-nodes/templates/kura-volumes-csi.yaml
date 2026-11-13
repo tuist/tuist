@@ -74,9 +74,6 @@ spec:
           operator: Exists
           effect: NoSchedule
         {{- end }}
-        - key: tuist.dev/runner-cache
-          operator: Exists
-          effect: NoSchedule
         - key: tuist.dev/kura-cache
           operator: Exists
           effect: NoSchedule

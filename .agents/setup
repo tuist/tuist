@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Prepares an Amp orb (Debian 12) for working on this monorepo: the root and
+# Prepares an Amp orb (Debian/Ubuntu) for working on this monorepo: the root and
 # server mise toolchains, PostgreSQL 16, ClickHouse, and a bootstrapped,
 # compiled server. Idempotent; warm runs only verify what is already there.
 set -euo pipefail
+
+# macOS Orbs serve CLI and app work and have their own setup.
+if [[ "$(uname -s)" == Darwin ]]; then
+  exec "$(dirname "${BASH_SOURCE[0]}")/setup-macos" "$@"
+fi
 
 # The stdout and stderr Amp gives setup can fail a write with EAGAIN when its
 # reader falls behind a burst of output. awk, coreutils and Rust's println!
@@ -17,11 +22,27 @@ stdout_relay=$!
 exec 2> >(node -e "$relay" >&4 3>&- 4>&-)
 stderr_relay=$!
 exec 3>&- 4>&-
-# Exit only after the relays have passed on the last output, often the error.
-trap 'exec >&- 2>&-; wait "$stdout_relay" "$stderr_relay"' EXIT
+clean_lockfiles=()
+finish() {
+  local status=$?
+  # mise records Linux checksums (and provenance, which the root mise.lock
+  # must never carry) into these lockfiles while installing. Restore them even
+  # when a step fails, so a failed setup does not hand threads a dirty worktree,
+  # and fail an otherwise successful setup when the restore fails, so no
+  # snapshot carries them.
+  if ((${#clean_lockfiles[@]})) && ! git -C "$repo_root" checkout -- "${clean_lockfiles[@]}"; then
+    ((status)) || status=1
+  fi
+  # Exit only after the relays have passed on the last output, often the error.
+  exec >&- 2>&-
+  wait "$stdout_relay" "$stderr_relay" || true
+  exit "$status"
+}
+trap finish EXIT
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+setup_started=$SECONDS
 
 step() {
   printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
@@ -59,9 +80,9 @@ retry() {
 }
 
 # --- System packages -------------------------------------------------------
-# Erlang builds from source (mise.lock has no Linux URL for core:erlang), so
-# keep its build dependencies alongside PostgreSQL 16, which the server
-# requires and Debian 12 does not ship.
+# mise uses prebuilt Erlang on Ubuntu, but falls back to a source build on
+# Debian. Keep its build dependencies alongside PostgreSQL 16, which the
+# server requires and Debian 12 does not ship.
 apt_packages=(
   autoconf build-essential libssl-dev libncurses-dev unzip
   ffmpeg inotify-tools postgresql-16 postgresql-client-16
@@ -82,8 +103,8 @@ if ((${#missing_packages[@]})); then
       https://www.postgresql.org/media/keys/ACCC4CF8.asc
     echo "$pgdg_list" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
   fi
-  sudo apt-get update -q
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
+  timed "Updating system package lists" sudo apt-get update -q
+  timed "Installing system packages" sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
 fi
 
 # --- PostgreSQL 16 ---------------------------------------------------------
@@ -146,10 +167,8 @@ esac
 EOF
 fi
 
-# mise records Linux checksums into these lockfiles while installing. Restore
-# them afterwards so orbs start with a clean worktree, unless they already
-# carried someone's edits.
-clean_lockfiles=()
+# finish restores these lockfiles on exit unless they already carried
+# someone's edits.
 for lockfile in mise.lock server/mise.lock; do
   git diff --quiet -- "$lockfile" && clean_lockfiles+=("$lockfile")
 done
@@ -193,7 +212,7 @@ if [[ -z "${TUIST_OIDC_TOKEN:-}" ]]; then
 fi
 
 step "Starting ClickHouse"
-mise run --no-deps clickhouse:start
+timed "Starting ClickHouse" mise run --no-deps clickhouse:start
 
 # deps.get, aube installs, Noora build, dev compile, and database
 # create/migrate; on a stale snapshot only what changed.
@@ -223,9 +242,6 @@ timed "Creating and migrating the server test databases" env MIX_ENV=test mise e
 step "Stopping ClickHouse and PostgreSQL"
 mise run --no-deps clickhouse:stop
 sudo pg_ctlcluster 16 main stop
-
-cd "$repo_root"
-((${#clean_lockfiles[@]} == 0)) || git checkout -- "${clean_lockfiles[@]}"
 
 step "Writing orb kubeconfig"
 # Contexts for the kube-orb-<env> gateways. The file holds no credential:
@@ -297,4 +313,4 @@ EOF
 } >"$guidance.tmp"
 mv "$guidance.tmp" "$guidance"
 
-step "Setup finished"
+step "Setup finished in $((SECONDS - setup_started))s"

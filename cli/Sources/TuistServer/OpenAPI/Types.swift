@@ -333,7 +333,7 @@ public protocol APIProtocol: Sendable {
     func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -1013,7 +1013,7 @@ public protocol APIProtocol: Sendable {
     func pauseSandbox(_ input: Operations.pauseSandbox.Input) async throws -> Operations.pauseSandbox.Output
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -1251,7 +1251,7 @@ public protocol APIProtocol: Sendable {
     func listSandboxAgentSessions(_ input: Operations.listSandboxAgentSessions.Input) async throws -> Operations.listSandboxAgentSessions.Output
     /// Start an agent session.
     ///
-    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
@@ -1581,6 +1581,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
+    /// Create an upload for a sandbox.
+    ///
+    /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)`.
+    func createSandboxUpload(_ input: Operations.createSandboxUpload.Input) async throws -> Operations.createSandboxUpload.Output
     /// List Bazel invocations for a project, newest first.
     ///
     /// Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
@@ -2418,7 +2425,7 @@ extension APIProtocol {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -4066,7 +4073,7 @@ extension APIProtocol {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -4650,7 +4657,7 @@ extension APIProtocol {
     }
     /// Start an agent session.
     ///
-    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
@@ -5438,6 +5445,21 @@ extension APIProtocol {
         try await createProject(Operations.createProject.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// Create an upload for a sandbox.
+    ///
+    /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)`.
+    public func createSandboxUpload(
+        path: Operations.createSandboxUpload.Input.Path,
+        headers: Operations.createSandboxUpload.Input.Headers = .init()
+    ) async throws -> Operations.createSandboxUpload.Output {
+        try await createSandboxUpload(Operations.createSandboxUpload.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// List Bazel invocations for a project, newest first.
@@ -7548,21 +7570,29 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/WriteSandboxCommandStdin/data`.
             public var data: OpenAPIRuntime.Base64EncodedData?
+            /// The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WriteSandboxCommandStdin/offset`.
+            public var offset: Swift.Int?
             /// Creates a new `WriteSandboxCommandStdin`.
             ///
             /// - Parameters:
             ///   - close: End the command's stdin after the data.
             ///   - data: Base64-encoded bytes, at most 256 KiB decoded.
+            ///   - offset: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
             public init(
                 close: Swift.Bool? = nil,
-                data: OpenAPIRuntime.Base64EncodedData? = nil
+                data: OpenAPIRuntime.Base64EncodedData? = nil,
+                offset: Swift.Int? = nil
             ) {
                 self.close = close
                 self.data = data
+                self.offset = offset
             }
             public enum CodingKeys: String, CodingKey {
                 case close
                 case data
+                case offset
             }
         }
         /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
@@ -13664,8 +13694,6 @@ public enum Components {
         public struct SandboxAnalyticsConcurrency: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
             public struct in_usePayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/vcpus`.
@@ -13673,29 +13701,21 @@ public enum Components {
                 /// Creates a new `in_usePayload`.
                 ///
                 /// - Parameters:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
-                    )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
                         forKey: .memory_gb
@@ -13705,7 +13725,6 @@ public enum Components {
                         forKey: .vcpus
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -13715,8 +13734,6 @@ public enum Components {
             public var in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
             public struct limitsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/vcpus`.
@@ -13724,29 +13741,21 @@ public enum Components {
                 /// Creates a new `limitsPayload`.
                 ///
                 /// - Parameters:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
-                    )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
                         forKey: .memory_gb
@@ -13756,7 +13765,6 @@ public enum Components {
                         forKey: .vcpus
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -13768,8 +13776,6 @@ public enum Components {
             public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/at`.
                 public var at: Foundation.Date
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/vcpus`.
@@ -13778,23 +13784,19 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - at:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
                     at: Foundation.Date,
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
                     self.at = at
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
                     case at
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
@@ -13803,10 +13805,6 @@ public enum Components {
                     self.at = try container.decode(
                         Foundation.Date.self,
                         forKey: .at
-                    )
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
                     )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
@@ -13818,7 +13816,6 @@ public enum Components {
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "at",
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -14126,6 +14123,94 @@ public enum Components {
                     "jobs",
                     "pagination_metadata"
                 ])
+            }
+        }
+        /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory`.
+        public struct RunnerJobOutOfMemory: Codable, Hashable, Sendable {
+            /// What happened and what to change, as the job page's "Ran out of memory" alert says it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/description`.
+            public var description: Swift.String
+            /// When the first kill was reported.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/first_kill_at`.
+            public var first_kill_at: Foundation.Date
+            /// Processes the runner VM killed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/kill_count`.
+            public var kill_count: Swift.Int
+            /// The process killed last, or null when the runner did not name it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim`.
+            public struct victimPayload: Codable, Hashable, Sendable {
+                /// Its Docker container: null outside a container, docker-build for a docker build step.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/container`.
+                public var container: Swift.String?
+                /// That container's image.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/image`.
+                public var image: Swift.String?
+                /// Memory the process was using.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/memory_bytes`.
+                public var memory_bytes: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/process`.
+                public var process: Swift.String
+                /// Creates a new `victimPayload`.
+                ///
+                /// - Parameters:
+                ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+                ///   - image: That container's image.
+                ///   - memory_bytes: Memory the process was using.
+                ///   - process:
+                public init(
+                    container: Swift.String? = nil,
+                    image: Swift.String? = nil,
+                    memory_bytes: Swift.Int,
+                    process: Swift.String
+                ) {
+                    self.container = container
+                    self.image = image
+                    self.memory_bytes = memory_bytes
+                    self.process = process
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case container
+                    case image
+                    case memory_bytes
+                    case process
+                }
+            }
+            /// The process killed last, or null when the runner did not name it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim`.
+            public var victim: Components.Schemas.RunnerJobOutOfMemory.victimPayload?
+            /// Creates a new `RunnerJobOutOfMemory`.
+            ///
+            /// - Parameters:
+            ///   - description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+            ///   - first_kill_at: When the first kill was reported.
+            ///   - kill_count: Processes the runner VM killed.
+            ///   - victim: The process killed last, or null when the runner did not name it.
+            public init(
+                description: Swift.String,
+                first_kill_at: Foundation.Date,
+                kill_count: Swift.Int,
+                victim: Components.Schemas.RunnerJobOutOfMemory.victimPayload? = nil
+            ) {
+                self.description = description
+                self.first_kill_at = first_kill_at
+                self.kill_count = kill_count
+                self.victim = victim
+            }
+            public enum CodingKeys: String, CodingKey {
+                case description
+                case first_kill_at
+                case kill_count
+                case victim
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination`.
@@ -14844,6 +14929,49 @@ public enum Components {
                 case project_id
                 case state
                 case suite_name
+            }
+        }
+        /// The process killed last, or null when the runner did not name it.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim`.
+        public struct RunnerJobOutOfMemoryVictim: Codable, Hashable, Sendable {
+            /// Its Docker container: null outside a container, docker-build for a docker build step.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/container`.
+            public var container: Swift.String?
+            /// That container's image.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/image`.
+            public var image: Swift.String?
+            /// Memory the process was using.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/memory_bytes`.
+            public var memory_bytes: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/process`.
+            public var process: Swift.String
+            /// Creates a new `RunnerJobOutOfMemoryVictim`.
+            ///
+            /// - Parameters:
+            ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+            ///   - image: That container's image.
+            ///   - memory_bytes: Memory the process was using.
+            ///   - process:
+            public init(
+                container: Swift.String? = nil,
+                image: Swift.String? = nil,
+                memory_bytes: Swift.Int,
+                process: Swift.String
+            ) {
+                self.container = container
+                self.image = image
+                self.memory_bytes = memory_bytes
+                self.process = process
+            }
+            public enum CodingKeys: String, CodingKey {
+                case container
+                case image
+                case memory_bytes
+                case process
             }
         }
         /// - Remark: Generated from `#/components/schemas/PulseQuery`.
@@ -15702,6 +15830,39 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
         public typealias PreviewIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/SandboxUpload`.
+        public struct SandboxUpload: Codable, Hashable, Sendable {
+            /// Presigned URL to GET the file from in the sandbox.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxUpload/download_url`.
+            public var download_url: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxUpload/expires_at`.
+            public var expires_at: Foundation.Date
+            /// Presigned URL to PUT the file to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxUpload/upload_url`.
+            public var upload_url: Swift.String
+            /// Creates a new `SandboxUpload`.
+            ///
+            /// - Parameters:
+            ///   - download_url: Presigned URL to GET the file from in the sandbox.
+            ///   - expires_at:
+            ///   - upload_url: Presigned URL to PUT the file to.
+            public init(
+                download_url: Swift.String,
+                expires_at: Foundation.Date,
+                upload_url: Swift.String
+            ) {
+                self.download_url = download_url
+                self.expires_at = expires_at
+                self.upload_url = upload_url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case download_url
+                case expires_at
+                case upload_url
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BuildCategory`.
         @frozen public enum BuildCategory: String, Codable, Hashable, Sendable, CaseIterable {
             case clean = "clean"
@@ -17935,9 +18096,25 @@ public enum Components {
             public var anthropic_agent_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_environment_id`.
             public var anthropic_environment_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_federation_rule_id`.
+            public var anthropic_federation_rule_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_organization_id`.
+            public var anthropic_organization_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_service_account_id`.
+            public var anthropic_service_account_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_workspace_id`.
+            public var anthropic_workspace_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/enabled`.
             public var enabled: Swift.Bool
-            /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+            /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/federation_issuer_url`.
+            public var federation_issuer_url: Swift.String
+            /// The sub claim of the tokens Tuist signs for this environment.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/federation_subject`.
+            public var federation_subject: Swift.String
+            /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
             ///
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/has_api_key`.
             public var has_api_key: Swift.Bool
@@ -17982,8 +18159,14 @@ public enum Components {
             ///   - agent_system_prompt:
             ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
             ///   - anthropic_environment_id:
+            ///   - anthropic_federation_rule_id:
+            ///   - anthropic_organization_id:
+            ///   - anthropic_service_account_id:
+            ///   - anthropic_workspace_id:
             ///   - enabled:
-            ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+            ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+            ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+            ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
             ///   - id:
             ///   - inserted_at:
             ///   - kind:
@@ -18001,7 +18184,13 @@ public enum Components {
                 agent_system_prompt: Swift.String? = nil,
                 anthropic_agent_id: Swift.String? = nil,
                 anthropic_environment_id: Swift.String,
+                anthropic_federation_rule_id: Swift.String? = nil,
+                anthropic_organization_id: Swift.String? = nil,
+                anthropic_service_account_id: Swift.String? = nil,
+                anthropic_workspace_id: Swift.String? = nil,
                 enabled: Swift.Bool,
+                federation_issuer_url: Swift.String,
+                federation_subject: Swift.String,
                 has_api_key: Swift.Bool,
                 id: Swift.Int,
                 inserted_at: Foundation.Date,
@@ -18020,7 +18209,13 @@ public enum Components {
                 self.agent_system_prompt = agent_system_prompt
                 self.anthropic_agent_id = anthropic_agent_id
                 self.anthropic_environment_id = anthropic_environment_id
+                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                self.anthropic_organization_id = anthropic_organization_id
+                self.anthropic_service_account_id = anthropic_service_account_id
+                self.anthropic_workspace_id = anthropic_workspace_id
                 self.enabled = enabled
+                self.federation_issuer_url = federation_issuer_url
+                self.federation_subject = federation_subject
                 self.has_api_key = has_api_key
                 self.id = id
                 self.inserted_at = inserted_at
@@ -18040,7 +18235,13 @@ public enum Components {
                 case agent_system_prompt
                 case anthropic_agent_id
                 case anthropic_environment_id
+                case anthropic_federation_rule_id
+                case anthropic_organization_id
+                case anthropic_service_account_id
+                case anthropic_workspace_id
                 case enabled
+                case federation_issuer_url
+                case federation_subject
                 case has_api_key
                 case id
                 case inserted_at
@@ -18612,6 +18813,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/env`.
             public var env: Components.Schemas.StartSandboxCommand.envPayload?
+            /// The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/id`.
+            public var id: Swift.String?
             /// Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
             ///
             /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/stdin`.
@@ -18627,6 +18832,7 @@ public enum Components {
             ///   - command: A shell script run with `/bin/bash -l`, or the program to run when `args` is given.
             ///   - cwd: Working directory. Defaults to the sandbox's workspace.
             ///   - env: Environment variables for the command. Never stored.
+            ///   - id: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
             ///   - stdin: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
             ///   - timeout_ms: Kill the command after this many milliseconds (default one hour).
             public init(
@@ -18634,6 +18840,7 @@ public enum Components {
                 command: Swift.String,
                 cwd: Swift.String? = nil,
                 env: Components.Schemas.StartSandboxCommand.envPayload? = nil,
+                id: Swift.String? = nil,
                 stdin: Swift.Bool? = nil,
                 timeout_ms: Swift.Int? = nil
             ) {
@@ -18641,6 +18848,7 @@ public enum Components {
                 self.command = command
                 self.cwd = cwd
                 self.env = env
+                self.id = id
                 self.stdin = stdin
                 self.timeout_ms = timeout_ms
             }
@@ -18649,6 +18857,7 @@ public enum Components {
                 case command
                 case cwd
                 case env
+                case id
                 case stdin
                 case timeout_ms
             }
@@ -19454,6 +19663,22 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_environment_id`.
             public var anthropic_environment_id: Swift.String
+            /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_federation_rule_id`.
+            public var anthropic_federation_rule_id: Swift.String?
+            /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_organization_id`.
+            public var anthropic_organization_id: Swift.String?
+            /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_service_account_id`.
+            public var anthropic_service_account_id: Swift.String?
+            /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_workspace_id`.
+            public var anthropic_workspace_id: Swift.String?
             /// The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/environment_key`.
@@ -19516,6 +19741,10 @@ public enum Components {
             ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
             ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
             ///   - anthropic_environment_id: The Anthropic environment identifier: env_... or, for claude_code, ccpool_...
+            ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
             ///   - environment_key: The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
             ///   - kind: managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform.
             ///   - max_idle_seconds:
@@ -19531,6 +19760,10 @@ public enum Components {
                 agent_system_prompt: Swift.String? = nil,
                 anthropic_api_key: Swift.String? = nil,
                 anthropic_environment_id: Swift.String,
+                anthropic_federation_rule_id: Swift.String? = nil,
+                anthropic_organization_id: Swift.String? = nil,
+                anthropic_service_account_id: Swift.String? = nil,
+                anthropic_workspace_id: Swift.String? = nil,
                 environment_key: Swift.String,
                 kind: Components.Schemas.CreateSandboxAgentEnvironment.kindPayload? = nil,
                 max_idle_seconds: Swift.Int? = nil,
@@ -19546,6 +19779,10 @@ public enum Components {
                 self.agent_system_prompt = agent_system_prompt
                 self.anthropic_api_key = anthropic_api_key
                 self.anthropic_environment_id = anthropic_environment_id
+                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                self.anthropic_organization_id = anthropic_organization_id
+                self.anthropic_service_account_id = anthropic_service_account_id
+                self.anthropic_workspace_id = anthropic_workspace_id
                 self.environment_key = environment_key
                 self.kind = kind
                 self.max_idle_seconds = max_idle_seconds
@@ -19562,6 +19799,10 @@ public enum Components {
                 case agent_system_prompt
                 case anthropic_api_key
                 case anthropic_environment_id
+                case anthropic_federation_rule_id
+                case anthropic_organization_id
+                case anthropic_service_account_id
+                case anthropic_workspace_id
                 case environment_key
                 case kind
                 case max_idle_seconds
@@ -20738,6 +20979,7 @@ public enum Components {
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
                 case account_colon_runners_colon_write = "account:runners:write"
+                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -24633,8 +24875,6 @@ public enum Components {
         public struct SandboxAnalyticsConcurrencyPoint: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/at`.
             public var at: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/vcpus`.
@@ -24643,23 +24883,19 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - at:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
                 at: Foundation.Date,
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
                 self.at = at
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
                 case at
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
@@ -24668,10 +24904,6 @@ public enum Components {
                 self.at = try container.decode(
                     Foundation.Date.self,
                     forKey: .at
-                )
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
                 )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
@@ -24683,7 +24915,6 @@ public enum Components {
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                     "at",
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -28581,6 +28812,233 @@ public enum Components {
                 case unmeasured_files_count
             }
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerJobDetail`.
+        public struct RunnerJobDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/claimed_at`.
+            public var claimed_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/completed_at`.
+            public var completed_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/conclusion`.
+            public var conclusion: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/enqueued_at`.
+            public var enqueued_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/head_branch`.
+            public var head_branch: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/head_sha`.
+            public var head_sha: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/job_name`.
+            public var job_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/log_archived_at`.
+            public var log_archived_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory`.
+            public struct out_of_memoryPayload: Codable, Hashable, Sendable {
+                /// What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/description`.
+                public var description: Swift.String
+                /// When the first kill was reported.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/first_kill_at`.
+                public var first_kill_at: Foundation.Date
+                /// Processes the runner VM killed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/kill_count`.
+                public var kill_count: Swift.Int
+                /// The process killed last, or null when the runner did not name it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim`.
+                public struct victimPayload: Codable, Hashable, Sendable {
+                    /// Its Docker container: null outside a container, docker-build for a docker build step.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/container`.
+                    public var container: Swift.String?
+                    /// That container's image.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/image`.
+                    public var image: Swift.String?
+                    /// Memory the process was using.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/memory_bytes`.
+                    public var memory_bytes: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/process`.
+                    public var process: Swift.String
+                    /// Creates a new `victimPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+                    ///   - image: That container's image.
+                    ///   - memory_bytes: Memory the process was using.
+                    ///   - process:
+                    public init(
+                        container: Swift.String? = nil,
+                        image: Swift.String? = nil,
+                        memory_bytes: Swift.Int,
+                        process: Swift.String
+                    ) {
+                        self.container = container
+                        self.image = image
+                        self.memory_bytes = memory_bytes
+                        self.process = process
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case container
+                        case image
+                        case memory_bytes
+                        case process
+                    }
+                }
+                /// The process killed last, or null when the runner did not name it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim`.
+                public var victim: Components.Schemas.RunnerJobDetail.out_of_memoryPayload.victimPayload?
+                /// Creates a new `out_of_memoryPayload`.
+                ///
+                /// - Parameters:
+                ///   - description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                ///   - first_kill_at: When the first kill was reported.
+                ///   - kill_count: Processes the runner VM killed.
+                ///   - victim: The process killed last, or null when the runner did not name it.
+                public init(
+                    description: Swift.String,
+                    first_kill_at: Foundation.Date,
+                    kill_count: Swift.Int,
+                    victim: Components.Schemas.RunnerJobDetail.out_of_memoryPayload.victimPayload? = nil
+                ) {
+                    self.description = description
+                    self.first_kill_at = first_kill_at
+                    self.kill_count = kill_count
+                    self.victim = victim
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case description
+                    case first_kill_at
+                    case kill_count
+                    case victim
+                }
+            }
+            /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory`.
+            public var out_of_memory: Components.Schemas.RunnerJobDetail.out_of_memoryPayload?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/platform`.
+            public var platform: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/repository`.
+            public var repository: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/requested_dispatch_label`.
+            public var requested_dispatch_label: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/run_attempt`.
+            public var run_attempt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/started_at`.
+            public var started_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/updated_at`.
+            public var updated_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/vcpus`.
+            public var vcpus: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/workflow_job_id`.
+            public var workflow_job_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/workflow_name`.
+            public var workflow_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/workflow_run_id`.
+            public var workflow_run_id: Swift.Int
+            /// Creates a new `RunnerJobDetail`.
+            ///
+            /// - Parameters:
+            ///   - claimed_at:
+            ///   - completed_at:
+            ///   - conclusion:
+            ///   - enqueued_at:
+            ///   - head_branch:
+            ///   - head_sha:
+            ///   - job_name:
+            ///   - log_archived_at:
+            ///   - memory_gb:
+            ///   - out_of_memory: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+            ///   - platform:
+            ///   - repository:
+            ///   - requested_dispatch_label:
+            ///   - run_attempt:
+            ///   - started_at:
+            ///   - status:
+            ///   - updated_at:
+            ///   - vcpus:
+            ///   - workflow_job_id:
+            ///   - workflow_name:
+            ///   - workflow_run_id:
+            public init(
+                claimed_at: Foundation.Date? = nil,
+                completed_at: Foundation.Date? = nil,
+                conclusion: Swift.String,
+                enqueued_at: Foundation.Date,
+                head_branch: Swift.String,
+                head_sha: Swift.String,
+                job_name: Swift.String,
+                log_archived_at: Foundation.Date? = nil,
+                memory_gb: Swift.Int,
+                out_of_memory: Components.Schemas.RunnerJobDetail.out_of_memoryPayload? = nil,
+                platform: Swift.String,
+                repository: Swift.String,
+                requested_dispatch_label: Swift.String,
+                run_attempt: Swift.Int,
+                started_at: Foundation.Date? = nil,
+                status: Swift.String,
+                updated_at: Foundation.Date,
+                vcpus: Swift.Int,
+                workflow_job_id: Swift.Int,
+                workflow_name: Swift.String,
+                workflow_run_id: Swift.Int
+            ) {
+                self.claimed_at = claimed_at
+                self.completed_at = completed_at
+                self.conclusion = conclusion
+                self.enqueued_at = enqueued_at
+                self.head_branch = head_branch
+                self.head_sha = head_sha
+                self.job_name = job_name
+                self.log_archived_at = log_archived_at
+                self.memory_gb = memory_gb
+                self.out_of_memory = out_of_memory
+                self.platform = platform
+                self.repository = repository
+                self.requested_dispatch_label = requested_dispatch_label
+                self.run_attempt = run_attempt
+                self.started_at = started_at
+                self.status = status
+                self.updated_at = updated_at
+                self.vcpus = vcpus
+                self.workflow_job_id = workflow_job_id
+                self.workflow_name = workflow_name
+                self.workflow_run_id = workflow_run_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case claimed_at
+                case completed_at
+                case conclusion
+                case enqueued_at
+                case head_branch
+                case head_sha
+                case job_name
+                case log_archived_at
+                case memory_gb
+                case out_of_memory
+                case platform
+                case repository
+                case requested_dispatch_label
+                case run_attempt
+                case started_at
+                case status
+                case updated_at
+                case vcpus
+                case workflow_job_id
+                case workflow_name
+                case workflow_run_id
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/PulseErrorFrame`.
         public struct PulseErrorFrame: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PulseErrorFrame/filename`.
@@ -29970,6 +30428,7 @@ public enum Components {
                     case account_colon_registry_colon_write = "account:registry:write"
                     case account_colon_runners_colon_read = "account:runners:read"
                     case account_colon_runners_colon_write = "account:runners:write"
+                    case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                     case project_colon_previews_colon_read = "project:previews:read"
                     case project_colon_previews_colon_write = "project:previews:write"
                     case project_colon_admin_colon_read = "project:admin:read"
@@ -30679,6 +31138,26 @@ public enum Components {
             public var network_bytes_in: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/network_bytes_out`.
             public var network_bytes_out: Swift.Int
+            /// Processes the runner VM killed for running out of memory since the job started.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_kill_count`.
+            public var oom_kill_count: Swift.Int
+            /// That process's Docker container: empty outside a container, docker-build for a docker build step.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_container`.
+            public var oom_victim_container: Swift.String
+            /// That container's image, or empty.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_image`.
+            public var oom_victim_image: Swift.String
+            /// Memory that process was using.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_memory_bytes`.
+            public var oom_victim_memory_bytes: Swift.Int
+            /// The process the runner VM killed last for running out of memory, or empty.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_process`.
+            public var oom_victim_process: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/timestamp`.
             public var timestamp: Swift.Double
             /// Creates a new `RunnerJobMetric`.
@@ -30692,6 +31171,11 @@ public enum Components {
             ///   - memory_used_bytes:
             ///   - network_bytes_in:
             ///   - network_bytes_out:
+            ///   - oom_kill_count: Processes the runner VM killed for running out of memory since the job started.
+            ///   - oom_victim_container: That process's Docker container: empty outside a container, docker-build for a docker build step.
+            ///   - oom_victim_image: That container's image, or empty.
+            ///   - oom_victim_memory_bytes: Memory that process was using.
+            ///   - oom_victim_process: The process the runner VM killed last for running out of memory, or empty.
             ///   - timestamp:
             public init(
                 cpu_iowait_percent: Swift.Double,
@@ -30702,6 +31186,11 @@ public enum Components {
                 memory_used_bytes: Swift.Int,
                 network_bytes_in: Swift.Int,
                 network_bytes_out: Swift.Int,
+                oom_kill_count: Swift.Int,
+                oom_victim_container: Swift.String,
+                oom_victim_image: Swift.String,
+                oom_victim_memory_bytes: Swift.Int,
+                oom_victim_process: Swift.String,
                 timestamp: Swift.Double
             ) {
                 self.cpu_iowait_percent = cpu_iowait_percent
@@ -30712,6 +31201,11 @@ public enum Components {
                 self.memory_used_bytes = memory_used_bytes
                 self.network_bytes_in = network_bytes_in
                 self.network_bytes_out = network_bytes_out
+                self.oom_kill_count = oom_kill_count
+                self.oom_victim_container = oom_victim_container
+                self.oom_victim_image = oom_victim_image
+                self.oom_victim_memory_bytes = oom_victim_memory_bytes
+                self.oom_victim_process = oom_victim_process
                 self.timestamp = timestamp
             }
             public enum CodingKeys: String, CodingKey {
@@ -30723,6 +31217,11 @@ public enum Components {
                 case memory_used_bytes
                 case network_bytes_in
                 case network_bytes_out
+                case oom_kill_count
+                case oom_victim_container
+                case oom_victim_image
+                case oom_victim_memory_bytes
+                case oom_victim_process
                 case timestamp
             }
         }
@@ -31300,25 +31799,57 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_api_key`.
             public var anthropic_api_key: Swift.String?
+            /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_federation_rule_id`.
+            public var anthropic_federation_rule_id: Swift.String?
+            /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_organization_id`.
+            public var anthropic_organization_id: Swift.String?
+            /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_service_account_id`.
+            public var anthropic_service_account_id: Swift.String?
+            /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_workspace_id`.
+            public var anthropic_workspace_id: Swift.String?
             /// Creates a new `UpdateSandboxAgentEnvironment`.
             ///
             /// - Parameters:
             ///   - agent_model: The model agent sessions run.
             ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
             ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
+            ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
             public init(
                 agent_model: Swift.String? = nil,
                 agent_system_prompt: Swift.String? = nil,
-                anthropic_api_key: Swift.String? = nil
+                anthropic_api_key: Swift.String? = nil,
+                anthropic_federation_rule_id: Swift.String? = nil,
+                anthropic_organization_id: Swift.String? = nil,
+                anthropic_service_account_id: Swift.String? = nil,
+                anthropic_workspace_id: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
                 self.anthropic_api_key = anthropic_api_key
+                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                self.anthropic_organization_id = anthropic_organization_id
+                self.anthropic_service_account_id = anthropic_service_account_id
+                self.anthropic_workspace_id = anthropic_workspace_id
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
                 case agent_system_prompt
                 case anthropic_api_key
+                case anthropic_federation_rule_id
+                case anthropic_organization_id
+                case anthropic_service_account_id
+                case anthropic_workspace_id
             }
         }
         /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList`.
@@ -31500,8 +32031,6 @@ public enum Components {
             public struct concurrencyPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
                 public struct in_usePayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/vcpus`.
@@ -31509,29 +32038,21 @@ public enum Components {
                     /// Creates a new `in_usePayload`.
                     ///
                     /// - Parameters:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
-                        )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
                             forKey: .memory_gb
@@ -31541,7 +32062,6 @@ public enum Components {
                             forKey: .vcpus
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -31551,8 +32071,6 @@ public enum Components {
                 public var in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
                 public struct limitsPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/vcpus`.
@@ -31560,29 +32078,21 @@ public enum Components {
                     /// Creates a new `limitsPayload`.
                     ///
                     /// - Parameters:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
-                        )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
                             forKey: .memory_gb
@@ -31592,7 +32102,6 @@ public enum Components {
                             forKey: .vcpus
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -31604,8 +32113,6 @@ public enum Components {
                 public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/at`.
                     public var at: Foundation.Date
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/vcpus`.
@@ -31614,23 +32121,19 @@ public enum Components {
                     ///
                     /// - Parameters:
                     ///   - at:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
                         at: Foundation.Date,
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
                         self.at = at
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
                         case at
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
@@ -31639,10 +32142,6 @@ public enum Components {
                         self.at = try container.decode(
                             Foundation.Date.self,
                             forKey: .at
-                        )
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
                         )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
@@ -31654,7 +32153,6 @@ public enum Components {
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
                             "at",
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -32893,8 +33391,6 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse`.
         public struct SandboxResourcesInUse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/vcpus`.
@@ -32902,29 +33398,21 @@ public enum Components {
             /// Creates a new `SandboxResourcesInUse`.
             ///
             /// - Parameters:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
-                )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
                     forKey: .memory_gb
@@ -32934,7 +33422,6 @@ public enum Components {
                     forKey: .vcpus
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -33196,6 +33683,7 @@ public enum Components {
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
                 case account_colon_runners_colon_write = "account:runners:write"
+                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -34783,8 +35271,6 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits`.
         public struct SandboxResourceLimits: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/vcpus`.
@@ -34792,29 +35278,21 @@ public enum Components {
             /// Creates a new `SandboxResourceLimits`.
             ///
             /// - Parameters:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
-                )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
                     forKey: .memory_gb
@@ -34824,7 +35302,6 @@ public enum Components {
                     forKey: .vcpus
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -41771,6 +42248,98 @@ public enum Operations {
                         public var log_archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/memory_gb`.
                         public var memory_gb: Swift.Int
+                        /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory`.
+                        public struct out_of_memoryPayload: Codable, Hashable, Sendable {
+                            /// What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/description`.
+                            public var description: Swift.String
+                            /// When the first kill was reported.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/first_kill_at`.
+                            public var first_kill_at: Foundation.Date
+                            /// Processes the runner VM killed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/kill_count`.
+                            public var kill_count: Swift.Int
+                            /// The process killed last, or null when the runner did not name it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim`.
+                            public struct victimPayload: Codable, Hashable, Sendable {
+                                /// Its Docker container: null outside a container, docker-build for a docker build step.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/container`.
+                                public var container: Swift.String?
+                                /// That container's image.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/image`.
+                                public var image: Swift.String?
+                                /// Memory the process was using.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/memory_bytes`.
+                                public var memory_bytes: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/process`.
+                                public var process: Swift.String
+                                /// Creates a new `victimPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+                                ///   - image: That container's image.
+                                ///   - memory_bytes: Memory the process was using.
+                                ///   - process:
+                                public init(
+                                    container: Swift.String? = nil,
+                                    image: Swift.String? = nil,
+                                    memory_bytes: Swift.Int,
+                                    process: Swift.String
+                                ) {
+                                    self.container = container
+                                    self.image = image
+                                    self.memory_bytes = memory_bytes
+                                    self.process = process
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case container
+                                    case image
+                                    case memory_bytes
+                                    case process
+                                }
+                            }
+                            /// The process killed last, or null when the runner did not name it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim`.
+                            public var victim: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload.victimPayload?
+                            /// Creates a new `out_of_memoryPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                            ///   - first_kill_at: When the first kill was reported.
+                            ///   - kill_count: Processes the runner VM killed.
+                            ///   - victim: The process killed last, or null when the runner did not name it.
+                            public init(
+                                description: Swift.String,
+                                first_kill_at: Foundation.Date,
+                                kill_count: Swift.Int,
+                                victim: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload.victimPayload? = nil
+                            ) {
+                                self.description = description
+                                self.first_kill_at = first_kill_at
+                                self.kill_count = kill_count
+                                self.victim = victim
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case description
+                                case first_kill_at
+                                case kill_count
+                                case victim
+                            }
+                        }
+                        /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory`.
+                        public var out_of_memory: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/platform`.
                         public var platform: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/repository`.
@@ -41805,6 +42374,7 @@ public enum Operations {
                         ///   - job_name:
                         ///   - log_archived_at:
                         ///   - memory_gb:
+                        ///   - out_of_memory: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
                         ///   - platform:
                         ///   - repository:
                         ///   - requested_dispatch_label:
@@ -41826,6 +42396,7 @@ public enum Operations {
                             job_name: Swift.String,
                             log_archived_at: Foundation.Date? = nil,
                             memory_gb: Swift.Int,
+                            out_of_memory: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload? = nil,
                             platform: Swift.String,
                             repository: Swift.String,
                             requested_dispatch_label: Swift.String,
@@ -41847,6 +42418,7 @@ public enum Operations {
                             self.job_name = job_name
                             self.log_archived_at = log_archived_at
                             self.memory_gb = memory_gb
+                            self.out_of_memory = out_of_memory
                             self.platform = platform
                             self.repository = repository
                             self.requested_dispatch_label = requested_dispatch_label
@@ -41869,6 +42441,7 @@ public enum Operations {
                             case job_name
                             case log_archived_at
                             case memory_gb
+                            case out_of_memory
                             case platform
                             case repository
                             case requested_dispatch_label
@@ -43019,6 +43592,26 @@ public enum Operations {
                             public var network_bytes_in: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/network_bytes_out`.
                             public var network_bytes_out: Swift.Int
+                            /// Processes the runner VM killed for running out of memory since the job started.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_kill_count`.
+                            public var oom_kill_count: Swift.Int
+                            /// That process's Docker container: empty outside a container, docker-build for a docker build step.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_container`.
+                            public var oom_victim_container: Swift.String
+                            /// That container's image, or empty.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_image`.
+                            public var oom_victim_image: Swift.String
+                            /// Memory that process was using.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_memory_bytes`.
+                            public var oom_victim_memory_bytes: Swift.Int
+                            /// The process the runner VM killed last for running out of memory, or empty.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_process`.
+                            public var oom_victim_process: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/timestamp`.
                             public var timestamp: Swift.Double
                             /// Creates a new `metricsPayloadPayload`.
@@ -43032,6 +43625,11 @@ public enum Operations {
                             ///   - memory_used_bytes:
                             ///   - network_bytes_in:
                             ///   - network_bytes_out:
+                            ///   - oom_kill_count: Processes the runner VM killed for running out of memory since the job started.
+                            ///   - oom_victim_container: That process's Docker container: empty outside a container, docker-build for a docker build step.
+                            ///   - oom_victim_image: That container's image, or empty.
+                            ///   - oom_victim_memory_bytes: Memory that process was using.
+                            ///   - oom_victim_process: The process the runner VM killed last for running out of memory, or empty.
                             ///   - timestamp:
                             public init(
                                 cpu_iowait_percent: Swift.Double,
@@ -43042,6 +43640,11 @@ public enum Operations {
                                 memory_used_bytes: Swift.Int,
                                 network_bytes_in: Swift.Int,
                                 network_bytes_out: Swift.Int,
+                                oom_kill_count: Swift.Int,
+                                oom_victim_container: Swift.String,
+                                oom_victim_image: Swift.String,
+                                oom_victim_memory_bytes: Swift.Int,
+                                oom_victim_process: Swift.String,
                                 timestamp: Swift.Double
                             ) {
                                 self.cpu_iowait_percent = cpu_iowait_percent
@@ -43052,6 +43655,11 @@ public enum Operations {
                                 self.memory_used_bytes = memory_used_bytes
                                 self.network_bytes_in = network_bytes_in
                                 self.network_bytes_out = network_bytes_out
+                                self.oom_kill_count = oom_kill_count
+                                self.oom_victim_container = oom_victim_container
+                                self.oom_victim_image = oom_victim_image
+                                self.oom_victim_memory_bytes = oom_victim_memory_bytes
+                                self.oom_victim_process = oom_victim_process
                                 self.timestamp = timestamp
                             }
                             public enum CodingKeys: String, CodingKey {
@@ -43063,6 +43671,11 @@ public enum Operations {
                                 case memory_used_bytes
                                 case network_bytes_in
                                 case network_bytes_out
+                                case oom_kill_count
+                                case oom_victim_container
+                                case oom_victim_image
+                                case oom_victim_memory_bytes
+                                case oom_victim_process
                                 case timestamp
                             }
                         }
@@ -63197,7 +63810,7 @@ public enum Operations {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -63285,8 +63898,6 @@ public enum Operations {
                         public struct concurrencyPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
                             public struct in_usePayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/vcpus`.
@@ -63294,29 +63905,21 @@ public enum Operations {
                                 /// Creates a new `in_usePayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
-                                    )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
                                         forKey: .memory_gb
@@ -63326,7 +63929,6 @@ public enum Operations {
                                         forKey: .vcpus
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -63336,8 +63938,6 @@ public enum Operations {
                             public var in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
                             public struct limitsPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/vcpus`.
@@ -63345,29 +63945,21 @@ public enum Operations {
                                 /// Creates a new `limitsPayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
-                                    )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
                                         forKey: .memory_gb
@@ -63377,7 +63969,6 @@ public enum Operations {
                                         forKey: .vcpus
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -63389,8 +63980,6 @@ public enum Operations {
                             public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/at`.
                                 public var at: Foundation.Date
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/vcpus`.
@@ -63399,23 +63988,19 @@ public enum Operations {
                                 ///
                                 /// - Parameters:
                                 ///   - at:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
                                     at: Foundation.Date,
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
                                     self.at = at
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case at
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
@@ -63424,10 +64009,6 @@ public enum Operations {
                                     self.at = try container.decode(
                                         Foundation.Date.self,
                                         forKey: .at
-                                    )
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
                                     )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
@@ -63439,7 +64020,6 @@ public enum Operations {
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                                         "at",
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -73741,6 +74321,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/env`.
                     public var env: Operations.startSandboxCommand.Input.Body.jsonPayload.envPayload?
+                    /// The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/stdin`.
@@ -73756,6 +74340,7 @@ public enum Operations {
                     ///   - command: A shell script run with `/bin/bash -l`, or the program to run when `args` is given.
                     ///   - cwd: Working directory. Defaults to the sandbox's workspace.
                     ///   - env: Environment variables for the command. Never stored.
+                    ///   - id: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
                     ///   - stdin: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                     ///   - timeout_ms: Kill the command after this many milliseconds (default one hour).
                     public init(
@@ -73763,6 +74348,7 @@ public enum Operations {
                         command: Swift.String,
                         cwd: Swift.String? = nil,
                         env: Operations.startSandboxCommand.Input.Body.jsonPayload.envPayload? = nil,
+                        id: Swift.String? = nil,
                         stdin: Swift.Bool? = nil,
                         timeout_ms: Swift.Int? = nil
                     ) {
@@ -73770,6 +74356,7 @@ public enum Operations {
                         self.command = command
                         self.cwd = cwd
                         self.env = env
+                        self.id = id
                         self.stdin = stdin
                         self.timeout_ms = timeout_ms
                     }
@@ -73778,6 +74365,7 @@ public enum Operations {
                         case command
                         case cwd
                         case env
+                        case id
                         case stdin
                         case timeout_ms
                     }
@@ -75922,21 +76510,29 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/json/data`.
                     public var data: OpenAPIRuntime.Base64EncodedData?
+                    /// The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/json/offset`.
+                    public var offset: Swift.Int?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - close: End the command's stdin after the data.
                     ///   - data: Base64-encoded bytes, at most 256 KiB decoded.
+                    ///   - offset: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
                     public init(
                         close: Swift.Bool? = nil,
-                        data: OpenAPIRuntime.Base64EncodedData? = nil
+                        data: OpenAPIRuntime.Base64EncodedData? = nil,
+                        offset: Swift.Int? = nil
                     ) {
                         self.close = close
                         self.data = data
+                        self.offset = offset
                     }
                     public enum CodingKeys: String, CodingKey {
                         case close
                         case data
+                        case offset
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/content/application\/json`.
@@ -92716,6 +93312,7 @@ public enum Operations {
                                 case account_colon_registry_colon_write = "account:registry:write"
                                 case account_colon_runners_colon_read = "account:runners:read"
                                 case account_colon_runners_colon_write = "account:runners:write"
+                                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                                 case project_colon_previews_colon_read = "project:previews:read"
                                 case project_colon_previews_colon_write = "project:previews:write"
                                 case project_colon_admin_colon_read = "project:admin:read"
@@ -93096,6 +93693,7 @@ public enum Operations {
                         case account_colon_registry_colon_write = "account:registry:write"
                         case account_colon_runners_colon_read = "account:runners:read"
                         case account_colon_runners_colon_write = "account:runners:write"
+                        case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                         case project_colon_previews_colon_read = "project:previews:read"
                         case project_colon_previews_colon_write = "project:previews:write"
                         case project_colon_admin_colon_read = "project:admin:read"
@@ -104325,9 +104923,25 @@ public enum Operations {
                             public var anthropic_agent_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_environment_id`.
                             public var anthropic_environment_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_federation_rule_id`.
+                            public var anthropic_federation_rule_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_organization_id`.
+                            public var anthropic_organization_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_service_account_id`.
+                            public var anthropic_service_account_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_workspace_id`.
+                            public var anthropic_workspace_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/enabled`.
                             public var enabled: Swift.Bool
-                            /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                            /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/federation_issuer_url`.
+                            public var federation_issuer_url: Swift.String
+                            /// The sub claim of the tokens Tuist signs for this environment.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/federation_subject`.
+                            public var federation_subject: Swift.String
+                            /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/has_api_key`.
                             public var has_api_key: Swift.Bool
@@ -104372,8 +104986,14 @@ public enum Operations {
                             ///   - agent_system_prompt:
                             ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                             ///   - anthropic_environment_id:
+                            ///   - anthropic_federation_rule_id:
+                            ///   - anthropic_organization_id:
+                            ///   - anthropic_service_account_id:
+                            ///   - anthropic_workspace_id:
                             ///   - enabled:
-                            ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                            ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                            ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+                            ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - kind:
@@ -104391,7 +105011,13 @@ public enum Operations {
                                 agent_system_prompt: Swift.String? = nil,
                                 anthropic_agent_id: Swift.String? = nil,
                                 anthropic_environment_id: Swift.String,
+                                anthropic_federation_rule_id: Swift.String? = nil,
+                                anthropic_organization_id: Swift.String? = nil,
+                                anthropic_service_account_id: Swift.String? = nil,
+                                anthropic_workspace_id: Swift.String? = nil,
                                 enabled: Swift.Bool,
+                                federation_issuer_url: Swift.String,
+                                federation_subject: Swift.String,
                                 has_api_key: Swift.Bool,
                                 id: Swift.Int,
                                 inserted_at: Foundation.Date,
@@ -104410,7 +105036,13 @@ public enum Operations {
                                 self.agent_system_prompt = agent_system_prompt
                                 self.anthropic_agent_id = anthropic_agent_id
                                 self.anthropic_environment_id = anthropic_environment_id
+                                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                                self.anthropic_organization_id = anthropic_organization_id
+                                self.anthropic_service_account_id = anthropic_service_account_id
+                                self.anthropic_workspace_id = anthropic_workspace_id
                                 self.enabled = enabled
+                                self.federation_issuer_url = federation_issuer_url
+                                self.federation_subject = federation_subject
                                 self.has_api_key = has_api_key
                                 self.id = id
                                 self.inserted_at = inserted_at
@@ -104430,7 +105062,13 @@ public enum Operations {
                                 case agent_system_prompt
                                 case anthropic_agent_id
                                 case anthropic_environment_id
+                                case anthropic_federation_rule_id
+                                case anthropic_organization_id
+                                case anthropic_service_account_id
+                                case anthropic_workspace_id
                                 case enabled
+                                case federation_issuer_url
+                                case federation_subject
                                 case has_api_key
                                 case id
                                 case inserted_at
@@ -104728,6 +105366,22 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_environment_id`.
                     public var anthropic_environment_id: Swift.String
+                    /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_federation_rule_id`.
+                    public var anthropic_federation_rule_id: Swift.String?
+                    /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_organization_id`.
+                    public var anthropic_organization_id: Swift.String?
+                    /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_service_account_id`.
+                    public var anthropic_service_account_id: Swift.String?
+                    /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_workspace_id`.
+                    public var anthropic_workspace_id: Swift.String?
                     /// The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/environment_key`.
@@ -104790,6 +105444,10 @@ public enum Operations {
                     ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
                     ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
                     ///   - anthropic_environment_id: The Anthropic environment identifier: env_... or, for claude_code, ccpool_...
+                    ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
                     ///   - environment_key: The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
                     ///   - kind: managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform.
                     ///   - max_idle_seconds:
@@ -104805,6 +105463,10 @@ public enum Operations {
                         agent_system_prompt: Swift.String? = nil,
                         anthropic_api_key: Swift.String? = nil,
                         anthropic_environment_id: Swift.String,
+                        anthropic_federation_rule_id: Swift.String? = nil,
+                        anthropic_organization_id: Swift.String? = nil,
+                        anthropic_service_account_id: Swift.String? = nil,
+                        anthropic_workspace_id: Swift.String? = nil,
                         environment_key: Swift.String,
                         kind: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.kindPayload? = nil,
                         max_idle_seconds: Swift.Int? = nil,
@@ -104820,6 +105482,10 @@ public enum Operations {
                         self.agent_system_prompt = agent_system_prompt
                         self.anthropic_api_key = anthropic_api_key
                         self.anthropic_environment_id = anthropic_environment_id
+                        self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                        self.anthropic_organization_id = anthropic_organization_id
+                        self.anthropic_service_account_id = anthropic_service_account_id
+                        self.anthropic_workspace_id = anthropic_workspace_id
                         self.environment_key = environment_key
                         self.kind = kind
                         self.max_idle_seconds = max_idle_seconds
@@ -104836,6 +105502,10 @@ public enum Operations {
                         case agent_system_prompt
                         case anthropic_api_key
                         case anthropic_environment_id
+                        case anthropic_federation_rule_id
+                        case anthropic_organization_id
+                        case anthropic_service_account_id
+                        case anthropic_workspace_id
                         case environment_key
                         case kind
                         case max_idle_seconds
@@ -104886,9 +105556,25 @@ public enum Operations {
                         public var anthropic_agent_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_environment_id`.
                         public var anthropic_environment_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_federation_rule_id`.
+                        public var anthropic_federation_rule_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_organization_id`.
+                        public var anthropic_organization_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_service_account_id`.
+                        public var anthropic_service_account_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_workspace_id`.
+                        public var anthropic_workspace_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/enabled`.
                         public var enabled: Swift.Bool
-                        /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/federation_issuer_url`.
+                        public var federation_issuer_url: Swift.String
+                        /// The sub claim of the tokens Tuist signs for this environment.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/federation_subject`.
+                        public var federation_subject: Swift.String
+                        /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/has_api_key`.
                         public var has_api_key: Swift.Bool
@@ -104933,8 +105619,14 @@ public enum Operations {
                         ///   - agent_system_prompt:
                         ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                         ///   - anthropic_environment_id:
+                        ///   - anthropic_federation_rule_id:
+                        ///   - anthropic_organization_id:
+                        ///   - anthropic_service_account_id:
+                        ///   - anthropic_workspace_id:
                         ///   - enabled:
-                        ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+                        ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - kind:
@@ -104952,7 +105644,13 @@ public enum Operations {
                             agent_system_prompt: Swift.String? = nil,
                             anthropic_agent_id: Swift.String? = nil,
                             anthropic_environment_id: Swift.String,
+                            anthropic_federation_rule_id: Swift.String? = nil,
+                            anthropic_organization_id: Swift.String? = nil,
+                            anthropic_service_account_id: Swift.String? = nil,
+                            anthropic_workspace_id: Swift.String? = nil,
                             enabled: Swift.Bool,
+                            federation_issuer_url: Swift.String,
+                            federation_subject: Swift.String,
                             has_api_key: Swift.Bool,
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
@@ -104971,7 +105669,13 @@ public enum Operations {
                             self.agent_system_prompt = agent_system_prompt
                             self.anthropic_agent_id = anthropic_agent_id
                             self.anthropic_environment_id = anthropic_environment_id
+                            self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                            self.anthropic_organization_id = anthropic_organization_id
+                            self.anthropic_service_account_id = anthropic_service_account_id
+                            self.anthropic_workspace_id = anthropic_workspace_id
                             self.enabled = enabled
+                            self.federation_issuer_url = federation_issuer_url
+                            self.federation_subject = federation_subject
                             self.has_api_key = has_api_key
                             self.id = id
                             self.inserted_at = inserted_at
@@ -104991,7 +105695,13 @@ public enum Operations {
                             case agent_system_prompt
                             case anthropic_agent_id
                             case anthropic_environment_id
+                            case anthropic_federation_rule_id
+                            case anthropic_organization_id
+                            case anthropic_service_account_id
+                            case anthropic_workspace_id
                             case enabled
+                            case federation_issuer_url
+                            case federation_subject
                             case has_api_key
                             case id
                             case inserted_at
@@ -122152,7 +122862,7 @@ public enum Operations {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -122211,25 +122921,57 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_api_key`.
                     public var anthropic_api_key: Swift.String?
+                    /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_federation_rule_id`.
+                    public var anthropic_federation_rule_id: Swift.String?
+                    /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_organization_id`.
+                    public var anthropic_organization_id: Swift.String?
+                    /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_service_account_id`.
+                    public var anthropic_service_account_id: Swift.String?
+                    /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_workspace_id`.
+                    public var anthropic_workspace_id: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - agent_model: The model agent sessions run.
                     ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
                     ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
+                    ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
                     public init(
                         agent_model: Swift.String? = nil,
                         agent_system_prompt: Swift.String? = nil,
-                        anthropic_api_key: Swift.String? = nil
+                        anthropic_api_key: Swift.String? = nil,
+                        anthropic_federation_rule_id: Swift.String? = nil,
+                        anthropic_organization_id: Swift.String? = nil,
+                        anthropic_service_account_id: Swift.String? = nil,
+                        anthropic_workspace_id: Swift.String? = nil
                     ) {
                         self.agent_model = agent_model
                         self.agent_system_prompt = agent_system_prompt
                         self.anthropic_api_key = anthropic_api_key
+                        self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                        self.anthropic_organization_id = anthropic_organization_id
+                        self.anthropic_service_account_id = anthropic_service_account_id
+                        self.anthropic_workspace_id = anthropic_workspace_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_model
                         case agent_system_prompt
                         case anthropic_api_key
+                        case anthropic_federation_rule_id
+                        case anthropic_organization_id
+                        case anthropic_service_account_id
+                        case anthropic_workspace_id
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/content/application\/json`.
@@ -122270,9 +123012,25 @@ public enum Operations {
                         public var anthropic_agent_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_environment_id`.
                         public var anthropic_environment_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_federation_rule_id`.
+                        public var anthropic_federation_rule_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_organization_id`.
+                        public var anthropic_organization_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_service_account_id`.
+                        public var anthropic_service_account_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_workspace_id`.
+                        public var anthropic_workspace_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/enabled`.
                         public var enabled: Swift.Bool
-                        /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/federation_issuer_url`.
+                        public var federation_issuer_url: Swift.String
+                        /// The sub claim of the tokens Tuist signs for this environment.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/federation_subject`.
+                        public var federation_subject: Swift.String
+                        /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/has_api_key`.
                         public var has_api_key: Swift.Bool
@@ -122317,8 +123075,14 @@ public enum Operations {
                         ///   - agent_system_prompt:
                         ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                         ///   - anthropic_environment_id:
+                        ///   - anthropic_federation_rule_id:
+                        ///   - anthropic_organization_id:
+                        ///   - anthropic_service_account_id:
+                        ///   - anthropic_workspace_id:
                         ///   - enabled:
-                        ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+                        ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - kind:
@@ -122336,7 +123100,13 @@ public enum Operations {
                             agent_system_prompt: Swift.String? = nil,
                             anthropic_agent_id: Swift.String? = nil,
                             anthropic_environment_id: Swift.String,
+                            anthropic_federation_rule_id: Swift.String? = nil,
+                            anthropic_organization_id: Swift.String? = nil,
+                            anthropic_service_account_id: Swift.String? = nil,
+                            anthropic_workspace_id: Swift.String? = nil,
                             enabled: Swift.Bool,
+                            federation_issuer_url: Swift.String,
+                            federation_subject: Swift.String,
                             has_api_key: Swift.Bool,
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
@@ -122355,7 +123125,13 @@ public enum Operations {
                             self.agent_system_prompt = agent_system_prompt
                             self.anthropic_agent_id = anthropic_agent_id
                             self.anthropic_environment_id = anthropic_environment_id
+                            self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                            self.anthropic_organization_id = anthropic_organization_id
+                            self.anthropic_service_account_id = anthropic_service_account_id
+                            self.anthropic_workspace_id = anthropic_workspace_id
                             self.enabled = enabled
+                            self.federation_issuer_url = federation_issuer_url
+                            self.federation_subject = federation_subject
                             self.has_api_key = has_api_key
                             self.id = id
                             self.inserted_at = inserted_at
@@ -122375,7 +123151,13 @@ public enum Operations {
                             case agent_system_prompt
                             case anthropic_agent_id
                             case anthropic_environment_id
+                            case anthropic_federation_rule_id
+                            case anthropic_organization_id
+                            case anthropic_service_account_id
+                            case anthropic_workspace_id
                             case enabled
+                            case federation_issuer_url
+                            case federation_subject
                             case has_api_key
                             case id
                             case inserted_at
@@ -142060,7 +142842,7 @@ public enum Operations {
     }
     /// Start an agent session.
     ///
-    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
@@ -143778,6 +144560,7 @@ public enum Operations {
                             case account_colon_registry_colon_write = "account:registry:write"
                             case account_colon_runners_colon_read = "account:runners:read"
                             case account_colon_runners_colon_write = "account:runners:write"
+                            case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                             case project_colon_previews_colon_read = "project:previews:read"
                             case project_colon_previews_colon_write = "project:previews:write"
                             case project_colon_admin_colon_read = "project:admin:read"
@@ -168359,6 +169142,363 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create an upload for a sandbox.
+    ///
+    /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)`.
+    public enum createSandboxUpload {
+        public static let id: Swift.String = "createSandboxUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The sandbox identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/path/sandbox_id`.
+                public var sandbox_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - sandbox_id: The sandbox identifier.
+                public init(
+                    account_handle: Swift.String,
+                    sandbox_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.sandbox_id = sandbox_id
+                }
+            }
+            public var path: Operations.createSandboxUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSandboxUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSandboxUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createSandboxUpload.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.createSandboxUpload.Input.Path,
+                headers: Operations.createSandboxUpload.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Presigned URL to GET the file from in the sandbox.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json/download_url`.
+                        public var download_url: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date
+                        /// Presigned URL to PUT the file to.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json/upload_url`.
+                        public var upload_url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - download_url: Presigned URL to GET the file from in the sandbox.
+                        ///   - expires_at:
+                        ///   - upload_url: Presigned URL to PUT the file to.
+                        public init(
+                            download_url: Swift.String,
+                            expires_at: Foundation.Date,
+                            upload_url: Swift.String
+                        ) {
+                            self.download_url = download_url
+                            self.expires_at = expires_at
+                            self.upload_url = upload_url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case download_url
+                            case expires_at
+                            case upload_url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/application\/json`.
+                    case json(Operations.createSandboxUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createSandboxUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Upload
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createSandboxUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createSandboxUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createSandboxUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createSandboxUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createSandboxUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createSandboxUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createSandboxUpload.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createSandboxUpload.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createSandboxUpload.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createSandboxUpload.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createSandboxUpload.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }

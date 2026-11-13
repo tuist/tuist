@@ -39,8 +39,7 @@ on:
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
-      - .github/scripts/pulse-render-contract.jq
-      - .github/workflows/pulse-instance-deployment.yml
+      - .github/scripts/tart-kubelet-rollout-gate*
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -60,8 +59,7 @@ on:
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
-      - .github/scripts/pulse-render-contract.jq
-      - .github/workflows/pulse-instance-deployment.yml
+      - .github/scripts/tart-kubelet-rollout-gate*
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -104,7 +102,6 @@ jobs:
             "kura/ops/helm/kura|"
             "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
-            "infra/helm/pulse|values-managed-production.yaml"
             "infra/helm/mdm|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
@@ -149,11 +146,8 @@ jobs:
         run: |
           mise use -g yq@4.52.5
           bash infra/helm/k8s-monitoring/test-cost-controls.sh
-      - name: Test Pulse ingestion and service graph metrics
-        run: |
-          bash infra/helm/pulse/test-managed.sh
-          bash infra/helm/k8s-monitoring/test-pulse-ingestion.sh
-          python3 infra/helm/k8s-monitoring/test-log-destination-outage.py
+      - name: Test Pulse log writer isolation
+        run: python3 infra/helm/k8s-monitoring/test-log-destination-outage.py
       - name: Test mixed-version Kura latency query
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0
@@ -216,7 +210,6 @@ jobs:
             "kura|kura/ops/helm/kura|kura|"
             "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
-            "pulse (production)|infra/helm/pulse|pulse|values-managed-production.yaml"
             "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "remote-execution (production)|infra/helm/remote-execution|remote-execution|values-managed-production.yaml values-ci.yaml"
@@ -312,6 +305,8 @@ jobs:
         run: bash .github/scripts/helm-adopt-release-objects.test.sh
       - name: Deploys move objects only from the release that owns them
         run: bash .github/scripts/helm-move-release-objects.test.sh
+      - name: Canary waits for its macOS hosts to run the operator's tart-kubelet
+        run: bash .github/scripts/tart-kubelet-rollout-gate.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

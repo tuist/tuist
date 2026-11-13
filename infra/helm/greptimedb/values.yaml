@@ -1,13 +1,18 @@
-# Explicit managed environment. Origin replacement is independently gated.
+# Explicit managed environment.
 environment: staging
+# standalone: one StatefulSet with a local raft-engine WAL (staging/canary pilot).
+# cluster: frontends, metasrv on etcd, datanodes on a replicated Kafka WAL.
+# Production must use cluster; the chart refuses a standalone production render.
+topology: standalone
 dashboard:
   enabled: false
-image: docker.io/greptime/greptimedb:v1.3.0
+# Pulse, Tuist's GreptimeDB fork, built from pulse/ by pulse-release.yml.
+image: ghcr.io/tuist/pulse:1.3.0-1
 storage:
   bucket: tuist-pulso-staging
   endpoint: https://t3.storage.dev
   region: auto
-  prefix: greptimedb/
+  prefix: pulse/
 persistence:
   storageClass: hcloud-volumes
   size: 10Gi
@@ -17,3 +22,41 @@ resources:
     memory: 1Gi
   limits:
     memory: 2Gi
+# Distributed topology. Quorum members (etcd, Kafka, metasrv) are fixed at three
+# and every component is spread one replica per node. The cluster writes under
+# <storage.prefix>distributed/, so it never shares objects with a standalone
+# backend that used the same bucket.
+cluster:
+  frontend:
+    replicas: 2
+    resources:
+      requests: {cpu: 500m, memory: 1Gi}
+      limits: {memory: 2Gi}
+  metasrv:
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 1Gi}
+  datanode:
+    replicas: 3
+    # Local data is a rebuildable cache: acknowledged writes live in the Kafka
+    # WAL until flushed to object storage, so a datanode may start empty.
+    cacheSize: 10Gi
+    writeCacheSize: 1GB
+    resources:
+      requests: {cpu: "1", memory: 2Gi}
+      limits: {memory: 4Gi}
+  etcd:
+    image: quay.io/coreos/etcd:v3.6.16@sha256:a9c7cc12156f4b26ca41f0b57ba5b76c45037ff6c1e47ea3d68cb7908d48a965
+    storageSize: 10Gi
+    resources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {memory: 1Gi}
+  kafka:
+    image: docker.io/apache/kafka:4.3.2@sha256:852a0d49fc4e656b022e7f23785411802c9a088c78a7c5e39f33969de9c227a7
+    # KRaft cluster ID, fixed at first format. Never change it on a live cluster.
+    clusterId: BU3lmXwlRG6RgWY0S-ihGg
+    heap: 1g
+    storageSize: 20Gi
+    resources:
+      requests: {cpu: "1", memory: 2Gi}
+      limits: {memory: 3Gi}

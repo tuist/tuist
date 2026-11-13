@@ -135,7 +135,10 @@ defmodule TuistWeb.OriginAppSetupControllerTest do
 
   test "signed-out Origin installers return to setup after login" do
     conn = get(build_conn(), ~p"/integrations/origin/setup", installation_receipt: "receipt")
-    assert redirected_to(conn) == "/users/log_in"
+
+    assert redirected_to(conn) ==
+             ~p"/users/log_in?#{%{return_to: "/integrations/origin/setup?installation_receipt=receipt"}}"
+
     assert get_session(conn, :user_return_to) == "/integrations/origin/setup?installation_receipt=receipt"
   end
 

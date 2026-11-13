@@ -40,10 +40,6 @@ defmodule TuistWeb.AuthenticationSettingsLive do
      |> assign(organization: nil, flash_message: nil, passkeys_enabled?: TuistWeb.UserPasskeyController.enabled?())
      |> assign(fresh_session?: UserMFA.fresh_session?(socket.assigns.current_user_session, current_user), mfa_secret: nil)
      |> assign(:mfa_enabled?, account.user_id == current_user.id and UserMFA.enabled?(current_user))
-     |> assign(
-       :recovery_code_count,
-       if(account.user_id == current_user.id, do: UserMFA.recovery_code_count(current_user), else: 0)
-     )
      |> assign(:passkeys, if(account.user_id == current_user.id, do: UserPasskey.list(current_user), else: []))
      |> WorkloadIdentities.initialize()
      |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}

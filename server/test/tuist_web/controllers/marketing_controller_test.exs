@@ -357,6 +357,71 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
     end
 
+    test "publish FAQPage structured data that matches the visible FAQ", %{conn: conn} do
+      normalize = fn text -> text |> String.split() |> Enum.join(" ") end
+
+      pages_with_faqs =
+        for page <- MarketingMarkdown.decision_guides(), reduce: [] do
+          acc ->
+            document = conn |> get(page.path) |> html_response(200) |> Floki.parse_document!()
+
+            visible =
+              document
+              |> Floki.find("article > [data-part=content]")
+              |> Enum.flat_map(&Floki.children/1)
+              |> Enum.filter(&is_tuple/1)
+              |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
+              |> Enum.drop(1)
+              |> Enum.take_while(&(elem(&1, 0) != "h2"))
+              |> Enum.drop_while(&(elem(&1, 0) != "h3"))
+              |> Enum.reduce([], fn
+                {"h3", _, _} = question, faqs -> [{Floki.text(question), []} | faqs]
+                block, [{question, answer} | faqs] -> [{question, [Floki.text(block) | answer]} | faqs]
+              end)
+              |> Enum.reverse()
+              |> Enum.map(fn {question, answer} ->
+                {question, answer |> Enum.reverse() |> Enum.join(" ") |> normalize.()}
+              end)
+
+            faq_page =
+              document
+              |> Floki.find("script[type='application/ld+json']")
+              |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+              |> Enum.find(&(&1["@type"] == "FAQPage"))
+
+            if visible == [] do
+              assert is_nil(faq_page), page.path
+              acc
+            else
+              structured =
+                Enum.map(faq_page["mainEntity"], fn question ->
+                  assert question["@type"] == "Question"
+                  assert question["acceptedAnswer"]["@type"] == "Answer"
+                  {question["name"], normalize.(question["acceptedAnswer"]["text"])}
+                end)
+
+              assert structured == visible, page.path
+              assert Enum.all?(structured, fn {name, text} -> name != "" and text != "" end), page.path
+              [page.path | acc]
+            end
+        end
+
+      for path <- [
+            "/compare/xcodegen",
+            "/compare/nx",
+            "/compare/buildbuddy",
+            "/compare/engflow",
+            "/build-systems/bazel-vs-gradle",
+            "/solutions/bazel-github-actions",
+            "/solutions/slow-builds",
+            "/solutions/slow-tests",
+            "/solutions/flaky-tests",
+            "/solutions/ci-costs"
+          ] do
+        assert path in pages_with_faqs
+      end
+    end
+
     test "point guide links at browser pages and show the review date", %{conn: conn} do
       document = conn |> get("/compare/develocity") |> html_response(200) |> Floki.parse_document!()
       links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
@@ -591,6 +656,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
 
       assert html =~ "/marketing/assets/bundle.css"
+
+      # Runners are billed per minute, so the feature must not claim a free offer.
+      assert %{"name" => "Tuist Compute"} = feature = software_application(html)
+      refute Map.has_key?(feature, "offers")
     end
   end
 
@@ -648,6 +717,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = html_response(conn, 200)
       assert html =~ "marketing-tests"
       assert html =~ "/marketing/assets/bundle.css"
+
+      assert %{"name" => "Tuist Tests", "offers" => %{"price" => "0"}} = software_application(html)
     end
   end
 
@@ -1154,5 +1225,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
+  end
+
+  defp software_application(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("script[type='application/ld+json']")
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+    |> Enum.find(&(&1["@type"] == "SoftwareApplication"))
   end
 end

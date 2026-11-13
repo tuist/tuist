@@ -14,7 +14,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [codebase-search/](codebase-search/AGENTS.md) | Bounded hosted source-code search |
 | [cache/](cache/AGENTS.md) | Cache service |
 | [registry/](registry/AGENTS.md) | Stateless package registry read frontend |
-| [pulse/](pulse/AGENTS.md) | Headless observability, alerting, and reliability backend |
+| [pulse/](pulse/AGENTS.md) | Pulse, Tuist's fork of GreptimeDB (observability database) |
 | [kura/](kura/AGENTS.md) | Rust distributed cache mesh |
 | [cas-plugin/](cas-plugin/AGENTS.md) | Xcode CAS plugin and per-machine proxy |
 | [tuist_ex/](tuist_ex/AGENTS.md) | Elixir build and test instrumentation |
@@ -24,6 +24,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
 | [gradle/](gradle/AGENTS.md) | Gradle plugin |
 | [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
+| [code/](code/AGENTS.md) | Tuist Code, the Rust-core client built alongside the companion apps |
 | [noora/](noora/AGENTS.md) | Phoenix component library and Storybook |
 | [slack/](slack/AGENTS.md) | Public Slack invitation app |
 | [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
@@ -58,7 +59,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 
 Use conventional commits with the affected subsystem as scope, for example
 `fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
-`android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`,
+`android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`, `code`,
 `slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
 `grafana-datasource`, `docs`, and `handbook`.
 

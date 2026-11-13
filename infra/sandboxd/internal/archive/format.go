@@ -55,6 +55,16 @@ type Header struct {
 	SourceSandbox string    `json:"source_sandbox"`
 	CreatedAt     time.Time `json:"created_at"`
 	DisksSynced   bool      `json:"disks_synced"`
+	// Memory is set when the object holds the VM's memory image ahead of
+	// this stream (see memory.go) and the stream holds its VM state.
+	Memory *MemoryHeader `json:"memory,omitempty"`
+}
+
+// MemoryHeader describes an archived memory image. Its VM state restores
+// only where Compat, the writing node's snapshot compatibility, matches.
+type MemoryHeader struct {
+	Size   int64  `json:"size"`
+	Compat string `json:"compat"`
 }
 
 // Source is one file to archive under Name.
@@ -159,7 +169,16 @@ func writeFile(out *bufio.Writer, src Source, buf []byte) (int64, error) {
 
 var zeroBlock = make([]byte, blockSize)
 
-func allZero(b []byte) bool { return bytes.Equal(b, zeroBlock[:len(b)]) }
+func allZero(b []byte) bool {
+	for len(b) > 0 {
+		n := min(len(b), blockSize)
+		if !bytes.Equal(b[:n], zeroBlock[:n]) {
+			return false
+		}
+		b = b[n:]
+	}
+	return true
+}
 
 // Extract recreates the archived files in dir, which must not hold them
 // yet. limits names the files the archive must contain and the largest size

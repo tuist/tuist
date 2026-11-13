@@ -1,13 +1,17 @@
 name: Pulse
 
+# Pulse is Tuist's fork of GreptimeDB (pulse/FORK.md). Upstream's own CI is not
+# imported; this checks what the fork changes and that the server still builds.
 on:
   push:
     branches: [main]
     paths:
       - pulse/**
+      - .github/workflows/pulse.yml
   pull_request:
     paths:
       - pulse/**
+      - .github/workflows/pulse.yml
   workflow_dispatch:
   workflow_call:
 
@@ -23,229 +27,55 @@ defaults:
     working-directory: pulse
     shell: bash
 
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
 jobs:
   check:
     name: Pulse ${{ matrix.check.name }}
-    runs-on: tuist-linux
-    env:
-      MIX_ENV: test
-      # Always compile NIFs from source, including on unreleased branches.
-      PULSE_NIF_FORCE_BUILD: "1"
+    runs-on: ${{ matrix.check.runner }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         check:
-          - name: Compile
-            command: mix compile --warnings-as-errors
-          - name: Test
-            command: mix test
+          # rustfmt follows every `mod`, even ones cfg'd out, so it needs the
+          # enterprise modules the import left out (FORK.md) to exist.
           - name: Format
-            command: mix format --check-formatted
-          - name: Credo
-            command: mix credo
-          - name: Dependency audit
-            command: mix hex.audit
-          - name: Rust
+            runner: tuist-linux
             command: >-
-              cargo fmt --manifest-path native/pulse_codec/Cargo.toml -- --check &&
-              cargo clippy --manifest-path native/pulse_codec/Cargo.toml --all-targets -- -D warnings &&
-              cargo test --release --manifest-path native/pulse_codec/Cargo.toml &&
-              cargo fmt --manifest-path native/pulse_grpc/Cargo.toml -- --check &&
-              cargo clippy --manifest-path native/pulse_grpc/Cargo.toml --all-targets -- -D warnings
+              sed -n 's/^ *- `\(src\/.*\.rs\)`$/\1/p' FORK.md | while read -r file; do
+              mkdir -p "$(dirname "$file")" && echo '// Not imported; see pulse/FORK.md.' > "$file"; done &&
+              cargo fmt --all -- --check
+          # The crates the fork changes. `nesting` holds the stack-overflow guards.
+          - name: Test
+            runner: tuist-linux-large
+            command: cargo test --locked -p sql --lib
+          - name: Build
+            runner: tuist-linux-large
+            command: cargo check --locked --bin greptime
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Keep these versions in sync with pulse/mise.toml.
-      - name: Set up Erlang and Elixir
-        uses: erlef/setup-beam@v1
+      - uses: ./.github/actions/mise
         with:
-          otp-version: "29.1"
-          elixir-version: "1.20.4-otp-29"
+          install_args: "--locked protoc"
+          github_token: ${{ github.token }}
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+      # rust-toolchain.toml pins the fork's toolchain. Newer rustup no longer
+      # installs it on `rustup show`, so install it by name.
+      - name: Install the pinned toolchain
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component rustfmt
       - name: Cache Rust build
+        if: matrix.check.name != 'Format'
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            pulse/native/pulse_object_store -> target
-            pulse/native/pulse_codec -> target
-            pulse/native/pulse_grpc -> target
+          workspaces: pulse -> target
           key: pulse-${{ matrix.check.name }}
-      - name: Cache deps
-        uses: actions/cache@v4
-        with:
-          path: pulse/deps
-          key: ${{ runner.os }}-pulse-mix-deps-${{ hashFiles('pulse/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pulse-mix-deps-
-      # Do not cache _build: Mix does not track Rustler's shared-object side
-      # effects, so restoring it can skip compilation while the NIF is missing.
-      - name: Install dependencies
-        run: mix deps.get --check-locked
       - name: ${{ matrix.check.name }}
         run: ${{ matrix.check.command }}
-      - name: Check Prometheus reference fixtures
-        if: matrix.check.name == 'Test'
-        run: |
-          curl -fsSL https://github.com/prometheus/prometheus/releases/download/v3.5.0/prometheus-3.5.0.linux-amd64.tar.gz -o "$RUNNER_TEMP/prometheus.tar.gz"
-          echo "e811827af26d822afb09a4f28314f61b618b12cff5369835a67f674d8b46f39a  $RUNNER_TEMP/prometheus.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/prometheus.tar.gz" -C "$RUNNER_TEMP"
-          "$RUNNER_TEMP/prometheus-3.5.0.linux-amd64/promtool" test rules test/fixtures/promql/prometheus.yml
-          PULSE_PROMTOOL="$RUNNER_TEMP/prometheus-3.5.0.linux-amd64/promtool" mix test test/pulse/promql/conformance_test.exs
-
-  chart:
-    name: Pulse Helm chart
-    runs-on: tuist-linux
-    defaults:
-      run:
-        working-directory: .
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Set up chart validation tools
-        uses: ./.github/actions/mise
-        with:
-          install_args: "--locked helm yq jq"
-          cache: "false"
-          github_token: ${{ github.token }}
-      - name: Lint and validate rendered manifests
-        run: |
-          set -euo pipefail
-          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
-            | tar -xz -C "$RUNNER_TEMP" kubeconform
-          digest="sha256\$$(printf '%s' ci-token | sha256sum | cut -d' ' -f1)"
-          args=(--set storage.bucket=ci --set storage.region=us-east-1
-                --set storage.accessKeyId=ci --set storage.secretAccessKey=ci
-                --set-string "tenantTokens.ci=${digest}")
-          helm lint --strict infra/helm/pulse "${args[@]}"
-          helm template pulse infra/helm/pulse "${args[@]}" \
-            --set ingress.enabled=true --set ingress.host=pulse.example.com \
-            --set serviceMonitor.enabled=true --set ingestLimits.max_records=5000 \
-            --set ingestLimits.max_trace_nodes=123456 --set ingestLimits.max_otlp_nodes=234567 \
-            | tee "$RUNNER_TEMP/pulse-rendered.yaml" \
-            | "$RUNNER_TEMP/kubeconform" -strict -summary -ignore-missing-schemas
-          helm template pulse infra/helm/pulse --set storage.bucket=ci --set storage.region=us-east-1 \
-            --set existingSecret=pulse-credentials \
-            | "$RUNNER_TEMP/kubeconform" -strict -summary -ignore-missing-schemas
-          # OTLP metrics is public; self-monitoring must remain private.
-          grep -A1 '^[[:space:]]*- path: /v1/metrics$' "$RUNNER_TEMP/pulse-rendered.yaml" | grep -q 'pathType: Exact'
-          if grep -q '^[[:space:]]*- path: /metrics$' "$RUNNER_TEMP/pulse-rendered.yaml"; then
-            echo 'private self-monitoring must not be routed through public ingress' >&2
-            exit 1
-          fi
-          grep -A1 'name: PULSE_INGEST_MAX_TRACE_NODES' "$RUNNER_TEMP/pulse-rendered.yaml" | grep -q 'value: "123456"'
-          grep -A1 'name: PULSE_INGEST_MAX_OTLP_NODES' "$RUNNER_TEMP/pulse-rendered.yaml" | grep -q 'value: "234567"'
-          for key in max_trace_nodes max_otlp_nodes; do
-            if helm template pulse infra/helm/pulse "${args[@]}" --set "ingestLimits.${key}=0" > /dev/null 2>&1; then
-              echo "rendering with nonpositive ${key} should fail" >&2
-              exit 1
-            fi
-          done
-          if helm template pulse infra/helm/pulse "${args[@]}" --set ingestLimits.max_unknown_nodes=1 > /dev/null 2>&1; then
-            echo "rendering with an unknown node setting should fail" >&2
-            exit 1
-          fi
-          # Workload identity alone satisfies the credential requirement.
-          trust='[{"name":"ci","issuer":"https://kubernetes.default.svc.cluster.local","audiences":["pulse"],"keys":{"type":"inline","jwks":{"keys":[{"kty":"RSA","kid":"k","n":"AQAB","e":"AQAB"}]}},"bindings":[{"subject":"system:serviceaccount:ci:ci","tenant":"ci","capabilities":["read"]}]}]'
-          helm template pulse infra/helm/pulse --set storage.bucket=ci --set storage.region=us-east-1 \
-            --set storage.accessKeyId=ci --set storage.secretAccessKey=ci --set-json "workloadIdentity.trust=${trust}" \
-            | grep -A1 'name: PULSE_WORKLOAD_IDENTITY_JSON' | grep -q 'system:serviceaccount:ci:ci'
-          helm template pulse infra/helm/pulse "${args[@]}" --set workloadIdentity.kubernetesApiToken.enabled=true \
-            | grep -A3 'serviceAccountToken:' | grep -q 'path: token'
-          if helm template pulse infra/helm/pulse "${args[@]}" | grep -q 'kube-root-ca.crt'; then
-            echo "the Kubernetes API token must not be mounted by default" >&2
-            exit 1
-          fi
-          if helm template pulse infra/helm/pulse "${args[@]}" --set-json 'workloadIdentity.trust=[{"name":"ci"}]' > /dev/null 2>&1; then
-            echo "rendering with an incomplete workload identity entry should fail" >&2
-            exit 1
-          fi
-          helm template pulse infra/helm/pulse "${args[@]}" --set pools.enabled=true --set clustering.enabled=true \
-            --set pools.ingest.autoscaling.enabled=true --set otlpGrpc.enabled=true \
-            --set ingress.enabled=true --set ingress.host=pulse.example.com \
-            | tee "$RUNNER_TEMP/pulse-pools.yaml" \
-            | "$RUNNER_TEMP/kubeconform" -strict -summary -ignore-missing-schemas
-          for pool in ingest query maintenance; do
-            grep -A1 'name: PULSE_ROLES' "$RUNNER_TEMP/pulse-pools.yaml" | grep -q "value: \"${pool}\""
-          done
-          grep -A6 'path: /loki/api/v1/push$' "$RUNNER_TEMP/pulse-pools.yaml" | grep -q 'name: pulse-ingest'
-          grep -A6 'path: /mcp$' "$RUNNER_TEMP/pulse-pools.yaml" | grep -q 'name: pulse-query'
-          if helm template pulse infra/helm/pulse > /dev/null 2>&1; then
-            echo "rendering without required values should fail" >&2
-            exit 1
-          fi
-          if helm template pulse infra/helm/pulse "${args[@]}" --set-string ingestLimits.max_records=oops > /dev/null 2>&1; then
-            echo "rendering with an invalid ingest limit should fail" >&2
-            exit 1
-          fi
-      - name: Check managed production deployment contract
-        run: bash infra/helm/pulse/test-managed.sh
-
-  integration:
-    name: Pulse Integration
-    runs-on: tuist-linux
-    env:
-      MIX_ENV: test
-      PULSE_INTEGRATION: "1"
-      PULSE_NIF_FORCE_BUILD: "1"
-      PULSE_RUSTFS_API_PORT: "11100"
-      PULSE_RUSTFS_CONSOLE_PORT: "12100"
-      PULSE_S3_ENDPOINT: "http://localhost:11100"
-      PULSE_S3_BUCKET: "pulse"
-      PULSE_S3_REGION: "us-east-1"
-      PULSE_S3_ACCESS_KEY_ID: "rustfsadmin"
-      PULSE_S3_SECRET_ACCESS_KEY: "rustfsadmin"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Set up Erlang and Elixir
-        uses: erlef/setup-beam@v1
-        with:
-          otp-version: "29.1"
-          elixir-version: "1.20.4-otp-29"
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            pulse/native/pulse_object_store -> target
-            pulse/native/pulse_codec -> target
-            pulse/native/pulse_grpc -> target
-          key: pulse-integration
-      - name: Cache deps
-        uses: actions/cache@v4
-        with:
-          path: pulse/deps
-          key: ${{ runner.os }}-pulse-mix-deps-${{ hashFiles('pulse/mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pulse-mix-deps-
-      - name: Start RustFS via docker compose
-        run: |
-          docker compose up -d rustfs
-          for _ in $(seq 1 60); do
-            if curl --fail --silent --max-time 2 "http://localhost:${PULSE_RUSTFS_API_PORT}/health/ready" > /dev/null; then
-              echo "RustFS is up"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "RustFS did not start in time"
-          docker compose logs rustfs
-          exit 1
-      - name: Create bucket
-        # The Tuist Linux image does not include AWS CLI. Use the existing
-        # Compose initializer instead of depending on GitHub-hosted tooling.
-        run: docker compose run --rm rustfs-init
-      - name: Install dependencies
-        run: mix deps.get --check-locked
-      - name: Run integration tests
-        run: mix test --only integration
-      - name: Stop RustFS
-        if: always()
-        run: docker compose down --volumes

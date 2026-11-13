@@ -76,7 +76,7 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 		t.Fatalf("expected the /data local-path-provisioner bind-mount, got:\n%s", out)
 	}
 
-	// The Elastic Metal (SSH script) form must carry the same mirror config.
+	// The SSH script form must carry the same mirror config.
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName:       "node-a",
 		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
@@ -87,7 +87,7 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 		!strings.Contains(script, `[host."https://mirror.gcr.io"]`) {
 		t.Fatalf("expected the bootstrap script to configure the docker.io mirror, got:\n%s", script)
 	}
-	// The SSH form (OVH/Elastic Metal — the boxes with a separate /data)
+	// The SSH form (OVH — the boxes with a separate /data)
 	// must carry the local-path-provisioner bind-mount so cache PVCs land on /data.
 	if !strings.Contains(script, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner") {
 		t.Fatalf("expected the SSH form to bind-mount the local-path provisioner root onto /data, got:\n%s", script)
@@ -173,7 +173,7 @@ func TestRenderLinux_LockupHardening(t *testing.T) {
 	// auto-reboots instead of stranding the node NotReady forever (which drops the
 	// observability node-exporter DaemonSet below full availability and wedges every
 	// deploy). Assert the panic sysctls and the systemd hardware watchdog land in
-	// the cloud-init (Instance) and SSH (Elastic Metal) forms alike, since both
+	// the cloud-init (Instance) and SSH (bare-metal) forms alike, since both
 	// share bootstrapBody.
 	cloudInit := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
@@ -215,7 +215,7 @@ func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 		t.Fatalf("expected clusterDNS omitted when unset, got:\n%s", without)
 	}
 
-	// The Elastic Metal (SSH script) form threads clusterDNS too.
+	// The SSH script form threads clusterDNS too.
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName:       "node-a",
 		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
@@ -258,56 +258,11 @@ func TestRenderLinuxBootstrapScript_NoPasswdSudo(t *testing.T) {
 }
 
 func TestRenderLinuxBootstrapScript_NoSudoPasswordIsNoOp(t *testing.T) {
-	// Without a SudoPassword (the Elastic Metal kind, whose install already grants
-	// NOPASSWD), no setup line is emitted and the script is unchanged.
+	// Without a SudoPassword (a fleet whose install already grants NOPASSWD), no
+	// setup line is emitted and the script is unchanged.
 	withUser := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", KubeconfigYAML: "x\n", K8sMinor: "v1.34", BootstrapUser: "ubuntu"})
 	if strings.Contains(withUser, "sudo -S") {
 		t.Fatalf("expected no NOPASSWD setup without a SudoPassword, got:\n%s", withUser)
-	}
-}
-
-func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndStatic(t *testing.T) {
-	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
-		NodeName:           "node-a",
-		KubeconfigYAML:     "apiVersion: v1\nkind: Config\n",
-		K8sMinor:           "v1.34",
-		BootstrapUser:      "ubuntu",
-		PrivateNetworkVLAN: 3250,
-	})
-
-	// The VLAN must be installed as a reboot-durable systemd unit that holds the
-	// PN address STATICALLY (DHCP-discover once, then pin it). Assert the unit,
-	// the static re-assert, and the VLAN id wired through.
-	for _, want := range []string{
-		"/etc/systemd/system/tuist-pn0.service",
-		"/usr/local/sbin/tuist-pn0-up.sh",
-		"ExecStart=/usr/local/sbin/tuist-pn0-up.sh",
-		"Restart=always",
-		"name pn0 type vlan id 3250",
-		"ip addr replace",
-		"systemctl enable --now tuist-pn0.service",
-	} {
-		if !strings.Contains(script, want) {
-			t.Fatalf("expected bootstrap script to contain %q, got:\n%s", want, script)
-		}
-	}
-
-	// Liveness must NOT hang on a renew-forever dhclient: neither the old
-	// one-shot `dhclient -nw` nor a supervised `dhclient -d` survives the PN DHCP
-	// server going silent (the lease expires and the address is dropped while the
-	// process keeps running). That is the bug this static hold replaces.
-	for _, banned := range []string{"dhclient -nw pn0", "dhclient -d pn0"} {
-		if strings.Contains(script, banned) {
-			t.Fatalf("expected no renew-forever dhclient %q, got:\n%s", banned, script)
-		}
-	}
-
-	// The Instance/cloud-init path never sets a VLAN, so it must render nothing
-	// PN-related (and must not emit heredocs that the indented YAML form can't
-	// host).
-	instance := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
-	if strings.Contains(instance, "pn0") || strings.Contains(instance, "tuist-pn0.service") {
-		t.Fatalf("expected no PN-VLAN setup when no VLAN is set, got:\n%s", instance)
 	}
 }
 
@@ -563,7 +518,7 @@ func TestJoinedGuardSkipsOnlyACompletedJoinOfTheSameNode(t *testing.T) {
 func TestRenderLinuxBootstrapScript_RecordsTheJoinLast(t *testing.T) {
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName: "node-a", KubeconfigYAML: "apiVersion: v1\nkind: Config\n", K8sMinor: "v1.34",
-		BootstrapUser: "ubuntu", PrivateNetworkVLAN: 3250,
+		BootstrapUser: "ubuntu",
 	})
 	syntax := exec.Command("bash", "-n")
 	syntax.Stdin = strings.NewReader(script)

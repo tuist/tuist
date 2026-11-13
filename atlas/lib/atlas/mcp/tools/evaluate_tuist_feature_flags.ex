@@ -19,7 +19,6 @@ defmodule Atlas.MCP.Tools.EvaluateTuistFeatureFlags do
         },
         "evaluations" => %{
           "type" => "array",
-          "maxItems" => 17,
           "items" => %{
             "type" => "object",
             "properties" => %{

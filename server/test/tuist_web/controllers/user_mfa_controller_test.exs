@@ -19,6 +19,28 @@ defmodule TuistWeb.UserMFAControllerTest do
     %{user: user_fixture(preload: [:account]), now: current}
   end
 
+  @tag :session_compatibility
+  test "MFA enrollment rotates the isolated credential", %{user: user, now: now} do
+    signed_in = login(user)
+    old_token = get_session(signed_in, :user_token)
+    assert signed_in.resp_cookies["_tuist_key_auth"]
+    enrollment = signed_in |> recycle() |> post(~p"/users/settings/mfa/enroll")
+    secret = setup_secret(enrollment)
+
+    confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
+    assert html_response(confirmed, 200)
+    assert confirmed.resp_cookies["_tuist_key_auth"]
+    refute Accounts.get_user_session(old_token)
+    new_token = get_session(confirmed, :user_token)
+    assert new_token != old_token
+
+    restored = confirmed |> recycle() |> get(~p"/#{user.account.name}/settings/authentication")
+    assert html_response(restored, 200)
+    assert restored.assigns.current_user.id == user.id
+    assert restored.assigns.current_user_session.token == new_token
+    assert restored.assigns.current_user_session.mfa_verified_at
+  end
+
   test "enrollment requires a fresh session, confirms possession and revokes older sessions", %{user: user, now: now} do
     old = login(user)
     old_token = get_session(old, :user_token)
@@ -62,7 +84,7 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert UserMFA.enabled?(user)
     settings = confirmed |> recycle() |> get(~p"/#{user.account.name}/settings/authentication") |> html_response(200)
     document = Floki.parse_document!(settings)
-    assert Floki.text(Floki.find(document, "#mfa-recovery-count")) =~ "10 recovery codes remaining."
+    assert Floki.find(document, "#mfa-recovery-count") == []
     assert Floki.find(document, "#regenerate-recovery-modal button") != []
     assert Floki.find(document, "#disable-mfa-modal button") != []
     assert Floki.attribute(document, "#mfa-regenerate", "data-recovery-modal") == ["mfa-recovery-modal"]
@@ -101,7 +123,7 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert redirected_to(signed_out) == path
     refute Accounts.get_user_by_session_token(old_token)
     redirected = signed_out |> recycle() |> get(path)
-    assert redirected_to(redirected) == ~p"/users/log_in"
+    assert redirected_to(redirected) == ~p"/users/log_in?#{%{return_to: path}}"
     assert get_session(redirected, :user_return_to) == path
 
     signed_in =
@@ -175,7 +197,9 @@ defmodule TuistWeb.UserMFAControllerTest do
     pending = login(user, %{"remember_me" => "true", "mfa_verified_at" => "forged"})
     assert redirected_to(pending) == ~p"/users/mfa"
     refute get_session(pending, :user_token)
-    assert pending |> recycle() |> get(~p"/#{user.account.name}/projects") |> redirected_to() == ~p"/users/log_in"
+
+    assert pending |> recycle() |> get(~p"/#{user.account.name}/projects") |> redirected_to() ==
+             ~p"/users/log_in?#{%{return_to: "/#{user.account.name}/projects"}}"
 
     verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => code(secret, DateTime.add(now, 31))})
     assert redirected_to(verified) == ~p"/#{user.account.name}/projects"
@@ -250,7 +274,7 @@ defmodule TuistWeb.UserMFAControllerTest do
     device = Accounts.create_device_code("mfa-device-#{user.id}")
     destination = ~p"/auth/device_codes/#{device.code}?type=cli"
     pending = get(build_conn(), destination)
-    assert redirected_to(pending) == ~p"/users/log_in"
+    assert redirected_to(pending) == ~p"/users/log_in?#{%{return_to: destination}}"
 
     pending =
       pending
@@ -260,7 +284,7 @@ defmodule TuistWeb.UserMFAControllerTest do
     refute Accounts.get_device_code(device.code).authenticated
 
     assert pending |> recycle() |> post(~p"/auth/device_codes/#{device.code}", %{"type" => "cli"}) |> redirected_to() ==
-             ~p"/users/log_in"
+             ~p"/users/log_in?#{%{return_to: destination}}"
 
     refute Accounts.get_device_code(device.code).authenticated
     verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => recovery})

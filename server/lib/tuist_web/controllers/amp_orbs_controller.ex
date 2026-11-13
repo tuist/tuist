@@ -9,7 +9,6 @@ defmodule TuistWeb.AmpOrbsController do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AmpIntegration
-  alias Tuist.Sandboxes.AmpIntegrations
   alias Tuist.Sandboxes.AmpRuntime
 
   def dispatch(conn, %{"orb_id" => orb_id} = params) do
@@ -19,10 +18,7 @@ defmodule TuistWeb.AmpOrbsController do
          {:ok, attrs} <- job(orb_id, params),
          {:ok, integration_id} <- integration_id(name),
          %AmpIntegration{} = integration <- Repo.get(AmpIntegration, integration_id) do
-      result =
-        AmpIntegrations.with_lock(integration.account_id, fn -> dispatch_bound(integration, name, orb_id, attrs) end)
-
-      respond(conn, result)
+      respond(conn, dispatch_bound(integration, name, orb_id, attrs))
     else
       {:error, :unknown_orb_type} ->
         conn
@@ -49,22 +45,6 @@ defmodule TuistWeb.AmpOrbsController do
     conn
     |> put_resp_header("x-tuist-orb-retry", "admission")
     |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
-  end
-
-  # An archive of the account's oldest paused Orb is on its way.
-  defp respond(conn, {:error, :sandbox_disk_limit}) do
-    conn
-    |> put_resp_header("x-tuist-orb-retry", "admission")
-    |> send_resp(:too_many_requests, "Account sandbox disk limit reached; archiving a paused Orb")
-  end
-
-  # Nothing can be archived (archiving off, the account at its archive
-  # storage cap, or no paused Orb), so waiting is not enough; deleting
-  # Orbs is.
-  defp respond(conn, {:error, :sandbox_limit}) do
-    conn
-    |> put_resp_header("x-tuist-orb-refusal", "sandbox-limit")
-    |> send_resp(:too_many_requests, "Account sandbox disk limit reached")
   end
 
   defp respond(conn, {:error, reason}) when reason in [:locked, :sandbox_account_busy] do
@@ -96,20 +76,24 @@ defmodule TuistWeb.AmpOrbsController do
     send_resp(conn, :service_unavailable, "Orb operation could not complete")
   end
 
-  # Read the binding again under the lock. Lifecycle writes must be visible to nodes.
+  # Only the Orb's own lock (taken by `Sandboxes.dispatch_amp_orb/3`) is held
+  # for the VM operation, which can take minutes (a restore from archive
+  # waits up to 200 s): the account's integration lock would refuse every
+  # other Orb of the account meanwhile. A disconnect that commits while a
+  # spawn is in flight is settled by the reconciler, which pauses the
+  # integration's Orbs.
   defp dispatch_bound(integration, name, orb_id, attrs) do
     account = Repo.get(Account, integration.account_id)
-    current = Repo.get(AmpIntegration, integration.id)
 
     cond do
-      is_nil(account) or is_nil(current) or not current.enabled or AmpRuntime.name(current) != name ->
+      is_nil(account) or not integration.enabled or AmpRuntime.name(integration) != name ->
         {:error, :unauthorized}
 
       attrs.operation == "spawn" and not FeatureFlags.sandboxes_enabled?(account) ->
         {:error, :disabled}
 
       true ->
-        Sandboxes.dispatch_amp_orb(account, orb_id, Map.put(attrs, :amp_integration_id, current.id))
+        Sandboxes.dispatch_amp_orb(account, orb_id, Map.put(attrs, :amp_integration_id, integration.id))
     end
   end
 

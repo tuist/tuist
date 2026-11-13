@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,7 +16,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/archive"
+	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 )
@@ -26,6 +30,8 @@ type objectStore struct {
 	parts map[int][]byte
 	// gate, when set, holds every part upload until it is closed.
 	gate chan struct{}
+	// gets records each download's Range header.
+	gets []string
 }
 
 func newObjectStore(t *testing.T) (*objectStore, *httptest.Server) {
@@ -47,7 +53,10 @@ func newObjectStore(t *testing.T) (*objectStore, *httptest.Server) {
 			store.mu.Unlock()
 			w.Header().Set("ETag", fmt.Sprintf(`"etag-%d"`, number))
 		case http.MethodGet:
-			w.Write(store.object())
+			store.mu.Lock()
+			store.gets = append(store.gets, r.Header.Get("Range"))
+			store.mu.Unlock()
+			http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(store.object()))
 		}
 	}))
 	t.Cleanup(server.Close)
@@ -279,6 +288,43 @@ func TestArchiveDisksRestoresOnAnotherNode(t *testing.T) {
 	if vm.FileSize(restored) != 1<<30 || string(got) != "project set up" {
 		t.Fatalf("a sandbox created from the archive must hold the snapshot's disks, not the source's later writes; got %q", got)
 	}
+
+	// A copy on the other node: an archive of another workspace size is
+	// refused and leaves nothing behind, a matching one becomes a disk
+	// snapshot the node clones like one it saved itself.
+	other.m.cloneFile = sparseCopy
+	mismatch := protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 2, FromArchive: source}
+	if _, err := other.m.CopyDisks(ctx, mismatch); !errors.Is(err, ErrArchiveMismatch) {
+		t.Fatalf("copying an archive of another workspace size must fail with a mismatch, got %v", err)
+	}
+	if infos := other.m.DiskSnapshots(); len(infos) != 0 {
+		t.Fatalf("a refused copy must leave no disk snapshot, got %+v", infos)
+	}
+	copyArgs := protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 1, FromArchive: source}
+	if _, err := other.m.CopyDisks(ctx, copyArgs); err != nil {
+		t.Fatalf("copy disks: %v", err)
+	}
+	if infos := other.m.DiskSnapshots(); len(infos) != 1 || infos[0].ID != "snap1" || infos[0].WorkspaceGB != 1 {
+		t.Fatalf("the copy must be listed as the disk snapshot, got %+v", infos)
+	}
+	// A repeated copy keeps the one already there without downloading.
+	if _, err := other.m.CopyDisks(ctx, protocol.CopyDisksArgs{SnapshotID: "snap1", Template: "default", WorkspaceGB: 1, FromArchive: &protocol.ArchiveSource{URL: server.URL + "/gone", Bytes: 1, SHA256: "00"}}); err != nil {
+		t.Fatalf("copying a snapshot the node holds must succeed, got %v", err)
+	}
+	if _, err := other.m.Create(ctx, protocol.CreateArgs{SandboxID: "cloned", Template: "default", VCPUs: 2, MemoryMB: 4096, WorkspaceGB: 1, FromDiskSnapshot: "snap1"}); err != nil {
+		t.Fatalf("create from the copied disk snapshot: %v", err)
+	}
+	cloned, err := os.Open(filepath.Join(vm.RootDir(other.jailBase, "cloned"), "workspace.ext4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cloned.Close()
+	if _, err := cloned.ReadAt(got, 300<<20); err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "project set up" {
+		t.Fatalf("a sandbox cloned from the copy must hold the snapshot's disks, got %q", got)
+	}
 }
 
 // sparseCopy copies src to dst, leaving zero blocks as holes.
@@ -311,4 +357,114 @@ func sparseCopy(src, dst string) error {
 		}
 	}
 	return out.Truncate(info.Size())
+}
+
+func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
+	if !fakevm.UserfaultfdSupported() {
+		t.Skip("this kernel has no unprivileged userfaultfd")
+	}
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "src", SyncDisks: true}); err != nil {
+		t.Fatal(err)
+	}
+	// What the guest had in memory, which the restore must hand back.
+	memPath := filepath.Join(vm.RootDir(h.jailBase, "src"), "mem")
+	mem, err := os.OpenFile(memPath, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []int64{5 << 20, 33<<20 + 123, 128<<20 - 8192} {
+		if _, err := mem.WriteAt(bytes.Repeat([]byte(fmt.Sprintf("page@%d ", at)), 300), at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mem.Close()
+	want, _ := os.ReadFile(memPath)
+
+	archiveArgs := archiveArgs(server, "src")
+	if res, err := h.m.Archive(ctx, archiveArgs); err != nil || res.TailOffset != 0 {
+		t.Fatalf("an archive the server did not ask memory of answered %+v, %v", res, err)
+	}
+	store.mu.Lock()
+	store.parts = map[int][]byte{}
+	store.mu.Unlock()
+	archiveArgs.Memory = true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TailOffset <= 0 || res.TailOffset >= res.Bytes || res.Compat != "zen5" || res.MemoryBytes != 4*archive.MemoryChunkSize {
+		t.Fatalf("archive result %+v does not describe its memory", res)
+	}
+	if err := h.m.Delete(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+
+	other := node("zen5")
+	restore := args
+	restore.SandboxID, restore.FromArchive = "dst", source
+	created, err := other.m.Create(ctx, restore)
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if !created.MemoryPending {
+		t.Fatal("a warm restore must report its memory as pending")
+	}
+	store.mu.Lock()
+	firstGet := store.gets[0]
+	store.mu.Unlock()
+	if firstGet != fmt.Sprintf("bytes=%d-%d", res.TailOffset, res.Bytes-1) {
+		t.Fatalf("the restore read %q first, not the disk stream", firstGet)
+	}
+	inst := other.launcher.Last()
+	var backend any
+	for _, call := range inst.Calls() {
+		if call.Path == "/actions" {
+			t.Fatal("a warm restore must not boot the kernel")
+		}
+		if call.Path == "/snapshot/load" {
+			backend = call.Body["mem_backend"].(map[string]any)["backend_type"]
+		}
+	}
+	if backend != "Uffd" {
+		t.Fatalf("snapshot loaded with %v memory", backend)
+	}
+	if loaded := other.events.wait(t, protocol.EventMemoryLoaded, 10*time.Second); loaded.SandboxID != "dst" {
+		t.Fatalf("memory_loaded for %q", loaded.SandboxID)
+	}
+	if !bytes.Equal(inst.Memory(), want) {
+		t.Fatal("the restored guest memory differs from the archived image")
+	}
+	if _, err := other.m.Pause(ctx, "dst"); err != nil {
+		t.Fatalf("pause after a warm restore: %v", err)
+	}
+
+	// A node that cannot load the VM state cold boots the disks.
+	third := node("zen4")
+	restore.SandboxID = "cold"
+	created, err = third.m.Create(ctx, restore)
+	if err != nil {
+		t.Fatalf("cold restore: %v", err)
+	}
+	if created.MemoryPending {
+		t.Fatal("a cold restore has no memory pending")
+	}
+	for _, call := range third.launcher.Last().Calls() {
+		if call.Path == "/snapshot/load" {
+			t.Fatal("an incompatible node must not load the VM state")
+		}
+	}
 }

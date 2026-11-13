@@ -3,12 +3,15 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Ecto.Changeset
   alias Tuist.Accounts
   alias Tuist.Accounts.SSOLoginDomainVerification
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserPasskey
+  alias Tuist.Accounts.UserToken
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.SCIM
@@ -216,13 +219,14 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     conn = recycle(conn)
     {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
 
-    assert has_element?(view, "#passkey-add[data-passkey-ceremony='register']", "Create a passkey")
+    assert has_element?(view, "#passkey-add[data-passkey-ceremony='register']", "Add passkey")
     refute has_element?(view, "#passkey-name")
     refute has_element?(view, "#add-passkey-modal")
     refute has_element?(view, "#passkeys-settings a", "Manage passkeys")
-    assert has_element?(view, "#passkeys-settings", "0 passkeys added")
-    assert has_element?(view, "#two-factor-settings button", "Set up authenticator app")
-    assert has_element?(view, "#two-factor-settings", "Not enabled")
+    refute has_element?(view, "#passkeys-settings", "0 passkeys added")
+    refute has_element?(view, "#passkeys-settings", "1 passkey added")
+    assert has_element?(view, "#two-factor-settings button", "Enable 2FA")
+    refute has_element?(view, "#two-factor-settings", "Not enabled")
     refute has_element?(view, "#two-factor-settings", "passkeys")
 
     stub(Environment, :email_auth_enabled?, fn -> false end)
@@ -270,10 +274,11 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     stub(Tuist.Time, :utc_now, fn -> now end)
     {:ok, view, _} = live(stale, ~p"/#{user.account.name}/settings/authentication")
     refute has_element?(view, "#passkey-add")
-    assert has_element?(view, "#passkeys-settings", "Sign in")
-    view |> element("#setup-authenticator-modal > button") |> render_click()
-    refute has_element?(view, "#mfa-setup-qr")
-    refute Accounts.UserMFA.get_pending_enrollment(user, Accounts.get_user_session(get_session(stale, :user_token)))
+    assert has_element?(view, "#passkeys-settings", "Add passkey")
+    assert has_element?(view, "#two-factor-settings", "Enable 2FA")
+    assert has_element?(view, "#two-factor-settings form[action^='/users/log_out?return_to=']")
+    refute has_element?(view, "#setup-authenticator-modal")
+    refute UserMFA.get_pending_enrollment(user, Accounts.get_user_session(get_session(stale, :user_token)))
 
     fresh =
       post(build_conn(), ~p"/users/log_in", %{
@@ -287,20 +292,55 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     view |> element("#setup-authenticator-modal > button") |> render_click()
     document = view |> render() |> Floki.parse_document!()
     assert Floki.find(document, "#mfa-setup-qr[src^='data:image/png;base64,']") != []
+    assert Floki.find(document, "#mfa-setup-key[readonly]") != []
+    assert Floki.find(document, "#mfa-manual-setup summary") != []
+    assert Floki.attribute(document, "#mfa-code", "placeholder") == ["XXXXXX"]
     assert Floki.find(document, "form#mfa-enrollment[action='/users/settings/mfa/confirm']") != []
     assert Floki.attribute(document, "#mfa-enrollment", "data-recovery-modal") == ["mfa-recovery-modal"]
     assert Floki.find(document, "dialog#mfa-recovery-modal:not([open])") != []
     assert Floki.find(document, "#mfa-recovery-modal [data-recovery-content] #mfa-recovery-codes") == []
-    refute Accounts.UserMFA.enabled?(user)
+    refute UserMFA.enabled?(user)
 
     render_hook(view, "authenticator_modal_change", %{"open" => false})
     session = Accounts.get_user_session(get_session(fresh, :user_token))
-    refute Accounts.UserMFA.get_pending_enrollment(user, session)
+    refute UserMFA.get_pending_enrollment(user, session)
+  end
+
+  test "expired sessions offer 2FA management rather than implying 2FA is disabled", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    confirmed_at = now |> DateTime.add(-1) |> DateTime.truncate(:second)
+
+    Repo.insert!(%UserMFA{
+      user_id: user.id,
+      secret: NimbleTOTP.secret(),
+      enrollment_session_hash: :crypto.strong_rand_bytes(32),
+      enrollment_expires_at: DateTime.add(now, 300),
+      confirmed_at: confirmed_at
+    })
+
+    token = Accounts.generate_user_session_token(user, %{auth_method: :password, mfa_verified_at: confirmed_at})
+
+    stale_at = now |> DateTime.add(-301) |> DateTime.truncate(:second)
+
+    {1, _} =
+      Repo.update_all(
+        from(token in UserToken, where: token.token == ^token),
+        set: [inserted_at: stale_at]
+      )
+
+    stale = put_session(conn, :user_token, token)
+
+    {:ok, view, _html} = live(stale, ~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#two-factor-settings button", "Manage 2FA")
+    refute has_element?(view, "#two-factor-settings button", "Sign in again")
+    refute has_element?(view, "#two-factor-settings", "Enable 2FA")
   end
 
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
-    assert has_element?(lv, "#setup-authenticator-modal button", "Set up authenticator app")
+    assert has_element?(lv, "#setup-authenticator-modal button", "Enable 2FA")
     assert has_element?(lv, "#oidc-trust-policy-modal[phx-hook=NooraModal]")
     assert has_element?(lv, "#oidc-add-trust-policy", "Add trust policy")
     refute has_element?(lv, "#oidc-configuration-toggle")

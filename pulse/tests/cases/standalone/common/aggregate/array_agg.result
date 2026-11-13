@@ -1,0 +1,237 @@
+-- Migrated from DuckDB test style: test array aggregation
+-- Test ARRAY_AGG function
+-- Test with integers
+CREATE TABLE integers(i INTEGER, g INTEGER, ts TIMESTAMP TIME INDEX);
+
+Affected Rows: 0
+
+INSERT INTO integers VALUES (1, 1, 1000), (2, 1, 2000), (3, 1, 3000), (4, 2, 4000), (5, 2, 5000);
+
+Affected Rows: 5
+
+-- Basic array aggregation
+SELECT array_agg(i) FROM integers;
+
++-----------------------+
+| array_agg(integers.i) |
++-----------------------+
+| [1, 2, 3, 4, 5]       |
++-----------------------+
+
+-- Array aggregation with GROUP BY
+SELECT g, array_agg(i) FROM integers GROUP BY g ORDER BY g;
+
++---+-----------------------+
+| g | array_agg(integers.i) |
++---+-----------------------+
+| 1 | [1, 2, 3]             |
+| 2 | [4, 5]                |
++---+-----------------------+
+
+-- Test with ORDER BY
+SELECT array_agg(i ORDER BY i DESC) FROM integers;
+
++--------------------------------------------------------------+
+| array_agg(integers.i) ORDER BY [integers.i DESC NULLS FIRST] |
++--------------------------------------------------------------+
+| [5, 4, 3, 2, 1]                                              |
++--------------------------------------------------------------+
+
+SELECT g, array_agg(i ORDER BY i DESC) FROM integers GROUP BY g ORDER BY g;
+
++---+--------------------------------------------------------------+
+| g | array_agg(integers.i) ORDER BY [integers.i DESC NULLS FIRST] |
++---+--------------------------------------------------------------+
+| 1 | [3, 2, 1]                                                    |
+| 2 | [5, 4]                                                       |
++---+--------------------------------------------------------------+
+
+-- Test with strings
+CREATE TABLE strings(s VARCHAR, g INTEGER, ts TIMESTAMP TIME INDEX);
+
+Affected Rows: 0
+
+INSERT INTO strings VALUES
+    ('apple', 1, 1000), ('banana', 1, 2000), ('cherry', 2, 3000),
+    ('date', 2, 4000), ('elderberry', 1, 5000);
+
+Affected Rows: 5
+
+SELECT array_agg(s) FROM strings;
+
++-------------------------------------------+
+| array_agg(strings.s)                      |
++-------------------------------------------+
+| [apple, banana, cherry, date, elderberry] |
++-------------------------------------------+
+
+SELECT g, array_agg(s ORDER BY s) FROM strings GROUP BY g ORDER BY g;
+
++---+----------------------------------------------------------+
+| g | array_agg(strings.s) ORDER BY [strings.s ASC NULLS LAST] |
++---+----------------------------------------------------------+
+| 1 | [apple, banana, elderberry]                              |
+| 2 | [cherry, date]                                           |
++---+----------------------------------------------------------+
+
+-- Test with NULL values
+INSERT INTO strings VALUES (NULL, 1, 6000), ('fig', NULL, 7000);
+
+Affected Rows: 2
+
+SELECT array_agg(s) FROM strings WHERE s IS NOT NULL;
+
++------------------------------------------------+
+| array_agg(strings.s)                           |
++------------------------------------------------+
+| [apple, banana, cherry, date, elderberry, fig] |
++------------------------------------------------+
+
+SELECT g, array_agg(s) FROM strings WHERE g IS NOT NULL GROUP BY g ORDER BY g;
+
++---+-------------------------------+
+| g | array_agg(strings.s)          |
++---+-------------------------------+
+| 1 | [apple, banana, elderberry, ] |
+| 2 | [cherry, date]                |
++---+-------------------------------+
+
+-- Test with DISTINCT
+SELECT array_agg(DISTINCT s ORDER BY s) FROM strings WHERE s IS NOT NULL;
+
++-------------------------------------------------------------------+
+| array_agg(DISTINCT strings.s) ORDER BY [strings.s ASC NULLS LAST] |
++-------------------------------------------------------------------+
+| [apple, banana, cherry, date, elderberry, fig]                    |
++-------------------------------------------------------------------+
+
+-- Test empty result
+SELECT array_agg(i) FROM integers WHERE i > 100;
+
++-----------------------+
+| array_agg(integers.i) |
++-----------------------+
+|                       |
++-----------------------+
+
+-- Test with doubles
+CREATE TABLE doubles(d DOUBLE, ts TIMESTAMP TIME INDEX);
+
+Affected Rows: 0
+
+INSERT INTO doubles VALUES (1.1, 1000), (2.2, 2000), (3.3, 3000), (4.4, 4000);
+
+Affected Rows: 4
+
+SELECT array_agg(d ORDER BY d) FROM doubles;
+
++----------------------------------------------------------+
+| array_agg(doubles.d) ORDER BY [doubles.d ASC NULLS LAST] |
++----------------------------------------------------------+
+| [1.1, 2.2, 3.3, 4.4]                                     |
++----------------------------------------------------------+
+
+-- cleanup
+DROP TABLE integers;
+
+Affected Rows: 0
+
+DROP TABLE strings;
+
+Affected Rows: 0
+
+DROP TABLE doubles;
+
+Affected Rows: 0
+
+-- On partitioned tables the aggregate is split into partial state and merge
+CREATE TABLE array_agg_partitioned (
+  ts TIMESTAMP TIME INDEX,
+  k INT,
+  lat DOUBLE,
+  PRIMARY KEY(k)
+)
+PARTITION ON COLUMNS (k) (k < 10, k >= 10 AND k < 20, k >= 20);
+
+Affected Rows: 0
+
+INSERT INTO array_agg_partitioned VALUES
+  (1000, 1, 1),
+  (2000, 11, 2),
+  (3000, 21, 3),
+  (4000, 2, 4),
+  (5000, 12, 5),
+  (6000, 22, 6),
+  (7000, 3, 7);
+
+Affected Rows: 7
+
+SELECT array_agg(lat ORDER BY ts) FROM array_agg_partitioned;
+
++-----------------------------------------------------------------------------------------+
+| array_agg(array_agg_partitioned.lat) ORDER BY [array_agg_partitioned.ts ASC NULLS LAST] |
++-----------------------------------------------------------------------------------------+
+| [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]                                                     |
++-----------------------------------------------------------------------------------------+
+
+SELECT lat > 3 AS g, array_agg(lat ORDER BY ts DESC) FROM array_agg_partitioned GROUP BY g ORDER BY g;
+
++-------+-------------------------------------------------------------------------------------------+
+| g     | array_agg(array_agg_partitioned.lat) ORDER BY [array_agg_partitioned.ts DESC NULLS FIRST] |
++-------+-------------------------------------------------------------------------------------------+
+| false | [3.0, 2.0, 1.0]                                                                           |
+| true  | [7.0, 6.0, 5.0, 4.0]                                                                      |
++-------+-------------------------------------------------------------------------------------------+
+
+SELECT array_agg(k ORDER BY k % 10, ts DESC) FROM array_agg_partitioned;
+
++---------------------------------------------------------------------------------------------------------------------------------------------+
+| array_agg(array_agg_partitioned.k) ORDER BY [array_agg_partitioned.k % Int64(10) ASC NULLS LAST, array_agg_partitioned.ts DESC NULLS FIRST] |
++---------------------------------------------------------------------------------------------------------------------------------------------+
+| [21, 11, 1, 22, 12, 2, 3]                                                                                                                   |
++---------------------------------------------------------------------------------------------------------------------------------------------+
+
+-- nth_value needs sorted input, so it isn't split into partial state and merge
+SELECT nth_value(lat, 2 ORDER BY ts), nth_value(lat, 3 ORDER BY ts DESC) FROM array_agg_partitioned;
+
++--------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------+
+| nth_value(array_agg_partitioned.lat,Int64(2)) ORDER BY [array_agg_partitioned.ts ASC NULLS LAST] | nth_value(array_agg_partitioned.lat,Int64(3)) ORDER BY [array_agg_partitioned.ts DESC NULLS FIRST] |
++--------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------+
+| 2.0                                                                                              | 5.0                                                                                                |
++--------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------+
+
+-- WITHIN GROUP aggregates don't need sorted input and are still split
+-- SQLNESS REPLACE (peers.*) REDACTED
+-- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
+-- SQLNESS REPLACE (-+) -
+-- SQLNESS REPLACE (\s\s+) _
+EXPLAIN SELECT sum(lat), approx_percentile_cont(0.75) WITHIN GROUP (ORDER BY lat DESC) FROM array_agg_partitioned;
+
++-+-+
+| plan_type_| plan_|
++-+-+
+| logical_plan_| Aggregate: groupBy=[[]], aggr=[[__sum_merge(__sum_state(array_agg_partitioned.lat)) AS sum(array_agg_partitioned.lat), __approx_percentile_cont_merge(__approx_percentile_cont_state(array_agg_partitioned.lat,Float64(0.75)) ORDER BY [array_agg_partitioned.lat DESC NULLS FIRST]) AS approx_percentile_cont(Float64(0.75)) WITHIN GROUP [array_agg_partitioned.lat DESC NULLS FIRST]]]_|
+|_|_MergeScan [is_placeholder=false, remote_input=[_|
+|_| Aggregate: groupBy=[[]], aggr=[[__sum_state(array_agg_partitioned.lat), __approx_percentile_cont_state(array_agg_partitioned.lat, Float64(0.75)) ORDER BY [array_agg_partitioned.lat DESC NULLS FIRST]]]_|
+|_|_TableScan: array_agg_partitioned_|
+|_| ]]_|
+| physical_plan | AggregateExec: mode=Final, gby=[], aggr=[__sum_merge(__sum_state(array_agg_partitioned.lat)) as sum(array_agg_partitioned.lat), __approx_percentile_cont_merge(__approx_percentile_cont_state(array_agg_partitioned.lat,Float64(0.75)) ORDER BY [array_agg_partitioned.lat DESC NULLS FIRST]) as approx_percentile_cont(Float64(0.75)) WITHIN GROUP [array_agg_partitioned.lat DESC NULLS FIRST]]_|
+|_|_CoalescePartitionsExec_|
+|_|_AggregateExec: mode=Partial, gby=[], aggr=[__sum_merge(__sum_state(array_agg_partitioned.lat)) as sum(array_agg_partitioned.lat), __approx_percentile_cont_merge(__approx_percentile_cont_state(array_agg_partitioned.lat,Float64(0.75)) ORDER BY [array_agg_partitioned.lat DESC NULLS FIRST]) as approx_percentile_cont(Float64(0.75)) WITHIN GROUP [array_agg_partitioned.lat DESC NULLS FIRST]] |
+|_|_RepartitionExec: partitioning=REDACTED
+|_|_MergeScanExec: REDACTED
+|_|_|
++-+-+
+
+SELECT sum(lat), approx_percentile_cont(0.75) WITHIN GROUP (ORDER BY lat DESC) FROM array_agg_partitioned;
+
++--------------------------------+-------------------------------------------------------------------------------------------------+
+| sum(array_agg_partitioned.lat) | approx_percentile_cont(Float64(0.75)) WITHIN GROUP [array_agg_partitioned.lat DESC NULLS FIRST] |
++--------------------------------+-------------------------------------------------------------------------------------------------+
+| 28.0                           | 2.25                                                                                            |
++--------------------------------+-------------------------------------------------------------------------------------------------+
+
+DROP TABLE array_agg_partitioned;
+
+Affected Rows: 0
+

@@ -82,8 +82,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       refute has_element?(lv, "#sandboxes-concurrency-sandboxes")
       refute has_element?(lv, "#sandboxes-empty-state")
       assert has_element?(lv, "#sandboxes-concurrency-vcpus", "2 of 32 in use now")
-      # Six sandboxes of a 10 GB workspace, a 4 GB memory image and 64 MiB of snapshot state.
-      assert has_element?(lv, "#sandboxes-concurrency-disk", "84.4 GB of 420 GB on nodes now")
+      refute has_element?(lv, "#sandboxes-concurrency-disk")
     end
 
     test "charts the account's sandbox history", %{conn: conn, account: account} do
@@ -119,17 +118,113 @@ defmodule TuistWeb.SandboxesLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances")
 
       assert has_element?(lv, "#sandbox-#{active.id}", "orb-active")
+      assert has_element?(lv, "#sandboxes-table th", "Instance")
+      refute has_element?(lv, "#sandboxes-table th", "Name")
+      refute has_element?(lv, "#sandbox-#{active.id} td:first-child [data-part=sublabel]")
       assert has_element?(lv, "#sandbox-#{active.id}", "Active")
       assert has_element?(lv, "#sandbox-#{paused.id}", "Paused")
-      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(3)", "4")
-      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(4)", "8 GB")
-      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(5)", "10 GB")
+      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(4)", "4")
+      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(5)", "8 GB")
+      assert has_element?(lv, "#sandbox-#{paused.id} td:nth-child(6)", "10 GB")
       assert has_element?(lv, "#sandboxes-table th", "Memory")
       refute has_element?(lv, "#sandboxes-table th", "Resources")
       assert has_element?(lv, "#sandbox-#{archived.id}", "Archived")
       refute has_element?(lv, "#sandbox-#{other.id}")
       refute has_element?(lv, "#sandboxes-table th", "Source")
       refute has_element?(lv, "[data-part='pagination']")
+    end
+
+    test "shows one compact identifier while preserving full IDs", %{conn: conn, account: account} do
+      amp_id = "amp-019a1234-5678-7000-8000-123456abcdef"
+      amp = sandbox_fixture(account: account, amp_orb_id: amp_id, state: :paused)
+      short = sandbox_fixture(account: account, anthropic_session_id: "sesn_1234567890123456789", state: :paused)
+      long = sandbox_fixture(account: account, anthropic_session_id: "sesn_12345678901234567890", state: :paused)
+      standalone = sandbox_fixture(account: account, state: :paused)
+
+      for path <- ["/#{account.name}/sandboxes", "/#{account.name}/sandboxes/instances"] do
+        {:ok, lv, _html} = live(conn, path)
+
+        for {sandbox, full_id, label} <- [
+              {amp, amp_id, "amp-019a…56abcdef"},
+              {short, "sesn_1234567890123456789", "sesn_1234567890123456789"},
+              {long, "sesn_12345678901234567890", "sesn_123…34567890"}
+            ] do
+          assert has_element?(lv, "#sandbox-#{sandbox.id} td:first-child [title='#{full_id}'] [data-part=label]", label)
+          refute has_element?(lv, "#sandbox-#{sandbox.id} td:first-child [data-part=sublabel]")
+        end
+
+        assert has_element?(lv, "#sandbox-#{standalone.id} td:first-child [title='#{standalone.id}']")
+      end
+
+      {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/#{amp.id}")
+      assert has_element?(lv, "h1", amp_id)
+      assert has_element?(lv, "[data-part=metadata]", amp.id)
+    end
+
+    test "shows username, verified email and authenticated Anthropic creators without linking accounts", %{
+      conn: conn,
+      account: account,
+      user: user
+    } do
+      user |> Ecto.Changeset.change(email_verified_at: DateTime.utc_now(:second)) |> Repo.update!()
+      matched = sandbox_fixture(account: account, state: :paused)
+      reported = sandbox_fixture(account: account, state: :paused)
+      verified_email = sandbox_fixture(account: account, state: :paused)
+      unknown = sandbox_fixture(account: account, state: :paused)
+
+      environment = agent_environment_fixture(account: account)
+      session = agent_session_fixture(account: account, agent_environment: environment, created_by_user_id: user.id)
+
+      anthropic =
+        sandbox_fixture(
+          account: account,
+          state: :paused,
+          agent_environment_id: environment.id,
+          anthropic_session_id: session.anthropic_session_id
+        )
+
+      matched
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_matched",
+        amp_creator_username: String.upcase(user.account.name),
+        amp_creator_name: String.upcase(user.account.name)
+      )
+      |> Repo.update!()
+
+      reported
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_reported",
+        amp_creator_username: "amp-only-creator",
+        amp_creator_name: "creator@example.com"
+      )
+      |> Repo.update!()
+
+      verified_email
+      |> Ecto.Changeset.change(
+        amp_creator_user_id: "user_verified_email",
+        amp_creator_username: "different-amp-username",
+        amp_creator_name: user.email,
+        amp_creator_email: String.upcase(user.email)
+      )
+      |> Repo.update!()
+
+      for path <- [
+            "/#{account.name}/sandboxes",
+            "/#{account.name}/sandboxes/instances?filter_status_op=%3D%3D&filter_status_val=paused"
+          ] do
+        {:ok, lv, _html} = live(conn, path)
+        assert has_element?(lv, "#sandbox-#{matched.id} [data-actor-source=matched]", user.account.name)
+        refute has_element?(lv, "[data-actor-source=verified]")
+        assert has_element?(lv, "#sandbox-#{reported.id} [data-actor-source=reported]", "creator@example.com")
+        assert has_element?(lv, "#sandbox-#{verified_email.id} [data-actor-source=matched]", user.account.name)
+        assert has_element?(lv, "#sandbox-#{anthropic.id} [data-actor-source=matched]", user.account.name)
+        assert has_element?(lv, "#sandbox-#{unknown.id} [data-actor-source=unknown]", "Unknown")
+      end
+
+      for sandbox <- [matched, verified_email, anthropic] do
+        {:ok, lv, _html} = live(conn, "/#{account.name}/sandboxes/#{sandbox.id}")
+        assert has_element?(lv, "[data-actor-source=matched]", user.account.name)
+      end
     end
 
     test "searches sandboxes by their name or id", %{conn: conn, account: account} do
@@ -192,7 +287,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       assert has_element?(lv, "[data-part='active-filters']", "vCPUs")
     end
 
-    test "sorts sandboxes by name and last activity", %{conn: conn, account: account} do
+    test "sorts sandboxes by instance and last activity", %{conn: conn, account: account} do
       b = sandbox_fixture(account: account, amp_orb_id: "orb-b", last_active_at: ~U[2026-01-03 00:00:00Z])
       a = sandbox_fixture(account: account, amp_orb_id: "orb-a", last_active_at: ~U[2026-01-01 00:00:00Z])
       c = sandbox_fixture(account: account, amp_orb_id: "orb-c", last_active_at: ~U[2026-01-02 00:00:00Z])
@@ -204,7 +299,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?sort_by=name")
       assert row_ids.(lv) == Enum.map([a, b, c], &"sandbox-#{&1.id}")
 
-      lv |> element("#sandboxes-table th a", "Name") |> render_click()
+      lv |> element("#sandboxes-table th a", "Instance") |> render_click()
       assert row_ids.(lv) == Enum.map([c, b, a], &"sandbox-#{&1.id}")
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes/instances?sort_by=last_active")

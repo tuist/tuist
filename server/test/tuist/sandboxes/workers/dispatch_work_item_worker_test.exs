@@ -47,16 +47,6 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorkerTest do
     assert {:snooze, 5} = perform_job(DispatchWorkItemWorker, args(agent_environment, 60_000))
   end
 
-  test "force-stops the item at once when the account's disk is full and nothing can be archived" do
-    agent_environment = agent_environment_fixture(anthropic_environment_id: "env_held", environment_key: "sk-held")
-
-    stub(Capacity, :admission, fn _environment, "session_held" -> {:error, :sandbox_limit} end)
-    reject(&Router.dispatch/2)
-    expect(Client, :stop, fn "env_held", "sk-held", "work_held", true -> {:ok, %{}} end)
-
-    assert :ok = perform_job(DispatchWorkItemWorker, args(agent_environment, 60_000))
-  end
-
   test "force-stops the item when no node had room before the deadline" do
     agent_environment = agent_environment_fixture(anthropic_environment_id: "env_held", environment_key: "sk-held")
 

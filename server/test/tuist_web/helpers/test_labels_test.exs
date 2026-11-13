@@ -151,9 +151,11 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
   end
 
   describe "coverage_target_label/1 and coverage_targets_label/1" do
-    test "call a Mix project's targets applications" do
+    test "call a Mix project's targets applications and a Cargo project's packages" do
       assert TestLabels.coverage_target_label(%Project{build_system: :mix}) == "Application"
       assert TestLabels.coverage_targets_label(%Project{build_system: :mix}) == "Applications"
+      assert TestLabels.coverage_target_label(%Project{build_system: :cargo}) == "Package"
+      assert TestLabels.coverage_targets_label(%Project{build_system: :cargo}) == "Packages"
       assert TestLabels.coverage_target_label(%Project{build_system: :xcode}) == "Target"
       assert TestLabels.coverage_targets_label(%Project{build_system: :xcode}) == "Targets"
     end

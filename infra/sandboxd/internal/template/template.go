@@ -106,6 +106,24 @@ type Template struct {
 	Dir  string
 }
 
+// RunnerOwner is the uid and gid of the guest user that runs sessions, which
+// the template image records in its metadata.json (runner_uid, runner_gid).
+// Templates built before it was recorded report false.
+func (t Template) RunnerOwner() (uid, gid int, ok bool) {
+	data, err := os.ReadFile(filepath.Join(t.Dir, MetadataFile))
+	if err != nil {
+		return 0, 0, false
+	}
+	var owner struct {
+		UID int `json:"runner_uid"`
+		GID int `json:"runner_gid"`
+	}
+	if json.Unmarshal(data, &owner) != nil || owner.UID <= 0 || owner.GID <= 0 {
+		return 0, 0, false
+	}
+	return owner.UID, owner.GID, true
+}
+
 func (t Template) Kernel() string { return filepath.Join(t.Dir, KernelFile) }
 func (t Template) Rootfs() string { return filepath.Join(t.Dir, RootfsFile) }
 

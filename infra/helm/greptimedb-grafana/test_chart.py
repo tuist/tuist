@@ -29,7 +29,7 @@ class ChartTest(unittest.TestCase):
             self.assertFalse(source["editable"])
             self.assertEqual(source["secureJsonData"]["basicAuthPassword"], "$GREPTIME_DASHBOARD_PASSWORD")
             self.assertEqual(source["secureJsonData"]["httpHeaderValue1"], "public")
-        self.assertEqual(sources[0]["url"], "http://greptimedb.observability.svc.cluster.local:4000/v1/prometheus")
+        self.assertEqual(sources[0]["url"], "http://pulse.observability.svc.cluster.local:4000/v1/prometheus")
         self.assertEqual(sources[1]["jsonData"]["defaultDatabase"], "public")
         self.assertEqual(objects["Service"]["spec"]["type"], "ClusterIP")
         ingress = objects["Ingress"]

@@ -5902,10 +5902,10 @@
           "allowCustomValue": true,
           "current": {
             "text": [
-              "kura-tuist-scw-fr-par-0"
+              "All"
             ],
             "value": [
-              "kura-tuist-scw-fr-par-0"
+              "$__all"
             ]
           },
           "hide": "dontHide",

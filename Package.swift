@@ -90,6 +90,7 @@ var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistEnvironment",
     "TuistServer",
     "TuistCI",
+    "TuistGit",
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
     processDependency,
@@ -157,6 +158,8 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistUniqueIDGenerator",
     "TuistSupport",
     "TuistSimulator",
+    "TuistGit",
+    "TuistAlert",
     fileSystemDependency,
     mockableDependency,
     pathDependency,
@@ -434,6 +437,8 @@ var tuistRunnerCommandDependencies: [Target.Dependency] = [
 ]
 var tuistSandboxCommandDependencies: [Target.Dependency] = [
     argumentParserDependency,
+    pathDependency,
+    "TuistProcess",
     "TuistServer",
     "TuistEnvironment",
     "TuistConfigLoader",

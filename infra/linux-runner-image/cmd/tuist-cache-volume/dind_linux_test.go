@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -227,5 +228,177 @@ func TestDindMemoryRendersTheSidecarCgroupAsVitalsFields(t *testing.T) {
 	}
 	if got := dindMemory(t.TempDir()); got != "" {
 		t.Fatalf("a cgroup without memory accounting published %q", got)
+	}
+}
+
+func TestRaiseJobContainerOOMScoresPutsOnlyDockerProcessesFirst(t *testing.T) {
+	proc := t.TempDir()
+	for pid, process := range map[string][2]string{
+		"10": {"0::/docker/3f1c\n", "0\n"},        // job container
+		"11": {"0::/docker/buildkit/x9\n", "0\n"}, // BuildKit build step
+		"12": {"0::/\n", "872\n"},                 // dockerd, shim, the supervisor
+		"13": {"0::/docker/3f1c\n", "1000\n"},     // already raised
+		"14": {"0::/dockerish/a\n", "0\n"},        // not dockerd's tree
+		"15": {"0::/docker/" + strings.Repeat("ab", 32) + "\n", "0\n"},
+		"16": {"0::/docker/" + strings.Repeat("ab", 32) + "\n", "1000\n"}, // exited, not yet reaped
+	} {
+		if err := os.MkdirAll(filepath.Join(proc, pid), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.WriteFile(filepath.Join(proc, pid, "cgroup"), []byte(process[0]), 0o644)
+		_ = os.WriteFile(filepath.Join(proc, pid, "oom_score_adj"), []byte(process[1]), 0o644)
+		status := "Name:\tp" + pid + "\nUmask:\t0022\nRssAnon:\t  " + pid + "00 kB\nRssFile:\t 1 kB\n"
+		_ = os.WriteFile(filepath.Join(proc, pid, "status"), []byte(status), 0o644)
+	}
+	_ = os.WriteFile(filepath.Join(proc, "16", "status"), []byte("Name:\tp16\nState:\tZ (zombie)\n"), 0o644)
+	_ = os.MkdirAll(filepath.Join(proc, "self"), 0o755)
+	raised, processes := raiseJobContainerOOMScores(proc)
+	if raised != 3 {
+		t.Fatalf("raised %d processes, want 3", raised)
+	}
+	// The sweep remembers the live processes it can name a container for: a
+	// full container ID or a build step, not the fixture's short IDs. An
+	// exited process counts as gone, so a killed victim is not seen alive.
+	slices.SortFunc(processes, func(a, b jobProcess) int { return strings.Compare(a.name, b.name) })
+	want := []jobProcess{{pid: "11", name: "p11", anonKB: 1100, container: "docker-build"}, {pid: "15", name: "p15", anonKB: 1500, container: strings.Repeat("ab", 32)}}
+	if !slices.Equal(processes, want) {
+		t.Errorf("processes = %+v, want %+v", processes, want)
+	}
+	for pid, want := range map[string]string{"10": "1000", "11": "1000", "12": "872", "13": "1000", "14": "0", "15": "1000"} {
+		got, _ := os.ReadFile(filepath.Join(proc, pid, "oom_score_adj"))
+		if strings.TrimSpace(string(got)) != want {
+			t.Errorf("pid %s oom_score_adj = %q, want %s", pid, got, want)
+		}
+	}
+}
+
+func killedLine(pid, task, anon string) string {
+	return "<3>[ 2100.7] Out of memory: Killed process " + pid + " (" + task + ") total-vm:40000000kB, anon-rss:" + anon +
+		"kB, file-rss:1024kB, shmem-rss:0kB, UID:0 pgtables:60000kB oom_score_adj:1000\n"
+}
+
+func TestOOMVictimIsTheProcessWithItsNameThatVanished(t *testing.T) {
+	gradle := strings.Repeat("3f", 32)
+	idle := strings.Repeat("7a", 32)
+	removed := strings.Repeat("9c", 32)
+	containers := &jobContainers{known: map[string]string{}, inspect: func(id string) (string, string, error) {
+		switch id {
+		case gradle:
+			return "/gradle-build", "gradle:8-jdk21@sha256:abc", nil
+		case idle:
+			return "/idle", "alpine:3.20", nil
+		}
+		return "", "", errors.New("no such container")
+	}}
+	// The sweep before the kill. The victim was smaller than a process that
+	// survives, as a runaway process is a second before it is killed.
+	before := []jobProcess{
+		{pid: "40", name: "tail", anonKB: 300_000, container: idle},
+		{pid: "41", name: "tail", anonKB: 200_000, container: gradle},
+		{pid: "42", name: "node", anonKB: 2, container: removed},
+		{pid: "43", name: "cc1plus", anonKB: 3, container: "docker-build"},
+		{pid: "44", name: "cc1plus", anonKB: 1, container: removed},
+	}
+	containers.observe(before)
+	survivors := func(gone ...string) []jobProcess {
+		var after []jobProcess
+		for _, process := range before {
+			if !slices.Contains(gone, process.pid) {
+				after = append(after, process)
+			}
+		}
+		return after
+	}
+	for _, tc := range []struct {
+		name, log string
+		after     []jobProcess
+		want      string
+		named     bool
+	}{
+		{"the vanished one of two with the name", killedLine("812", "Runner.Worker", "130000") + killedLine("9", "tail", "1542784"), survivors("41"),
+			"oom.victim=tail oom.victim.anon.kb=1542784 oom.victim.container=gradle-build oom.victim.image=gradle:8-jdk21@sha256:abc", true},
+		{"a container that was never described", killedLine("9", "node", "2"), survivors("42"),
+			"oom.victim=node oom.victim.anon.kb=2 oom.victim.container=" + removed[:12], true},
+		// Several vanished: the kernel killed the largest.
+		{"the largest of several that vanished", killedLine("5", "cc1plus", "3"), survivors("43", "44"),
+			"oom.victim=cc1plus oom.victim.anon.kb=3 oom.victim.container=docker-build", true},
+		// Still listed while it exits: not named yet.
+		{"a victim not yet gone", killedLine("9", "tail", "1542784"), before, "oom.victim=tail oom.victim.anon.kb=1542784", false},
+		// No job container ran it: the runner container, outside Docker.
+		{"a process outside the job's containers", killedLine("812", "Runner.Worker", "130000"), survivors(),
+			"oom.victim=Runner.Worker oom.victim.anon.kb=130000", false},
+		// A job names its own processes, so the name must not break a vitals
+		// line or start a workflow command.
+		{"a hostile name", "Out of memory: Killed process 7 (a b::error%0A) total-vm:1kB, anon-rss:2kB, file-rss:0kB", survivors(),
+			"oom.victim=a_b__error_0A oom.victim.anon.kb=2", false},
+	} {
+		kill, ok := latestOOMKill(tc.log)
+		if !ok {
+			t.Fatalf("%s: no kill in the log", tc.name)
+		}
+		if got, named := kill.fields(before, tc.after, containers.describe); got != tc.want || named != tc.named {
+			t.Errorf("%s: got %q, %v; want %q, %v", tc.name, got, named, tc.want, tc.named)
+		}
+	}
+	if _, ok := latestOOMKill("<6>[ 1.0] nothing to see\n"); ok {
+		t.Fatal("a log without an OOM kill named a victim")
+	}
+}
+
+func TestOOMWatchWaitsForTheVictimToExit(t *testing.T) {
+	gradle := strings.Repeat("3f", 32)
+	describe := func(id string) string { return "oom.victim.container=" + id[:4] }
+	running := []jobProcess{{pid: "41", name: "java", anonKB: 1, container: gradle}}
+	log := ""
+	kernelLog := func() string { return log }
+
+	watch := &oomWatch{}
+	if got := watch.sweep(0, running, kernelLog, describe); got != "" {
+		t.Fatalf("named %q before any kill", got)
+	}
+	// Counted, but the victim still shows while it exits.
+	log = killedLine("9", "java", "5")
+	if got := watch.sweep(1, running, kernelLog, describe); got != "" {
+		t.Fatalf("named %q while the victim still ran", got)
+	}
+	// Gone from the next sweep: named from the sweep before the kill.
+	if got, want := watch.sweep(1, nil, kernelLog, describe), "oom.victim=java oom.victim.anon.kb=5 oom.victim.container=3f3f"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got := watch.sweep(1, nil, kernelLog, describe); got != "" {
+		t.Fatalf("named %q again", got)
+	}
+
+	// A victim no sweep saw in a container is named without one, once the
+	// attempts run out.
+	log = killedLine("10", "Runner.Worker", "7")
+	var got string
+	for range oomWatchAttempts {
+		got = watch.sweep(2, nil, kernelLog, describe)
+	}
+	if want := "oom.victim=Runner.Worker oom.victim.anon.kb=7"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestJobContainersKeepNamesSafeAndBounded(t *testing.T) {
+	id := strings.Repeat("ab", 32)
+	containers := &jobContainers{known: map[string]string{}, inspect: func(string) (string, string, error) {
+		return "/x y\n::error::", strings.Repeat("i", 200), nil
+	}}
+	containers.observe([]jobProcess{{name: "x", container: id}})
+	if got, want := containers.describe(id), "oom.victim.container=x_y_::error:: oom.victim.image="+strings.Repeat("i", 128); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestGuestOOMKillsReadsVmstat(t *testing.T) {
+	vmstat := filepath.Join(t.TempDir(), "vmstat")
+	_ = os.WriteFile(vmstat, []byte("pgfault 12\noom_kill 3\nthp_fault_alloc 0\n"), 0o644)
+	if got := guestOOMKills(vmstat); got != 3 {
+		t.Fatalf("got %d, want 3", got)
+	}
+	if got := guestOOMKills(filepath.Join(t.TempDir(), "missing")); got != 0 {
+		t.Fatalf("an unreadable vmstat reported %d kills", got)
 	}
 }

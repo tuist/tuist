@@ -1,0 +1,28 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+pub(crate) mod applier;
+pub(crate) mod creator;
+
+pub(crate) const INDEX_BLOB_TYPE_TANTIVY: &str = "greptime-fulltext-index-v1";
+/// Bloom blobs tokenized by `ScriptTokenizer`. A new key instead of a config field so that
+/// older versions, which would probe these tokens with their own rules and drop rows,
+/// don't find the blob and scan without pruning.
+pub(crate) const INDEX_BLOB_TYPE_BLOOM: &str = "greptime-fulltext-index-bloom-v2";
+/// Version of the bloom blobs stored under [`INDEX_BLOB_TYPE_BLOOM`], recorded in the
+/// manifest so that `ADMIN BUILD_INDEX` can find SSTs with older blobs.
+pub(crate) const FULLTEXT_BLOOM_VERSION: u8 = 2;
+/// Bloom blobs from older versions. Their tokens don't follow `matches_term` boundaries,
+/// so queries never probe them; they are kept only for index metadata listing.
+pub(crate) const INDEX_BLOB_TYPE_BLOOM_V1: &str = "greptime-fulltext-index-bloom";

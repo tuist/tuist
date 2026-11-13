@@ -1,0 +1,1827 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
+use std::time::Instant;
+
+use common_error::ext::BoxedError;
+use common_recordbatch::adapter::RegionQueryStatCounters;
+use common_recordbatch::{
+    DfRecordBatch, DfSendableRecordBatchStream, MemoryTrackedStream, QueryMemoryTracker,
+    RecordBatch, SendableRecordBatchStream,
+};
+use common_telemetry::tracing::Span;
+use common_telemetry::tracing_context::TracingContext;
+use common_telemetry::warn;
+use datafusion::error::Result as DfResult;
+use datafusion::execution::context::TaskContext;
+use datafusion::logical_expr::Operator;
+use datafusion::physical_plan::execution_plan::{Boundedness, EmissionType};
+use datafusion::physical_plan::filter::batch_filter;
+use datafusion::physical_plan::filter_pushdown::{
+    ChildPushdownResult, FilterPushdownPhase, FilterPushdownPropagation, PushedDown,
+};
+use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MetricsSet};
+use datafusion::physical_plan::{
+    DisplayAs, DisplayFormatType, ExecutionPlan, PlanProperties,
+    RecordBatchStream as DfRecordBatchStream, StatisticsArgs, apply_expression_roots,
+};
+use datafusion_common::stats::Precision;
+use datafusion_common::tree_node::TreeNodeRecursion;
+use datafusion_common::{ColumnStatistics, DataFusionError, Statistics};
+use datafusion_physical_expr::expressions::{
+    BinaryExpr, Column, DynamicFilterPhysicalExpr, is_null,
+};
+use datafusion_physical_expr::{
+    EquivalenceProperties, Partitioning, PhysicalExpr, PhysicalSortExpr, conjunction,
+};
+use datatypes::arrow::datatypes::SchemaRef as ArrowSchemaRef;
+use datatypes::compute::SortOptions;
+use futures::{Stream, StreamExt};
+use store_api::metric_engine_consts::DATA_SCHEMA_TSID_COLUMN_NAME;
+use store_api::region_engine::{
+    PartitionRange, PrepareRequest, QueryScanContext, RegionScannerRef,
+};
+use store_api::storage::{ScanRequest, TimeSeriesDistribution};
+
+use crate::table::metrics::StreamMetrics;
+
+/// The name of [`RegionScanExec`] plan node.
+pub const REGION_SCAN_EXEC_NAME: &str = "RegionScanExec";
+
+/// A plan to read multiple partitions from a region of a table.
+#[derive(Clone)]
+pub struct RegionScanExec {
+    scanner: Arc<Mutex<RegionScannerRef>>,
+    arrow_schema: ArrowSchemaRef,
+    /// The expected output ordering for the plan.
+    output_ordering: Option<Vec<PhysicalSortExpr>>,
+    metric: ExecutionPlanMetricsSet,
+    properties: Arc<PlanProperties>,
+    append_mode: bool,
+    total_rows: usize,
+    is_partition_set: bool,
+    // TODO(ruihang): handle TimeWindowed dist via this parameter
+    distribution: Option<TimeSeriesDistribution>,
+    explain_verbose: bool,
+    query_memory_tracker: Option<QueryMemoryTracker>,
+    /// Dynamic filters accepted by the scanner and applied to decoded output batches.
+    /// The wrappers themselves remain live and are updated by their producers.
+    pushed_dyn_filters: Arc<Mutex<Vec<Arc<dyn PhysicalExpr>>>>,
+}
+
+impl std::fmt::Debug for RegionScanExec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RegionScanExec")
+            .field("scanner", &self.scanner)
+            .field("arrow_schema", &self.arrow_schema)
+            .field("output_ordering", &self.output_ordering)
+            .field("metric", &self.metric)
+            .field("properties", &self.properties)
+            .field("append_mode", &self.append_mode)
+            .field("total_rows", &self.total_rows)
+            .field("is_partition_set", &self.is_partition_set)
+            .field("distribution", &self.distribution)
+            .field("explain_verbose", &self.explain_verbose)
+            .field("pushed_dyn_filters", &self.pushed_dyn_filters)
+            .finish()
+    }
+}
+
+impl RegionScanExec {
+    pub fn new(
+        scanner: RegionScannerRef,
+        request: ScanRequest,
+        query_memory_tracker: Option<QueryMemoryTracker>,
+    ) -> DfResult<Self> {
+        let arrow_schema = scanner.schema().arrow_schema().clone();
+        let scanner_props = scanner.properties();
+        let mut num_output_partition = scanner_props.num_partitions();
+        // The meaning of word "partition" is different in different context. For datafusion
+        // it's about "parallelism" and for storage it's about "data range". Thus here we add
+        // a special case to handle the situation where the number of storage partition is 0.
+        if num_output_partition == 0 {
+            num_output_partition = 1;
+        }
+
+        let metadata = scanner.metadata();
+        // Keep the primary key columns in the order reported by the metadata (for a metric
+        // region that is the physical row key order). Reordering them would let a projected
+        // logical tag look like a prefix of the row key, which yields ordering and
+        // partitioning claims the scanner cannot honour.
+        let pk_names = metadata
+            .primary_key_columns()
+            .map(|col| col.column_schema.name.clone())
+            .collect::<Vec<_>>();
+        // A region emits rows ordered by its primary key columns and then by the time
+        // index column. A primary key column that is not projected is absent from the
+        // arrow schema, and it also breaks the ordering of every primary key column that
+        // follows it (e.g. the physical `__table_id`/`__tsid` prefix of a metric region
+        // when reading a logical table). Thus only the longest fully projected prefix of
+        // the primary key can describe the output ordering, and that prefix can be empty.
+        let projected_pk_prefix_len = pk_names
+            .iter()
+            .position(|name| Column::new_with_schema(name, &arrow_schema).is_err())
+            .unwrap_or(pk_names.len());
+        // Whether the projected prefix covers the whole row key.
+        let all_pk_projected = projected_pk_prefix_len == pk_names.len();
+        let projected_pk_names = &pk_names[..projected_pk_prefix_len];
+        let pk_columns = pk_names
+            .iter()
+            .filter_map(
+                |col| Some(Arc::new(Column::new_with_schema(col, &arrow_schema).ok()?) as _),
+            )
+            .collect::<Vec<_>>();
+        let pk_sort_columns: Vec<PhysicalSortExpr> = projected_pk_names
+            .iter()
+            .filter_map(|col| {
+                Some(PhysicalSortExpr::new(
+                    Arc::new(Column::new_with_schema(col, &arrow_schema).ok()?) as _,
+                    SortOptions {
+                        descending: false,
+                        nulls_first: true,
+                    },
+                ))
+            })
+            .collect::<Vec<_>>();
+        let ts_col: Option<PhysicalSortExpr> = (|| {
+            Some(PhysicalSortExpr::new(
+                Arc::new(
+                    Column::new_with_schema(
+                        &metadata.time_index_column().column_schema.name,
+                        &arrow_schema,
+                    )
+                    .ok()?,
+                ) as _,
+                SortOptions {
+                    descending: false,
+                    nulls_first: true,
+                },
+            ))
+        })();
+
+        let eq_props = match request.distribution {
+            Some(TimeSeriesDistribution::PerSeries) => {
+                let mut orderings = Vec::with_capacity(2);
+
+                let mut pk_time_ordering = pk_sort_columns.clone();
+                // The time index column extends the ordering only when the whole row key
+                // precedes it; otherwise rows of different series can interleave.
+                if all_pk_projected && let Some(ts) = ts_col.clone() {
+                    pk_time_ordering.push(ts);
+                }
+                orderings.push(pk_time_ordering);
+
+                // Metric engine physical tables keep tag columns alongside `__tsid`. When `__tsid`
+                // is present, the scan output is also ordered by `(__tsid, time index)` which can
+                // help eliminate redundant sorts for promql plans (e.g. SeriesDivide).
+                //
+                // `pk_time_ordering` and the potential `(__tsid, time index)` ordering are actually
+                // the same thing, thus present in one `OrderingEquivalenceClass`.
+                if let (Ok(tsid_col), Some(ts)) = (
+                    Column::new_with_schema(DATA_SCHEMA_TSID_COLUMN_NAME, &arrow_schema),
+                    ts_col.clone(),
+                ) {
+                    orderings.push(vec![
+                        PhysicalSortExpr::new(
+                            Arc::new(tsid_col) as _,
+                            SortOptions {
+                                descending: false,
+                                nulls_first: true,
+                            },
+                        ),
+                        ts,
+                    ]);
+                }
+
+                EquivalenceProperties::new_with_orderings(arrow_schema.clone(), orderings)
+            }
+            Some(TimeSeriesDistribution::TimeWindowed) => {
+                let mut pk_time_ordering = pk_sort_columns.clone();
+                if let Some(ts) = ts_col.clone() {
+                    pk_time_ordering.insert(0, ts);
+                }
+                EquivalenceProperties::new_with_orderings(
+                    arrow_schema.clone(),
+                    vec![pk_time_ordering],
+                )
+            }
+            None => EquivalenceProperties::new(arrow_schema.clone()),
+        };
+
+        let partitioning = match request.distribution {
+            Some(TimeSeriesDistribution::PerSeries) => {
+                match Column::new_with_schema(DATA_SCHEMA_TSID_COLUMN_NAME, &arrow_schema) {
+                    Ok(tsid_col) => {
+                        Partitioning::Hash(vec![Arc::new(tsid_col) as _], num_output_partition)
+                    }
+                    Err(_) if pk_columns.len() == pk_names.len() => {
+                        Partitioning::Hash(pk_columns.clone(), num_output_partition)
+                    }
+                    Err(_) => Partitioning::UnknownPartitioning(num_output_partition),
+                }
+            }
+            Some(TimeSeriesDistribution::TimeWindowed) | None => {
+                Partitioning::UnknownPartitioning(num_output_partition)
+            }
+        };
+
+        let properties = Arc::new(PlanProperties::new(
+            eq_props,
+            partitioning,
+            EmissionType::Incremental,
+            Boundedness::Bounded,
+        ));
+        let append_mode = scanner_props.append_mode();
+        let total_rows = scanner_props.total_rows();
+
+        Ok(Self {
+            scanner: Arc::new(Mutex::new(scanner)),
+            arrow_schema,
+            output_ordering: None,
+            metric: ExecutionPlanMetricsSet::new(),
+            properties,
+            append_mode,
+            total_rows,
+            is_partition_set: false,
+            distribution: request.distribution,
+            explain_verbose: false,
+            query_memory_tracker,
+            pushed_dyn_filters: Arc::new(Mutex::new(Vec::new())),
+        })
+    }
+
+    /// Get the partition ranges of the scanner. This method will collapse the ranges into
+    /// a single vector.
+    pub fn get_partition_ranges(&self) -> Vec<PartitionRange> {
+        let scanner = self.scanner.lock().unwrap();
+        let raw_ranges = &scanner.properties().partitions;
+
+        // collapse the ranges
+        let mut ranges = Vec::with_capacity(raw_ranges.len());
+        for partition in raw_ranges {
+            ranges.extend_from_slice(partition);
+        }
+
+        ranges
+    }
+
+    /// Similar to [`Self::get_partition_ranges`] but don't collapse the ranges.
+    pub fn get_uncollapsed_partition_ranges(&self) -> Vec<Vec<PartitionRange>> {
+        let scanner = self.scanner.lock().unwrap();
+        scanner.properties().partitions.clone()
+    }
+
+    pub fn is_partition_set(&self) -> bool {
+        self.is_partition_set
+    }
+
+    pub fn scanner_type(&self) -> String {
+        let scanner = self.scanner.lock().unwrap();
+        scanner.name().to_string()
+    }
+
+    /// Update the partition ranges of underlying scanner.
+    pub fn with_new_partitions(
+        &self,
+        partitions: Vec<Vec<PartitionRange>>,
+        target_partitions: usize,
+    ) -> Result<Self, BoxedError> {
+        if self.is_partition_set {
+            warn!("Setting partition ranges more than once for RegionScanExec");
+        }
+
+        let mut properties = self.properties.as_ref().clone();
+        let new_partitioning = match properties.partitioning {
+            Partitioning::Hash(ref columns, _) => {
+                Partitioning::Hash(columns.clone(), target_partitions)
+            }
+            _ => Partitioning::UnknownPartitioning(target_partitions),
+        };
+        properties.partitioning = new_partitioning;
+
+        {
+            let mut scanner = self.scanner.lock().unwrap();
+            scanner.prepare(
+                PrepareRequest::default()
+                    .with_ranges(partitions)
+                    .with_target_partitions(target_partitions),
+            )?;
+        }
+
+        Ok(Self {
+            scanner: self.scanner.clone(),
+            arrow_schema: self.arrow_schema.clone(),
+            output_ordering: self.output_ordering.clone(),
+            metric: self.metric.clone(),
+            properties: Arc::new(properties),
+            append_mode: self.append_mode,
+            total_rows: self.total_rows,
+            is_partition_set: true,
+            distribution: self.distribution,
+            explain_verbose: self.explain_verbose,
+            query_memory_tracker: self.query_memory_tracker.clone(),
+            pushed_dyn_filters: self.pushed_dyn_filters.clone(),
+        })
+    }
+
+    pub fn distribution(&self) -> Option<TimeSeriesDistribution> {
+        self.distribution
+    }
+
+    pub fn with_distinguish_partition_range(&self, distinguish_partition_range: bool) {
+        let mut scanner = self.scanner.lock().unwrap();
+        // set distinguish_partition_range won't fail
+        let _ = scanner.prepare(
+            PrepareRequest::default().with_distinguish_partition_range(distinguish_partition_range),
+        );
+    }
+
+    pub fn time_index(&self) -> String {
+        self.scanner
+            .lock()
+            .unwrap()
+            .metadata()
+            .time_index_column()
+            .column_schema
+            .name
+            .clone()
+    }
+
+    pub fn tag_columns(&self) -> Vec<String> {
+        self.scanner
+            .lock()
+            .unwrap()
+            .metadata()
+            .primary_key_columns()
+            .map(|col| col.column_schema.name.clone())
+            .collect()
+    }
+
+    pub fn set_explain_verbose(&mut self, explain_verbose: bool) {
+        self.explain_verbose = explain_verbose;
+    }
+
+    /// Adds dynamic filters directly to the underlying region scanner predicate.
+    ///
+    /// This is the same mutation path used by DataFusion child-filter pushdown. Remote dynamic
+    /// filter updates install their shared runtime wrapper through this method at scan build time
+    /// and later update the wrapper state out-of-band.
+    pub fn add_dyn_filters_to_predicate(
+        &self,
+        filter_exprs: Vec<Arc<dyn PhysicalExpr>>,
+    ) -> Vec<bool> {
+        self.scanner
+            .lock()
+            .unwrap()
+            .add_dyn_filter_to_predicate(filter_exprs)
+    }
+
+    pub fn query_load_region_id(&self) -> Option<u64> {
+        self.scanner
+            .lock()
+            .unwrap()
+            .properties()
+            .query_load_region_id()
+            .map(|region_id| region_id.as_u64())
+    }
+
+    pub fn query_stat_counters(&self) -> Option<RegionQueryStatCounters> {
+        self.scanner
+            .lock()
+            .unwrap()
+            .properties()
+            .query_stat_counters()
+    }
+}
+
+impl ExecutionPlan for RegionScanExec {
+    fn schema(&self) -> ArrowSchemaRef {
+        self.arrow_schema.clone()
+    }
+
+    fn properties(&self) -> &Arc<PlanProperties> {
+        &self.properties
+    }
+
+    fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
+        vec![]
+    }
+
+    fn apply_expressions(
+        &self,
+        f: &mut dyn FnMut(&Arc<dyn PhysicalExpr>) -> datafusion_common::Result<TreeNodeRecursion>,
+    ) -> datafusion_common::Result<TreeNodeRecursion> {
+        let pushed_dyn_filters = self.pushed_dyn_filters.lock().unwrap().clone();
+        apply_expression_roots(
+            self.output_ordering
+                .iter()
+                .flat_map(|ordering| ordering.iter().map(|sort_expr| &sort_expr.expr))
+                .chain(pushed_dyn_filters.iter()),
+            f,
+        )
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> datafusion_common::Result<Arc<dyn ExecutionPlan>> {
+        Ok(self)
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> datafusion_common::Result<DfSendableRecordBatchStream> {
+        let tracing_context = TracingContext::from_json(context.session_id().as_str());
+        let span = tracing_context.attach(common_telemetry::tracing::info_span!(
+            "read_from_region",
+            partition = partition
+        ));
+        let enter = span.enter();
+
+        let ctx = QueryScanContext {
+            explain_verbose: self.explain_verbose,
+            memory_pool: context.memory_pool().clone(),
+        };
+        let stream = self
+            .scanner
+            .lock()
+            .unwrap()
+            .scan_partition(&ctx, &self.metric, partition)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+        let stream = if let Some(tracker) = &self.query_memory_tracker {
+            Box::pin(MemoryTrackedStream::new(stream, tracker.clone()))
+        } else {
+            stream
+        };
+
+        drop(enter);
+        let dyn_filter = {
+            let filters = self.pushed_dyn_filters.lock().unwrap().clone();
+            let guarded_filters = filters.into_iter().map(|filter| {
+                filter.children().iter().try_fold(
+                    filter.clone() as Arc<dyn PhysicalExpr>,
+                    |acc, child| {
+                        let guarded: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
+                            acc,
+                            Operator::Or,
+                            is_null((*child).clone())?,
+                        ));
+                        Ok::<_, datafusion_common::DataFusionError>(guarded)
+                    },
+                )
+            });
+            let guarded_filters = guarded_filters.collect::<DfResult<Vec<_>>>()?;
+            (!guarded_filters.is_empty()).then(|| conjunction(guarded_filters))
+        };
+        let stream_metrics = StreamMetrics::new(&self.metric, partition);
+        Ok(Box::pin(StreamWithMetricWrapper {
+            stream,
+            metric: stream_metrics,
+            span,
+            await_timer: None,
+            dyn_filter,
+        }))
+    }
+
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metric.clone_inner())
+    }
+
+    fn reset_state(self: Arc<Self>) -> DfResult<Arc<dyn ExecutionPlan>> {
+        self.scanner.lock().unwrap().reset_state();
+        self.pushed_dyn_filters.lock().unwrap().clear();
+        Ok(self)
+    }
+
+    fn statistics_from_inputs(
+        &self,
+        _input_stats: &[Arc<Statistics>],
+        args: &StatisticsArgs,
+    ) -> DfResult<Arc<Statistics>> {
+        if args.partition().is_some() || !self.append_mode {
+            return Ok(Arc::new(Statistics::new_unknown(self.schema().as_ref())));
+        }
+
+        let scanner = self.scanner.lock().unwrap();
+        let statistics = if scanner.properties().total_rows_is_exact()
+            && !scanner.has_predicate_without_region()
+        {
+            // Only the row count is known. DataFusion answers `count(col)` as
+            // `num_rows - null_count` and `count(DISTINCT col)` as `distinct_count`
+            // without scanning, so these must stay absent unless the schema
+            // guarantees them. Non-nullable columns (including the time index that
+            // `count(*)` is rewritten to) keep an exact zero null count.
+            let column_statistics = self
+                .arrow_schema
+                .fields
+                .iter()
+                .map(|field| ColumnStatistics {
+                    null_count: if field.is_nullable() {
+                        Precision::Absent
+                    } else {
+                        Precision::Exact(0)
+                    },
+                    ..Default::default()
+                })
+                .collect();
+            Statistics {
+                num_rows: Precision::Exact(self.total_rows),
+                total_byte_size: Default::default(),
+                column_statistics,
+            }
+        } else {
+            Statistics::new_unknown(&self.arrow_schema)
+        };
+        Ok(Arc::new(statistics))
+    }
+
+    fn name(&self) -> &str {
+        REGION_SCAN_EXEC_NAME
+    }
+
+    fn handle_child_pushdown_result(
+        &self,
+        _phase: FilterPushdownPhase,
+        child_pushdown_result: ChildPushdownResult,
+        _config: &datafusion::config::ConfigOptions,
+    ) -> DfResult<FilterPushdownPropagation<Arc<dyn ExecutionPlan>>> {
+        let parent_filters = child_pushdown_result
+            .parent_filters
+            .into_iter()
+            .map(|f| f.filter)
+            .collect::<Vec<_>>();
+
+        // `supported` holds the final per-parent `PushedDown` answers. Dynamic filters are accepted
+        // because this scan filters decoded rows; scanner support only determines statistics pruning.
+        let mut scanner_filters = Vec::with_capacity(parent_filters.len());
+        // Maps compact scanner callback positions back to their original parent-filter positions.
+        let mut scanner_filter_indices = Vec::with_capacity(parent_filters.len());
+        let mut supported = vec![false; parent_filters.len()];
+        {
+            let mut exact_filters = self.pushed_dyn_filters.lock().unwrap();
+            for (index, filter) in parent_filters.iter().enumerate() {
+                if filter.downcast_ref::<DynamicFilterPhysicalExpr>().is_some() {
+                    if exact_filters.iter().any(|existing| existing == filter) {
+                        supported[index] = true;
+                    } else {
+                        exact_filters.push(filter.clone());
+                        supported[index] = true;
+                        scanner_filter_indices.push(index);
+                        scanner_filters.push(filter.clone());
+                    }
+                } else {
+                    scanner_filter_indices.push(index);
+                    scanner_filters.push(filter.clone());
+                }
+            }
+        }
+
+        // Release the exact-filter lock before calling into the scanner.
+        let scanner_supported = self.add_dyn_filters_to_predicate(scanner_filters);
+        for (index, is_supported) in scanner_filter_indices.into_iter().zip(scanner_supported) {
+            if parent_filters[index]
+                .downcast_ref::<DynamicFilterPhysicalExpr>()
+                .is_none()
+            {
+                supported[index] = is_supported;
+            }
+        }
+
+        // DataFusion requires an updated node after installing the filters.
+        let new_self = Arc::new(self.clone());
+
+        Ok(FilterPushdownPropagation {
+            filters: supported
+                .into_iter()
+                .map(|s| if s { PushedDown::Yes } else { PushedDown::No })
+                .collect(),
+            updated_node: Some(new_self),
+        })
+    }
+}
+
+impl DisplayAs for RegionScanExec {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // The scanner contains all information needed to display the plan.
+        match self.scanner.try_lock() {
+            Ok(scanner) => scanner.fmt_as(t, f),
+            Err(_) => write!(f, "RegionScanExec <locked>"),
+        }
+    }
+}
+
+pub struct StreamWithMetricWrapper {
+    stream: SendableRecordBatchStream,
+    metric: StreamMetrics,
+    span: Span,
+    await_timer: Option<Instant>,
+    dyn_filter: Option<Arc<dyn PhysicalExpr>>,
+}
+
+impl Stream for StreamWithMetricWrapper {
+    type Item = DfResult<DfRecordBatch>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        let _enter = this.span.enter();
+        let poll_timer = this.metric.poll_timer();
+        this.await_timer.get_or_insert(Instant::now());
+        let poll_result = this.stream.poll_next_unpin(cx);
+        drop(poll_timer);
+        match poll_result {
+            Poll::Ready(Some(result)) => {
+                if let Some(instant) = this.await_timer.take() {
+                    let elapsed = instant.elapsed();
+                    this.metric.record_await_duration(elapsed);
+                }
+                match result {
+                    Ok(record_batch) => {
+                        let record_batch = if let Some(predicate) = &this.dyn_filter {
+                            let result = {
+                                let _timer = this.metric.dynamic_filter_timer();
+                                batch_filter(record_batch.df_record_batch(), predicate)
+                            };
+                            match result {
+                                Ok(batch) => RecordBatch::from_df_record_batch(
+                                    record_batch.schema.clone(),
+                                    batch,
+                                ),
+                                Err(error) => return Poll::Ready(Some(Err(error))),
+                            }
+                        } else {
+                            record_batch
+                        };
+                        this.metric
+                            .record_output_bytes(record_batch.logical_slice_memory_size());
+                        this.metric.record_output(record_batch.num_rows());
+                        Poll::Ready(Some(Ok(record_batch.into_df_record_batch())))
+                    }
+                    Err(e) => Poll::Ready(Some(Err(DataFusionError::External(Box::new(e))))),
+                }
+            }
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.stream.size_hint()
+    }
+}
+
+impl DfRecordBatchStream for StreamWithMetricWrapper {
+    fn schema(&self) -> ArrowSchemaRef {
+        self.stream.schema().arrow_schema().clone()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::any::Any;
+    use std::fmt;
+    use std::sync::{Arc, Mutex};
+
+    use api::v1::SemanticType;
+    use common_error::ext::BoxedError;
+    use common_recordbatch::{RecordBatch, RecordBatches, SendableRecordBatchStream};
+    use datafusion::logical_expr::Operator;
+    use datafusion::physical_expr::expressions::{
+        BinaryExpr, Column, DynamicFilterPhysicalExpr, lit,
+    };
+    use datafusion::physical_plan::execution_plan::reset_plan_states;
+    use datafusion::physical_plan::filter_pushdown::{
+        ChildFilterPushdownResult, ChildPushdownResult,
+    };
+    use datafusion::physical_plan::metrics::MetricValue;
+    use datafusion::physical_plan::{StatisticsArgs, StatisticsContext};
+    use datafusion::prelude::SessionContext;
+    use datatypes::arrow::array::Array;
+    use datatypes::data_type::ConcreteDataType;
+    use datatypes::schema::{ColumnSchema, Schema, SchemaRef};
+    use datatypes::vectors::{Int32Vector, TimestampMillisecondVector, VectorRef};
+    use futures::TryStreamExt;
+    use store_api::metadata::{ColumnMetadata, RegionMetadataBuilder};
+    use store_api::metric_engine_consts::DATA_SCHEMA_TABLE_ID_COLUMN_NAME;
+    use store_api::region_engine::{
+        PrepareRequest, QueryScanContext, RegionScanner, ScannerProperties, SinglePartitionScanner,
+    };
+    use store_api::storage::consts::ReservedColumnId;
+    use store_api::storage::{RegionId, TimeSeriesDistribution};
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct RepeatableScanner {
+        batches: RecordBatches,
+        properties: ScannerProperties,
+        metadata: store_api::metadata::RegionMetadataRef,
+        dynamic_filters: Arc<Mutex<Vec<Arc<DynamicFilterPhysicalExpr>>>>,
+        observed_pool: Arc<Mutex<Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>>>,
+    }
+
+    impl fmt::Display for RepeatableScanner {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "RepeatableScanner")
+        }
+    }
+
+    impl DisplayAs for RepeatableScanner {
+        fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{self}")
+        }
+    }
+
+    impl RegionScanner for RepeatableScanner {
+        fn name(&self) -> &str {
+            "RepeatableScanner"
+        }
+
+        fn properties(&self) -> &ScannerProperties {
+            &self.properties
+        }
+
+        fn schema(&self) -> SchemaRef {
+            self.batches.schema()
+        }
+
+        fn metadata(&self) -> store_api::metadata::RegionMetadataRef {
+            self.metadata.clone()
+        }
+
+        fn prepare(&mut self, request: PrepareRequest) -> Result<(), BoxedError> {
+            self.properties.prepare(request);
+            Ok(())
+        }
+
+        fn scan_partition(
+            &self,
+            ctx: &QueryScanContext,
+            _metrics_set: &ExecutionPlanMetricsSet,
+            _partition: usize,
+        ) -> Result<SendableRecordBatchStream, BoxedError> {
+            *self.observed_pool.lock().unwrap() = Some(ctx.memory_pool.clone());
+            Ok(self.batches.as_stream())
+        }
+
+        fn reset_state(&mut self) {
+            self.dynamic_filters.lock().unwrap().clear();
+        }
+
+        fn has_predicate_without_region(&self) -> bool {
+            false
+        }
+
+        fn add_dyn_filter_to_predicate(
+            &mut self,
+            filters: Vec<Arc<dyn PhysicalExpr>>,
+        ) -> Vec<bool> {
+            let mut dynamic_filters = self.dynamic_filters.lock().unwrap();
+            filters
+                .into_iter()
+                .map(|filter| {
+                    if let Ok(filter) = (filter as Arc<dyn Any + Send + Sync>)
+                        .downcast::<DynamicFilterPhysicalExpr>()
+                    {
+                        dynamic_filters.push(filter);
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .collect()
+        }
+
+        fn set_logical_region(&mut self, logical_region: bool) {
+            self.properties.set_logical_region(logical_region);
+        }
+
+        fn set_query_load_region_id(&mut self, region_id: RegionId) {
+            self.properties.set_query_load_region_id(region_id);
+        }
+    }
+
+    fn dynamic_filter_fixture(region_number: u32) -> (SchemaRef, RegionScanExec) {
+        dynamic_filter_fixture_with_nulls(region_number, false)
+    }
+
+    fn dynamic_filter_test_data(
+        region_number: u32,
+        nullable: bool,
+    ) -> (
+        SchemaRef,
+        RecordBatch,
+        store_api::metadata::RegionMetadataRef,
+    ) {
+        let schema = Arc::new(Schema::new(vec![
+            ColumnSchema::new("a", ConcreteDataType::int32_datatype(), nullable),
+            ColumnSchema::new(
+                "ts",
+                ConcreteDataType::timestamp_millisecond_datatype(),
+                false,
+            ),
+        ]));
+        let a: VectorRef = if nullable {
+            Arc::new(Int32Vector::from(vec![Some(1), None, Some(3), Some(4)]))
+        } else {
+            Arc::new(Int32Vector::from_slice([1, 2, 3, 4]))
+        };
+        let batch = RecordBatch::new(
+            schema.clone(),
+            vec![
+                a,
+                Arc::new(TimestampMillisecondVector::from_slice([1, 2, 3, 4])) as _,
+            ],
+        )
+        .unwrap();
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(1234, region_number));
+        builder
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new("a", ConcreteDataType::int32_datatype(), nullable),
+                semantic_type: SemanticType::Field,
+                column_id: 1,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "ts",
+                    ConcreteDataType::timestamp_millisecond_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Timestamp,
+                column_id: 2,
+            })
+            .primary_key(vec![]);
+        (schema, batch, Arc::new(builder.build().unwrap()))
+    }
+
+    fn dynamic_filter_fixture_with_nulls(
+        region_number: u32,
+        nullable: bool,
+    ) -> (SchemaRef, RegionScanExec) {
+        let (schema, batch, metadata) = dynamic_filter_test_data(region_number, nullable);
+        let recordbatches = RecordBatches::try_new(schema.clone(), vec![batch]).unwrap();
+        let scanner = Box::new(SinglePartitionScanner::new(
+            recordbatches.as_stream(),
+            false,
+            metadata,
+            None,
+        ));
+        (
+            schema,
+            RegionScanExec::new(scanner, ScanRequest::default(), None).unwrap(),
+        )
+    }
+
+    #[test]
+    fn test_per_series_partitioning_requires_all_primary_keys() {
+        let full_schema = Arc::new(Schema::new(vec![
+            ColumnSchema::new("marker", ConcreteDataType::int32_datatype(), false),
+            ColumnSchema::new("host", ConcreteDataType::string_datatype(), false),
+            ColumnSchema::new(
+                "ts",
+                ConcreteDataType::timestamp_millisecond_datatype(),
+                false,
+            ),
+        ]));
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(1234, 5683));
+        builder
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "marker",
+                    ConcreteDataType::int32_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Tag,
+                column_id: 1,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "host",
+                    ConcreteDataType::string_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Tag,
+                column_id: 2,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "ts",
+                    ConcreteDataType::timestamp_millisecond_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Timestamp,
+                column_id: 3,
+            })
+            .primary_key(vec![1, 2]);
+        let metadata = Arc::new(builder.build().unwrap());
+
+        for (schema, expected) in [
+            (
+                full_schema.clone(),
+                Partitioning::Hash(
+                    vec![
+                        Arc::new(
+                            Column::new_with_schema("marker", full_schema.arrow_schema()).unwrap(),
+                        ) as _,
+                        Arc::new(
+                            Column::new_with_schema("host", full_schema.arrow_schema()).unwrap(),
+                        ) as _,
+                    ],
+                    2,
+                ),
+            ),
+            (
+                Arc::new(Schema::new(vec![
+                    ColumnSchema::new("marker", ConcreteDataType::int32_datatype(), false),
+                    ColumnSchema::new(
+                        "ts",
+                        ConcreteDataType::timestamp_millisecond_datatype(),
+                        false,
+                    ),
+                ])),
+                Partitioning::UnknownPartitioning(2),
+            ),
+        ] {
+            let batches = RecordBatches::try_new(schema, vec![]).unwrap();
+            let scanner = Box::new(RepeatableScanner {
+                batches,
+                properties: ScannerProperties::new(vec![vec![], vec![]], false, 0),
+                metadata: metadata.clone(),
+                observed_pool: Default::default(),
+                dynamic_filters: Arc::new(Mutex::new(Vec::new())),
+            });
+            let request = ScanRequest {
+                distribution: Some(TimeSeriesDistribution::PerSeries),
+                ..Default::default()
+            };
+            let plan = RegionScanExec::new(scanner, request, None).unwrap();
+            let actual = plan.properties().output_partitioning();
+            match (&actual, &expected) {
+                (
+                    Partitioning::UnknownPartitioning(actual_count),
+                    Partitioning::UnknownPartitioning(expected_count),
+                ) => assert_eq!(actual_count, expected_count),
+                _ => assert_eq!(actual, &expected),
+            }
+        }
+    }
+
+    /// Returns whether the scan claims the given output ordering.
+    fn claims_ordering(plan: &RegionScanExec, names: &[&str]) -> bool {
+        plan.properties()
+            .equivalence_properties()
+            .ordering_satisfy(names.iter().map(|name| {
+                PhysicalSortExpr::new(
+                    Arc::new(Column::new_with_schema(name, &plan.arrow_schema).unwrap()),
+                    SortOptions {
+                        descending: false,
+                        nulls_first: true,
+                    },
+                )
+            }))
+            .unwrap()
+    }
+
+    /// Column schema used by the ordering fixtures below.
+    fn column_schema_of(name: &str) -> ColumnSchema {
+        let data_type = match name {
+            "ts" => ConcreteDataType::timestamp_millisecond_datatype(),
+            DATA_SCHEMA_TABLE_ID_COLUMN_NAME => ConcreteDataType::uint32_datatype(),
+            DATA_SCHEMA_TSID_COLUMN_NAME => ConcreteDataType::uint64_datatype(),
+            _ => ConcreteDataType::string_datatype(),
+        };
+        ColumnSchema::new(name, data_type, false)
+    }
+
+    /// The scan must describe its output ordering with the primary key order reported by
+    /// the metadata. Sorting the names (the removed logical-table workaround) would let a
+    /// projected column look like a row key prefix and claim an ordering the scanner does
+    /// not produce; the time index only extends a fully projected row key.
+    #[test]
+    fn test_per_series_ordering_follows_metadata_pk_order() {
+        // Deliberately not alphabetical: sorting these names would give `[a, b, z]`.
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(1234, 5690));
+        for (index, name) in ["z", "a", "b", "ts"].into_iter().enumerate() {
+            builder.push_column_metadata(ColumnMetadata {
+                column_schema: column_schema_of(name),
+                semantic_type: if name == "ts" {
+                    SemanticType::Timestamp
+                } else {
+                    SemanticType::Tag
+                },
+                column_id: index as u32 + 1,
+            });
+        }
+        builder.primary_key(vec![1, 2, 3]);
+        let metadata = Arc::new(builder.build().unwrap());
+
+        // The claims must not depend on the scanner reporting a logical region.
+        for logical_region in [false, true] {
+            for (projection, claimed, unclaimed) in [
+                // Missing the first key: neither the remaining keys nor the time index are
+                // ordered.
+                (
+                    vec!["a", "b", "ts"],
+                    vec![],
+                    vec![vec!["a"], vec!["b"], vec!["ts"], vec!["a", "b"]],
+                ),
+                // Missing a key in the middle: only the prefix before it is ordered.
+                (
+                    vec!["z", "b", "ts"],
+                    vec![vec!["z"]],
+                    vec![vec!["b"], vec!["z", "b"], vec!["z", "ts"]],
+                ),
+                // A valid but incomplete prefix: the time index is not ordered after it.
+                (
+                    vec!["z", "a", "ts"],
+                    vec![vec!["z"], vec!["z", "a"]],
+                    vec![vec!["a", "z"], vec!["z", "a", "ts"]],
+                ),
+                // The whole row key followed by the time index.
+                (
+                    vec!["z", "a", "b", "ts"],
+                    vec![vec!["z", "a", "b"], vec!["z", "a", "b", "ts"]],
+                    vec![vec!["a"], vec!["a", "b", "z"]],
+                ),
+            ] {
+                let schema = Arc::new(Schema::new(
+                    projection
+                        .iter()
+                        .map(|name| column_schema_of(name))
+                        .collect(),
+                ));
+                let mut properties = ScannerProperties::new(vec![vec![], vec![]], false, 0);
+                properties.set_logical_region(logical_region);
+                let scanner = Box::new(RepeatableScanner {
+                    batches: RecordBatches::try_new(schema, vec![]).unwrap(),
+                    properties,
+                    metadata: metadata.clone(),
+                    dynamic_filters: Arc::new(Mutex::new(Vec::new())),
+                    observed_pool: Default::default(),
+                });
+                let plan = RegionScanExec::new(
+                    scanner,
+                    ScanRequest {
+                        distribution: Some(TimeSeriesDistribution::PerSeries),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .unwrap();
+
+                for ordering in claimed {
+                    assert!(
+                        claims_ordering(&plan, &ordering),
+                        "logical_region={logical_region} projection {projection:?} must claim \
+                         ordering {ordering:?}"
+                    );
+                }
+                for ordering in unclaimed {
+                    assert!(
+                        !claims_ordering(&plan, &ordering),
+                        "logical_region={logical_region} projection {projection:?} must not \
+                         claim ordering {ordering:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Metric TSID properties require projecting `__tsid` and restricting the scan to one
+    /// `__table_id`; hiding the physical row-key prefix must not claim a visible tag or time as
+    /// order or hash partition columns.
+    #[test]
+    fn test_metric_projection_claims_only_projected_row_key_prefix() {
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(1234, 5691));
+        for (name, column_id) in [
+            (
+                DATA_SCHEMA_TABLE_ID_COLUMN_NAME,
+                ReservedColumnId::table_id(),
+            ),
+            (DATA_SCHEMA_TSID_COLUMN_NAME, ReservedColumnId::tsid()),
+            ("A", 1),
+            ("marker", 2),
+            ("ts", 3),
+        ] {
+            builder.push_column_metadata(ColumnMetadata {
+                column_schema: column_schema_of(name),
+                semantic_type: if name == "ts" {
+                    SemanticType::Timestamp
+                } else {
+                    SemanticType::Tag
+                },
+                column_id,
+            });
+        }
+        // The physical row key order: `__table_id`, `__tsid`, then the tag columns.
+        builder.primary_key(vec![
+            ReservedColumnId::table_id(),
+            ReservedColumnId::tsid(),
+            1,
+            2,
+        ]);
+        let metadata = Arc::new(builder.build().unwrap());
+
+        for (projection, partitioned_by_tsid, claimed, unclaimed) in [
+            // The logical projection drops the row key prefix, so `A` is not a prefix of the
+            // row key and neither `A` nor `ts` is ordered.
+            (
+                vec!["A", "marker", "ts"],
+                false,
+                vec![],
+                vec![vec!["A"], vec!["marker"], vec!["ts"], vec!["A", "ts"]],
+            ),
+            // Projecting internal `__tsid` plus the single-table filter preserves metric TSID properties.
+            (
+                vec![DATA_SCHEMA_TSID_COLUMN_NAME, "A", "marker", "ts"],
+                true,
+                vec![
+                    vec![DATA_SCHEMA_TSID_COLUMN_NAME],
+                    vec![DATA_SCHEMA_TSID_COLUMN_NAME, "ts"],
+                ],
+                vec![vec!["A"], vec!["ts"], vec!["A", "ts"]],
+            ),
+        ] {
+            let schema = Arc::new(Schema::new(
+                projection
+                    .iter()
+                    .map(|name| column_schema_of(name))
+                    .collect(),
+            ));
+            let mut properties = ScannerProperties::new(vec![vec![], vec![]], false, 0);
+            properties.set_logical_region(true);
+            let scanner = Box::new(RepeatableScanner {
+                batches: RecordBatches::try_new(schema, vec![]).unwrap(),
+                properties,
+                metadata: metadata.clone(),
+                dynamic_filters: Arc::new(Mutex::new(Vec::new())),
+                observed_pool: Default::default(),
+            });
+            let plan = RegionScanExec::new(
+                scanner,
+                ScanRequest {
+                    distribution: Some(TimeSeriesDistribution::PerSeries),
+                    filters: if partitioned_by_tsid {
+                        vec![
+                            datafusion_expr::col(DATA_SCHEMA_TABLE_ID_COLUMN_NAME)
+                                .eq(datafusion_expr::lit(42u32)),
+                        ]
+                    } else {
+                        vec![]
+                    },
+                    ..Default::default()
+                },
+                None,
+            )
+            .unwrap();
+
+            let expected_partitioning = if partitioned_by_tsid {
+                Partitioning::Hash(
+                    vec![Arc::new(
+                        Column::new_with_schema(DATA_SCHEMA_TSID_COLUMN_NAME, &plan.arrow_schema)
+                            .unwrap(),
+                    ) as _],
+                    2,
+                )
+            } else {
+                Partitioning::UnknownPartitioning(2)
+            };
+            match (&plan.properties.partitioning, &expected_partitioning) {
+                (
+                    Partitioning::UnknownPartitioning(actual_count),
+                    Partitioning::UnknownPartitioning(expected_count),
+                ) => assert_eq!(actual_count, expected_count, "projection {projection:?}"),
+                (actual, expected) => assert_eq!(actual, expected, "projection {projection:?}"),
+            }
+
+            for ordering in claimed {
+                assert!(
+                    claims_ordering(&plan, &ordering),
+                    "projection {projection:?} must claim ordering {ordering:?}"
+                );
+            }
+            for ordering in unclaimed {
+                assert!(
+                    !claims_ordering(&plan, &ordering),
+                    "projection {projection:?} must not claim ordering {ordering:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_execute_forwards_runtime_memory_pool() {
+        let (schema, batch, metadata) = dynamic_filter_test_data(5686, false);
+        let observed_pool = Arc::new(Mutex::new(None));
+        let scanner = RepeatableScanner {
+            batches: RecordBatches::try_new(schema, vec![batch]).unwrap(),
+            properties: ScannerProperties::default(),
+            metadata,
+            dynamic_filters: Default::default(),
+            observed_pool: observed_pool.clone(),
+        };
+        let plan =
+            Arc::new(RegionScanExec::new(Box::new(scanner), ScanRequest::default(), None).unwrap());
+        for _ in 0..2 {
+            let context = SessionContext::new().task_ctx();
+            let pool = context.memory_pool().clone();
+            drop(plan.execute(0, context).unwrap());
+            assert!(Arc::ptr_eq(
+                observed_pool.lock().unwrap().as_ref().unwrap(),
+                &pool
+            ));
+            plan.scanner.lock().unwrap().reset_state();
+        }
+    }
+
+    #[test]
+    fn test_count_statistics_require_exact_source_rows() {
+        for (append_mode, exact, expected) in [
+            (true, false, Precision::Absent),
+            (true, true, Precision::Exact(3)),
+            (false, true, Precision::Absent),
+        ] {
+            // Column `a` is nullable and `ts` is not.
+            let (schema, batch, metadata) = dynamic_filter_test_data(5685, true);
+            let scanner = Box::new(RepeatableScanner {
+                batches: RecordBatches::try_new(schema, vec![batch]).unwrap(),
+                properties: ScannerProperties::default()
+                    .with_append_mode(append_mode)
+                    .with_total_rows(3)
+                    .with_total_rows_is_exact(exact),
+                metadata,
+                dynamic_filters: Arc::new(Mutex::new(Vec::new())),
+                observed_pool: Default::default(),
+            });
+            let plan = RegionScanExec::new(scanner, ScanRequest::default(), None).unwrap();
+            let stats = StatisticsContext::new()
+                .compute(&plan, &StatisticsArgs::new())
+                .unwrap();
+            assert_eq!(stats.num_rows, expected);
+            if expected != Precision::Absent {
+                let [a, ts] = stats.column_statistics.as_slice() else {
+                    panic!("unexpected column statistics: {stats:?}");
+                };
+                assert_eq!(a.null_count, Precision::Absent);
+                assert_eq!(ts.null_count, Precision::Exact(0));
+                assert_eq!(a.distinct_count, Precision::Absent);
+                assert_eq!(ts.distinct_count, Precision::Absent);
+            }
+            assert_eq!(
+                StatisticsContext::new()
+                    .compute(&plan, &StatisticsArgs::new().with_partition(Some(0)))
+                    .unwrap()
+                    .num_rows,
+                Precision::Absent,
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_reset_state_clears_dynamic_filters_for_repeatable_scanner() {
+        let ctx = SessionContext::new();
+        let (schema, batch, metadata) = dynamic_filter_test_data(5684, false);
+        let scanner_dynamic_filters = Arc::new(Mutex::new(Vec::new()));
+        let scanner = RepeatableScanner {
+            batches: RecordBatches::try_new(schema.clone(), vec![batch.clone()]).unwrap(),
+            properties: ScannerProperties::default(),
+            metadata,
+            dynamic_filters: scanner_dynamic_filters.clone(),
+            observed_pool: Default::default(),
+        };
+        let plan =
+            Arc::new(RegionScanExec::new(Box::new(scanner), ScanRequest::default(), None).unwrap());
+        let dynamic_filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        plan.handle_child_pushdown_result(
+            FilterPushdownPhase::Post,
+            ChildPushdownResult {
+                parent_filters: vec![ChildFilterPushdownResult {
+                    filter: dynamic_filter.clone(),
+                    child_results: vec![PushedDown::No],
+                }],
+                self_filters: vec![],
+            },
+            &datafusion::config::ConfigOptions::default(),
+        )
+        .unwrap();
+        dynamic_filter
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Gt,
+                lit(2_i32),
+            )))
+            .unwrap();
+
+        assert_eq!(
+            plan.execute(0, ctx.task_ctx())
+                .unwrap()
+                .try_collect::<Vec<_>>()
+                .await
+                .unwrap()[0]
+                .num_rows(),
+            2
+        );
+        assert_eq!(
+            batch_filter(
+                batch.df_record_batch(),
+                &(scanner_dynamic_filters.lock().unwrap()[0].clone() as Arc<dyn PhysicalExpr>)
+            )
+            .unwrap()
+            .num_rows(),
+            2
+        );
+
+        let reset_plan = reset_plan_states(plan).unwrap();
+        assert!(scanner_dynamic_filters.lock().unwrap().is_empty());
+        assert_eq!(
+            batch_filter(
+                batch.df_record_batch(),
+                &(dynamic_filter.clone() as Arc<dyn PhysicalExpr>),
+            )
+            .unwrap()
+            .num_rows(),
+            2
+        );
+        dynamic_filter.update(lit(false)).unwrap();
+        assert_eq!(
+            reset_plan
+                .execute(0, ctx.task_ctx())
+                .unwrap()
+                .try_collect::<Vec<_>>()
+                .await
+                .unwrap()[0]
+                .num_rows(),
+            4
+        );
+
+        let fresh_filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        reset_plan
+            .handle_child_pushdown_result(
+                FilterPushdownPhase::Post,
+                ChildPushdownResult {
+                    parent_filters: vec![ChildFilterPushdownResult {
+                        filter: fresh_filter.clone(),
+                        child_results: vec![PushedDown::No],
+                    }],
+                    self_filters: vec![],
+                },
+                &datafusion::config::ConfigOptions::default(),
+            )
+            .unwrap();
+        let stream = reset_plan.execute(0, ctx.task_ctx()).unwrap();
+        fresh_filter
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Gt,
+                lit(3_i32),
+            )))
+            .unwrap();
+        assert_eq!(
+            stream.try_collect::<Vec<_>>().await.unwrap()[0].num_rows(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_apply_expressions_visits_pushed_dynamic_filters() {
+        let (_, plan) = dynamic_filter_fixture(5685);
+        let dynamic_filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        let propagation = plan
+            .handle_child_pushdown_result(
+                FilterPushdownPhase::Post,
+                ChildPushdownResult {
+                    parent_filters: vec![ChildFilterPushdownResult {
+                        filter: dynamic_filter.clone(),
+                        child_results: vec![PushedDown::No],
+                    }],
+                    self_filters: vec![],
+                },
+                &datafusion::config::ConfigOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(propagation.filters.as_slice(), [PushedDown::Yes]));
+
+        let mut visited = 0;
+        assert_eq!(
+            plan.apply_expressions(&mut |expr| {
+                visited += 1;
+                assert!(plan.pushed_dyn_filters.try_lock().is_ok());
+                assert_eq!(expr.expression_id(), dynamic_filter.expression_id());
+                assert_eq!(
+                    expr.downcast_ref::<DynamicFilterPhysicalExpr>().unwrap(),
+                    dynamic_filter.as_ref()
+                );
+                Ok(TreeNodeRecursion::Continue)
+            })
+            .unwrap(),
+            TreeNodeRecursion::Continue
+        );
+        assert_eq!(visited, 1);
+
+        assert_eq!(
+            plan.apply_expressions(&mut |_| Ok(TreeNodeRecursion::Stop))
+                .unwrap(),
+            TreeNodeRecursion::Stop
+        );
+    }
+
+    #[tokio::test]
+    async fn test_live_dynamic_filter_is_applied_after_stream_creation() {
+        let ctx = SessionContext::new();
+        let (schema, plan) = dynamic_filter_fixture(5679);
+        let filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        let static_filter = Arc::new(BinaryExpr::new(
+            Arc::new(Column::new("a", 0)),
+            Operator::Gt,
+            lit(0_i32),
+        ));
+        let propagation = plan
+            .handle_child_pushdown_result(
+                FilterPushdownPhase::Post,
+                ChildPushdownResult {
+                    parent_filters: vec![
+                        ChildFilterPushdownResult {
+                            filter: filter.clone(),
+                            child_results: vec![PushedDown::No],
+                        },
+                        ChildFilterPushdownResult {
+                            filter: static_filter,
+                            child_results: vec![PushedDown::No],
+                        },
+                    ],
+                    self_filters: vec![],
+                },
+                &datafusion::config::ConfigOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(
+            propagation.filters.as_slice(),
+            [PushedDown::Yes, PushedDown::No]
+        ));
+        assert!(
+            propagation
+                .updated_node
+                .as_ref()
+                .unwrap()
+                .downcast_ref::<RegionScanExec>()
+                .is_some()
+        );
+        assert_eq!(plan.pushed_dyn_filters.lock().unwrap().len(), 1);
+        let repeated = plan
+            .handle_child_pushdown_result(
+                FilterPushdownPhase::Post,
+                ChildPushdownResult {
+                    parent_filters: vec![ChildFilterPushdownResult {
+                        filter: filter.clone(),
+                        child_results: vec![PushedDown::No],
+                    }],
+                    self_filters: vec![],
+                },
+                &datafusion::config::ConfigOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(repeated.filters.as_slice(), [PushedDown::Yes]));
+        assert_eq!(plan.pushed_dyn_filters.lock().unwrap().len(), 1);
+        let stream = plan.execute(0, ctx.task_ctx()).unwrap();
+        filter
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Gt,
+                lit(2_i32),
+            )))
+            .unwrap();
+        let batches = stream.try_collect::<Vec<_>>().await.unwrap();
+        let values = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::Int32Array>()
+            .unwrap();
+        assert_eq!(values.values(), &[3, 4]);
+        let metrics = plan.metrics().unwrap();
+        assert_eq!(metrics.output_rows(), Some(2));
+        let filter_cost = metrics.iter().find_map(|metric| match metric.value() {
+            MetricValue::Time { name, time } if name == "dynamic_filter_cost" => Some(time.value()),
+            _ => None,
+        });
+        assert!(filter_cost.is_some_and(|cost| cost > 0));
+        let output_bytes = metrics.iter().find_map(|metric| match metric.value() {
+            MetricValue::OutputBytes(count) => Some(count.value()),
+            _ => None,
+        });
+        assert_eq!(
+            output_bytes,
+            Some(
+                RecordBatch::from_df_record_batch(schema, batches[0].clone())
+                    .logical_slice_memory_size(),
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dynamic_filter_keeps_null_rows() {
+        let ctx = SessionContext::new();
+        let (_, plan) = dynamic_filter_fixture_with_nulls(5681, true);
+        let filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        plan.handle_child_pushdown_result(
+            FilterPushdownPhase::Post,
+            ChildPushdownResult {
+                parent_filters: vec![ChildFilterPushdownResult {
+                    filter: filter.clone(),
+                    child_results: vec![PushedDown::No],
+                }],
+                self_filters: vec![],
+            },
+            &datafusion::config::ConfigOptions::default(),
+        )
+        .unwrap();
+        filter
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Gt,
+                lit(2_i32),
+            )))
+            .unwrap();
+
+        let batches = plan
+            .execute(0, ctx.task_ctx())
+            .unwrap()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(batches.len(), 1);
+        let values = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::Int32Array>()
+            .unwrap();
+        assert_eq!(values.len(), 3);
+        assert!(values.is_null(0));
+        assert_eq!(values.value(1), 3);
+        assert_eq!(values.value(2), 4);
+    }
+
+    #[tokio::test]
+    async fn test_multi_child_dynamic_filter_guards_each_child() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![
+            ColumnSchema::new("a", ConcreteDataType::int32_datatype(), true),
+            ColumnSchema::new("b", ConcreteDataType::int32_datatype(), true),
+            ColumnSchema::new(
+                "ts",
+                ConcreteDataType::timestamp_millisecond_datatype(),
+                false,
+            ),
+        ]));
+        let batch = RecordBatch::new(
+            schema.clone(),
+            vec![
+                Arc::new(Int32Vector::from(vec![Some(1), None, Some(3)])) as _,
+                Arc::new(Int32Vector::from(vec![Some(10), Some(20), None])) as _,
+                Arc::new(TimestampMillisecondVector::from_slice([1, 2, 3])) as _,
+            ],
+        )
+        .unwrap();
+        let recordbatches = RecordBatches::try_new(schema.clone(), vec![batch]).unwrap();
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(1234, 5683));
+        builder
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new("a", ConcreteDataType::int32_datatype(), true),
+                semantic_type: SemanticType::Field,
+                column_id: 1,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new("b", ConcreteDataType::int32_datatype(), true),
+                semantic_type: SemanticType::Field,
+                column_id: 2,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "ts",
+                    ConcreteDataType::timestamp_millisecond_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Timestamp,
+                column_id: 3,
+            })
+            .primary_key(vec![]);
+        let metadata = Arc::new(builder.build().unwrap());
+        let scanner = Box::new(SinglePartitionScanner::new(
+            recordbatches.as_stream(),
+            false,
+            metadata,
+            None,
+        ));
+        let plan = RegionScanExec::new(scanner, ScanRequest::default(), None).unwrap();
+        let filter = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![
+                Arc::new(Column::new("a", 0)),
+                Arc::new(BinaryExpr::new(
+                    Arc::new(Column::new("b", 1)),
+                    Operator::Plus,
+                    lit(1_i32),
+                )),
+            ],
+            lit(true),
+        ));
+        plan.handle_child_pushdown_result(
+            FilterPushdownPhase::Post,
+            ChildPushdownResult {
+                parent_filters: vec![ChildFilterPushdownResult {
+                    filter: filter.clone(),
+                    child_results: vec![PushedDown::No],
+                }],
+                self_filters: vec![],
+            },
+            &datafusion::config::ConfigOptions::default(),
+        )
+        .unwrap();
+        filter
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Eq,
+                lit(datafusion_common::ScalarValue::Int32(None)),
+            )))
+            .unwrap();
+
+        let batches = plan
+            .execute(0, ctx.task_ctx())
+            .unwrap()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(batches.len(), 1);
+        let values = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<datatypes::arrow::array::Int32Array>()
+            .unwrap();
+        assert_eq!(values.len(), 2);
+        assert!(values.is_null(0));
+        assert_eq!(values.value(1), 3);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_dynamic_filters_are_conjoined() {
+        let ctx = SessionContext::new();
+        let (_, plan) = dynamic_filter_fixture(5680);
+        let lower = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        let upper = Arc::new(DynamicFilterPhysicalExpr::new(
+            vec![Arc::new(Column::new("a", 0))],
+            lit(true),
+        ));
+        let propagation = plan
+            .handle_child_pushdown_result(
+                FilterPushdownPhase::Post,
+                ChildPushdownResult {
+                    parent_filters: vec![
+                        ChildFilterPushdownResult {
+                            filter: lower.clone(),
+                            child_results: vec![PushedDown::No],
+                        },
+                        ChildFilterPushdownResult {
+                            filter: upper.clone(),
+                            child_results: vec![PushedDown::No],
+                        },
+                    ],
+                    self_filters: vec![],
+                },
+                &datafusion::config::ConfigOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(
+            propagation.filters.as_slice(),
+            [PushedDown::Yes, PushedDown::Yes]
+        ));
+        let stream = plan.execute(0, ctx.task_ctx()).unwrap();
+        lower
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Gt,
+                lit(2_i32),
+            )))
+            .unwrap();
+        upper
+            .update(Arc::new(BinaryExpr::new(
+                Arc::new(Column::new("a", 0)),
+                Operator::Lt,
+                lit(3_i32),
+            )))
+            .unwrap();
+        let batches = stream.try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].num_rows(), 0);
+        assert_eq!(plan.pushed_dyn_filters.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_simple_table_scan() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![
+            ColumnSchema::new("a", ConcreteDataType::int32_datatype(), false),
+            ColumnSchema::new(
+                "b",
+                ConcreteDataType::timestamp_millisecond_datatype(),
+                false,
+            ),
+        ]));
+
+        let batch1 = RecordBatch::new(
+            schema.clone(),
+            vec![
+                Arc::new(Int32Vector::from_slice([1, 2])) as _,
+                Arc::new(TimestampMillisecondVector::from_slice([1000, 2000])) as _,
+            ],
+        )
+        .unwrap();
+        let batch2 = RecordBatch::new(
+            schema.clone(),
+            vec![
+                Arc::new(Int32Vector::from_slice([3, 4, 5])) as _,
+                Arc::new(TimestampMillisecondVector::from_slice([3000, 4000, 5000])) as _,
+            ],
+        )
+        .unwrap();
+
+        let recordbatches =
+            RecordBatches::try_new(schema.clone(), vec![batch1.clone(), batch2.clone()]).unwrap();
+        let stream = recordbatches.as_stream();
+
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(1234, 5678));
+        builder
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new("a", ConcreteDataType::int32_datatype(), false),
+                semantic_type: SemanticType::Tag,
+                column_id: 1,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "b",
+                    ConcreteDataType::timestamp_millisecond_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Timestamp,
+                column_id: 2,
+            })
+            .primary_key(vec![1]);
+        let region_metadata = Arc::new(builder.build().unwrap());
+
+        let scanner = Box::new(SinglePartitionScanner::new(
+            stream,
+            false,
+            region_metadata,
+            None,
+        ));
+        let plan = RegionScanExec::new(scanner, ScanRequest::default(), None).unwrap();
+        let actual: SchemaRef = Arc::new(
+            plan.properties
+                .eq_properties
+                .schema()
+                .clone()
+                .try_into()
+                .unwrap(),
+        );
+        assert_eq!(actual, schema);
+
+        let stream = plan.execute(0, ctx.task_ctx()).unwrap();
+        let recordbatches = stream.try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(batch1.df_record_batch(), &recordbatches[0]);
+        assert_eq!(batch2.df_record_batch(), &recordbatches[1]);
+
+        let result = plan.execute(0, ctx.task_ctx());
+        assert!(result.is_ok());
+    }
+}

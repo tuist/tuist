@@ -1,16 +1,9 @@
-{{- if ne .Release.Namespace "observability" }}
-{{- fail "pilot must be in observability" }}
-{{- end }}
-{{- if not (has .Values.environment (list "staging" "canary" "production")) }}
-{{- fail "GreptimeDB requires an explicit managed environment" }}
-{{- end }}
-{{- if or (ne .Values.storage.bucket (printf "tuist-pulso-%s" .Values.environment)) (ne .Values.storage.prefix "greptimedb/") }}
-{{- fail "GreptimeDB must use the selected environment's isolated greptimedb/ prefix" }}
-{{- end }}
+{{- include "greptimedb.validate" . }}
+{{- if eq .Values.topology "standalone" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: greptimedb-config
+  name: pulse-config
 data:
   config.toml: |
     mode = "standalone"
@@ -46,14 +39,14 @@ data:
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: greptimedb-credentials
+  name: pulse-credentials
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: onepassword
     kind: ClusterSecretStore
   target:
-    name: greptimedb-credentials
+    name: pulse-credentials
     creationPolicy: Owner
     template:
       engineVersion: v2
@@ -71,11 +64,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: greptimedb
+  name: pulse
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/instance: greptimedb
+    app.kubernetes.io/instance: pulse
   ports:
     - name: http
       port: 4000
@@ -84,20 +77,20 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: greptimedb
+  name: pulse
 spec:
-  serviceName: greptimedb
+  serviceName: pulse
   replicas: 1
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain
   selector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: greptimedb
+        app.kubernetes.io/instance: pulse
       annotations:
         checksum/config: {{ toJson .Values | sha256sum }}
     spec:
@@ -106,48 +99,22 @@ spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: general
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        seccompProfile:
-          type: RuntimeDefault
-      {{- if .Values.dashboard.enabled }}
-      initContainers:
-        - name: combine-auth
-          image: busybox:1.37.0
-          command: [sh, -ec]
-          args:
-            - 'umask 077; cat /inputs/pilot /inputs/dashboard > /auth/passwd'
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
-          resources:
-            requests: {cpu: 10m, memory: 16Mi}
-            limits: {memory: 32Mi}
-          volumeMounts:
-            - {name: auth-inputs, mountPath: /inputs, readOnly: true}
-            - {name: auth, mountPath: /auth}
-      {{- end }}
+        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+      {{- include "greptimedb.authInit" . | nindent 6 }}
       containers:
-        - name: greptimedb
+        - name: pulse
           image: {{ .Values.image | quote }}
           args: [standalone, start, --config-file, /etc/greptimedb/config/config.toml]
           ports:
             - name: http
               containerPort: 4000
           securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
+            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           envFrom:
             - secretRef:
-                name: greptimedb-credentials
+                name: pulse-credentials
           startupProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
@@ -162,23 +129,8 @@ spec:
             - {name: auth, mountPath: /etc/greptimedb/auth, readOnly: true}
       volumes:
         - name: config
-          configMap: {name: greptimedb-config}
-        - name: auth
-          {{- if .Values.dashboard.enabled }}
-          emptyDir: {medium: Memory, sizeLimit: 1Mi}
-        - name: auth-inputs
-          projected:
-            defaultMode: 0440
-            sources:
-              - secret:
-                  name: greptimedb-auth
-                  items: [{key: passwd, path: pilot}]
-              - secret:
-                  name: greptimedb-dashboard-auth
-                  items: [{key: passwd, path: dashboard}]
-          {{- else }}
-          secret: {secretName: greptimedb-auth, defaultMode: 0440}
-          {{- end }}
+          configMap: {name: pulse-config}
+        {{- include "greptimedb.authVolumes" . | nindent 8 }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
   volumeClaimTemplates:
@@ -194,36 +146,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: greptimedb-private
+  name: pulse-private
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/instance: greptimedb
+      app.kubernetes.io/instance: pulse
   policyTypes: [Ingress]
   ingress:
-    - from:
-        - podSelector: {}
-      ports:
-        - {port: 4000, protocol: TCP}
-    {{- if .Values.dashboard.enabled }}
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/component: server
-      ports:
-        - {port: 4000, protocol: TCP}
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: tuist
-              app.kubernetes.io/instance: tuist
-              app.kubernetes.io/component: pdc-agent
-      ports:
-        - {port: 4000, protocol: TCP}
-    {{- end }}
+    {{- include "greptimedb.apiIngress" . | nindent 4 }}
+{{- end }}

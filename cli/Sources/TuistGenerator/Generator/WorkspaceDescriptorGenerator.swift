@@ -102,7 +102,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor {
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 
-        Logger.current.notice("Generating workspace \(workspaceName)", metadata: .section)
+        Logger.current.info("Generating workspace \(workspaceName)", metadata: .section)
 
         // Projects
         let projectCount = graphTraverser.projects.values.count

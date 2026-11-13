@@ -11,6 +11,7 @@ defmodule Tuist.AppBuilds do
 
   @preview_install_salt "preview_install"
   @preview_install_token_ttl_seconds 24 * 60 * 60
+  @latest_preview_dimensions [:bundle_identifier, :supported_platforms, :artifact_types]
 
   def create_preview(attrs) do
     %Preview{}
@@ -185,6 +186,11 @@ defmodule Tuist.AppBuilds do
     Repo.exists?(from(p in Preview, where: p.project_id == ^project_id))
   end
 
+  def project_ids_with_previews(projects) do
+    ids = Enum.map(projects, & &1.id)
+    Repo.all(from(p in Preview, where: p.project_id in ^ids, select: p.project_id, distinct: true))
+  end
+
   def list_preview_tracks(%Project{id: project_id}) do
     tracks =
       Repo.all(
@@ -208,12 +214,26 @@ defmodule Tuist.AppBuilds do
     |> preload(^preload)
     |> query_with_search_when_needed(opts)
     |> query_with_supported_platforms_when_needed(opts)
-    |> query_with_distinct_bundle_identifier_when_needed(attrs, opts)
+    |> query_hiding_unfinished_uploads_when_needed(opts)
+    |> query_with_distinct_when_needed(attrs, opts)
     |> Flop.validate_and_run!(attrs, for: Preview)
   end
 
   @doc """
-  Gets the latest previews with distinct bundle identifiers for a given project.
+  Gets the latest preview of each app variant for a given project.
+
+  A variant is the bundle identifier plus the dimensions in
+  `@latest_preview_dimensions`: the set of platforms and the set of artifact
+  types the preview's builds contain. Both are compared as sorted sets, so the
+  order builds were uploaded in does not matter. Grouping by bundle identifier
+  alone would hide, for example, Once's per-platform previews of the same app.
+
+  A preview without platforms is either an upload that never finished or a
+  preview created before platforms were recorded. It is left out only when the
+  same app has a preview with platforms on the same branch, so apps that only
+  have older previews keep their card. The dimensions are derived from stored columns
+  and app builds, so previews written by any client or server version group
+  the same way, and adding a dimension needs no migration.
   """
   def latest_previews_with_distinct_bundle_ids(%Project{} = project) do
     filters = [
@@ -235,7 +255,8 @@ defmodule Tuist.AppBuilds do
           order_by: [:inserted_at],
           order_directions: [:desc]
         },
-        distinct: [:bundle_identifier],
+        distinct: @latest_preview_dimensions,
+        hide_unfinished_uploads: true,
         preload: [:app_builds, project: :account]
       )
 
@@ -257,36 +278,76 @@ defmodule Tuist.AppBuilds do
     end)
   end
 
-  defp query_with_distinct_bundle_identifier_when_needed(query, attrs, opts) do
-    distinct_bundle_identifier =
-      opts
-      |> Keyword.get(:distinct, [])
-      |> Enum.member?(:bundle_identifier)
-
-    order_by =
-      attrs |> Map.get(:order_by, [:inserted_at]) |> hd()
-
-    order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
-
-    filters =
-      attrs
-      |> Map.get(:filters, [])
-      |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
-
-    if distinct_bundle_identifier do
-      preview_ids =
+  defp query_with_distinct_when_needed(query, attrs, opts) do
+    case Keyword.get(opts, :distinct, []) do
+      [] ->
         query
-        |> exclude(:preload)
-        |> Flop.query(%Flop{filters: filters}, for: Preview)
-        |> order_by({^order_direction, ^order_by})
-        |> distinct([p], p.bundle_identifier)
-        |> select([p], p.id)
 
-      where(query, [p], p.id in subquery(preview_ids))
+      distinct_fields ->
+        order_by = attrs |> Map.get(:order_by, [:inserted_at]) |> hd()
+        order_direction = attrs |> Map.get(:order_directions, [:desc]) |> hd()
+
+        filters =
+          attrs
+          |> Map.get(:filters, [])
+          |> Enum.map(&%Flop.Filter{field: &1.field, op: &1.op, value: &1.value})
+
+        preview_ids =
+          query
+          |> exclude(:preload)
+          |> Flop.query(%Flop{filters: filters}, for: Preview)
+          |> order_by({^order_direction, ^order_by})
+          |> distinct(^Enum.map(distinct_fields, &distinct_expression/1))
+          |> select([p], p.id)
+
+        where(query, [p], p.id in subquery(preview_ids))
+    end
+  end
+
+  defp query_hiding_unfinished_uploads_when_needed(query, opts) do
+    if Keyword.get(opts, :hide_unfinished_uploads, false) do
+      where(
+        query,
+        [p],
+        fragment(
+          """
+          cardinality(?) > 0 OR NOT EXISTS (
+            SELECT 1 FROM previews AS other
+            WHERE other.project_id = ?
+              AND other.bundle_identifier IS NOT DISTINCT FROM ?
+              AND other.git_branch IS NOT DISTINCT FROM ?
+              AND cardinality(other.supported_platforms) > 0
+          )
+          """,
+          p.supported_platforms,
+          p.project_id,
+          p.bundle_identifier,
+          p.git_branch
+        )
+      )
     else
       query
     end
   end
+
+  defp distinct_expression(:supported_platforms) do
+    dynamic(
+      [p],
+      fragment("ARRAY(SELECT DISTINCT platform FROM unnest(?) AS platform ORDER BY 1)", p.supported_platforms)
+    )
+  end
+
+  defp distinct_expression(:artifact_types) do
+    dynamic(
+      [p],
+      fragment(
+        "ARRAY(SELECT DISTINCT app_build.type FROM app_builds AS app_build WHERE app_build.preview_id = ? ORDER BY 1)",
+        p.id
+      )
+    )
+  end
+
+  defp distinct_expression(field), do: dynamic([p], field(p, ^field))
 
   defp query_with_supported_platforms_when_needed(query, opts) do
     supported_platforms = Keyword.get(opts, :supported_platforms, nil)

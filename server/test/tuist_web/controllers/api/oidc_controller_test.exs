@@ -7,6 +7,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
   alias Tuist.OIDC
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.SandboxesFixtures
 
   describe "POST /api/auth/oidc/token" do
     test "returns access token with cache write access when OIDC token is valid and project has VCS connection", %{
@@ -250,6 +251,72 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
   end
 
+  describe "POST /api/auth/oidc/token with a Claude Code session token" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      stub(Tuist.FeatureFlags, :sandboxes_enabled?, fn _account -> true end)
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      SandboxesFixtures.agent_environment_fixture(
+        account: account,
+        kind: :claude_code,
+        anthropic_environment_id: "ccpool_01connected"
+      )
+
+      %{account: account}
+    end
+
+    test "grants a session of a connected environment CI access to its account, for no longer than the session token",
+         %{conn: conn, account: account} do
+      expires_at = DateTime.utc_now() |> DateTime.add(600) |> DateTime.to_unix()
+
+      response = conn |> exchange_session_token(%{"exp" => expires_at}) |> json_response(:ok)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["sub"] == to_string(account.id)
+      assert claims["scopes"] == ["ci"]
+      assert claims["all_projects"] == true
+      assert response["expires_in"] in 590..600
+      assert claims["exp"] <= expires_at
+    end
+
+    test "refuses other tokens of self-hosted environments, which share the signing keys", %{conn: conn} do
+      conn = exchange_session_token(conn, %{"ccr:role" => "runner"})
+
+      assert json_response(conn, :unauthorized)
+    end
+
+    test "refuses a token whose audience is not its environment", %{conn: conn} do
+      conn = exchange_session_token(conn, %{"aud" => ["anthropic-api", "ccpool_01other"]})
+
+      assert json_response(conn, :unauthorized)
+    end
+
+    test "refuses sessions of an environment no account connected or that was disabled", %{
+      conn: conn,
+      account: account
+    } do
+      unknown =
+        exchange_session_token(conn, %{
+          "ccr:pool_id" => "ccpool_01unknown",
+          "aud" => ["anthropic-api", "ccpool_01unknown"]
+        })
+
+      assert json_response(unknown, :forbidden)["message"] =~ "Claude Code environment is not connected"
+
+      [environment] = Tuist.Sandboxes.list_agent_environments(account)
+      environment |> Ecto.Changeset.change(enabled: false) |> Tuist.Repo.update!()
+
+      assert build_conn() |> exchange_session_token() |> json_response(:forbidden)
+    end
+
+    test "accepts a session token only with Anthropic's self-hosted prefix", %{conn: conn} do
+      conn = exchange_session_token(conn, %{}, "")
+
+      refute conn.status == 200
+    end
+  end
+
   defp ghes_installation_fixture(account) do
     {:ok, _installation} =
       Tuist.VCS.create_github_app_installation(%{
@@ -257,6 +324,38 @@ defmodule TuistWeb.API.OIDCControllerTest do
         installation_id: "#{account.id}54321",
         client_url: "https://ghes.example.test"
       })
+  end
+
+  defp exchange_session_token(conn, claims \\ %{}, prefix \\ "sk-ant-cc-") do
+    jwk = JOSE.JWK.generate_key({:ec, "P-256"})
+    {_, public_jwk} = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    jwks = %{"keys" => [Map.merge(public_jwk, %{"use" => "sig", "alg" => "ES256", "kid" => "ccr-key"})]}
+
+    claims =
+      Map.merge(
+        %{
+          "iss" => "ccr",
+          "sub" => "ccr:session:cse_01abc",
+          "aud" => ["anthropic-api", "ccpool_01connected"],
+          "exp" => DateTime.utc_now() |> DateTime.add(4 * 3600) |> DateTime.to_unix(),
+          "iat" => DateTime.to_unix(DateTime.utc_now()),
+          "ccr:role" => "session_worker",
+          "ccr:pool_id" => "ccpool_01connected",
+          "ccr:session_id" => "cse_01abc"
+        },
+        claims
+      )
+
+    {_, token} =
+      jwk |> JOSE.JWT.sign(%{"alg" => "ES256", "kid" => "ccr-key"}, JOSE.JWT.from_map(claims)) |> JOSE.JWS.compact()
+
+    stub(Req, :get, fn "https://api.anthropic.com/v1/code/.well-known/jwks.json", _opts ->
+      {:ok, %{status: 200, body: jwks}}
+    end)
+
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(~p"/api/auth/oidc/token", %{token: prefix <> token})
   end
 
   defp exchange(conn, repository) do

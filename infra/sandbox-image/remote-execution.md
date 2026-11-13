@@ -268,8 +268,11 @@ therefore always have capacity CI cannot take back, in one of two modes:
 - **Dedicated hosts** excluded from every CI RunnerPool, with the
   `tuist.dev/workload=remote-execution` label and matching `NoSchedule` taint.
   Each worker has a fixed CPU/memory reservation of `perNodeConcurrency` slots.
-- **Shared runner hosts** (`workers.sharedHosts`), named Linux runner hosts that
-  also run CI and the agent sandbox daemon. Each worker holds an elastic memory
+- **Shared runner hosts** (`workers.sharedHosts`), Linux runner hosts that also
+  run CI and the agent sandbox daemon, chosen by `nodeSelector` (production
+  selects the whole `runners-linux` pool, so a reinstalled or added host gets a
+  worker without a values change). Size the fleet's total, hosts times
+  `ceilingSlots`, against the memory CI leaves free at its peak. Each worker holds an elastic memory
   carve-out like the agent daemon's, bounded by a floor and a ceiling:
   - The Pod starts at `floorSlots` (request equals limit). Runner Pods never get
     that memory, and execution placement uses it, and anything the Pod has
@@ -322,8 +325,8 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
 ## Build and rollout
 
 1. Run the PostgreSQL migration and deploy the server with the flag off.
-2. Choose hosts as described above: provision dedicated hosts, or name shared
-   runner hosts in `workers.sharedHosts`. Confirm the environment's
+2. Choose hosts as described above: provision dedicated hosts, or select shared
+   runner hosts with `workers.sharedHosts.nodeSelector`. Confirm the environment's
    `values-managed-<env>.yaml` in the [chart](../helm/remote-execution/) names
    the right server namespace and gateway host. `enabled` in that file is the
    switch: the deployment workflow neither builds nor installs a release it

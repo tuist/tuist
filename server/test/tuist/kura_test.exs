@@ -540,13 +540,13 @@ defmodule Tuist.KuraTest do
     end
 
     test "pins runner creation and cold return before rendering an account-sized claim", %{account: account} do
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
       assert :ok = PlacerClaims.put(account, "24Gi")
 
       assert {:ok, server} =
                Kura.create_server(%{
                  account_id: account.id,
-                 region: "scw-fr-par-runners",
+                 region: "ber1-runners",
                  image_tag: "0.5.2"
                })
 
@@ -563,7 +563,7 @@ defmodule Tuist.KuraTest do
     defp assert_runner_manifest_claim(server, account, expected) do
       stub(Tuist.Kura.Mesh, :self_hosted_peer_urls, fn _ -> [] end)
       account = Repo.preload(account, :subscriptions)
-      region = Regions.get("scw-fr-par-runners")
+      region = Regions.get("ber1-runners")
       manifest = KubernetesController.manifest(server.provisioner_node_ref, "0.5.2", account, region, server)
       assert manifest["spec"]["storageSize"] == expected
     end
@@ -697,11 +697,11 @@ defmodule Tuist.KuraTest do
 
     test "builds a runner cache at the claim the account's instances are pinned at", %{account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
       pinned_server!(account, "us-east", "50Gi")
 
       assert {:ok, server} =
-               Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+               Kura.create_server(%{account_id: account.id, region: "ber1-runners", image_tag: "0.5.2"})
 
       assert server.storage_claim_size == "50Gi"
     end
@@ -1165,7 +1165,7 @@ defmodule Tuist.KuraTest do
     end
   end
 
-  describe "activate_server/2 for node-port private regions" do
+  describe "activate_server/2 for private gateway regions" do
     # Private regions are env-gated; expose the real catalog entries so
     # `create_server` accepts them (same pattern as RunnerCacheTest).
     setup do
@@ -1173,7 +1173,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners"]
+        ["eu-west", "ber1-runners"]
       end)
 
       :ok
@@ -1186,18 +1186,18 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "scw-fr-par-runners",
+          region: "ber1-runners",
           image_tag: "0.5.2"
         })
 
       expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
         assert id == server.id
-        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       assert {:ok, active} = Kura.activate_server(server, "0.5.2")
       assert active.status == :active
-      assert active.url == "http://172.16.0.2:30080"
+      assert active.url == "http://10.10.0.2:30080"
       # Private servers never mirror into the CLI-facing endpoint
       # table; a developer machine can't reach the PN address.
       assert Accounts.list_account_cache_endpoints(account, :kura) == []
@@ -1210,7 +1210,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "scw-fr-par-runners",
+          region: "ber1-runners",
           image_tag: "0.5.2"
         })
 
@@ -1229,7 +1229,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners"]
+        ["eu-west", "ber1-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1238,12 +1238,12 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "scw-fr-par-runners",
+          region: "ber1-runners",
           image_tag: "0.5.2"
         })
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       {:ok, active} = Kura.activate_server(server, "0.5.2")
@@ -1253,9 +1253,9 @@ defmodule Tuist.KuraTest do
     test "migrates the stored NodePort URL only after the private gateway is ready", %{server: server} do
       expect(Provisioner, :external_endpoint, fn %Server{} -> {:error, :private_endpoint_not_ready} end)
       assert :ok = Kura.refresh_private_server_url(server)
-      assert Repo.get!(Server, server.id).url == "http://172.16.0.2:30080"
+      assert Repo.get!(Server, server.id).url == "http://10.10.0.2:30080"
 
-      url = "https://account-scw-fr-par-runners.kura.tuist.dev"
+      url = "https://account-ber1-runners.kura.tuist.dev"
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
         {:ok, %{url: url, observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
@@ -1268,11 +1268,11 @@ defmodule Tuist.KuraTest do
     test "updates the URL when the primary pod moved nodes", %{server: server} do
       expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
         assert id == server.id
-        {:ok, %{url: "http://172.16.0.5:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.5:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       assert :ok = Kura.refresh_private_server_url(server)
-      assert %Server{url: "http://172.16.0.5:30080"} = Repo.get!(Server, server.id)
+      assert %Server{url: "http://10.10.0.5:30080"} = Repo.get!(Server, server.id)
     end
 
     test "keeps the last known URL while the endpoint is unobservable", %{server: server} do
@@ -1281,7 +1281,7 @@ defmodule Tuist.KuraTest do
       end)
 
       assert :ok = Kura.refresh_private_server_url(server)
-      assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
+      assert %Server{url: "http://10.10.0.2:30080"} = Repo.get!(Server, server.id)
     end
 
     test "rereading the same controller observation does not extend endpoint readiness", %{server: server} do
@@ -1305,12 +1305,12 @@ defmodule Tuist.KuraTest do
       backdated = Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: past) |> Repo.update!()
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       assert :ok = Kura.refresh_private_server_url(backdated)
       refreshed = Repo.get!(Server, server.id)
-      assert refreshed.url == "http://172.16.0.2:30080"
+      assert refreshed.url == "http://10.10.0.2:30080"
       assert DateTime.after?(refreshed.last_ready_at, past)
     end
 
@@ -1327,11 +1327,11 @@ defmodule Tuist.KuraTest do
       assert DateTime.compare(refreshed.last_ready_at, stamp) == :eq
     end
 
-    test "is a no-op outside a node-port region" do
+    test "is a no-op outside a private gateway region" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      # Only a node-port region carries an endpoint worth refreshing; anywhere
+      # Only a private gateway region carries an endpoint worth refreshing; anywhere
       # else the URL is Service DNS and never moves.
       {:ok, server} =
         Kura.create_server(%{
@@ -1358,7 +1358,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners"]
+        ["eu-west", "ber1-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1367,12 +1367,12 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "scw-fr-par-runners",
+          region: "ber1-runners",
           image_tag: "0.5.2"
         })
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       {:ok, active} = Kura.activate_server(server, "0.5.2")
@@ -1380,25 +1380,25 @@ defmodule Tuist.KuraTest do
       %{account: account, server: active}
     end
 
-    test "routes to the node-port endpoint while the readiness heartbeat is fresh", %{
+    test "routes to the private endpoint while the readiness heartbeat is fresh", %{
       account: account,
       server: server
     } do
       # activate_server/2 stamps last_ready_at, so a just-activated node serves at once.
-      assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == server.url
     end
 
     test "falls back to the public cache once the heartbeat goes stale", %{account: account, server: server} do
       stale = ~U[2020-01-01 00:00:00Z]
       Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
 
-      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == nil
     end
 
     test "falls back when the node was never observed ready", %{account: account, server: server} do
       Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: nil) |> Repo.update!()
 
-      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == nil
     end
 
     # The heartbeat-exempt path for cluster-DNS private servers has no test:
@@ -1413,7 +1413,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners", "ber1-runners", "larch-runners"]
+        ["eu-west", "ber1-runners", "larch-runners"]
       end)
 
       stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
@@ -1424,10 +1424,8 @@ defmodule Tuist.KuraTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      for region <- ["scw-fr-par-runners", "ber1-runners"] do
-        {:ok, server} = Kura.create_server(%{account_id: account.id, region: region, image_tag: "0.5.2"})
-        {:ok, _active} = Kura.activate_server(server, "0.5.2")
-      end
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "ber1-runners", image_tag: "0.5.2"})
+      {:ok, _active} = Kura.activate_server(server, "0.5.2")
 
       %{account: account}
     end
@@ -1437,7 +1435,7 @@ defmodule Tuist.KuraTest do
     end
 
     test "a fleet at no site never takes a site's cache", %{account: account} do
-      assert Kura.runner_cache_endpoint_url(account, :macos) == "https://tuist-scw-fr-par-runners.kura.tuist.dev"
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
     end
 
     test "a fleet at a site without a cache gets none rather than another site's", %{account: account} do
@@ -1460,7 +1458,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+        ["eu-west", "ber1-runners"]
       end)
 
       stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
@@ -1470,19 +1468,15 @@ defmodule Tuist.KuraTest do
 
       warm = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
       cold = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
-      rented = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
 
       {:ok, server} = Kura.create_server(%{account_id: warm.id, region: "ber1-runners", image_tag: "0.5.2"})
       {:ok, _active} = Kura.activate_server(server, "0.5.2")
 
-      {:ok, server} = Kura.create_server(%{account_id: rented.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
-      {:ok, _active} = Kura.activate_server(server, "0.5.2")
-
-      %{warm: warm, cold: cold, rented: rented}
+      %{warm: warm, cold: cold}
     end
 
-    test "names the accounts whose runner cache is at another site", %{warm: warm, cold: cold, rented: rented} do
-      assert Kura.runner_cache_elsewhere([warm.id, cold.id, rented.id], "larch") == MapSet.new([warm.id])
+    test "names the accounts whose runner cache is at another site", %{warm: warm, cold: cold} do
+      assert Kura.runner_cache_elsewhere([warm.id, cold.id], "larch") == MapSet.new([warm.id])
     end
 
     test "names none whose cache is at the claiming site", %{warm: warm, cold: cold} do
@@ -1512,7 +1506,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "us-east", "us-west", "scw-fr-par-runners"]
+        ["eu-west", "us-east", "us-west", "ber1-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1600,10 +1594,10 @@ defmodule Tuist.KuraTest do
     test "macOS stays on default resolution when its private node's heartbeat is stale, despite an active public server",
          %{account: account} do
       {:ok, private} =
-        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+        Kura.create_server(%{account_id: account.id, region: "ber1-runners", image_tag: "0.5.2"})
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:ok, %{url: "http://172.16.0.2:30815", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.2:30815", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       {:ok, active_private} = Kura.activate_server(private, "0.5.2")
@@ -1616,24 +1610,24 @@ defmodule Tuist.KuraTest do
       # The Tart VMs can't resolve cluster Service DNS, so a stale private
       # node must fail macOS over to the public cache (nil), never to the
       # in-cluster fallback URL.
-      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == nil
     end
 
     test "prefers a serving private runner-cache node over the public fallback", %{account: account} do
       activate_public_server!(account, "eu-west")
 
       {:ok, private} =
-        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+        Kura.create_server(%{account_id: account.id, region: "ber1-runners", image_tag: "0.5.2"})
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:ok, %{url: "http://172.16.0.2:30815", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+        {:ok, %{url: "http://10.10.0.2:30815", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       {:ok, active_private} = Kura.activate_server(private, "0.5.2")
 
       # activate_server/2 stamps last_ready_at, so the node serves at once and
       # wins over the public server's in-cluster URL.
-      assert Kura.runner_cache_endpoint_url(account, :macos) == active_private.url
+      assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == active_private.url
     end
 
     test "requires an active, CLI-visible public server", %{account: account} do
@@ -1942,13 +1936,13 @@ defmodule Tuist.KuraTest do
     test "excludes private regions, which the CLI cannot reach" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
 
       account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
 
       Repo.insert!(%Server{
         account_id: account.id,
-        region: "scw-fr-par-runners",
+        region: "ber1-runners",
         status: :active,
         url: "http://kura-runner.kura.svc.cluster.local:4000",
         current_image_tag: "0.5.2",

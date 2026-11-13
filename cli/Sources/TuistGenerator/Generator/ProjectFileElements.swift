@@ -223,8 +223,6 @@ class ProjectFileElements {
         var files = Set<AbsolutePath>()
         files.formUnion(target.sources.map(\.path))
         files.formUnion(target.playgrounds)
-        files.formUnion(target.coreDataModels.map(\.path))
-        files.formUnion(target.coreDataModels.flatMap(\.versions))
 
         if let headers = target.headers, headers.sourceLayout == nil {
             files.formUnion(headers.public)
@@ -269,6 +267,11 @@ class ProjectFileElements {
             }
             return GroupFileElement.file(path: path, group: target.filesGroup)
         })
+        // Core Data models need their version group even inside a header tree: like SwiftPM's PIF builder, the module
+        // (for code generation) and its resource bundle share one reference to the model.
+        //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L300-L314
+        let coreDataPaths = target.coreDataModels.flatMap { [$0.path] + $0.versions }
+        elements.formUnion(coreDataPaths.map { GroupFileElement.file(path: $0, group: target.filesGroup) })
         elements.formUnion(
             target.resources.resources.map {
                 GroupFileElement($0, group: target.filesGroup)

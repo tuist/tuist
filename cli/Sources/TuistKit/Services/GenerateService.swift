@@ -138,7 +138,7 @@ public struct GenerateService {
                     takeaway: "Run \(.command("tuist install")) to update them."
                 ))
             case .install:
-                Logger.current.notice("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
+                Logger.current.info("Outdated dependencies detected. Running `tuist install`.", metadata: .section)
                 try await installService.run(
                     path: path.pathString,
                     update: false,
@@ -179,7 +179,7 @@ public struct GenerateService {
             try await opener.open(path: workspacePath)
         }
         AlertController.current.success(.alert("Project generated."))
-        Logger.current.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
+        Logger.current.info(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers
