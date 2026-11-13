@@ -123,6 +123,7 @@ func TestNativeControlPlaneAcceptance(t *testing.T) {
 		t.Fatal("interrupted active work")
 	}
 	call("stop_worker", map[string]any{}, true)
+	recovered.Grace = time.Nanosecond
 	if err := recovered.Reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}

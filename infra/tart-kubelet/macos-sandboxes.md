@@ -77,8 +77,11 @@ Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
 CI can revoke admission between server placement and the host's final check.
-A command into a running VM needs no grant, since the VM already holds its
-charge; a command that has to resume a paused VM does.
+Work on a running VM (a command, a worker start, a hold, the server's lease)
+needs no grant, since the VM already holds its charge; work that has to resume
+a paused VM does. CI and sandboxes are served first come, first served: a grant
+gates only new capacity, and CI demand arriving later never takes a running
+VM's place.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
 A create the host refuses for capacity moves on to the next host.
@@ -99,16 +102,15 @@ and Terminating Pods, enforcing CPU, RAM and Apple's two-VM limit. A resident
 pause retains the full Pod charge. The host repairs missing reservation Pods
 from its journals before CI launches; uncertain ownership fails closed.
 
-The background controller checkpoints idle residents when CI revokes admission,
-or after the bounded 30-second idle grace. Ownership reconciliation and eviction
+The background controller checkpoints idle residents after the bounded
+30-second idle grace; a revoked grant does not shorten it. Ownership reconciliation and eviction
 run independently of image downloads and control connection preparation, so a
 failed or slow image update cannot delay returning idle capacity to CI.
 It does not interrupt an active managed
 worker or exec command, nor a hold (`hold_residency`): an Amp Orb's turn, or
 the server's `commands` residency, which on macOS outlives the last command as
 a ten-minute session lease so an agent thinking between commands keeps its VM
-(`server/lib/tuist/sandboxes/commands.ex`). Only a new hold needs a grant;
-renewing the current one does not. A hold with `hold_ms` ends that long after
+(`server/lib/tuist/sandboxes/commands.ex`). A hold with `hold_ms` ends that long after
 it was last renewed even if the server never releases it; the server sets it
 two minutes past the lease, so this only backstops a lost release. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains

@@ -169,9 +169,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
-  Anthropic re-queues it. Like an Amp Orb's spawn, a turn that just
-  created a macOS sandbox records its residency without a fresh CI grant
-  (`created: true`): the VM already holds its slot. Inside the residency
+  Anthropic re-queues it. A turn on a running macOS sandbox records
+  its residency without a fresh CI grant (`MacosCapacity.admit_turn/2`):
+  the VM already holds its slot, and CI and sandboxes are served first
+  come, first served. Only a resume asks for the grant. Inside the residency
   that created the sandbox, the router binds it to the `AgentSession` row
   (looked up by `anthropic_session_id`) and clones the requested
   repository into `<workspace>/<name>` (`/workspace` on Linux,
@@ -337,7 +338,8 @@ serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/f
 Shared-node idle pauses (all macOS hosts too) have zero grace and enqueue
 shrink work, except 20 s after the last command ends on Linux (`Commands`
 residency), so a command run such as a sync then a build does not wait out a
-pause and a resume; CI pressure still pauses that idle sandbox at once. On
+pause and a resume; CI pressure still pauses that idle sandbox at once. CI demand never pauses or evicts a running macOS VM: there the grant
+gates only creates and resumes. On
 macOS the `Commands` residency itself outlives the last command as the
 session's ten-minute lease (see `Commands` below). Active residencies and
 daemon worker/exec guards remain authoritative.

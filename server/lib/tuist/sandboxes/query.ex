@@ -206,9 +206,9 @@ defmodule Tuist.Sandboxes.Query do
   end
 
   # A macOS sandbox started here is about to run the caller's commands, so
-  # it takes their session lease. It is still started when the lease is
-  # refused, such as when CI took the grant meanwhile; the next command
-  # tries again.
+  # it takes their session lease. A running VM needs no grant for it; the
+  # sandbox is still returned when the lease is refused, such as when its
+  # host was replaced, and the next command tries again.
   defp kept(sandbox) do
     case Commands.keep(sandbox) do
       {:ok, kept} -> kept

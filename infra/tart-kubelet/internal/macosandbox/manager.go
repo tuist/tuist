@@ -372,11 +372,12 @@ func (m *Manager) resume(ctx context.Context, r *Record) error {
 	if r.Operation != "" || r.State == "error" {
 		return errors.New("sandbox requires reconciliation")
 	}
-	if err = m.Capacity.Allow(ctx, r); err != nil {
-		return err
-	}
+	// A running VM already holds its charge; only a paused one asks for it.
 	if r.State == "running" {
 		return nil
+	}
+	if err = m.Capacity.Allow(ctx, r); err != nil {
+		return err
 	}
 	if r.State != "paused" {
 		return errors.New("sandbox is not paused")
@@ -505,8 +506,8 @@ var holdIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,255}$`)
 // Hold protects a running sandbox from idle eviction for detached guest work,
 // resuming it first like a worker start. A positive ttl ends the hold that
 // long from now unless it is renewed; zero keeps it until a release or pause.
-// Only a new hold needs the grant: renewing the current one takes no capacity
-// it does not already hold, so it succeeds while CI holds the grant.
+// A hold on a running VM takes no capacity it does not already hold, so it
+// needs no grant; only resuming a paused one does.
 func (m *Manager) Hold(ctx context.Context, id, work string, ttl time.Duration) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
@@ -524,11 +525,6 @@ func (m *Manager) Hold(ctx context.Context, id, work string, ttl time.Duration) 
 	}
 	if r.State != "running" || r.Operation != "" {
 		return errors.New("sandbox is not running")
-	}
-	if r.HoldID != work {
-		if err = m.Capacity.Allow(ctx, r); err != nil {
-			return err
-		}
 	}
 	until := time.Time{}
 	if ttl > 0 {
@@ -598,8 +594,9 @@ func (m *Manager) SampleCPU(ctx context.Context) {
 	m.cpuMu.Unlock()
 }
 
-// Reconcile retries interrupted operations and checkpoints idle residents when
-// CI demand is queued, unknown, stale, or their bounded grace expires.
+// Reconcile retries interrupted operations and checkpoints idle residents once
+// their bounded grace expires. CI and sandboxes are first come, first served:
+// CI demand arriving later does not checkpoint a VM before its grace is up.
 func (m *Manager) Reconcile(ctx context.Context) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
@@ -695,7 +692,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 				continue
 			}
 		}
-		if r.Resident && r.WorkerID == "" && r.HoldID == "" && m.active[r.SandboxID] == 0 && (time.Since(r.IdleAt) >= grace || m.Capacity.Allow(ctx, r) != nil) {
+		if r.Resident && r.WorkerID == "" && r.HoldID == "" && m.active[r.SandboxID] == 0 && time.Since(r.IdleAt) >= grace {
 			if err := m.evict(ctx, r); err != nil {
 				errs = append(errs, err)
 			}
@@ -762,9 +759,6 @@ func (m *Manager) worker(ctx context.Context, id, action string, env map[string]
 		}
 		if r.State != "running" || r.Operation != "" {
 			return WorkerStatus{}, errors.New("sandbox is not running")
-		}
-		if err = m.Capacity.Allow(ctx, r); err != nil {
-			return WorkerStatus{}, err
 		}
 		work := env["ANTHROPIC_WORK_ID"]
 		if work == "" {

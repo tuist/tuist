@@ -283,9 +283,10 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 	}
 }
 
-// A session renews its timed hold between commands even while CI holds the
-// grant; a hold nobody renews expires, and the idle VM goes back to CI.
-func TestTimedHoldRenewsWithoutTheGrantAndExpires(t *testing.T) {
+// A running VM already holds its charge, so holds on it, new or renewed, need
+// no grant while CI holds it. A hold nobody renews expires, and the idle VM is
+// checkpointed once its idle grace is up, not when CI asks for the room.
+func TestHoldsOnARunningVMNeedNoGrantAndExpire(t *testing.T) {
 	m, r, c, a := harness(t)
 	m.Grace = time.Minute
 	ctx := context.Background()
@@ -299,18 +300,22 @@ func TestTimedHoldRenewsWithoutTheGrantAndExpires(t *testing.T) {
 	if err := m.Hold(ctx, a.SandboxID, "commands", 100*time.Millisecond); err != nil {
 		t.Fatalf("renewing the current hold needed the grant: %v", err)
 	}
-	if err := m.Hold(ctx, a.SandboxID, "amp:other", 0); !errors.Is(err, ErrCapacity) {
-		t.Fatalf("a new hold was admitted without the grant: %v", err)
+	if err := m.Hold(ctx, a.SandboxID, "amp:other", 100*time.Millisecond); err != nil {
+		t.Fatalf("a new hold on a running VM needed the grant: %v", err)
 	}
 	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
 		t.Fatal("CI evicted a sandbox under a live hold", err)
 	}
 	time.Sleep(150 * time.Millisecond)
+	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("CI demand evicted an idle VM before its grace was up", err)
+	}
+	m.Grace = time.Nanosecond
 	if err := m.Reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if r.states[a.SandboxID] != "evicted" || c.held[a.SandboxID] {
-		t.Fatal("an expired hold kept the VM from CI")
+		t.Fatal("an expired hold kept the VM past its idle grace")
 	}
 }
 
@@ -335,8 +340,9 @@ func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
 		t.Fatal("a paused sandbox reported guest CPU")
 	}
 }
-func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
+func TestIdleEvictionSparesWorkAndRetainsFailedFence(t *testing.T) {
 	m, r, c, a := harness(t)
+	m.Grace = time.Nanosecond
 	ctx := context.Background()
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
@@ -349,7 +355,7 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !c.held[a.SandboxID] {
-		t.Fatal("CI interrupted active work")
+		t.Fatal("idle eviction interrupted active work")
 	}
 	r.worker.Running = false
 	r.saveErr = errors.New("checkpoint failed")
@@ -367,7 +373,7 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatal("successful eviction kept charge")
 	}
 	if err := m.Resume(ctx, a.SandboxID); !errors.Is(err, ErrCapacity) {
-		t.Fatalf("resume admitted while CI queued: %v", err)
+		t.Fatalf("resume admitted while CI holds the grant: %v", err)
 	}
 }
 
@@ -428,6 +434,7 @@ func TestReportsAndCILaunchDoNotWaitForCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.allow = false
+	m.Grace = time.Nanosecond
 	r.saveStarted = make(chan struct{})
 	r.saveRelease = make(chan struct{})
 	done := make(chan error, 1)

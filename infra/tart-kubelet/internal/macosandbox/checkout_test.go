@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
@@ -34,7 +35,7 @@ func testGrant() *protocol.CheckoutGrant {
 // A session's worker starts from the master in its VM's share, and the host
 // takes its export only once an eviction has fenced the VM.
 func TestCheckoutSeedsAtWorkerStartAndCollectsAfterTheFence(t *testing.T) {
-	m, r, c, a := harness(t)
+	m, r, _, a := harness(t)
 	checkouts := &fakeCheckouts{}
 	m.Checkouts = checkouts
 	ctx := context.Background()
@@ -68,7 +69,7 @@ func TestCheckoutSeedsAtWorkerStartAndCollectsAfterTheFence(t *testing.T) {
 	if len(checkouts.collected) != 0 {
 		t.Fatal("collected from a running VM")
 	}
-	c.allow = false // CI needs the room: the idle sandbox is saved.
+	m.Grace = time.Nanosecond // The idle grace is up: the idle sandbox is saved.
 	if err := m.Reconcile(ctx); err != nil {
 		t.Fatal(err)
 	}

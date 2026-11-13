@@ -205,8 +205,8 @@ defmodule Tuist.Sandboxes.Commands do
   chose, so that sending the request again answers the command it started
   instead of starting another).
 
-  While CI holds the sandbox's host, admission refuses the resume or the
-  command. The start then tries again every second for up to
+  While CI holds the sandbox's host, admission refuses the resume of a
+  paused sandbox; a running one needs no grant. The start then tries again every second for up to
   #{div(@host_wait_ms, 1000)} seconds before it answers the refusal, so the
   command starts as soon as the host frees instead of after the client's
   next retry.

@@ -136,8 +136,9 @@ func TestFencedReservationReleaseCompletesPodDeletion(t *testing.T) {
 	}
 }
 
-func TestControlPreparationFailureDoesNotBlockCIEviction(t *testing.T) {
+func TestControlPreparationFailureDoesNotBlockIdleEviction(t *testing.T) {
 	m, runtime, _, args := harness(t)
+	m.Grace = time.Nanosecond
 	capacity, node, _ := capacityFixture()
 	m.Capacity = capacity
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -148,7 +149,7 @@ func TestControlPreparationFailureDoesNotBlockCIEviction(t *testing.T) {
 	if err := m.Pause(ctx, args.SandboxID); err != nil {
 		t.Fatal(err)
 	}
-	// A replacement control Pod cannot connect, while CI has revoked the grant.
+	// A replacement control Pod cannot connect while the VM's idle grace is up.
 	control := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name: "control", Namespace: Namespace, UID: "replacement",
 		Labels:      map[string]string{RoleLabel: "control"},
@@ -174,7 +175,7 @@ func TestControlPreparationFailureDoesNotBlockCIEviction(t *testing.T) {
 	select {
 	case <-runtime.saveStarted:
 	case <-ctx.Done():
-		t.Fatal("invalid replacement control configuration blocked CI eviction")
+		t.Fatal("invalid replacement control configuration blocked idle eviction")
 	}
 	// A checkpoint in progress must still retain its capacity reservation.
 	if _, err := capacity.Kube.CoreV1().Pods(Namespace).Get(ctx, "macos-sbx-"+args.SandboxID, metav1.GetOptions{}); err != nil {
