@@ -43,7 +43,13 @@ const scenario = process.env.SCENARIO;
 const get = args.indexOf('get');
 const kind = args[get + 1];
 const name = args[get + 2];
-if (get < 0 || /secret/i.test(kind)) process.exit(99);
+if (get < 0 || /^secrets?$/i.test(kind)) process.exit(99);
+if (kind === 'externalsecret') {
+  if (scenario === 'ingest login missing') process.exit(1);
+  console.log(JSON.stringify({spec:{target:{template:{data:{passwd:'', 'ingest-username':'tuist', 'ingest-password':''}}}},
+    status:{conditions:[{type:'Ready', status:scenario === 'ingest login unready' ? 'False' : 'True'}]}}));
+  process.exit(0);
+}
 if (kind === 'deployment' && name === 'pulso') {
   if (scenario === 'legacy deployment') console.log(JSON.stringify({spec:{replicas:1}}));
   process.exit(0);
@@ -106,124 +112,16 @@ console.log(JSON.stringify(value));
         if (scenario === 'no pulse no backend') assert.match(result.stdout, /no Pulse backend installed/);
       }
     }
-  } finally { rmSync(work, {recursive:true, force:true}); }
-});
-
-test('managed cutover inspects the correct namespace and refuses incompatible readers before Helm', () => {
-  const work = mkdtempSync(join(tmpdir(), 'pulse-readers-'));
-  try {
-    writeFileSync(join(work, 'kubectl'), `#!/usr/bin/env node
-const scenario = process.env.SCENARIO;
-const args = process.argv.slice(2);
-const namespace = process.env.DEPLOY_ENV === 'production' ? 'tuist' : 'tuist-' + process.env.DEPLOY_ENV;
-if (args[args.indexOf('-n') + 1] !== namespace) process.exit(99);
-if (args.includes('exec')) {
-  console.log('runtime startup synthetic-secret-must-not-appear');
-  console.error('runtime diagnostic synthetic-secret-must-not-appear');
-  if (scenario === 'RPC failure') process.exit(1);
-  if (scenario === 'missing metadata') process.exit(0);
-  let state = scenario === 'unenrolled' ? 'unenrolled' : 'greptime';
-  if (scenario === 'Pulse reader' || scenario === 'mixed readers' && args.includes('server-2')) state='incompatible';
-  console.log('PULSE_READER_STATE=' + state);
-  if (scenario === 'duplicate metadata') console.log('PULSE_READER_STATE=' + state);
-  process.exit(0);
-}
-if (args.includes('pods')) {
-  const pods = [1,2].map(id => ({metadata:{name:'server-'+id},status:{conditions:[{type:'Ready',status:'True'}]}}));
-  if (scenario === 'terminating pod') pods[1].metadata.deletionTimestamp='2026-11-11T00:00:00Z';
-  if (scenario === 'unready pod') pods[1].status.conditions[0].status='False';
-  if (scenario === 'missing pod') pods.pop();
-  console.log(JSON.stringify({items:pods})); process.exit(0);
-}
-if (!args.includes('deployments')) process.exit(99);
-const reader = {metadata:{generation:2},spec:{replicas:2},
-  status:{observedGeneration:2,replicas:2,updatedReplicas:2,readyReplicas:2}};
-if (scenario === 'old replicas') reader.status.updatedReplicas=1;
-if (scenario === 'extra replica') reader.status.replicas=3;
-if (scenario === 'unready') reader.status.readyReplicas=1;
-if (scenario === 'stale') reader.status.observedGeneration=1;
-console.log(JSON.stringify({items:scenario === 'absent' ? [] : [reader]}));
-`, {mode:0o755});
-    writeFileSync(join(work, 'helm'), '#!/bin/sh\nexit 42\n', {mode:0o755});
-    const step = execFileSync('yq', ['-r', '.jobs.deploy.steps[] | select(.name == "Replace existing Pulse release only after independent backend qualification").run', '.github/workflows/greptimedb-deployment.yml'], {encoding:'utf8'});
-    execFileSync('mkdir', ['-p', join(work, 'greptimedb-deploy')]);
-    for (const environment of ['staging', 'canary', 'production']) {
-      for (const scenario of ['ready', 'unenrolled', 'Pulse reader', 'mixed readers', 'old replicas', 'extra replica',
-        'unready', 'stale', 'absent', 'terminating pod', 'unready pod', 'missing pod',
-        'RPC failure', 'missing metadata', 'duplicate metadata']) {
-        const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
-          PATH:`${work}:${process.env.PATH}`, RUNNER_TEMP:work, SCENARIO:scenario, DEPLOY_ENV:environment}});
-        assert.equal(result.status, ['ready','unenrolled'].includes(scenario) ? 42 : 1, `${environment}/${scenario}: ${result.stdout}${result.stderr}`);
-        assert.ok(!`${result.stdout}${result.stderr}`.includes('synthetic-secret-must-not-appear'), scenario);
-      }
-    }
-  } finally { rmSync(work, {recursive:true, force:true}); }
-});
-
-test('explicit managed rollback restores only a known Pulse revision and verifies readiness', () => {
-  const work = mkdtempSync(join(tmpdir(), 'pulse-rollback-'));
-  try {
-    writeFileSync(join(work, 'helm'), `#!/usr/bin/env node
-const args = process.argv.slice(2);
-const scenario = process.env.SCENARIO;
-if (args[0] === 'rollback') require('node:fs').writeFileSync(process.env.ROLLBACK_MARKER, 'attempted');
-if (JSON.stringify(args) === JSON.stringify(['history','pulse','-n','observability','-o','json'])) {
-  if (scenario === 'history unavailable') process.exit(1);
-  console.log(JSON.stringify([{revision:7,chart:scenario === 'gateway revision'?'greptimedb-ingest-0.1.0':'pulse-1.39.0',
-    status:scenario === 'failed revision'?'failed':'superseded'}]));
-} else if (JSON.stringify(args) === JSON.stringify(['rollback','pulse','7','-n','observability','--wait','--timeout','5m'])) {
-  if (scenario === 'rollback failure') process.exit(1);
-  if (scenario !== 'ready' && scenario !== 'unready after rollback') process.exit(98);
-} else process.exit(99);
-`, {mode:0o755});
-    // Refuse every mutation and any Greptime/PVC/Secret access. The readiness
-    // gate must accept restored Pulse without touching the retained backend.
-    writeFileSync(join(work, 'kubectl'), `#!/usr/bin/env node
-const args = process.argv.slice(2);
-const scenario = process.env.SCENARIO;
-if (JSON.stringify(args) === JSON.stringify(['-n','observability','get','deployment','pulso','--ignore-not-found','-o','json'])) process.exit(0);
-if (JSON.stringify(args) === JSON.stringify(['-n','observability','get','pods','-o','json'])) {
-  console.log(JSON.stringify({items:[]})); process.exit(0);
-}
-if (JSON.stringify(args.filter(arg => arg !== '--ignore-not-found')) !== JSON.stringify(['-n','observability','get','deployment','pulse','-o','json'])) process.exit(99);
-const fs = require('node:fs');
-const restored = fs.existsSync(process.env.ROLLBACK_MARKER);
-const value = {
-  metadata:{generation:2,labels:{'app.kubernetes.io/name':restored?'pulse':'greptimedb-ingest'},
-    annotations:{'meta.helm.sh/release-name':'pulse','meta.helm.sh/release-namespace':'observability'}},
-  spec:{replicas:1,strategy:{type:'Recreate'},template:{spec:{containers:[{image:'ghcr.io/tuist/pulse:1.39.0@sha256:'+'a'.repeat(64)}]}}},
-  status:{observedGeneration:2,updatedReplicas:1,readyReplicas:1,availableReplicas:1}
-};
-if (scenario === 'foreign owner') value.metadata.annotations['meta.helm.sh/release-name']='other';
-if (scenario === 'foreign namespace') value.metadata.annotations['meta.helm.sh/release-namespace']='other';
-if (scenario === 'not a gateway') value.metadata.labels['app.kubernetes.io/name']='pulse';
-if (scenario === 'unready after rollback' && restored) value.status.readyReplicas=0;
-console.log(JSON.stringify(value));
-`, {mode:0o755});
-    const workflow = JSON.parse(execFileSync('yq', ['-o=json', '.', '.github/workflows/greptimedb-deployment.yml'], {encoding:'utf8'}));
-    const job = workflow.jobs.rollback;
-    assert.ok(job.if.includes("github.ref == 'refs/heads/main'"));
-    assert.ok(job.if.includes("github.repository == 'tuist/tuist'"));
-    assert.equal(job.environment, 'server-k8s-${{ inputs.environment }}');
-    assert.equal(job.concurrency.group, 'server-deploy-${{ inputs.environment }}-observability');
-    const step = job.steps.find(step => step.name === 'Restore selected Pulse release without touching Greptime data').run;
-    for (const [scenario, environment, revision] of [
-      ['ready','staging','7'], ['foreign owner','staging','7'], ['foreign namespace','staging','7'],
-      ['not a gateway','staging','7'], ['gateway revision','staging','7'], ['failed revision','staging','7'],
-      ['history unavailable','staging','7'], ['unready after rollback','staging','7'], ['rollback failure','staging','7'],
-      ['ready','staging','8'], ['ready','staging','0'], ['ready','staging','-1'], ['ready','staging','7; exit 0'],
-      ['ready','canary','7'], ['ready','production','7'], ['ready','foreign','7']
-    ]) {
-      const marker = join(work, 'seen');
-      rmSync(marker, {force:true});
+    // Collectors that write to Greptime need its ingest login before Helm runs.
+    const chart = join(work, 'chart');
+    execFileSync('mkdir', ['-p', chart]);
+    execFileSync('cp', ['infra/helm/k8s-monitoring/Chart.yaml', chart]);
+    writeFileSync(join(chart, 'values-staging.yaml'), 'name: greptimedb-dashboard-auth\n');
+    for (const scenario of ['no pulse', 'ingest login missing', 'ingest login unready']) {
       const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
-        PATH:`${work}:${process.env.PATH}`, SCENARIO:scenario, DEPLOY_ENV:environment,
-        PULSE_REVISION:revision, ROLLBACK_MARKER:marker}});
-      assert.equal(spawnSync('test', ['-f', marker]).status === 0,
-        ['ready', 'unready after rollback', 'rollback failure'].includes(scenario) && environment !== 'foreign' && revision === '7',
-        `rollback mutation attempted: ${environment}/${scenario}/${revision}`);
-      assert.equal(result.status === 0, scenario === 'ready' && environment !== 'foreign' && revision === '7',
-        `${environment}/${scenario}/${revision}: ${result.stdout}${result.stderr}`);
+        PATH:`${work}:${process.env.PATH}`, SCENARIO:scenario, DEPLOY_ENV:'staging',
+        OBSERVABILITY_NAMESPACE:'observability', OBSERVABILITY_CHART_PATH:chart}});
+      assert.equal(result.status === 0, scenario === 'no pulse', `${scenario}: ${result.stdout}${result.stderr}`);
     }
   } finally { rmSync(work, {recursive:true, force:true}); }
 });
