@@ -2351,7 +2351,9 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  diskGiB: 200
+  # 220 GiB after checkout workspaces: five 4x8192 Orbs on a 20 GiB rootfs
+  # (about 38 GiB each) per node. The nodes have about 830 GiB.
+  diskGiB: 240
   checkoutWorkspacesGiB: 20
   # Paused Orbs otherwise pile up on their nodes over a working day; a resume
   # after four hours cold boots from the archive instead.
