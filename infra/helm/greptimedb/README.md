@@ -3,18 +3,35 @@
 Pulse remains the deployed service and product. The existing `pulse` Helm release,
 Service `pulse:4000`, ingestion hosts and credentials are the stable contract.
 GreptimeDB is the replacement engine underneath that contract, not a separate
-customer-facing service. The repository owns its deployment configuration and
-wiring; use the upstream Apache-2.0 GreptimeDB v1.3.0 image now. Forking GreptimeDB
-into this repository and publishing it as Pulse is a future change, not a
-prerequisite for this replacement.
+customer-facing service. Its source is forked into [`pulse/`](../../../pulse/FORK.md)
+and released as `ghcr.io/tuist/pulse` by `pulse-release.yml`. Deployments still
+pin the upstream Apache-2.0 GreptimeDB v1.3.0 image; switching them to a fork
+image is one change across every pin listed in `pulse/FORK.md`.
 
 Qualify the private backend separately before replacing the existing Pulse
-ingestion runtime. Backend qualification supports staging, canary and
-production; origin replacement is **staging-only**. A canary or production
-deploy installs the private backend and never switches ingestion; that cutover
-is a separate, explicitly approved change. Pushes and pull requests only validate; they never
+ingestion runtime. Backend qualification and origin replacement both support
+staging, canary and production. A dispatch without `replace_pulse` installs the
+private backend and never switches ingestion; the cutover is a separate dispatch,
+and canary/production dispatches still need their protected-environment approval.
+Pushes and pull requests only validate; they never
 deploy this replacement. Existing private `greptimedb` resources and their PVC
 retain their names and ownership so a branding change cannot recreate storage.
+
+## Bootstrap prerequisites
+
+These are desired configuration, **not a record of provisioned resources**:
+
+- Preserve `tuist-pulso-{staging,canary,production}` and their bucket-scoped
+  credentials. The historical bucket names are intentional; Greptime writes under
+  its own `greptimedb/` prefix and never rewrites legacy Pulse objects.
+- In each environment's `onepassword` ClusterSecretStore vault, provide
+  `PULSE_TOKEN/password`, `PULSE_SECRET_KEY_BASE/password` and
+  `PULSE_S3_CREDENTIALS` fields `access_key_id` and `secret_access_key`. Keep the
+  existing values: collectors and external hosts authenticate with the same token.
+- External NixOS cache hosts need opnix access to the **matching environment's**
+  `PULSE_TOKEN/password`. Never substitute a production token on staging/canary.
+- Confirm the ESO store is ready, the CI environment has its usual
+  `OP_SERVICE_ACCOUNT_TOKEN`, and the general pool has the requested capacity.
 
 ## Topologies
 
@@ -84,11 +101,11 @@ on unrelated value changes.
 protected CI environment, kubeconfig vault, shared observability concurrency
 lane and isolated `tuist-pulso-<env>/greptimedb/` bucket/prefix. Namespace is
 always `observability`. Never read credentials into agent context.
-Canary/production reject `replace_pulse`, `deploy_collectors` and
-`inspect_readers` before loading credentials. Every staging replacement checks
-serving reader compatibility. Before a later canary/production cutover, Atlas's
-legacy `/mcp` upstreams (`../atlas/values-managed-production.yaml`) must move:
-the gateway does not implement those APIs.
+Canary/production reject only `inspect_readers` before loading credentials.
+Every replacement checks serving reader compatibility: it refuses while any
+enrolled server reader is not already on the Greptime backend. Atlas no longer
+has `/mcp` upstreams on Pulse (`../atlas/values-managed-production.yaml`); the
+gateway does not implement that API.
 Reader configuration belongs
 in declarative deployment configuration, not an independent script that patches
 the live server Deployment and is later overwritten by its owner.
@@ -204,10 +221,9 @@ The migration executes this same gate before and after replacing the gateway.
 The observability concurrency lane serializes migration and routine collector
 upgrades. Backend qualification alone leaves Pulse and its query clients unchanged.
 
-Pulse publication/deployment workflows remain available for environments still
-using Pulse. Their instance preflight refuses to overwrite an existing Greptime
-gateway even though it retains the same Helm release owner. An attempted automatic
-Pulse promotion stops there rather than silently restoring the old writer.
+The legacy Elixir Pulse release and deployment workflows were removed with its
+source. An environment still running legacy Pulse keeps its last Helm release
+until its replacement; it can no longer be redeployed from this repository.
 
 ## Same ingestion origin, deliberately smaller public API
 
@@ -278,8 +294,7 @@ does not automatically roll back**; stop promotion and explicitly choose the
 known-good prior Pulse revision. Backend release/PVC/S3 history remain untouched.
 New Greptime data are not copied back to old Pulse, and historical Pulse objects
 are neither imported nor deleted. Do not uninstall the backend or shrink its PVC
-as a rollback shortcut. The independent Pulse deployment preflight intentionally
-refuses this gateway; do not rerun a Pulse release to force recovery.
+as a rollback shortcut.
 
 The cutover records the deployed Pulse chart/revision in its run summary.
 Dispatch `Pulse GreptimeDB Replacement` on trusted main with the selected

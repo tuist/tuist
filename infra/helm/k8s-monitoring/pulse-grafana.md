@@ -59,18 +59,11 @@ against the actual `observability` release.
    A successful health check or an empty result alone is not acceptance.
 2. Inventory **current** complete rules and dashboards. The November 5 query
    corpus covers 170 rule definitions and 31 dashboards, but is not a complete
-   lifecycle/routing export. Older inventories in `pulse/plans/alerting` are
-   historical. Leave SQL, ClickHouse, Cloud billing/usage, synthetic monitoring
+   lifecycle/routing export. Leave SQL, ClickHouse, Cloud billing/usage, synthetic monitoring
    and other non-replaced sources alone.
-3. Compare the same production queries and time windows in both stores. From
-   `pulse/`, `mix pulse.parity` accepts Git Sync v1/v2 dashboard resources and
-   the `queries` corpus envelope. Use `--scrape-interval 60` and explicit
-   `--var name=value` settings for the production panel selection. It rejects
-   files yielding zero queries. Inspect the reported count: this command covers
-   PromQL/LogQL only, not SQL, TraceQL, dashboard rendering or alert lifecycle.
-   The corpus preserves instant/range modes but does not automatically apply
-   its per-dashboard variable defaults. Unset matcher variables still broaden
-   to a regex and are not proof of a particular panel's parity.
+3. Compare the same production queries and time windows in both stores, with
+   the production panel's variable selections. An unset matcher variable
+   broadens to a regex and is not proof of a particular panel's parity.
 4. Shadow the four `kura:*` recordings with distinct names or an isolated tenant.
    Verify their outputs in Pulse, including dependent `kura:pool_region` and
    `kura:node_region`. When cutting over, update **both** each query's
@@ -95,15 +88,12 @@ current managed deployment targets the existing `pulse` release in namespace
 `observability`, preserving its bucket and credentials. Deploy through that
 release path; do not create a second instance or bucket as a cutover shortcut.
 
-Before stopping Cloud writes, pass the [cutover gates](../../../pulse/plans/tuist-cutover-runbook.md#gates)
+Before stopping Cloud writes, pass the cutover gates
 on the exact deployed version: provider-backed capacity, nonempty query parity,
 alert transitions, recording publication, notification delivery and failure
 recovery. Queries with week-long offsets need that history or a validated
 backfill. The Pulse volume/cost replacement rules also need a prior-week baseline;
-they cannot replace Cloud usage alerts after one day of data. Import
-`../pulse/files/alerts.json` as **Grafana-managed** rules with explicit no-data/error
-behavior; this Prometheus-format file is not directly a Grafana provisioning API
-payload. Monitor Pulse failure/no-data from outside Pulse's own failure domain.
+they cannot replace Cloud usage alerts after one day of data. Monitor Pulse failure/no-data from outside Pulse's own failure domain.
 
 Only after acceptance, remove Cloud ingestion for all senders while preserving
 Pulse forwarding, labels, sampling and metric identity. Keep old data sources

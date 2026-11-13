@@ -128,15 +128,19 @@ export endpoint; the retained telemetry query paths are tested against local S3
 fixtures, but the managed bucket export has not been exercised before bootstrap.
 The namespace rename changes newly written rollup metadata and credential types;
 compatibility readers preserve historical rollups without rewriting objects.
-Respect the cutover and rollback boundaries described in
-[Pulse's migration guide](../pulse/docs/deployment.md#monorepo-migration).
+The legacy Pulse source was replaced by the GreptimeDB fork; decode historical
+objects with the last legacy release from Git history.
 
 ### GreptimeDB storage
 
-The staging-only GreptimeDB replacement uses an independent `greptimedb/` prefix
-in the `tuist-pulso-staging` bucket for database-managed data and
-indexes, and disposable `greptimedb/ci-preflight/<run>` storage probes. A retained
-10 GiB Kubernetes PVC holds local WAL and standalone state. CI synthetic telemetry
+The GreptimeDB replacement uses an independent `greptimedb/` prefix in each
+environment's `tuist-pulso-<env>` bucket (staging, canary and production) for
+database-managed data and indexes, and disposable `greptimedb/ci-preflight/<run>`
+storage probes. Staging and canary use a retained 10 GiB Kubernetes PVC for local
+WAL and standalone state. Production's cluster topology stores data under
+`greptimedb/distributed/`; its WAL lives on replicated Kafka volumes until
+flushed, and its metadata in a dedicated etcd. Staging and canary
+apply a 7-day database TTL; production keeps data indefinitely. CI synthetic telemetry
 is identified by its run ID and shares the database's retention policy. The
 storage probe deletes only its own run-scoped key. Failed rollouts preserve data
 and PVCs; qualification across a restart is not an exercised S3 disaster restore.

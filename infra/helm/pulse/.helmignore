@@ -1,8 +1,0 @@
-.DS_Store
-*.swp
-*.bak
-*.tmp
-ci/
-values-managed-*.yaml
-test-*.sh
-AGENTS.md

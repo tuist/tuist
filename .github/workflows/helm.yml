@@ -40,8 +40,6 @@ on:
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
-      - .github/scripts/pulse-render-contract.jq
-      - .github/workflows/pulse-instance-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -62,8 +60,6 @@ on:
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
-      - .github/scripts/pulse-render-contract.jq
-      - .github/workflows/pulse-instance-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -106,7 +102,6 @@ jobs:
             "kura/ops/helm/kura|"
             "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
-            "infra/helm/pulse|values-managed-production.yaml"
             "infra/helm/mdm|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
@@ -151,8 +146,6 @@ jobs:
         run: |
           mise use -g yq@4.52.5
           bash infra/helm/k8s-monitoring/test-cost-controls.sh
-      - name: Test Pulse chart
-        run: bash infra/helm/pulse/test-managed.sh
       - name: Test mixed-version Kura latency query
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0
@@ -215,7 +208,6 @@ jobs:
             "kura|kura/ops/helm/kura|kura|"
             "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
-            "pulse (production)|infra/helm/pulse|pulse|values-managed-production.yaml"
             "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "remote-execution (production)|infra/helm/remote-execution|remote-execution|values-managed-production.yaml values-ci.yaml"

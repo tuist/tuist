@@ -526,19 +526,14 @@ gh workflow run server-deployment.yml -f environment=<env>
 
 ### Pulse instance
 
-Pulse deploys independently into each cluster's `observability` namespace, not
-as part of the server or monitoring chart. Before its first release/deployment,
-verify the existing buckets and environment-vault fields described in the
-[Pulse bootstrap prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
-The release pipeline publishes matching image/chart artifacts before cascading
-staging → canary → production; manual redeployments select a published version
-through `pulse-deployment.yml` on main. Keep each instance single-replica and
-queries private. Workload ingress permits only exact authenticated `/mcp`,
-`/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` over TLS for external
-senders; in-cluster collectors still use the private Service. Coordinate the initial
-collector and Atlas rename with retirement of the old writer and resource
-ownership checks. Customer reconciliation is not implemented. Production
-mutations still require the approval described in the infrastructure access policy.
+Pulse (Tuist's GreptimeDB fork) deploys independently into each cluster's
+`observability` namespace, not as part of the server or monitoring chart. It
+runs as the private `greptimedb` release, which collectors write to directly,
+and deploys only through a `greptimedb-deployment.yml` dispatch from main. Before the first deployment,
+verify the bucket and environment-vault prerequisites in the
+[Pulse on GreptimeDB guide](../helm/greptimedb/README.md#bootstrap-prerequisites).
+Production mutations still require the approval described in the infrastructure
+access policy.
 
 ## 7. Observability
 

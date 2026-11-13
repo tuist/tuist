@@ -35,10 +35,9 @@ spec:
     remediation:
       retries: 3
       strategy: rollback
-  # Same values as helm/pulse/values-managed-management.yaml. The published
-  # 1.39.0 chart predates that overlay; valuesFiles on an OCI source cannot
-  # load a file from GitRepository. Keep this explicit until a chart containing
-  # the overlay is published and the pin is deliberately advanced.
+  # The last Elixir Pulse chart, published before pulse/ became the GreptimeDB
+  # fork. Its source and chart are gone from the repository, so these values
+  # are the only record of this instance's configuration.
   values:
     fullnameOverride: pulse
     replicaCount: 1
