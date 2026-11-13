@@ -30,16 +30,16 @@ defmodule Tuist.Pulse.Table do
     range = Map.get(params, "range", "1h")
 
     with true <- Enum.all?(Map.keys(params), &(&1 in keys)),
-         true <- valid_text?(query) and (signal == "errors" or String.trim(query) != ""),
+         true <- valid_query?(signal, query),
          true <- Enum.all?(filters ++ ["search"], &valid_text?(Map.get(params, &1, ""))),
          true <- Enum.all?(filters, &(Map.get(params, &1 <> "_op", "eq") in ~w(eq contains not_contains))),
-         true <- sort in Map.fetch!(@sorts, signal) and order in ~w(asc desc),
-         true <- is_binary(range) and Map.has_key?(@ranges, range),
+         true <- valid_sort?(signal, sort, order),
+         true <- valid_range?(range),
          {:ok, page} <- integer(Map.get(params, "page", 1), 1, 2_147_483_647),
          {:ok, size} <- integer(Map.get(params, "page_size", 20), 1, 100),
-         true <- not Map.has_key?(params, "end_at") or is_binary(params["end_at"]),
+         true <- valid_end?(params),
          {:ok, finish} <- finish(Map.get(params, "end_at", :now)),
-         true <- DateTime.to_unix(finish) >= @ranges[range] and DateTime.to_unix(finish) <= 9_223_372_036 do
+         true <- valid_finish?(finish, range) do
       {:ok,
        %{
          query: query,
@@ -58,6 +58,15 @@ defmodule Tuist.Pulse.Table do
   end
 
   def validate(_, _, _), do: {:error, :invalid_params}
+
+  defp valid_query?(signal, query), do: valid_text?(query) and (signal == "errors" or String.trim(query) != "")
+  defp valid_sort?(signal, sort, order), do: sort in Map.fetch!(@sorts, signal) and order in ~w(asc desc)
+  defp valid_range?(range), do: is_binary(range) and Map.has_key?(@ranges, range)
+  defp valid_end?(params), do: not Map.has_key?(params, "end_at") or is_binary(params["end_at"])
+
+  defp valid_finish?(finish, range),
+    do: DateTime.to_unix(finish) >= @ranges[range] and DateTime.to_unix(finish) <= 9_223_372_036
+
   defp default_sort("metrics"), do: "name"
   defp default_sort("errors"), do: "last_seen_ns"
   defp default_sort(_), do: "timestamp"
@@ -122,7 +131,7 @@ defmodule Tuist.Pulse.Table do
     search = String.downcase(Map.get(opts.params, "search", ""))
     title = String.downcase(opts.query)
 
-    filters?(row, opts.params) and String.contains?(String.downcase(Jason.encode!(row)), search) and
+    filters?(row, opts.params) and String.contains?(String.downcase(JSON.encode!(row)), search) and
       (not Map.has_key?(row, "issue_id") or String.contains?(String.downcase(row["title"] || ""), title))
   end
 

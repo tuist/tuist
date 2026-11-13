@@ -1,0 +1,52 @@
+use public;
+
+Affected Rows: 0
+
+select database();
+
++------------+
+| database() |
++------------+
+| public     |
++------------+
+
+select schema();
+
++----------+
+| schema() |
++----------+
+| public   |
++----------+
+
+select user(), current_user(), system_user();
+
++----------+----------------+---------------+
+| user()   | current_user() | system_user() |
++----------+----------------+---------------+
+| greptime | greptime       | greptime      |
++----------+----------------+---------------+
+
+use information_schema;
+
+Affected Rows: 0
+
+select database();
+
++--------------------+
+| database()         |
++--------------------+
+| information_schema |
++--------------------+
+
+select schema();
+
++--------------------+
+| schema()           |
++--------------------+
+| information_schema |
++--------------------+
+
+use public;
+
+Affected Rows: 0
+

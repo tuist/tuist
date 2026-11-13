@@ -6,6 +6,8 @@ defmodule Tuist.Entire.Client do
 
   alias Tuist.KeyValueStore
 
+  require Logger
+
   @cores for region <- ~w(us eu au in uk sg), suffix <- ~w(io com), do: "https://#{region}.auth.entire.#{suffix}"
   @delivery_issuers for region <- ~w(us-east-2 eu-central-1 eu-west-2 ap-south-1 ap-southeast-1 ap-southeast-2 sa-east-1),
                         do: "https://#{region}.entire-ci-webhooks.entire.io"
@@ -65,6 +67,12 @@ defmodule Tuist.Entire.Client do
     opts = if cursor, do: [params: [cursor: cursor]], else: []
 
     with {:ok, body} <- core_request(:get, installation, "/repositories", opts) do
+      if is_nil(body["repositories"]) do
+        Logger.warning(
+          "Entire repository discovery response missing repositories installation_id=#{installation.remote_id}"
+        )
+      end
+
       repositories = repositories ++ (body["repositories"] || [])
 
       case body["next_cursor"] do
@@ -76,9 +84,10 @@ defmodule Tuist.Entire.Client do
 
   def repository(installation, repository_id) do
     with {:ok, repositories} <- repositories(installation),
-         repository when not is_nil(repository) <- Enum.find(repositories, &(&1["id"] == repository_id)),
-         placement when not is_nil(placement) <-
-           Enum.find(repository["placements"] || [], &(&1["role"] == "processing_primary")),
+         {:repository, repository} when not is_nil(repository) <-
+           {:repository, Enum.find(repositories, &(&1["id"] == repository_id))},
+         {:placement, placement} when not is_nil(placement) <-
+           {:placement, Enum.find(repository["placements"] || [], &(&1["role"] == "processing_primary"))},
          true <- trusted_origin?(placement["api_base_url"]),
          true <- trusted_clone_url?(repository["entire_clone_url"]) do
       {:ok,
@@ -89,9 +98,20 @@ defmodule Tuist.Entire.Client do
          clone_url: repository["entire_clone_url"]
        }}
     else
-      nil -> {:error, :revoked}
-      false -> {:error, :invalid_repository}
-      {:error, _} = error -> error
+      {stage, nil} ->
+        Logger.warning(
+          "Entire repository discovery skipped installation_id=#{installation.remote_id} " <>
+            "repository_id=#{repository_id} reason=missing_#{stage}"
+        )
+
+        {:error, :revoked}
+
+      false ->
+        Logger.warning("Entire repository discovery rejected repository_id=#{repository_id} reason=untrusted_url")
+        {:error, :invalid_repository}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -120,7 +140,8 @@ defmodule Tuist.Entire.Client do
           "/api/v1/plugins/#{segment(__MODULE__.config()[:slug])}/installations/#{segment(installation.remote_id)}" <>
           suffix,
         jwt,
-        opts
+        opts,
+        suffix
       )
     else
       _ -> {:error, :not_configured}
@@ -129,11 +150,21 @@ defmodule Tuist.Entire.Client do
 
   def region_request(method, repository, path, token, opts \\ []) do
     if trusted_origin?(repository.api_url) do
-      request(method, repository.api_url <> "/api/v1" <> path, token, opts)
+      operation = path |> String.split("/", trim: true) |> operation()
+      request(method, repository.api_url <> "/api/v1" <> path, token, opts, operation)
     else
       {:error, :invalid_repository}
     end
   end
+
+  defp operation(["repos", _, "trails"]), do: :list_trails
+  defp operation(["repos", _, "trails", _]), do: :get_trail
+  defp operation(["repos", _, "trails", _, "reviews"]), do: :create_review
+  defp operation(["repos", _, "trails", _, "reviews", _, "comments"]), do: :publish_findings
+  defp operation(["repos", _, "trails", _, "reviews", _, "comments", _]), do: :resolve_finding
+  defp operation(["repos", _, "trails", _, "discussions" | _]), do: :trail_comment
+  defp operation(["repos", _, "commits", _, "check-runs"]), do: :publish_checks
+  defp operation(_), do: :repository_api
 
   defp plugin_jwt(core, installation_id) do
     now = System.system_time(:second) - 30
@@ -158,18 +189,23 @@ defmodule Tuist.Entire.Client do
     {:ok, token}
   end
 
-  defp request(method, url, token, opts) do
+  defp request(method, url, token, opts, operation) do
+    {headers, opts} = Keyword.pop(opts, :headers, [])
+
     opts =
       [
         method: method,
         url: url,
-        headers: [{"authorization", "Bearer " <> token}],
+        headers: [{"authorization", "Bearer " <> token} | headers],
         redirect: false,
         retry: false,
         receive_timeout: 5_000
       ] ++ opts
 
-    case Req.request(opts) do
+    result = Req.request(opts)
+    log_request_failure(result, method, url, operation)
+
+    case result do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
         {:ok, body}
 
@@ -188,6 +224,25 @@ defmodule Tuist.Entire.Client do
 
       {:error, _} ->
         {:error, :unavailable}
+    end
+  end
+
+  defp log_request_failure(result, method, url, operation) do
+    # Log only locally selected context, never headers, bodies, query strings,
+    # source paths or transport exception messages (which may contain credentials).
+    case result do
+      {:ok, %{status: status}} when status not in 200..299 ->
+        Logger.warning(
+          "Entire HTTP request failed operation=#{operation} method=#{method} host=#{URI.parse(url).host} status=#{status}"
+        )
+
+      {:error, _} ->
+        Logger.warning(
+          "Entire HTTP request failed operation=#{operation} method=#{method} host=#{URI.parse(url).host} reason=transport_error"
+        )
+
+      _ ->
+        :ok
     end
   end
 

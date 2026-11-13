@@ -199,7 +199,8 @@ defmodule Tuist.Threads.ShippingTest do
   end
 
   test "branch mode creates only the thread branch with an atomic absent-ref precondition", c do
-    thread = Repo.update!(Ecto.Changeset.change(c.thread, ship_mode: :branch))
+    # Existing repository branches survive the feature rename, including Ship consent.
+    thread = Repo.update!(Ecto.Changeset.change(c.thread, ship_mode: :branch, branch: "threads/#{c.thread.id}"))
     approval = Repo.update!(Ecto.Changeset.change(c.approval, mode: :branch, target_branch: thread.branch))
     Agent.update(c.remote, fn _ -> nil end)
     assert {:ok, %{target_branch: target}} = Shipping.execute(thread, approval, c.run)

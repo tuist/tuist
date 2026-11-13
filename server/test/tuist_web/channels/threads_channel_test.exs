@@ -29,9 +29,9 @@ defmodule TuistWeb.ThreadsChannelTest do
   end
 
   test "the endpoint hands the native clients' bearer subprotocol to the socket", %{token: token} do
-    handshake = fn credential ->
+    handshake = fn collection, credential ->
       :get
-      |> Plug.Test.conn("/threads/socket/websocket?vsn=2.0.0")
+      |> Plug.Test.conn("/#{collection}/socket/websocket?vsn=2.0.0")
       |> Plug.Conn.put_req_header("connection", "Upgrade")
       |> Plug.Conn.put_req_header("upgrade", "websocket")
       |> Plug.Conn.put_req_header("sec-websocket-version", "13")
@@ -45,8 +45,10 @@ defmodule TuistWeb.ThreadsChannelTest do
 
     # A refused connect answers 403. An accepted one proceeds to the upgrade,
     # which the test adapter cannot perform and answers with 400.
-    assert handshake.("not-a-token").status == 403
-    assert handshake.(token).status == 400
+    for collection <- ["threads", "jams"] do
+      assert handshake.(collection, "not-a-token").status == 403
+      assert handshake.(collection, token).status == 400
+    end
   end
 
   test "rejects a genuinely expired user JWT", %{user: user} do
@@ -72,9 +74,11 @@ defmodule TuistWeb.ThreadsChannelTest do
   end
 
   test "inbox snapshots contain only invalidation metadata", %{token: token, topic: topic} do
-    {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
-    assert {:ok, snapshot, _socket} = subscribe_and_join(socket, ThreadsChannel, topic)
-    assert snapshot |> Map.keys() |> Enum.sort() == [:agent_status, :revision]
+    for topic <- [topic, String.replace_prefix(topic, "threads:", "jams:")] do
+      {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
+      assert {:ok, snapshot, _socket} = subscribe_and_join(socket, topic)
+      assert snapshot |> Map.keys() |> Enum.sort() == [:agent_status, :revision]
+    end
   end
 
   test "denies foreign accounts and malformed IDs", %{token: token, user: user} do

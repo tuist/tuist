@@ -127,14 +127,17 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         :head_image,
         SocialCards.image_url("blog")
       )
-      |> assign(:head_title, "The Tuist Blog")
+      |> assign(:head_title, dgettext("marketing", "Tuist Blog: engineering and build infrastructure"))
       |> assign(:head_include_blog_rss_and_atom, true)
       |> assign(:head_include_changelog_rss_and_atom, false)
       |> assign(:head_twitter_card, "summary_large_image")
       |> put_structured_data(get_blog_structured_markup_data(socket.assigns.structured_posts))
       |> assign(
         :head_description,
-        dgettext("marketing", "Read engaging stories and expert insights.")
+        dgettext(
+          "marketing",
+          "Engineering articles from Tuist on build infrastructure, developer workflows, and coding agents, with product updates and technical decisions."
+        )
       )
 
     # Push scroll event only if page changed

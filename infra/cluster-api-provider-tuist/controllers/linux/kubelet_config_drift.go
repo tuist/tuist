@@ -46,16 +46,18 @@ const kubeletConfigHashAnnotation = "tuist.dev/kubelet-config-hash"
 // in, so changing them re-pushes too, and so is the kernel hardening sysctl
 // drop-in, which the self-join writes once. Kata runner hosts (exclusiveCPUs) also
 // fold in the CPU manager setup; every other host hashes exactly as before, so
-// adding it re-pushes nothing outside the runner fleets.
-func desiredKubeletConfigHash(clusterCAPEM []byte, exclusiveCPUs bool) string {
+// adding it re-pushes nothing outside the runner fleets. k8sMinor is the
+// node's own kubelet minor, and the config only differs from v1.36 on, so a
+// node below it hashes as it always has.
+func desiredKubeletConfigHash(clusterCAPEM []byte, k8sMinor string, exclusiveCPUs bool) string {
 	h := sha256.New()
-	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath, exclusiveCPUs)))
+	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath, k8sMinor, exclusiveCPUs)))
 	h.Write(clusterCAPEM)
 	h.Write([]byte(sshServiceDropInContent))
 	h.Write([]byte(sshSocketDropInContent))
 	h.Write([]byte(kernelHardeningSysctlContent))
 	if exclusiveCPUs {
-		h.Write([]byte(kubeletCPUSetupFor("", linuxCloudInitOptions{ClusterCAPEM: clusterCAPEM, KataRuntime: true})))
+		h.Write([]byte(kubeletCPUSetupFor("", linuxCloudInitOptions{ClusterCAPEM: clusterCAPEM, K8sMinor: k8sMinor, KataRuntime: true})))
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -96,7 +98,7 @@ set -euxo pipefail
 `,
 		sudo,
 		caWrite,
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime)),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime)),
 		sshStartLimitDropIns(sudo, writeFileFunc(sudo)),
 		kubeletCPUSetupFor(sudo, opts),
 		heredoc(kernelHardeningSysctlPath, kernelHardeningSysctlContent),
@@ -168,7 +170,10 @@ func reconcileLinuxKubeletConfigDrift(
 	if err != nil {
 		return false, fmt.Errorf("mint node identity for drift check: %w", err)
 	}
-	desired := desiredKubeletConfigHash(identity.CA, kataRuntime)
+	// Rendered for the kubelet the node actually runs, never the one a newer
+	// join would install: a v1.34 kubelet panics on the v1.36 feature gate.
+	k8sMinor := kubeletMinor(node.Status.NodeInfo.KubeletVersion, "")
+	desired := desiredKubeletConfigHash(identity.CA, k8sMinor, kataRuntime)
 	if node.Annotations[kubeletConfigHashAnnotation] == desired {
 		return false, nil
 	}
@@ -203,6 +208,7 @@ func reconcileLinuxKubeletConfigDrift(
 	script := renderKubeletConfigRepushScript(linuxCloudInitOptions{
 		ClusterDNS:    clusterDNS,
 		ClusterCAPEM:  identity.CA,
+		K8sMinor:      k8sMinor,
 		BootstrapUser: bootstrapUser,
 		KataRuntime:   kataRuntime,
 	})

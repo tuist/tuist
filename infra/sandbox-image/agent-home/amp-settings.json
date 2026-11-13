@@ -1,0 +1,10 @@
+{
+  "amp.mcpServers": {
+    "tuist": {
+      "url": "${TUIST_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${amp:id-token}"
+      }
+    }
+  }
+}

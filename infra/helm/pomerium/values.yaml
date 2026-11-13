@@ -88,7 +88,7 @@ kubeImpersonator:
 # in this path: ingress-nginx routes the host straight to the
 # listener, because the token, not a browser session, authenticates.
 # The orb gets its creator's read tier; canary/production write needs
-# `/elevate <env> --thread <id>` run and approved by that creator.
+# a thread elevation that creator approves in Atlas.
 # See kube-impersonator/AGENTS.md.
 orbAccess:
   enabled: false

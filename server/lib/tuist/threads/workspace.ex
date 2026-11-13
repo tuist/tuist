@@ -204,7 +204,7 @@ defmodule Tuist.Threads.Workspace do
          {:ok, remote} <- git(context.sandbox, ["remote", "get-url", "origin"]),
          true <- remote == "https://github.com/#{repository.name}.git",
          {:ok, branch} <- git(context.sandbox, ["symbolic-ref", "--short", "HEAD"]),
-         true <- branch == "threads/#{thread.id}",
+         true <- branch == thread.branch,
          {:ok, _} <- git(context.sandbox, ["cat-file", "-e", "#{thread.base_sha}^{commit}"]) do
       {:ok, thread}
     else
@@ -281,7 +281,7 @@ defmodule Tuist.Threads.Workspace do
   end
 
   defp branch(sandbox, thread, base) do
-    name = "threads/#{thread.id}"
+    name = thread.branch
 
     case git(sandbox, ["show-ref", "--verify", "--hash", "refs/heads/#{name}"]) do
       {:ok, ^base} ->

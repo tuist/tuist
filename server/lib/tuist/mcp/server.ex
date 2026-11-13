@@ -71,6 +71,11 @@ defmodule Tuist.MCP.Server do
     Tools.ResumeSandbox,
     Tools.ArchiveSandbox,
     Tools.DeleteSandbox,
+    Tools.ListAmpWorkspaceConnections,
+    Tools.ConnectAmpWorkspace,
+    Tools.DisconnectAmpWorkspace,
+    Tools.ListClaudeEnvironments,
+    Tools.ConnectClaudeEnvironment,
     Tools.ListWebhookEndpoints,
     Tools.GetWebhookEndpoint,
     Tools.ListWebhookDeliveryAttempts,
@@ -175,7 +180,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.52.0",
+      version: "1.62.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

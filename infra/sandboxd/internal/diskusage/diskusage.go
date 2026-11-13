@@ -28,6 +28,10 @@ type Accounter struct {
 	TemplatesDir string
 	SnapshotsDir string
 	JailDir      string
+	// BlobCacheDir is node-wide like the templates and counted with them.
+	BlobCacheDir string
+	// CheckoutsDir holds the prepared checkout workspaces, node-wide too.
+	CheckoutsDir string
 	BudgetBytes  uint64
 	Exclusive    Exclusive
 }
@@ -65,7 +69,15 @@ func (a Accounter) Report() (protocol.DiskReport, error) {
 	if err != nil {
 		return report, err
 	}
-	report.TemplatesBytes = templates
+	blobs, err := sum(a.BlobCacheDir, seen, exclusive)
+	if err != nil {
+		return report, err
+	}
+	checkouts, err := sum(a.CheckoutsDir, seen, exclusive)
+	if err != nil {
+		return report, err
+	}
+	report.TemplatesBytes = templates + blobs + checkouts
 	report.SnapshotsBytes = snapshots
 	report.SandboxesBytes = sandboxes
 	return report, nil

@@ -112,7 +112,7 @@ defmodule Tuist.Threads.Worker do
 
     with {:ok, prompt, store_opts} <- conversation(run, thread),
          {:ok, client_opts} <- Provider.client_opts(user, thread),
-         {:ok, mcp_tools} <- MCP.discover(user, run) do
+         {:ok, mcp_tools} <- mcp_tools(user, run) do
       opts =
         ModelFence.wrap(client_opts, run, parent) ++
           store_opts ++
@@ -128,6 +128,16 @@ defmodule Tuist.Threads.Worker do
         Process.link(pid)
         Condukt.run(pid, prompt, max_turns: 12, timeout: 240_000)
       end)
+    end
+  end
+
+  defp mcp_tools(user, run) do
+    case MCP.discover(user, run) do
+      {:ok, tools} -> {:ok, tools}
+      {:error, :stale_run} = error -> error
+      # Profile integrations are optional. Their discovery failures must not
+      # prevent the durable run from answering with its built-in tools.
+      {:error, _} -> {:ok, []}
     end
   end
 
@@ -150,7 +160,7 @@ defmodule Tuist.Threads.Worker do
     naming =
       Condukt.tool(
         name: "set_thread_name",
-        description: "Give this session a concise descriptive title.",
+        description: "Give this Thread a concise descriptive title.",
         parameters: schema(%{name: %{type: "string", maxLength: 120}}),
         call: fn args, _ -> Threads.rename(run, args["name"]) end
       )

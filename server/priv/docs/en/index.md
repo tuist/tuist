@@ -28,7 +28,7 @@ Follow one of the <.localized_link href="/guides/get-started">Get Started paths<
 />
   <.home_card
     title="Selective testing"
-    details="Run only the tests affected by a change in generated Xcode projects, so feedback lands in seconds."
+    details="Skip unchanged test targets in generated Xcode projects, with an early-access coverage strategy for individual XCTest/XCUITest selection."
     link="/guides/features/selective-testing"
 />
   <.home_card
@@ -38,26 +38,26 @@ Follow one of the <.localized_link href="/guides/get-started">Get Started paths<
 />
   <.home_card
     title="Previews"
-    details="Share your app instantly with a URL. No store review delays, no complex setup."
+    details="Share supported mobile apps, macOS apps, and macOS/Linux command-line tools through a URL. Build, signing, and recipient compatibility requirements apply."
     link="/guides/features/previews"
 />
   <.home_card
     title="Generated projects"
-    details="Describe Xcode projects in Swift and generate them consistently. Eliminate merge conflicts and unlock the module cache."
+    details="Describe Xcode projects in Swift and generate them consistently. Reduce project-file conflicts and unlock the module cache."
     link="/guides/features/projects"
 />
   <.home_card
     title="Package Registry"
-    details="Resolve Swift packages in seconds instead of minutes with a registry backed by Tuist's cache network."
+    details="Retrieve supported Swift packages through the registry protocol instead of cloning their Git repositories."
     link="/guides/features/package-registries/swift"
 />
   <.home_card
     title="Bundle size"
-    details="Analyze and keep your app lean so users get faster downloads and you clear store guidelines."
+    details="Track supported Apple and Android bundle sizes over time and investigate size regressions."
     link="/guides/features/bundle-insights"
 />
 </.home_cards>
 
 ## Trusted by teams shipping at scale
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** ship faster with Tuist across their iOS and Android codebases.
+Read [customer stories](https://tuist.dev/customers) for the workflows teams adopted and the results they reported.

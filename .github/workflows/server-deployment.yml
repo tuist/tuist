@@ -695,7 +695,9 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
-      - name: Gate collector cutover on independent Pulse readiness
+      - name: Gate collectors on the currently deployed backend
+        env:
+          DEPLOY_ENV: ${{ inputs.environment }}
         run: |
           set -euo pipefail
           # Intentional legacy identifier: reject historical monitoring charts
@@ -703,26 +705,9 @@ jobs:
           legacy_name=pulso
           yq -o=json '.' "$OBSERVABILITY_CHART_PATH/Chart.yaml" \
             | jq -e --arg legacy "$legacy_name" 'all(.dependencies[]?; .name != $legacy)' >/dev/null
-          # The release workflow owns backend publication and migration. A
-          # racing server cascade must leave the live old backend/collectors
-          # untouched until the independent instance has actually qualified.
-          kubectl -n "$OBSERVABILITY_NAMESPACE" get deployment pulse -o json \
-            | jq -e '
-              .metadata.annotations["meta.helm.sh/release-name"] == "pulse" and
-              .metadata.annotations["meta.helm.sh/release-namespace"] == "observability" and
-              .spec.replicas == 1 and .spec.strategy.type == "Recreate" and
-              .status.observedGeneration >= .metadata.generation and
-              .status.updatedReplicas == 1 and .status.readyReplicas == 1 and .status.availableReplicas == 1 and
-              ([.spec.template.spec.containers[].image] | length == 1 and
-                all(.[]; test("^ghcr.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[0-9a-f]{64}$")))' >/dev/null
-          legacy=$(kubectl -n "$OBSERVABILITY_NAMESPACE" get deployment "$legacy_name" --ignore-not-found -o json)
-          if [[ -n "$legacy" ]]; then
-            jq -e '.spec.replicas == 0' <<< "$legacy" >/dev/null
-          fi
-          kubectl -n "$OBSERVABILITY_NAMESPACE" get pods -o json \
-            | jq -e --arg repository "ghcr.io/tuist/$legacy_name" '
-                all(.items[]; all(.spec.containers[];
-                  (.image | startswith($repository + ":") or startswith($repository + "@") or . == $repository) | not))' >/dev/null
+          # Backend selection follows the live workload, not a future rollout.
+          # Canary/production continue to require only their existing Pulse.
+          bash .github/scripts/pulse-readiness.sh
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring
@@ -981,11 +966,11 @@ jobs:
     # before its rollback can run, and the release is left wedged in
     # pending-upgrade (the bug that drove the long pending-upgrade ->
     # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
-    # when helm was bumped from 30m). It also covers the smoke test and the
-    # xcresult processor rollout report (35m) that follow. 125m keeps helm <
-    # step < job so a stuck deploy fails via helm's own clean path, not this
-    # ceiling.
-    timeout-minutes: 125
+    # when helm was bumped from 30m). It also covers the smoke test, the
+    # xcresult processor rollout report (35m) and the tart-kubelet rollout
+    # (25m) that follow. 150m keeps helm < step < job so a stuck deploy fails
+    # via helm's own clean path, not this ceiling.
+    timeout-minutes: 150
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -2272,6 +2257,55 @@ jobs:
             echo
             echo '```'
             kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o wide 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+      - name: tart-kubelet rollout
+        # tart-kubelet ships inside the CAPI operator image, and the operator's
+        # drift loop pushes it to the macOS hosts after the upgrade above has
+        # already finished, so nothing in Helm waits for it. Canary must have
+        # every serving host on the operator's binary before runners
+        # acceptance qualifies it for production; staging only reports, and
+        # production does not wait, as for the xcresult processor above. It runs
+        # after that step so canary's wait there covers the operator's pushes.
+        # The hosts converge within minutes (2026-11-13: 22 production hosts
+        # in 5); a host whose push keeps failing is retried only after the
+        # operator's 30-minute terminal cooldown, so 20 minutes fails it.
+        if: inputs.environment != 'production'
+        continue-on-error: ${{ inputs.environment != 'canary' }}
+        timeout-minutes: 25
+        run: |
+          set -uo pipefail
+          gate=.github/scripts/tart-kubelet-rollout-gate.sh
+          # A checkout predating the gate (a pinned rollback) has none.
+          [ -x "$gate" ] || exit 0
+          deadline=$((SECONDS + 1200))
+          last=""
+          while :; do
+            if pending="$("$gate" "$NAMESPACE")"; then
+              exit 0
+            fi
+            if [ "$pending" != "$last" ]; then
+              echo "Waiting for these hosts to run the operator's tart-kubelet (host, node, binary, failure):"
+              printf '%s\n' "${pending:-<the cluster could not be read>}"
+              last="$pending"
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              break
+            fi
+            sleep 20
+          done
+
+          echo "::error title=tart-kubelet not rolled out::The macOS hosts below do not run the CAPI operator's tart-kubelet after 20 minutes. The server release is deployed and was not rolled back."
+          kubectl -n "$NAMESPACE" get scalewayapplesiliconmachines,rackapplesiliconmachines,rackhostleases \
+            -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,STATE:.status.state,SHA:.status.tartKubeletBinarySHA,FAILURE:.status.failureReason,LAST_FAILURE:.status.lastUpdateFailureTime' || true
+          {
+            echo "### tart-kubelet not rolled out"
+            echo
+            echo "These hosts do not run the CAPI operator's tart-kubelet after 20 minutes. The server release is deployed and was not rolled back."
+            echo
+            echo '```'
+            printf '%s\n' "${pending:-the cluster could not be read}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1

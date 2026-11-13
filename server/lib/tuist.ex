@@ -53,6 +53,7 @@ defmodule Tuist do
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
       Ops.FeatureFlags,
+      Ops.RunnerConcurrencyLimits,
       Observability,
       RateLimit,
       RateLimit.InMemory,
@@ -69,6 +70,7 @@ defmodule Tuist do
       Bundles.BundleSizeApprover,
       Bundles.BundleThreshold,
       Bundles.Workers.BundleThresholdWorker,
+      DashboardSearch,
       Cache,
       Cache.Analytics,
       CacheEndpoints,
@@ -185,6 +187,7 @@ defmodule Tuist do
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.Selections,
+      Tests.RunSelections,
       Tests.TestRunStressCandidate,
       TestImpactAnalysis.Baselines,
       TestImpactAnalysis.Runs,
@@ -210,6 +213,7 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.AISubscriptions,
+      Accounts.OrganizationAI,
       Accounts.MCPServers,
       Accounts.User,
       Accounts.UserMFA,
@@ -250,6 +254,8 @@ defmodule Tuist do
       GitHistory.Ref,
       GitHistory.Commit,
       GitHistory.CommitFile,
+      GitHistory.FileChange,
+      GitHistory.FileChanges,
       GitHistory.CommitListing,
       GitHistory.CommitParent,
       GitHistory.Repository,
@@ -344,6 +350,7 @@ defmodule Tuist do
       Sandboxes.ClaudeCodeRuntime,
       Sandboxes.Commands,
       Sandboxes.Anthropic.Client,
+      Sandboxes.Anthropic.Federation,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
@@ -352,6 +359,7 @@ defmodule Tuist do
       Sandboxes.Router,
       Sandboxes.Sandbox,
       Sandboxes.Schemas,
+      Sandboxes.Uploads,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the
@@ -359,6 +367,7 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.ActionsCache,
       Runners.CacheVolumes,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
@@ -367,6 +376,7 @@ defmodule Tuist do
       Runners.Billing,
       Runners.Catalog,
       Runners.Allowance,
+      Runners.CacheVolumeBilling,
       Runners.Prepaid,
       Runners.Trials,
       Runners.Concurrency,

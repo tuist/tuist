@@ -28,7 +28,7 @@ defmodule TuistWeb.UserPasskeyController do
   plug :require_passkeys_enabled
 
   def show(conn, _params) do
-    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/passkeys")
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/authentication")
   end
 
   def new(conn, _params) do
@@ -67,7 +67,7 @@ defmodule TuistWeb.UserPasskeyController do
       {:ok, _passkey} ->
         conn
         |> put_flash(:info, dgettext("dashboard_auth", "Passkey added."))
-        |> redirect(to: ~p"/users/settings/passkeys")
+        |> redirect(to: ~p"/#{user.account.name}/settings/authentication")
 
       {:error, reason} ->
         conn |> put_flash(:error, error_message(reason)) |> redirect(to: ~p"/users/settings/passkeys")
@@ -137,13 +137,14 @@ defmodule TuistWeb.UserPasskeyController do
          {:ok, session} <- UserPasskey.authenticate(challenge, params) do
       # The assertion was user-verified, so the session is MFA-verified.
       conn
+      |> Authentication.restore_login_return_to(params)
       |> put_flash(:info, "Welcome back!")
       |> Authentication.log_in_user_session(session, %{auth_method: :passkey})
     else
       _ ->
         conn
         |> put_flash(:passkey_error, dgettext("dashboard_auth", "The passkey could not be verified. Try again."))
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
     end
   end
 

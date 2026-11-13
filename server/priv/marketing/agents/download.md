@@ -12,6 +12,4 @@ Choose between the Tuist CLI, which integrates with builds and CI, and the macOS
 
 Use them when reviewers need to run [Previews](/marketing-markdown/previews) without a terminal. Use the CLI for anything automated.
 
-## Limitations
-
-The apps do not replace the CLI's build integrations. Installing an app does not grant access to a project's private previews or bypass device signing. Use the live download page for current versions rather than a version number copied here.
+Private previews require project access, and device builds require appropriate signing. Find current app versions on the [download page](/download).

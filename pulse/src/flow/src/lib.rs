@@ -1,0 +1,59 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Flow execution and flownode services.
+
+#![allow(dead_code)]
+#![warn(clippy::too_many_lines)]
+
+// TODO(discord9): enable this lint to handle out of bound access
+// #![cfg_attr(not(test), warn(clippy::indexing_slicing))]
+
+// allow unused for now because it should be use later
+mod adapter;
+pub(crate) mod batching_mode;
+mod df_optimizer;
+pub(crate) mod engine;
+pub mod error;
+mod expr;
+pub mod heartbeat;
+mod metrics;
+mod repr;
+mod server;
+mod utils;
+
+#[cfg(test)]
+mod test_utils;
+
+pub use adapter::flownode_impl::FlowDualEngineRef;
+pub use adapter::{FlowConfig, FlowStreamingEngineRef, StreamingEngine};
+pub use batching_mode::BatchingModeOptions;
+pub use batching_mode::batching_execution::{BatchingExecution, BatchingExecutionFactory};
+pub use batching_mode::frontend_client::{
+    FrontendClient, GrpcQueryHandlerWithBoxedError, PeerDesc,
+};
+pub use batching_mode::task::{
+    BatchingExecutionGuard, BatchingTask, DirtyRestore, ExecuteOnceOutcome, PlanInfo,
+    QueryCoverage, TaskArgs,
+};
+pub use batching_mode::time_window::{TimeWindowExpr, find_time_window_expr};
+pub use batching_mode::utils::{
+    IncrementalAggregateAnalysis, IncrementalAggregateMergeColumn, IncrementalAggregateMergeOp,
+    analyze_incremental_aggregate_plan, sql_to_df_plan,
+};
+pub(crate) use engine::{CreateFlowArgs, FlowId, TableName};
+pub use error::{Error, Result};
+pub use server::{FlownodeBuilder, FlownodeInstance, FlownodeServer, FlownodeServiceBuilder};
+
+pub use crate::adapter::FlownodeOptions;

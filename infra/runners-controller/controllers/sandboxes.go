@@ -241,13 +241,19 @@ func planSandboxPreemption(
 	return chosen
 }
 
-// podMemory is what a Pod holds on its node: its containers' memory requests
-// plus the RuntimeClass overhead admission added.
+// podMemory is what a Pod holds on its node: its containers' memory requests,
+// or its Pod-level budget where it sets one, plus the RuntimeClass overhead
+// admission added.
 func podMemory(pod *corev1.Pod) int64 {
 	var total int64
 	for _, c := range pod.Spec.Containers {
 		if q, ok := c.Resources.Requests[corev1.ResourceMemory]; ok {
 			total += q.Value()
+		}
+	}
+	if pod.Spec.Resources != nil {
+		if q, ok := pod.Spec.Resources.Requests[corev1.ResourceMemory]; ok {
+			total = q.Value()
 		}
 	}
 	if q, ok := pod.Spec.Overhead[corev1.ResourceMemory]; ok {

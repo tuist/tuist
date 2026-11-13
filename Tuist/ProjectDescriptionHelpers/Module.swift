@@ -306,6 +306,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystemTesting"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
+                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -547,7 +548,9 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies
+        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies + [
+            .external(name: "TestCoverageAttribution"),
+        ]
     }
 
     public var strictConcurrencySetting: String? {
@@ -1072,6 +1075,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.oidc.targetName, condition: .when([.macos])),
                     .target(name: Module.git.targetName, condition: .when([.macos])),
                     .target(name: Module.xcodeBuildProducts.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
@@ -1285,7 +1289,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.http.targetName),
-                    .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.loader.targetName, condition: .when([.macos])),
@@ -1312,6 +1315,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.ci.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),
@@ -1651,6 +1655,7 @@ public enum Module: String, CaseIterable {
             case .sandboxCommand:
                 [
                     .target(name: Module.server.targetName),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.nooraExtension.targetName),
@@ -1830,7 +1835,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.loader.targetName),
-                    .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.nooraTesting.targetName),

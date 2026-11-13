@@ -134,20 +134,28 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert "SoftwareApplication" in types
 
       for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
-        assert entry["description"] =~ "Once support is in canary"
-        assert entry["description"] =~ "Rust compilation caching is experimental"
+        assert entry["description"] ==
+                 "Tuist is build infrastructure for engineering teams and coding agents."
       end
 
       document = Floki.parse_document!(html)
-      [description] = Floki.attribute(document, ~s(meta[name="description"]), "content")
-      assert description =~ "Once support is in canary"
-      assert description =~ "Rust compilation caching is experimental"
+
+      for selector <- [
+            ~s(meta[name="description"]),
+            ~s(meta[property="og:description"]),
+            ~s(meta[name="twitter:description"])
+          ] do
+        assert Floki.attribute(document, selector, "content") ==
+                 [
+                   "Tuist is build infrastructure for engineering teams and coding agents."
+                 ]
+      end
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"
+      assert html =~ "Tuist — Build infrastructure for engineering teams and coding agents"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
@@ -349,6 +357,67 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
     end
 
+    test "publish FAQPage structured data that matches the visible FAQ", %{conn: conn} do
+      normalize = fn text -> text |> String.split() |> Enum.join(" ") end
+
+      pages_with_faqs =
+        for page <- MarketingMarkdown.decision_guides(), reduce: [] do
+          acc ->
+            document = conn |> get(page.path) |> html_response(200) |> Floki.parse_document!()
+
+            visible =
+              document
+              |> Floki.find("article > [data-part=content]")
+              |> Enum.flat_map(&Floki.children/1)
+              |> Enum.filter(&is_tuple/1)
+              |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
+              |> Enum.drop(1)
+              |> Enum.take_while(&(elem(&1, 0) != "h2"))
+              |> Enum.drop_while(&(elem(&1, 0) != "h3"))
+              |> Enum.reduce([], fn
+                {"h3", _, _} = question, faqs -> [{Floki.text(question), []} | faqs]
+                block, [{question, answer} | faqs] -> [{question, [Floki.text(block) | answer]} | faqs]
+              end)
+              |> Enum.reverse()
+              |> Enum.map(fn {question, answer} ->
+                {question, answer |> Enum.reverse() |> Enum.join(" ") |> normalize.()}
+              end)
+
+            faq_page =
+              document
+              |> Floki.find("script[type='application/ld+json']")
+              |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+              |> Enum.find(&(&1["@type"] == "FAQPage"))
+
+            if visible == [] do
+              assert is_nil(faq_page), page.path
+              acc
+            else
+              structured =
+                Enum.map(faq_page["mainEntity"], fn question ->
+                  assert question["@type"] == "Question"
+                  assert question["acceptedAnswer"]["@type"] == "Answer"
+                  {question["name"], normalize.(question["acceptedAnswer"]["text"])}
+                end)
+
+              assert structured == visible, page.path
+              assert Enum.all?(structured, fn {name, text} -> name != "" and text != "" end), page.path
+              [page.path | acc]
+            end
+        end
+
+      for path <- [
+            "/compare/xcodegen",
+            "/compare/nx",
+            "/solutions/slow-builds",
+            "/solutions/slow-tests",
+            "/solutions/flaky-tests",
+            "/solutions/ci-costs"
+          ] do
+        assert path in pages_with_faqs
+      end
+    end
+
     test "point guide links at browser pages and show the review date", %{conn: conn} do
       document = conn |> get("/compare/develocity") |> html_response(200) |> Floki.parse_document!()
       links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
@@ -356,7 +425,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert "/compare" in links
       assert "/tests" in links
       assert "/en/docs/guides/features/agentic-coding/mcp" in links
-      assert document |> Floki.find("[data-part=last-updated]") |> Floki.text() =~ "October 8, 2026"
+      assert document |> Floki.find("[data-part=last-updated]") |> Floki.text() =~ "November 8, 2026"
     end
 
     test "send other languages to their homepage from an English-only guide", %{conn: conn} do
@@ -403,7 +472,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "negotiate the authored Markdown on the browser URL", %{conn: conn} do
       conn = conn |> put_req_header("accept", "text/markdown") |> get("/compare/develocity")
 
-      assert response(conn, 200) =~ "# Tuist and Develocity"
+      assert response(conn, 200) =~ "# Tuist vs Develocity:"
       assert response(conn, 200) =~ "](#{Tuist.Environment.app_url(path: "/marketing-markdown/compare")})"
     end
 
@@ -472,16 +541,20 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
 
       assert xml =~
-               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/compare/develocity"))}</loc>\s*<lastmod>2026-10-08</lastmod>|
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/compare/develocity"))}</loc>\s*<lastmod>2026-11-08</lastmod>|
     end
 
-    test "includes individual changelog entries", %{conn: conn} do
+    test "includes available articles without advertising untranslated locale URLs", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
       entry = List.first(Changelog.get_entries())
 
-      for locale <- Localization.all_locales() do
+      assert xml =~ "<loc>#{Tuist.Environment.app_url(path: "/changelog/#{entry.id}")}</loc>"
+      assert xml =~ "<loc>#{Tuist.Environment.app_url(path: "/blog/2025/11/26/opening-registry")}</loc>"
+
+      for locale <- Localization.additional_locales() do
         path = Localization.localized_href("/changelog/#{entry.id}", locale)
-        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/#{locale}/blog/2025/11/26/opening-registry")}</loc>"
       end
     end
 
@@ -531,6 +604,38 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /about" do
+    test "aligns company copy, sharing metadata, and Markdown around build infrastructure", %{conn: conn} do
+      document = conn |> get("/about") |> html_response(200) |> Floki.parse_document!()
+      title = "About Tuist: build infrastructure"
+
+      description =
+        "Tuist is build infrastructure for engineering teams and coding agents."
+
+      assert document |> Floki.find("title") |> Floki.text() |> String.trim() == title
+      assert Floki.attribute(document, ~s(meta[property="og:title"]), "content") == [title]
+      assert Floki.attribute(document, ~s(meta[name="twitter:title"]), "content") == [title]
+
+      for selector <- [
+            ~s(meta[name="description"]),
+            ~s(meta[property="og:description"]),
+            ~s(meta[name="twitter:description"])
+          ] do
+        assert Floki.attribute(document, selector, "content") == [description]
+      end
+
+      copy = document |> Floki.find("#marketing-about") |> Floki.text()
+      markdown = conn |> recycle() |> get("/marketing-markdown/about") |> response(200)
+
+      for content <- [copy, markdown] do
+        assert content =~ description
+        assert content =~ "shared caching, build and test insights, and app previews"
+        assert content =~ "open-source developer toolkit"
+        refute content =~ "seconds instead of minutes"
+      end
+    end
+  end
+
   describe "GET /compute" do
     test "renders the page", %{conn: conn} do
       conn = get(conn, "/compute")
@@ -547,6 +652,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
 
       assert html =~ "/marketing/assets/bundle.css"
+
+      # Runners are billed per minute, so the feature must not claim a free offer.
+      assert %{"name" => "Tuist Compute"} = feature = software_application(html)
+      refute Map.has_key?(feature, "offers")
     end
   end
 
@@ -587,8 +696,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "How are Tuist Runners billed?"
       refute html =~ "How Tuist Runners compare"
 
+      runners = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #runners")
+      assert [_] = runners
+      pricing = Floki.raw_html(runners)
+
       for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
-        refute html =~ provider
+        refute pricing =~ provider
       end
     end
   end
@@ -600,6 +713,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = html_response(conn, 200)
       assert html =~ "marketing-tests"
       assert html =~ "/marketing/assets/bundle.css"
+
+      assert %{"name" => "Tuist Tests", "offers" => %{"price" => "0"}} = software_application(html)
     end
   end
 
@@ -774,6 +889,19 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                "success" => false,
                "message" => "Something went wrong. Please try again."
              }
+    end
+
+    test "returns error without sending when the email is missing or not a string", %{conn: conn} do
+      reject(&Email.send_newsletter_confirmation/2)
+
+      for params <- [%{}, %{"email" => ["test@example.com"]}, %{"email" => %{"a" => "b"}}] do
+        conn = post(conn, ~p"/newsletter", params)
+
+        assert json_response(conn, 400) == %{
+                 "success" => false,
+                 "message" => "Something went wrong. Please try again."
+               }
+      end
     end
 
     test "accepts a same-origin submission whose cached page carried a stale CSRF token", %{conn: conn} do
@@ -1093,5 +1221,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
+  end
+
+  defp software_application(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("script[type='application/ld+json']")
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+    |> Enum.find(&(&1["@type"] == "SoftwareApplication"))
   end
 end

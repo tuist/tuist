@@ -15,10 +15,10 @@
                 defer { busy = false }
                 do {
                     if let client {
-                        let result = try await client.archive(id: session.id, archived: value)
+                        let result = try await client.archive(id: thread.id, archived: value)
                         guard lifecycle == fence, !Task.isCancelled else { return }
-                        session = session.mergingHistory(result)
-                        update(session)
+                        thread = thread.mergingHistory(result)
+                        update(thread)
                     }
                     archived = value
                     archive(value)
@@ -34,12 +34,12 @@
             loadingHistory = true
             defer { if historyID == id { loadingHistory = false } }
             do {
-                let before = older ? session.nextBefore : nil
-                let value = try await client.thread(id: session.id, before: before)
+                let before = older ? thread.nextBefore : nil
+                let value = try await client.thread(id: thread.id, before: before)
                 guard !Task.isCancelled, historyID == id else { return }
-                session = session.mergingHistory(value, older: older)
-                archived = session.archiveStatus == "archived" || session.status == "archived"
-                update(session)
+                thread = thread.mergingHistory(value, older: older)
+                archived = thread.archiveStatus == "archived" || thread.status == "archived"
+                update(thread)
                 error = nil
             } catch {
                 guard !Task.isCancelled, historyID == id else { return }
@@ -54,7 +54,7 @@
             shipPreview = nil
             defer { loadingShipPreview = false }
             do {
-                let preview = try await client.shipPreview(id: session.id)
+                let preview = try await client.shipPreview(id: thread.id)
                 guard !Task.isCancelled, lifecycle == fence, showingDiff else { return }
                 shipPreview = preview
                 error = nil
@@ -70,10 +70,10 @@
             busy = true
             defer { busy = false }
             do {
-                let result = try await client.ship(id: session.id, approval: preview)
+                let result = try await client.ship(id: thread.id, approval: preview)
                 guard lifecycle == fence, !Task.isCancelled else { return }
-                session = session.mergingHistory(result)
-                update(session)
+                thread = thread.mergingHistory(result)
+                update(thread)
                 showingDiff = false
                 shipPreview = nil
                 error = nil
@@ -84,9 +84,9 @@
         }
 
         func send(shareConfirmed: Bool = false) async {
-            guard !busy, !session.isRunning, session.status != "outcome_unknown",
+            guard !busy, !voice.isRecording, !thread.isRunning, thread.status != "outcome_unknown",
                   !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            if !isLive, session.visibility == "private", !draft.people.isEmpty, !shareConfirmed {
+            if !isLive, thread.visibility == "private", !draft.people.isEmpty, !shareConfirmed {
                 confirmingShare = true
                 return
             }
@@ -100,24 +100,24 @@
             }
             do {
                 if let client {
-                    let value = try await client.send(submittedText, threadID: session.id, requestID: requestID)
+                    let value = try await client.send(submittedText, threadID: thread.id, requestID: requestID)
                     guard lifecycle == fence, !Task.isCancelled else { return }
-                    session = session.mergingHistory(value)
+                    thread = thread.mergingHistory(value)
                 } else {
                     #if DEBUG
-                        if shareConfirmed { session.visibility = "shared" }
-                        session.messages.append(.init(id: UUID().uuidString, role: "user", content: submittedText))
-                        session.messages.append(.init(
+                        if shareConfirmed { thread.visibility = "shared" }
+                        thread.messages.append(.init(id: UUID().uuidString, role: "user", content: submittedText))
+                        thread.messages.append(.init(
                             id: UUID().uuidString,
                             role: "system",
                             content: "Preview only. No message or invitation was sent, no work ran, and no pull request was opened."
                         ))
-                        session.status = "preview"
+                        thread.status = "preview"
                     #endif
                 }
                 if draft.text == submittedText { draft = ThreadConversationDraft() }
                 requestID = UUID()
-                update(session)
+                update(thread)
                 error = nil
                 jump(to: "bottom")
             } catch {

@@ -39,12 +39,7 @@ defmodule TuistWeb.PulseLive do
     sort_by = params["sort_by"] || default_sort(signal)
     sort_order = params["sort_order"] || default_order(sort_by)
 
-    table_end =
-      params["end_at"] ||
-        if(socket.assigns[:signal] == signal && socket.assigns[:params]["range"] == params["range"],
-          do: socket.assigns.table_end,
-          else: DateTime.to_iso8601(DateTime.utc_now())
-        )
+    table_end = table_end(socket.assigns, signal, params)
 
     {:noreply,
      socket
@@ -64,6 +59,14 @@ defmodule TuistWeb.PulseLive do
      |> assign(:params, params)
      |> assign(:form, to_form(params, as: :pulse))
      |> load()}
+  end
+
+  defp table_end(assigns, signal, params) do
+    params["end_at"] ||
+      if(assigns[:signal] == signal && assigns[:params]["range"] == params["range"],
+        do: assigns.table_end,
+        else: DateTime.to_iso8601(DateTime.utc_now())
+      )
   end
 
   def handle_event("query", %{"pulse" => params}, socket) do
@@ -172,7 +175,8 @@ defmodule TuistWeb.PulseLive do
   end
 
   defp authorize!(socket) do
-    if !Pulse.authorized?(socket.assigns.current_user, socket.assigns.selected_account) do
+    if !Pulse.authorized?(socket.assigns.current_user, socket.assigns.selected_account) or
+         (socket.assigns.live_action == :errors and !Pulse.errors_available?()) do
       raise TuistWeb.Errors.NotFoundError, "Not found"
     end
   end
@@ -196,18 +200,13 @@ defmodule TuistWeb.PulseLive do
 
         refresh? = force && (key == :analytics || live_table?(socket.assigns))
 
-        if connected?(socket) && (previous != load_key || (!result.loading && (refresh? || result.failed))) do
+        if reload?(socket, previous, load_key, result, refresh?) do
           socket
           |> cancel_async(key)
           |> assign(:load_keys, Map.put(socket.assigns[:load_keys] || %{}, key, load_key))
           |> assign_async(
             key,
-            fn ->
-              case apply(Pulse, function, [user, account, signal, inputs]) do
-                {:ok, result} -> {:ok, %{key => result}}
-                {:error, reason} -> {:error, reason}
-              end
-            end,
+            fn -> load_result(key, function, [user, account, signal, inputs]) end,
             reset: previous != nil && elem(previous, 0) != signal
           )
         else
@@ -215,6 +214,17 @@ defmodule TuistWeb.PulseLive do
         end
       end
     )
+  end
+
+  defp reload?(socket, previous, load_key, result, refresh?) do
+    connected?(socket) && (previous != load_key || (!result.loading && (refresh? || result.failed)))
+  end
+
+  defp load_result(key, function, arguments) do
+    case apply(Pulse, function, arguments) do
+      {:ok, result} -> {:ok, %{key => result}}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def render(assigns) do
@@ -827,8 +837,13 @@ defmodule TuistWeb.PulseLive do
   defp title("traces"), do: dgettext("dashboard_pulse", "Traces")
   defp title("errors"), do: dgettext("dashboard_pulse", "Errors")
   defp query_language("metrics"), do: "PromQL"
-  defp query_language("traces"), do: "TraceQL"
-  defp query_language(_), do: "LogQL"
+
+  defp query_language("traces"),
+    do: if(Pulse.greptime?(), do: dgettext("dashboard_pulse", "Text search (* for all)"), else: "TraceQL")
+
+  defp query_language(_),
+    do: if(Pulse.greptime?(), do: dgettext("dashboard_pulse", "Text search (* for all)"), else: "LogQL")
+
   defp signal_icon("metrics"), do: "chart_arcs"
   defp signal_icon("traces"), do: "list_tree"
   defp signal_icon("errors"), do: "alert_circle"

@@ -82,7 +82,7 @@ defmodule Tuist.Sandboxes.Schemas do
   def response(:delete), do: object("SandboxDeleted", %{id: %Schema{type: :string, format: "uuid"}, deleted: boolean()})
 
   def response(:analytics) do
-    resources = fn title -> object(title, %{vcpus: integer(), memory_gb: number(), disk_gb: number()}) end
+    resources = fn title -> object(title, %{vcpus: integer(), memory_gb: number()}) end
 
     object("SandboxAnalytics", %{
       period: object("SandboxAnalyticsPeriod", %{start: timestamp(), end: timestamp()}),
@@ -112,8 +112,7 @@ defmodule Tuist.Sandboxes.Schemas do
               object("SandboxAnalyticsConcurrencyPoint", %{
                 at: timestamp(),
                 vcpus: integer(),
-                memory_gb: number(),
-                disk_gb: number()
+                memory_gb: number()
               })
             )
         })

@@ -95,3 +95,15 @@ When the same value is configured in both places, the value in `settings.gradle.
 Tags must contain only letters, numbers, hyphens, and underscores. A build can have up to 50 tags, and each tag can contain up to 50 characters. A build can have up to 20 key-value entries, each key can contain up to 50 characters, and each value can contain up to 500 characters. These are the same server-side limits used for Xcode build metadata. The plugin skips invalid tags and oversized or empty metadata entries before it sends the report, so invalid configuration cannot prevent the rest of the build insights report from being stored. Use key-value metadata for values that do not meet the tag constraint.
 
 Custom metadata is visible to project members in the dashboard and through the application programming interface and Model Context Protocol tools. Do not use it for credentials, access tokens, or other sensitive data. Tuist retains Gradle build data, including this metadata, for 90 days. See the <.localized_link href="/guides/server/data-retention">data retention policy</.localized_link> for details.
+
+## Failure details {#failure-details}
+
+When a build fails, the plugin reports why each failed task or configuration step failed: the exception message and its cause chain as Gradle's console prints them, such as the compiler errors of a failed `compileJava` task or the error in a build script. Stack traces and task output are not collected. The plugin makes paths inside the project relative before sending the report, and Tuist redacts credentials and other local paths it recognizes. Each message is limited to 16 KiB, and a build keeps the messages of at most 32 failed steps.
+
+Failure messages are visible to project members through the application programming interface, the Model Context Protocol tools (`get_gradle_build`, `list_gradle_build_tasks` and `get_gradle_build_step`) and the CLI:
+
+```bash
+tuist build gradle failure list <build-id>
+```
+
+Messages can contain source snippets and project details. Reports published without credentials through [network-trusted publishing](#network-trusted-publishing) do not include them. Tuist retains them with the rest of the Gradle build data for 90 days.

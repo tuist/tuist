@@ -123,6 +123,7 @@ defmodule TuistWeb.DocsLive do
 
         public_path = Paths.public_path_from_slug(path)
         locale = socket.assigns.locale
+        canonical_slug = Docs.canonical_slug(path)
 
         {:noreply,
          socket
@@ -136,6 +137,10 @@ defmodule TuistWeb.DocsLive do
          |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")
          |> assign(:head_markdown_path, Paths.markdown_path_from_slug(path))
+         |> assign(
+           :head_canonical_path,
+           if(canonical_slug != path, do: Paths.public_path_from_slug(canonical_slug))
+         )
          |> load_release_status(path)
          |> StructuredMarkup.put_structured_data([
            StructuredMarkup.get_documentation_structured_data(page.title, page.description, public_path),
@@ -333,7 +338,7 @@ defmodule TuistWeb.DocsLive do
         </section>
         <%!-- What Tuist offers --%>
         <section data-part="section-intro">
-          <h1 id="learn-more">{dgettext("docs", "Explore Tuist's capabilities")}</h1>
+          <h2 id="learn-more">{dgettext("docs", "Explore Tuist's capabilities")}</h2>
           <p>
             {dgettext(
               "docs",
@@ -520,7 +525,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- See Tuist in action --%>
         <section data-part="section-intro">
-          <h1 id="see-tuist-in-action">{dgettext("docs", "See Tuist in action")}</h1>
+          <h2 id="see-tuist-in-action">{dgettext("docs", "See Tuist in action")}</h2>
           <p>
             {dgettext(
               "docs",
@@ -549,7 +554,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Open source and community --%>
         <section data-part="section-intro">
-          <h1 id="open-source-and-community">{dgettext("docs", "Open source and community")}</h1>
+          <h2 id="open-source-and-community">{dgettext("docs", "Open source and community")}</h2>
           <p>
             {dgettext(
               "docs",

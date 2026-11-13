@@ -398,7 +398,7 @@ defmodule Tuist.Threads.Shipping do
   end
 
   defp target(%{ship_mode: :direct} = thread), do: thread.base_branch
-  defp target(thread), do: "threads/#{thread.id}"
+  defp target(thread), do: thread.branch
 
   defp success(approval),
     do:

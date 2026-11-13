@@ -22,6 +22,21 @@ defmodule TuistWeb.PulseLiveTest do
     %{conn: log_in_user(conn, user), user: user, account: account, organization: organization}
   end
 
+  test "Greptime hides Errors and rejects direct issue and event pages", ctx do
+    stub(Environment, :pulse_config, fn -> [account_id: ctx.account.id, backend: :greptime] end)
+    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
+    render_async(view)
+    refute has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
+    view |> element("#pulse-toggle-query") |> render_click()
+    assert has_element?(view, "#pulse-expression[value='*']")
+
+    for path <- ["errors", "errors/issues/issue", "errors/issues/issue/events/event"] do
+      assert_raise NotFoundError, fn -> live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{path}") end
+    end
+  end
+
   for signal <- ~w(metrics logs traces errors) do
     test "renders #{signal} with organization navigation and escaped telemetry", ctx do
       signal = unquote(signal)
@@ -260,7 +275,9 @@ defmodule TuistWeb.PulseLiveTest do
 
   test "signed-out visitors must authenticate", ctx do
     conn = Phoenix.ConnTest.build_conn()
-    assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, "/#{ctx.account.name}/~/pulse/logs")
+    path = "/#{ctx.account.name}/~/pulse/logs"
+    assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+    assert destination == ~p"/users/log_in?#{%{return_to: path}}"
   end
 
   test "automatic refresh rechecks membership", ctx do
@@ -393,7 +410,10 @@ defmodule TuistWeb.PulseLiveTest do
       "release" => "1.2.3",
       "tags" => %{"deployment.region" => "eu-central", "worker" => "<script>tag</script>"},
       "contexts" => %{"runtime" => %{"name" => "Elixir", "version" => "1.20.2", "jit" => true}},
-      "extra" => %{"attempt" => 0, "details" => %{"message" => "<script>extra</script>", "retried" => false}},
+      "extra" => %{
+        "attempt" => 0,
+        "details" => %{"message" => "<script>extra</script>", "retried" => false, "missing" => nil}
+      },
       "modules" => %{"phoenix" => "1.8.1", "ecto" => "3.13.0"},
       "exception" => %{
         "type" => "ArgumentError",
@@ -481,6 +501,15 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(occurrence, "[data-part='metadata-grid']", event["span_id"])
     assert has_element?(occurrence, "#pulse-event-contexts", "true")
     assert has_element?(occurrence, "#pulse-event-extra code.language-json .string", "<script>extra</script>")
+
+    details =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("#pulse-event-extra code.language-json")
+      |> Floki.text()
+      |> JSON.decode!()
+
+    assert details == %{"message" => "<script>extra</script>", "retried" => false, "missing" => nil}
     assert has_element?(occurrence, "#pulse-event-modules", "3.13.0")
     refute html =~ "<script>"
   end
@@ -515,17 +544,11 @@ defmodule TuistWeb.PulseLiveTest do
   end
 
   defp chart_data(html) do
-    html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> Jason.decode!()
+    html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> JSON.decode!()
   end
 
   defp analytics(signal) do
-    ids =
-      case signal do
-        "metrics" -> ~w(reporting healthy unhealthy)
-        "logs" -> ~w(entries errors warnings)
-        "traces" -> ~w(spans errors duration_p95)
-        "errors" -> ~w(events fatal services)
-      end
+    ids = analytics_ids(signal)
 
     %{
       warnings: [],
@@ -541,6 +564,11 @@ defmodule TuistWeb.PulseLiveTest do
         end)
     }
   end
+
+  defp analytics_ids("metrics"), do: ~w(reporting healthy unhealthy)
+  defp analytics_ids("logs"), do: ~w(entries errors warnings)
+  defp analytics_ids("traces"), do: ~w(spans errors duration_p95)
+  defp analytics_ids("errors"), do: ~w(events fatal services)
 
   defp result("metrics") do
     %{

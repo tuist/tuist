@@ -83,7 +83,7 @@ Prerequisites:
    | `PULSE_SECRET_KEY_BASE` | Password | `password` (`openssl rand -base64 48`) |
    | `PULSE_S3_CREDENTIALS` | Login | `access_key_id`, `secret_access_key` |
 
-3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. Pulse needs conditional writes (`If-None-Match: *` and `If-Match`); see the [Pulse object storage requirements](../../../pulse/docs/configuration.md#object-storage).
+3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. See the [Pulse bootstrap prerequisites](../greptimedb/README.md#bootstrap-prerequisites).
 4. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
 5. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
 
@@ -140,19 +140,15 @@ The rack's switches report through the Omada controller rather than a scrape of 
 
 ## Pulse
 
-The chart forwards to the independently released [Pulse](../pulse/README.md) (`pulse.observability.svc.cluster.local`, port 4000), backed by the per-environment bucket. It does not deploy the backend or own its credentials. Compatible features and custom receivers fan out to Cloud and Pulse through separate write queues. Both metrics destinations share the same relabel/drop policy, including Kura instance normalization. Logs share source processing. Pulse traces remain unsampled, while Cloud retains its existing tail sampling; identical trace populations or costs are not expected.
+No cluster's collectors write to [Pulse](../greptimedb/README.md) any more. Staging, canary, production, management and pentest send their telemetry only to Grafana Cloud. Removing the independently released Pulse backends, including management's `pulse-management` Flux child, is a separate step.
 
-Staging, canary and production also generate `traces_service_graph_*` in a trace-ID-routed Alloy service-graph collector, writing derived metrics **only to Pulse**. Cloud's own generator is unchanged. Compare actual family names, labels and histogram buckets before migrating consumers; this is not a promise of Cloud generator equivalence. Direct external-cache traces use their host-local connector, not a second cluster generator.
+All stores use the `tuist` tenant, but separate buckets are not a federated store. The workload hosts `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev` expose exact authenticated `/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` paths over TLS until the old `pulse` release is uninstalled; GreptimeDB has no public ingress. External NixOS cache collectors use the ingest paths with an environment-specific opnix token. Query APIs and `/metrics` stay private; Grafana reads over PDC. Do not publish a `/` or `/api` prefix. Grafana Cloud still receives Pulse health scrapes independently through annotation autodiscovery; prove an outside-Pulse failure/no-data paging path before removing that storage.
 
-Management prepares metrics-only dual-write to an independent management-local Pulse. Its apply workflow keeps collectors Cloud-only until the backend and ExternalSecret report ready. Pentest includes a legacy dual-write overlay only for an existing cluster pending verified retirement: bootstrap its backend first, and never recreate the retired cluster for telemetry. See [bootstrap prerequisites](../pulse/README.md#bootstrap-prerequisites).
-
-All stores use the `tuist` tenant, but separate buckets are not a federated store. The workload hosts `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev` expose exact authenticated `/mcp`, `/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` paths over TLS. External NixOS cache collectors use the ingest paths with an environment-specific opnix token. Query APIs and `/metrics` stay private; Grafana reads over PDC. Atlas retains read-only projected ServiceAccount authentication for MCP. Do not publish a `/` or `/api` prefix. Grafana Cloud still receives Pulse health scrapes independently through annotation autodiscovery; prove an outside-Pulse failure/no-data paging path before removing that storage.
-
-These are prepared configuration changes, not deployed acceptance. Run `bash infra/helm/k8s-monitoring/test-pulse-ingestion.sh` with Helm, yq, jq and Docker for all environment renders, bootstrap fallback, metric-policy equality and a real service-graph remote-write fixture. It writes only to disposable local containers.
+These are prepared configuration changes, not deployed acceptance. `bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and fails on any Pulse destination, credential or collector.
 
 ## What gets deployed
 
-Eight Alloy roles in workload overlays (managed by the upstream `alloy-operator`):
+Seven Alloy roles in workload overlays (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
@@ -160,8 +156,6 @@ Eight Alloy roles in workload overlays (managed by the upstream `alloy-operator`
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
 - `grafana-cloud-traces-sampler` — keeps failed, slow, and sampled healthy
   traces before they are sent to Grafana Cloud
-- `pulse-traces-servicegraph` — pairs trace spans and writes derived service-graph
-  metrics only to Pulse, before the independent Cloud sampling branch
 - `alloy-control-plane` — one host-networked Pod per control-plane node,
   scraping the local Kubernetes and etcd endpoints without exposing etcd
   outside the machine

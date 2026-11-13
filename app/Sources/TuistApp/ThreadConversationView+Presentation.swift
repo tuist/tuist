@@ -6,15 +6,15 @@
         var details: some View {
             NavigationStack {
                 Form {
-                    Section("Goal") { Text(session.goal) }
+                    Section("Goal") { Text(thread.goal) }
                     Section {
                         LabeledContent("AI provider") {
-                            Text(verbatim: session.provider.map {
+                            Text(verbatim: thread.provider.map {
                                 ThreadModel(provider: $0, id: "", name: "").providerName
                             } ?? String(localized: "Not recorded"))
                         }
                         LabeledContent("Model") {
-                            Text(verbatim: session.model ?? String(localized: "Not recorded"))
+                            Text(verbatim: thread.model ?? String(localized: "Not recorded"))
                                 .textSelection(.enabled)
                         }
                     } header: {
@@ -23,10 +23,10 @@
                         Text("The provider and model are fixed for this thread. Start a new thread to choose another model.")
                     }
                     Section {
-                        LabeledContent("Repository", value: session.repository)
-                        LabeledContent("Worktree branch", value: session.branch)
+                        LabeledContent("Repository", value: thread.repository)
+                        LabeledContent("Worktree branch", value: thread.branch)
                         LabeledContent("Tool provider", value: "Tuist")
-                        LabeledContent("Profile", value: session.profile == "macos" ? "macOS" : "Linux")
+                        LabeledContent("Profile", value: thread.profile == "macos" ? "macOS" : "Linux")
                     } footer: {
                         Text(
                             "The server owns the thread; only tools run in the environment. Repository threads have their own worktrees."
@@ -34,8 +34,8 @@
                     }
                     Section("People") {
                         Label(
-                            session.visibility == "shared" ? "Shared conversation" : "Only you",
-                            systemImage: session.visibility == "shared" ? "person.2" : "lock"
+                            thread.visibility == "shared" ? "Shared conversation" : "Only you",
+                            systemImage: thread.visibility == "shared" ? "person.2" : "lock"
                         )
                         Text(LocalizedStringKey(isLive ? "Private threads only" :
                                 "Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only."))
@@ -64,7 +64,7 @@
                                 .buttonStyle(.borderedProminent)
                                 .disabled(busy || !["direct", "branch"].contains(preview.mode))
                         } else {
-                            Text(verbatim: session.diff).font(.caption.monospaced()).textSelection(.enabled)
+                            Text(verbatim: thread.diff).font(.caption.monospaced()).textSelection(.enabled)
                             if loadingShipPreview { ProgressView() } else if !isLive {
                                 Text("Design preview · Ship requires a live account and repository policy.")
                                     .font(.footnote).foregroundStyle(.secondary)
@@ -90,7 +90,7 @@
         var promptSheet: some View {
             NavigationStack {
                 List {
-                    ForEach(session.messages.filter { !["assistant", "tool", "system"].contains($0.role) }) { message in
+                    ForEach(thread.messages.filter { !["assistant", "tool", "system"].contains($0.role) }) { message in
                         Button {
                             pendingJump = message.id
                             showingPrompts = false

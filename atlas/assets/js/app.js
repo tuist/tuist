@@ -36,6 +36,7 @@ import "../css/routes/documents.css"
 import "../css/routes/document.css"
 import "../css/routes/postal.css"
 import "../css/routes/hardware.css"
+import "../css/routes/labels.css"
 import "../css/routes/financings.css"
 import "../css/routes/data_centers.css"
 import "../css/routes/insurance.css"
@@ -72,6 +73,7 @@ import dateOnlyDatePicker from "./hooks/date_only_date_picker"
 import Presence from "./hooks/presence"
 import MoodboardImage from "./hooks/moodboard_image"
 import MoodboardVideo from "./hooks/moodboard_video"
+import LabelPrinterRelay from "./hooks/label_printer_relay"
 
 window.nooraChartFormatters = {
   ...window.nooraChartFormatters,
@@ -83,7 +85,7 @@ window.nooraChartFormatters = {
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   params: () => ({_csrf_token: csrfToken, presence_visible: document.visibilityState === "visible"}),
-  hooks: {...colocatedHooks, ...Noora.Hooks, NooraDatePicker: dateOnlyDatePicker(Noora.Hooks.NooraDatePicker), IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram, CodeEditor, Presence, MoodboardImage, MoodboardVideo},
+  hooks: {...colocatedHooks, ...Noora.Hooks, NooraDatePicker: dateOnlyDatePicker(Noora.Hooks.NooraDatePicker), IdentityChannelDropdownScroll, OriginalEmailPreview, ScreenshotPaste, SearchPalette, Clipboard, MermaidDiagram, CodeEditor, Presence, MoodboardImage, MoodboardVideo, LabelPrinterRelay},
 })
 
 // Show progress bar on live navigation and form submits. Skipped when the page
@@ -93,6 +95,9 @@ const embedded = window.self !== window.top
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => {
   if (!embedded) topbar.show(300)
+
+  const mobileNavigationToggle = document.getElementById("mobile-navigation-toggle")
+  if (mobileNavigationToggle) mobileNavigationToggle.checked = false
 })
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 

@@ -2,6 +2,8 @@ defmodule Tuist.Entire.ClientTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Entire.Client, as: Entire
   alias Tuist.KeyValueStore
 
@@ -287,6 +289,63 @@ defmodule Tuist.Entire.ClientTest do
 
     for {installation, repository_id, permissions, expected} <- Enum.reverse(scopes) do
       assert {:ok, ^expected} = Entire.access_token(installation, repository_id, permissions)
+    end
+  end
+
+  test "logs the failing operation and status without exposing request or response secrets" do
+    repository = %{id: "repo_one", api_url: "https://aws-eu-central-1.api.entire.io"}
+
+    for status <- [403, 404, 503] do
+      stub(Req, :request, fn _ ->
+        {:ok, %Req.Response{status: status, body: %{"detail" => "private-response"}}}
+      end)
+
+      log =
+        capture_log(fn ->
+          expected = if status in [403, 404], do: :revoked, else: {:entire_http, status}
+
+          assert {:error, ^expected} =
+                   Entire.region_request(:get, repository, "/repos/repo_one/trails", "private-token",
+                     params: [{"query", "private-query"}],
+                     headers: [{"x-private", "private-header"}],
+                     json: %{private: "private-payload"}
+                   )
+        end)
+
+      assert log =~ "operation=list_trails"
+      assert log =~ "method=get"
+      assert log =~ "host=aws-eu-central-1.api.entire.io"
+      assert log =~ "status=#{status}"
+      refute log =~ "private-"
+    end
+
+    stub(Req, :request, fn _ -> {:error, %RuntimeError{message: "private-transport-error"}} end)
+
+    log =
+      capture_log(fn ->
+        assert {:error, :unavailable} =
+                 Entire.region_request(:get, repository, "/repos/repo_one/trails", "private-token")
+      end)
+
+    assert log =~ "operation=list_trails"
+    assert log =~ "reason=transport_error"
+    refute log =~ "private-"
+  end
+
+  test "distinguishes a missing repository from a missing processing placement" do
+    for {repositories, reason} <- [
+          {[], "missing_repository"},
+          {[%{"id" => "repo_one", "placements" => []}], "missing_placement"}
+        ] do
+      stub(Req, :request, fn _ -> {:ok, %Req.Response{status: 200, body: %{"repositories" => repositories}}} end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, :revoked} = Entire.repository(%{remote_id: "ins_one"}, "repo_one")
+        end)
+
+      assert log =~ "repository_id=repo_one"
+      assert log =~ "reason=#{reason}"
     end
   end
 

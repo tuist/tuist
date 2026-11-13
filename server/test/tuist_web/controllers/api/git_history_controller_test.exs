@@ -3,6 +3,7 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
 
   alias Tuist.GitHistory
   alias Tuist.Projects
+  alias Tuist.TestImpactAnalysis.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -34,7 +35,7 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
              "window_commits" => 5000,
              "deepen_budget_seconds" => 60,
              "upload_batch_size" => 500,
-             "commit_file_limit" => 50_000
+             "commit_file_limit" => 200_000
            }
   end
 
@@ -113,6 +114,50 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
     repository = GitHistory.repository_id(user.account.id, @remote)
     assert %{files_count: 2, truncated: false} = CoverageFixtures.listing(repository, @a)
     assert Enum.map(GitHistory.commit_files(repository, @a), & &1.path) == ["Package.resolved", "Sources/A.swift"]
+  end
+
+  test "doesn't ask for the listing of a commit whose selection diff gives its files", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    commits = %{
+      repository_url: @remote,
+      object_format: "sha1",
+      commits: [
+        %{sha: @a, parents: [], committed_at: "2026-09-01T00:00:00Z"},
+        %{sha: @b, parents: [@a], committed_at: "2026-09-01T00:01:00Z"}
+      ],
+      branch_heads: [%{branch: "main", sha: @a}]
+    }
+
+    listing = %{
+      repository_url: @remote,
+      sha: @a,
+      files: [%{path: "Sources/A.swift", git_blob_id: "a1", mode: 33_188}],
+      complete: true,
+      files_count: 1
+    }
+
+    assert conn |> post(git_history_url(user, project, "/commits"), commits) |> response(:no_content)
+    assert conn |> post(git_history_url(user, project, "/listings"), listing) |> response(:no_content)
+    Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+
+    # What the runs request stored for the checked-out commit `b`, a clean
+    # checkout of it against the baseline `a`.
+    Storage.put_diff(%{
+      project_id: project.id,
+      commit_sha: @b,
+      baseline_sha: @a,
+      changed_files: [%{path: "Sources/A.swift", status: "M", blob: "a2", affected_modules: []}]
+    })
+
+    assert conn
+           |> post(git_history_url(user, project, "/listings/missing"), %{repository_url: @remote, shas: [@b, @c]})
+           |> json_response(:ok) == %{"missing" => [@c]}
+
+    repository = GitHistory.repository_id(user.account.id, @remote)
+    assert GitHistory.commit_files(repository, @b) == [%{path: "Sources/A.swift", git_blob_id: "a2"}]
   end
 
   test "rejects a SHA that is not a full commit id", %{conn: conn, user: user, project: project} do

@@ -27,8 +27,9 @@ class ThreadWatcher
 internal constructor(
     private val retrofit: Retrofit,
     moshi: Moshi,
-    private val authorize: suspend (String) -> Unit,
+    private val authorize: suspend (String) -> String,
     private val token: () -> String?,
+    private val session: () -> TokenStorage.Session? = { null },
     private val openSocket: (OkHttpClient, Request, WebSocketListener) -> WebSocket =
         { client, request, listener ->
             client.newWebSocket(request, listener)
@@ -43,11 +44,9 @@ internal constructor(
     ) : this(
         retrofit,
         moshi,
-        { account ->
-            transport.api.list(account)
-            Unit
-        },
+        { account -> transport.dialect(account) },
         storage::getAccessToken,
+        session = storage::snapshot,
     )
 
     private val frames = moshi.adapter(List::class.java)
@@ -69,16 +68,19 @@ internal constructor(
         invalidate: suspend () -> Unit,
         disconnected: suspend () -> Unit,
     ) {
+        val fence = session()
         var attempt = 0
-        while (currentCoroutineContext().isActive) {
+        while (currentCoroutineContext().isActive && session() == fence) {
             try {
-                authorize(account)
+                val dialect = authorize(account)
+                if (session() != fence) return
                 val credential =
                     token()?.takeIf { it.isNotEmpty() } ?: throw IOException("Missing credentials")
-                connection(account, threadId, credential, invalidate)
+                connection(account, threadId, dialect, credential, fence) { if (session() == fence) invalidate() }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
+                if (session() != fence) return
                 disconnected()
                 attempt = (attempt + 1).coerceAtMost(5)
                 delay(1_000L shl attempt)
@@ -89,7 +91,9 @@ internal constructor(
     private suspend fun connection(
         account: String,
         threadId: String?,
+        dialect: String,
         credential: String,
+        fence: TokenStorage.Session?,
         invalidate: suspend () -> Unit,
     ) = coroutineScope {
         val events = Channel<Event>(Channel.BUFFERED)
@@ -98,11 +102,12 @@ internal constructor(
         }
         val request =
             Request.Builder()
+                .tag(TokenStorage.Session::class.java, fence)
                 .url(
                     retrofit
                         .baseUrl()
                         .newBuilder()
-                        .addPathSegments("threads/socket/websocket")
+                        .addPathSegments("$dialect/socket/websocket")
                         .query(null)
                         .addQueryParameter("vsn", "2.0.0")
                         .build()
@@ -142,7 +147,7 @@ internal constructor(
                         enqueue(Event.Lost)
                 },
             )
-        val topic = "threads:$account:${threadId ?: "inbox"}"
+        val topic = "$dialect:$account:${threadId ?: "inbox"}"
         val joinRef = "1"
         var nextRef = 1L
         var pending: String? = joinRef

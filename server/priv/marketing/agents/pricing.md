@@ -36,11 +36,7 @@ Tuist also meters feature usage, including cache downloads and reported passing 
 
 ## Compute availability
 
-Tuist Runners are invite-only. Their macOS and Linux rates are listed on the live [pricing table](/pricing) alongside the plans and are billed per minute of job time on top of any plan. Every plan includes a monthly free macOS allowance and a free cache volume storage allowance, with storage beyond it billed per GB-month. [Contact the team](mailto:contact@tuist.dev) for access and for further yearly or volume discounts. A listed rate is not a quote for a specific agreement.
-
-## Limitations
-
-Free allowances are not unlimited usage. Actual charges depend on the account's plan, billing model, recorded usage, and any signed agreement. A rate copied from elsewhere is not a quote. For procurement, self-hosting, or custom terms, [book a conversation](https://cal.tuist.dev/team/tuist/tuist).
+Tuist Runners are invite-only. Their macOS and Linux rates are listed on the live [pricing table](/pricing) alongside the plans and are billed per minute of job time on top of any plan. Every plan includes monthly free macOS and Linux allowances and a free cache volume storage allowance, with storage beyond it billed per GB-month. [Contact the team](mailto:contact@tuist.dev) for access and for further yearly or volume discounts.
 
 - [Live pricing and comparison table](/pricing)
 - [Product overview](/marketing-markdown)

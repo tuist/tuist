@@ -27,7 +27,7 @@ defmodule Tuist.Threads.WorkerTest do
     :ok
   end
 
-  test "a durable job runs the real model/tool loop and persists its final reply" do
+  test "a durable job searches a large MCP catalog, calls its tool and persists its final reply" do
     user = AccountsFixtures.user_fixture()
     calls = start_supervised!({Agent, fn -> 0 end})
     server_id = Ecto.UUID.generate()
@@ -44,10 +44,22 @@ defmodule Tuist.Threads.WorkerTest do
 
       result =
         case envelope["method"] do
-          "initialize" -> %{protocolVersion: "2025-06-18", capabilities: %{tools: %{}}}
-          "notifications/initialized" -> %{}
-          "tools/list" -> %{tools: [%{name: "lookup", inputSchema: %{type: "object"}}]}
-          "tools/call" -> %{content: [%{type: "text", text: "Remote cache evidence"}]}
+          "initialize" ->
+            %{protocolVersion: "2025-06-18", capabilities: %{tools: %{}}}
+
+          "notifications/initialized" ->
+            %{}
+
+          "tools/list" ->
+            %{
+              tools:
+                for index <- 1..630 do
+                  %{name: "lookup_#{index}", inputSchema: %{type: "object"}}
+                end
+            }
+
+          "tools/call" ->
+            %{content: [%{type: "text", text: "Remote cache evidence"}]}
         end
 
       {:ok, %{status: 200, headers: [], body: JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], result: result})}}
@@ -62,7 +74,7 @@ defmodule Tuist.Threads.WorkerTest do
         case turn do
           0 ->
             assert Enum.any?(request["tools"], &(&1["function"]["name"] == "set_thread_name"))
-            remote = Enum.find(request["tools"], &String.starts_with?(&1["function"]["name"], "mcp_"))
+            assert length(request["tools"]) == 3
 
             %{
               role: "assistant",
@@ -77,15 +89,32 @@ defmodule Tuist.Threads.WorkerTest do
                   function: %{name: "set_thread_name", arguments: ~s({"name":"Understand the cache"})}
                 },
                 %{
-                  id: "remote-call",
+                  id: "search-call",
                   type: "function",
-                  function: %{name: remote["function"]["name"], arguments: "{}"}
+                  function: %{name: "mcp_search_tools", arguments: ~s({"query":"lookup_630"})}
                 }
               ]
             }
 
           1 ->
             assert Enum.any?(request["messages"], &(&1["role"] == "tool" and &1["tool_call_id"] == "name-call"))
+            result = Enum.find(request["messages"], &(&1["tool_call_id"] == "search-call"))
+            %{"tools" => [found], "next_offset" => nil} = JSON.decode!(result["content"])
+            assert found["description"] =~ "lookup_630"
+
+            %{
+              role: "assistant",
+              content: nil,
+              tool_calls: [
+                %{
+                  id: "remote-call",
+                  type: "function",
+                  function: %{name: "mcp_call_tool", arguments: JSON.encode!(%{name: found["name"], arguments: %{}})}
+                }
+              ]
+            }
+
+          2 ->
             assert Enum.any?(request["messages"], &(&1["role"] == "tool" and &1["content"] =~ "Remote cache evidence"))
 
             assert Enum.any?(request["messages"], fn message ->
@@ -106,7 +135,7 @@ defmodule Tuist.Threads.WorkerTest do
         object: "chat.completion",
         created: 0,
         model: Provider.default_model(:chatgpt),
-        choices: [%{index: 0, message: message, finish_reason: if(turn == 0, do: "tool_calls", else: "stop")}],
+        choices: [%{index: 0, message: message, finish_reason: if(turn < 2, do: "tool_calls", else: "stop")}],
         usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
       }
 
@@ -137,7 +166,79 @@ defmodule Tuist.Threads.WorkerTest do
     assert Repo.reload!(run).checkpoint == nil
     assert %{status: "completed", result: result} = Repo.one!(ToolCall)
     assert result =~ "Remote cache evidence"
-    assert Agent.get(calls, & &1) == 2
+    assert Agent.get(calls, & &1) == 3
+  end
+
+  test "an unavailable profile MCP server does not fail an otherwise independent run" do
+    user = AccountsFixtures.user_fixture()
+    server_id = Ecto.UUID.generate()
+
+    stub(MCPServers, :list, fn _ -> [%{id: server_id, url: "https://mcp.example.com", connected: true}] end)
+
+    stub(MCPServers, :credentials, fn _, ^server_id ->
+      {:ok, %{url: "https://mcp.example.com", access_token: "secret"}}
+    end)
+
+    stub(SSRFGuard, :pin, fn _ -> {:error, :unavailable} end)
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      refute Enum.any?(request["tools"], &String.starts_with?(&1["function"]["name"], "mcp_"))
+
+      response = %{
+        id: "completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [
+          %{
+            index: 0,
+            message: %{role: "assistant", content: JSON.encode!(%{reply: "Still available.", suggestions: []})},
+            finish_reason: "stop"
+          }
+        ],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    assert {:ok, thread} = Threads.create(user, user.account, request("Reply without MCP"))
+    run = Repo.one!(Run)
+
+    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert List.last(fresh.messages).body == "Still available."
+    assert Repo.reload!(run).status == "succeeded"
+  end
+
+  test "a stale MCP discovery does not dispatch inference" do
+    user = AccountsFixtures.user_fixture()
+    assert {:ok, thread} = Threads.create(user, user.account, request("Do not continue"))
+    run = Repo.one!(Run)
+
+    stub(Provider, :client_opts, fn _, _ ->
+      assert {:ok, _} = Threads.archive(user, user.account, thread.id, "archived")
+      {:ok, []}
+    end)
+
+    reject(MCPServers, :list, 1)
+
+    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert fresh.status == :archived
+    assert Repo.reload!(run).status == "cancelled"
+    refute Enum.any?(fresh.messages, &(&1.kind == "agent"))
   end
 
   test "an unreadable checkpoint never silently starts a fresh model conversation" do

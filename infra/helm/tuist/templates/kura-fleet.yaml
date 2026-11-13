@@ -88,7 +88,7 @@ spec:
         kind: ScalewayElasticMetalMachineTemplate
         name: {{ $fleetName }}
 ---
-{{- /*
+{{/*
 MachineHealthCheck — the auto-remediation backstop for a box that stays dead.
 The in-box bootstrap hardening (systemd hardware watchdog + panic sysctls) reboots
 a silently-locked-up box in ~30s without touching the OS, so this only fires when

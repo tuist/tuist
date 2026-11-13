@@ -1,8 +1,10 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistTesting
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct HashAcceptanceTests {
     @Test(.disabled(), .withFixture("generated_ios_app_with_frameworks"), .withMockedDependencies())
     func xcode_project_ios_framework() async throws {

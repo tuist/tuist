@@ -15,6 +15,8 @@ defmodule Tuist.Gradle.ConfigurationOperation do
     field :project_path, Ch, type: "String"
     field :duration_ms, Ch, type: "UInt64"
     field :started_at, Ch, type: "DateTime64(6)"
+    field :failure_message, Ch, type: "String", default: ""
+    field :failure_message_truncated, Ch, type: "Bool", default: false
     field :inserted_at, Ch, type: "DateTime"
   end
 end

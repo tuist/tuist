@@ -32,6 +32,13 @@ const (
 	OpSaveDisks   = "save_disks"
 	OpDeleteDisks = "delete_disks"
 	OpArchive     = "archive"
+	// OpArchiveDisks uploads a disk snapshot in the archive format, so any
+	// node can create a sandbox from it with CreateArgs.FromArchive.
+	OpArchiveDisks = "archive_disks"
+	// OpCopyDisks downloads a disk snapshot's archive into the node's disk
+	// snapshots, so the node can create sandboxes from it without the
+	// download. The answer is a SaveDisksResult.
+	OpCopyDisks = "copy_disks"
 	// OpHoldResidency keeps a running macOS sandbox from idle eviction while
 	// detached guest work (an Amp Orb's turn) that the host cannot observe
 	// runs; a pause or OpReleaseResidency with the same work ID ends it.
@@ -171,6 +178,10 @@ type Hello struct {
 	Templates          []TemplateInfo     `json:"templates"`
 	Sandboxes          []SandboxInfo      `json:"sandboxes"`
 	DiskSnapshots      []DiskSnapshotInfo `json:"disk_snapshots"`
+	// DefaultTemplate and DefaultTemplateTag are the template the daemon was
+	// configured with. Templates also lists tags kept from earlier rollouts.
+	DefaultTemplate    string `json:"default_template,omitempty"`
+	DefaultTemplateTag string `json:"default_template_tag,omitempty"`
 	// DirectExecEndpoint serves claims of claimed execs.
 	DirectExecEndpoint string `json:"direct_exec_endpoint,omitempty"`
 }
@@ -284,6 +295,24 @@ type ArchiveArgs struct {
 	PartURLs  []string `json:"part_urls"`
 }
 
+// ArchiveDisksArgs asks for a disk snapshot's kernel and disks to be
+// uploaded like ArchiveArgs. The snapshot stays on the node. The answer is
+// an ArchiveResult.
+type ArchiveDisksArgs struct {
+	SnapshotID string   `json:"snapshot_id"`
+	PartSize   int64    `json:"part_size"`
+	PartURLs   []string `json:"part_urls"`
+}
+
+// CopyDisksArgs asks for a disk snapshot to be filled from its archive. The
+// archive must hold the template and workspace size given.
+type CopyDisksArgs struct {
+	SnapshotID  string         `json:"snapshot_id"`
+	Template    string         `json:"template"`
+	WorkspaceGB int            `json:"workspace_gb"`
+	FromArchive *ArchiveSource `json:"from_archive"`
+}
+
 // ArchiveSource is an archive to restore: a presigned GET URL and the size
 // and SHA-256 the archive was uploaded with.
 type ArchiveSource struct {
@@ -313,7 +342,54 @@ type ClaimArgs struct {
 type StartWorkerArgs struct {
 	SandboxID string            `json:"sandbox_id"`
 	Env       map[string]string `json:"env"`
+	// Checkout is the session's repository checkout volume, when the server
+	// granted one: the worker starts from the host's master of it and exports
+	// the default branch's commit back when it exits.
+	Checkout *CheckoutGrant `json:"checkout,omitempty"`
 }
+
+// CheckoutGrant is the server's allocation of a repository's checkout volume
+// for one sandbox session (`Tuist.Runners.CacheVolumes.allocate_sandbox_checkout`),
+// the same fields a CI job's allocation carries, plus where the guest keeps the
+// repository. The host trusts it as it trusts the rest of the command: it came
+// from the server, never from the guest. Commit is the default branch's head as
+// GitHub reported it; only an export of that commit moves the master.
+type CheckoutGrant struct {
+	ID               string `json:"id"`
+	Scope            string `json:"scope"`
+	Generation       int64  `json:"generation"`
+	BaseGeneration   int64  `json:"base_generation"`
+	ImageDigest      string `json:"image_digest,omitempty"`
+	ContentDigest    string `json:"content_digest,omitempty"`
+	UID              int    `json:"uid"`
+	CloneURL         string `json:"clone_url"`
+	DefaultBranch    string `json:"default_branch"`
+	Commit           string `json:"commit"`
+	DefaultBranchJob bool   `json:"default_branch_job"`
+	MayStartMaster   bool   `json:"may_start_master"`
+	VolumeKey        string `json:"volume_key"`
+	// Path is the guest directory the repository goes in, which must not exist yet.
+	Path string `json:"path"`
+}
+
+// The worker environment a host adds for a checkout grant. The guest copies
+// the master's tree to CheckoutPathEnv before the worker's own work starts and,
+// after it, exports the objects of CheckoutCommitEnv's commit to the host. On
+// macOS both go through the VM's checkout share (CheckoutShareEnv), on Linux
+// through vsock port CheckoutVsockPort on the host.
+const (
+	CheckoutPathEnv   = "SBX_CHECKOUT_PATH"
+	CheckoutCommitEnv = "SBX_CHECKOUT_COMMIT"
+	CheckoutShareEnv  = "SBX_CHECKOUT_SHARE"
+	CheckoutVsockEnv  = "SBX_CHECKOUT_VSOCK"
+	CheckoutVsockPort = 5002
+	// CheckoutPreparedFile, inside the repository, marks a tree the host put in
+	// the workspace image before the guest started (a prepared workspace). It
+	// holds the master's commit and LFS objects as JSON ({"base","lfs"}), which
+	// the guest takes as the state its export starts from. sbx-worker names it
+	// too.
+	CheckoutPreparedFile = ".git/sbx-checkout-prepared.json"
+)
 
 type CreateResult struct {
 	BootMs int64 `json:"boot_ms"`

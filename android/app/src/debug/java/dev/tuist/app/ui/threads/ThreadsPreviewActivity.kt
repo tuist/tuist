@@ -66,18 +66,17 @@ class ThreadsPreviewActivity : ComponentActivity() {
                                         )
                                     is ThreadAction.Archived ->
                                         state.copy(showArchived = action.value)
-                                    is ThreadAction.Account ->
-                                        state.copy(
-                                            account = action.value,
-                                            denied = false,
-                                            threads = emptyList(),
-                                        )
                                     ThreadAction.Back -> state.copy(selected = null)
-                                    ThreadAction.Archive ->
-                                        state.copy(
-                                            selected =
-                                                state.selected?.copy(archiveStatus = "archived")
+                                    is ThreadAction.Archive -> {
+                                        val updated = action.thread.copy(
+                                            archiveStatus = if (action.thread.archiveStatus == "archived") "active" else "archived",
+                                            status = "idle",
                                         )
+                                        state.copy(
+                                            selected = if (state.selected?.id == updated.id) updated else state.selected,
+                                            threads = state.threads.map { if (it.id == updated.id) updated else it },
+                                        )
+                                    }
                                     ThreadAction.RetryModels ->
                                         state.copy(
                                             catalogError = false,
@@ -167,7 +166,6 @@ private fun sampleState(screen: String?): ThreadsState {
         ThreadsState(
             enabled = true,
             account = "tuist",
-            accounts = listOf("tuist"),
             loading = false,
             threads =
                 listOf(
@@ -185,6 +183,7 @@ private fun sampleState(screen: String?): ThreadsState {
             sample = true,
         )
     return when (screen) {
+        "empty" -> base.copy(threads = emptyList())
         "new" ->
             base.copy(
                 sheet = ThreadSheet.NEW,
@@ -214,7 +213,6 @@ private fun sampleState(screen: String?): ThreadsState {
         "denied" ->
             base.copy(
                 denied = true,
-                accounts = listOf("sample-user", "tuist"),
                 threads = emptyList(),
             )
         "flag-off" -> base.copy(enabled = false)

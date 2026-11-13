@@ -41,11 +41,16 @@ type Config struct {
 type Service struct {
 	Kube              kubernetes.Interface
 	Node, Root, Tools string
-	mu                sync.Mutex
-	manager           *Manager
-	capacity          *KubeCapacity
-	ready             bool
-	err               error
+	// CIStore is the TART_HOME of the kubelet's CI VMs, whose cached template
+	// image preparation clones instead of pulling it again.
+	CIStore string
+	// Checkouts is the runner cache's checkout masters, nil without it.
+	Checkouts Checkouts
+	mu        sync.Mutex
+	manager   *Manager
+	capacity  *KubeCapacity
+	ready     bool
+	err       error
 }
 
 func (s *Service) NeedLeaderElection() bool { return false }
@@ -273,7 +278,8 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			if err != nil {
 				return err
 			}
-			go keepAmpCLI(context.WithoutCancel(ctx), s.Tools)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "amp", provisionAmpCLI)
+			go keepProvisioned(context.WithoutCancel(ctx), s.Tools, "claude-code", provisionClaudeCode)
 		}
 		for _, name := range []string{"sbx-macos", "sbx-worker"} {
 			info, err := os.Stat(filepath.Join(s.Tools, name))
@@ -296,7 +302,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			controlID = string(control.UID)
 		}
 		cap := &KubeCapacity{Kube: s.Kube, Node: s.Node, NodeUID: string(node.UID), Namespace: Namespace, ControlUID: controlID}
-		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), TemplateTag: cfg.Image, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Runtime: &TartRuntime{Client: c, Image: cfg.Image, Template: cfg.Template, Tools: s.Tools}}
+		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), TemplateTag: cfg.Image, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Image: cfg.Image, Template: cfg.Template, Tools: s.Tools, Checkouts: s.Checkouts}}
 		if err = m.Load(ctx); err != nil {
 			return err
 		}
@@ -354,9 +360,10 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err = validateConfig(cfg); err != nil {
 			return err
 		}
-		if runtime, ok := m.Runtime.(*TartRuntime); ok {
+		tartRuntime, _ := m.Runtime.(*TartRuntime)
+		if tartRuntime != nil {
 			if err = s.withPreparingControl(parent, control, func(prepareCtx context.Context) error {
-				return ensureImage(prepareCtx, runtime.Client, cfg.Image)
+				return ensureImage(prepareCtx, tartRuntime.Client, s.CIStore, cfg.Image)
 			}); err != nil {
 				return err
 			}
@@ -372,20 +379,41 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			runtime.Template = cfg.Template
 		}
 		m.Gate.Unlock()
+		// After Image is set: the cached image's size is looked up by name.
+		// Until a size is known the server reserves no root disk here, and
+		// checkDisk learns it on the next create, resume or save.
+		if tartRuntime != nil {
+			if err = tartRuntime.learnRootDisk(parent); err != nil {
+				slog.Warn("macOS sandbox root disk size unknown", "image", cfg.Image, "error", err)
+			}
+		}
+		// A runtime without a store reports no disk budget, which the server does not budget.
+		disk := func() protocol.DiskReport {
+			if tartRuntime == nil {
+				return protocol.DiskReport{}
+			}
+			return diskReport(tartRuntime.Client.HomeDir)
+		}
+		rootfs := func() int64 {
+			if tartRuntime == nil {
+				return 0
+			}
+			return tartRuntime.rootfs.Load()
+		}
 		clientCtx, stop := context.WithCancel(parent)
 		*cancel = stop
 		*controlUID = string(control.UID)
 		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
 		templates := func() []protocol.TemplateInfo {
-			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, Warm: m.warmShapes()}}
+			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, RootfsBytes: rootfs(), Warm: m.warmShapes()}}
 		}
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Templates: templates(), Sandboxes: m.Snapshot()}
+				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Templates: templates(), Sandboxes: m.Snapshot()}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Sandboxes: m.Snapshot(), Templates: templates()}
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Sandboxes: m.Snapshot(), Templates: templates()}
 			},
 			Handler: m.Dispatch})
 		m.Gate.Lock()
@@ -429,9 +457,18 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 	return s.repairReservations(ctx, m)
 }
 
+// markRunning also restores Ready: the node lifecycle controller marks every
+// Pod on a node NotReady when its lease lapses and leaves the phase Running.
 func (s *Service) markRunning(ctx context.Context, pod *corev1.Pod) error {
-	if pod.Status.Phase == corev1.PodRunning || !pod.DeletionTimestamp.IsZero() {
+	if !pod.DeletionTimestamp.IsZero() {
 		return nil
+	}
+	if pod.Status.Phase == corev1.PodRunning {
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				return nil
+			}
+		}
 	}
 	copy := pod.DeepCopy()
 	copy.Status.Phase = corev1.PodRunning
@@ -490,12 +527,14 @@ func (s *Service) LaunchGuard(ctx context.Context, _ string) (func(), error) {
 func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(protocol.Stream)) protocol.Result {
 	var args struct {
 		protocol.CreateArgs
-		Env       map[string]string `json:"env"`
-		Cmd       []string          `json:"cmd"`
-		Cwd       string            `json:"cwd"`
-		TimeoutMs int64             `json:"timeout_ms"`
-		NodeUID   string            `json:"node_uid"`
-		WorkID    string            `json:"work_id"`
+		Env       map[string]string       `json:"env"`
+		Cmd       []string                `json:"cmd"`
+		Cwd       string                  `json:"cwd"`
+		TimeoutMs int64                   `json:"timeout_ms"`
+		NodeUID   string                  `json:"node_uid"`
+		WorkID    string                  `json:"work_id"`
+		HoldMs    int64                   `json:"hold_ms"`
+		Checkout  *protocol.CheckoutGrant `json:"checkout"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -529,12 +568,12 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data, err = m.Exec(ctx, protocol.ExecArgs{SandboxID: args.SandboxID, Cmd: args.Cmd, Env: args.Env, Cwd: args.Cwd, TimeoutMs: args.TimeoutMs}, out)
 	case protocol.OpStartWorker:
 		var status WorkerStatus
-		status, err = m.Worker(ctx, args.SandboxID, "start", args.Env)
+		status, err = m.StartWorker(ctx, args.SandboxID, args.Env, args.Checkout)
 		data = protocol.StartWorkerResult{ExecID: status.ID}
 	case protocol.OpStopWorker:
 		_, err = m.Worker(ctx, args.SandboxID, "stop", nil)
 	case protocol.OpHoldResidency:
-		err = m.Hold(ctx, args.SandboxID, args.WorkID)
+		err = m.Hold(ctx, args.SandboxID, args.WorkID, time.Duration(args.HoldMs)*time.Millisecond)
 	case protocol.OpReleaseResidency:
 		err = m.Release(args.SandboxID, args.WorkID)
 	case protocol.OpStatus:

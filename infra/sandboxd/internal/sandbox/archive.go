@@ -100,40 +100,94 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 		return res, fmt.Errorf("%w: %s", ErrDisksNotSynced, args.SandboxID)
 	}
 
-	sources := make([]archive.Source, 0, len(archivedFiles))
-	for _, name := range archivedFiles {
-		file, err := os.OpenFile(filepath.Join(sb.root, name), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
-		if err != nil {
-			return res, err
-		}
-		defer file.Close()
-		sources = append(sources, archive.Source{Name: name, File: file})
-	}
-	uploader, err := archive.NewUploader(ctx, m.http, args.PartURLs, args.PartSize)
+	sources, closeSources, err := openArchivedFiles(sb.root)
 	if err != nil {
 		return res, err
 	}
-	stored, err := archive.Write(uploader, archive.Header{
+	defer closeSources()
+	res, err = m.upload(ctx, args.PartURLs, args.PartSize, archive.Header{
 		Template: meta.Template, Tag: meta.Tag, WorkspaceGB: meta.WorkspaceGB,
 		SourceSandbox: meta.ID, CreatedAt: time.Now().UTC(), DisksSynced: meta.DisksSynced,
-	}, sources)
-	if closeErr := uploader.Close(); err == nil {
-		err = closeErr
-	}
+	}, sources, start)
 	if err != nil {
 		if sb.resumesSince(resumes) {
 			return res, ErrArchiveInterrupted
 		}
 		return res, err
 	}
+	m.log.Info("sandbox archived", "sandbox", args.SandboxID, "bytes", res.Bytes, "stored_bytes", res.StoredBytes, "parts", len(res.Parts), "disks_synced", meta.DisksSynced, "duration", time.Since(start))
+	return res, nil
+}
+
+// ArchiveDisks uploads a disk snapshot's kernel, rootfs and workspace like
+// Archive, so a sandbox can be created from it on any node. The files are
+// opened under the snapshot lock and streamed after it is released: a
+// delete or a newer save of the snapshot meanwhile only unlinks them, and
+// the server discards an upload whose snapshot is gone.
+func (m *Manager) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (res protocol.ArchiveResult, err error) {
+	start := time.Now()
+	defer func() { m.metrics.observe(protocol.OpArchiveDisks, err) }()
+	m.snapMu.Lock()
+	snap, dir, err := m.loadDiskSnapshot(args.SnapshotID)
+	var sources []archive.Source
+	closeSources := func() {}
+	if err == nil {
+		sources, closeSources, err = openArchivedFiles(dir)
+	}
+	m.snapMu.Unlock()
+	if err != nil {
+		return res, err
+	}
+	defer closeSources()
+	// A save requires a synced pause, so the disks hold every write.
+	res, err = m.upload(ctx, args.PartURLs, args.PartSize, archive.Header{
+		Template: snap.Template, Tag: snap.Tag, WorkspaceGB: snap.WorkspaceGB,
+		SourceSandbox: snap.SourceSandbox, CreatedAt: time.Now().UTC(), DisksSynced: true,
+	}, sources, start)
+	if err != nil {
+		return res, err
+	}
+	m.log.Info("disk snapshot archived", "snapshot", args.SnapshotID, "bytes", res.Bytes, "stored_bytes", res.StoredBytes, "parts", len(res.Parts), "duration", time.Since(start))
+	return res, nil
+}
+
+func openArchivedFiles(dir string) ([]archive.Source, func(), error) {
+	sources := make([]archive.Source, 0, len(archivedFiles))
+	closeAll := func() {
+		for _, source := range sources {
+			source.File.Close()
+		}
+	}
+	for _, name := range archivedFiles {
+		file, err := os.OpenFile(filepath.Join(dir, name), os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		if err != nil {
+			closeAll()
+			return nil, nil, err
+		}
+		sources = append(sources, archive.Source{Name: name, File: file})
+	}
+	return sources, closeAll, nil
+}
+
+func (m *Manager) upload(ctx context.Context, partURLs []string, partSize int64, header archive.Header, sources []archive.Source, start time.Time) (res protocol.ArchiveResult, err error) {
+	uploader, err := archive.NewUploader(ctx, m.http, partURLs, partSize)
+	if err != nil {
+		return res, err
+	}
+	stored, err := archive.Write(uploader, header, sources)
+	if closeErr := uploader.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return res, err
+	}
 	parts := make([]protocol.ArchivePart, 0, len(uploader.Parts()))
 	for _, part := range uploader.Parts() {
 		parts = append(parts, protocol.ArchivePart{PartNumber: part.PartNumber, ETag: part.ETag})
 	}
-	m.log.Info("sandbox archived", "sandbox", args.SandboxID, "bytes", uploader.Bytes(), "stored_bytes", stored, "parts", len(parts), "disks_synced", meta.DisksSynced, "duration", time.Since(start))
 	return protocol.ArchiveResult{
 		Parts: parts, Bytes: uploader.Bytes(), SHA256: uploader.SHA256(), StoredBytes: stored,
-		DisksSynced: meta.DisksSynced, DurationMs: time.Since(start).Milliseconds(),
+		DisksSynced: header.DisksSynced, DurationMs: time.Since(start).Milliseconds(),
 	}, nil
 }
 
@@ -168,35 +222,9 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	if err := vm.Prepare(sb.root, uid, uid); err != nil {
 		return res, err
 	}
-	limits := map[string]int64{
-		firecracker.KernelPath:    maxKernelBytes,
-		firecracker.RootfsPath:    maxRootfsBytes,
-		firecracker.WorkspacePath: int64(args.WorkspaceGB) << 30,
-	}
-	downloadStart := time.Now()
-	var header archive.Header
-	for attempt := 1; ; attempt++ {
-		err = archive.Download(ctx, m.http, src.URL, src.Bytes, src.SHA256, func(r io.Reader) error {
-			var extractErr error
-			header, extractErr = archive.Extract(r, sb.root, limits)
-			return extractErr
-		})
-		if err == nil {
-			break
-		}
-		for _, name := range archivedFiles {
-			_ = os.Remove(filepath.Join(sb.root, name))
-		}
-		if attempt == restoreAttempts || ctx.Err() != nil || errors.Is(err, archive.ErrInvalid) {
-			return res, fmt.Errorf("restoring archive: %w", err)
-		}
-		log.Warn("archive download failed, retrying", "attempt", attempt, "error", err)
-	}
-	if header.Template != template || header.WorkspaceGB != args.WorkspaceGB {
-		return res, fmt.Errorf("%w: it holds template %s with a %d GB workspace", ErrArchiveMismatch, header.Template, header.WorkspaceGB)
-	}
-	if size := vm.FileSize(filepath.Join(sb.root, firecracker.WorkspacePath)); size != int64(args.WorkspaceGB)<<30 {
-		return res, fmt.Errorf("%w: workspace image is %d bytes", ErrArchiveMismatch, size)
+	header, err := m.downloadArchive(ctx, src, sb.root, template, args.WorkspaceGB, log)
+	if err != nil {
+		return res, err
 	}
 	for _, name := range archivedFiles {
 		if err := vm.Chown(filepath.Join(sb.root, name), uid, uid); err != nil {
@@ -206,6 +234,49 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	sb.mu.Lock()
 	sb.meta.Tag = header.Tag
 	sb.mu.Unlock()
-	log.Info("archive downloaded", "bytes", src.Bytes, "source_sandbox", header.SourceSandbox, "download", time.Since(downloadStart))
 	return m.coldCreate(ctx, sb, log.With("slot", slot, "from_archive", true))
+}
+
+// downloadArchive extracts an archive's kernel and disks into dir, checked
+// against the size and checksum it was uploaded with, and checks that it
+// holds the template and workspace size asked for. A failed attempt removes
+// what it extracted; dir is left without the archived files on error.
+func (m *Manager) downloadArchive(ctx context.Context, src *protocol.ArchiveSource, dir, template string, workspaceGB int, log *slog.Logger) (archive.Header, error) {
+	limits := map[string]int64{
+		firecracker.KernelPath:    maxKernelBytes,
+		firecracker.RootfsPath:    maxRootfsBytes,
+		firecracker.WorkspacePath: int64(workspaceGB) << 30,
+	}
+	removeFiles := func() {
+		for _, name := range archivedFiles {
+			_ = os.Remove(filepath.Join(dir, name))
+		}
+	}
+	start := time.Now()
+	var header archive.Header
+	for attempt := 1; ; attempt++ {
+		err := archive.Download(ctx, m.http, src.URL, src.Bytes, src.SHA256, func(r io.Reader) error {
+			var extractErr error
+			header, extractErr = archive.Extract(r, dir, limits)
+			return extractErr
+		})
+		if err == nil {
+			break
+		}
+		removeFiles()
+		if attempt == restoreAttempts || ctx.Err() != nil || errors.Is(err, archive.ErrInvalid) {
+			return header, fmt.Errorf("restoring archive: %w", err)
+		}
+		log.Warn("archive download failed, retrying", "attempt", attempt, "error", err)
+	}
+	if header.Template != template || header.WorkspaceGB != workspaceGB {
+		removeFiles()
+		return header, fmt.Errorf("%w: it holds template %s with a %d GB workspace", ErrArchiveMismatch, header.Template, header.WorkspaceGB)
+	}
+	if size := vm.FileSize(filepath.Join(dir, firecracker.WorkspacePath)); size != int64(workspaceGB)<<30 {
+		removeFiles()
+		return header, fmt.Errorf("%w: workspace image is %d bytes", ErrArchiveMismatch, size)
+	}
+	log.Info("archive downloaded", "bytes", src.Bytes, "source_sandbox", header.SourceSandbox, "download", time.Since(start))
+	return header, nil
 }

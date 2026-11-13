@@ -266,14 +266,16 @@ one Node annotated `tuist.dev/kura-lvm-migrate=true`, cordoned, with a prepared
 Ready/schedulable LVM landing node matching the actual StatefulSet selector.
 Only claims pinned to that source may migrate; other legacy replicas stay held.
 Preserve the storage half of the template (claim class and size, `kura`
-container disk resource and request, thin node selector) until all an
-instance's remaining legacy claims belong to the selected source; `lvmHeldTemplate`
+container disk resource and request, thin node selector) until one of an
+instance's remaining legacy claims belongs to the selected source; `lvmHeldTemplate`
 renders the rest from the instance, so held instances still take images,
 configuration, services and status. Never freeze the whole reconcile on this
-hold: enrollment flips every instance in a region at once. A shared StatefulSet
-template cannot request LVM on an unconverted sibling's host after an unrelated
-restart, so a partly migrated instance also keeps its resize hold while held;
-cross-host legacy instances require a placement/recovery plan before migration.
+hold: enrollment flips every instance in a region at once. An instance spanning
+unconverted hosts moves only the selected source's replica; its other legacy
+replicas keep running on their claims under the resize's OnDelete hold until
+their own host is selected. Only a legacy replica whose recreated pod is
+Unschedulable under the already-switched template is rebuilt early
+(`lvmLegacyReplicaStranded`), losing just its own copy.
 The landing check is not a reservation: preflight the whole source node's disk,
 CPU, memory and placement constraints before selection. Never reformat until
 all its claims have moved and replacement replicas have completed backfill.
@@ -302,8 +304,9 @@ rehearsal saw immediate GET misses after successful PUTs at handoff; initial
 catch-up and an empty connection cohort did not prove destination content.
 The destination-bound acknowledgment bridge corrected that defect: the repeated
 staged migration passed with every acknowledged write independently verified.
-Keep both the failed and successful evidence in the CSI thin validation report;
-the remaining performance gate still blocks production thin enrollment.
+Keep both the failed and successful evidence in the CSI thin validation report.
+Production thin enrollment is judged on production request latency since
+2026-11-09, not the raw-I/O gate; see the top of that report.
 
 Thin write handoff adds a persisted source-process/destination-pod-and-
 process binding before `lvm-rebuild`. The runtime's content preparation receipt

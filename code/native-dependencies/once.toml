@@ -1,0 +1,40 @@
+# Generated Cargo metadata is isolated from desktop feature unification.
+# prepare-native.py derives manifests/versions from the checked-in Cargo files.
+[[target]]
+name = "Host"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "IOS"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "aarch64-apple-ios-sim"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "IOSDevice"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "aarch64-apple-ios"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]
+
+[[target]]
+name = "Android"
+kind = "cargo_dependencies"
+[target.attrs]
+manifest = "Cargo.toml"
+lockfile = "Cargo.lock"
+vendor_dir = "vendor"
+target = "aarch64-linux-android"
+resolver_inputs = ["Cargo.toml", "Cargo.lock", "crates/*/Cargo.toml"]

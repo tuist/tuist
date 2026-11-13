@@ -23,7 +23,7 @@ func kvmReadyHarness(t *testing.T) *kataHarness {
 func (h *kataHarness) reconcileKVM(t *testing.T) (bool, error) {
 	t.Helper()
 	return reconcileLinuxKataKVM(context.Background(), h.client, h.r.CredentialsManager,
-		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine), h.liveNode())
+		h.machine, h.machine.Name, h.machine.Spec.FleetName, h.r.hostOptions(h.machine, ""), h.liveNode())
 }
 
 func TestKataKVMKernelMatchesKataVersion(t *testing.T) {

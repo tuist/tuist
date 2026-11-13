@@ -90,6 +90,33 @@ struct TuistTomlConfigLoaderTests {
         #expect(config?.project == nil)
         #expect(config?.url == nil)
         #expect(config?.network?.proxy == false)
+        #expect(config?.testInsights == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func loadConfig_returns_config_with_coverage_upload() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let tomlPath = temporaryDirectory.appending(component: Constants.tuistTomlFileName)
+        try await fileSystem.writeText(
+            """
+            project = "acme/app"
+
+            [test_insights.coverage]
+            upload = true
+            """,
+            at: tomlPath
+        )
+
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
+        let config = try await subject.loadConfig(at: temporaryDirectory)
+
+        #expect(config?.testInsights?.coverage?.upload == true)
     }
 
     @Test(.inTemporaryDirectory)

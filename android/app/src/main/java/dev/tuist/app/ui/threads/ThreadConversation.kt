@@ -87,7 +87,7 @@ internal fun ColumnScope.ThreadConversation(state: ThreadsState, onAction: (Thre
                         },
                         onClick = {
                             menu = false
-                            onAction(ThreadAction.Archive)
+                            onAction(ThreadAction.Archive(thread))
                         },
                         enabled = !state.busy,
                     )

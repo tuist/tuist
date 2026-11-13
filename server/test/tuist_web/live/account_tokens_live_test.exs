@@ -202,15 +202,16 @@ defmodule TuistWeb.AccountTokensLiveTest do
         project_ids: [project.id]
       )
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{restricted_token.id}")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{restricted_token.id}")
 
     assert html =~ "Tokens · #{account.name} · Tuist"
     assert html =~ "Account token"
     assert html =~ "ios-only"
     assert html =~ account_token_hint(restricted_token)
-    refute html =~ "General"
-    refute html =~ "Integrations"
-    refute html =~ "Authentication"
+    # No settings tabs. The page titles also appear in the search menu's page list.
+    refute has_element?(lv, "a", "General")
+    refute has_element?(lv, "a", "Integrations")
+    refute has_element?(lv, "a", "Authentication")
     assert html =~ "Project access"
     assert html =~ "account-token-permissions-table"
     assert html =~ "account-token-projects-table"
@@ -385,6 +386,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
              "account:registry:write",
              "account:runners:read",
              "account:runners:write",
+             "account:sandboxes:write",
              "project:admin:read",
              "project:admin:write",
              "project:builds:read",

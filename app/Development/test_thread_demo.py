@@ -62,91 +62,91 @@ class BackendTests(unittest.TestCase):
         self.backend = None
         self.backend = demo.Backend(self.root, inference or self.inference, start_worker=worker)
 
-    def run_actions(self, session_id, actions):
+    def run_actions(self, thread_id, actions):
         self.inference = ScriptedInference(actions)
         self.backend.inference = self.inference
         for _ in actions:
-            self.backend._step(session_id)
-        return self.backend.get(session_id)
+            self.backend._step(thread_id)
+        return self.backend.get(thread_id)
 
-    def wait_terminal(self, session_id):
+    def wait_terminal(self, thread_id):
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            session = self.backend.get(session_id)
-            if session["status"] not in ("queued", "running"):
-                return session
+            thread = self.backend.get(thread_id)
+            if thread["status"] not in ("queued", "running"):
+                return thread
             time.sleep(0.02)
         self.fail("Worker did not finish")
 
     def test_asymmetric_fixture_fails_then_corrected_tests_pass(self):
-        session = self.backend.create(request())
-        workspace = self.backend.workspaces / session["id"]
+        thread = self.backend.create(request())
+        workspace = self.backend.workspaces / thread["id"]
         self.assertFalse(self.backend.sandbox.test(workspace))
-        session = self.run_actions(session["id"], [
+        thread = self.run_actions(thread["id"], [
             action("read", "test_totals.py"),
             action("write", "totals.py", CORRECT),
             action("test"), action("finish", message="Quantities fixed; all three tests passed."),
         ])
-        self.assertEqual(session["status"], "completed")
-        self.assertIn("+    return sum(price * quantity", session["diff"])
-        self.assertIn("Fixed tests: 3 passed", [message["content"] for message in session["messages"]])
-        self.assertEqual(session["messages"][-1]["role"], "assistant")
+        self.assertEqual(thread["status"], "completed")
+        self.assertIn("+    return sum(price * quantity", thread["diff"])
+        self.assertIn("Fixed tests: 3 passed", [message["content"] for message in thread["messages"]])
+        self.assertEqual(thread["messages"][-1]["role"], "assistant")
         self.assertEqual((workspace / "test_totals.py").read_text(), demo.FIXTURE["test_totals.py"])
         self.assertIn("41", demo.FIXTURE["test_totals.py"])
         self.assertIn("30", demo.FIXTURE["test_totals.py"])
 
     def test_finish_without_tests_is_not_completion(self):
-        session = self.backend.create(request())
-        session = self.run_actions(session["id"], [action("finish", message="All tests pass!")])
-        self.assertEqual(session["status"], "failed")
-        self.assertNotIn("All tests pass!", json.dumps(session))
+        thread = self.backend.create(request())
+        thread = self.run_actions(thread["id"], [action("finish", message="All tests pass!")])
+        self.assertEqual(thread["status"], "failed")
+        self.assertNotIn("All tests pass!", json.dumps(thread))
 
     def test_failed_tests_are_not_completion(self):
-        session = self.backend.create(request())
-        session = self.run_actions(session["id"], [action("test"), action("finish")])
-        self.assertEqual(session["status"], "failed")
-        self.assertIn("Fixed tests failed", json.dumps(session))
+        thread = self.backend.create(request())
+        thread = self.run_actions(thread["id"], [action("test"), action("finish")])
+        self.assertEqual(thread["status"], "failed")
+        self.assertIn("Fixed tests failed", json.dumps(thread))
 
     def test_write_after_passing_test_requires_new_test(self):
-        session = self.backend.create(request())
-        session = self.run_actions(session["id"], [
+        thread = self.backend.create(request())
+        thread = self.run_actions(thread["id"], [
             action("write", "totals.py", CORRECT), action("test"),
             action("write", "totals.py", CORRECT + "\n"), action("finish"),
         ])
-        self.assertEqual(session["status"], "failed")
+        self.assertEqual(thread["status"], "failed")
 
     def test_rename_metadata_preserves_goal_branch_worktree_and_test_evidence(self):
-        session = self.backend.create(request())
-        session_id = session["id"]
-        branch = session["branch"]
-        self.assertEqual(session["title"], "New thread")
-        workspace = self.backend.workspaces / session_id
-        session = self.run_actions(session_id, [
+        thread = self.backend.create(request())
+        thread_id = thread["id"]
+        branch = thread["branch"]
+        self.assertEqual(thread["title"], "New thread")
+        workspace = self.backend.workspaces / thread_id
+        thread = self.run_actions(thread_id, [
             action("write", "totals.py", CORRECT), action("test"),
         ])
-        before = dict(self.backend._row(session_id))
+        before = dict(self.backend._row(thread_id))
         files = {name: (workspace / name).read_bytes() for name in demo.FIXTURE}
         with patch.object(self.backend.sandbox, "test", side_effect=AssertionError("Must not execute")):
-            session = self.run_actions(session_id, [action("set_thread_name", content="  Quantity totals  ")])
-        self.assertEqual(session["title"], "Quantity totals")
-        self.assertEqual(session["goal"], demo.GOAL)
-        self.assertEqual(session["branch"], branch)
-        self.assertEqual(self.backend._row(session_id)["tested_revision"], before["tested_revision"])
-        self.assertEqual(self.backend._row(session_id)["revision"], before["revision"])
+            thread = self.run_actions(thread_id, [action("set_thread_name", content="  Quantity totals  ")])
+        self.assertEqual(thread["title"], "Quantity totals")
+        self.assertEqual(thread["goal"], demo.GOAL)
+        self.assertEqual(thread["branch"], branch)
+        self.assertEqual(self.backend._row(thread_id)["tested_revision"], before["tested_revision"])
+        self.assertEqual(self.backend._row(thread_id)["revision"], before["revision"])
         self.assertEqual(files, {name: (workspace / name).read_bytes() for name in demo.FIXTURE})
         self.restart()
-        session = self.backend.get(session_id)
-        self.assertEqual(session["title"], "Quantity totals")
-        self.assertEqual(session["goal"], demo.GOAL)
-        self.assertEqual(session["branch"], branch)
-        session = self.run_actions(session_id, [action("finish", message="Done")])
-        self.assertEqual(session["status"], "completed")
+        thread = self.backend.get(thread_id)
+        self.assertEqual(thread["title"], "Quantity totals")
+        self.assertEqual(thread["goal"], demo.GOAL)
+        self.assertEqual(thread["branch"], branch)
+        thread = self.run_actions(thread_id, [action("finish", message="Done")])
+        self.assertEqual(thread["status"], "completed")
         turn = {"content": "Check the same fix again", "request_id": str(uuid.uuid4())}
-        self.backend.add_message(session_id, turn)
-        session = self.run_actions(session_id, [action("test"), action("finish", message="Still passes")])
-        self.assertEqual(session["status"], "completed")
-        self.assertEqual(session["goal"], demo.GOAL)
-        self.assertEqual(session["branch"], branch)
+        self.backend.add_message(thread_id, turn)
+        thread = self.run_actions(thread_id, [action("test"), action("finish", message="Still passes")])
+        self.assertEqual(thread["status"], "completed")
+        self.assertEqual(thread["goal"], demo.GOAL)
+        self.assertEqual(thread["branch"], branch)
         self.assertIn(demo.GOAL, self.inference.prompts[0])
         self.assertIn(turn["content"], self.inference.prompts[0])
 
@@ -154,43 +154,43 @@ class BackendTests(unittest.TestCase):
         first = self.backend.create(request())
         second = self.backend.create(request())
         self.assertNotEqual(first["branch"], second["branch"])
-        for session in (first, second):
-            self.assertEqual(session["branch"], "code/" + session["id"])
-            path = self.backend.workspaces / session["id"]
+        for thread in (first, second):
+            self.assertEqual(thread["branch"], "code/" + thread["id"])
+            path = self.backend.workspaces / thread["id"]
             self.assertTrue((path / ".git").is_file())
             listing = self.backend._git(["worktree", "list", "--porcelain"])
             self.assertIn("worktree " + str(path), listing)
-            self.assertIn("branch refs/heads/" + session["branch"], listing)
+            self.assertIn("branch refs/heads/" + thread["branch"], listing)
         self.run_actions(first["id"], [action("write", "totals.py", CORRECT)])
         self.assertEqual(self.backend._file(second["id"], "totals.py"), demo.FIXTURE["totals.py"])
 
     def test_duplicate_create_and_turn_do_not_duplicate_actions(self):
         body = request()
-        session = self.backend.create(body)
-        self.assertEqual(self.backend.create(body)["id"], session["id"])
+        thread = self.backend.create(body)
+        self.assertEqual(self.backend.create(body)["id"], thread["id"])
         self.assertEqual(len(self.backend.list_threads()["threads"]), 1)
-        self.run_actions(session["id"], [action("finish")])
+        self.run_actions(thread["id"], [action("finish")])
         turn = {"content": "Try again", "request_id": str(uuid.uuid4())}
-        self.backend.add_message(session["id"], turn)
-        self.backend.add_message(session["id"], turn)
-        self.run_actions(session["id"], [action("finish")])
-        self.backend.add_message(session["id"], turn)
-        session = self.backend.get(session["id"])
-        self.assertEqual([message["content"] for message in session["messages"] if message["role"] == "user"],
+        self.backend.add_message(thread["id"], turn)
+        self.backend.add_message(thread["id"], turn)
+        self.run_actions(thread["id"], [action("finish")])
+        self.backend.add_message(thread["id"], turn)
+        thread = self.backend.get(thread["id"])
+        self.assertEqual([message["content"] for message in thread["messages"] if message["role"] == "user"],
                          [demo.GOAL, "Try again"])
         counts = self.backend.db.execute("SELECT kind,COUNT(*) FROM actions GROUP BY kind").fetchall()
         self.assertEqual({row[0]: row[1] for row in counts}, {"create_worktree": 1, "inference": 2, "finish": 2})
-        self.assertEqual(session["status"], "failed")
+        self.assertEqual(thread["status"], "failed")
         with self.assertRaises(demo.SafeError):
             self.backend.create(dict(body, goal="different"))
         with self.assertRaises(demo.SafeError):
-            self.backend.add_message(session["id"], dict(turn, content="different"))
+            self.backend.add_message(thread["id"], dict(turn, content="different"))
 
     def test_restart_queued_thread_and_pending_inference_recover(self):
         queued = self.backend.create(request())
         pending = self.backend.create(request())
         with self.backend.db:
-            self.backend.db.execute("UPDATE sessions SET status='running' WHERE id=?", (pending["id"],))
+            self.backend.db.execute("UPDATE threads SET status='running' WHERE id=?", (pending["id"],))
             pending_id = self.backend._admit_inference(pending["id"])
         inference = ScriptedInference([action("finish"), action("finish")])
         self.restart(inference, worker=True)
@@ -198,28 +198,28 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.wait_terminal(pending["id"])["status"], "failed")
         with self.backend.lock:
             row = self.backend.db.execute("SELECT state FROM actions WHERE id=?", (pending_id,)).fetchone()
-            count = self.backend.db.execute("SELECT COUNT(*) FROM actions WHERE session_id=? AND kind='inference'",
+            count = self.backend.db.execute("SELECT COUNT(*) FROM actions WHERE thread_id=? AND kind='inference'",
                                              (pending["id"],)).fetchone()[0]
         self.assertEqual(row[0], "completed")
         self.assertEqual(count, 1)
         self.assertEqual(len(inference.prompts), 2)
 
     def test_restart_executing_write_is_unknown_never_replayed(self):
-        session = self.backend.create(request())
-        session_id = session["id"]
+        thread = self.backend.create(request())
+        thread_id = thread["id"]
         with self.backend.db:
-            self.backend.db.execute("UPDATE sessions SET status='running' WHERE id=?", (session_id,))
-            self.backend.db.execute("INSERT INTO actions(session_id,kind,state,payload) VALUES(?,'write','executing',?)",
-                                    (session_id, json.dumps(action("write", "totals.py", CORRECT))))
-        self.backend._file(session_id, "totals.py", "# partial side effect\n")
+            self.backend.db.execute("UPDATE threads SET status='running' WHERE id=?", (thread_id,))
+            self.backend.db.execute("INSERT INTO actions(thread_id,kind,state,payload) VALUES(?,'write','executing',?)",
+                                    (thread_id, json.dumps(action("write", "totals.py", CORRECT))))
+        self.backend._file(thread_id, "totals.py", "# partial side effect\n")
         inference = ScriptedInference([action("write", "totals.py", CORRECT)])
         self.restart(inference, worker=True)
-        self.assertEqual(self.backend.get(session_id)["status"], "outcome_unknown")
+        self.assertEqual(self.backend.get(thread_id)["status"], "outcome_unknown")
         time.sleep(0.1)
         self.assertEqual(inference.prompts, [])
-        self.assertEqual(self.backend._file(session_id, "totals.py"), "# partial side effect\n")
+        self.assertEqual(self.backend._file(thread_id, "totals.py"), "# partial side effect\n")
         with self.assertRaises(demo.SafeError):
-            self.backend.add_message(session_id, {"content": "retry", "request_id": str(uuid.uuid4())})
+            self.backend.add_message(thread_id, {"content": "retry", "request_id": str(uuid.uuid4())})
         with self.backend.lock:
             self.assertEqual(self.backend.db.execute("SELECT state FROM actions WHERE kind='write'").fetchone()[0],
                              "outcome_unknown")
@@ -227,66 +227,66 @@ class BackendTests(unittest.TestCase):
     def test_worktree_creation_failure_is_idempotent_unknown(self):
         body = request()
         with patch.object(self.backend, "_git", side_effect=OSError("PRIVATE_PROVIDER_ERROR")):
-            session = self.backend.create(body)
-        self.assertEqual(session["status"], "outcome_unknown")
-        self.assertEqual(self.backend.create(body)["id"], session["id"])
+            thread = self.backend.create(body)
+        self.assertEqual(thread["status"], "outcome_unknown")
+        self.assertEqual(self.backend.create(body)["id"], thread["id"])
         self.restart()
-        self.assertEqual(self.backend.get(session["id"])["status"], "outcome_unknown")
-        self.assertNotIn("PRIVATE_PROVIDER_ERROR", (self.root / "sessions.sqlite3").read_bytes().decode("latin1"))
+        self.assertEqual(self.backend.get(thread["id"])["status"], "outcome_unknown")
+        self.assertNotIn("PRIVATE_PROVIDER_ERROR", (self.root / "threads.sqlite3").read_bytes().decode("latin1"))
 
     def test_action_admission_is_committed_before_execution(self):
-        session = self.backend.create(request())
+        thread = self.backend.create(request())
         original = self.backend._file
 
-        def checked(session_id, name, write=None):
+        def checked(thread_id, name, write=None):
             if write is not None:
-                with sqlite3.connect(self.root / "sessions.sqlite3") as other:
+                with sqlite3.connect(self.root / "threads.sqlite3") as other:
                     row = other.execute("SELECT state FROM actions WHERE kind='write'").fetchone()
                     self.assertEqual(row[0], "executing")
-            return original(session_id, name, write)
+            return original(thread_id, name, write)
 
         with patch.object(self.backend, "_file", side_effect=checked):
-            self.run_actions(session["id"], [action("write", "totals.py", CORRECT)])
+            self.run_actions(thread["id"], [action("write", "totals.py", CORRECT)])
         self.assertEqual(self.backend.db.execute("SELECT state FROM actions WHERE kind='write'").fetchone()[0], "completed")
 
     def test_invalid_path_and_test_writes_rejected_before_admission(self):
-        session = self.backend.create(request())
+        thread = self.backend.create(request())
         for bad in (action("read", "../outside"), action("write", "/tmp/evil", "x"),
                     action("write", "test_totals.py", "x")):
             with self.subTest(bad=bad):
                 with self.assertRaises(demo.SafeError):
                     demo.validate_action(bad)
-        session = self.run_actions(session["id"], [action("write", "../outside", "x")])
-        self.assertEqual(session["status"], "failed")
+        thread = self.run_actions(thread["id"], [action("write", "../outside", "x")])
+        self.assertEqual(thread["status"], "failed")
         self.assertEqual(self.backend.db.execute("SELECT COUNT(*) FROM actions WHERE kind='write'").fetchone()[0], 0)
 
     def test_symlinks_and_hardlinks_are_not_followed(self):
-        session = self.backend.create(request())
+        thread = self.backend.create(request())
         outside = self.root / "outside"
         outside.write_text("canary")
-        path = self.backend.workspaces / session["id"] / "totals.py"
+        path = self.backend.workspaces / thread["id"] / "totals.py"
         path.unlink()
         path.symlink_to(outside)
         with self.assertRaises((demo.SafeError, OSError)):
-            self.backend._file(session["id"], "totals.py", CORRECT)
+            self.backend._file(thread["id"], "totals.py", CORRECT)
         path.unlink()
         os.link(outside, path)
         with self.assertRaises(demo.SafeError):
-            self.backend._file(session["id"], "totals.py", CORRECT)
+            self.backend._file(thread["id"], "totals.py", CORRECT)
         self.assertEqual(outside.read_text(), "canary")
 
     def test_action_loop_is_bounded(self):
-        session = self.backend.create(request())
+        thread = self.backend.create(request())
         self.inference = ScriptedInference([action("read", "totals.py")] * (demo.MAX_ACTIONS + 1))
         self.backend.inference = self.inference
         for _ in range(demo.MAX_ACTIONS + 1):
-            self.backend._step(session["id"])
-        self.assertEqual(self.backend.get(session["id"])["status"], "failed")
+            self.backend._step(thread["id"])
+        self.assertEqual(self.backend.get(thread["id"])["status"], "failed")
         self.assertEqual(len(self.inference.prompts), demo.MAX_ACTIONS)
 
     def test_private_permissions_and_single_server(self):
         self.assertEqual(stat.S_IMODE(self.root.stat().st_mode), 0o700)
-        self.assertEqual(stat.S_IMODE((self.root / "sessions.sqlite3").stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE((self.root / "threads.sqlite3").stat().st_mode), 0o600)
         with self.assertRaises(demo.SafeError):
             demo.Backend(self.root, self.inference, start_worker=False)
 
@@ -296,9 +296,9 @@ class BackendTests(unittest.TestCase):
             with self.subTest(body=body):
                 with self.assertRaises(demo.SafeError):
                     self.backend.create(body)
-        session = self.backend.create(request("é" * 2000))
+        thread = self.backend.create(request("é" * 2000))
         with self.assertRaises(demo.SafeError):
-            self.backend.add_message(session["id"], {"content": "busy", "request_id": str(uuid.uuid4())})
+            self.backend.add_message(thread["id"], {"content": "busy", "request_id": str(uuid.uuid4())})
         with self.assertRaises(demo.SafeError):
             self.backend.get(str(uuid.uuid4()))
 
@@ -342,13 +342,13 @@ print("ISOLATED")
                 demo.Sandbox(self.root)
 
     def test_inference_exception_diagnostics_never_enter_thread_or_journal(self):
-        session = self.backend.create(request())
+        thread = self.backend.create(request())
         self.backend.inference = lambda _: (_ for _ in ()).throw(RuntimeError("PRIVATE_PROVIDER_ERROR"))
-        self.backend._step(session["id"])
-        session = self.backend.get(session["id"])
-        self.assertEqual(session["status"], "failed")
-        self.assertNotIn("PRIVATE_PROVIDER_ERROR", json.dumps(session))
-        self.assertNotIn(b"PRIVATE_PROVIDER_ERROR", (self.root / "sessions.sqlite3").read_bytes())
+        self.backend._step(thread["id"])
+        thread = self.backend.get(thread["id"])
+        self.assertEqual(thread["status"], "failed")
+        self.assertNotIn("PRIVATE_PROVIDER_ERROR", json.dumps(thread))
+        self.assertNotIn(b"PRIVATE_PROVIDER_ERROR", (self.root / "threads.sqlite3").read_bytes())
 
     def test_worker_survives_phone_disconnection_over_real_http(self):
         entered = threading.Event()
@@ -372,15 +372,15 @@ print("ISOLATED")
             client.close()
             self.assertTrue(entered.wait(5))
             release.set()
-            sessions = self.backend.list_threads()["threads"]
-            self.assertEqual(len(sessions), 1)
-            session = self.wait_terminal(sessions[0]["id"])
-            self.assertEqual(session["status"], "failed")
+            threads = self.backend.list_threads()["threads"]
+            self.assertEqual(len(threads), 1)
+            thread = self.wait_terminal(threads[0]["id"])
+            self.assertEqual(thread["status"], "failed")
             connection = http.client.HTTPConnection(*server.server_address, timeout=5)
             connection.request("GET", "/threads")
             response = connection.getresponse()
             self.assertEqual(response.status, 200)
-            self.assertEqual(json.loads(response.read())["threads"][0]["id"], session["id"])
+            self.assertEqual(json.loads(response.read())["threads"][0]["id"], thread["id"])
             connection.close()
         finally:
             release.set()
@@ -405,12 +405,12 @@ print("ISOLATED")
         try:
             self.assertEqual(server.server_address[0], "127.0.0.1")
             self.assertEqual(call("GET", "/threads"), (200, {"threads": []}))
-            status, session = call("POST", "/threads", json.dumps(request()), {"Content-Type": "application/json"})
+            status, thread = call("POST", "/threads", json.dumps(request()), {"Content-Type": "application/json"})
             self.assertEqual(status, 200)
-            self.assertEqual(set(session), {"id", "title", "goal", "branch", "repository", "profile",
+            self.assertEqual(set(thread), {"id", "title", "goal", "branch", "repository", "profile",
                                             "status", "visibility", "messages", "diff"})
-            self.assertEqual(call("GET", "/threads/" + session["id"]), (200, session))
-            self.assertEqual(call("POST", "/threads/" + session["id"] + "/messages",
+            self.assertEqual(call("GET", "/threads/" + thread["id"]), (200, thread))
+            self.assertEqual(call("POST", "/threads/" + thread["id"] + "/messages",
                                   json.dumps({"content": "busy", "request_id": str(uuid.uuid4())}),
                                   {"Content-Type": "application/json"})[0], 409)
             self.assertEqual(call("GET", "/threads", headers={"Origin": "https://example.com"})[0], 403)

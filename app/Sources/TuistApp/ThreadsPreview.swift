@@ -5,32 +5,36 @@
 
     struct ThreadsPreview: View {
         let accountName: String
-        var isLayoutPreview = false
-        let switchAccount: () -> Void
-        private var client: ThreadClient? {
-            #if DEBUG
-                if isLayoutPreview { return nil }
-            #endif
-            return ThreadClient(account: accountName, serverURL: AppServerEnvironmentService().url())
+        let isLayoutPreview: Bool
+        private let client: ThreadClient?
+
+        init(accountName: String, isLayoutPreview: Bool = false) {
+            self.accountName = accountName
+            self.isLayoutPreview = isLayoutPreview
+            client = isLayoutPreview ? nil : ThreadClient(account: accountName, serverURL: AppServerEnvironmentService().url())
         }
 
         private var isLive: Bool { client != nil }
-        @State private var sessions: [DemoThread] = []
+        @State private var threads: [DemoThread] = []
         @State private var nextCursor: String?
         @State private var loading = false
+        @State private var hasLoaded = false
         @State private var loadID = UUID()
-        @State private var showingNewSession = false
+        @State private var showingNewThread = false
         @State private var newGoal = ""
         @State private var newProfile = "linux"
         @State private var newRepository = ""
         @State private var newModel: ThreadModel?
         @State private var newRequestID = UUID()
         @State private var newRequestContent: [String] = []
-        @State private var selectedSession: DemoThread?
+        @State private var selectedThread: DemoThread?
         @State private var drafts: [String: ThreadConversationDraft] = [:]
         @State private var archivedIDs: Set<String> = []
         @State private var showingArchived = false
         @State private var error: String?
+        @State private var archiveTarget: DemoThread?
+        @State private var archivingID: String?
+        @State private var lifecycle = UUID()
         @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
@@ -49,159 +53,204 @@
                             Button("Try again") { Task { await load() } }
                         }
                     }
-                    if isLive, sessions.isEmpty, error == nil {
+                    if isLive, !hasLoaded, error == nil {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.clear)
+                    } else if visibleThreads.isEmpty, !loading, error == nil, nextCursor == nil {
                         Section {
-                            ContentUnavailableView(
-                                "Start with a goal", systemImage: "square.and.pencil",
-                                description: Text("Ask Tuist a question or choose a repository to work on.")
-                            )
+                            ThreadEmptyStateView(archived: showingArchived)
+                                .listRowInsets(EdgeInsets())
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
                         }
                     }
-                    sessionSection("In progress", values: visibleSessions.filter(\.isRunning))
-                    sessionSection(
+                    threadSection("In progress", values: visibleThreads.filter(\.isRunning))
+                    threadSection(
                         showingArchived ? "Archived" : "Recent",
-                        values: visibleSessions.filter { !$0.isRunning }
+                        values: visibleThreads.filter { !$0.isRunning }
                     )
                     if nextCursor != nil {
                         Button("Load more threads") { Task { await load(more: true) } }
                             .disabled(loading)
                     }
-                    Section {} footer: {
-                        Text(LocalizedStringKey(isLive
-                                ? "Private · Threads are saved to your account"
-                                : "Design preview · Sample threads and people"))
-                    }
                 }
                 .refreshable { await load() }
                 .navigationTitle("Threads")
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: switchAccount) {
-                            HStack(spacing: 4) {
-                                Text(verbatim: accountName)
-                                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
-                            }
-                        }
-                        .tint(.primary)
-                        .accessibilityLabel("Switch account")
-                        .accessibilityValue(accountName)
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("New thread", systemImage: "square.and.pencil") { showingNewSession = true }
+                        Button("New thread", systemImage: "square.and.pencil") { showingNewThread = true }
                             .labelStyle(.iconOnly)
                     }
                 }
-                .navigationDestination(item: $selectedSession) { session in
+                .navigationDestination(item: $selectedThread) { thread in
                     ThreadConversationView(
-                        session: session, client: client,
+                        thread: thread, client: client,
                         draft: Binding(
-                            get: { drafts[session.id] ?? ThreadConversationDraft() },
-                            set: { drafts[session.id] = $0 }
+                            get: { drafts[thread.id] ?? ThreadConversationDraft() },
+                            set: { drafts[thread.id] = $0 }
                         ),
-                        archived: isArchived(session),
+                        archived: isArchived(thread),
                         update: { value in
-                            sessions.removeAll { $0.id == value.id }
-                            sessions.insert(value, at: 0)
+                            threads.removeAll { $0.id == value.id }
+                            threads.insert(value, at: 0)
                         },
                         archive: { value in
-                            if value { archivedIDs.insert(session.id) } else { archivedIDs.remove(session.id) }
+                            if value { archivedIDs.insert(thread.id) } else { archivedIDs.remove(thread.id) }
                         }
                     )
                 }
-                .sheet(isPresented: $showingNewSession) {
+                .sheet(isPresented: $showingNewThread) {
                     NewThreadPreview(
                         client: client, goal: $newGoal, profile: $newProfile, repository: $newRepository,
                         selectedModel: $newModel, requestID: $newRequestID, requestContent: $newRequestContent
-                    ) { session in
-                        sessions.insert(session, at: 0)
+                    ) { thread in
+                        threads.insert(thread, at: 0)
                         newGoal = ""
                         newRepository = ""
                         newModel = nil
                         newRequestID = UUID()
                         newRequestContent = []
-                        showingNewSession = false
-                        selectedSession = session
+                        showingNewThread = false
+                        selectedThread = thread
                     }
                 }
-                .task(id: "\(scenePhase)-\(selectedSession?.id ?? "inbox")") {
-                    guard let client, scenePhase == .active, selectedSession == nil else { return }
+                .task(id: "\(scenePhase)-\(selectedThread?.id ?? "inbox")") {
+                    guard let client, scenePhase == .active, selectedThread == nil else { return }
                     await load()
                     await client.watch(invalidate: { await load(preserveLoaded: true) }, disconnected: {
                         if error == nil { error = String(localized: "Connection lost. Reconnecting…") }
                     })
                 }
-                .onDisappear { loadID = UUID() }
+                .onDisappear { loadID = UUID(); lifecycle = UUID() }
             }
         }
 
-        private var visibleSessions: [DemoThread] {
-            if isLive { return sessions.filter { isArchived($0) == showingArchived } }
+        private var visibleThreads: [DemoThread] {
+            if isLive { return threads.filter { isArchived($0) == showingArchived } }
             #if DEBUG
-                let values = sessions + ThreadPreviewFixtures.threads
-                    .filter { fixture in !sessions.contains { $0.id == fixture.id } }
+                let values = threads + ThreadPreviewFixtures.threads
+                    .filter { fixture in !threads.contains { $0.id == fixture.id } }
                 return values.filter { archivedIDs.contains($0.id) == showingArchived }
             #else
                 return []
             #endif
         }
 
-        private func isArchived(_ session: DemoThread) -> Bool {
-            isLive ? session.archiveStatus == "archived" || session.status == "archived" : archivedIDs.contains(session.id)
+        private func isArchived(_ thread: DemoThread) -> Bool {
+            isLive ? thread.archiveStatus == "archived" || thread.status == "archived" : archivedIDs.contains(thread.id)
         }
 
         @ViewBuilder
-        private func sessionSection(_ title: LocalizedStringKey, values: [DemoThread]) -> some View {
+        private func threadSection(_ title: LocalizedStringKey, values: [DemoThread]) -> some View {
             if !values.isEmpty {
                 Section(title) {
-                    ForEach(values) { session in
-                        Button { selectedSession = session } label: {
+                    ForEach(values) { thread in
+                        Button { selectedThread = thread } label: {
                             HStack(alignment: .top, spacing: 12) {
-                                Image(systemName: archivedIDs.contains(session.id) ? "archivebox" : session
+                                Image(systemName: isArchived(thread) ? "archivebox" : thread
                                     .isRunning ? "circle.dotted" : "bubble.left")
-                                    .foregroundStyle(session.isRunning ? Color.accentColor : .secondary)
+                                    .foregroundStyle(thread.isRunning ? Color.accentColor : .secondary)
                                     .frame(width: 20)
                                     .padding(.top, 2)
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(verbatim: session.title).font(.body.weight(.medium)).foregroundStyle(.primary)
-                                    Text(verbatim: "\(session.repository) · \(statusLabel(session.status))")
+                                    Text(verbatim: thread.title).font(.body.weight(.medium)).foregroundStyle(.primary)
+                                    Text(verbatim: "\(thread.repository) · \(statusLabel(thread.status))")
                                         .font(.caption).foregroundStyle(.secondary)
-                                    if session.visibility == "shared" {
+                                    if thread.visibility == "shared" {
                                         Label("Shared with 2 people", systemImage: "person.2")
                                             .font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
                                 Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                                if archivingID == thread.id {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                                }
                             }
                             .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
+                        .disabled(archivingID != nil)
+                        .contextMenu {
+                            if archivingID == nil { archiveAction(thread) }
+                        }
+                        .confirmationDialog("Archive this thread?", isPresented: Binding(
+                            get: { archiveTarget?.id == thread.id },
+                            set: { if !$0 { archiveTarget = nil } }
+                        ), titleVisibility: .visible) {
+                            Button("Archive thread") { setArchived(thread, archived: true) }
+                        } message: {
+                            Text("Archiving cancels any active work. The conversation stays available in Archived.")
+                        }
                     }
                 }
             }
         }
 
+        private func archiveAction(_ thread: DemoThread) -> some View {
+            Button(isArchived(thread) ? "Restore thread" : "Archive thread", systemImage: "archivebox") {
+                if isArchived(thread) { setArchived(thread, archived: false) } else { archiveTarget = thread }
+            }
+            .disabled(archivingID != nil)
+        }
+
+        private func setArchived(_ thread: DemoThread, archived: Bool) {
+            guard archivingID == nil else { return }
+            archivingID = thread.id
+            loadID = UUID()
+            loading = false
+            error = nil
+            let fence = lifecycle
+            Task {
+                defer { archivingID = nil }
+                do {
+                    let result: DemoThread
+                    if let client {
+                        result = try await client.archive(id: thread.id, archived: archived)
+                    } else {
+                        var sample = thread
+                        sample.status = "idle"
+                        sample.archiveStatus = archived ? "archived" : "active"
+                        result = sample
+                    }
+                    guard lifecycle == fence, !Task.isCancelled else { return }
+                    if let index = threads.firstIndex(where: { $0.id == thread.id }) {
+                        threads[index] = threads[index].mergingHistory(result)
+                    } else {
+                        threads.insert(result, at: 0)
+                    }
+                    if archived { archivedIDs.insert(thread.id) } else { archivedIDs.remove(thread.id) }
+                } catch {
+                    guard lifecycle == fence, !Task.isCancelled else { return }
+                    self.error = error.localizedDescription
+                }
+            }
+        }
+
         private func load(more: Bool = false, preserveLoaded: Bool = false) async {
-            guard let client else { return }
+            guard let client, archivingID == nil else { return }
             if more, loading { return }
             let id = UUID()
             loadID = id
             loading = true
             defer { if loadID == id { loading = false } }
             do {
-                let preserving = preserveLoaded && !sessions.isEmpty
+                let preserving = preserveLoaded && !threads.isEmpty
                 let cursor = more ? nextCursor : nil
                 let page = try await client.threads(cursor: cursor)
                 guard !Task.isCancelled, loadID == id else { return }
                 if more {
-                    sessions += page.threads.filter { value in !sessions.contains { $0.id == value.id } }
+                    threads += page.threads.filter { value in !threads.contains { $0.id == value.id } }
                 } else if preserving {
-                    let refreshed = ThreadPage(threads: sessions, nextCursor: nextCursor).mergingRefresh(page)
-                    sessions = refreshed.threads
+                    let refreshed = ThreadPage(threads: threads, nextCursor: nextCursor).mergingRefresh(page)
+                    threads = refreshed.threads
                     nextCursor = refreshed.nextCursor
-                } else { sessions = page.threads }
+                } else { threads = page.threads }
                 if !preserving { nextCursor = page.nextCursor == cursor ? nil : page.nextCursor }
+                hasLoaded = true
                 error = nil
             } catch {
                 guard !Task.isCancelled, loadID == id else { return }
@@ -478,15 +527,15 @@
                 requestContent = content
             }
             do {
-                let session: DemoThread
+                let thread: DemoThread
                 if let client {
-                    session = try await client.create(
+                    thread = try await client.create(
                         content: goal, repository: selectedRepository,
                         provider: selectedModel.provider, model: selectedModel.id, requestID: requestID
                     )
                 } else {
                     #if DEBUG
-                        session = DemoThread(
+                        thread = DemoThread(
                             id: UUID().uuidString, title: "New thread", repository: repository, profile: profile,
                             status: "preview", visibility: "private",
                             messages: [.init(id: UUID().uuidString, role: "user", content: goal)], goal: goal,
@@ -497,7 +546,7 @@
                     #endif
                 }
                 guard lifecycle == fence, !Task.isCancelled else { return }
-                created(session)
+                created(thread)
             } catch {
                 guard lifecycle == fence, !Task.isCancelled else { return }
                 self.error = error.localizedDescription

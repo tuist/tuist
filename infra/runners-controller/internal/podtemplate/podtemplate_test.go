@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/kvmnri"
 )
 
 const testDindImage = "docker:28-dind"
@@ -716,6 +717,13 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 	pool.Spec.NestedVirtualization = true
 	pod := build(t, pool)
 
+	if pod.Spec.Resources != nil {
+		t.Fatal("nested KVM must use container-level resources to avoid kubelet's pod-level device allocation race")
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := runner.Resources.Limits.Cpu().MilliValue(); got != 4000 {
+		t.Fatalf("nested KVM runner CPU limit = %dm, want 4000m", got)
+	}
 	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
 		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
 	}
@@ -726,7 +734,6 @@ func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing
 		t.Errorf("nodeSelector %s = %q, want \"true\"", KVMNodeLabel, got)
 	}
 
-	runner := containerByName(t, pod, "runner")
 	for name, list := range map[string]corev1.ResourceList{"requests": runner.Resources.Requests, "limits": runner.Resources.Limits} {
 		quantity, ok := list[KVMResourceName]
 		if !ok || quantity.Value() != 1 {
@@ -827,6 +834,171 @@ func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
 	macos.Spec.NestedVirtualization = true
 	if _, err := Build(macos, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
 		t.Error("Build accepted nested virtualization on a macOS pool; want refusal")
+	}
+}
+
+func TestBuild_ExclusiveCPUsMovesTheBudgetToThePod(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.ExclusiveCPUs = true
+	pod := build(t, pool)
+
+	if pod.Spec.Resources == nil {
+		t.Fatal("pod.Spec.Resources = nil, want the Pod-level budget")
+	}
+	for name, list := range map[string]corev1.ResourceList{"requests": pod.Spec.Resources.Requests, "limits": pod.Spec.Resources.Limits} {
+		// Guaranteed QoS needs requests equal to limits; the static CPU
+		// manager pins only Guaranteed Pods.
+		if got := list.Cpu().MilliValue(); got != 4000 {
+			t.Errorf("pod %s cpu = %dm, want 4000m", name, got)
+		}
+		if got := list.Memory().Value(); got != 16<<30 {
+			t.Errorf("pod %s memory = %d, want 16Gi", name, got)
+		}
+		if len(list) != 2 {
+			t.Errorf("pod %s = %v, want only cpu and memory", name, list)
+		}
+	}
+	// A container keeping its own CPU would take an exclusive slice of
+	// the budget and leave the sidecars an empty shared pool.
+	for _, c := range append(append([]corev1.Container{}, pod.Spec.Containers...), pod.Spec.InitContainers...) {
+		for _, list := range []corev1.ResourceList{c.Resources.Requests, c.Resources.Limits} {
+			if _, ok := list[corev1.ResourceCPU]; ok {
+				t.Errorf("container %q sets cpu %v alongside the Pod-level budget", c.Name, list)
+			}
+			if _, ok := list[corev1.ResourceMemory]; ok {
+				t.Errorf("container %q sets memory %v alongside the Pod-level budget", c.Name, list)
+			}
+		}
+	}
+	if got := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; got != "true" {
+		t.Errorf("nodeSelector %s = %q, want \"true\"", PodLevelResourceManagersNodeLabel, got)
+	}
+}
+
+func TestBuild_WithoutExclusiveCPUsKeepsTheBudgetOnTheRunner(t *testing.T) {
+	pod := build(t, basePool("linux"))
+
+	if pod.Spec.Resources != nil {
+		t.Errorf("pod.Spec.Resources = %v on a pool that did not opt in", pod.Spec.Resources)
+	}
+	if _, ok := pod.Spec.NodeSelector[PodLevelResourceManagersNodeLabel]; ok {
+		t.Errorf("nodeSelector carries %s on a pool that did not opt in", PodLevelResourceManagersNodeLabel)
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := runner.Resources.Limits.Cpu().MilliValue(); got != 4000 {
+		t.Errorf("runner cpu limit = %dm, want 4000m", got)
+	}
+}
+
+func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
+	for name, mutate := range map[string]func(*tuistv1.RunnerPool){
+		// Odd counts cannot fill whole two-thread cores, and full-pcpus-only
+		// would reject the Pod at admission on the node.
+		"odd cpus":        func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 1000 },
+		"fractional cpus": func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 2500 },
+		"runc":            func(p *tuistv1.RunnerPool) { p.Spec.RuntimeClass = "" },
+		"macos":           func(p *tuistv1.RunnerPool) { p.Spec.OS = "darwin"; p.Spec.RuntimeClass = "" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			pool := basePool("linux")
+			pool.Spec.ExclusiveCPUs = true
+			mutate(pool)
+			if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
+				t.Error("Build accepted exclusive CPUs; want refusal")
+			}
+		})
+	}
+}
+
+func TestKVMContainersAnnotationMatchesThePlugin(t *testing.T) {
+	if KVMContainersAnnotation != kvmnri.KVMContainersAnnotation {
+		t.Errorf("podtemplate annotates %q, kvm-nri-plugin reads %q", KVMContainersAnnotation, kvmnri.KVMContainersAnnotation)
+	}
+}
+
+func TestBuild_ExclusiveCPUsWithNestedKVMGetsKVMThroughNRI(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.ExclusiveCPUs = true
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	// A device-plugin resource next to a Pod-level budget is what panics the
+	// kubelet (kubernetes/kubernetes#143490).
+	if pod.Spec.Resources == nil {
+		t.Fatal("pod.Spec.Resources = nil, want the Pod-level budget")
+	}
+	if _, ok := pod.Spec.Resources.Limits[KVMResourceName]; ok {
+		t.Errorf("Pod-level budget requests %s", KVMResourceName)
+	}
+	for _, c := range append(append([]corev1.Container{}, pod.Spec.Containers...), pod.Spec.InitContainers...) {
+		if _, ok := c.Resources.Requests[KVMResourceName]; ok {
+			t.Errorf("container %q requests %s alongside the Pod-level budget", c.Name, KVMResourceName)
+		}
+	}
+	if got := pod.Annotations[KVMContainersAnnotation]; got != "poller,runner" {
+		t.Errorf("%s = %q, want poller,runner", KVMContainersAnnotation, got)
+	}
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
+		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
+	}
+	for _, label := range []string{KVMNodeLabel, PodLevelResourceManagersNodeLabel} {
+		if got := pod.Spec.NodeSelector[label]; got != "true" {
+			t.Errorf("nodeSelector %s = %q, want \"true\"", label, got)
+		}
+	}
+	if !strings.Contains(initContainerByName(t, pod, "dind").Args[0], "mknod /dev/kvm c 10 232") {
+		t.Error("dind no longer creates the guest's /dev/kvm for Docker")
+	}
+
+	// Run the poller command with fakes: without /dev/kvm it must exit
+	// before the externals wait and before it can claim a job.
+	poller := initContainerByName(t, pod, "poller").Command
+	if len(poller) != 3 || poller[0] != "sh" {
+		t.Fatalf("poller command = %q, want a sh -c wrapper", poller)
+	}
+	for _, kvm := range []string{"missing", "present"} {
+		t.Run("kvm "+kvm, func(t *testing.T) {
+			dir := t.TempDir()
+			script := strings.ReplaceAll(poller[2], "/usr/local/bin/dispatch-poll.sh", filepath.Join(dir, "dispatch-poll.sh"))
+			script = strings.ReplaceAll(script, externalsStagePath, dir)
+			device := "/dev/null" // a character device, as /dev/kvm is
+			if kvm == "missing" {
+				device = filepath.Join(dir, "kvm")
+			} else if err := os.WriteFile(filepath.Join(dir, externalsStagedMarker), nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			script = strings.ReplaceAll(script, "/dev/kvm", device)
+			if err := os.WriteFile(filepath.Join(dir, "dispatch-poll.sh"), []byte("#!/bin/sh\ntouch "+filepath.Join(dir, "polled")+"\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			out, err := exec.Command("sh", "-c", script).CombinedOutput()
+			_, polled := os.Stat(filepath.Join(dir, "polled"))
+			if kvm == "missing" {
+				if err == nil || polled == nil || !strings.Contains(string(out), "kvm is missing") {
+					t.Fatalf("poller without /dev/kvm: err=%v polled=%v output=%q, want exit 1 before polling", err, polled == nil, out)
+				}
+				return
+			}
+			if err != nil || polled != nil {
+				t.Fatalf("poller with /dev/kvm did not poll: %v, %q", err, out)
+			}
+		})
+	}
+}
+
+func TestBuild_NestedKVMWithoutExclusiveCPUsKeepsTheDevicePlugin(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	if _, ok := pod.Annotations[KVMContainersAnnotation]; ok {
+		t.Errorf("pod carries %s without exclusive CPUs", KVMContainersAnnotation)
+	}
+	if quantity := containerByName(t, pod, "runner").Resources.Limits[KVMResourceName]; quantity.Value() != 1 {
+		t.Errorf("runner %s = %v, want 1", KVMResourceName, quantity)
+	}
+	if strings.Contains(strings.Join(initContainerByName(t, pod, "poller").Command, " "), "/dev/kvm") {
+		t.Error("poller checks /dev/kvm, which the device plugin gives only the runner")
 	}
 }
 
@@ -1192,6 +1364,30 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 	pool.Spec.RuntimeClass = "runc"
 	if _, err := Build(pool, "p", "sa", "url", "", "", "", "", ""); err == nil {
 		t.Fatal("accepted cache mounts outside Kata")
+	}
+}
+
+func TestMetricsSidecarReadsTheDindReportOnlyOnCacheVolumePools(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	metrics := initContainerByName(t, build(t, pool), "metrics")
+	want := corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run/tuist-dind", ReadOnly: true}
+	if !slices.Contains(metrics.VolumeMounts, want) {
+		t.Fatalf("metrics mounts = %+v, want %+v", metrics.VolumeMounts, want)
+	}
+	if got := envValue(metrics.Env, "TUIST_RUNNER_DIND_MEMORY_FILE"); got != "/var/run/tuist-dind/tuist-dind-memory" {
+		t.Fatalf("TUIST_RUNNER_DIND_MEMORY_FILE = %q", got)
+	}
+
+	// Pools without cache volumes run no reporter, so their Pods stay as
+	// they are instead of rolling for a mount nothing writes to.
+	pool.Spec.CacheVolumeRoot = ""
+	pool.Spec.CacheVolumeURL = ""
+	for _, mount := range initContainerByName(t, build(t, pool), "metrics").VolumeMounts {
+		if mount.Name == "dind-sock" {
+			t.Fatalf("metrics mounts dind-sock without cache volumes: %+v", mount)
+		}
 	}
 }
 

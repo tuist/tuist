@@ -17,8 +17,7 @@ defmodule AtlasWeb.TasksLiveTest do
       "task" => %{
         "title" => "Review proposal",
         "assignee_id" => user.id,
-        "due_on" => "2026-10-01",
-        "remind_at" => ""
+        "due_on" => "2026-10-01"
       }
     })
 

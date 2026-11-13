@@ -9,7 +9,7 @@
     }
 
     struct ThreadConversationView: View {
-        @State var session: DemoThread
+        @State var thread: DemoThread
         let client: ThreadClient?
         var isLive: Bool { client != nil }
         @Binding var draft: ThreadConversationDraft
@@ -34,6 +34,7 @@
         @State var following = true
         @State var pendingJump: String?
         @FocusState var composing: Bool
+        @StateObject var voice = ThreadVoiceInput()
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.accessibilityReduceMotion) var reduceMotion
         @Environment(\.dynamicTypeSize) var typeSize
@@ -43,7 +44,7 @@
         var body: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    if session.hasMore == true {
+                    if thread.hasMore == true {
                         Button("Load earlier messages") { Task { await refresh(older: true) } }
                             .disabled(loadingHistory)
                     }
@@ -54,20 +55,20 @@
                             messageView(message)
                         }
                     }
-                    if session.isRunning {
+                    if thread.isRunning {
                         HStack {
                             ProgressView()
                             Text("Tuist is working…").foregroundStyle(.secondary)
                         }
                     }
-                    if session.status == "outcome_unknown" {
+                    if thread.status == "outcome_unknown" {
                         Label(
                             "Tool outcome unknown. Nothing will be retried automatically.",
                             systemImage: "exclamationmark.triangle"
                         )
                         .foregroundStyle(.orange)
                     }
-                    if !session.diff.isEmpty {
+                    if !thread.diff.isEmpty {
                         Button { showingDiff = true } label: {
                             Label("Review changes", systemImage: "doc.text.magnifyingglass")
                                 .frame(maxWidth: .infinity, minHeight: 44)
@@ -96,7 +97,7 @@
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height - geometry.visibleRect.maxY < 80
             } action: { _, atBottom in following = atBottom }
-            .onChange(of: session.messages) { _, _ in if following { jump(to: "bottom") } }
+            .onChange(of: thread.messages) { _, _ in if following { jump(to: "bottom") } }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 composer
             }
@@ -112,15 +113,15 @@
                     }
                     .ignoresSafeArea()
             }
-            .navigationTitle(session.title)
+            .navigationTitle(thread.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar(.hidden, for: .tabBar)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 2) {
-                        Text(session.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                        Label(session.repository, systemImage: session.visibility == "shared" ? "person.2" : "lock")
+                        Text(thread.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Label(thread.repository, systemImage: thread.visibility == "shared" ? "person.2" : "lock")
                             .labelStyle(.titleAndIcon)
                             .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                     }
@@ -133,7 +134,7 @@
                         Button("Thread details", systemImage: "info.circle") { showingDetails = true }
                         Button("Prompts", systemImage: "list.bullet") { showingPrompts = true }
                         Button("Latest message", systemImage: "arrow.down") { jump(to: "bottom") }
-                        if !session.diff.isEmpty {
+                        if !thread.diff.isEmpty {
                             Button("Review changes", systemImage: "doc.text.magnifyingglass") { showingDiff = true }
                         }
                         Button(archived ? "Restore thread" : "Archive thread", systemImage: "archivebox") {
@@ -159,7 +160,7 @@
             .confirmationDialog("Archive this thread?", isPresented: $confirmingArchive, titleVisibility: .visible) {
                 Button("Archive thread") { setArchived(true) }
             } message: {
-                Text("The conversation stays available in Archived.")
+                Text("Archiving cancels any active work. The conversation stays available in Archived.")
             }
             .onChange(of: draft.text) { _, text in
                 let tokens = Set(text.split(whereSeparator: \.isWhitespace).map(String.init))
@@ -168,13 +169,18 @@
             .task(id: scenePhase) {
                 guard let client, scenePhase == .active else { return }
                 await refresh()
-                await client.watch(threadID: session.id, invalidate: { await refresh() }, disconnected: {
+                await client.watch(threadID: thread.id, invalidate: { await refresh() }, disconnected: {
                     if error == nil { error = String(localized: "Connection lost. Reconnecting…") }
                 })
             }
-            .onDisappear { lifecycle = UUID(); historyID = UUID() }
+            .onDisappear { lifecycle = UUID(); historyID = UUID(); voice.cancel() }
             .onChange(of: scenePhase) { _, phase in
-                if phase != .active { lifecycle = UUID(); historyID = UUID(); shipPreview = nil }
+                if phase != .active {
+                    lifecycle = UUID()
+                    historyID = UUID()
+                    shipPreview = nil
+                    voice.cancel()
+                }
             }
         }
     }

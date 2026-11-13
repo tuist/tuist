@@ -1,0 +1,295 @@
+name: Tuist Code
+on:
+  workflow_dispatch:
+    inputs:
+      publish_previews:
+        description: Publish native previews to the private tuist/code internal track
+        type: boolean
+        default: false
+  pull_request:
+    paths: ['code/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/code.yml']
+  push:
+    branches: [main]
+    paths: ['code/**', 'app/Fixtures/Navigation/routes.json', '.github/workflows/code.yml']
+permissions:
+  contents: read
+  id-token: write
+env:
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
+  ONCE_CACHE_PROVIDER: ${{ github.event.pull_request.head.repo.fork == true && 'local' || 'tuist' }}
+concurrency:
+  group: code-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  macos:
+    name: macOS development build and core tests
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: code
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: code
+          install_args: rust github:tuist/once
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: once auth login --provider tuist --no-browser
+      - name: Build the GPUI shell and independent Rust core
+        run: |
+          python3 prepare-native.py
+          once build TuistCodeDesktop
+      - name: Core and app tests
+        run: mise run --skip-tools test
+      - name: Graph, formatting and Clippy
+        run: mise run --skip-tools check
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+        working-directory: code
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            code
+            app/Fixtures/Navigation
+            .github/actions/mise
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Prefer MSVC tools in every Bash process
+        if: runner.os == 'Windows'
+        run: |
+          cat > "$RUNNER_TEMP/desktop-bash-env.sh" <<'EOF'
+          # Git Bash otherwise places its GNU link.exe ahead of MSVC's linker.
+          msvc_bin="$(cygpath -u "${VCToolsInstallDir:?}bin/Hostx64/x64")"
+          test -x "$msvc_bin/link.exe" || exit 1
+          export PATH="$msvc_bin:$PATH"
+          EOF
+          echo "BASH_ENV=$RUNNER_TEMP/desktop-bash-env.sh" >> "$GITHUB_ENV"
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake clang pkg-config libasound2-dev libfontconfig1-dev libfreetype6-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libwayland-dev libvulkan-dev libssl-dev libglib2.0-dev libgtk-3-dev libfuse2
+      - name: Linux signature verification tool
+        if: runner.os == 'Linux'
+        run: |
+          bash distribution/install-minisign.sh "$RUNNER_TEMP/minisign-bin"
+          echo "$RUNNER_TEMP/minisign-bin" >> "$GITHUB_PATH"
+      - name: Windows packaging tools
+        if: runner.os == 'Windows'
+        run: choco install nsis minisign -y --no-progress
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: code
+          install_args: rust github:tuist/once jq yq
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: once auth login --provider tuist --no-browser
+      - name: Install pinned packager (tool only, never builds the app)
+        run: cargo install --locked cargo-packager --version '=0.11.7'
+      - name: Hosted Once build and tests
+        run: |
+          python3 prepare-native.py
+          once build TuistCodeDesktop
+          # Concurrent test batches race on shared per-package outputs on Windows,
+          # so run them one at a time there, as distribution/release.sh does.
+          jobs=
+          test "$RUNNER_OS" != Windows || jobs=1
+          once test --all ${jobs:+--jobs "$jobs"}
+      - name: Script tests and shared navigation fixture
+        run: |
+          for test in distribution/test_*.sh; do bash "$test"; done
+          git diff --no-index --exit-code -- ../app/Fixtures/Navigation/routes.json crates/navigation/src/routes.json
+      - name: Native Once optimized build, tests and unsigned package
+        run: bash distribution/release.sh build --output "$RUNNER_TEMP/desktop-package"
+      - name: Install and uninstall smoke
+        run: bash distribution/smoke.sh "$RUNNER_TEMP/desktop-package"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-${{ runner.os }}-unsigned
+          path: ${{ runner.temp }}/desktop-package/assets/*
+          if-no-files-found: warn
+  apple:
+    name: Swift client (${{ matrix.target }})
+    needs: [macos, core]
+    runs-on: macos-15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: TuistCodeIOS
+            rust-target: aarch64-apple-ios-sim
+            artifact: ios-simulator
+          - target: TuistCodeIOSDevice
+            rust-target: aarch64-apple-ios
+            artifact: ios-device-unprovisioned
+          - target: TuistCodeMacOS
+            rust-target: aarch64-apple-darwin
+            artifact: macos-unsigned
+    defaults:
+      run:
+        shell: bash
+        working-directory: code
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: code
+          install_args: rust github:tuist/once
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: once auth login --provider tuist --no-browser
+      - name: Install Rust Apple standard library
+        env:
+          RUST_TARGET: ${{ matrix.rust-target }}
+        run: rustup target add "$RUST_TARGET"
+      - name: Build the Swift client
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          python3 prepare-native.py
+          once build "$TARGET"
+          ditto -c -k --sequesterRsrc --keepParent ".once/out/$TARGET/TuistCode.app" "$RUNNER_TEMP/TuistCode.zip"
+      - name: Publish internal Tuist preview
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_previews && matrix.target != 'TuistCodeIOSDevice'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: once artifact publish "$TARGET" --track internal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/TuistCode.zip
+          if-no-files-found: error
+          retention-days: 14
+  core:
+    name: Independent Rust core tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: code
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: code
+          install_args: rust github:tuist/once
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: once auth login --provider tuist --no-browser
+      - run: |
+          python3 prepare-native.py
+          once test TuistCodeCoreTests
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-core-tests
+          path: code/.once/out/TuistCodeCoreTests/test/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+  android:
+    name: Android arm64 debug preview
+    needs: [macos, core]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: code
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ./.github/actions/mise
+        with:
+          working_directory: code
+          install_args: rust kotlin github:tuist/once
+          cache: "false"
+      - name: Authenticate hosted cache and insights
+        if: github.event.pull_request.head.repo.fork != true
+        run: once auth login --provider tuist --no-browser
+      - name: Install Once runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK and Rust standard library
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.3.13750724"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724" >> "$GITHUB_ENV"
+          rustup target add aarch64-linux-android
+      - name: Generate ephemeral debug keystore
+        run: |
+          keystore="$RUNNER_TEMP/code-debug.keystore"
+          keytool -genkeypair -noprompt \
+            -keystore "$keystore" -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "ANDROID_DEBUG_KEYSTORE=$keystore" >> "$GITHUB_ENV"
+      - run: |
+          python3 prepare-native.py
+          python3 android/dependencies_test.py
+          python3 android/dependencies.py prepare
+          once build TuistCodeAndroid
+          python3 android/dependencies.py verify "$ANDROID_HOME/build-tools/35.0.0/aapt2" .once/out/TuistCodeBrowser/R.txt .once/out/TuistCodeAndroid/TuistCodeAndroid.apk
+      - name: Publish internal Tuist preview
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_previews
+        run: once artifact publish TuistCodeAndroid --track internal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code-android-arm64-debug
+          path: code/.once/out/TuistCodeAndroid/TuistCodeAndroid.apk
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

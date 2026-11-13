@@ -399,7 +399,7 @@ defmodule Tuist.Threads do
     if is_binary(name) and String.trim(name) != "" and String.length(name) <= 120 do
       with_attempt(run, fn thread, _ ->
         update_thread!(thread, %{title: String.trim(name)})
-        "Session renamed."
+        "Thread renamed."
       end)
     else
       {:error, :invalid_arguments}

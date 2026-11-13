@@ -1,19 +1,15 @@
 {
   "components": [
     {
-      "name": "pulse",
-      "tag_prefix": "pulse@",
-      "tag_regex": "^pulse@[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "cliff_config": "pulse/cliff.toml",
-      "initial_version": "1.39.0",
+      "name": "condukt",
+      "tag_prefix": "condukt@",
+      "tag_regex": "^condukt@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "condukt/cliff.toml",
+      "initial_version": "1.15.0",
       "include_paths": [
-        "pulse/**/*",
-        "infra/helm/pulse/**/*",
-        ".github/workflows/pulse.yml",
-        ".github/workflows/pulse-release.yml",
-        ".github/workflows/pulse-nif-release.yml",
-        ".github/workflows/pulse-deployment.yml",
-        ".github/workflows/pulse-instance-deployment.yml"
+        "condukt/**/*",
+        ".github/workflows/condukt*.yml",
+        ".github/scripts/condukt*"
       ]
     },
     {
@@ -82,6 +78,7 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "server/**/*",
+        "condukt/**/*",
         "infra/certificate-trust/policy.json",
         "infra/certificate-trust/pem-store.sh",
         "tuist_common/**/*",
@@ -109,6 +106,7 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "atlas/**/*",
+        "condukt/**/*",
         "infra/certificate-trust/policy.json",
         "infra/certificate-trust/pem-store.sh",
         "infra/helm/atlas/**/*",
@@ -141,7 +139,7 @@
       "tag_regex": "^gradle@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "gradle/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": []
+      "include_paths": ["gradle/**/*"]
     },
     {
       "name": "skills",
@@ -218,7 +216,8 @@
         "infra/macos-host-bootstrap/**/*",
         "infra/macos-log-shipper/**/*",
         "infra/tart-kubelet/**/*",
-        "infra/runner-cache/**/*"
+        "infra/runner-cache/**/*",
+        "infra/sandbox-image/**/*"
       ]
     },
     {

@@ -17,6 +17,77 @@ defmodule Tuist.PulseTest do
     %{user: user, account: organization.account, organization: organization, config: config}
   end
 
+  test "Greptime uses readonly SQL rows and denies issue reads without HTTP", ctx do
+    config = Keyword.merge(ctx.config, backend: :greptime, tenant: "public")
+    stub(Environment, :pulse_config, fn -> config end)
+
+    columns = Enum.map(~w(timestamp service level message trace_id), &%{"name" => &1})
+
+    body = %{
+      "output" => [
+        %{
+          "records" => %{
+            "schema" => %{"column_schemas" => columns},
+            "rows" => [
+              [1_794_329_254_406_000_001, "worker", "WARN", "can't cache", "abc"],
+              [1_794_329_254_406_000_002, "server", "ERROR", "can't connect", "def"]
+            ]
+          }
+        }
+      ]
+    }
+
+    expect(Req, :request, fn request ->
+      assert request.url.path == "/v1/sql"
+      assert request.options[:auth] == {:basic, "dashboard:secret"}
+      assert request.headers["x-greptime-db-name"] == ["public"]
+      response(body)
+    end)
+
+    assert Pulse.default_query("logs") == "*"
+    assert Pulse.default_query("traces") == "*"
+
+    assert {:ok, %{rows: [%{"message" => "can't connect", "timestamp" => "1794329254406000002"}], meta: meta}} =
+             Pulse.query(ctx.user, ctx.account, "logs", %{"query" => "can't", "service" => "server"})
+
+    assert meta["total_count"] == 1
+
+    reject(Req, :request, 1)
+    assert {:error, :forbidden} = Pulse.query(ctx.user, ctx.account, "errors", %{})
+    assert {:error, :forbidden} = Pulse.analytics(ctx.user, ctx.account, "errors", %{})
+    assert {:error, :forbidden} = Pulse.error_issue(ctx.user, ctx.account, "issue", %{})
+    assert {:error, :forbidden} = Pulse.error_event(ctx.user, ctx.account, "issue", "event", %{})
+  end
+
+  test "Greptime metrics use its Prometheus API and spans retain measured milliseconds", ctx do
+    stub(Environment, :pulse_config, fn -> Keyword.merge(ctx.config, backend: :greptime, tenant: "public") end)
+
+    expect(Req, :request, fn request ->
+      assert request.url.path == "/v1/prometheus/api/v1/query"
+      response(scalar_body([1_794_329_254, "17"]))
+    end)
+
+    assert {:ok, %{rows: [%{"value" => 17.0}]}} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
+
+    columns = Enum.map(~w(timestamp service name duration_ms trace_id), &%{"name" => &1})
+
+    stub(Req, :request, fn _ ->
+      response(%{
+        "output" => [
+          %{
+            "records" => %{
+              "schema" => %{"column_schemas" => columns},
+              "rows" => [[1_794_329_254_406_000_001, "worker", "cache.get", 17.25, "abc"]]
+            }
+          }
+        ]
+      })
+    end)
+
+    assert {:ok, %{rows: [%{"name" => "cache.get", "duration_ms" => 17.25, "trace_id" => "abc"}]}} =
+             Pulse.query(ctx.user, ctx.account, "traces", %{})
+  end
+
   test "availability requires the configured account and its feature flag", %{account: account} do
     reject(Accounts, :get_account_by_id, 2)
     reject(Req, :request, 1)
@@ -102,7 +173,7 @@ defmodule Tuist.PulseTest do
   end
 
   for {signal, path} <- [
-        {"metrics", "/api/v1/query_range"},
+        {"metrics", "/api/v1/query"},
         {"logs", "/loki/api/v1/query_range"},
         {"traces", "/api/search"}
       ] do
@@ -127,9 +198,11 @@ defmodule Tuist.PulseTest do
         if signal == "logs" do
           assert params[:start] == Integer.to_string((finish - 3600) * 1_000_000_000)
           assert params[:end] == Integer.to_string(finish * 1_000_000_000)
-          assert params[:limit] == 5000
+          assert params[:limit] == 100
           assert params[:direction] == "backward"
-        else
+        end
+
+        if signal == "traces" do
           assert params[:start] == finish - 3600
           assert params[:end] == finish
         end
@@ -137,11 +210,12 @@ defmodule Tuist.PulseTest do
         case signal do
           "metrics" ->
             assert params[:query] == "up"
-            assert params[:step] == 10
+            assert params[:time] == finish
+            refute Keyword.has_key?(params, :step)
 
           "traces" ->
             assert params[:q] == "{}"
-            assert params[:limit] == 1000
+            assert params[:limit] == 100
 
           "logs" ->
             assert params[:query] == ~s({service_name=~".+"})
@@ -154,17 +228,40 @@ defmodule Tuist.PulseTest do
     end
   end
 
-  test "custom metric query and supported ranges bound the chart resolution", ctx do
-    for {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
+  test "metric tables query an instant snapshot at the pinned end for every range", ctx do
+    finish = ~U[2026-11-06 12:00:00Z]
+
+    for range <- ~w(15m 1h 6h 24h) do
       expect(Req, :request, fn request ->
         params = request.options.params
+        assert request.url.path == "/api/v1/query"
         assert params[:query] == "sum(up)"
-        assert params[:end] - params[:start] == seconds
-        assert params[:step] == step
-        response(empty_body("metrics"))
+        assert params[:time] == DateTime.to_unix(finish)
+        refute Keyword.has_key?(params, :start)
+        refute Keyword.has_key?(params, :step)
+        response(vector_body([%{"metric" => %{"__name__" => "up"}, "value" => [DateTime.to_unix(finish), "17"]}]))
       end)
 
-      assert {:ok, _} = Pulse.query(ctx.user, ctx.account, "metrics", %{"range" => range, "query" => "sum(up)"})
+      assert {:ok, %{rows: [%{"value" => 17.0}], series: [%{"points" => [[timestamp, 17.0]]}]}} =
+               Pulse.query(ctx.user, ctx.account, "metrics", %{
+                 "range" => range,
+                 "query" => "sum(up)",
+                 "end_at" => DateTime.to_iso8601(finish)
+               })
+
+      assert timestamp == DateTime.to_unix(finish)
+    end
+  end
+
+  test "instant scalar metric results project as one empty-label series", ctx do
+    for {value, expected} <- [{"-2.5", -2.5}, {"0", 0.0}, {"NaN", "NaN"}, {"+Inf", "+Inf"}] do
+      stub(Req, :request, fn _ -> response(scalar_body([1_793_966_400.0, value])) end)
+
+      assert {:ok, %{rows: [row], series: [series], warnings: []}} =
+               Pulse.query(ctx.user, ctx.account, "metrics", %{"query" => "scalar(sum(up))"})
+
+      assert row == %{"name" => "", "labels" => %{}, "value" => expected}
+      assert series == %{"name" => "", "labels" => %{}, "points" => [[1_793_966_400.0, expected]]}
     end
   end
 
@@ -210,7 +307,7 @@ defmodule Tuist.PulseTest do
     }
 
     values = [
-      ["1793966400000000001", Jason.encode!(event)],
+      ["1793966400000000001", JSON.encode!(event)],
       ["1793966400000000002", "plain", %{"trace_id" => "metadata-trace", "private" => "secret"}]
     ]
 
@@ -271,20 +368,14 @@ defmodule Tuist.PulseTest do
            }
   end
 
-  test "logs and traces paginate the complete cohort instead of truncating to 100", ctx do
-    values = Enum.map(1..110, &[Integer.to_string(&1), "line"])
+  test "logs and traces reject upstream responses exceeding the requested bound", ctx do
+    values = Enum.map(1..101, &[Integer.to_string(&1), "line"])
     stub(Req, :request, fn _ -> response(stream_body([%{"stream" => %{}, "values" => values}])) end)
-    assert {:ok, %{rows: rows, meta: meta}} = Pulse.query(ctx.user, ctx.account, "logs", %{})
-    assert length(rows) == 20
-    assert meta["total_count"] == 110
-    assert hd(rows)["timestamp"] == "110"
-    assert List.last(rows)["timestamp"] == "91"
+    assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "logs", %{})
 
-    traces = Enum.map(1..110, &%{"traceID" => "trace", "startTimeUnixNano" => &1})
+    traces = Enum.map(1..101, &%{"traceID" => "trace", "startTimeUnixNano" => &1})
     stub(Req, :request, fn _ -> response(%{"traces" => traces}) end)
-    assert {:ok, %{rows: rows}} = Pulse.query(ctx.user, ctx.account, "traces", %{})
-    assert length(rows) == 20
-    assert hd(rows)["timestamp"] == "110"
+    assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "traces", %{})
   end
 
   test "malformed upstream results return fixed errors", ctx do
@@ -292,6 +383,10 @@ defmodule Tuist.PulseTest do
           {"metrics", "not json"},
           {"metrics", %{}},
           {"metrics", metric_body([%{"metric" => %{}, "values" => [[1, "bad"]]}])},
+          {"metrics", scalar_body([1, "bad"])},
+          {"metrics", scalar_body(["1", "2"])},
+          {"metrics", scalar_body([1, 2])},
+          {"metrics", scalar_body([])},
           {"metrics", metric_body([%{"metric" => %{"label" => 1}, "values" => []}])},
           {"metrics", Map.put(empty_body("metrics"), "warnings", [1])},
           {"logs", stream_body([%{"stream" => %{}, "values" => [["bad", "line"]]}])},
@@ -417,18 +512,12 @@ defmodule Tuist.PulseTest do
           assert params[:query] in ["count(up)", "sum(up == bool 1)", "sum(up == bool 0)"]
           value = if params[:query] == "sum(up == bool 0)", do: "0", else: "2"
 
-          if request.url.path == "/api/v1/query" do
-            assert params[:time] in [finish, finish - seconds]
-            value = if params[:time] == finish, do: value, else: "3"
-            response(vector_body([%{"metric" => %{}, "value" => [params[:time], value]}]))
-          else
-            assert request.url.path == "/api/v1/query_range"
-            assert params[:start] == finish - seconds
-            assert params[:end] == finish
-            assert params[:step] == step
-            points = Enum.map((finish - seconds)..finish//step, &[&1, value])
-            response(metric_body([%{"metric" => %{}, "values" => points}]))
-          end
+          assert request.url.path == "/api/v1/query_range"
+          assert params[:start] == finish - seconds
+          assert params[:end] == finish
+          assert params[:step] == step
+          points = Enum.map((finish - seconds)..finish//step, &[&1 / 1, if(&1 == finish - seconds, do: "3", else: value)])
+          response(metric_body([%{"metric" => %{}, "values" => points}]))
         end)
 
         assert {:ok, %{widgets: [reporting, healthy, unhealthy], warnings: []}} =
@@ -441,7 +530,7 @@ defmodule Tuist.PulseTest do
         assert Enum.all?([reporting, healthy, unhealthy], &(&1.previous_value == 3))
         assert length(reporting.points) <= 361
 
-        for _ <- 1..9 do
+        for _ <- 1..3 do
           assert_receive {:analytics_request, request}
           assert request.method == :get
           assert request.url.host == "pulse.internal"
@@ -474,7 +563,7 @@ defmodule Tuist.PulseTest do
             value = if request.options.params[:time] == finish, do: "NaN", else: "0"
             vector_body([%{"value" => [request.options.params[:time], value]}])
           else
-            metric_body([%{"values" => [[finish - 10, "0"], [finish, "+Inf"]]}])
+            metric_body([%{"values" => [[finish - 3600, "0"], [finish - 10, "0"], [finish, "+Inf"]]}])
           end
 
         response(Map.put(body, "warnings", ["upstream notice"]))
@@ -485,7 +574,8 @@ defmodule Tuist.PulseTest do
 
       assert Enum.all?(
                widgets,
-               &(&1.value == nil and &1.previous_value == 0 and &1.points == [[finish - 10, 0.0], [finish, nil]])
+               &(&1.value == nil and &1.previous_value == 0 and
+                   &1.points == [[finish - 3600, 0.0], [finish - 10, 0.0], [finish, nil]])
              )
     end
 
@@ -498,13 +588,21 @@ defmodule Tuist.PulseTest do
         stub(Req, :request, fn request ->
           params = request.options.params
 
-          if String.ends_with?(request.url.path, "query_range") do
-            response(metric_body([]))
-          else
-            time = if signal == "metrics", do: params[:time], else: String.to_integer(params[:time]) / 1_000_000_000
-            value = if time == finish, do: current, else: previous
-            entries = if is_nil(value), do: [], else: [%{"value" => [time, value]}]
-            response(vector_body(entries))
+          cond do
+            signal == "metrics" ->
+              points =
+                Enum.reject([[finish - 3600, previous], [finish - 10, "7"], [finish, current]], &is_nil(List.last(&1)))
+
+              response(metric_body([%{"values" => points}]))
+
+            String.ends_with?(request.url.path, "query_range") ->
+              response(metric_body([]))
+
+            true ->
+              time = String.to_integer(params[:time]) / 1_000_000_000
+              value = if time == finish, do: current, else: previous
+              entries = if is_nil(value), do: [], else: [%{"value" => [time, value]}]
+              response(vector_body(entries))
           end
         end)
 
@@ -522,6 +620,7 @@ defmodule Tuist.PulseTest do
 
       for signal <- ~w(logs errors traces),
           {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
+        step = if signal == "traces", do: step, else: max(60, step)
         finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
 
         stub(Req, :request, fn request ->
@@ -531,6 +630,7 @@ defmodule Tuist.PulseTest do
           if signal == "traces" do
             assert params[:end] in [finish, finish - seconds]
             assert params[:start] == params[:end] - seconds
+            if !instant, do: assert(params[:step] == "#{step}s")
             if instant, do: send(parent, {:comparison_end, params[:end]})
             response(%{"series" => []})
           else
@@ -587,68 +687,132 @@ defmodule Tuist.PulseTest do
     end
 
     for signal <- ~w(logs errors) do
-      test "#{signal} uses period totals and nonoverlapping bucket counts, including distinct services", ctx do
+      test "#{signal} uses minute-aligned bins and independent full-window totals for every range", ctx do
         signal = unquote(signal)
-        stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
-        finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+        now = ~U[2026-11-06 12:03:59Z]
+        stub(DateTime, :utc_now, fn -> now end)
         parent = self()
 
-        selectors =
-          if signal == "logs" do
-            [
-              ~s({service_name=~".+"}),
-              ~s'{service_name=~".+",level=~"(?i)(error|fatal)"}',
-              ~s'{service_name=~".+",level=~"(?i)(warning|warn)"}'
-            ]
-          else
-            [
-              ~s({error_source="sentry"}),
-              ~s'{error_source="sentry",level=~"(?i)fatal"}',
-              ~s({error_source="sentry",service_name=~".+"})
-            ]
-          end
+        for {range, seconds, step} <- [{"15m", 900, 60}, {"1h", 3600, 60}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
+          finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
 
-        stub(Req, :request, fn request ->
-          params = request.options.params
-          instant = request.url.path == "/loki/api/v1/query"
-          duration = if instant, do: 3600, else: 10
+          selectors =
+            if signal == "logs" do
+              [
+                ~s({service_name=~".+"}),
+                ~s'{service_name=~".+",level=~"(?i)(error|fatal)"}',
+                ~s'{service_name=~".+",level=~"(?i)(warning|warn)"}'
+              ]
+            else
+              [
+                ~s({error_source="sentry"}),
+                ~s'{error_source="sentry",level=~"(?i)fatal"}',
+                ~s({error_source="sentry",service_name=~".+"})
+              ]
+            end
 
-          expected =
-            Enum.with_index(selectors, fn selector, index ->
-              counts = "count_over_time(#{selector}[#{duration}s])"
-              if signal == "errors" and index == 2, do: "count(sum by (service_name) (#{counts}))", else: "sum(#{counts})"
-            end)
+          stub(Req, :request, fn request ->
+            params = request.options.params
+            instant = request.url.path == "/loki/api/v1/query"
+            duration = if instant, do: seconds, else: step
 
-          assert params[:query] in expected
-          send(parent, {:log_query, params[:query]})
-          refute Keyword.has_key?(params, :limit)
+            expected =
+              Enum.with_index(selectors, fn selector, index ->
+                counts = "count_over_time(#{selector}[#{duration}s])"
 
-          if instant do
-            assert params[:time] in Enum.map([finish, finish - 3600], &Integer.to_string(&1 * 1_000_000_000))
-            value = if params[:time] == Integer.to_string(finish * 1_000_000_000), do: "12345", else: "23456"
-            response(vector_body([%{"value" => [finish, value]}]))
-          else
-            assert request.url.path == "/loki/api/v1/query_range"
-            assert params[:start] == Integer.to_string((finish - 3590) * 1_000_000_000)
-            assert params[:end] == Integer.to_string(finish * 1_000_000_000)
-            assert params[:step] == 10
-            response(metric_body([%{"values" => [[finish, "7"]]}]))
-          end
-        end)
+                if signal == "errors" and index == 2,
+                  do: "count(sum by (service_name) (#{counts}))",
+                  else: "sum(#{counts})"
+              end)
 
-        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{})
+            assert params[:query] in expected
+            send(parent, {:log_query, params[:query]})
+            refute Keyword.has_key?(params, :limit)
 
-        assert Enum.map(widgets, & &1.id) ==
-                 if(signal == "logs", do: ~w(entries errors warnings), else: ~w(events fatal services))
+            if instant do
+              assert params[:time] in Enum.map([finish, finish - seconds], &Integer.to_string(&1 * 1_000_000_000))
+              value = if params[:time] == Integer.to_string(finish * 1_000_000_000), do: "12345", else: "23456"
+              response(vector_body([%{"value" => [finish, value]}]))
+            else
+              assert request.url.path == "/loki/api/v1/query_range"
+              assert params[:start] == Integer.to_string((finish - seconds + step) * 1_000_000_000)
+              assert params[:end] == Integer.to_string(finish * 1_000_000_000)
+              assert params[:step] == step
+              assert rem(step, 60) == 0
+              assert rem(finish, 60) == 0
+              points = Enum.map((finish - seconds + step)..finish//step, &[&1, "7"])
+              assert length(points) <= 360
+              response(metric_body([%{"values" => points}]))
+            end
+          end)
 
-        assert Enum.all?(
-                 widgets,
-                 &(&1.value == 12_345 and &1.previous_value == 23_456 and &1.points == [[finish, 7.0]] and
-                     &1.unit == :count)
-               )
+          assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{"range" => range})
 
-        for _ <- 1..9, do: assert_receive({:log_query, _})
-        refute_receive {:log_query, _}
+          assert Enum.map(widgets, & &1.id) ==
+                   if(signal == "logs", do: ~w(entries errors warnings), else: ~w(events fatal services))
+
+          assert Enum.all?(
+                   widgets,
+                   &(&1.value == 12_345 and &1.previous_value == 23_456 and
+                       &1.points == Enum.map((finish - seconds + step)..finish//step, fn time -> [time, 7.0] end) and
+                       &1.unit == :count)
+                 )
+
+          for _ <- 1..9, do: assert_receive({:log_query, _})
+          refute_receive {:log_query, _}
+        end
+      end
+    end
+
+    test "minute bins preserve boundary totals and count repeated services once per full window", ctx do
+      now = ~U[2026-11-06 12:00:59Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      finish = DateTime.to_unix(now) - 59
+      start = finish - 900
+
+      events = [
+        {start - 900, "outside"},
+        {start, "previous"},
+        {start + 1, "api"},
+        {finish, "api"},
+        {finish + 1, "outside"}
+      ]
+
+      stub(Req, :request, fn request ->
+        params = request.options.params
+        instant = request.url.path == "/loki/api/v1/query"
+        duration = if instant, do: 900, else: 60
+        assert params[:query] =~ "[#{duration}s]"
+        services? = String.starts_with?(params[:query], "count(sum by (service_name)")
+
+        count = fn time ->
+          matching = Enum.filter(events, fn {timestamp, _} -> timestamp > time - duration and timestamp <= time end)
+          if services?, do: matching |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> length(), else: length(matching)
+        end
+
+        if instant do
+          time = div(String.to_integer(params[:time]), 1_000_000_000)
+          assert time in [start, finish]
+          response(vector_body([%{"value" => [time, Integer.to_string(count.(time))]}]))
+        else
+          assert params[:start] == Integer.to_string((start + 60) * 1_000_000_000)
+          assert params[:end] == Integer.to_string(finish * 1_000_000_000)
+          assert params[:step] == 60
+          points = Enum.map((start + 60)..finish//60, &[&1, Integer.to_string(count.(&1))])
+          response(metric_body([%{"values" => points}]))
+        end
+      end)
+
+      for signal <- ~w(logs errors) do
+        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{"range" => "15m"})
+
+        for widget <- widgets do
+          assert widget.value == if(widget.id == "services", do: 1, else: 2)
+          assert widget.previous_value == 1
+          assert Enum.sum(Enum.map(widget.points, &List.last/1)) == 2
+          assert hd(widget.points) == [start + 60, 1.0]
+          assert List.last(widget.points) == [finish, 1.0]
+        end
       end
     end
 
@@ -781,7 +945,7 @@ defmodule Tuist.PulseTest do
       end
     end
 
-    test "previous-only failures reject the snapshot without leaking upstream details", ctx do
+    test "aggregate failures reject the snapshot without leaking upstream details", ctx do
       stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
       finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
 
@@ -792,13 +956,7 @@ defmodule Tuist.PulseTest do
             {{:ok, %Req.Response{status: 429, body: "private"}}, :rate_limited},
             {{:error, %Req.TransportError{reason: :timeout}}, :timeout}
           ] do
-        stub(Req, :request, fn request ->
-          cond do
-            request.url.path == "/api/v1/query_range" -> response(metric_body([]))
-            request.options.params[:time] == finish -> response(vector_body([%{"value" => [finish, "1"]}]))
-            true -> result
-          end
-        end)
+        stub(Req, :request, fn _request -> result end)
 
         assert {:error, ^reason} = Pulse.analytics(ctx.user, ctx.account, "metrics", %{})
       end
@@ -838,7 +996,7 @@ defmodule Tuist.PulseTest do
       end
     end
 
-    test "uses at most three HTTP workers and nine requests, preserving safe failure reasons", ctx do
+    test "uses three metric requests with bounded workers, preserving safe failure reasons", ctx do
       parent = self()
 
       stub(Req, :request, fn _request ->
@@ -859,11 +1017,6 @@ defmodule Tuist.PulseTest do
 
       refute_receive {:blocked_request, _}
       Enum.each(first, &send(&1, :release))
-
-      for _ <- 1..6 do
-        assert_receive {:blocked_request, pid}, 1000
-        send(pid, :release)
-      end
 
       assert Task.await(task) == {:error, :rate_limited}
       refute_receive {:blocked_request, _}
@@ -985,7 +1138,7 @@ defmodule Tuist.PulseTest do
     test "equal log timestamps preserve every tied row across stable pages", ctx do
       stub(Req, :request, fn request ->
         direction = request.options.params[:direction]
-        assert direction in ~w(forward backward)
+        assert direction == "backward"
         values = [["10", "a"], ["10", "b"], ["10", "c"]]
         values = if direction == "forward", do: Enum.reverse(values), else: values
         response(stream_body([%{"stream" => %{}, "values" => values}]))
@@ -1009,7 +1162,35 @@ defmodule Tuist.PulseTest do
       end
     end
 
-    test "full upstream ceilings fail whole rather than claiming complete sorted pages", ctx do
+    test "full log and trace searches stay bounded without generated warnings and preserve upstream warnings", ctx do
+      for count <- [99, 100], signal <- ~w(logs traces), warnings <- [[], ["upstream notice"]] do
+        stub(Req, :request, fn request ->
+          assert request.options.params[:limit] == 100
+
+          body =
+            if signal == "logs" do
+              stream_body([%{"stream" => %{}, "values" => Enum.map(1..count, &["#{&1}", "line"])}])
+            else
+              %{"traces" => Enum.map(1..count, &%{"traceID" => "#{&1}", "startTimeUnixNano" => &1})}
+            end
+
+          response(Map.put(body, "warnings", warnings))
+        end)
+
+        assert {:ok, %{rows: rows, meta: meta, warnings: ^warnings}} =
+                 Pulse.query(ctx.user, ctx.account, signal, %{"page" => 2, "page_size" => 20, "sort_order" => "asc"})
+
+        assert length(rows) == 20
+        assert hd(rows)["timestamp"] == "21"
+        assert meta["total_count"] == count
+        assert meta["total_pages"] == 5
+
+        assert {:ok, %{rows: [], warnings: ^warnings, meta: %{"total_count" => 0}}} =
+                 Pulse.query(ctx.user, ctx.account, signal, %{"service" => "absent"})
+      end
+    end
+
+    test "responses beyond the requested ceiling still fail whole", ctx do
       stub(Req, :request, fn _ ->
         response(stream_body([%{"stream" => %{}, "values" => Enum.map(1..5000, &["#{&1}", "line"])}]))
       end)
@@ -1032,7 +1213,7 @@ defmodule Tuist.PulseTest do
 
         assert {:cont, {_, response}} =
                  request.into.(
-                   {:data, Jason.encode!(empty_body("metrics"))},
+                   {:data, JSON.encode!(empty_body("metrics"))},
                    {request, %Req.Response{status: 200, body: ""}}
                  )
 
@@ -1064,7 +1245,13 @@ defmodule Tuist.PulseTest do
         assert Req.Request.get_header(request, "mcp-protocol-version") == ["2026-07-28"]
         assert Req.Request.get_header(request, "mcp-method") == ["tools/call"]
         assert Req.Request.get_header(request, "mcp-name") == ["query_errors"]
-        assert request.options.json["params"]["_meta"] == %{"io.modelcontextprotocol/protocolVersion" => "2026-07-28"}
+
+        assert request.options.json["params"]["_meta"] == %{
+                 "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+                 "io.modelcontextprotocol/clientCapabilities" => %{},
+                 "io.modelcontextprotocol/clientInfo" => %{"name" => "Tuist", "version" => Environment.version()}
+               }
+
         args = request.options.json["params"]["arguments"]
         assert args["tenant"] == "tuist"
         assert args["limit"] == 5000
@@ -1109,9 +1296,17 @@ defmodule Tuist.PulseTest do
       assert row["latest_event_id"] == first["event_id"]
     end
 
-    test "native scan errors and excessive byte pages fail with fixed bounds", ctx do
+    test "native tool errors discard diagnostics and excessive byte pages fail with fixed bounds", ctx do
       for {diagnostic, reason} <- [
+            {":query_result_limit: secret", :query_result_limit},
             {":query_scan_limit: secret", :query_result_limit},
+            {":query_execution_limit: secret", :query_result_limit},
+            {":query_sample_limit: secret", :query_result_limit},
+            {":query_decoded_limit: secret", :query_result_limit},
+            {":query_resource_limit: secret", :query_result_limit},
+            {":query_timeout: secret", :timeout},
+            {":query_overloaded: secret", :rate_limited},
+            {":unrecognized_error: secret", :upstream_error},
             {":error_query_reset_required", :query_reset_required}
           ] do
         stub(Req, :request, fn _ ->
@@ -1401,8 +1596,8 @@ defmodule Tuist.PulseTest do
       assert Phoenix.HTML.safe_to_string(Phoenix.HTML.html_escape(event["extra"]["html"])) =~ "&lt;script&gt;"
       refute Map.has_key?(event, "request")
       refute Map.has_key?(event, "user")
-      refute Jason.encode!(event) =~ "private"
-      refute Jason.encode!(event) =~ "invented"
+      refute JSON.encode!(event) =~ "private"
+      refute JSON.encode!(event) =~ "invented"
     end
 
     test "metadata bounds deep, wide, multibyte and serialization-expanding input with visible markers", ctx do
@@ -1425,12 +1620,12 @@ defmodule Tuist.PulseTest do
         record = put_in(record, ["event", section], value)
         stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
         assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-        encoded = Jason.encode!(event[section])
+        encoded = JSON.encode!(event[section])
         assert byte_size(encoded) <= 4096
         assert encoded =~ "[TRUNCATED]"
         refute encoded =~ "private"
         assert String.valid?(encoded)
-        assert Jason.decode!(encoded) == event[section]
+        assert JSON.decode!(encoded) == event[section]
       end
     end
 
@@ -1458,9 +1653,9 @@ defmodule Tuist.PulseTest do
         }
       }
 
-      size = byte_size(Jason.encode!(sections["modules"]))
+      size = byte_size(JSON.encode!(sections["modules"]))
       sections = put_in(sections, ["modules", "d"], String.duplicate("x", 4096 - size))
-      assert byte_size(Jason.encode!(sections["modules"])) == 4096
+      assert byte_size(JSON.encode!(sections["modules"])) == 4096
       record = update_in(event_row(1, 10)["event"], &Map.merge(&1, sections))
       stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
       assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
@@ -1605,7 +1800,7 @@ defmodule Tuist.PulseTest do
           %{
             "type" => "text",
             "text" =>
-              Jason.encode!(%{
+              JSON.encode!(%{
                 "results" => rows,
                 "matched_results" => count,
                 "matched_events" => count,
@@ -1620,6 +1815,8 @@ defmodule Tuist.PulseTest do
 
   defp response(body), do: {:ok, %Req.Response{status: 200, body: body}}
   defp vector_body(entries), do: %{"status" => "success", "data" => %{"resultType" => "vector", "result" => entries}}
+
+  defp scalar_body(value), do: %{"status" => "success", "data" => %{"resultType" => "scalar", "result" => value}}
   defp empty_body("metrics"), do: metric_body([])
   defp empty_body("traces"), do: %{"traces" => []}
   defp empty_body(_signal), do: stream_body([])

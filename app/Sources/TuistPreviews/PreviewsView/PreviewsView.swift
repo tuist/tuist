@@ -10,12 +10,14 @@ public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
     @Environment(AppNavigation.self) private var navigation
-    @State var viewModel = PreviewsViewModel()
+    @State var viewModel: PreviewsViewModel
     @State private var pressedPreviewId: String?
     @State private var searchText = ""
     private let imagePrefetcher = ImagePrefetcher()
 
-    public init() {}
+    public init(accountName: String? = nil) {
+        _viewModel = State(initialValue: PreviewsViewModel(accountName: accountName))
+    }
 
     public var body: some View {
         @Bindable var navigation = navigation

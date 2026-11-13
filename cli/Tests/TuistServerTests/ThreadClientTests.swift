@@ -6,6 +6,173 @@
 
     struct ThreadClientTests {
         private let origin = URL(string: "https://self-hosted.example/prefix")!
+        private let catalog = Data(#"{"models":[],"errors":[]}"#.utf8)
+
+        @Test(arguments: ["threads", "jams"])
+        func decodesBothPageDialects(key: String) async throws {
+            let data = try JSONSerialization.data(withJSONObject: [
+                key: JSONSerialization.jsonObject(with: JSONEncoder().encode([thread()])),
+                "next_cursor": "opaque+/=",
+            ])
+            let recorder = Recorder(response: data, queued: key == "jams" ? [(Data(), 404)] : [])
+            let page = try await client(recorder).threads(cursor: "cursor+/=")
+            #expect(page.threads == [thread()])
+            #expect(page.nextCursor == "opaque+/=")
+            let requests = await recorder.requests
+            #expect(requests.map { $0.url!.path } == (key == "jams"
+                    ? ["/prefix/api/accounts/acme/threads", "/prefix/api/accounts/acme/jams"]
+                    : ["/prefix/api/accounts/acme/threads"]))
+            for request in requests {
+                #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-only")
+                #expect(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems == [
+                    URLQueryItem(name: "cursor", value: "cursor+/="),
+                ])
+            }
+        }
+
+        @Test(arguments: [
+            #"{}"#, #"{"threads":null}"#, #"{"jams":{}}"#, #"{"threads":[{}]}"#,
+            #"{"threads":null,"jams":[]}"#, #"{"threads":[],"next_cursor":42}"#,
+        ])
+        func malformedPagesFailWithoutFallback(json: String) async throws {
+            let recorder = Recorder(response: Data(json.utf8))
+            await #expect(throws: DecodingError.self) { try await client(recorder).threads() }
+            #expect(await recorder.requests.count == 1)
+        }
+
+        @Test func legacyReadsPreserveHistoryAndDiscoveryContracts() async throws {
+            let recorder = Recorder(response: try JSONEncoder().encode(thread()), queued: [(Data(), 404)])
+            let client = client(recorder)
+            #expect(try await client.thread(id: "thread", before: 51) == thread())
+            await recorder.respond(Data(#"{"repositories":[]}"#.utf8), queued: [(Data(), 404)])
+            #expect(try await client.repositories().isEmpty)
+            await recorder.respond(catalog, queued: [(Data(), 404)])
+            #expect(try await client.models().models.isEmpty)
+            let requests = await recorder.requests
+            #expect(requests.map { $0.url!.path } == [
+                "/prefix/api/accounts/acme/threads/thread", "/prefix/api/accounts/acme/jams/thread",
+                "/prefix/api/accounts/acme/threads/repositories", "/prefix/api/accounts/acme/jams/repositories",
+                "/prefix/api/accounts/acme/threads/models", "/prefix/api/accounts/acme/jams/models",
+            ])
+            #expect(requests[1].url?.query == "before=51")
+        }
+
+        @Test(arguments: [false, true])
+        func malformedNegotiationNeverAuthorizesWritesOrSockets(legacy: Bool) async throws {
+            let recorder = Recorder(response: Data(#"{}"#.utf8))
+            let client = client(recorder)
+            for socket in [false, true] {
+                await recorder.respond(Data(#"{}"#.utf8), queued: legacy ? [(Data(), 404)] : [])
+                await #expect(throws: DecodingError.self) {
+                    if socket { _ = try await client.socketConfiguration(threadID: nil) }
+                    else { _ = try await client.send("Once", threadID: "thread", requestID: UUID()) }
+                }
+            }
+            #expect(await recorder.requests.allSatisfy { $0.httpMethod == "GET" })
+            #expect(await recorder.requests.count == (legacy ? 4 : 2))
+        }
+
+        @Test func negotiationDoesNotPinAClientToAnOutdatedDialect() async throws {
+            let recorder = Recorder(response: try JSONEncoder().encode(thread()), queued: [(Data(), 404), (catalog, 200)])
+            let client = client(recorder)
+            _ = try await client.archive(id: "thread", archived: true)
+            await recorder.respond(try JSONEncoder().encode(thread()), queued: [(catalog, 200)])
+            _ = try await client.archive(id: "thread", archived: false)
+            #expect(await recorder.requests.filter { $0.httpMethod == "PATCH" }.map { $0.url!.path } == [
+                "/prefix/api/accounts/acme/jams/thread", "/prefix/api/accounts/acme/threads/thread",
+            ])
+        }
+
+        @Test(arguments: [false, true])
+        func mutationsNegotiateBeforeEveryWrite(legacy: Bool) async throws {
+            let recorder = Recorder(response: try JSONEncoder().encode(thread()))
+            let client = client(recorder)
+            let prefix = "/prefix/api/accounts/acme/"
+            let route = legacy ? "jams" : "threads"
+            for operation in 0 ..< 5 {
+                let responses = (legacy ? [(Data(), 404)] : []) + [(catalog, 200)]
+                let preview = ThreadShipPreview(
+                    headSHA: "head", baseSHA: "base", diff: "patch", targetBranch: "main", mode: "branch", requestID: UUID()
+                )
+                let previewData = Data("""
+                {"head_sha":"head","base_sha":"base","diff":"patch","target_branch":"main",
+                "mode":"branch","request_id":"\(preview.requestID)"}
+                """.utf8)
+                await recorder.respond(operation == 3 ? previewData : try JSONEncoder().encode(thread()), queued: responses)
+                switch operation {
+                case 0:
+                    _ = try await client.create(
+                        content: "New",
+                        repository: nil,
+                        provider: "claude",
+                        model: "m",
+                        requestID: UUID()
+                    )
+                case 1: _ = try await client.send("Next", threadID: "thread", requestID: UUID())
+                case 2: _ = try await client.archive(id: "thread", archived: true)
+                case 3: _ = try await client.shipPreview(id: "thread")
+                default: _ = try await client.ship(id: "thread", approval: preview)
+                }
+            }
+            let requests = await recorder.requests
+            let suffixes = ["", "/thread/messages", "/thread", "/thread/ship-preview", "/thread/ship"]
+            #expect(requests.filter { $0.httpMethod != "GET" }.map { $0.url!.path } == suffixes.map { prefix + route + $0 })
+            let expectedMethods = (0 ..< 5).flatMap { operation in
+                (legacy ? ["GET", "GET"] : ["GET"]) + [operation == 2 ? "PATCH" : "POST"]
+            }
+            let expectedDiscoveryPaths = (0 ..< 5).flatMap { _ in
+                legacy ? [prefix + "threads/models", prefix + "jams/models"] : [prefix + "threads/models"]
+            }
+            #expect(requests.map { $0.httpMethod! } == expectedMethods)
+            #expect(requests.filter { $0.httpMethod == "GET" }.map { $0.url!.path } == expectedDiscoveryPaths)
+        }
+
+        @Test(arguments: [401, 403, 409, 500, 503])
+        func rejectedReadsAndNegotiationNeverChangeDialect(status: Int) async throws {
+            for operation in 0 ..< 3 {
+                let recorder = Recorder(response: Data(), status: status)
+                let client = client(recorder)
+                await #expect(throws: ThreadClientError.self) {
+                    switch operation {
+                    case 0: _ = try await client.threads()
+                    case 1: _ = try await client.archive(id: "thread", archived: true)
+                    default: _ = try await client.socketConfiguration(threadID: nil)
+                    }
+                }
+                let requests = await recorder.requests
+                #expect(!requests.isEmpty)
+                #expect(requests.allSatisfy { $0.httpMethod == "GET" && !$0.url!.path.contains("jams") })
+                if status < 500 { #expect(requests.count == 1) }
+            }
+        }
+
+        @Test(arguments: [404, 401, 403, 409, 500, 503])
+        func failedWritesNeverReplayOrChangeDialect(status: Int) async throws {
+            for legacy in [false, true] {
+                let recorder = Recorder(
+                    response: Data(), status: status,
+                    queued: (legacy ? [(Data(), 404)] : []) + [(catalog, 200)]
+                )
+                await #expect(throws: ThreadClientError.self) {
+                    try await client(recorder).archive(id: "thread", archived: true)
+                }
+                let writes = await recorder.requests.filter { $0.httpMethod != "GET" }
+                #expect(writes.count == 1)
+                #expect(writes.first?.url?.path == "/prefix/api/accounts/acme/\(legacy ? "jams" : "threads")/thread")
+            }
+        }
+
+        @Test(arguments: [false, true], [nil, "thread"] as [String?])
+        func socketsNegotiateMatchingPathAndTopicWithoutLeakingCredentials(legacy: Bool, threadID: String?) async throws {
+            let recorder = Recorder(response: catalog, queued: legacy ? [(Data(), 404)] : [])
+            let (request, topic) = try await client(recorder).socketConfiguration(threadID: threadID)
+            let route = legacy ? "jams" : "threads"
+            #expect(request.url?.absoluteString == "wss://self-hosted.example/prefix/\(route)/socket/websocket?vsn=2.0.0")
+            #expect(topic == "\(route):acme:\(threadID ?? "inbox")")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+            #expect(request.value(forHTTPHeaderField: "Sec-WebSocket-Protocol") == "phoenix, base64url.bearer.phx.dGVzdC1vbmx5")
+            #expect(await recorder.requests.count == (legacy ? 2 : 1))
+        }
 
         @Test func disjointInboxRefreshRestartsAtTheFreshCursor() {
             let old = (1 ... 25).map { thread(id: "old-\($0)") }
@@ -60,14 +227,14 @@
         }
 
         @Test func createsWithoutInventingARepositoryOrEnvironment() async throws {
-            let recorder = Recorder(response: try JSONEncoder().encode(thread()))
+            let recorder = Recorder(response: try JSONEncoder().encode(thread()), queued: [(catalog, 200)])
             let id = UUID()
             let result = try await client(recorder).create(
                 content: "Explain the architecture", repository: nil, provider: "claude", model: "model-id", requestID: id
             )
             #expect(result.provider == "claude")
             #expect(result.model == "model-id")
-            let request = try #require(await recorder.requests.first)
+            let request = try #require(await recorder.requests.last)
             let body = try body(request)
             #expect(request.httpMethod == "POST")
             #expect(body["content"] as? String == "Explain the architecture")
@@ -84,7 +251,7 @@
                 Recorder(response: Data(#"{"repositories":[{"full_name":"acme/app","default_branch":"develop"}]}"#.utf8))
             let repositories = try await client(recorder).repositories()
             #expect(await recorder.requests.first?.url?.path == "/prefix/api/accounts/acme/threads/repositories")
-            await recorder.respond(try JSONEncoder().encode(thread()))
+            await recorder.respond(try JSONEncoder().encode(thread()), queued: [(catalog, 200)])
             _ = try await client(recorder).create(
                 content: "Fix it", repository: repositories.first, provider: "chatgpt", model: "gpt-id", requestID: UUID()
             )
@@ -127,12 +294,13 @@
         }
 
         @Test func historyMessageAndArchiveContracts() async throws {
-            let recorder = Recorder(response: try JSONEncoder().encode(thread()))
+            let data = try JSONEncoder().encode(thread())
+            let recorder = Recorder(response: data, queued: [(data, 200), (catalog, 200), (data, 200), (catalog, 200)])
             let client = client(recorder)
             _ = try await client.thread(id: "thread", before: 51)
             _ = try await client.send("Continue", threadID: "thread", requestID: UUID())
             _ = try await client.archive(id: "thread", archived: true)
-            let requests = await recorder.requests
+            let requests = await recorder.requests.filter { $0.url?.lastPathComponent != "models" }
             #expect(requests[0].url?.query == "before=51")
             #expect(requests[1].url?.path == "/prefix/api/accounts/acme/threads/thread/messages")
             #expect(try body(requests[1])["content"] as? String == "Continue")
@@ -149,12 +317,12 @@
             let json = """
             {"head_sha":"head","base_sha":"base","diff":"patch","target_branch":"develop","mode":"branch","request_id":"\(id)"}
             """
-            let recorder = Recorder(response: Data(json.utf8))
+            let recorder = Recorder(response: Data(json.utf8), queued: [(catalog, 200)])
             let client = client(recorder)
             let preview = try await client.shipPreview(id: "thread")
-            #expect(await recorder.requests.count == 1)
-            #expect(await recorder.requests.first?.url?.lastPathComponent == "ship-preview")
-            await recorder.respond(try JSONEncoder().encode(thread()))
+            #expect(await recorder.requests.count == 2)
+            #expect(await recorder.requests.last?.url?.lastPathComponent == "ship-preview")
+            await recorder.respond(try JSONEncoder().encode(thread()), queued: [(catalog, 200)])
             _ = try await client.ship(id: "thread", approval: preview)
             let request = try #require(await recorder.requests.last)
             let body = try body(request)
@@ -167,11 +335,19 @@
         }
 
         @Test func ambiguousWritesAreNotAutomaticallyReplayed() async throws {
-            let recorder = Recorder(response: Data(), status: 503)
+            let recorder = Recorder(response: Data(), status: 503, queued: [(catalog, 200)])
             await #expect(throws: ThreadClientError.self) {
                 try await client(recorder).send("Once", threadID: "thread", requestID: UUID())
             }
-            #expect(await recorder.requests.count == 1)
+            #expect(await recorder.requests.filter { $0.httpMethod == "POST" }.count == 1)
+        }
+
+        @Test func lostWriteResponseIsNotReplayed() async throws {
+            let recorder = Recorder(response: Data(), queued: [(catalog, 200)], failure: URLError(.networkConnectionLost))
+            await #expect(throws: URLError.self) {
+                try await client(recorder).send("Once", threadID: "thread", requestID: UUID())
+            }
+            #expect(await recorder.requests.map(\.httpMethod) == ["GET", "POST"])
         }
 
         @Test func unauthorizedReadsDoNotRetryOrDecodeAsEmpty() async throws {
@@ -273,17 +449,33 @@
             var requests: [URLRequest] = []
             var response: Data
             let status: Int
+            var queued: [(Data, Int)]
+            let failure: URLError?
 
-            init(response: Data, status: Int = 200) {
+            init(response: Data, status: Int = 200, queued: [(Data, Int)] = [], failure: URLError? = nil) {
                 self.response = response
                 self.status = status
+                self.queued = queued
+                self.failure = failure
             }
 
-            func respond(_ data: Data) { response = data }
+            func respond(_ data: Data, queued: [(Data, Int)] = []) {
+                response = data
+                self.queued = queued
+            }
 
             func perform(_ request: URLRequest) throws -> (Data, URLResponse) {
                 requests.append(request)
-                return (response, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
+                let data: Data
+                let code: Int
+                if !queued.isEmpty {
+                    (data, code) = queued.removeFirst()
+                } else if let failure {
+                    throw failure
+                } else {
+                    (data, code) = (response, status)
+                }
+                return (data, HTTPURLResponse(url: request.url!, statusCode: code, httpVersion: nil, headerFields: nil)!)
             }
         }
     }

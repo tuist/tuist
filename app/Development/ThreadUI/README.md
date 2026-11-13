@@ -62,8 +62,9 @@ is not the authenticated server API:
 
 The loopback API uses `GET/POST /threads`, `GET /threads/{id}`, and
 `POST /threads/{id}/messages`. Lists return `{"threads": [...]}`. The model can
-rename a thread with `set_thread_name`. The persisted SQLite names and existing
-worktree identities remain unchanged so existing pilot histories still open.
+rename a thread with `set_thread_name`. The pilot stores new histories in
+`threads.sqlite3` with thread-named tables and identifiers. Old pilot databases are not
+migrated; use a fresh private data directory.
 
 Messages may carry `richContent` with `kind` (`test_results` or `change_summary`),
 `title`, `summary`, `facts` (label/value pairs), and `details` (strings), alongside

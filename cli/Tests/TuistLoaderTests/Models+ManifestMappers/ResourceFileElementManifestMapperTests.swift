@@ -208,6 +208,42 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         }
     }
 
+    /// Versions are opaque directories inside the opaque model. Listing them as resources would compile a stray
+    /// `.mom` per version next to the `.momd`, which `NSManagedObjectModel.mergedModel(from:)` then fails to merge.
+    func test_from_when_versioned_core_data_model_is_kept_as_a_single_resource() async throws {
+        try await withMockedDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: temporaryPath
+            )
+            let model = temporaryPath.appending(components: "Resources", "Model.xcdatamodeld")
+            let strings = temporaryPath.appending(components: "Resources", "Localizable.strings")
+            try await fileSystem.makeDirectory(at: model)
+            try await fileSystem.touch(model.appending(component: ".xccurrentversion"))
+            for version in ["Model.xcdatamodel", "Model 2.xcdatamodel"] {
+                try await fileSystem.makeDirectory(at: model.appending(component: version))
+                try await fileSystem.touch(model.appending(components: version, "contents"))
+            }
+            try await fileSystem.touch(strings)
+
+            // When
+            let resources = try await XcodeGraph.ResourceFileElement.from(
+                manifest: .glob(pattern: "Resources/**"),
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem,
+                includeFiles: { try await XcodeGraph.Target.isResource(path: $0, fileSystem: self.fileSystem) }
+            )
+
+            // Then
+            XCTAssertEqual(resources, [
+                .file(path: strings, tags: [], inclusionCondition: nil),
+                .file(path: model, tags: [], inclusionCondition: nil),
+            ])
+        }
+    }
+
     func test_from_when_files_found_in_opaque_directory() async throws {
         try await withMockedDependencies {
             // Given

@@ -9,6 +9,18 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "organization_ai_enabled?/1" do
+    test "requires the account flag in every environment, independently of personal AI" do
+      account = %Account{id: 42}
+
+      for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :ai, [for: ^account] -> enabled end)
+        assert FeatureFlags.organization_ai_enabled?(account) == enabled
+      end
+    end
+  end
+
   describe "pulse_enabled?/1" do
     test "requires explicit account enrollment in every environment" do
       account = %Account{id: 42}

@@ -43,6 +43,21 @@ export default {
     this.animateOpen = this.persistKey && this.flagGet();
     if (this.animateOpen) this.flagClear();
 
+    // In a sidebar group, the current page is the group's label or one of its
+    // items, for example after navigating from search or a link in the page.
+    // Open the group so the sidebar shows where you are, even if it was
+    // remembered as closed. Only the sidebar's own parts count: other
+    // collapsibles can hold selected controls, such as a pagination group.
+    this.containsSelection =
+      Boolean(this.persistKey) &&
+      this.el.querySelector(
+        [
+          ':scope > [data-part="root"] > [data-part="header"][data-selected]',
+          ':scope > [data-part="root"] > [data-part="trigger"][data-selected]',
+          ':scope > [data-part="root"] > [data-part="content"] > [data-part="item"] > [data-selected]',
+        ].join(", "),
+      ) != null;
+
     this.collapsible = new Collapsible(this.el, this.context());
     this.collapsible.init();
 
@@ -52,7 +67,10 @@ export default {
           this.collapsible.api.setOpen(true),
         );
       });
-    } else if (this.persistKey && this.storageGet() == null) {
+    } else if (
+      this.persistKey &&
+      (this.storageGet() == null || this.containsSelection)
+    ) {
       // Seed storage with the initial (path-derived) state so auto-opened
       // groups are remembered across navigations too, not only toggled ones.
       this.storageSet(this.collapsible.api.open);
@@ -150,7 +168,8 @@ export default {
   context() {
     const stored = this.persistKey ? this.storageGet() : null;
     let defaultOpen =
-      stored != null ? stored === "true" : getBooleanOption(this.el, "open");
+      this.containsSelection ||
+      (stored != null ? stored === "true" : getBooleanOption(this.el, "open"));
     // Mount closed when we're about to animate open, so the expand has a
     // starting point.
     if (this.animateOpen) defaultOpen = false;

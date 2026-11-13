@@ -11,6 +11,11 @@ defmodule Tuist.Runners.LearnedWarmFloors do
   With that many runners idle, 90% of jobs find a warm runner when they
   arrive.
 
+  Skipped jobs are left out: GitHub records them with the run's other jobs
+  but never asks for a runner, so counting them sized a fan-out with
+  conditional jobs to twice the runners it used (a customer's 30-job
+  bursts on 2026-11-13 ran 15).
+
   The floor applies only while the pool has had a job in the last 24 hours,
   so a pool nobody uses holds nothing, and a pool used every working day
   stays warm through its quiet hours.
@@ -59,10 +64,12 @@ defmodule Tuist.Runners.LearnedWarmFloors do
     WITH jobs AS (
       SELECT
         argMax(fleet_name, updated_at) AS fleet,
-        argMax(enqueued_at, updated_at) AS enqueued
+        argMax(enqueued_at, updated_at) AS enqueued,
+        argMax(conclusion, updated_at) AS final_conclusion
       FROM runner_jobs
       WHERE enqueued_at >= now() - toIntervalDay({history_days:UInt32})
       GROUP BY workflow_job_id
+      HAVING final_conclusion != 'skipped'
     ),
     bursts AS (
       SELECT

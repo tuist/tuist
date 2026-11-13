@@ -2,8 +2,8 @@
 """Local simulator Threads pilot, NOT a production or multi-tenant backend.
 
 Run with /usr/bin/python3 thread_demo.py --data-dir /absolute/private/path.
-Requires an existing host Claude Code login (claude auth login). Launch the debug
-iOS app with --layout-preview --thread-demo; omitting --thread-demo uses sample data.
+Requires an existing host Claude Code login (claude auth login). This standalone
+development harness is not connected to the native app's authenticated Threads API.
 Only loopback HTTP is exposed; there is no authentication, cloud, cloning, PR
 creation, notification, or Linux execution. Do not put secrets in user messages.
 Repository choices in the real product come from the selected account's GitHub
@@ -334,7 +334,7 @@ class Backend:
         self.lock = threading.RLock()
         self.wake = threading.Event()
         self.stopping = threading.Event()
-        self.thread = None
+        self.worker = None
         try:
             self.workspaces = self.root / "workspaces"
             self.workspaces.mkdir(mode=0o700, exist_ok=True)
@@ -348,38 +348,38 @@ class Backend:
             self.inference = inference if inference is not None else HostInference(self.inference_dir)
             if inference is None:
                 self.inference.check_help()
-            self.db = sqlite3.connect(self.root / "sessions.sqlite3", check_same_thread=False)
-            os.chmod(self.root / "sessions.sqlite3", 0o600)
+            self.db = sqlite3.connect(self.root / "threads.sqlite3", check_same_thread=False)
+            os.chmod(self.root / "threads.sqlite3", 0o600)
             self.db.row_factory = sqlite3.Row
             self.db.executescript('''
                 PRAGMA synchronous=FULL;
-                CREATE TABLE IF NOT EXISTS sessions (
+                CREATE TABLE IF NOT EXISTS threads (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, goal TEXT NOT NULL,
                     status TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
                     tested_revision INTEGER NOT NULL DEFAULT -1, steps INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS messages (
                     seq INTEGER PRIMARY KEY, id TEXT UNIQUE NOT NULL,
-                    session_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL
+                    thread_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS requests (
-                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL, payload TEXT NOT NULL
+                    id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, payload TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS actions (
-                    id INTEGER PRIMARY KEY, session_id TEXT NOT NULL,
+                    id INTEGER PRIMARY KEY, thread_id TEXT NOT NULL,
                     kind TEXT NOT NULL, state TEXT NOT NULL, payload TEXT NOT NULL,
                     result TEXT
                 );
             ''')
             with self.db:
-                self.db.execute("UPDATE sessions SET status='outcome_unknown' WHERE id IN "
-                                "(SELECT session_id FROM actions WHERE state='executing')")
+                self.db.execute("UPDATE threads SET status='outcome_unknown' WHERE id IN "
+                                "(SELECT thread_id FROM actions WHERE state='executing')")
                 self.db.execute("UPDATE actions SET state='outcome_unknown', result=? "
                                 "WHERE state='executing'", ("Interrupted tool; no automatic retry",))
-                self.db.execute("UPDATE sessions SET status='queued' WHERE status='running'")
+                self.db.execute("UPDATE threads SET status='queued' WHERE status='running'")
             if start_worker:
-                self.thread = threading.Thread(target=self._worker, name="thread-demo-worker", daemon=True)
-                self.thread.start()
+                self.worker = threading.Thread(target=self._worker, name="thread-demo-worker", daemon=True)
+                self.worker.start()
         except BaseException:
             if hasattr(self, "db"):
                 self.db.close()
@@ -389,8 +389,8 @@ class Backend:
     def close(self):
         self.stopping.set()
         self.wake.set()
-        if self.thread:
-            self.thread.join()
+        if self.worker:
+            self.worker.join()
         self.db.close()
         self.lock_file.close()
 
@@ -422,22 +422,22 @@ class Backend:
         self._git(["add", "--", "totals.py", "test_totals.py"])
         self._git(["commit", "-m", "Fixed disposable quantity fixture"])
 
-    def _message(self, session_id, role, content):
-        self.db.execute("INSERT INTO messages(id,session_id,role,content) VALUES(?,?,?,?)",
-                        (str(uuid.uuid4()), session_id, role, content))
+    def _message(self, thread_id, role, content):
+        self.db.execute("INSERT INTO messages(id,thread_id,role,content) VALUES(?,?,?,?)",
+                        (str(uuid.uuid4()), thread_id, role, content))
 
-    def _row(self, session_id):
-        row = self.db.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+    def _row(self, thread_id):
+        row = self.db.execute("SELECT * FROM threads WHERE id=?", (thread_id,)).fetchone()
         if row is None:
             raise SafeError("Thread not found", 404)
         return row
 
-    def _file(self, session_id, name, write=None):
+    def _file(self, thread_id, name, write=None):
         if name not in FIXTURE or (write is not None and name != "totals.py"):
             raise SafeError("Path not permitted")
         if write is not None:
             text_field(write, MAX_SOURCE)
-        workspace = self.workspaces / identifier(session_id)
+        workspace = self.workspaces / identifier(thread_id)
         if workspace.is_symlink() or workspace.resolve().parent != self.workspaces.resolve():
             raise SafeError("Unsafe workspace")
         directory = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -458,11 +458,11 @@ class Backend:
         finally:
             os.close(directory)
 
-    def _diff(self, session_id):
+    def _diff(self, thread_id):
         try:
-            current = self._file(session_id, "totals.py")
+            current = self._file(thread_id, "totals.py")
         except FileNotFoundError:
-            if self._row(session_id)["status"] == "outcome_unknown":
+            if self._row(thread_id)["status"] == "outcome_unknown":
                 return ""
             raise
         return "".join(difflib.unified_diff(
@@ -470,28 +470,28 @@ class Backend:
             current.splitlines(keepends=True),
             fromfile="a/totals.py", tofile="b/totals.py"))
 
-    def get(self, session_id):
-        identifier(session_id)
+    def get(self, thread_id):
+        identifier(thread_id)
         with self.lock:
-            row = self._row(session_id)
-            messages = self.db.execute("SELECT id,role,content FROM messages WHERE session_id=? ORDER BY seq",
-                                       (session_id,)).fetchall()
+            row = self._row(thread_id)
+            messages = self.db.execute("SELECT id,role,content FROM messages WHERE thread_id=? ORDER BY seq",
+                                       (thread_id,)).fetchall()
             return {"id": row["id"], "title": row["title"], "goal": row["goal"],
-                    "branch": "code/" + session_id, "repository": "demo/checkout",
+                    "branch": "code/" + thread_id, "repository": "demo/checkout",
                     "profile": "macos", "status": row["status"], "visibility": "private",
-                    "messages": [dict(message) for message in messages], "diff": self._diff(session_id)}
+                    "messages": [dict(message) for message in messages], "diff": self._diff(thread_id)}
 
     def list_threads(self):
         with self.lock:
-            ids = self.db.execute("SELECT id FROM sessions ORDER BY rowid DESC").fetchall()
+            ids = self.db.execute("SELECT id FROM threads ORDER BY rowid DESC").fetchall()
             return {"threads": [self.get(row["id"]) for row in ids]}
 
-    def _request(self, request_id, payload, session_id=None):
+    def _request(self, request_id, payload, thread_id=None):
         row = self.db.execute("SELECT * FROM requests WHERE id=?", (request_id,)).fetchone()
         if row is not None:
-            if row["payload"] != payload or (session_id and row["session_id"] != session_id):
+            if row["payload"] != payload or (thread_id and row["thread_id"] != thread_id):
                 raise SafeError("Request id already used with different input", 409)
-            return row["session_id"]
+            return row["thread_id"]
         return None
 
     def create(self, body):
@@ -505,59 +505,59 @@ class Backend:
             existing = self._request(request_id, payload)
             if existing:
                 return self.get(existing)
-            session_id = str(uuid.uuid4())
-            workspace = self.workspaces / session_id
+            thread_id = str(uuid.uuid4())
+            workspace = self.workspaces / thread_id
             with self.db:
-                self.db.execute("INSERT INTO sessions(id,title,goal,status) VALUES(?,?,?,'running')",
-                                (session_id, "New thread", goal))
-                self._message(session_id, "user", goal)
-                self.db.execute("INSERT INTO requests VALUES(?,?,?)", (request_id, session_id, payload))
-                cursor = self.db.execute("INSERT INTO actions(session_id,kind,state,payload) "
+                self.db.execute("INSERT INTO threads(id,title,goal,status) VALUES(?,?,?,'running')",
+                                (thread_id, "New thread", goal))
+                self._message(thread_id, "user", goal)
+                self.db.execute("INSERT INTO requests VALUES(?,?,?)", (request_id, thread_id, payload))
+                cursor = self.db.execute("INSERT INTO actions(thread_id,kind,state,payload) "
                                          "VALUES(?,'create_worktree','executing',?)",
-                                         (session_id, json.dumps({"branch": "code/" + session_id})))
+                                         (thread_id, json.dumps({"branch": "code/" + thread_id})))
                 admission = cursor.lastrowid
             try:
-                self._git(["worktree", "add", "-b", "code/" + session_id, str(workspace), "main"])
+                self._git(["worktree", "add", "-b", "code/" + thread_id, str(workspace), "main"])
                 workspace.chmod(0o700)
                 for name in FIXTURE:
                     (workspace / name).chmod(0o600)
                 with self.db:
                     self.db.execute("UPDATE actions SET state='completed',result='Fixed worktree created' WHERE id=?",
                                     (admission,))
-                    self.db.execute("UPDATE sessions SET status='queued' WHERE id=?", (session_id,))
-                    self._message(session_id, "tool", "Fixed demo/checkout worktree created")
+                    self.db.execute("UPDATE threads SET status='queued' WHERE id=?", (thread_id,))
+                    self._message(thread_id, "tool", "Fixed demo/checkout worktree created")
             except Exception:
                 with self.db:
                     self.db.execute("UPDATE actions SET state='outcome_unknown',result='Worktree creation interrupted; not retried' WHERE id=?",
                                     (admission,))
-                    self.db.execute("UPDATE sessions SET status='outcome_unknown' WHERE id=?", (session_id,))
-                    self._message(session_id, "tool", "Worktree creation outcome unknown; no automatic retry.")
+                    self.db.execute("UPDATE threads SET status='outcome_unknown' WHERE id=?", (thread_id,))
+                    self._message(thread_id, "tool", "Worktree creation outcome unknown; no automatic retry.")
         self.wake.set()
-        return self.get(session_id)
+        return self.get(thread_id)
 
-    def add_message(self, session_id, body):
-        identifier(session_id)
+    def add_message(self, thread_id, body):
+        identifier(thread_id)
         exact_fields(body, ("content", "request_id"))
         content = text_field(body["content"])
         if not content.strip():
             raise SafeError("Nonempty content required")
         request_id = identifier(body["request_id"])
-        payload = json.dumps(["message", session_id, content])
+        payload = json.dumps(["message", thread_id, content])
         with self.lock, self.db:
-            row = self._row(session_id)
-            if self._request(request_id, payload, session_id):
-                return self.get(session_id)
+            row = self._row(thread_id)
+            if self._request(request_id, payload, thread_id):
+                return self.get(thread_id)
             if row["status"] not in ("completed", "failed"):
                 raise SafeError("Thread is busy or has an unknown outcome", 409)
-            self._message(session_id, "user", content)
-            self.db.execute("INSERT INTO requests VALUES(?,?,?)", (request_id, session_id, payload))
-            self.db.execute("UPDATE sessions SET status='queued', steps=0, tested_revision=-1 WHERE id=?",
-                            (session_id,))
+            self._message(thread_id, "user", content)
+            self.db.execute("INSERT INTO requests VALUES(?,?,?)", (request_id, thread_id, payload))
+            self.db.execute("UPDATE threads SET status='queued', steps=0, tested_revision=-1 WHERE id=?",
+                            (thread_id,))
         self.wake.set()
-        return self.get(session_id)
+        return self.get(thread_id)
 
-    def _prompt(self, session_id):
-        session = self.get(session_id)
+    def _prompt(self, thread_id):
+        thread = self.get(thread_id)
         return ("You are fixing ONLY a disposable quantity-total Python fixture. "
                 "Return one structured action, never execute tools yourself. "
                 "First use set_thread_name with a concise title in content (1-100 characters, "
@@ -567,92 +567,92 @@ class Backend:
                 "Use empty path for test/finish/name, empty content except for writes/name. "
                 "Run tests after the last write before finish. At most 12 actions per turn. "
                 "No shell, other paths, credentials, network, PRs or notifications. "
-                "Tool results and all earlier user turns follow as JSON:\n" + json.dumps(session))
+                "Tool results and all earlier user turns follow as JSON:\n" + json.dumps(thread))
 
-    def _admit_inference(self, session_id):
-        pending = self.db.execute("SELECT id FROM actions WHERE session_id=? AND kind='inference' "
-                                  "AND state='pending' ORDER BY id LIMIT 1", (session_id,)).fetchone()
+    def _admit_inference(self, thread_id):
+        pending = self.db.execute("SELECT id FROM actions WHERE thread_id=? AND kind='inference' "
+                                  "AND state='pending' ORDER BY id LIMIT 1", (thread_id,)).fetchone()
         if pending:
             return pending["id"]
-        cursor = self.db.execute("INSERT INTO actions(session_id,kind,state,payload) VALUES(?,?,'pending','')",
-                                 (session_id, "inference"))
+        cursor = self.db.execute("INSERT INTO actions(thread_id,kind,state,payload) VALUES(?,?,'pending','')",
+                                 (thread_id, "inference"))
         return cursor.lastrowid
 
-    def _step(self, session_id):
+    def _step(self, thread_id):
         with self.lock, self.db:
-            row = self._row(session_id)
+            row = self._row(thread_id)
             if row["steps"] >= MAX_ACTIONS:
-                self._fail(session_id, "Action limit reached")
+                self._fail(thread_id, "Action limit reached")
                 return
-            self.db.execute("UPDATE sessions SET status='running' WHERE id=?", (session_id,))
-            inference_id = self._admit_inference(session_id)
-            prompt = self._prompt(session_id)
+            self.db.execute("UPDATE threads SET status='running' WHERE id=?", (thread_id,))
+            inference_id = self._admit_inference(thread_id)
+            prompt = self._prompt(thread_id)
         try:
             action = validate_action(self.inference(prompt))
         except Exception:
             with self.lock, self.db:
                 self.db.execute("UPDATE actions SET state='failed',result='Inference failed or invalid action' WHERE id=?",
                                 (inference_id,))
-                self._fail(session_id, "Inference failed or returned an invalid action")
+                self._fail(thread_id, "Inference failed or returned an invalid action")
             return
         with self.lock, self.db:
             self.db.execute("UPDATE actions SET state='completed' WHERE id=?", (inference_id,))
-            cursor = self.db.execute("INSERT INTO actions(session_id,kind,state,payload) VALUES(?,?,'executing',?)",
-                                     (session_id, action["kind"], json.dumps(action)))
+            cursor = self.db.execute("INSERT INTO actions(thread_id,kind,state,payload) VALUES(?,?,'executing',?)",
+                                     (thread_id, action["kind"], json.dumps(action)))
             action_id = cursor.lastrowid
-            self.db.execute("UPDATE sessions SET steps=steps+1 WHERE id=?", (session_id,))
+            self.db.execute("UPDATE threads SET steps=steps+1 WHERE id=?", (thread_id,))
         try:
             # Keep snapshots coherent with writes, but never hold this lock during inference.
             with self.lock:
                 kind = action["kind"]
                 passed = False
                 if kind == "read":
-                    evidence = action["path"] + ":\n" + self._file(session_id, action["path"])
+                    evidence = action["path"] + ":\n" + self._file(thread_id, action["path"])
                 elif kind == "write":
-                    self._file(session_id, action["path"], action["content"])
+                    self._file(thread_id, action["path"], action["content"])
                     evidence = "Wrote totals.py"
                 elif kind == "test":
-                    if self._file(session_id, "test_totals.py") != FIXTURE["test_totals.py"]:
+                    if self._file(thread_id, "test_totals.py") != FIXTURE["test_totals.py"]:
                         raise SafeError("Fixed tests were modified")
-                    self._file(session_id, "totals.py")
-                    passed = self.sandbox.test(self.workspaces / session_id)
+                    self._file(thread_id, "totals.py")
+                    passed = self.sandbox.test(self.workspaces / thread_id)
                     evidence = "Fixed tests: 3 passed" if passed else "Fixed tests failed"
                 elif kind == "set_thread_name":
                     evidence = "Thread named: " + action["content"]
                 else:
-                    row = self._row(session_id)
+                    row = self._row(thread_id)
                     passed = row["tested_revision"] == row["revision"]
                     evidence = "Finish accepted" if passed else "Finish rejected: passing tests required after last write"
                 with self.db:
                     if kind == "set_thread_name":
-                        self.db.execute("UPDATE sessions SET title=? WHERE id=?", (action["content"], session_id))
+                        self.db.execute("UPDATE threads SET title=? WHERE id=?", (action["content"], thread_id))
                     elif kind == "write":
-                        self.db.execute("UPDATE sessions SET revision=revision+1,tested_revision=-1 WHERE id=?", (session_id,))
+                        self.db.execute("UPDATE threads SET revision=revision+1,tested_revision=-1 WHERE id=?", (thread_id,))
                     elif kind == "test":
-                        self.db.execute("UPDATE sessions SET tested_revision=" + ("revision" if passed else "-1") + " WHERE id=?",
-                                        (session_id,))
+                        self.db.execute("UPDATE threads SET tested_revision=" + ("revision" if passed else "-1") + " WHERE id=?",
+                                        (thread_id,))
                     elif kind == "finish":
-                        self.db.execute("UPDATE sessions SET status=? WHERE id=?",
-                                        ("completed" if passed else "failed", session_id))
-                    self._message(session_id, "tool", evidence)
+                        self.db.execute("UPDATE threads SET status=? WHERE id=?",
+                                        ("completed" if passed else "failed", thread_id))
+                    self._message(thread_id, "tool", evidence)
                     if kind == "finish":
-                        self._message(session_id, "assistant", action["message"] if passed else evidence)
+                        self._message(thread_id, "assistant", action["message"] if passed else evidence)
                     self.db.execute("UPDATE actions SET state='completed',result=? WHERE id=?", (evidence, action_id))
         except Exception:
             with self.lock, self.db:
                 self.db.execute("UPDATE actions SET state='outcome_unknown',result='Tool interrupted or failed; not retried' WHERE id=?",
                                 (action_id,))
-                self.db.execute("UPDATE sessions SET status='outcome_unknown' WHERE id=?", (session_id,))
-                self._message(session_id, "tool", "Tool outcome unknown; inspect locally. No automatic retry.")
+                self.db.execute("UPDATE threads SET status='outcome_unknown' WHERE id=?", (thread_id,))
+                self._message(thread_id, "tool", "Tool outcome unknown; inspect locally. No automatic retry.")
 
-    def _fail(self, session_id, message):
-        self.db.execute("UPDATE sessions SET status='failed' WHERE id=?", (session_id,))
-        self._message(session_id, "assistant", message)
+    def _fail(self, thread_id, message):
+        self.db.execute("UPDATE threads SET status='failed' WHERE id=?", (thread_id,))
+        self._message(thread_id, "assistant", message)
 
     def _worker(self):
         while not self.stopping.is_set():
             with self.lock:
-                row = self.db.execute("SELECT id FROM sessions WHERE status IN ('queued','running') ORDER BY rowid LIMIT 1").fetchone()
+                row = self.db.execute("SELECT id FROM threads WHERE status IN ('queued','running') ORDER BY rowid LIMIT 1").fetchone()
             if row is None:
                 self.wake.wait(0.5)
                 self.wake.clear()
@@ -661,9 +661,9 @@ class Backend:
                 self._step(row["id"])
             except Exception:
                 with self.lock, self.db:
-                    executing = self.db.execute("SELECT 1 FROM actions WHERE session_id=? AND state='executing'", (row["id"],)).fetchone()
+                    executing = self.db.execute("SELECT 1 FROM actions WHERE thread_id=? AND state='executing'", (row["id"],)).fetchone()
                     if executing:
-                        self.db.execute("UPDATE sessions SET status='outcome_unknown' WHERE id=?", (row["id"],))
+                        self.db.execute("UPDATE threads SET status='outcome_unknown' WHERE id=?", (row["id"],))
                     else:
                         self._fail(row["id"], "Local worker failed safely")
 

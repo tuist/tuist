@@ -91,16 +91,20 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     :ok = Tuist.Accounts.add_user_to_organization(user, organization, role: :user)
 
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "oauthflow-example.com")
     |> Repo.update!()
 
     password_conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
 
-    assert redirected_to(password_conn) == "/users/auth/google"
+    query = URI.encode_query(authorize_params(client_id))
+    assert redirected_to(password_conn) == ~p"/users/auth/google?#{%{return_to: "/oauth2/authorize?#{query}"}}"
     assert "/oauth2/authorize?" <> _ = get_session(password_conn, :user_return_to)
 
     google_token =
-      Tuist.Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      Tuist.Accounts.generate_user_session_token(user, %{
+        auth_method: :google,
+        provider_organization_id: "oauthflow-example.com"
+      })
 
     assert build_conn() |> init_test_session(%{}) |> put_session(:user_token, google_token) |> authorize(client_id)
   end
@@ -186,14 +190,14 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       %{"access_token" => access_token, "refresh_token" => refresh_token} =
         exchange_code(client_id, authorize(sso_conn, client_id))
 
-      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider" => "google", "provider_organization_id" => "oauthflow-example.com"}}} =
                Tuist.Guardian.decode_and_verify(access_token)
 
       assert %{"access_token" => refreshed_access_token, "refresh_token" => refreshed_refresh_token} =
                client_id |> refresh_conn(refresh_token) |> json_response(200)
 
       # The proof carries over to the rotated pair, so later refreshes pass too.
-      assert {:ok, %{"sso" => %{"provider_organization_id" => "example.com"}}} =
+      assert {:ok, %{"sso" => %{"provider_organization_id" => "oauthflow-example.com"}}} =
                Tuist.Guardian.decode_and_verify(refreshed_access_token)
 
       assert %{"access_token" => _} = client_id |> refresh_conn(refreshed_refresh_token) |> json_response(200)
@@ -223,7 +227,12 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       # tokens carried SSO proof was.
       %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
       organization = sso_member_of(user)
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "oauthflow-example.com"
+      )
 
       assert %{"access_token" => access_token, "refresh_token" => refreshed_refresh_token} =
                client_id |> refresh_conn(refresh_token) |> json_response(200)
@@ -267,7 +276,12 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
 
       # The refused token is not spent: signing in through the provider
       # links the identity that lets it refresh again.
-      AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+      AccountsFixtures.oauth2_identity_fixture(
+        user: user,
+        provider: :google,
+        provider_organization_id: "oauthflow-example.com"
+      )
+
       assert %{"access_token" => _} = client_id |> refresh_conn(second_refresh_token) |> json_response(200)
     end
 
@@ -299,7 +313,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       %{"refresh_token" => refresh_token} =
         exchange_code(client_id, authorize(sso_session_conn(user, organization), client_id))
 
-      organization |> Ecto.Changeset.change(sso_organization_id: "other.example.com") |> Repo.update!()
+      organization |> Ecto.Changeset.change(sso_organization_id: "other.oauthflow-example.com") |> Repo.update!()
 
       assert %{"access_token" => access_token} = client_id |> refresh_conn(refresh_token) |> json_response(200)
       assert {:ok, claims} = Tuist.Guardian.decode_and_verify(access_token)
@@ -561,7 +575,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     # Enabling enforcement through `Accounts` also requires a verified login
     # email domain, which is not what these tests are about.
     organization
-    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "example.com")
+    |> Ecto.Changeset.change(sso_enforced: true, sso_provider: :google, sso_organization_id: "oauthflow-example.com")
     |> Repo.update!()
   end
 

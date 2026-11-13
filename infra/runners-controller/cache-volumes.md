@@ -118,7 +118,8 @@ The default backing file is 200 GB; an operator can choose a different size.
 Formatting disables discard and the persistent mount opts out of periodic
 [fstrim](https://www.man7.org/linux/man-pages/man8/fstrim.8.html), preserving the
 outer file reservation. Do not manually trim or hole-punch that backing file.
-It never reformats or resizes an existing image. A dedicated block device with
+It never reformats or resizes an existing image; growing one is an operator
+step ("Changing the cache size"). A dedicated block device with
 XFS is also supported with automatic provisioning disabled.
 
 Managed production sets `cacheVolumes.provisioning.enabled=true`. A privileged
@@ -128,7 +129,8 @@ tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject foreign mounts, symlinks, and
 nonempty unprovisioned paths. An existing image of another size is kept as it
-is; a new `sizeGB` reaches only images created after it. Failure leaves the agent unready;
+is; a new `sizeGB` reaches only images created after it, until an operator
+grows the existing ones. Failure leaves the agent unready;
 the host cannot advertise volume readiness. Each reconcile also labels the Node
 `tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
 master and removes the labels of evicted ones. Disabling provisioning never deletes
@@ -139,17 +141,66 @@ pods and remove only their confirmed-unused directories before retrying setup.
 
 ### Changing the cache size
 
-The backing file is preallocated and never resized, so a new
-`runnersFleetLinux.cacheVolumes.provisioning.sizeGB` applies to replacement
-hosts and to hosts whose image is rebuilt. Size it against `/data`, which the
-cache shares with containerd and kubelet: kubelet evicts Pods once
-`imagefs.available` drops below 15%, so the image plus the host's peak use
-outside it (`node_filesystem_size_bytes - node_filesystem_avail_bytes` on
-`/data`, less the current image) must leave that margin.
+The provisioning script never resizes an existing backing file, so a new
+`runnersFleetLinux.cacheVolumes.provisioning.sizeGB` reaches replacement hosts
+on its own and existing hosts only when an operator grows their image. Size it
+against `/data`, which the cache shares with containerd and kubelet: kubelet
+evicts Pods once `imagefs.available` drops below 15%, so the image plus the
+host's peak use outside it (`node_filesystem_size_bytes - node_filesystem_avail_bytes`
+on `/data`, less the current image) must leave that margin.
 
-Rebuilding a host's image discards its masters, checkouts and Docker caches;
-jobs there start cold until prefetch and jobs refill it. Do one host at a time.
-Writes to canary or production need elevation (infra/AGENTS.md).
+#### Growing an existing image
+
+XFS grows while mounted, so a host keeps its masters, checkouts and Docker
+caches, and needs no cordon or drain. The agent reads capacity and free space
+with `statfs` on every admission, so it uses the new room at once, and the init
+container keeps the grown file on its next start because it then matches
+`sizeGB`. Writes to canary or production need elevation (infra/AGENTS.md).
+
+Save this as `grow-cache.sh`, with `new` set to the new `sizeGB` in bytes. It
+takes the provisioning script's lock, checks that the mount is this backing
+file, and refuses a grow that would leave less than `keep` free on `/data`
+(the host's peak use outside the cache plus kubelet's 15% margin; 200 GB on the
+889 GB production hosts):
+
+```bash
+set -euo pipefail
+img=/var/lib/kubelet/tuist-runner-cache.img mnt=/var/lib/kubelet/tuist-runner-cache
+new=350000000000 keep=200000000000
+exec 9>"$img.lock"; flock -x 9
+dev=$(losetup --noheadings --output NAME -j "$img")
+[[ -n $dev && $(findmnt -n -o SOURCE --mountpoint "$mnt") == "$dev" ]] || { echo "skip: mount does not match $img"; exit 1; }
+grow=$(( new - $(stat -c %s "$img") ))
+avail=$(df -B1 --output=avail "$(dirname "$img")" | tail -1 | tr -d ' ')
+(( grow > 0 && avail - grow >= keep )) || { echo "skip: grow=$grow avail=$avail"; exit 1; }
+fallocate -l "$new" "$img"   # preallocate the added bytes on /data
+losetup -c "$dev"            # the loop device picks up the new length
+xfs_growfs "$mnt" | tail -1  # grow XFS online
+df -B1G --output=size,avail "$mnt" | tail -1
+df -B1G --output=size,avail "$(dirname "$img")" | tail -1
+```
+
+Run it on one host, check it, then do the rest one at a time:
+
+```bash
+kubectl -n tuist-runners debug node/<node> --image=ubuntu --profile=sysadmin -i -q -- \
+  nsenter -t 1 -m -- bash -s < grow-cache.sh
+kubectl -n tuist-runners logs <node-debugger pod>
+kubectl -n tuist-runners delete pod <node-debugger pod>
+```
+
+The attached session can end before it prints anything, so read the result from
+the debugger Pod's log: `data blocks changed from … to …` followed by the cache's
+and `/data`'s size and free GiB. The debugger Pod stays behind; delete it. A
+rerun on a grown host prints `skip` and changes nothing. Afterwards the agent's
+log should show attaches succeeding and prefetch restoring listed masters it
+had refused with `no_space`.
+
+#### Shrinking
+
+XFS cannot shrink, so a smaller size means rebuilding the image, which discards
+the host's masters, checkouts and Docker caches; jobs there start cold until
+prefetch and jobs refill it. Do one host at a time.
 
 1. `kubectl cordon <node>` and wait until no runner Pod is left on it.
 2. Wait until the host's agent has published every job: its log shows no
@@ -538,6 +589,40 @@ one custom volume. Attach eviction keeps only the reserve free, so a clone evict
 idle custom masters for the rest of its room, but never one a job holds or is
 attaching, and never other checkout masters: without the room the job checks
 out as usual.
+
+### Sandbox sessions
+
+Claude Code sessions in sandboxd's Firecracker guests on the same nodes start
+from the same masters and feed them back, under the CI rules. The server grants
+a checkout in `start_worker` with the fields of a CI allocation (a default-branch
+job that may not start a master, so only an export of the granted `commit`
+moves one); sandboxd relays it, and only it, to the agent (see
+[sandboxd](../sandboxd/AGENTS.md), "Guest to host: checkout"). Guests never
+reach the agent: sandboxd drops their traffic to port 8090, since they share its
+Pod's address and NetworkPolicy identity.
+
+- The caller must be the live, non-terminating sandboxd Pod (label
+  `tuist.dev/sandboxd: "true"`) it names in `--sandboxes-namespace`, on this
+  node, at the caller's address. sandboxd is not on the host network. The chart
+  sets the flag, a `get pods` Role there and both NetworkPolicy rules when
+  sandboxes are enabled; without the flag both endpoints answer 403.
+- `POST /sandbox-checkout/seed` with `{"pod_name": ..., "grant": {...}}` tracks
+  the volume and, with a master for its clear generation, clones it under the
+  scope lock into `checkouts/.sandbox-seeds/<use>/`, attaches the clone
+  read-only and answers 200 with a tar of its `checkout/` tree (directories,
+  regular files and symlinks with their permission bits, no owners; links are
+  never followed). The clone is detached and deleted afterwards. A stream that
+  fails midway is cut without its end-of-archive blocks. Without a master it
+  answers 404 `{"error":"cold"}` and restores the HEAD in the background when
+  there is one. Either way the use ends at once (`report` with state `deleted`,
+  `warm` when it seeded): the session holds a copy, not a branch. Four seeds
+  run at a time (`busy` past them); a stream gets 10 minutes. Clones left by a
+  restarted agent are abandoned at start.
+- `POST /sandbox-checkout/export` takes the same request line, then the export
+  tar in the CI format, into `checkouts/.incoming/sandbox-<use>` with the CI
+  export's intake slots, admission and 5-minute bound, and queues the build. It
+  answers 202 `{"ok":true}` once queued, 507 without room, 400 for an invalid
+  export, 409 while the same use's export is still being received.
 
 ## Docker cache volumes
 

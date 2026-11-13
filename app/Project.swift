@@ -120,6 +120,8 @@ let project = Project(
                     "CFBundleShortVersionString": "0.25.3",
                     "CFBundleVersion": "14606",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "NSMicrophoneUsageDescription": "Tuist uses the microphone to transcribe a Thread message on this device.",
+                    "NSSpeechRecognitionUsageDescription": "Tuist uses on-device speech recognition to transcribe a Thread message.",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
                     ],
@@ -328,6 +330,7 @@ let project = Project(
             sources: ["Tests/TuistNotificationsTests/**"],
             dependencies: [
                 .target(name: "TuistNotifications"),
+                .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
                 .project(target: "TuistServer", path: "../"),
                 .external(name: "Mockable"),
@@ -367,6 +370,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
+                .external(name: "OpenAPIRuntime"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -397,6 +401,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "FileSystemTesting"),
                 .external(name: "TestCoverageAttribution"),
             ]
         ),

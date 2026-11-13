@@ -56,6 +56,15 @@ test('hands the work order to Tuist with the workload identity and nothing else'
   }]);
 });
 
+test('names the session\'s primary repository when there is one', async () => {
+  const { code, requests } = await spawnRunner({ CLAUDE_RUNNER_PRIMARY_REPO_URL: 'https://github.com/tuist/tuist' });
+  assert.equal(code, 0);
+  assert.deepEqual(requests[0].body, {
+    order_id: 'order-1', session_id: 'session_01abc', work_order: 'work.order.jwt',
+    repository_url: 'https://github.com/tuist/tuist',
+  });
+});
+
 test('a standby request without a session starts nothing', async () => {
   const { code, requests } = await spawnRunner({ CLAUDE_RUNNER_SESSION_ID: '' });
   assert.equal(code, 0);

@@ -13,6 +13,7 @@ defmodule Tuist.Builds.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
+  alias Tuist.Tests.RunSelections
   alias Tuist.Utilities.Decimals
   alias Tuist.Xcode.XcodeGraph
 
@@ -806,6 +807,11 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
+  @doc """
+  Each recent test run's test selection effectiveness
+  (`Tuist.Tests.RunSelections`), its avoided tests over its tests in scope,
+  for the Tests overview's scatter chart, grouped by environment.
+  """
   def selective_testing_scatter_data(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
 
@@ -813,37 +819,12 @@ defmodule Tuist.Builds.Analytics do
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-    is_ci = Keyword.get(opts, :is_ci)
 
-    query =
-      from(e in Event,
-        where: e.project_id == ^project_id,
-        where: e.ran_at > ^DateTime.to_naive(start_datetime),
-        where: e.ran_at < ^DateTime.to_naive(end_datetime),
-        where: e.test_targets_count > 0,
-        order_by: [desc: e.ran_at],
-        limit: ^@scatter_data_limit,
-        select: %{
-          ran_at: e.ran_at,
-          is_ci: e.is_ci,
-          hit_rate:
-            fragment(
-              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
-              e.local_test_hits_count,
-              e.remote_test_hits_count,
-              e.test_targets_count
-            )
-        }
+    results =
+      RunSelections.recent_runs(project_id, start_datetime, end_datetime, @scatter_data_limit,
+        is_ci: Keyword.get(opts, :is_ci)
       )
 
-    query =
-      case is_ci do
-        true -> where(query, [e], e.is_ci == true)
-        false -> where(query, [e], e.is_ci == false)
-        _ -> query
-      end
-
-    results = ClickHouseRepo.all(query)
     truncated = length(results) >= @scatter_data_limit
 
     oldest_entry =
@@ -949,7 +930,7 @@ defmodule Tuist.Builds.Analytics do
       Task.await_many(
         [
           Task.async(fn ->
-            CommandEvents.selective_testing_hit_rate_period_percentile(
+            RunSelections.period_percentile(
               project_id,
               start_datetime,
               end_datetime,
@@ -958,7 +939,7 @@ defmodule Tuist.Builds.Analytics do
             )
           end),
           Task.async(fn ->
-            CommandEvents.selective_testing_hit_rate_period_percentile(
+            RunSelections.period_percentile(
               project_id,
               start_datetime,
               end_datetime,
@@ -967,7 +948,7 @@ defmodule Tuist.Builds.Analytics do
             )
           end),
           Task.async(fn ->
-            CommandEvents.selective_testing_hit_rate_period_percentile(
+            RunSelections.period_percentile(
               project_id,
               start_datetime,
               end_datetime,
@@ -976,7 +957,7 @@ defmodule Tuist.Builds.Analytics do
             )
           end),
           Task.async(fn ->
-            CommandEvents.selective_testing_hit_rate_percentiles(
+            RunSelections.percentiles(
               project_id,
               start_datetime,
               end_datetime,
@@ -986,7 +967,7 @@ defmodule Tuist.Builds.Analytics do
             )
           end),
           Task.async(fn ->
-            CommandEvents.selective_testing_hit_rate_percentiles(
+            RunSelections.percentiles(
               project_id,
               start_datetime,
               end_datetime,
@@ -996,7 +977,7 @@ defmodule Tuist.Builds.Analytics do
             )
           end),
           Task.async(fn ->
-            CommandEvents.selective_testing_hit_rate_percentiles(
+            RunSelections.percentiles(
               project_id,
               start_datetime,
               end_datetime,
@@ -1047,18 +1028,9 @@ defmodule Tuist.Builds.Analytics do
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
-    result =
-      CommandEvents.selective_testing_hit_rate(project_id, start_datetime, end_datetime, opts)
-
-    local_test_hits_count = result.local_test_hits_count || 0
-    remote_test_hits_count = result.remote_test_hits_count || 0
-    test_targets_count = result.test_targets_count || 0
-
-    if test_targets_count == 0 do
-      0.0
-    else
-      (local_test_hits_count + remote_test_hits_count) / test_targets_count
-    end
+    project_id
+    |> RunSelections.totals(start_datetime, end_datetime, opts)
+    |> effectiveness()
   end
 
   defp selective_testing_hit_rates(project_id, opts) do
@@ -1068,50 +1040,22 @@ defmodule Tuist.Builds.Analytics do
 
     clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
-    selective_testing_hit_rate_metadata_map =
+    totals_by_date =
       project_id
-      |> CommandEvents.selective_testing_hit_rates(
-        start_datetime,
-        end_datetime,
-        date_period,
-        clickhouse_time_bucket,
-        opts
-      )
-      |> Map.new(
-        &{normalise_date(&1.date, date_period),
-         %{
-           test_targets: &1.test_targets,
-           local_test_target_hits: &1.local_test_target_hits,
-           remote_test_target_hits: &1.remote_test_target_hits
-         }}
-      )
+      |> RunSelections.series(start_datetime, end_datetime, clickhouse_time_bucket, opts)
+      |> Map.new(&{normalise_date(&1.date, date_period), &1})
 
     date_period
     |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     |> Enum.map(fn date ->
-      normalized_date = normalise_date(date, date_period)
-
-      selective_testing_hit_rate_metadata =
-        Map.get(selective_testing_hit_rate_metadata_map, normalized_date)
-
-      if is_nil(selective_testing_hit_rate_metadata) or
-           (selective_testing_hit_rate_metadata.test_targets || 0) == 0 do
-        %{
-          date: date,
-          hit_rate: 0.0
-        }
-      else
-        test_targets = selective_testing_hit_rate_metadata.test_targets
-        local_test_target_hits = selective_testing_hit_rate_metadata.local_test_target_hits || 0
-        remote_test_target_hits = selective_testing_hit_rate_metadata.remote_test_target_hits || 0
-
-        %{
-          date: date,
-          hit_rate: (local_test_target_hits + remote_test_target_hits) / test_targets
-        }
-      end
+      totals = Map.get(totals_by_date, normalise_date(date, date_period), %{})
+      %{date: date, hit_rate: effectiveness(totals)}
     end)
   end
+
+  # Avoided tests over tests in scope, 0.0 without any test in scope.
+  defp effectiveness(%{scope_tests: scope, avoided_tests: avoided}) when scope > 0, do: avoided / scope
+  defp effectiveness(_totals), do: 0.0
 
   def build_time_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)

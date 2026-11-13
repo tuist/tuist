@@ -24,7 +24,8 @@ defmodule Tuist.Sandboxes.Sandbox do
   # template build and a memory image on every node that serves it, so the
   # list is short and matches the nodes' ALLOWED_SHAPES (chart
   # `sandboxes.allowedShapes`).
-  @shapes [{2, 4096}, {4, 8192}, {8, 16_384}]
+  @shapes [{1, 2048}, {2, 4096}, {4, 8192}, {8, 16_384}, {16, 32_768}, {16, 45_056}]
+  @darwin_shapes [{8, 8192}, {8, 16_384}, {8, 24_576}]
   @max_workspace_gb 100
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -35,6 +36,11 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
     field :amp_base_snapshot_id, :string
+    field :amp_creator_user_id, :string
+    field :amp_creator_username, :string
+    field :amp_creator_name, :string
+    field :amp_creator_email, :string
+    field :creator_actor, :map, virtual: true
     field :template, :string
     field :template_tag, :string
     field :vcpus, :integer
@@ -70,6 +76,8 @@ defmodule Tuist.Sandboxes.Sandbox do
 
   def states, do: @states
   def shapes, do: @shapes
+  def shapes(:darwin), do: @darwin_shapes
+  def shapes(_platform), do: @shapes
   def max_workspace_gb, do: @max_workspace_gb
 
   @doc """
@@ -81,7 +89,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     vcpus = get_field(changeset, :vcpus)
     memory_mb = get_field(changeset, :memory_mb)
 
-    shapes = if get_field(changeset, :platform) == :darwin, do: [{8, 8192}, {8, 16_384}, {8, 24_576}], else: @shapes
+    shapes = shapes(get_field(changeset, :platform))
 
     changeset =
       if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in shapes do

@@ -59,3 +59,8 @@ brew install --formula tuist@x.y.z
 ## HTTP proxy {#http-proxy}
 
 If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
+
+## Next steps {#next-steps}
+
+- Follow the <.localized_link href="/guides/get-started">Get started guide</.localized_link> to connect your project to Tuist.
+- Explore [Tuist's build infrastructure for engineering teams and coding agents](https://tuist.dev) for the broader product context.

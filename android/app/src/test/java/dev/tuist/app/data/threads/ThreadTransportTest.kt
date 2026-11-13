@@ -11,6 +11,9 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import com.squareup.moshi.JsonDataException
 import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +21,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Retrofit
+import retrofit2.HttpException
 
 class ThreadTransportTest {
     private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
@@ -35,13 +39,15 @@ class ThreadTransportTest {
                                 .newBuilder()
                                 .header("Authorization", "Bearer test-only")
                                 .build()
-                        requests.add(authenticated)
+                        // Existing payload assertions exclude the separate capability probe.
+                        val probe = authenticated.url.encodedPath.endsWith("/models") && !response.contains("\"models\"")
+                        if (!probe) requests.add(authenticated)
                         Response.Builder()
                             .request(authenticated)
                             .protocol(Protocol.HTTP_1_1)
                             .code(200)
                             .message("OK")
-                            .body(response.toResponseBody("application/json".toMediaType()))
+                            .body((if (probe) """{"models":[],"errors":[]}""" else response).toResponseBody("application/json".toMediaType()))
                             .build()
                     }
                     .build()
@@ -327,6 +333,170 @@ class ThreadTransportTest {
             assertTrue(shared.networkInterceptors.contains(networkLogger))
             assertFalse(original.interceptors.contains(applicationLogger))
         }
+
+    @Test
+    fun `public reads support both server dialects and required page aliases`() = runTest {
+        MockWebServer().use { server ->
+            val api = ThreadTransport(Retrofit.Builder().baseUrl(server.url("/prefix/")).build(), moshi).api
+            server.enqueue(MockResponse().setBody("""{"threads":[$thread],"next_cursor":"new"}"""))
+            assertEquals("t", api.list("acme").threads.single().id)
+            assertEquals("/prefix/api/accounts/acme/threads", server.takeRequest().path)
+            server.enqueue(MockResponse().setResponseCode(404))
+            server.enqueue(MockResponse().setBody("""{"jams":[$thread],"next_cursor":"old"}"""))
+            val page = api.list("acme", "opaque+/=")
+            assertEquals("old", page.nextCursor)
+            assertEquals("t", page.threads.single().id)
+            assertEquals("/prefix/api/accounts/acme/threads", server.takeRequest().requestUrl!!.encodedPath)
+            val legacy = server.takeRequest()
+            assertEquals("/prefix/api/accounts/acme/jams", legacy.requestUrl!!.encodedPath)
+            assertEquals("opaque+/=", legacy.requestUrl!!.queryParameter("cursor"))
+            server.enqueue(MockResponse().setBody("""{"threads":[],"jams":[$thread]}"""))
+            assertTrue(api.list("acme").threads.isEmpty())
+            server.takeRequest()
+            for (body in listOf("{}", """{"jams":null}""", """{"threads":null,"jams":[]}""", """{"jams":{}}""")) {
+                server.enqueue(MockResponse().setBody(body))
+                try {
+                    api.list("acme")
+                    org.junit.Assert.fail("Malformed page accepted: $body")
+                } catch (_: JsonDataException) { }
+                server.takeRequest()
+            }
+            assertEquals(8, server.requestCount)
+        }
+    }
+
+    @Test
+    fun `catalog repository and history reads prefer threads and safely negotiate legacy jams`() = runTest {
+        for (dialect in listOf("threads", "jams")) {
+            for (operation in listOf("models", "repositories", "history")) {
+                MockWebServer().use { server ->
+                    val api = ThreadTransport(Retrofit.Builder().baseUrl(server.url("/")).build(), moshi).api
+                    if (dialect == "jams") server.enqueue(MockResponse().setResponseCode(404))
+                    val body = when (operation) {
+                        "models" -> """{"models":[],"errors":[]}"""
+                        "repositories" -> """{"repositories":[]}"""
+                        else -> thread
+                    }
+                    server.enqueue(MockResponse().setBody(body))
+                    when (operation) {
+                        "models" -> assertTrue(api.models("acme").models.isEmpty())
+                        "repositories" -> assertTrue(api.repositories("acme").repositories.isEmpty())
+                        else -> assertEquals("t", api.history("acme", "t", before = 42).id)
+                    }
+                    val suffix = if (operation == "history") "t?before=42" else operation
+                    val canonical = server.takeRequest()
+                    assertEquals("GET", canonical.method)
+                    assertEquals("/api/accounts/acme/threads/$suffix", canonical.path)
+                    if (dialect == "jams") {
+                        val legacy = server.takeRequest()
+                        assertEquals("GET", legacy.method)
+                        assertEquals("/api/accounts/acme/jams/$suffix", legacy.path)
+                    }
+                    assertEquals(if (dialect == "jams") 2 else 1, server.requestCount)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `every mutation probes safely and sends once even on mutation 404`() = runTest {
+        for (dialect in listOf("threads", "jams")) {
+            for (operation in listOf("create", "send", "archive", "ship-preview", "ship")) {
+                MockWebServer().use { server ->
+                    val api = ThreadTransport(Retrofit.Builder().baseUrl(server.url("/")).build(), moshi).api
+                    if (dialect == "jams") server.enqueue(MockResponse().setResponseCode(404))
+                    server.enqueue(MockResponse().setBody("""{"models":[],"errors":[]}"""))
+                    server.enqueue(MockResponse().setResponseCode(404))
+                    try {
+                        when (operation) {
+                            "create" -> api.create("acme", CreateThread("prompt", "chatgpt", "model"))
+                            "send" -> api.send("acme", "t", SendMessage("hello"))
+                            "archive" -> api.archive("acme", "t", ArchiveThread("archived"))
+                            "ship-preview" -> api.shipPreview("acme", "t")
+                            "ship" -> api.ship("acme", "t", ShipApproval("request", "head", "base", "main", "direct"))
+                        }
+                        org.junit.Assert.fail("Expected mutation failure")
+                    } catch (error: HttpException) {
+                        assertEquals(404, error.code())
+                    }
+                    val count = if (dialect == "jams") 3 else 2
+                    val recorded = List(count) { server.takeRequest() }
+                    assertEquals("GET", recorded.first().method)
+                    assertEquals("/api/accounts/acme/threads/models", recorded.first().path)
+                    assertEquals("/api/accounts/acme/$dialect/models", recorded[count - 2].path)
+                    assertEquals(1, recorded.count { it.method != "GET" })
+                    val suffix = when (operation) {
+                        "create" -> ""
+                        "send" -> "/t/messages"
+                        "archive" -> "/t"
+                        else -> "/t/$operation"
+                    }
+                    assertEquals("/api/accounts/acme/$dialect$suffix", recorded.last().path)
+                    assertEquals(count, server.requestCount)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `non 404 read and probe errors never fallback or write`() = runTest {
+        for (code in listOf(401, 403, 409, 500, 503)) {
+            MockWebServer().use { server ->
+                val api = ThreadTransport(Retrofit.Builder().baseUrl(server.url("/")).build(), moshi).api
+                for (mutation in listOf(false, true)) {
+                    server.enqueue(MockResponse().setResponseCode(code))
+                    try {
+                        if (mutation) api.create("acme", CreateThread("prompt", "chatgpt", "model")) else api.list("acme")
+                        org.junit.Assert.fail("Expected HTTP $code")
+                    } catch (error: HttpException) {
+                        assertEquals(code, error.code())
+                    }
+                    assertEquals("GET", server.takeRequest().method)
+                }
+                assertEquals(2, server.requestCount)
+            }
+        }
+    }
+
+    @Test
+    fun `both preview identifiers decode but missing malformed and null canonical identifiers fail`() = runTest {
+        val preview = """{"head_sha":"head","base_sha":"base","diff":"patch","target_branch":"main",
+            "mode":"direct","request_id":"request","thread_id":"t","account_id":12,
+            "repository":"acme/private","sandbox_id":"sandbox","actor":"app"}"""
+        for (dialect in listOf("threads", "jams")) {
+            for (identifier in listOf("thread_id", "jam_id")) {
+                val valid = preview.replace("thread_id", identifier)
+                val bodies = listOf(
+                    valid to "t",
+                    valid.replace("\"$identifier\":\"t\",", "") to null,
+                    valid.replace("\"t\"", "null") to null,
+                    preview.replace("\"thread_id\":\"t\"", "\"thread_id\":null,\"jam_id\":\"legacy\"") to null,
+                    preview.replace("\"thread_id\":\"t\"", "\"thread_id\":\"t\",\"jam_id\":\"legacy\"") to "t",
+                )
+                MockWebServer().use { server ->
+                    val api = ThreadTransport(Retrofit.Builder().baseUrl(server.url("/")).build(), moshi).api
+                    for ((body, expected) in bodies) {
+                        if (dialect == "jams") server.enqueue(MockResponse().setResponseCode(404))
+                        server.enqueue(MockResponse().setBody("""{"models":[],"errors":[]}"""))
+                        server.enqueue(MockResponse().setBody(body))
+                        try {
+                            val actual = api.shipPreview("acme", "t").threadId
+                            assertTrue("Malformed identifier accepted: $body", expected != null)
+                            assertEquals(expected, actual)
+                        } catch (_: JsonDataException) {
+                            assertNull("Valid identifier rejected: $body", expected)
+                        }
+                        assertEquals("/api/accounts/acme/threads/models", server.takeRequest().path)
+                        if (dialect == "jams") assertEquals("/api/accounts/acme/jams/models", server.takeRequest().path)
+                        val request = server.takeRequest()
+                        assertEquals("POST", request.method)
+                        assertEquals("/api/accounts/acme/$dialect/t/ship-preview", request.path)
+                    }
+                    assertEquals(bodies.size * if (dialect == "jams") 3 else 2, server.requestCount)
+                }
+            }
+        }
+    }
 
     private fun requestBody(request: Request): String =
         Buffer().also { request.body!!.writeTo(it) }.readUtf8()

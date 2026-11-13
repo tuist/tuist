@@ -24,7 +24,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.35.10
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
@@ -150,9 +150,13 @@ spec:
         # helm rolls the release back on "Progress deadline exceeded". The
         # fifth node is that headroom. Add a node when new workloads pinned
         # here take it, rather than lowering the server's request.
+        # Greptime's distributed backend, replicated WAL and metadata store
+        # need additional capacity while Pulse remains online. Keep server
+        # surge and single-node-failure headroom when sizing this pool; retire
+        # migration capacity only after checking the final workload placement.
         - class: hcloud-worker
           name: md-0
-          replicas: 5
+          replicas: 8
           failureDomain: fsn1
           rollout:
             strategy:

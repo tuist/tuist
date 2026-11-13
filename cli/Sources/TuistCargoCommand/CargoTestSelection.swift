@@ -89,7 +89,7 @@ struct CargoTestQuarantine {
             }
             return module
         }
-        return CargoTestReport(modules: modules, duration: report.duration)
+        return CargoTestReport(modules: modules, duration: report.duration, binaries: report.binaries)
     }
 
     func permitsFailure(_ error: Error, result: CargoTestResult?) -> Bool {
@@ -441,7 +441,8 @@ struct CargoTestSelection {
         }
         let report = complete ? CargoTestReport(
             modules: reports.flatMap(\.modules),
-            duration: reports.reduce(0) { $0 + $1.duration }
+            duration: reports.reduce(0) { $0 + $1.duration },
+            binaries: reports.reduce(into: [:]) { $0.merge($1.binaries) { first, _ in first } }
         ) : nil
         completed(CargoTestResult(
             report: report, buildFinished: buildFinished, finished: Date(), canReportBuildFailure: false,
@@ -605,6 +606,6 @@ extension CargoTestSelection {
         } else {
             modules.append(payload)
         }
-        return CargoTestReport(modules: modules, duration: report.duration)
+        return CargoTestReport(modules: modules, duration: report.duration, binaries: report.binaries)
     }
 }

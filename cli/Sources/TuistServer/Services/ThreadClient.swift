@@ -30,7 +30,14 @@ public struct ThreadPage: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case threads
+        case jams
         case nextCursor = "next_cursor"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        threads = try container.decode([DemoThread].self, forKey: container.contains(.threads) ? .threads : .jams)
+        nextCursor = try container.decodeIfPresent(String.self, forKey: .nextCursor)
     }
 }
 
@@ -81,8 +88,9 @@ public struct ThreadClient {
 
     public init(account: String, serverURL: URL) {
         let session = Self.liveSession
+        let authentication = ServerAuthenticationController()
         self.init(account: account, serverURL: serverURL, session: session, token: {
-            guard let token = try await ServerAuthenticationController().authenticationToken(serverURL: serverURL) else {
+            guard let token = try await authentication.authenticationToken(serverURL: serverURL) else {
                 throw ThreadClientError(httpStatusCode: 401)
             }
             return token.value
@@ -156,8 +164,39 @@ public struct ThreadClient {
     private func request<Response: Decodable>(
         path: [String] = [], method: String = "GET", query: [URLQueryItem] = [], body: [String: Any]? = nil
     ) async throws -> Response {
+        if method == "GET" {
+            do {
+                return try await request(dialect: .threads, path: path, query: query)
+            } catch let error as ThreadClientError where error.httpStatusCode == 404 {
+                return try await request(dialect: .legacy, path: path, query: query)
+            }
+        }
+        // Negotiate with a safe read, never by replaying a potentially completed write.
+        let dialect = try await negotiatedDialect()
+        return try await request(dialect: dialect, path: path, method: method, query: query, body: body)
+    }
+
+    enum Dialect: String {
+        case threads
+        case legacy = "jams"
+    }
+
+    private func negotiatedDialect() async throws -> Dialect {
+        do {
+            let _: ThreadModelCatalog = try await request(dialect: .threads, path: ["models"])
+            return .threads
+        } catch let error as ThreadClientError where error.httpStatusCode == 404 {
+            let _: ThreadModelCatalog = try await request(dialect: .legacy, path: ["models"])
+            return .legacy
+        }
+    }
+
+    private func request<Response: Decodable>(
+        dialect: Dialect, path: [String] = [], method: String = "GET",
+        query: [URLQueryItem] = [], body: [String: Any]? = nil
+    ) async throws -> Response {
         var url = serverURL
-        for component in ["api", "accounts", account, "threads"] + path {
+        for component in ["api", "accounts", account, dialect.rawValue] + path {
             url.appendPathComponent(component)
         }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
@@ -204,10 +243,9 @@ public struct ThreadClient {
     }
 
     private func connection(threadID: String?, invalidate: @escaping () async -> Void) async throws {
-        let request = socketRequest(token: try await token())
+        let (request, topic) = try await socketConfiguration(threadID: threadID)
         let socket = session.webSocketTask(with: request)
         let liveness = ThreadSocketLiveness()
-        let topic = "threads:\(account):\(threadID ?? "inbox")"
         socket.resume()
         defer { socket.cancel(with: .goingAway, reason: nil) }
         try await withTaskCancellationHandler {
@@ -255,9 +293,17 @@ public struct ThreadClient {
         }
     }
 
-    func socketRequest(token: String) -> URLRequest {
+    func socketConfiguration(threadID: String?) async throws -> (URLRequest, String) {
+        let dialect = try await negotiatedDialect()
+        return (
+            socketRequest(token: try await token(), dialect: dialect),
+            "\(dialect.rawValue):\(account):\(threadID ?? "inbox")"
+        )
+    }
+
+    func socketRequest(token: String, dialect: Dialect = .threads) -> URLRequest {
         var components = URLComponents(
-            url: serverURL.appendingPathComponent("threads/socket/websocket"),
+            url: serverURL.appendingPathComponent("\(dialect.rawValue)/socket/websocket"),
             resolvingAgainstBaseURL: false
         )!
         components.scheme = components.scheme == "https" ? "wss" : "ws"

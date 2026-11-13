@@ -1,0 +1,1823 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Format to store in parquet.
+//!
+//! It can store both encoded primary key and raw key columns.
+//!
+//! We store two additional internal columns at last:
+//! - `__primary_key`, the encoded primary key of the row (tags). Type: dictionary(uint32, binary)
+//! - `__sequence`, the sequence number of a row. Type: uint64
+//! - `__op_type`, the op type of the row. Type: uint8
+//!
+//! The format is
+//! ```text
+//! primary key columns, field columns, time index, encoded primary key, __sequence, __op_type.
+//!
+//! It stores field columns in the same order as [RegionMetadata::field_columns()](store_api::metadata::RegionMetadata::field_columns())
+//! and stores primary key columns in the same order as [RegionMetadata::primary_key].
+
+use std::borrow::Borrow;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use api::v1::SemanticType;
+use datatypes::arrow::array::{
+    Array, ArrayRef, BinaryArray, DictionaryArray, UInt32Array, UInt64Array,
+};
+use datatypes::arrow::compute::kernels::take::take;
+use datatypes::arrow::datatypes::{DataType as ArrowDataType, Schema, SchemaRef};
+use datatypes::arrow::record_batch::RecordBatch;
+use datatypes::prelude::{ConcreteDataType, DataType};
+use datatypes::value::ValueRef;
+use datatypes::vectors::MutableVector;
+use mito_codec::row_converter::sparse::{
+    RESERVED_COLUMN_ID_TABLE_ID, RESERVED_COLUMN_ID_TSID, SparsePrimaryKeyView,
+};
+use mito_codec::row_converter::{
+    DensePrimaryKeyCodec, PrimaryKeyCodec, SparseOffsetsCache, build_primary_key_codec,
+};
+use parquet::file::metadata::RowGroupMetaData;
+use snafu::{OptionExt, ResultExt, ensure};
+use store_api::codec::PrimaryKeyEncoding;
+use store_api::metadata::{RegionMetadata, RegionMetadataRef};
+use store_api::storage::{ColumnId, SequenceNumber};
+
+use crate::error::{
+    ComputeArrowSnafu, DecodeSnafu, InvalidParquetSnafu, InvalidRecordBatchSnafu,
+    NewRecordBatchSnafu, Result,
+};
+use crate::read::read_columns::{JsonTargetTypes, ReadColumns};
+use crate::sst::parquet::format::{
+    FIXED_POS_COLUMN_NUM, FormatProjection, INTERNAL_COLUMN_NUM, PrimaryKeyArray,
+    PrimaryKeyReadFormat, StatValues, column_null_counts, column_values,
+};
+use crate::sst::parquet::read_columns::ParquetReadColumns;
+use crate::sst::{
+    FlatSchemaOptions, flat_sst_arrow_schema_column_num, tag_maybe_to_dictionary_field,
+    to_flat_sst_arrow_schema, with_field_id,
+};
+
+/// Helper for writing the SST format.
+pub(crate) struct FlatWriteFormat {
+    /// SST file schema.
+    arrow_schema: SchemaRef,
+    override_sequence: Option<SequenceNumber>,
+}
+
+impl FlatWriteFormat {
+    /// Creates a new helper.
+    pub(crate) fn new(metadata: RegionMetadataRef, options: &FlatSchemaOptions) -> FlatWriteFormat {
+        let arrow_schema = to_flat_sst_arrow_schema(&metadata, options);
+        FlatWriteFormat {
+            arrow_schema,
+            override_sequence: None,
+        }
+    }
+
+    /// Set override sequence.
+    pub(crate) fn with_override_sequence(
+        mut self,
+        override_sequence: Option<SequenceNumber>,
+    ) -> Self {
+        self.override_sequence = override_sequence;
+        self
+    }
+
+    /// Gets the arrow schema to store in parquet.
+    #[cfg(test)]
+    pub(crate) fn arrow_schema(&self) -> &SchemaRef {
+        &self.arrow_schema
+    }
+
+    /// Convert `batch` to a arrow record batch to store in parquet.
+    pub(crate) fn convert_batch(&self, batch: &RecordBatch) -> Result<RecordBatch> {
+        debug_assert_eq!(batch.num_columns(), self.arrow_schema.fields().len());
+
+        let Some(override_sequence) = self.override_sequence else {
+            return Ok(batch.clone());
+        };
+
+        let mut columns = batch.columns().to_vec();
+        let sequence_array = Arc::new(UInt64Array::from(vec![override_sequence; batch.num_rows()]));
+        columns[sequence_column_index(batch.num_columns())] = sequence_array;
+
+        RecordBatch::try_new(batch.schema(), columns).context(NewRecordBatchSnafu)
+    }
+}
+
+/// Returns the position of the sequence column.
+pub(crate) fn sequence_column_index(num_columns: usize) -> usize {
+    num_columns - 2
+}
+
+/// Returns the position of the time index column.
+pub(crate) fn time_index_column_index(num_columns: usize) -> usize {
+    num_columns - 4
+}
+
+/// Returns the position of the primary key column.
+pub(crate) fn primary_key_column_index(num_columns: usize) -> usize {
+    num_columns - 3
+}
+
+/// Wraps the `__primary_key` `BinaryArray` back into a `DictionaryArray<UInt32, Binary>` with identity keys.
+pub(crate) fn wrap_pk_binary_to_dict(
+    record_batch: RecordBatch,
+    dict_schema: &SchemaRef,
+) -> Result<RecordBatch> {
+    let pk_idx = primary_key_column_index(record_batch.num_columns());
+    let pk_column = record_batch.column(pk_idx);
+    let binary_array = pk_column
+        .as_any()
+        .downcast_ref::<BinaryArray>()
+        .with_context(|| InvalidRecordBatchSnafu {
+            reason: format!(
+                "expected BinaryArray for __primary_key, got {:?}",
+                pk_column.data_type()
+            ),
+        })?;
+    let n = binary_array.len();
+    let keys = UInt32Array::from_iter_values(0..n as u32);
+    let dict_array: ArrayRef = Arc::new(DictionaryArray::new(keys, pk_column.clone()));
+
+    let mut columns = record_batch.columns().to_vec();
+    columns[pk_idx] = dict_array;
+
+    RecordBatch::try_new(dict_schema.clone(), columns).context(NewRecordBatchSnafu)
+}
+
+/// Returns the position of the op type key column.
+pub(crate) fn op_type_column_index(num_columns: usize) -> usize {
+    num_columns - 1
+}
+
+/// Returns the start index of field columns in a flat batch.
+///
+/// `num_columns` is the total number of columns in the flat batch schema,
+/// including tag columns (if present), field columns, and fixed position columns
+/// (time index, primary key, sequence, op type).
+///
+/// For Dense encoding (raw PK columns included): field_column_start = primary_key.len()
+/// For Sparse encoding (no raw PK columns): field_column_start = 0
+pub(crate) fn field_column_start(metadata: &RegionMetadata, num_columns: usize) -> usize {
+    // Calculates field column start: total columns - fixed columns - field columns
+    // Field column count = total metadata columns - time index column - primary key columns
+    let field_column_count = metadata.column_metadatas.len() - 1 - metadata.primary_key.len();
+    num_columns - FIXED_POS_COLUMN_NUM - field_column_count
+}
+
+// TODO(yingwen): Add an option to skip reading internal columns if the region is
+// append only and doesn't use sparse encoding (We need to check the table id under
+// sparse encoding).
+/// Helper for reading the flat SST format with projection.
+///
+/// It only supports flat format that stores primary keys additionally.
+pub struct FlatReadFormat {
+    /// Sequence number to override the sequence read from the SST.
+    override_sequence: Option<SequenceNumber>,
+    /// Logical columns requested by this read.
+    read_cols: ReadColumns,
+    /// Parquet format adapter.
+    parquet_adapter: ParquetAdapter,
+    /// Output schema to wrap binary `__primary_key` back to a dictionary; `None` disables wrapping.
+    pk_dict_wrap_schema: Option<SchemaRef>,
+}
+
+impl FlatReadFormat {
+    /// Creates a helper with existing `metadata` and `column_ids` to read.
+    ///
+    /// If `skip_auto_convert` is true, skips auto conversion of format when the encoding is sparse encoding.
+    pub fn new(
+        metadata: RegionMetadataRef,
+        read_cols: ReadColumns,
+        file_schema: Option<SchemaRef>,
+        file_path: &str,
+        skip_auto_convert: bool,
+    ) -> Result<FlatReadFormat> {
+        let num_columns = file_schema.as_ref().map(|x| x.fields().len());
+        let is_legacy = match num_columns {
+            Some(num) => Self::is_legacy_format(&metadata, num, file_path)?,
+            None => metadata.primary_key_encoding == PrimaryKeyEncoding::Sparse,
+        };
+
+        let parquet_adapter = if is_legacy {
+            // Safety: is_legacy_format() ensures primary_key is not empty.
+            if metadata.primary_key_encoding == PrimaryKeyEncoding::Sparse {
+                // Only skip auto convert when the primary key encoding is sparse.
+                ParquetAdapter::PrimaryKeyToFlat(ParquetPrimaryKeyToFlat::new(
+                    metadata,
+                    read_cols.clone(),
+                    skip_auto_convert,
+                ))
+            } else {
+                ParquetAdapter::PrimaryKeyToFlat(ParquetPrimaryKeyToFlat::new(
+                    metadata,
+                    read_cols.clone(),
+                    false,
+                ))
+            }
+        } else {
+            let file_schema = file_schema
+                .unwrap_or_else(|| to_flat_sst_arrow_schema(&metadata, &Default::default()));
+            ParquetAdapter::Flat(ParquetFlat::new(metadata, read_cols.clone(), file_schema))
+        };
+
+        Ok(FlatReadFormat {
+            override_sequence: None,
+            read_cols,
+            parquet_adapter,
+            pk_dict_wrap_schema: None,
+        })
+    }
+
+    /// Sets the sequence number to override.
+    pub(crate) fn set_override_sequence(&mut self, sequence: Option<SequenceNumber>) {
+        self.override_sequence = sequence;
+    }
+
+    /// Enables wrapping binary `__primary_key` batches back to a dictionary in [`Self::convert_batch`].
+    pub(crate) fn set_pk_as_binary(&mut self, output_schema: SchemaRef) {
+        self.pk_dict_wrap_schema = Some(output_schema);
+    }
+
+    /// Index of a column in the projected batch by its column id.
+    pub fn projected_index_by_id(&self, column_id: ColumnId) -> Option<usize> {
+        self.format_projection()
+            .column_id_to_projected_index
+            .get(&column_id)
+            .copied()
+    }
+
+    /// Returns min values of specific column in row groups.
+    pub fn min_values(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+    ) -> StatValues {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => p.min_values(row_groups, column_id),
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.format.min_values(row_groups, column_id),
+        }
+    }
+
+    /// Returns max values of specific column in row groups.
+    pub fn max_values(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+    ) -> StatValues {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => p.max_values(row_groups, column_id),
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.format.max_values(row_groups, column_id),
+        }
+    }
+
+    /// Returns null counts of specific column in row groups.
+    pub fn null_counts(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+    ) -> StatValues {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => p.null_counts(row_groups, column_id),
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.format.null_counts(row_groups, column_id),
+        }
+    }
+
+    /// Gets the arrow schema of the SST file.
+    pub(crate) fn arrow_schema(&self) -> &SchemaRef {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => &p.arrow_schema,
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.format.arrow_schema(),
+        }
+    }
+
+    /// Gets the projected output schema expected by the scan.
+    pub(crate) fn output_arrow_schema(&self) -> Result<SchemaRef> {
+        let projection = self.parquet_read_columns().root_indices();
+        let mut schema = self
+            .arrow_schema()
+            .project(projection)
+            .context(ComputeArrowSnafu)?;
+        let mut fields = schema.fields().iter().cloned().collect::<Vec<_>>();
+        for (column_id, target) in self.json_target_types().iter() {
+            let Some(index) = self.parquet_projected_index_by_id(*column_id) else {
+                continue;
+            };
+            let Some(field) = schema.fields().get(index) else {
+                continue;
+            };
+            let mut field = field.as_ref().clone();
+            field.set_data_type(ConcreteDataType::json2(target.clone()).as_arrow_type());
+            fields[index] = Arc::new(field);
+        }
+        schema.fields = fields.into();
+        Ok(Arc::new(schema))
+    }
+
+    /// Index of a column in the projected schema produced directly by parquet
+    /// reading, before any primary-key-to-flat conversion.
+    pub(crate) fn parquet_projected_index_by_id(&self, column_id: ColumnId) -> Option<usize> {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => p
+                .format_projection
+                .column_id_to_projected_index
+                .get(&column_id)
+                .copied(),
+            // `format_projection` addresses the post-conversion flat batch here.
+            // This helper needs the raw primary-key projection used by parquet reading.
+            ParquetAdapter::PrimaryKeyToFlat(p) => p
+                .format
+                .field_id_to_projected_index()
+                .get(&column_id)
+                .copied(),
+        }
+    }
+
+    /// Gets the metadata of the SST.
+    pub(crate) fn metadata(&self) -> &RegionMetadataRef {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => &p.metadata,
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.format.metadata(),
+        }
+    }
+
+    /// Get the sorted read columns to read from the sst file.
+    pub(crate) fn parquet_read_columns(&self) -> &ParquetReadColumns {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => &p.format_projection.parquet_read_cols,
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.format.parquet_read_columns(),
+        }
+    }
+
+    /// Gets JSON2 read targets.
+    pub(crate) fn json_target_types(&self) -> &JsonTargetTypes {
+        self.read_cols.json_target_types()
+    }
+
+    /// Gets the projection in the flat format.
+    ///
+    /// When `skip_auto_convert` is enabled (primary-key format read), this returns the
+    /// primary-key format projection so filter/prune can resolve projected indices.
+    pub(crate) fn format_projection(&self) -> &FormatProjection {
+        match &self.parquet_adapter {
+            ParquetAdapter::Flat(p) => &p.format_projection,
+            ParquetAdapter::PrimaryKeyToFlat(p) => &p.format_projection,
+        }
+    }
+
+    /// Returns `true` if raw batches from parquet use the flat layout and
+    /// stores primary key columns as raw columns.
+    /// Returns `false` for the legacy primary-key-to-flat conversion path.
+    pub(crate) fn batch_has_raw_pk_columns(&self) -> bool {
+        matches!(&self.parquet_adapter, ParquetAdapter::Flat(_))
+    }
+
+    /// Creates a sequence array to override.
+    pub(crate) fn new_override_sequence_array(&self, length: usize) -> Option<ArrayRef> {
+        self.override_sequence
+            .map(|seq| Arc::new(UInt64Array::from_value(seq, length)) as ArrayRef)
+    }
+
+    /// Convert a record batch to apply flat format conversion and override sequence array.
+    ///
+    /// Returns a new RecordBatch with flat format conversion applied first (if enabled),
+    /// then the sequence column replaced by the override sequence array.
+    pub(crate) fn convert_batch(
+        &self,
+        record_batch: RecordBatch,
+        override_sequence_array: Option<&ArrayRef>,
+    ) -> Result<RecordBatch> {
+        let record_batch = if let Some(dict_schema) = &self.pk_dict_wrap_schema {
+            wrap_pk_binary_to_dict(record_batch, dict_schema)?
+        } else {
+            record_batch
+        };
+
+        // First, apply flat format conversion.
+        let mut batch = match &self.parquet_adapter {
+            ParquetAdapter::Flat(_) => record_batch,
+            ParquetAdapter::PrimaryKeyToFlat(p) => p.convert_batch(record_batch)?,
+        };
+
+        // Normalize nested field names and metadata to the SST's region metadata
+        // before schema compatibility and merging with memtables. This removes
+        // Parquet-added field IDs; equals_datatype also permits nested name differences.
+        for index in 0..batch.num_columns() {
+            let array = batch.column(index);
+            if !matches!(array.data_type(), ArrowDataType::Struct(_)) {
+                continue;
+            }
+            let field = batch.schema_ref().field(index);
+            let Some(column) = self.metadata().column_by_name(field.name()) else {
+                continue;
+            };
+            let target = column.column_schema.data_type.as_arrow_type();
+            if array.data_type() != &target && array.data_type().equals_datatype(&target) {
+                let array =
+                    datatypes::arrow::compute::cast(array, &target).context(ComputeArrowSnafu)?;
+                let mut fields = batch.schema().fields().to_vec();
+                fields[index] = Arc::new(field.clone().with_data_type(target));
+                let mut columns = batch.columns().to_vec();
+                columns[index] = array;
+                batch = RecordBatch::try_new(
+                    Arc::new(Schema::new_with_metadata(
+                        fields,
+                        batch.schema().metadata().clone(),
+                    )),
+                    columns,
+                )
+                .context(NewRecordBatchSnafu)?;
+            }
+        }
+
+        // Then apply sequence override if provided
+        let Some(override_array) = override_sequence_array else {
+            return Ok(batch);
+        };
+
+        let mut columns = batch.columns().to_vec();
+        let sequence_column_idx = sequence_column_index(batch.num_columns());
+
+        // Use the provided override sequence array, slicing if necessary to match batch length
+        let sequence_array = if override_array.len() > batch.num_rows() {
+            override_array.slice(0, batch.num_rows())
+        } else {
+            override_array.clone()
+        };
+
+        columns[sequence_column_idx] = sequence_array;
+
+        RecordBatch::try_new(batch.schema(), columns).context(NewRecordBatchSnafu)
+    }
+
+    /// Checks whether the batch from the parquet file needs to be converted to match the flat format.
+    ///
+    /// * `metadata` is the region metadata (always assumes flat format).
+    /// * `num_columns` is the number of columns in the parquet file.
+    /// * `file_path` is the path to the parquet file, for error message.
+    pub(crate) fn is_legacy_format(
+        metadata: &RegionMetadata,
+        num_columns: usize,
+        file_path: &str,
+    ) -> Result<bool> {
+        if metadata.primary_key.is_empty() {
+            return Ok(false);
+        }
+
+        // For flat format, compute expected column number:
+        // all columns + internal columns (pk, sequence, op_type)
+        let expected_columns = metadata.column_metadatas.len() + INTERNAL_COLUMN_NUM;
+
+        if expected_columns == num_columns {
+            // Same number of columns, no conversion needed
+            Ok(false)
+        } else {
+            ensure!(
+                expected_columns >= num_columns,
+                InvalidParquetSnafu {
+                    file: file_path,
+                    reason: format!(
+                        "Expected columns {} should be >= actual columns {}",
+                        expected_columns, num_columns
+                    )
+                }
+            );
+
+            // Different number of columns, check if the difference matches primary key count
+            let column_diff = expected_columns - num_columns;
+
+            ensure!(
+                column_diff == metadata.primary_key.len(),
+                InvalidParquetSnafu {
+                    file: file_path,
+                    reason: format!(
+                        "Column number difference {} does not match primary key count {}",
+                        column_diff,
+                        metadata.primary_key.len()
+                    )
+                }
+            );
+
+            Ok(true)
+        }
+    }
+}
+
+/// Wraps the parquet helper for different formats.
+enum ParquetAdapter {
+    Flat(ParquetFlat),
+    PrimaryKeyToFlat(ParquetPrimaryKeyToFlat),
+}
+
+/// Helper to reads the parquet from primary key format into the flat format.
+struct ParquetPrimaryKeyToFlat {
+    /// The primary key format to read the parquet.
+    format: PrimaryKeyReadFormat,
+    /// Format converter for handling flat format conversion.
+    convert_format: Option<FlatConvertFormat>,
+    /// Projection computed for the flat format.
+    format_projection: FormatProjection,
+}
+
+impl ParquetPrimaryKeyToFlat {
+    /// Creates a helper with existing `metadata` and `column_ids` to read.
+    fn new(
+        metadata: RegionMetadataRef,
+        read_cols: ReadColumns,
+        skip_auto_convert: bool,
+    ) -> ParquetPrimaryKeyToFlat {
+        assert!(if skip_auto_convert {
+            metadata.primary_key_encoding == PrimaryKeyEncoding::Sparse
+        } else {
+            true
+        });
+
+        // Creates a map to lookup index based on the new format.
+        let id_to_index = sst_column_id_indices(&metadata);
+        let sst_column_num =
+            flat_sst_arrow_schema_column_num(&metadata, &FlatSchemaOptions::default());
+
+        let codec = build_primary_key_codec(&metadata);
+        let format = PrimaryKeyReadFormat::new(metadata.clone(), read_cols.clone());
+        let (convert_format, format_projection) = if skip_auto_convert {
+            (
+                None,
+                FormatProjection {
+                    parquet_read_cols: format.parquet_read_columns().clone(),
+                    column_id_to_projected_index: format.field_id_to_projected_index().clone(),
+                },
+            )
+        } else {
+            // Computes the format projection for the new format.
+            let format_projection = FormatProjection::compute_format_projection(
+                &metadata,
+                &id_to_index,
+                sst_column_num,
+                read_cols.clone(),
+            );
+            (
+                FlatConvertFormat::new(Arc::clone(&metadata), &format_projection, codec),
+                format_projection,
+            )
+        };
+
+        Self {
+            format,
+            convert_format,
+            format_projection,
+        }
+    }
+
+    fn convert_batch(&self, record_batch: RecordBatch) -> Result<RecordBatch> {
+        if let Some(convert_format) = &self.convert_format {
+            convert_format.convert(record_batch)
+        } else {
+            Ok(record_batch)
+        }
+    }
+}
+
+/// Helper to reads the parquet in flat format directly.
+struct ParquetFlat {
+    /// The metadata stored in the SST.
+    metadata: RegionMetadataRef,
+    /// SST file schema.
+    arrow_schema: SchemaRef,
+    /// Projection computed for the flat format.
+    format_projection: FormatProjection,
+    /// Column id to top-level SST index. Shared statistics helpers resolve
+    /// physical leaves from each file's actual Parquet schema.
+    column_id_to_sst_index: HashMap<ColumnId, usize>,
+}
+
+impl ParquetFlat {
+    /// Creates a helper with existing `metadata` and `column_ids` to read.
+    fn new(
+        metadata: RegionMetadataRef,
+        read_cols: ReadColumns,
+        arrow_schema: SchemaRef,
+    ) -> ParquetFlat {
+        // Creates a map to lookup index.
+        let id_to_index = sst_column_id_indices(&metadata);
+        let sst_column_num =
+            flat_sst_arrow_schema_column_num(&metadata, &FlatSchemaOptions::default());
+        let format_projection = FormatProjection::compute_format_projection(
+            &metadata,
+            &id_to_index,
+            sst_column_num,
+            read_cols,
+        );
+
+        Self {
+            metadata,
+            arrow_schema,
+            format_projection,
+            column_id_to_sst_index: id_to_index,
+        }
+    }
+
+    /// Returns min values of specific column in row groups.
+    fn min_values(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+    ) -> StatValues {
+        self.get_stat_values(row_groups, column_id, true)
+    }
+
+    /// Returns max values of specific column in row groups.
+    fn max_values(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+    ) -> StatValues {
+        self.get_stat_values(row_groups, column_id, false)
+    }
+
+    /// Returns null counts of specific column in row groups.
+    fn null_counts(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+    ) -> StatValues {
+        let Some(index) = self.column_id_to_sst_index.get(&column_id) else {
+            // No such column in the SST.
+            return StatValues::NoColumn;
+        };
+        let stats = column_null_counts(row_groups, *index);
+        StatValues::from_stats_opt(stats)
+    }
+
+    fn get_stat_values(
+        &self,
+        row_groups: &[impl Borrow<RowGroupMetaData>],
+        column_id: ColumnId,
+        is_min: bool,
+    ) -> StatValues {
+        let Some(column) = self.metadata.column_by_id(column_id) else {
+            // No such column in the SST.
+            return StatValues::NoColumn;
+        };
+        let Some(index) = self.column_id_to_sst_index.get(&column_id) else {
+            return StatValues::NoStats;
+        };
+
+        let stats = column_values(row_groups, column, *index, is_min);
+        StatValues::from_stats_opt(stats)
+    }
+}
+
+/// Returns a map that the key is the column id and the value is the column position
+/// in the SST.
+/// It only supports SSTs with raw primary key columns.
+pub(crate) fn sst_column_id_indices(metadata: &RegionMetadata) -> HashMap<ColumnId, usize> {
+    let mut id_to_index = HashMap::with_capacity(metadata.column_metadatas.len());
+    let mut column_index = 0;
+    // keys
+    for pk_id in &metadata.primary_key {
+        id_to_index.insert(*pk_id, column_index);
+        column_index += 1;
+    }
+    // fields
+    for column in &metadata.column_metadatas {
+        if column.semantic_type == SemanticType::Field {
+            id_to_index.insert(column.column_id, column_index);
+            column_index += 1;
+        }
+    }
+    // time index
+    id_to_index.insert(metadata.time_index_column().column_id, column_index);
+
+    id_to_index
+}
+
+/// Decodes primary keys from a batch and returns decoded primary key information.
+///
+/// The batch must contain a primary key column at the expected index.
+/// Primary keys stay encoded: tag values are extracted lazily per column
+/// in [`DecodedPrimaryKeys::get_tag_column`] without decoding every label.
+/// The codec must describe the source key's field order and types.
+pub fn decode_primary_keys(
+    codec: &dyn PrimaryKeyCodec,
+    batch: &RecordBatch,
+) -> Result<DecodedPrimaryKeys> {
+    let primary_key_index = primary_key_column_index(batch.num_columns());
+    let pk_dict_array = batch
+        .column(primary_key_index)
+        .as_any()
+        .downcast_ref::<PrimaryKeyArray>()
+        .with_context(|| InvalidRecordBatchSnafu {
+            reason: "Primary key column is not a dictionary array".to_string(),
+        })?;
+    let pk_values_array = pk_dict_array
+        .values()
+        .as_any()
+        .downcast_ref::<BinaryArray>()
+        .with_context(|| InvalidRecordBatchSnafu {
+            reason: "Primary key values are not binary array".to_string(),
+        })?;
+
+    let keys = pk_dict_array.keys();
+
+    // Collects consecutive runs of identical dictionary keys, preserving their
+    // row order. Maps original key index -> new decoded value index.
+    // The parquet reader may read the whole dictionary page into the dictionary
+    // values, so we may decode many primary keys not in this batch if we decode
+    // the values array directly.
+    let pk_indices = keys.values();
+    let mut key_to_decoded_index = Vec::with_capacity(keys.len());
+    let mut distinct_keys: Vec<u32> = Vec::new();
+    let mut prev_key: Option<u32> = None;
+    for &current_key in pk_indices.iter().take(keys.len()) {
+        // Check if current key is the same as previous key
+        if let Some(prev) = prev_key
+            && prev == current_key
+        {
+            // Reuse the last decoded index
+            key_to_decoded_index.push((distinct_keys.len() - 1) as u32);
+            continue;
+        }
+
+        distinct_keys.push(current_key);
+        key_to_decoded_index.push((distinct_keys.len() - 1) as u32);
+        prev_key = Some(current_key);
+    }
+
+    let inner = match codec.encoding() {
+        PrimaryKeyEncoding::Sparse => DecodedKeysInner::Sparse {
+            values: pk_values_array.clone(),
+            distinct_keys,
+        },
+        PrimaryKeyEncoding::Dense => DecodedKeysInner::Dense {
+            codec: codec
+                .as_dense()
+                .context(InvalidRecordBatchSnafu {
+                    reason: "expected dense primary key codec",
+                })?
+                .clone(),
+            offsets: Vec::new(),
+            values: pk_values_array.clone(),
+            distinct_keys,
+        },
+    };
+
+    Ok(DecodedPrimaryKeys {
+        inner,
+        keys_array: UInt32Array::from(key_to_decoded_index),
+        pk_offsets: SparseOffsetsCache::new(),
+        value_buf: Vec::new(),
+    })
+}
+
+/// Encoded primary keys and encoding-specific lookup state.
+enum DecodedKeysInner {
+    /// Dense keys share positional offsets across projected tag columns.
+    Dense {
+        codec: DensePrimaryKeyCodec,
+        values: BinaryArray,
+        distinct_keys: Vec<u32>,
+        /// Initialized by positional access; full extraction needs no offsets.
+        offsets: Vec<Vec<usize>>,
+    },
+    /// Sparse primary keys stay encoded; each tag column extracts only its own
+    /// values from the raw keys.
+    Sparse {
+        /// Dictionary values of the primary key array.
+        values: BinaryArray,
+        /// Dictionary key of each distinct consecutive run, in first-appearance order.
+        distinct_keys: Vec<u32>,
+    },
+}
+
+/// Holds decoded primary key values for unique keys and their indices.
+pub struct DecodedPrimaryKeys {
+    inner: DecodedKeysInner,
+    /// Prebuilt keys array for creating dictionary arrays.
+    keys_array: UInt32Array,
+    /// Scratch offsets shared when extracting sparse tag values.
+    pk_offsets: SparseOffsetsCache,
+    /// Reusable buffer for extracting sparse tag values.
+    value_buf: Vec<u8>,
+}
+
+/// Pushes the value of `column_id` in `pk` into `builder`.
+fn push_sparse_tag_value(
+    pk: &[u8],
+    column_id: ColumnId,
+    builder: &mut dyn MutableVector,
+    pk_offsets: &mut SparseOffsetsCache,
+    value_buf: &mut Vec<u8>,
+) -> Result<()> {
+    let mut view = SparsePrimaryKeyView::new(pk, pk_offsets).context(DecodeSnafu)?;
+    push_sparse_tag_value_in_view(&mut view, column_id, builder, value_buf)
+}
+
+/// Pushes the value of `column_id` into `builder` using an existing view, so
+/// multiple columns of the same key share offset discovery.
+fn push_sparse_tag_value_in_view(
+    view: &mut SparsePrimaryKeyView,
+    column_id: ColumnId,
+    builder: &mut dyn MutableVector,
+    value_buf: &mut Vec<u8>,
+) -> Result<()> {
+    match column_id {
+        RESERVED_COLUMN_ID_TABLE_ID => builder.push_value_ref(&ValueRef::UInt32(view.table_id())),
+        RESERVED_COLUMN_ID_TSID => builder.push_value_ref(&ValueRef::UInt64(view.tsid())),
+        _ => {
+            let value = view.label(column_id, value_buf).context(DecodeSnafu)?;
+            match value {
+                None => builder.push_null(),
+                Some(value) => builder.push_value_ref(&ValueRef::String(value)),
+            }
+        }
+    }
+    Ok(())
+}
+
+impl DecodedPrimaryKeys {
+    /// Gets a tag column array by column id and data type.
+    ///
+    /// For sparse encoding, extracts the column lazily from the encoded keys.
+    /// For dense encoding, uses pk_index to decode only the requested field.
+    pub fn get_tag_column(
+        &mut self,
+        column_id: ColumnId,
+        pk_index: Option<usize>,
+        column_type: &ConcreteDataType,
+    ) -> Result<ArrayRef> {
+        let Self {
+            inner,
+            keys_array,
+            pk_offsets,
+            value_buf,
+        } = self;
+
+        // Gets values from the primary key.
+        let values_vector = match inner {
+            DecodedKeysInner::Dense {
+                codec,
+                values,
+                distinct_keys,
+                offsets,
+            } => {
+                let pk_idx = pk_index.context(InvalidRecordBatchSnafu {
+                    reason: "pk_index required for dense encoding",
+                })?;
+                let mut builder = column_type.create_mutable_vector(distinct_keys.len());
+                if offsets.is_empty() {
+                    *offsets = vec![Vec::new(); distinct_keys.len()];
+                }
+                for (&key, offsets) in distinct_keys.iter().zip(offsets) {
+                    if pk_idx < codec.num_fields() {
+                        let value = codec
+                            .decode_value_at(values.value(key as usize), pk_idx, offsets)
+                            .context(DecodeSnafu)?;
+                        builder.push_value_ref(&value.as_value_ref());
+                    } else {
+                        builder.push_null();
+                    }
+                }
+                builder.to_vector()
+            }
+            DecodedKeysInner::Sparse {
+                values,
+                distinct_keys,
+            } => {
+                let mut builder = column_type.create_mutable_vector(distinct_keys.len());
+                for &key in distinct_keys.iter() {
+                    let pk = values.value(key as usize);
+                    push_sparse_tag_value(pk, column_id, &mut *builder, pk_offsets, value_buf)?;
+                }
+                builder.to_vector()
+            }
+        };
+        let values_array = values_vector.to_arrow_array();
+
+        // Only creates dictionary array for string types, otherwise take values by keys
+        if column_type.is_string() {
+            // Creates dictionary array using the same keys for string types
+            // Note that the dictionary values may have nulls.
+            let dict_array = DictionaryArray::new(keys_array.clone(), values_array);
+            Ok(Arc::new(dict_array))
+        } else {
+            // For non-string types, takes values by keys indices to create a regular array
+            let taken_array = take(&values_array, keys_array, None).context(ComputeArrowSnafu)?;
+            Ok(taken_array)
+        }
+    }
+
+    /// Materializes all Dense tags in source-schema order with one sequential
+    /// traversal per key. Values are consumed immediately by their Arrow builders.
+    pub fn get_dense_tag_columns(&self) -> Result<Vec<ArrayRef>> {
+        let DecodedKeysInner::Dense {
+            codec,
+            values,
+            distinct_keys,
+            ..
+        } = &self.inner
+        else {
+            return InvalidRecordBatchSnafu {
+                reason: "expected dense primary key values",
+            }
+            .fail();
+        };
+        let mut builders: Vec<_> = codec
+            .fields()
+            .iter()
+            .map(|(_, field)| field.data_type().create_mutable_vector(distinct_keys.len()))
+            .collect();
+        let mut value_buf = Vec::new();
+        for &key in distinct_keys {
+            codec
+                .decode_dense_with(values.value(key as usize), &mut value_buf, |pos, value| {
+                    builders[pos].push_value_ref(&value);
+                })
+                .context(DecodeSnafu)?;
+        }
+        codec
+            .fields()
+            .iter()
+            .zip(builders)
+            .map(|((_, field), mut builder)| {
+                let values = builder.to_vector().to_arrow_array();
+                if field.data_type().is_string() {
+                    Ok(Arc::new(DictionaryArray::new(self.keys_array.clone(), values)) as ArrayRef)
+                } else {
+                    take(&values, &self.keys_array, None).context(ComputeArrowSnafu)
+                }
+            })
+            .collect()
+    }
+
+    /// Gets multiple sparse tag column arrays in one pass over the distinct keys,
+    /// sharing each key's offset discovery between the columns.
+    ///
+    /// Must only be called for sparse primary keys. Columns hold their values in
+    /// the order of `columns`, whose entries are tag column ids and data types.
+    pub fn get_sparse_tag_columns(
+        &mut self,
+        columns: &[(ColumnId, ConcreteDataType)],
+    ) -> Result<Vec<ArrayRef>> {
+        let Self {
+            inner,
+            keys_array,
+            pk_offsets,
+            value_buf,
+        } = self;
+        let DecodedKeysInner::Sparse {
+            values,
+            distinct_keys,
+        } = inner
+        else {
+            return InvalidRecordBatchSnafu {
+                reason: "expected sparse primary key values",
+            }
+            .fail();
+        };
+
+        let mut builders: Vec<_> = columns
+            .iter()
+            .map(|(_, column_type)| column_type.create_mutable_vector(distinct_keys.len()))
+            .collect();
+        for &key in distinct_keys.iter() {
+            let pk = values.value(key as usize);
+            let mut view = SparsePrimaryKeyView::new(pk, pk_offsets).context(DecodeSnafu)?;
+            // Visit all columns before moving to the next key so offset
+            // discovery is shared between columns.
+            for ((column_id, _), builder) in columns.iter().zip(&mut builders) {
+                push_sparse_tag_value_in_view(&mut view, *column_id, &mut **builder, value_buf)?;
+            }
+        }
+
+        columns
+            .iter()
+            .zip(builders)
+            .map(|((_, column_type), mut builder)| {
+                let values_array = builder.to_vector().to_arrow_array();
+                if column_type.is_string() {
+                    // Note that the dictionary values may have nulls.
+                    Ok(
+                        Arc::new(DictionaryArray::new(keys_array.clone(), values_array))
+                            as ArrayRef,
+                    )
+                } else {
+                    take(&values_array, keys_array, None)
+                        .context(ComputeArrowSnafu)
+                        .map(|array| array as ArrayRef)
+                }
+            })
+            .collect()
+    }
+}
+
+/// Converts a batch that doesn't have decoded primary key columns into a batch that has decoded
+/// primary key columns in flat format.
+pub(crate) struct FlatConvertFormat {
+    /// Metadata of the region.
+    metadata: RegionMetadataRef,
+    /// Primary key codec to decode primary keys.
+    codec: Arc<dyn PrimaryKeyCodec>,
+    /// Projected primary key column information: (column_id, pk_index, column_index in metadata).
+    projected_primary_keys: Vec<(ColumnId, usize, usize)>,
+}
+
+impl FlatConvertFormat {
+    /// Creates a new `FlatConvertFormat`.
+    ///
+    /// The `format_projection` is the projection computed in the [FlatReadFormat] with the `metadata`.
+    /// The `codec` is the primary key codec of the `metadata`.
+    ///
+    /// Returns `None` if there is no primary key.
+    pub(crate) fn new(
+        metadata: RegionMetadataRef,
+        format_projection: &FormatProjection,
+        codec: Arc<dyn PrimaryKeyCodec>,
+    ) -> Option<Self> {
+        if metadata.primary_key.is_empty() {
+            return None;
+        }
+
+        // Builds projected primary keys list maintaining the order of RegionMetadata::primary_key
+        let mut projected_primary_keys = Vec::new();
+        for (pk_index, &column_id) in metadata.primary_key.iter().enumerate() {
+            if format_projection
+                .column_id_to_projected_index
+                .contains_key(&column_id)
+            {
+                // We expect the format_projection is built from the metadata.
+                let column_index = metadata.column_index_by_id(column_id).unwrap();
+                projected_primary_keys.push((column_id, pk_index, column_index));
+            }
+        }
+
+        Some(Self {
+            metadata,
+            codec,
+            projected_primary_keys,
+        })
+    }
+
+    /// Converts a batch to have decoded primary key columns in flat format.
+    ///
+    /// The primary key array in the batch is a dictionary array.
+    pub(crate) fn convert(&self, batch: RecordBatch) -> Result<RecordBatch> {
+        if self.projected_primary_keys.is_empty() {
+            return Ok(batch);
+        }
+
+        let mut decoded_pks = decode_primary_keys(self.codec.as_ref(), &batch)?;
+
+        // Builds decoded tag column arrays.
+        let mut decoded_columns = Vec::new();
+        if self.codec.encoding() == PrimaryKeyEncoding::Sparse {
+            // Extract all projected tag columns in one pass over the distinct
+            // keys, sharing offset discovery between the columns.
+            let columns: Vec<_> = self
+                .projected_primary_keys
+                .iter()
+                .map(|(column_id, _, column_index)| {
+                    let column_metadata = &self.metadata.column_metadatas[*column_index];
+                    (*column_id, column_metadata.column_schema.data_type.clone())
+                })
+                .collect();
+            decoded_columns.extend(decoded_pks.get_sparse_tag_columns(&columns)?);
+        } else if self.projected_primary_keys.len() == self.metadata.primary_key.len() {
+            decoded_columns.extend(decoded_pks.get_dense_tag_columns()?);
+        } else {
+            for (column_id, pk_index, column_index) in &self.projected_primary_keys {
+                let column_metadata = &self.metadata.column_metadatas[*column_index];
+                let tag_column = decoded_pks.get_tag_column(
+                    *column_id,
+                    Some(*pk_index),
+                    &column_metadata.column_schema.data_type,
+                )?;
+                decoded_columns.push(tag_column);
+            }
+        }
+
+        // Builds new columns: decoded tag columns first, then original columns
+        let mut new_columns = Vec::with_capacity(batch.num_columns() + decoded_columns.len());
+        new_columns.extend(decoded_columns);
+        new_columns.extend_from_slice(batch.columns());
+
+        // Builds new schema
+        let mut new_fields =
+            Vec::with_capacity(batch.schema().fields().len() + self.projected_primary_keys.len());
+        for (column_id, _, column_index) in &self.projected_primary_keys {
+            let column_metadata = &self.metadata.column_metadatas[*column_index];
+            let old_field = &self.metadata.schema.arrow_schema().fields()[*column_index];
+            let field =
+                tag_maybe_to_dictionary_field(&column_metadata.column_schema.data_type, old_field);
+            new_fields.push(Arc::new(with_field_id((*field).clone(), *column_id)));
+        }
+        new_fields.extend(batch.schema().fields().iter().cloned());
+
+        let new_schema = Arc::new(Schema::new(new_fields));
+        RecordBatch::try_new(new_schema, new_columns).context(NewRecordBatchSnafu)
+    }
+}
+
+#[cfg(test)]
+impl FlatReadFormat {
+    /// Creates a helper with existing `metadata` and all columns.
+    pub fn new_with_all_columns(metadata: RegionMetadataRef) -> FlatReadFormat {
+        Self::new(
+            Arc::clone(&metadata),
+            ReadColumns::new(metadata.column_metadatas.iter().map(|c| c.column_id)),
+            None,
+            "test",
+            false,
+        )
+        .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use api::v1::SemanticType;
+    use datatypes::arrow::array::{
+        ArrayRef, BinaryArray, Int64Array, TimestampMillisecondArray, UInt8Array, UInt32Array,
+        UInt64Array,
+    };
+    use datatypes::arrow::datatypes::{DataType as ArrowDataType, Field, TimeUnit};
+    use datatypes::arrow::record_batch::RecordBatch;
+    use datatypes::prelude::ConcreteDataType;
+    use datatypes::schema::ColumnSchema;
+    use datatypes::types::json_type::{JsonNativeType, JsonObjectType};
+    use parquet::arrow::ArrowSchemaConverter;
+    use parquet::basic::{Repetition, Type as PhysicalType};
+    use parquet::file::metadata::{ColumnChunkMetaData, RowGroupMetaData};
+    use parquet::file::statistics::Statistics;
+    use parquet::schema::types::{SchemaDescriptor, Type};
+    use store_api::codec::PrimaryKeyEncoding;
+    use store_api::metadata::{ColumnMetadata, RegionMetadata, RegionMetadataBuilder};
+    use store_api::storage::RegionId;
+    use store_api::storage::consts::{
+        OP_TYPE_COLUMN_NAME, PRIMARY_KEY_COLUMN_NAME, SEQUENCE_COLUMN_NAME,
+    };
+
+    use super::*;
+    use crate::read::read_columns::ReadColumns;
+    use crate::sst::{
+        FlatSchemaOptions, PARQUET_FIELD_ID_KEY, PRIMARY_KEY_PARQUET_FIELD_ID,
+        flat_sst_arrow_schema_column_num, override_pk_field_to_binary, to_flat_sst_arrow_schema,
+    };
+
+    #[test]
+    fn dense_tag_columns_match_eager_decoding() {
+        use datatypes::arrow::datatypes::UInt32Type;
+        use datatypes::value::Value;
+        use datatypes::vectors::Helper;
+        use mito_codec::row_converter::{DensePrimaryKeyCodec, PrimaryKeyCodecExt, SortField};
+
+        let columns = [
+            (17, ConcreteDataType::string_datatype()),
+            (9, ConcreteDataType::int64_datatype()),
+            (2, ConcreteDataType::binary_datatype()),
+        ];
+        let codec = DensePrimaryKeyCodec::with_fields(
+            columns
+                .iter()
+                .map(|(id, ty)| (*id, SortField::new(ty.clone())))
+                .collect(),
+        );
+        let rows = [
+            vec![
+                Value::from("中文\0abcdefgh"),
+                Value::Int64(-42),
+                Value::Binary(vec![0, 1, 255].into()),
+            ],
+            vec![Value::from(""), Value::Null, Value::Binary(vec![].into())],
+            vec![Value::Null, Value::Int64(i64::MAX), Value::Null],
+        ];
+        let mut encoded: Vec<_> = rows
+            .iter()
+            .map(|row| codec.encode(row.iter().map(Value::as_value_ref)).unwrap())
+            .collect();
+        // Unreferenced dictionary entries must not be inspected.
+        encoded.push(vec![255]);
+        let row_keys = [2, 2, 0, 1, 0, 0];
+        let pk = DictionaryArray::<UInt32Type>::new(
+            UInt32Array::from(row_keys.to_vec()),
+            Arc::new(BinaryArray::from_iter_values(&encoded)),
+        );
+        let batch = RecordBatch::try_from_iter([
+            (
+                "ts",
+                Arc::new(TimestampMillisecondArray::from_iter_values(0..6)) as ArrayRef,
+            ),
+            ("__primary_key", Arc::new(pk) as ArrayRef),
+            (
+                "__sequence",
+                Arc::new(UInt64Array::from(vec![1; 6])) as ArrayRef,
+            ),
+            (
+                "__op_type",
+                Arc::new(UInt8Array::from(vec![1; 6])) as ArrayRef,
+            ),
+        ])
+        .unwrap();
+        let mut metadata = RegionMetadataBuilder::new(RegionId::new(1, 1));
+        for (id, ty) in columns.iter().rev() {
+            metadata.push_column_metadata(ColumnMetadata {
+                column_id: *id,
+                column_schema: ColumnSchema::new(format!("tag_{id}"), ty.clone(), true),
+                semantic_type: SemanticType::Tag,
+            });
+        }
+        metadata
+            .push_column_metadata(ColumnMetadata {
+                column_id: 23,
+                column_schema: ColumnSchema::new(
+                    "ts",
+                    ConcreteDataType::timestamp_millisecond_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Timestamp,
+            })
+            .primary_key(vec![17, 9, 2]);
+        let metadata = Arc::new(metadata.build().unwrap());
+        let format = FlatReadFormat::new(
+            metadata.clone(),
+            ReadColumns::new([17, 9, 2, 23]),
+            Some(batch.schema()),
+            "test",
+            false,
+        )
+        .unwrap();
+        for (offset, len) in [(0, 6), (1, 4), (3, 0)] {
+            let mut decoded = decode_primary_keys(&codec, &batch.slice(offset, len)).unwrap();
+            let all = decoded.get_dense_tag_columns().unwrap();
+            let converted = format
+                .convert_batch(batch.slice(offset, len), None)
+                .unwrap();
+            // Out-of-order and repeated projections share the same key offsets.
+            for pos in [2, 0, 1, 0] {
+                let array = decoded
+                    .get_tag_column(columns[pos].0, Some(pos), &columns[pos].1)
+                    .unwrap();
+                assert_eq!(array.to_data(), all[pos].to_data());
+                assert_eq!(converted.column(pos).to_data(), all[pos].to_data());
+                let actual = Helper::try_into_vector(array).unwrap();
+                for (row, &key) in row_keys[offset..offset + len].iter().enumerate() {
+                    let eager = codec
+                        .decode_dense_without_column_id(&encoded[key as usize])
+                        .unwrap();
+                    assert_eq!(actual.get(row), eager[pos]);
+                }
+            }
+            // A position beyond the source schema remains NULL, never decoded
+            // with a newer schema's field order or type.
+            let missing = decoded
+                .get_tag_column(99, Some(3), &ConcreteDataType::int64_datatype())
+                .unwrap();
+            assert_eq!(missing.null_count(), len);
+            assert!(decoded.get_tag_column(17, None, &columns[0].1).is_err());
+        }
+        let mut malformed_columns = batch.columns().to_vec();
+        malformed_columns[1] = Arc::new(DictionaryArray::<UInt32Type>::new(
+            UInt32Array::from(vec![0; 6]),
+            Arc::new(BinaryArray::from(vec![&[0, 1][..]])),
+        ));
+        let malformed = RecordBatch::try_new(batch.schema(), malformed_columns).unwrap();
+        assert!(format.convert_batch(malformed.clone(), None).is_err());
+        // A partial projection must still avoid decoding an unneeded broken suffix.
+        let partial = FlatReadFormat::new(
+            metadata,
+            ReadColumns::new([17, 23]),
+            Some(batch.schema()),
+            "test",
+            false,
+        )
+        .unwrap();
+        let partial = partial.convert_batch(malformed, None).unwrap();
+        let tag = Helper::try_into_vector(partial.column(0).clone()).unwrap();
+        assert!((0..6).all(|row| tag.get(row).is_null()));
+    }
+
+    /// Builds a `RegionMetadata` with the given number of tags and fields.
+    fn build_metadata(
+        num_tags: usize,
+        num_fields: usize,
+        encoding: PrimaryKeyEncoding,
+    ) -> RegionMetadata {
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(0, 0));
+        let mut col_id = 0u32;
+
+        for i in 0..num_tags {
+            builder.push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    format!("tag_{i}"),
+                    ConcreteDataType::string_datatype(),
+                    true,
+                ),
+                semantic_type: SemanticType::Tag,
+                column_id: col_id,
+            });
+            col_id += 1;
+        }
+
+        for i in 0..num_fields {
+            builder.push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    format!("field_{i}"),
+                    ConcreteDataType::uint64_datatype(),
+                    true,
+                ),
+                semantic_type: SemanticType::Field,
+                column_id: col_id,
+            });
+            col_id += 1;
+        }
+
+        builder.push_column_metadata(ColumnMetadata {
+            column_schema: ColumnSchema::new(
+                "ts".to_string(),
+                ConcreteDataType::timestamp_millisecond_datatype(),
+                false,
+            ),
+            semantic_type: SemanticType::Timestamp,
+            column_id: col_id,
+        });
+
+        let primary_key: Vec<u32> = (0..num_tags as u32).collect();
+        builder.primary_key(primary_key);
+        builder.primary_key_encoding(encoding);
+        builder.build().unwrap()
+    }
+
+    /// Builds the metadata of a table with a JSON2 struct field column:
+    /// `[tag_0, field_0, payload, nullable_after_payload, ts]` with primary key `tag_0`.
+    fn metadata_with_struct_field() -> RegionMetadata {
+        let mut builder = RegionMetadataBuilder::new(RegionId::new(0, 0));
+        builder
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "tag_0".to_string(),
+                    ConcreteDataType::string_datatype(),
+                    true,
+                ),
+                semantic_type: SemanticType::Tag,
+                column_id: 0,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "field_0".to_string(),
+                    ConcreteDataType::int64_datatype(),
+                    true,
+                ),
+                semantic_type: SemanticType::Field,
+                column_id: 1,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "payload".to_string(),
+                    ConcreteDataType::json2(JsonNativeType::Object(JsonObjectType::new())),
+                    false,
+                ),
+                semantic_type: SemanticType::Field,
+                column_id: 2,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "nullable_after_payload".to_string(),
+                    ConcreteDataType::int64_datatype(),
+                    true,
+                ),
+                semantic_type: SemanticType::Field,
+                column_id: 4,
+            })
+            .push_column_metadata(ColumnMetadata {
+                column_schema: ColumnSchema::new(
+                    "ts".to_string(),
+                    ConcreteDataType::timestamp_nanosecond_datatype(),
+                    false,
+                ),
+                semantic_type: SemanticType::Timestamp,
+                column_id: 3,
+            });
+        builder.primary_key(vec![0]);
+        builder.primary_key_encoding(PrimaryKeyEncoding::Dense);
+        builder.build().unwrap()
+    }
+
+    /// Builds a file schema and a row group in which the `payload` struct
+    /// column expands to three leaf columns. The `ns_edge` leaf carries small
+    /// Int64 statistics that must not be mistaken for the statistics of `ts`.
+    fn struct_column_file_and_row_group(raw_pk_columns: bool) -> (SchemaRef, RowGroupMetaData) {
+        let mut arrow_fields = vec![
+            Field::new("tag_0", ArrowDataType::Utf8, true),
+            Field::new("field_0", ArrowDataType::Int64, true),
+            Field::new(
+                "payload",
+                ArrowDataType::Struct(
+                    vec![
+                        Field::new("metadata", ArrowDataType::Binary, false),
+                        Field::new("value", ArrowDataType::Binary, false),
+                        Field::new("ns_edge", ArrowDataType::Int64, true),
+                    ]
+                    .into(),
+                ),
+                false,
+            ),
+            Field::new("nullable_after_payload", ArrowDataType::Int64, true),
+            Field::new(
+                "ts",
+                ArrowDataType::Timestamp(TimeUnit::Nanosecond, None),
+                false,
+            ),
+            Field::new(PRIMARY_KEY_COLUMN_NAME, ArrowDataType::Binary, false),
+            Field::new(SEQUENCE_COLUMN_NAME, ArrowDataType::UInt64, false),
+            Field::new(OP_TYPE_COLUMN_NAME, ArrowDataType::UInt8, false),
+        ];
+        if !raw_pk_columns {
+            arrow_fields.remove(0);
+        }
+        let file_schema = Arc::new(Schema::new(arrow_fields));
+
+        let leaf = |name: &str, physical: PhysicalType| {
+            Arc::new(
+                Type::primitive_type_builder(name, physical)
+                    .with_repetition(Repetition::OPTIONAL)
+                    .build()
+                    .unwrap(),
+            )
+        };
+        let payload = Arc::new(
+            Type::group_type_builder("payload")
+                .with_repetition(Repetition::OPTIONAL)
+                .with_fields(vec![
+                    leaf("metadata", PhysicalType::BYTE_ARRAY),
+                    leaf("value", PhysicalType::BYTE_ARRAY),
+                    leaf("ns_edge", PhysicalType::INT64),
+                ])
+                .build()
+                .unwrap(),
+        );
+        let mut parquet_fields = vec![
+            leaf("tag_0", PhysicalType::BYTE_ARRAY),
+            leaf("field_0", PhysicalType::INT64),
+            payload,
+            leaf("nullable_after_payload", PhysicalType::INT64),
+            leaf("ts", PhysicalType::INT64),
+            leaf(PRIMARY_KEY_COLUMN_NAME, PhysicalType::BYTE_ARRAY),
+            leaf(SEQUENCE_COLUMN_NAME, PhysicalType::INT64),
+            leaf(OP_TYPE_COLUMN_NAME, PhysicalType::INT32),
+        ];
+        if !raw_pk_columns {
+            parquet_fields.remove(0);
+        }
+        let schema_descr = Arc::new(SchemaDescriptor::new(Arc::new(
+            Type::group_type_builder("schema")
+                .with_fields(parquet_fields)
+                .build()
+                .unwrap(),
+        )));
+
+        // Omitted raw tags shift all subsequent leaves in primary-key SSTs.
+        let ns_edge_leaf = if raw_pk_columns { 4 } else { 3 };
+        let nullable_leaf = ns_edge_leaf + 1;
+        let ts_leaf = nullable_leaf + 1;
+        let chunks: Vec<_> = (0..schema_descr.num_columns())
+            .map(|i| {
+                let mut builder = ColumnChunkMetaData::builder(schema_descr.column(i));
+                if i == ns_edge_leaf {
+                    // Small values from the JSON payload, not timestamps.
+                    builder = builder.set_statistics(Statistics::int64(
+                        Some(0),
+                        Some(86_400_000_000_000),
+                        None,
+                        Some(65),
+                        true,
+                    ));
+                } else if i == nullable_leaf {
+                    builder = builder.set_statistics(Statistics::int64(
+                        Some(100),
+                        Some(200),
+                        None,
+                        Some(7),
+                        true,
+                    ));
+                } else if i == ts_leaf {
+                    builder = builder.set_statistics(Statistics::int64(
+                        Some(1_788_998_400_000_000_000),
+                        Some(1_789_084_800_000_000_000),
+                        None,
+                        Some(0),
+                        true,
+                    ));
+                }
+                builder.build().unwrap()
+            })
+            .collect();
+        let row_group = RowGroupMetaData::builder(schema_descr)
+            .set_num_rows(69)
+            .set_total_byte_size(0)
+            .set_column_metadata(chunks)
+            .build()
+            .unwrap();
+
+        (file_schema, row_group)
+    }
+
+    /// Regression test: row group statistics must be looked up by parquet leaf
+    /// column index. A struct field column (e.g. JSON2) expands to multiple
+    /// leaf columns, so statistics of columns after it must not be read from
+    /// the struct's leaves. Otherwise min-max pruning can drop a whole row
+    /// group by mistake (e.g. pruning `ts` with the small `ns_edge` stats),
+    /// which caused data loss during SWCS compaction.
+    #[test]
+    fn test_stats_with_struct_field_column() {
+        for (encoding, raw_pk_columns) in [
+            (PrimaryKeyEncoding::Dense, true),
+            (PrimaryKeyEncoding::Dense, false),
+            (PrimaryKeyEncoding::Sparse, false),
+        ] {
+            let mut metadata = metadata_with_struct_field();
+            metadata.primary_key_encoding = encoding;
+            let metadata = Arc::new(metadata);
+            let (file_schema, row_group) = struct_column_file_and_row_group(raw_pk_columns);
+            let read_format = FlatReadFormat::new(
+                metadata,
+                ReadColumns::new([0, 1, 2, 3, 4]),
+                Some(file_schema),
+                "test",
+                false,
+            )
+            .unwrap();
+            let row_groups = [&row_group];
+
+            // Statistics of `ts` come from the `ts` leaf column, not the leaves of
+            // the payload struct.
+            let StatValues::Values(min) = read_format.min_values(&row_groups, 3) else {
+                panic!("expected ts min values")
+            };
+            let min = min.as_any().downcast_ref::<Int64Array>().unwrap();
+            assert_eq!(1_788_998_400_000_000_000, min.value(0));
+            let StatValues::Values(max) = read_format.max_values(&row_groups, 3) else {
+                panic!("expected ts max values")
+            };
+            let max = max.as_any().downcast_ref::<Int64Array>().unwrap();
+            assert_eq!(1_789_084_800_000_000_000, max.value(0));
+
+            let stats = crate::sst::parquet::stats::RowGroupPruningStats::new(
+                &row_groups,
+                &read_format,
+                None,
+                false,
+            );
+            for (start, end, keep) in [
+                (1_788_998_400_000_000_000, 1_789_084_800_000_000_000, true),
+                (1_789_084_800_000_000_001, 1_789_171_200_000_000_000, false),
+            ] {
+                let predicate = table::predicate::Predicate::new(vec![
+                    datafusion_expr::col("ts").gt_eq(datafusion_expr::lit(
+                        datafusion_common::ScalarValue::TimestampNanosecond(Some(start), None),
+                    )),
+                    datafusion_expr::col("ts").lt(datafusion_expr::lit(
+                        datafusion_common::ScalarValue::TimestampNanosecond(Some(end), None),
+                    )),
+                ]);
+                assert_eq!(
+                    vec![keep],
+                    predicate
+                        .prune_with_stats(&stats, read_format.metadata().schema.arrow_schema(),)
+                );
+            }
+
+            // Null counts of `ts` also read the correct leaf column.
+            let StatValues::Values(nulls) = read_format.null_counts(&row_groups, 3) else {
+                panic!("expected ts null counts")
+            };
+            let nulls = nulls.as_any().downcast_ref::<UInt64Array>().unwrap();
+            assert!(nulls.is_valid(0));
+            assert_eq!(0, nulls.value(0));
+
+            // A null slot may contain an underlying zero. Check validity and
+            // a nonzero count to distinguish unknown or wrong-leaf statistics.
+            let StatValues::Values(nulls) = read_format.null_counts(&row_groups, 4) else {
+                panic!("expected nullable field null counts")
+            };
+            let nulls = nulls.as_any().downcast_ref::<UInt64Array>().unwrap();
+            assert!(nulls.is_valid(0));
+            assert_eq!(7, nulls.value(0));
+
+            // A column that expands to multiple leaf columns has no single column
+            // statistics.
+            assert!(matches!(
+                read_format.min_values(&row_groups, 2),
+                StatValues::NoStats
+            ));
+            assert!(matches!(
+                read_format.max_values(&row_groups, 2),
+                StatValues::NoStats
+            ));
+            assert!(matches!(
+                read_format.null_counts(&row_groups, 2),
+                StatValues::NoStats
+            ));
+        }
+    }
+
+    /// Even one leaf cannot supply the null count of a nested parent:
+    /// {"a": null} and [null] are non-null parents with null children.
+    #[test]
+    fn test_single_leaf_nested_columns_have_no_root_stats() {
+        let child = Arc::new(Field::new("a", ArrowDataType::Int64, true));
+        for nested_type in [
+            ArrowDataType::Struct(vec![child.clone()].into()),
+            ArrowDataType::List(child.clone()),
+            ArrowDataType::LargeList(child.clone()),
+            ArrowDataType::FixedSizeList(child, 1),
+        ] {
+            let metadata = Arc::new(metadata_with_struct_field());
+            let (schema, _) = struct_column_file_and_row_group(true);
+            let mut fields = schema.fields().to_vec();
+            fields[2] = Arc::new(Field::new("payload", nested_type.clone(), true));
+            let schema = Arc::new(Schema::new(fields));
+            let descriptor = Arc::new(ArrowSchemaConverter::new().convert(&schema).unwrap());
+            let chunks = descriptor
+                .columns()
+                .iter()
+                .map(|column| {
+                    ColumnChunkMetaData::builder(column.clone())
+                        .build()
+                        .unwrap()
+                })
+                .collect();
+            let row_group = RowGroupMetaData::builder(descriptor)
+                .set_num_rows(1)
+                .set_total_byte_size(0)
+                .set_column_metadata(chunks)
+                .build()
+                .unwrap();
+            let format = ParquetFlat::new(metadata, ReadColumns::new([0, 1, 2, 3]), schema);
+
+            // The nested root has no usable statistics, independently of the
+            // values stored in any row group. Its leaf still occupies a slot.
+            let groups = &[row_group];
+            assert!(
+                matches!(format.min_values(groups, 2), StatValues::NoStats),
+                "{nested_type:?}"
+            );
+            assert!(
+                matches!(format.max_values(groups, 2), StatValues::NoStats),
+                "{nested_type:?}"
+            );
+            assert!(
+                matches!(format.null_counts(groups, 2), StatValues::NoStats),
+                "{nested_type:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_field_column_start() {
+        // (num_tags, num_fields, encoding, expected)
+        let cases = [
+            (1, 1, PrimaryKeyEncoding::Dense, 1),
+            (2, 2, PrimaryKeyEncoding::Dense, 2),
+            (0, 2, PrimaryKeyEncoding::Dense, 0),
+            (2, 2, PrimaryKeyEncoding::Sparse, 0),
+        ];
+
+        for (num_tags, num_fields, encoding, expected) in cases {
+            let metadata = build_metadata(num_tags, num_fields, encoding);
+            let options = FlatSchemaOptions::from_encoding(encoding);
+            let num_columns = flat_sst_arrow_schema_column_num(&metadata, &options);
+            let result = field_column_start(&metadata, num_columns);
+            assert_eq!(
+                result, expected,
+                "num_tags={num_tags}, num_fields={num_fields}, encoding={encoding:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_convert_batch_wraps_binary_pk_to_dict() {
+        use datatypes::arrow::array::{Array, DictionaryArray, StringArray};
+        use datatypes::arrow::datatypes::UInt32Type;
+
+        // build_metadata(1, 1, Dense) projects to:
+        // [tag_0: Dict<UInt32, Utf8>, field_0: UInt64, ts: Timestamp(ms),
+        //  __primary_key: Dict<UInt32, Binary>, __sequence: UInt64, __op_type: UInt8]
+        let metadata = Arc::new(build_metadata(1, 1, PrimaryKeyEncoding::Dense));
+        let column_ids: Vec<u32> = metadata
+            .column_metadatas
+            .iter()
+            .map(|c| c.column_id)
+            .collect();
+        let mut read_format = FlatReadFormat::new(
+            metadata.clone(),
+            ReadColumns::new(column_ids),
+            None,
+            "test",
+            false,
+        )
+        .unwrap();
+        let output_schema = read_format.output_arrow_schema().unwrap();
+        read_format.set_pk_as_binary(output_schema.clone());
+        let binary_schema = override_pk_field_to_binary(&output_schema);
+
+        // The __primary_key field must preserve its field_id metadata after
+        // being converted from dictionary to plain binary.
+        let pk_field = binary_schema
+            .field_with_name(PRIMARY_KEY_COLUMN_NAME)
+            .unwrap();
+        assert_eq!(
+            pk_field.metadata().get(PARQUET_FIELD_ID_KEY),
+            Some(&PRIMARY_KEY_PARQUET_FIELD_ID.to_string()),
+            "__primary_key field must retain its PARQUET:field_id after override_pk_field_to_binary"
+        );
+
+        // Repeat the second pk to verify identity keys (no dedup).
+        let tag_keys = UInt32Array::from(vec![0u32, 1, 1]);
+        let tag_values = Arc::new(StringArray::from(vec!["t0", "t1"]));
+        let tag_array: ArrayRef =
+            Arc::new(DictionaryArray::<UInt32Type>::new(tag_keys, tag_values));
+        let field_array: ArrayRef = Arc::new(UInt64Array::from(vec![10u64, 11, 12]));
+        let ts_array: ArrayRef = Arc::new(TimestampMillisecondArray::from(vec![1i64, 2, 3]));
+        let pk_array: ArrayRef = Arc::new(BinaryArray::from_iter_values(
+            [b"alpha".as_ref(), b"beta", b"beta"].iter().copied(),
+        ));
+        let seq_array: ArrayRef = Arc::new(UInt64Array::from(vec![100u64, 101, 102]));
+        let op_array: ArrayRef = Arc::new(UInt8Array::from(vec![1u8, 1, 1]));
+
+        let batch = RecordBatch::try_new(
+            binary_schema,
+            vec![
+                tag_array,
+                field_array,
+                ts_array,
+                pk_array,
+                seq_array,
+                op_array,
+            ],
+        )
+        .unwrap();
+
+        let wrapped = read_format.convert_batch(batch, None).unwrap();
+        assert_eq!(wrapped.schema(), output_schema);
+
+        let pk_idx = primary_key_column_index(wrapped.num_columns());
+        let pk_col = wrapped.column(pk_idx);
+        assert_eq!(
+            pk_col.data_type(),
+            &ArrowDataType::Dictionary(
+                Box::new(ArrowDataType::UInt32),
+                Box::new(ArrowDataType::Binary)
+            )
+        );
+        let dict = pk_col
+            .as_any()
+            .downcast_ref::<DictionaryArray<UInt32Type>>()
+            .unwrap();
+        assert_eq!(dict.keys().values(), &[0, 1, 2]);
+        let values = dict
+            .values()
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert_eq!(values.value(0), b"alpha");
+        assert_eq!(values.value(1), b"beta");
+        assert_eq!(values.value(2), b"beta");
+    }
+
+    #[test]
+    fn test_output_arrow_schema_uses_projection() {
+        let metadata = Arc::new(build_metadata(1, 2, PrimaryKeyEncoding::Dense));
+        let read_format = FlatReadFormat::new(
+            metadata.clone(),
+            ReadColumns::new([0_u32, 2_u32]),
+            None,
+            "test",
+            false,
+        )
+        .unwrap();
+
+        let output_schema = read_format.output_arrow_schema().unwrap();
+        let projection = read_format.parquet_read_columns().root_indices();
+        let expected = Arc::new(
+            to_flat_sst_arrow_schema(&metadata, &FlatSchemaOptions::default())
+                .project(projection)
+                .unwrap(),
+        );
+
+        assert_eq!(expected, output_schema);
+    }
+}

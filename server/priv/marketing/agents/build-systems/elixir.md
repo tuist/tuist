@@ -20,14 +20,15 @@ Those capabilities run the project. A single compile or test log does not explai
 - **Expose compilation bottlenecks.** [Build insights](/en/docs-markdown/guides/features/build-insights/elixir) reports compilation duration, warnings/errors, per-file timings, and compilation dependencies. Use that evidence to reduce unnecessary compile-time coupling before purchasing more CPU.
 - **Record individual test history.** [Test insights](/en/docs-markdown/guides/features/test-insights/elixir) tracks outcomes and durations at module, describe-block, and test level across runs.
 - **Identify intermittency.** [Flaky-test detection](/en/docs-markdown/guides/features/test-insights/flaky-tests/elixir) compares pass/fail outcomes on the same commit in CI. Optional retries provide evidence within a run; a passing retry is not a repair of the underlying test.
-- **Balance remaining test work.** [Test sharding](/en/docs-markdown/guides/features/test-sharding/elixir) uses recorded file durations, compiles once for a shard plan, shares that build with compatible runners, and aggregates results as one run.
+- **Balance remaining test work.** [Test sharding](/en/docs-markdown/guides/features/test-sharding/elixir) uses historical test timings with execution distributed by file, compiles once for a shard plan, shares that build with compatible runners, and aggregates results as one run.
 
 ## First experiment
 
-Follow the [Elixir getting-started guide](/en/docs-markdown/guides/get-started/elixir-project). On Elixir 1.18+, create a Tuist project with **Mix (Elixir)** as its build system. Add the documented `tuist_ex` dependency, set `tuist: [project: "account/project"]`, and wire the `tuist.compile` and `tuist.test` aliases into the existing configuration. Preserve setup steps in aliases you already have.
+Follow the [Elixir getting-started guide](/en/docs-markdown/guides/get-started/elixir-project). On Elixir 1.18+, create a Tuist project with **Mix (Elixir)** as its build system and add the documented `tuist_ex` dependency. Run the setup task to connect the project, enable dependency caching, and install cold-safe compile/test aliases. Review the generated configuration alongside setup steps in aliases you already have.
 
 ```sh
 mix deps.get
+mix tuist.setup --project account/project
 mix tuist.login
 mix test
 ```

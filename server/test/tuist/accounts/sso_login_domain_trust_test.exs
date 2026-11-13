@@ -45,7 +45,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     for hosted <- [false, true] do
       stub(Environment, :tuist_hosted?, fn -> hosted end)
       assert SSOLoginDomainTrust.trust(organization) == :instance
-      assert Accounts.sso_identity_linking_allowed?(organization, "employee@example.com")
+      assert Accounts.sso_identity_linking_allowed?(organization, "employee@trust-example.com")
       refute Accounts.sso_identity_linking_allowed?(organization, "employee@other.com")
     end
   end
@@ -67,41 +67,41 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
 
     refute updated.sso_login_domain_verified_at
     refute updated.sso_login_domain_last_verified_at
-    assert Accounts.sso_automatic_enrollment_allowed?(updated, "employee@EXAMPLE.com")
-    assert Accounts.sso_identity_linking_allowed?(updated, "employee@example.com")
+    assert Accounts.sso_automatic_enrollment_allowed?(updated, "employee@TRUST-EXAMPLE.com")
+    assert Accounts.sso_identity_linking_allowed?(updated, "employee@trust-example.com")
     refute Accounts.sso_automatic_enrollment_allowed?(updated, "employee@other.com")
     refute Accounts.sso_identity_linking_allowed?(updated, "employee@other.com")
-    assert {:ok, discovered} = Accounts.sso_organization_for_user_email("new@example.com")
+    assert {:ok, discovered} = Accounts.sso_organization_for_user_email("new@trust-example.com")
     assert discovered.id == organization.id
-    assert Accounts.sso_enforced_for_email?("new@example.com")
+    assert Accounts.sso_enforced_for_email?("new@trust-example.com")
   end
 
   test "multiple pending claims are ambiguous, but a later DNS proof wins discovery" do
     first = configured_organization()
-    second = configured_organization(sso_organization_id: "other.okta.com")
+    second = configured_organization(sso_organization_id: "trust-other.okta.com")
 
     verified =
       configured_organization(
-        sso_organization_id: "verified.okta.com",
+        sso_organization_id: "trust-verified.okta.com",
         sso_login_domain_verified_at: DateTime.utc_now()
       )
 
     trust_unverified_domains(true)
     assert {:ok, _} = Accounts.update_sso_configuration(second.id, :okta, %{sso_enforced: true})
-    assert {:ok, discovered} = Accounts.sso_organization_for_user_email("new@example.com")
+    assert {:ok, discovered} = Accounts.sso_organization_for_user_email("new@trust-example.com")
     assert discovered.id == verified.id
-    assert Accounts.sso_identity_linking_allowed?(first, "employee@example.com")
-    assert Accounts.sso_identity_linking_allowed?(second, "employee@example.com")
+    assert Accounts.sso_identity_linking_allowed?(first, "employee@trust-example.com")
+    assert Accounts.sso_identity_linking_allowed?(second, "employee@trust-example.com")
 
     verified |> Changeset.change(sso_login_domain: nil) |> Repo.update!()
-    assert {:error, :login_domain_ambiguous} = Accounts.sso_organization_for_user_email("new@example.com")
-    assert Accounts.sso_enforced_for_email?("new@example.com")
+    assert {:error, :login_domain_ambiguous} = Accounts.sso_organization_for_user_email("new@trust-example.com")
+    assert Accounts.sso_enforced_for_email?("new@trust-example.com")
   end
 
   test "existing membership routing survives ambiguous domain discovery" do
-    user = AccountsFixtures.user_fixture(email: "member@example.com")
+    user = AccountsFixtures.user_fixture(email: "member@trust-example.com")
     first = configured_organization(creator: user)
-    configured_organization(sso_organization_id: "other.okta.com")
+    configured_organization(sso_organization_id: "trust-other.okta.com")
     trust_unverified_domains(true)
     assert {:ok, organization} = Accounts.sso_organization_for_user_email(user.email)
     assert organization.id == first.id
@@ -111,16 +111,16 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     google =
       configured_organization(
         sso_provider: :google,
-        sso_organization_id: "example.com",
+        sso_organization_id: "trust-example.com",
         sso_automatic_enrollment: true,
         sso_login_domain_verified_at: DateTime.utc_now()
       )
 
     custom = configured_organization()
     trust_unverified_domains(true)
-    assert {:ok, discovered} = Accounts.sso_organization_for_user_email("new@example.com")
+    assert {:ok, discovered} = Accounts.sso_organization_for_user_email("new@trust-example.com")
     assert discovered.id == custom.id
-    assert Accounts.sso_automatic_enrollment_allowed?(google, "workspace@example.com")
+    assert Accounts.sso_automatic_enrollment_allowed?(google, "workspace@trust-example.com")
   end
 
   test "instance trust does not add administrator allowlists to context configuration" do
@@ -131,17 +131,17 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     assert {:ok, updated} =
              Accounts.update_sso_configuration(organization.id, :okta, %{
                oauth2_client_secret: "rotated",
-               oauth2_user_info_url: "https://example.okta.com/new-userinfo"
+               oauth2_user_info_url: "https://trust-example.okta.com/new-userinfo"
              })
 
-    assert updated.oauth2_user_info_url == "https://example.okta.com/new-userinfo"
+    assert updated.oauth2_user_info_url == "https://trust-example.okta.com/new-userinfo"
     assert {:ok, updated} = Accounts.update_organization(updated, %{sso_default_role: "viewer"})
     assert updated.sso_default_role == "viewer"
   end
 
   test "requiring DNS removes dynamic access, preserves identities and stored memberships, and allows secret rotation" do
     organization = configured_organization()
-    user = AccountsFixtures.user_fixture(email: "enrolled@example.com")
+    user = AccountsFixtures.user_fixture(email: "enrolled@trust-example.com")
 
     identity =
       AccountsFixtures.oauth2_identity_fixture(
@@ -162,7 +162,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     trust_unverified_domains(false)
     refute Accounts.organization_user?(user, organization)
     refute Accounts.sso_identity_linking_allowed?(organization, user.email)
-    assert {:error, :not_found} = Accounts.sso_organization_for_user_email("new@example.com")
+    assert {:error, :not_found} = Accounts.sso_organization_for_user_email("new@trust-example.com")
     assert Repo.get!(Oauth2Identity, identity.id).user_id == user.id
 
     assert {:ok, rotated} =
@@ -224,8 +224,8 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
       Keyword.merge(
         [
           sso_provider: :okta,
-          sso_organization_id: "example.okta.com",
-          sso_login_domain: "example.com",
+          sso_organization_id: "trust-example.okta.com",
+          sso_login_domain: "trust-example.com",
           sso_login_domain_verification_token: "token",
           oauth2_client_id: "client",
           oauth2_client_secret: "secret"

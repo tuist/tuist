@@ -24,7 +24,9 @@ defmodule Tuist.Mix.Timeline do
     :network_bytes_in,
     :network_bytes_out,
     :disk_bytes_read,
-    :disk_bytes_written
+    :disk_bytes_written,
+    :disk_total_bytes,
+    :disk_available_bytes
   ]
 
   def load(build, opts \\ []) do

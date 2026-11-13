@@ -1,0 +1,1505 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Per-series scan implementation.
+
+use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+use async_stream::try_stream;
+use common_error::ext::BoxedError;
+use common_recordbatch::util::ChainedRecordBatchStream;
+use common_recordbatch::{RecordBatchStreamWrapper, SendableRecordBatchStream};
+use common_telemetry::tracing::{self, Instrument};
+use common_telemetry::warn;
+use datafusion::execution::memory_pool::MemoryPool;
+use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
+use datatypes::arrow::array::BinaryArray;
+use datatypes::arrow::record_batch::RecordBatch;
+use datatypes::schema::SchemaRef;
+use futures::{StreamExt, TryStreamExt};
+use smallvec::SmallVec;
+use snafu::{OptionExt, ResultExt, ensure};
+use store_api::metadata::RegionMetadataRef;
+use store_api::region_engine::{
+    PartitionRange, PrepareRequest, QueryScanContext, RegionScanner, ScannerProperties,
+};
+use tokio::sync::Semaphore;
+use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::mpsc::{self, Receiver, Sender};
+
+use crate::error::{
+    Error, InvalidSenderSnafu, JoinSnafu, PartitionOutOfRangeSnafu, Result, ScanMultiTimesSnafu,
+    ScanSeriesSnafu, TooManyFilesToReadSnafu,
+};
+use crate::metrics::SCAN_MAX_CONCURRENT_FILES;
+use crate::read::ScannerMetrics;
+use crate::read::pruner::{PartitionPruner, Pruner, PrunerOptions};
+use crate::read::scan_region::{ScanInput, StreamContext};
+use crate::read::scan_util::{
+    PartitionMetrics, PartitionMetricsList, SeriesDistributorMetrics, compute_average_batch_size,
+    compute_parallel_channel_size,
+};
+use crate::read::seq_scan::SeqScan;
+use crate::read::series_candidate::{SeriesCandidateScanner, is_sparse_metric_metadata};
+use crate::read::series_reader::{AssignedSeriesBatch, SeriesBatchCollector, SeriesReader};
+use crate::read::stream::{ConvertBatchStream, ScanBatch, ScanBatchStream};
+use crate::sst::parquet::flat_format::primary_key_column_index;
+use crate::sst::parquet::format::PrimaryKeyArray;
+
+/// Maximum number of candidate series retained before distributing assignments.
+const CANDIDATE_SERIES_ASSIGNMENT_THRESHOLD: usize = 1_000_000;
+
+/// Legacy data receivers for output partitions.
+type LegacyReceiverList = Vec<Option<Receiver<Result<SeriesBatch>>>>;
+
+/// Candidate assignment receivers for output partitions.
+type CandidateReceiverList = Vec<Option<CandidateReceiver>>;
+
+/// Candidate assignment senders for output partitions.
+type CandidateSenderList = Vec<Option<mpsc::UnboundedSender<Result<SeriesReaderInput>>>>;
+
+struct CandidateReceiver {
+    receiver: mpsc::UnboundedReceiver<Result<SeriesReaderInput>>,
+    active_receivers: Arc<AtomicUsize>,
+}
+
+impl CandidateReceiver {
+    async fn recv(&mut self) -> Option<Result<SeriesReaderInput>> {
+        self.receiver.recv().await
+    }
+}
+
+impl Drop for CandidateReceiver {
+    fn drop(&mut self) {
+        let previous = self.active_receivers.fetch_sub(1, Ordering::Relaxed);
+        debug_assert!(previous > 0);
+    }
+}
+
+/// Input required by a partition-local series reader.
+struct SeriesReaderInput {
+    assigned_series: AssignedSeriesBatch,
+    partition_pruner: Arc<PartitionPruner>,
+    range_semaphore: Arc<Semaphore>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SeriesScanMode {
+    Legacy,
+    TwoPhase,
+}
+
+impl SeriesScanMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Legacy => "legacy",
+            Self::TwoPhase => "two_phase",
+        }
+    }
+}
+
+/// Scans a region and returns sorted rows of a series in the same partition.
+///
+/// The output order is always order by `(primary key, time index)` inside every
+/// partition.
+/// Always returns the same series (primary key) to the same partition.
+pub struct SeriesScan {
+    /// Implementation used by this scan.
+    mode: SeriesScanMode,
+    /// Properties of the scanner.
+    properties: ScannerProperties,
+    /// Context of streams.
+    stream_ctx: Arc<StreamContext>,
+    /// Shared pruner for file range building.
+    pruner: Arc<Pruner>,
+    /// Legacy data receivers for each partition.
+    legacy_receivers: Mutex<LegacyReceiverList>,
+    /// Candidate assignment receivers for each partition.
+    candidate_receivers: Mutex<CandidateReceiverList>,
+    /// Metrics for each partition.
+    /// The scanner only sets in query and keeps it empty during compaction.
+    metrics_list: Arc<PartitionMetricsList>,
+}
+
+impl SeriesScan {
+    /// Creates a new [SeriesScan].
+    pub(crate) fn new(input: ScanInput, experimental_series_scan_v2: bool) -> Self {
+        let mode = if experimental_series_scan_v2 && Self::supports_two_phase(&input) {
+            SeriesScanMode::TwoPhase
+        } else {
+            SeriesScanMode::Legacy
+        };
+        let mut properties = ScannerProperties::default()
+            .with_append_mode(input.append_mode)
+            .with_total_rows(input.total_rows())
+            .with_total_rows_is_exact(input.append_mode && input.total_rows_is_exact());
+        if let Some(counters) = input.query_stat_counters.clone() {
+            properties.set_query_stat_counters(counters);
+        }
+        let stream_ctx = Arc::new(StreamContext::seq_scan_ctx(input));
+        properties.partitions = vec![stream_ctx.partition_ranges()];
+
+        // Create the shared pruner with number of workers equal to CPU cores.
+        let num_workers = common_stat::get_total_cpu_cores().max(1);
+        let pruner = match mode {
+            SeriesScanMode::Legacy => Arc::new(Pruner::new(stream_ctx.clone(), num_workers)),
+            SeriesScanMode::TwoPhase => Arc::new(Pruner::new_with_options(
+                stream_ctx.clone(),
+                num_workers,
+                PrunerOptions {
+                    retain_builders: true,
+                    enable_predicate_prefilter: false,
+                },
+            )),
+        };
+
+        Self {
+            mode,
+            properties,
+            stream_ctx,
+            pruner,
+            legacy_receivers: Mutex::new(Vec::new()),
+            candidate_receivers: Mutex::new(Vec::new()),
+            metrics_list: Arc::new(PartitionMetricsList::default()),
+        }
+    }
+
+    fn supports_two_phase(input: &ScanInput) -> bool {
+        if !is_sparse_metric_metadata(input.region_metadata()) {
+            return false;
+        }
+        #[cfg(feature = "enterprise")]
+        if !input.extension_ranges().is_empty() {
+            return false;
+        }
+        true
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            region_id = %self.stream_ctx.input.mapper.metadata().region_id,
+            partition = partition
+        )
+    )]
+    fn scan_partition_impl(
+        &self,
+        ctx: &QueryScanContext,
+        metrics_set: &ExecutionPlanMetricsSet,
+        partition: usize,
+    ) -> Result<SendableRecordBatchStream> {
+        let metrics = new_partition_metrics(
+            &self.stream_ctx,
+            ctx.explain_verbose,
+            metrics_set,
+            partition,
+            &self.metrics_list,
+        );
+
+        let batch_stream =
+            self.scan_batch_in_partition(ctx, partition, metrics.clone(), metrics_set)?;
+
+        let input = &self.stream_ctx.input;
+        let record_batch_stream = ConvertBatchStream::new(
+            batch_stream,
+            input.mapper.clone(),
+            input.cache_strategy.clone(),
+            metrics,
+        );
+
+        Ok(Box::pin(RecordBatchStreamWrapper::new(
+            input.mapper.output_schema(),
+            Box::pin(record_batch_stream),
+        )))
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            region_id = %self.stream_ctx.input.mapper.metadata().region_id,
+            partition = partition
+        )
+    )]
+    fn scan_batch_in_partition(
+        &self,
+        ctx: &QueryScanContext,
+        partition: usize,
+        part_metrics: PartitionMetrics,
+        metrics_set: &ExecutionPlanMetricsSet,
+    ) -> Result<ScanBatchStream> {
+        if ctx.explain_verbose {
+            common_telemetry::info!(
+                "SeriesScan partition {}, region_id: {}",
+                partition,
+                self.stream_ctx.input.region_metadata().region_id
+            );
+        }
+
+        ensure!(
+            partition < self.properties.num_partitions(),
+            PartitionOutOfRangeSnafu {
+                given: partition,
+                all: self.properties.num_partitions(),
+            }
+        );
+
+        match self.mode {
+            SeriesScanMode::Legacy => self.scan_legacy_batch_in_partition(
+                partition,
+                part_metrics,
+                metrics_set,
+                ctx.explain_verbose,
+            ),
+            SeriesScanMode::TwoPhase => {
+                self.scan_two_phase_batch_in_partition(ctx, partition, part_metrics, metrics_set)
+            }
+        }
+    }
+
+    fn scan_legacy_batch_in_partition(
+        &self,
+        partition: usize,
+        part_metrics: PartitionMetrics,
+        metrics_set: &ExecutionPlanMetricsSet,
+        explain_verbose: bool,
+    ) -> Result<ScanBatchStream> {
+        self.maybe_start_legacy_distributor(metrics_set, explain_verbose);
+        let mut receiver = self.legacy_receivers.lock().unwrap()[partition]
+            .take()
+            .context(ScanMultiTimesSnafu { partition })?;
+        let stream = try_stream! {
+            part_metrics.on_first_poll();
+
+            let mut fetch_start = Instant::now();
+            let mut metrics = ScannerMetrics::default();
+            while let Some(series) = receiver.recv().await {
+                let series = series?;
+                metrics.scan_cost += fetch_start.elapsed();
+                metrics.num_batches += series.num_batches();
+                metrics.num_rows += series.num_rows();
+
+                let yield_start = Instant::now();
+                yield ScanBatch::Series(series);
+                metrics.yield_cost += yield_start.elapsed();
+                fetch_start = Instant::now();
+            }
+
+            part_metrics.merge_metrics(&metrics);
+            part_metrics.on_finish();
+        };
+        Ok(Box::pin(stream))
+    }
+
+    fn scan_two_phase_batch_in_partition(
+        &self,
+        ctx: &QueryScanContext,
+        partition: usize,
+        part_metrics: PartitionMetrics,
+        metrics_set: &ExecutionPlanMetricsSet,
+    ) -> Result<ScanBatchStream> {
+        self.maybe_start_candidate_distributor(ctx, metrics_set);
+        // Safety: `scan_batch_in_partition` validates the index, and the receiver
+        // list always contains one entry for each output partition.
+        let mut receiver = self.candidate_receivers.lock().unwrap()[partition]
+            .take()
+            .context(ScanMultiTimesSnafu { partition })?;
+        let stream_ctx = self.stream_ctx.clone();
+        let partition_ranges = self
+            .properties
+            .partitions
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>();
+        let stream = try_stream! {
+            part_metrics.on_first_poll();
+
+            let mut fetch_start = Instant::now();
+            let mut metrics = ScannerMetrics::default();
+            while let Some(input) = receiver.recv().await {
+                let input = input?;
+                metrics.scan_cost += fetch_start.elapsed();
+
+                let build_start = Instant::now();
+                let reader = SeriesReader::try_new(
+                    stream_ctx.clone(),
+                    partition_ranges.clone(),
+                    input.assigned_series,
+                    input.partition_pruner,
+                    input.range_semaphore,
+                    part_metrics.clone(),
+                )?;
+                let mut reader_stream = reader.build_stream().await?;
+                metrics.scan_cost += build_start.elapsed();
+                fetch_start = Instant::now();
+                while let Some(record_batch) = reader_stream.try_next().await? {
+                    metrics.scan_cost += fetch_start.elapsed();
+                    metrics.num_batches += 1;
+                    metrics.num_rows += record_batch.num_rows();
+
+                    let yield_start = Instant::now();
+                    yield ScanBatch::RecordBatch(record_batch);
+                    metrics.yield_cost += yield_start.elapsed();
+                    fetch_start = Instant::now();
+                }
+            }
+            metrics.scan_cost += fetch_start.elapsed();
+
+            part_metrics.merge_metrics(&metrics);
+            part_metrics.on_finish();
+        };
+        Ok(Box::pin(stream))
+    }
+
+    fn maybe_start_legacy_distributor(
+        &self,
+        metrics_set: &ExecutionPlanMetricsSet,
+        explain_verbose: bool,
+    ) {
+        let mut rx_list = self.legacy_receivers.lock().unwrap();
+        if !rx_list.is_empty() {
+            return;
+        }
+
+        let (senders, receivers) = new_legacy_channel_list(self.properties.num_partitions());
+        let mut distributor = SeriesDistributor {
+            stream_ctx: self.stream_ctx.clone(),
+            range_semaphore: Some(Arc::new(Semaphore::new(self.properties.num_partitions()))),
+            final_merge_semaphore: Some(Arc::new(Semaphore::new(self.properties.num_partitions()))),
+            partitions: self.properties.partitions.clone(),
+            pruner: self.pruner.clone(),
+            senders,
+            metrics_set: metrics_set.clone(),
+            metrics_list: self.metrics_list.clone(),
+            explain_verbose,
+        };
+        let region_id = distributor.stream_ctx.input.mapper.metadata().region_id;
+        let span = tracing::info_span!("SeriesScan::distributor", region_id = %region_id);
+        common_runtime::spawn_query(
+            async move {
+                distributor.execute().await;
+            }
+            .instrument(span),
+        );
+
+        *rx_list = receivers;
+    }
+
+    fn maybe_start_candidate_distributor(
+        &self,
+        ctx: &QueryScanContext,
+        metrics_set: &ExecutionPlanMetricsSet,
+    ) {
+        let mut rx_list = self.candidate_receivers.lock().unwrap();
+        if !rx_list.is_empty() {
+            return;
+        }
+
+        let (senders, receivers, active_receivers) =
+            new_candidate_channel_list(self.properties.num_partitions());
+        // Capture the first partition's runtime pool once for the shared distributor.
+        // reset_state clears the receivers so the next execution captures a fresh pool.
+        let mut distributor = SeriesCandidateDistributor {
+            memory_pool: ctx.memory_pool.clone(),
+            stream_ctx: self.stream_ctx.clone(),
+            range_semaphore: Arc::new(Semaphore::new(self.properties.num_partitions())),
+            partitions: self.properties.partitions.clone(),
+            pruner: self.pruner.clone(),
+            senders,
+            active_receivers,
+            metrics_set: metrics_set.clone(),
+            metrics_list: self.metrics_list.clone(),
+            explain_verbose: ctx.explain_verbose,
+        };
+        let region_id = distributor.stream_ctx.input.mapper.metadata().region_id;
+        let span = tracing::info_span!("SeriesScan::candidate_distributor", region_id = %region_id);
+        common_runtime::spawn_query(
+            async move {
+                distributor.execute().await;
+            }
+            .instrument(span),
+        );
+
+        *rx_list = receivers;
+    }
+
+    /// Scans the region and returns a stream.
+    #[tracing::instrument(
+        skip_all,
+        fields(region_id = %self.stream_ctx.input.mapper.metadata().region_id)
+    )]
+    pub(crate) async fn build_stream(&self) -> Result<SendableRecordBatchStream, BoxedError> {
+        let part_num = self.properties.num_partitions();
+        let metrics_set = ExecutionPlanMetricsSet::default();
+        let ctx = QueryScanContext::default();
+        let streams = (0..part_num)
+            .map(|i| self.scan_partition(&ctx, &metrics_set, i))
+            .collect::<Result<Vec<_>, BoxedError>>()?;
+        let chained_stream = ChainedRecordBatchStream::new(streams).map_err(BoxedError::new)?;
+        Ok(Box::pin(chained_stream))
+    }
+
+    /// Scan [`Batch`] in all partitions one by one.
+    pub(crate) fn scan_all_partitions(&self) -> Result<ScanBatchStream> {
+        let metrics_set = ExecutionPlanMetricsSet::new();
+
+        let ctx = QueryScanContext::default();
+        let streams = (0..self.properties.partitions.len())
+            .map(|partition| {
+                let metrics = new_partition_metrics(
+                    &self.stream_ctx,
+                    false,
+                    &metrics_set,
+                    partition,
+                    &self.metrics_list,
+                );
+
+                self.scan_batch_in_partition(&ctx, partition, metrics, &metrics_set)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Box::pin(futures::stream::iter(streams).flatten()))
+    }
+
+    /// Checks resource limit for the scanner.
+    pub(crate) fn check_scan_limit(&self) -> Result<()> {
+        // Sum the total number of files across all partitions
+        let total_files: usize = self
+            .properties
+            .partitions
+            .iter()
+            .flat_map(|partition| partition.iter())
+            .map(|part_range| {
+                let range_meta = &self.stream_ctx.ranges[part_range.identifier];
+                range_meta.indices.len()
+            })
+            .sum();
+
+        if !self.stream_ctx.input.compaction {
+            SCAN_MAX_CONCURRENT_FILES
+                .with_label_values(&["query"])
+                .observe(total_files as f64);
+        }
+        if self.stream_ctx.input.uses_scan_memory_limit() {
+            return Ok(());
+        }
+
+        let max_concurrent_files = self.stream_ctx.input.max_concurrent_scan_files;
+        if total_files > max_concurrent_files {
+            return TooManyFilesToReadSnafu {
+                actual: total_files,
+                max: max_concurrent_files,
+            }
+            .fail();
+        }
+
+        Ok(())
+    }
+}
+
+fn new_legacy_channel_list(num_partitions: usize) -> (SenderList, LegacyReceiverList) {
+    let (senders, receivers): (Vec<_>, Vec<_>) = (0..num_partitions)
+        .map(|_| {
+            let (sender, receiver) = mpsc::channel(1);
+            (Some(sender), Some(receiver))
+        })
+        .unzip();
+    (SenderList::new(senders), receivers)
+}
+
+fn new_candidate_channel_list(
+    num_partitions: usize,
+) -> (CandidateSenderList, CandidateReceiverList, Arc<AtomicUsize>) {
+    let active_receivers = Arc::new(AtomicUsize::new(num_partitions));
+    let (senders, receivers) = (0..num_partitions)
+        .map(|_| {
+            // Partition streams can be consumed sequentially. A bounded channel for an unpolled
+            // partition could block the distributor and prevent it from sending more assignments
+            // to the partition currently being consumed, causing a deadlock.
+            let (sender, receiver) = mpsc::unbounded_channel();
+            let receiver = CandidateReceiver {
+                receiver,
+                active_receivers: active_receivers.clone(),
+            };
+            (Some(sender), Some(receiver))
+        })
+        .unzip();
+    (senders, receivers, active_receivers)
+}
+
+impl RegionScanner for SeriesScan {
+    fn name(&self) -> &str {
+        "SeriesScan"
+    }
+
+    fn properties(&self) -> &ScannerProperties {
+        &self.properties
+    }
+
+    fn schema(&self) -> SchemaRef {
+        self.stream_ctx.input.mapper.output_schema()
+    }
+
+    fn metadata(&self) -> RegionMetadataRef {
+        self.stream_ctx.input.mapper.metadata().clone()
+    }
+
+    fn scan_partition(
+        &self,
+        ctx: &QueryScanContext,
+        metrics_set: &ExecutionPlanMetricsSet,
+        partition: usize,
+    ) -> Result<SendableRecordBatchStream, BoxedError> {
+        self.scan_partition_impl(ctx, metrics_set, partition)
+            .map_err(BoxedError::new)
+    }
+
+    fn prepare(&mut self, request: PrepareRequest) -> Result<(), BoxedError> {
+        self.properties.prepare(request);
+
+        self.check_scan_limit().map_err(BoxedError::new)?;
+
+        Ok(())
+    }
+
+    fn has_predicate_without_region(&self) -> bool {
+        let predicate = self
+            .stream_ctx
+            .input
+            .predicate_group()
+            .predicate_without_region();
+        predicate.is_some()
+    }
+
+    fn add_dyn_filter_to_predicate(
+        &mut self,
+        filter_exprs: Vec<Arc<dyn datafusion::physical_plan::PhysicalExpr>>,
+    ) -> Vec<bool> {
+        self.stream_ctx.add_dyn_filter_to_predicate(filter_exprs)
+    }
+
+    fn reset_state(&mut self) {
+        self.stream_ctx.input.predicate.clear_dyn_filters();
+        let num_workers = common_stat::get_total_cpu_cores().max(1);
+        self.pruner = match self.mode {
+            SeriesScanMode::Legacy => Arc::new(Pruner::new(self.stream_ctx.clone(), num_workers)),
+            SeriesScanMode::TwoPhase => Arc::new(Pruner::new_with_options(
+                self.stream_ctx.clone(),
+                num_workers,
+                PrunerOptions {
+                    retain_builders: true,
+                    enable_predicate_prefilter: false,
+                },
+            )),
+        };
+        self.legacy_receivers.lock().unwrap().clear();
+        self.candidate_receivers.lock().unwrap().clear();
+        self.metrics_list = Arc::new(PartitionMetricsList::default());
+    }
+
+    fn set_logical_region(&mut self, logical_region: bool) {
+        self.properties.set_logical_region(logical_region);
+    }
+
+    fn set_query_load_region_id(&mut self, region_id: store_api::storage::RegionId) {
+        self.properties.set_query_load_region_id(region_id);
+    }
+
+    fn snapshot_sequence(&self) -> Option<u64> {
+        self.stream_ctx.input.snapshot_sequence
+    }
+}
+
+impl DisplayAs for SeriesScan {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "SeriesScan: region={}, ",
+            self.stream_ctx.input.mapper.metadata().region_id
+        )?;
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::TreeRender => {
+                self.stream_ctx.format_for_explain(false, f)?;
+            }
+            DisplayFormatType::Verbose => {
+                self.stream_ctx.format_for_explain(true, f)?;
+            }
+        }
+        write!(f, ", \"mode\":\"{}\"", self.mode.as_str())?;
+        if matches!(t, DisplayFormatType::Verbose) {
+            self.metrics_list.format_verbose_metrics(f)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for SeriesScan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SeriesScan")
+            .field("mode", &self.mode)
+            .field("num_ranges", &self.stream_ctx.ranges.len())
+            .finish()
+    }
+}
+
+#[cfg(test)]
+impl SeriesScan {
+    /// Returns the input.
+    pub(crate) fn input(&self) -> &ScanInput {
+        &self.stream_ctx.input
+    }
+
+    /// Returns the scan mode for tests.
+    pub(crate) fn mode(&self) -> &'static str {
+        self.mode.as_str()
+    }
+}
+
+/// The distributor scans series and distributes them to different partitions.
+struct SeriesDistributor {
+    /// Context for the scan stream.
+    stream_ctx: Arc<StreamContext>,
+    /// Semaphore for file scanning and range-level merging.
+    range_semaphore: Option<Arc<Semaphore>>,
+    /// Semaphore for the final merge across all range streams.
+    /// Must be separate from `range_semaphore` to avoid deadlock: final merge tasks
+    /// hold a permit while waiting for data from range-level merge tasks, which also
+    /// need permits to produce data.
+    final_merge_semaphore: Option<Arc<Semaphore>>,
+    /// Partition ranges to scan.
+    partitions: Vec<Vec<PartitionRange>>,
+    /// Shared pruner for file range building.
+    pruner: Arc<Pruner>,
+    /// Senders of all partitions.
+    senders: SenderList,
+    /// Metrics set to report.
+    /// The distributor report the metrics as an additional partition.
+    /// This may double the scan cost of the [SeriesScan] metrics. We can
+    /// get per-partition metrics in verbose mode to see the metrics of the
+    /// distributor.
+    metrics_set: ExecutionPlanMetricsSet,
+    metrics_list: Arc<PartitionMetricsList>,
+    /// Whether to use verbose logging and collect detailed metrics.
+    explain_verbose: bool,
+}
+
+impl SeriesDistributor {
+    /// Executes the distributor.
+    #[tracing::instrument(
+        skip_all,
+        fields(region_id = %self.stream_ctx.input.mapper.metadata().region_id)
+    )]
+    async fn execute(&mut self) {
+        if let Err(e) = self.scan_partitions_flat().await {
+            self.senders.send_error(e).await;
+        }
+    }
+
+    /// Scans all parts in flat format using FlatSeriesBatchDivider.
+    #[tracing::instrument(
+        skip_all,
+        fields(region_id = %self.stream_ctx.input.mapper.metadata().region_id)
+    )]
+    async fn scan_partitions_flat(&mut self) -> Result<()> {
+        // Initialize reference counts for all partition ranges.
+        for partition_ranges in &self.partitions {
+            self.pruner.add_partition_ranges(partition_ranges);
+        }
+
+        // Create PartitionPruner covering all partitions
+        let all_partition_ranges: Vec<_> = self.partitions.iter().flatten().cloned().collect();
+        let partition_pruner = Arc::new(PartitionPruner::new(
+            self.pruner.clone(),
+            &all_partition_ranges,
+        ));
+
+        let part_metrics = new_partition_metrics(
+            &self.stream_ctx,
+            self.explain_verbose,
+            &self.metrics_set,
+            self.partitions.len(),
+            &self.metrics_list,
+        );
+        part_metrics.on_first_poll();
+        // Start fetch time before building sources so scan cost contains
+        // build part cost.
+        let mut fetch_start = Instant::now();
+
+        // Builds one deduped stream per partition range, then merges across ranges.
+        let build_start = Instant::now();
+        let mut tasks = Vec::new();
+        for partition in &self.partitions {
+            for part_range in partition {
+                let stream_ctx = self.stream_ctx.clone();
+                let part_range = *part_range;
+                let part_metrics = part_metrics.clone();
+                let partition_pruner = partition_pruner.clone();
+                let file_scan_semaphore = self.range_semaphore.clone();
+                let merge_semaphore = self.range_semaphore.clone();
+                tasks.push(common_runtime::spawn_query(async move {
+                    SeqScan::build_flat_partition_range_read(
+                        &stream_ctx,
+                        &part_range,
+                        false,
+                        &part_metrics,
+                        partition_pruner,
+                        file_scan_semaphore,
+                        merge_semaphore,
+                    )
+                    .await
+                }));
+            }
+        }
+        let mut range_streams = Vec::with_capacity(tasks.len());
+        let mut estimated_batch_sizes = Vec::with_capacity(tasks.len());
+        for task in tasks {
+            let (stream, estimated_batch_size) = task.await.context(JoinSnafu)??;
+            range_streams.push(stream);
+            estimated_batch_sizes.push(estimated_batch_size);
+        }
+        let channel_size =
+            compute_parallel_channel_size(compute_average_batch_size(estimated_batch_sizes));
+        common_telemetry::debug!(
+            "SeriesDistributor built {} range_streams, region: {}, build cost: {:?}, channel_size: {}",
+            range_streams.len(),
+            self.stream_ctx.input.region_metadata().region_id,
+            build_start.elapsed(),
+            channel_size,
+        );
+
+        // Each partition range stream is already deduped, so skip dedup here.
+        // Use a separate semaphore for the final merge to avoid deadlock with
+        // range-level merge tasks that share the range_semaphore.
+        let mut reader = SeqScan::build_flat_reader_from_sources(
+            &self.stream_ctx,
+            range_streams,
+            self.final_merge_semaphore.clone(),
+            Some(&part_metrics),
+            true,
+            channel_size,
+        )
+        .await?;
+        let mut metrics = SeriesDistributorMetrics::default();
+
+        let mut divider = FlatSeriesBatchDivider::default();
+        while let Some(record_batch) = reader.try_next().await? {
+            metrics.scan_cost += fetch_start.elapsed();
+            metrics.num_batches += 1;
+            metrics.num_rows += record_batch.num_rows();
+
+            debug_assert!(record_batch.num_rows() > 0);
+            if record_batch.num_rows() == 0 {
+                fetch_start = Instant::now();
+                continue;
+            }
+
+            // Use divider to split series
+            let divider_start = Instant::now();
+            let series_batch = divider.push(record_batch);
+            metrics.divider_cost += divider_start.elapsed();
+            if let Some(series_batch) = series_batch {
+                let yield_start = Instant::now();
+                self.senders
+                    .send_batch(SeriesBatch::Flat(series_batch))
+                    .await?;
+                metrics.yield_cost += yield_start.elapsed();
+            }
+            fetch_start = Instant::now();
+        }
+
+        // Send any remaining batch in the divider
+        let divider_start = Instant::now();
+        let series_batch = divider.finish();
+        metrics.divider_cost += divider_start.elapsed();
+        if let Some(series_batch) = series_batch {
+            let yield_start = Instant::now();
+            self.senders
+                .send_batch(SeriesBatch::Flat(series_batch))
+                .await?;
+            metrics.yield_cost += yield_start.elapsed();
+        }
+
+        metrics.scan_cost += fetch_start.elapsed();
+        metrics.num_series_send_full = self.senders.num_full;
+        part_metrics.set_distributor_metrics(&metrics);
+
+        part_metrics.on_finish();
+
+        Ok(())
+    }
+}
+
+/// Discovers metric series and sends one reader assignment to each partition.
+struct SeriesCandidateDistributor {
+    memory_pool: Arc<dyn MemoryPool>,
+    stream_ctx: Arc<StreamContext>,
+    range_semaphore: Arc<Semaphore>,
+    partitions: Vec<Vec<PartitionRange>>,
+    pruner: Arc<Pruner>,
+    senders: CandidateSenderList,
+    active_receivers: Arc<AtomicUsize>,
+    metrics_set: ExecutionPlanMetricsSet,
+    metrics_list: Arc<PartitionMetricsList>,
+    explain_verbose: bool,
+}
+
+impl SeriesCandidateDistributor {
+    async fn execute(&mut self) {
+        if let Err(e) = self.distribute().await {
+            self.send_error(e);
+        }
+    }
+
+    async fn distribute(&mut self) -> Result<()> {
+        let part_metrics = new_partition_metrics(
+            &self.stream_ctx,
+            self.explain_verbose,
+            &self.metrics_set,
+            self.partitions.len(),
+            &self.metrics_list,
+        );
+        part_metrics.on_first_poll();
+
+        let candidate_scanner = SeriesCandidateScanner::try_new(
+            self.stream_ctx.clone(),
+            self.partitions.clone(),
+            self.pruner.clone(),
+            self.range_semaphore.clone(),
+            self.memory_pool.clone(),
+            self.metrics_set.clone(),
+            part_metrics.clone(),
+        )?;
+        let partition_pruner = candidate_scanner.partition_pruner();
+        let mut candidates = candidate_scanner.build_stream().await?;
+        let mut collector =
+            SeriesBatchCollector::new(self.partitions.len()).context(InvalidSenderSnafu)?;
+        let mut chunked = false;
+        while let Some(batch) = candidates.try_next().await? {
+            if !self.should_fetch_candidates() {
+                part_metrics.on_finish();
+                return Ok(());
+            }
+            collector.push(batch);
+            if collector.len() >= CANDIDATE_SERIES_ASSIGNMENT_THRESHOLD {
+                chunked = true;
+                self.send_assignments(collector.finish(false), &partition_pruner);
+                if !self.should_fetch_candidates() {
+                    part_metrics.on_finish();
+                    return Ok(());
+                }
+                collector =
+                    SeriesBatchCollector::new(self.partitions.len()).context(InvalidSenderSnafu)?;
+            }
+        }
+
+        if collector.len() > 0 {
+            self.send_assignments(collector.finish(!chunked), &partition_pruner);
+        }
+        part_metrics.on_finish();
+        Ok(())
+    }
+
+    fn send_assignments(
+        &mut self,
+        assignments: Vec<AssignedSeriesBatch>,
+        partition_pruner: &Arc<PartitionPruner>,
+    ) {
+        for (partition, assigned_series) in assignments.into_iter().enumerate() {
+            if assigned_series.series().is_empty() {
+                continue;
+            }
+            let Some(sender) = self.senders[partition].as_ref() else {
+                continue;
+            };
+            let sent = sender
+                .send(Ok(SeriesReaderInput {
+                    assigned_series,
+                    partition_pruner: partition_pruner.clone(),
+                    range_semaphore: self.range_semaphore.clone(),
+                }))
+                .is_ok();
+            if !sent {
+                self.senders[partition] = None;
+            }
+        }
+    }
+
+    fn should_fetch_candidates(&self) -> bool {
+        self.active_receivers.load(Ordering::Relaxed) > 0
+    }
+
+    fn send_error(&mut self, error: Error) {
+        let error = Arc::new(error);
+        for sender in self.senders.iter_mut().filter_map(Option::take) {
+            let result = Err(error.clone()).context(ScanSeriesSnafu);
+            let _ = sender.send(result);
+        }
+    }
+}
+
+/// Batches of the same series.
+#[derive(Debug)]
+pub enum SeriesBatch {
+    Flat(FlatSeriesBatch),
+}
+
+impl SeriesBatch {
+    /// Returns the number of batches.
+    pub fn num_batches(&self) -> usize {
+        match self {
+            SeriesBatch::Flat(flat_batch) => flat_batch.batches.len(),
+        }
+    }
+
+    /// Returns the total number of rows across all batches.
+    pub fn num_rows(&self) -> usize {
+        match self {
+            SeriesBatch::Flat(flat_batch) => flat_batch.batches.iter().map(|x| x.num_rows()).sum(),
+        }
+    }
+}
+
+/// Batches of the same series in flat format.
+#[derive(Default, Debug)]
+pub struct FlatSeriesBatch {
+    pub batches: SmallVec<[RecordBatch; 4]>,
+}
+
+/// List of senders.
+struct SenderList {
+    senders: Vec<Option<Sender<Result<SeriesBatch>>>>,
+    /// Number of None senders.
+    num_nones: usize,
+    /// Index of the current partition to send.
+    sender_idx: usize,
+    /// Number of full senders.
+    num_full: usize,
+}
+
+impl SenderList {
+    fn new(senders: Vec<Option<Sender<Result<SeriesBatch>>>>) -> Self {
+        let num_nones = senders.iter().filter(|sender| sender.is_none()).count();
+        Self {
+            senders,
+            num_nones,
+            sender_idx: 0,
+            num_full: 0,
+        }
+    }
+
+    /// Finds a partition and tries to send the batch to the partition.
+    /// Returns None if it sends successfully.
+    fn try_send_batch(&mut self, mut batch: SeriesBatch) -> Result<Option<SeriesBatch>> {
+        for _ in 0..self.senders.len() {
+            ensure!(self.num_nones < self.senders.len(), InvalidSenderSnafu);
+
+            let sender_idx = self.fetch_add_sender_idx();
+            let Some(sender) = &self.senders[sender_idx] else {
+                continue;
+            };
+
+            match sender.try_send(Ok(batch)) {
+                Ok(()) => return Ok(None),
+                Err(TrySendError::Full(res)) => {
+                    self.num_full += 1;
+                    // Safety: we send Ok.
+                    batch = res.unwrap();
+                }
+                Err(TrySendError::Closed(res)) => {
+                    self.senders[sender_idx] = None;
+                    self.num_nones += 1;
+                    // Safety: we send Ok.
+                    batch = res.unwrap();
+                }
+            }
+        }
+
+        Ok(Some(batch))
+    }
+
+    /// Finds a partition and sends the batch to the partition.
+    async fn send_batch(&mut self, batch: SeriesBatch) -> Result<()> {
+        let Some(batch) = self.try_send_batch(batch)? else {
+            return Ok(());
+        };
+
+        loop {
+            ensure!(self.num_nones < self.senders.len(), InvalidSenderSnafu);
+
+            // Waits on every partition at once and sends to whichever frees a slot first. A
+            // consumer may leave partitions unpolled for a long time, e.g. one that drains them one
+            // after another, and waiting on such a partition would stall the scan.
+            let closed = {
+                let reservations = self.senders.iter().enumerate().filter_map(|(idx, sender)| {
+                    sender
+                        .as_ref()
+                        .map(|sender| Box::pin(async move { (idx, sender.reserve().await) }))
+                });
+                let ((idx, reserved), _, _) = futures::future::select_all(reservations).await;
+                match reserved {
+                    Ok(permit) => {
+                        permit.send(Ok(batch));
+                        return Ok(());
+                    }
+                    Err(_) => idx,
+                }
+            };
+            self.senders[closed] = None;
+            self.num_nones += 1;
+        }
+    }
+
+    async fn send_error(&self, error: Error) {
+        let error = Arc::new(error);
+        for sender in self.senders.iter().flatten() {
+            let result = Err(error.clone()).context(ScanSeriesSnafu);
+            let _ = sender.send(result).await;
+        }
+    }
+
+    fn fetch_add_sender_idx(&mut self) -> usize {
+        let sender_idx = self.sender_idx;
+        self.sender_idx = (self.sender_idx + 1) % self.senders.len();
+        sender_idx
+    }
+}
+
+fn new_partition_metrics(
+    stream_ctx: &StreamContext,
+    explain_verbose: bool,
+    metrics_set: &ExecutionPlanMetricsSet,
+    partition: usize,
+    metrics_list: &PartitionMetricsList,
+) -> PartitionMetrics {
+    let metrics = PartitionMetrics::new(
+        stream_ctx.input.mapper.metadata().region_id,
+        partition,
+        "SeriesScan",
+        stream_ctx.query_start,
+        explain_verbose,
+        metrics_set,
+    );
+
+    metrics_list.set(partition, metrics.clone());
+    metrics
+}
+
+/// A divider to split flat record batches by time series.
+///
+/// It only ensures rows of the same series are returned in the same [FlatSeriesBatch].
+/// However, a [FlatSeriesBatch] may contain rows from multiple series.
+#[derive(Default)]
+struct FlatSeriesBatchDivider {
+    buffer: FlatSeriesBatch,
+}
+
+impl FlatSeriesBatchDivider {
+    /// Pushes a record batch into the divider.
+    ///
+    /// Returns a [FlatSeriesBatch] if we ensure the batch contains all rows of the series in it.
+    fn push(&mut self, batch: RecordBatch) -> Option<FlatSeriesBatch> {
+        // If buffer is empty
+        if self.buffer.batches.is_empty() {
+            self.buffer.batches.push(batch);
+            return None;
+        }
+
+        // Gets the primary key column from the incoming batch.
+        let pk_column_idx = primary_key_column_index(batch.num_columns());
+        let batch_pk_column = batch.column(pk_column_idx);
+        let batch_pk_array = batch_pk_column
+            .as_any()
+            .downcast_ref::<PrimaryKeyArray>()
+            .unwrap();
+        let batch_pk_values = batch_pk_array
+            .values()
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        // Gets the last primary key of the incoming batch.
+        let batch_last_pk =
+            primary_key_at(batch_pk_array, batch_pk_values, batch_pk_array.len() - 1);
+        // Gets the last primary key of the buffer.
+        // Safety: the buffer is not empty.
+        let buffer_last_batch = self.buffer.batches.last().unwrap();
+        let buffer_pk_column = buffer_last_batch.column(pk_column_idx);
+        let buffer_pk_array = buffer_pk_column
+            .as_any()
+            .downcast_ref::<PrimaryKeyArray>()
+            .unwrap();
+        let buffer_pk_values = buffer_pk_array
+            .values()
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        let buffer_last_pk =
+            primary_key_at(buffer_pk_array, buffer_pk_values, buffer_pk_array.len() - 1);
+
+        // If last primary key in the batch is the same as last primary key in the buffer.
+        if batch_last_pk == buffer_last_pk {
+            self.buffer.batches.push(batch);
+            return None;
+        }
+        // Otherwise, the batch must have a different primary key, we find the first offset of the
+        // changed primary key.
+        let batch_pk_keys = batch_pk_array.keys();
+        let pk_indices = batch_pk_keys.values();
+        let mut change_offset = 0;
+        for (i, &key) in pk_indices.iter().enumerate() {
+            let batch_pk = batch_pk_values.value(key as usize);
+
+            if buffer_last_pk != batch_pk {
+                change_offset = i;
+                break;
+            }
+        }
+
+        // Splits the batch at the change offset
+        let (first_part, remaining_part) = if change_offset > 0 {
+            let first_part = batch.slice(0, change_offset);
+            let remaining_part = batch.slice(change_offset, batch.num_rows() - change_offset);
+            (Some(first_part), Some(remaining_part))
+        } else {
+            (None, Some(batch))
+        };
+
+        // Creates the result from current buffer + first part of new batch
+        let mut result = std::mem::take(&mut self.buffer);
+        if let Some(first_part) = first_part {
+            result.batches.push(first_part);
+        }
+
+        // Pushes remaining part to the buffer if it exists
+        if let Some(remaining_part) = remaining_part {
+            self.buffer.batches.push(remaining_part);
+        }
+
+        Some(result)
+    }
+
+    /// Returns the final [FlatSeriesBatch].
+    fn finish(&mut self) -> Option<FlatSeriesBatch> {
+        if self.buffer.batches.is_empty() {
+            None
+        } else {
+            Some(std::mem::take(&mut self.buffer))
+        }
+    }
+}
+
+/// Helper function to extract primary key bytes at a specific index from [PrimaryKeyArray].
+fn primary_key_at<'a>(
+    primary_key: &PrimaryKeyArray,
+    primary_key_values: &'a BinaryArray,
+    index: usize,
+) -> &'a [u8] {
+    let key = primary_key.keys().value(index);
+    primary_key_values.value(key as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use api::v1::OpType;
+    use datatypes::arrow::array::{
+        ArrayRef, BinaryDictionaryBuilder, Int64Array, StringDictionaryBuilder,
+        TimestampMillisecondArray, UInt8Array, UInt64Array,
+    };
+    use datatypes::arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit, UInt32Type};
+    use datatypes::arrow::record_batch::RecordBatch;
+
+    use super::*;
+    use crate::read::flat_projection::FlatProjectionMapper;
+    use crate::read::scan_region::PredicateGroup;
+    use crate::test_util::scheduler_util::SchedulerEnv;
+    use crate::test_util::sst_util::sst_region_metadata_with_encoding;
+
+    #[tokio::test]
+    async fn two_phase_eligibility_allows_exact_sequence_range() {
+        let env = SchedulerEnv::new().await;
+        let metadata = Arc::new(sst_region_metadata_with_encoding(
+            store_api::codec::PrimaryKeyEncoding::Sparse,
+        ));
+        let predicate = PredicateGroup::default();
+
+        let eligible = ScanInput::builder(
+            env.access_layer.clone(),
+            FlatProjectionMapper::new(&metadata, [0]).unwrap(),
+        )
+        .with_predicate(predicate.clone())
+        .build();
+        assert!(SeriesScan::supports_two_phase(&eligible));
+
+        let exact_sequence = ScanInput::builder(
+            env.access_layer.clone(),
+            FlatProjectionMapper::new(&metadata, [0]).unwrap(),
+        )
+        .with_predicate(predicate)
+        .with_sequence_range(Some(store_api::storage::SequenceRange::GtLtEq {
+            min: 1,
+            max: 2,
+        }))
+        .build();
+        assert!(SeriesScan::supports_two_phase(&exact_sequence));
+    }
+
+    #[test]
+    fn candidate_distributor_stops_after_all_receivers_close() {
+        let (_senders, mut receivers, active_receivers) = new_candidate_channel_list(2);
+        assert_eq!(2, active_receivers.load(Ordering::Relaxed));
+
+        drop(receivers[0].take());
+        assert_eq!(1, active_receivers.load(Ordering::Relaxed));
+
+        drop(receivers[1].take());
+        assert_eq!(0, active_receivers.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn distributor_does_not_stall_on_partitions_read_one_after_another() {
+        const NUM_BATCHES: usize = 2000;
+        let (mut senders, receivers) = new_legacy_channel_list(16);
+        let producer = tokio::spawn(async move {
+            for _ in 0..NUM_BATCHES {
+                senders
+                    .send_batch(SeriesBatch::Flat(FlatSeriesBatch::default()))
+                    .await
+                    .unwrap();
+            }
+        });
+        // Reads partition 0 to its end before touching the next one, so all other partitions stay
+        // full while the producer still has batches to send.
+        let consume = async {
+            let mut received = 0;
+            for mut receiver in receivers.into_iter().flatten() {
+                while let Some(batch) = receiver.recv().await {
+                    batch.unwrap();
+                    received += 1;
+                }
+            }
+            received
+        };
+        let received = tokio::time::timeout(std::time::Duration::from_secs(1), consume)
+            .await
+            .expect("the distributor stalled on partitions the consumer was not reading");
+        producer.await.unwrap();
+        assert_eq!(NUM_BATCHES, received);
+    }
+
+    fn new_test_record_batch(
+        primary_keys: &[&[u8]],
+        timestamps: &[i64],
+        sequences: &[u64],
+        op_types: &[OpType],
+        fields: &[u64],
+    ) -> RecordBatch {
+        let num_rows = timestamps.len();
+        debug_assert_eq!(sequences.len(), num_rows);
+        debug_assert_eq!(op_types.len(), num_rows);
+        debug_assert_eq!(fields.len(), num_rows);
+        debug_assert_eq!(primary_keys.len(), num_rows);
+
+        let columns: Vec<ArrayRef> = vec![
+            build_test_pk_string_dict_array(primary_keys),
+            Arc::new(Int64Array::from_iter(
+                fields.iter().map(|v| Some(*v as i64)),
+            )),
+            Arc::new(TimestampMillisecondArray::from_iter_values(
+                timestamps.iter().copied(),
+            )),
+            build_test_pk_array(primary_keys),
+            Arc::new(UInt64Array::from_iter_values(sequences.iter().copied())),
+            Arc::new(UInt8Array::from_iter_values(
+                op_types.iter().map(|v| *v as u8),
+            )),
+        ];
+
+        RecordBatch::try_new(build_test_flat_schema(), columns).unwrap()
+    }
+
+    fn build_test_pk_string_dict_array(primary_keys: &[&[u8]]) -> ArrayRef {
+        let mut builder = StringDictionaryBuilder::<UInt32Type>::new();
+        for &pk in primary_keys {
+            let pk_str = std::str::from_utf8(pk).unwrap();
+            builder.append(pk_str).unwrap();
+        }
+        Arc::new(builder.finish())
+    }
+
+    fn build_test_pk_array(primary_keys: &[&[u8]]) -> ArrayRef {
+        let mut builder = BinaryDictionaryBuilder::<UInt32Type>::new();
+        for &pk in primary_keys {
+            builder.append(pk).unwrap();
+        }
+        Arc::new(builder.finish())
+    }
+
+    fn build_test_flat_schema() -> SchemaRef {
+        let fields = vec![
+            Field::new(
+                "k0",
+                DataType::Dictionary(Box::new(DataType::UInt32), Box::new(DataType::Utf8)),
+                false,
+            ),
+            Field::new("field0", DataType::Int64, true),
+            Field::new(
+                "ts",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new(
+                "__primary_key",
+                DataType::Dictionary(Box::new(DataType::UInt32), Box::new(DataType::Binary)),
+                false,
+            ),
+            Field::new("__sequence", DataType::UInt64, false),
+            Field::new("__op_type", DataType::UInt8, false),
+        ];
+        Arc::new(Schema::new(fields))
+    }
+
+    #[test]
+    fn test_empty_buffer_first_push() {
+        let mut divider = FlatSeriesBatchDivider::default();
+        let result = divider.finish();
+        assert!(result.is_none());
+
+        let mut divider = FlatSeriesBatchDivider::default();
+        let batch = new_test_record_batch(
+            &[b"series1", b"series1"],
+            &[1000, 2000],
+            &[1, 2],
+            &[OpType::Put, OpType::Put],
+            &[10, 20],
+        );
+        let result = divider.push(batch);
+        assert!(result.is_none());
+        assert_eq!(divider.buffer.batches.len(), 1);
+    }
+
+    #[test]
+    fn test_same_series_accumulation() {
+        let mut divider = FlatSeriesBatchDivider::default();
+
+        let batch1 = new_test_record_batch(
+            &[b"series1", b"series1"],
+            &[1000, 2000],
+            &[1, 2],
+            &[OpType::Put, OpType::Put],
+            &[10, 20],
+        );
+
+        let batch2 = new_test_record_batch(
+            &[b"series1", b"series1"],
+            &[3000, 4000],
+            &[3, 4],
+            &[OpType::Put, OpType::Put],
+            &[30, 40],
+        );
+
+        divider.push(batch1);
+        let result = divider.push(batch2);
+        assert!(result.is_none());
+        let series_batch = divider.finish().unwrap();
+        assert_eq!(series_batch.batches.len(), 2);
+    }
+
+    #[test]
+    fn test_series_boundary_detection() {
+        let mut divider = FlatSeriesBatchDivider::default();
+
+        let batch1 = new_test_record_batch(
+            &[b"series1", b"series1"],
+            &[1000, 2000],
+            &[1, 2],
+            &[OpType::Put, OpType::Put],
+            &[10, 20],
+        );
+
+        let batch2 = new_test_record_batch(
+            &[b"series2", b"series2"],
+            &[3000, 4000],
+            &[3, 4],
+            &[OpType::Put, OpType::Put],
+            &[30, 40],
+        );
+
+        divider.push(batch1);
+        let series_batch = divider.push(batch2).unwrap();
+        assert_eq!(series_batch.batches.len(), 1);
+
+        assert_eq!(divider.buffer.batches.len(), 1);
+    }
+
+    #[test]
+    fn test_series_boundary_within_batch() {
+        let mut divider = FlatSeriesBatchDivider::default();
+
+        let batch1 = new_test_record_batch(
+            &[b"series1", b"series1"],
+            &[1000, 2000],
+            &[1, 2],
+            &[OpType::Put, OpType::Put],
+            &[10, 20],
+        );
+
+        let batch2 = new_test_record_batch(
+            &[b"series1", b"series2"],
+            &[3000, 4000],
+            &[3, 4],
+            &[OpType::Put, OpType::Put],
+            &[30, 40],
+        );
+
+        divider.push(batch1);
+        let series_batch = divider.push(batch2).unwrap();
+        assert_eq!(series_batch.batches.len(), 2);
+        assert_eq!(series_batch.batches[0].num_rows(), 2);
+        assert_eq!(series_batch.batches[1].num_rows(), 1);
+
+        assert_eq!(divider.buffer.batches.len(), 1);
+        assert_eq!(divider.buffer.batches[0].num_rows(), 1);
+    }
+
+    #[test]
+    fn test_series_splitting() {
+        let mut divider = FlatSeriesBatchDivider::default();
+
+        let batch1 = new_test_record_batch(&[b"series1"], &[1000], &[1], &[OpType::Put], &[10]);
+
+        let batch2 = new_test_record_batch(
+            &[b"series1", b"series2", b"series2", b"series3"],
+            &[2000, 3000, 4000, 5000],
+            &[2, 3, 4, 5],
+            &[OpType::Put, OpType::Put, OpType::Put, OpType::Put],
+            &[20, 30, 40, 50],
+        );
+
+        divider.push(batch1);
+        let series_batch = divider.push(batch2).unwrap();
+        assert_eq!(series_batch.batches.len(), 2);
+
+        let total_rows: usize = series_batch.batches.iter().map(|b| b.num_rows()).sum();
+        assert_eq!(total_rows, 2);
+
+        let final_batch = divider.finish().unwrap();
+        assert_eq!(final_batch.batches.len(), 1);
+        assert_eq!(final_batch.batches[0].num_rows(), 3);
+    }
+}

@@ -169,7 +169,7 @@ defmodule TuistWeb.SandboxInstancesLive do
     [
       {"created", dgettext("dashboard_sandboxes", "Created")},
       {"last_active", dgettext("dashboard_sandboxes", "Last active")},
-      {"name", dgettext("dashboard_sandboxes", "Name")}
+      {"name", dgettext("dashboard_sandboxes", "Instance")}
     ]
   end
 

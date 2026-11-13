@@ -11,9 +11,16 @@ import dev.tuist.app.api.model.RegisterPushDevice410Response
 import dev.tuist.app.api.model.RegisterPushDeviceRequest
 import dev.tuist.app.data.auth.TokenStorage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -44,8 +51,43 @@ class PushRegistrationManager @Inject constructor(
     private val mutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    init {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            tokenStorage.session.map { it.profileId }.distinctUntilChanged().collect {
+                mutex.withLock {
+                    reconcileOwnerLocked()
+                    if (store.needsTokenReset) {
+                        withTimeoutOrNull(SIGN_OUT_TIMEOUT_MILLIS) { resetTokenLocked() }
+                    }
+                }
+            }
+        }
+    }
+
+    // Never call the authenticated push API here: expiry can originate inside that API's authenticator.
+    private fun reconcileOwnerLocked() {
+        val profile = tokenStorage.snapshot().profileId
+        if (profile == null || !store.belongsTo(profile)) {
+            store.needsTokenReset = true
+            store.clear()
+            NotificationManagerCompat.from(context).cancelAll()
+        }
+        if (profile != null) store.bindProfile(profile)
+    }
+
+    private suspend fun resetTokenLocked() {
+        try {
+            tokenProvider.reset()
+            store.needsTokenReset = false
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not reset the push token", e)
+        }
+    }
+
     val isAvailable: Boolean get() = tokenProvider.isAvailable
-    val isDeviceEnabled: Boolean get() = store.isDeviceEnabled
+    val isDeviceEnabled: Boolean get() = tokenStorage.snapshot().profileId?.let {
+        store.isDeviceEnabled && store.belongsTo(it) && !store.needsTokenReset
+    } ?: false
     val installationId: String? get() = store.installationId
 
     fun requestSync(force: Boolean = false) {
@@ -58,9 +100,18 @@ class PushRegistrationManager @Inject constructor(
      * retires registrations that are not refreshed for 60 days.
      */
     suspend fun sync(force: Boolean = false): PushRegistrationResult = mutex.withLock {
+        reconcileOwnerLocked()
         if (!tokenProvider.isAvailable) return PushRegistrationResult.Unavailable
         if (tokenStorage.getAccessToken() == null) return PushRegistrationResult.SignedOut
         if (!store.isDeviceEnabled) return PushRegistrationResult.DisabledOnDevice
+        if (store.needsTokenReset) {
+            try {
+                tokenProvider.reset()
+                store.needsTokenReset = false
+            } catch (e: Exception) {
+                return PushRegistrationResult.Failed("Could not reset push registration")
+            }
+        }
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return PushRegistrationResult.PermissionMissing
         }
@@ -86,16 +137,53 @@ class PushRegistrationManager @Inject constructor(
     }
 
     /** Best-effort unregistration before sign-out clears credentials; the installation is forgotten either way. */
-    suspend fun signOut() {
-        withTimeoutOrNull(SIGN_OUT_TIMEOUT_MILLIS) { unregister() }
+    suspend fun changeProfile(change: () -> Unit) {
+        val original = tokenStorage.snapshot()
+        val enabled = store.isDeviceEnabled && original.profileId?.let { store.belongsTo(it) } == true
+        try {
+            signOut()
+            currentCoroutineContext().ensureActive()
+            change()
+        } finally {
+            if (enabled) withContext(NonCancellable) {
+                mutex.withLock {
+                    if (tokenStorage.isCurrent(original)) {
+                        store.bindProfile(original.profileId!!)
+                        // Restore intent only, never a retired installation or token.
+                        store.isDeviceEnabled = true
+                        requestSync(force = true)
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun signOut() = mutex.withLock {
+        store.needsTokenReset = true
+        withTimeoutOrNull(SIGN_OUT_TIMEOUT_MILLIS) {
+            unregisterLocked()
+            try {
+                tokenProvider.reset()
+                store.needsTokenReset = false
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not reset the push token", e)
+            }
+        }
         store.clear()
+        NotificationManagerCompat.from(context).cancelAll()
     }
 
     /** Notifications are opt-in per account: once signed out, by any path, the next account starts with them off. */
-    suspend fun forgetSignedOutState() = mutex.withLock { store.clear() }
+    suspend fun forgetSignedOutState() = mutex.withLock {
+        store.needsTokenReset = true
+        store.clear()
+        NotificationManagerCompat.from(context).cancelAll()
+    }
 
-    private suspend fun unregister() = mutex.withLock {
-        val installationId = store.installationId ?: return@withLock
+    private suspend fun unregister() = mutex.withLock { unregisterLocked() }
+
+    private suspend fun unregisterLocked() {
+        val installationId = store.installationId ?: return
         try {
             pushDevicesApi.unregisterPushDevice(installationId)
         } catch (e: Exception) {

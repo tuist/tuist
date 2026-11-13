@@ -6,13 +6,18 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +26,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/admin"
+	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
+	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/direct"
 	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
@@ -79,6 +86,28 @@ func main() {
 		logger.Error("DISK_BUDGET_GIB must not be negative", "value", diskBudgetGiB)
 		os.Exit(1)
 	}
+	blobCacheGiB := intEnv(logger, "BLOB_CACHE_GIB", 0)
+	if blobCacheGiB < 0 {
+		logger.Error("BLOB_CACHE_GIB must not be negative", "value", blobCacheGiB)
+		os.Exit(1)
+	}
+	checkoutWorkspacesGiB := intEnv(logger, "CHECKOUT_WORKSPACES_GIB", 0)
+	if checkoutWorkspacesGiB < 0 {
+		logger.Error("CHECKOUT_WORKSPACES_GIB must not be negative", "value", checkoutWorkspacesGiB)
+		os.Exit(1)
+	}
+	// The blob cache and the prepared checkout workspaces come out of the disk
+	// budget: the server places sandboxes against the budget the daemon
+	// reports, so it never counts on the bytes they may hold.
+	sandboxBudgetGiB := diskBudgetGiB
+	if diskBudgetGiB > 0 && blobCacheGiB+checkoutWorkspacesGiB > 0 {
+		if blobCacheGiB+checkoutWorkspacesGiB >= diskBudgetGiB {
+			logger.Error("BLOB_CACHE_GIB and CHECKOUT_WORKSPACES_GIB must stay below DISK_BUDGET_GIB",
+				"blob_cache_gib", blobCacheGiB, "checkout_workspaces_gib", checkoutWorkspacesGiB, "disk_budget_gib", diskBudgetGiB)
+			os.Exit(1)
+		}
+		sandboxBudgetGiB -= blobCacheGiB + checkoutWorkspacesGiB
+	}
 	prebuild, err := template.ParseShapes(os.Getenv("PREBUILD_SHAPES"))
 	if err != nil {
 		logger.Error("invalid PREBUILD_SHAPES", "error", err)
@@ -132,10 +161,32 @@ func main() {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 	metrics := sandbox.NewMetrics(registry)
+	var blobs *blobcache.Cache
+	if blobCacheGiB > 0 {
+		if blobs, err = blobcache.New(filepath.Join(dataDir, "blobs"), int64(blobCacheGiB)<<30, logger, blobcache.NewMetrics(registry)); err != nil {
+			logger.Error("creating the blob cache", "error", err)
+			os.Exit(1)
+		}
+	}
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
-	netManager.DaemonOnlyTCPPort = intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0)
+	netManager.DaemonOnlyTCPPorts = tcpPortsEnv(logger, "DAEMON_ONLY_TCP_PORTS")
+	// The single-port variable an older chart sets.
+	if port := intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0); port > 0 {
+		netManager.DaemonOnlyTCPPorts = append(netManager.DaemonOnlyTCPPorts, port)
+	}
+	// Guests reach the Tuist API through its public URL. The in-cluster
+	// server is the daemon's control channel, so the guests are kept off
+	// its Service address unless the deployment needs them to reach it.
+	if serverURL != "" && !boolEnv(logger, "GUESTS_REACH_SERVER", false) {
+		endpoints, err := serviceEndpoints(ctx, serverURL)
+		if err != nil {
+			logger.Error("resolving SERVER_URL to keep the guests off it", "error", err)
+			os.Exit(1)
+		}
+		netManager.DaemonOnlyEndpoints = endpoints
+	}
 	switch backend := os.Getenv("NETWORK_BACKEND"); backend {
 	case "", "iproute2":
 	case "netlink":
@@ -159,7 +210,7 @@ func main() {
 		os.Exit(1)
 	}
 	store := &template.Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(fcVersion); err != nil {
+	if err := store.CleanPartialBuilds(fcVersion, templateWorkspaceGB); err != nil {
 		logger.Error("cleaning partial template builds", "error", err)
 		os.Exit(1)
 	}
@@ -201,6 +252,36 @@ func main() {
 			}
 		},
 	}
+	// The node's runner-cache agent seeds workers' repositories from its
+	// checkout masters and takes their exports. It authorizes this Pod by
+	// name and address; without either, workers clone as before.
+	var checkouts checkout.Agent
+	if agentURL := os.Getenv("CHECKOUT_AGENT_URL"); agentURL != "" {
+		if elastic.PodName == "" {
+			logger.Warn("CHECKOUT_AGENT_URL is set without POD_NAME; checkouts stay off")
+		} else {
+			checkouts = &checkout.Client{URL: agentURL, PodName: elastic.PodName, HTTP: checkout.NewHTTPClient()}
+		}
+	}
+	// Prepared workspaces let a fresh sandbox start from the node's last seed
+	// of its repository instead of copying the tree into the guest again.
+	var workspaces *checkout.Workspaces
+	if checkouts != nil && checkoutWorkspacesGiB > 0 {
+		workspaces = &checkout.Workspaces{
+			Dir: filepath.Join(dataDir, "checkouts"), MaxBytes: int64(checkoutWorkspacesGiB) << 30,
+			TTL: durationEnv(logger, "CHECKOUT_WORKSPACES_TTL", 6*time.Hour), Log: logger,
+		}
+		if err := workspaces.Clean(); err != nil {
+			logger.Error("preparing the checkout workspaces directory", "error", err)
+			os.Exit(1)
+		}
+		workspaces.Expire()
+		go func() {
+			for range time.Tick(10 * time.Minute) {
+				workspaces.Expire()
+			}
+		}()
+	}
 	manager := sandbox.New(sandbox.Config{
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
@@ -209,14 +290,16 @@ func main() {
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,
+		Blobs: blobs, Checkouts: checkouts, Workspaces: workspaces,
 	})
 	if err := manager.Recover(ctx); err != nil {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
 	}
 	// Remote-execution daemons keep their old tags: the server places
-	// executions on the tag most nodes report, so a node that dropped it
-	// during an OnDelete rollout would take no work until most nodes rolled.
+	// executions on the tag most nodes are configured with, so a node that
+	// dropped the old one during an OnDelete rollout would take no work until
+	// most nodes rolled.
 	if templateTag != "" && executionSlots == 0 {
 		inUse := map[string]bool{}
 		for _, sb := range manager.List() {
@@ -287,7 +370,7 @@ func main() {
 
 	disk := diskusage.Accounter{
 		DataDir: dataDir, TemplatesDir: store.Dir, SnapshotsDir: snapshotDir, JailDir: jailBase,
-		BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
+		BlobCacheDir: filepath.Join(dataDir, "blobs"), CheckoutsDir: filepath.Join(dataDir, "checkouts"), BudgetBytes: uint64(sandboxBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
 	}
 	diskReport := func() protocol.DiskReport {
 		report, err := disk.Report()
@@ -310,6 +393,8 @@ func main() {
 					ExecutionDeadlines: true,
 					ExecutionSlots:     executionSlots,
 					DirectExecEndpoint: directExecEndpoint,
+					DefaultTemplate:    templateName,
+					DefaultTemplateTag: defaultTemplate.Tag,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(),
 				}
@@ -390,6 +475,60 @@ func boolEnv(logger *slog.Logger, key string, fallback bool) bool {
 		os.Exit(1)
 	}
 	return parsed
+}
+
+func tcpPortsEnv(logger *slog.Logger, key string) []int {
+	var ports []int
+	for _, field := range strings.Split(os.Getenv(key), ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		port, err := strconv.Atoi(field)
+		if err != nil || port < 1 || port > 65535 {
+			logger.Error("invalid TCP port", "env", key, "value", field)
+			os.Exit(1)
+		}
+		ports = append(ports, port)
+	}
+	return ports
+}
+
+// serviceEndpoints resolves a URL's host to its IPv4 addresses and port.
+// Cluster DNS can lag a Pod's start, so a failed lookup is retried for
+// about a minute before startup gives up.
+func serviceEndpoints(ctx context.Context, rawURL string) ([]netip.AddrPort, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return nil, fmt.Errorf("parsing %q: no host", rawURL)
+	}
+	port := 80
+	if u.Scheme == "https" {
+		port = 443
+	}
+	if u.Port() != "" {
+		if port, err = strconv.Atoi(u.Port()); err != nil {
+			return nil, fmt.Errorf("parsing the port of %q: %w", rawURL, err)
+		}
+	}
+	var addrs []netip.Addr
+	for attempt := 1; ; attempt++ {
+		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		addrs, err = net.DefaultResolver.LookupNetIP(lookupCtx, "ip4", u.Hostname())
+		cancel()
+		if err == nil || attempt == 12 || ctx.Err() != nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+	if err != nil {
+		return nil, err
+	}
+	endpoints := make([]netip.AddrPort, 0, len(addrs))
+	for _, addr := range addrs {
+		endpoints = append(endpoints, netip.AddrPortFrom(addr.Unmap(), uint16(port)))
+	}
+	return endpoints, nil
 }
 
 func intEnv(logger *slog.Logger, key string, fallback int) int {

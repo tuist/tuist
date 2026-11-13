@@ -365,7 +365,6 @@
 "Archived" = "Archived";
 "Archive thread" = "Archive thread";
 "Archive this thread?" = "Archive this thread?";
-"Ask Tuist a question or choose a repository to work on." = "Ask Tuist a question or choose a repository to work on.";
 "Base branch" = "Base branch";
 "Changes" = "Changes";
 "Close" = "Close";
@@ -377,7 +376,6 @@
 "Design preview · Sample builds" = "Design preview · Sample builds";
 "Design preview · Sample conversation" = "Design preview · Sample conversation";
 "Design preview · Sample data" = "Design preview · Sample data";
-"Design preview · Sample threads and people" = "Design preview · Sample threads and people";
 "Design preview · Starting creates a sample thread, not a running environment." = "Design preview · Starting creates a sample thread, not a running environment.";
 "Done" = "Done";
 "Each repository thread gets its own worktree and branch. The original checkout is not edited." = "Each repository thread gets its own worktree and branch. The original checkout is not edited.";
@@ -404,7 +402,6 @@
 "Private thread" = "Private thread";
 "Private · Design preview · No work runs" = "Private · Design preview · No work runs";
 "Private · Saved to your account" = "Private · Saved to your account";
-"Private · Threads are saved to your account" = "Private · Threads are saved to your account";
 "Prompt" = "Prompt";
 "Prompts" = "Prompts";
 "Provider" = "Provider";
@@ -429,9 +426,8 @@
 "Signing out of this app does not stop running threads." = "Signing out of this app does not stop running threads.";
 "Start privately. Inviting someone would share the existing conversation with them." = "Start privately. Inviting someone would share the existing conversation with them.";
 "Start thread" = "Start thread";
-"Start with a goal" = "Start with a goal";
 "Switch account" = "Switch account";
-"The conversation stays available in Archived." = "The conversation stays available in Archived.";
+"Archiving cancels any active work. The conversation stays available in Archived." = "Archiving cancels any active work. The conversation stays available in Archived.";
 "The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "The server owns the thread; only tools run in the environment. Repository threads have their own worktrees.";
 "Thread details" = "Thread details";
 "Thread settings" = "Thread settings";
@@ -443,6 +439,15 @@
 "Tool result" = "Tool result";
 "Try again" = "Try again";
 "Tuist is working…" = "Tuist is working…";
+"Allow microphone access in Settings to record a message." = "Allow microphone access in Settings to record a message.";
+"Allow speech recognition in Settings to transcribe on this device." = "Allow speech recognition in Settings to transcribe on this device.";
+"Could not start dictation. Your typed draft is unchanged." = "Could not start dictation. Your typed draft is unchanged.";
+"No speech was captured. Your typed draft is unchanged." = "No speech was captured. Your typed draft is unchanged.";
+"Recording on this device" = "Recording on this device";
+"Stop dictation" = "Stop dictation";
+"Tap stop to add editable text. Nothing is sent automatically." = "Tap stop to add editable text. Nothing is sent automatically.";
+"Transcribe a voice message" = "Transcribe a voice message";
+"Uses on-device speech recognition. Nothing is sent automatically." = "Uses on-device speech recognition. Nothing is sent automatically.";
 "What would you like Tuist to do?" = "What would you like Tuist to do?";
 "Worktree branch" = "Worktree branch";
 "You" = "You";
@@ -493,7 +498,21 @@
 "OK" = "OK";
 "Unable to open link" = "Unable to open link";
 "This link belongs to a different Tuist server. Sign in to that server and open the link again." = "This link belongs to a different Tuist server. Sign in to that server and open the link again.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "This link belongs to a different organization. Switch organizations and open the link again.";
 "This navigation link is invalid or unsupported." = "This navigation link is invalid or unsupported.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Open on web" = "Open on web";
+"Profiles" = "Profiles";
+"Add profile" = "Add profile";
+"Switch profile" = "Switch profile";
+"Switch profile?" = "Switch profile?";
+"View profile" = "View profile";
+"Open screens and unsent drafts will be closed. Running threads will continue." = "Open screens and unsent drafts will be closed. Running threads will continue.";
+"Your saved profiles could not be updated. Please try again." = "Your saved profiles could not be updated. Please try again.";
+
+/* TuistApp/ThreadEmptyStateView.swift */
+"Big things start here" = "Big things start here";
+"Ask a question, explore an idea, or solve a problem with Tuist." = "Ask a question, explore an idea, or solve a problem with Tuist.";
+"All clear, nothing archived" = "All clear, nothing archived";
+"Archived threads will live here. You can come back to them anytime." = "Archived threads will live here. You can come back to them anytime.";

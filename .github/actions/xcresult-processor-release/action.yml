@@ -154,13 +154,26 @@ runs:
         release_ref="${RELEASE_REPOSITORY}:sha-${REVISION:0:12}"
         echo "$REGISTRY_TOKEN" | oras login ghcr.io --username "$REGISTRY_USERNAME" --password-stdin
         cd "$workdir"
-        release_digest="$(oras push "$release_ref" \
-          --artifact-type application/vnd.tuist.xcresult-processor-release.v1 \
-          --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-          --annotation "org.opencontainers.image.revision=${REVISION}" \
-          --format json \
-          release.tar.gz:application/vnd.tuist.xcresult-processor-release.v1.tar+gzip \
-          | jq -r '.digest')"
+        # GHCR occasionally resets the connection mid-upload. Pushing the same
+        # tarball to the same tag again is safe, so retry before failing the
+        # whole production cascade.
+        for attempt in 1 2 3; do
+          if push_output="$(oras push "$release_ref" \
+            --artifact-type application/vnd.tuist.xcresult-processor-release.v1 \
+            --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --annotation "org.opencontainers.image.revision=${REVISION}" \
+            --format json \
+            release.tar.gz:application/vnd.tuist.xcresult-processor-release.v1.tar+gzip)"; then
+            break
+          fi
+          if [ "$attempt" -eq 3 ]; then
+            exit 1
+          fi
+          delay=$((attempt * 10))
+          echo "::warning::Release push attempt ${attempt} failed; retrying in ${delay} seconds"
+          sleep "$delay"
+        done
+        release_digest="$(jq -r '.digest' <<<"$push_output")"
         {
           echo "release_ref=$release_ref"
           echo "release_digest=$release_digest"

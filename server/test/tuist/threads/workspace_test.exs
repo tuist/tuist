@@ -133,6 +133,36 @@ defmodule Tuist.Threads.WorkspaceTest do
     assert Repo.get!(Sandbox, thread.sandbox_id).residency_work_id == nil
   end
 
+  test "a ready checkout keeps its persisted branch after the Thread rename", c do
+    sandbox = Repo.insert!(%Sandbox{account_id: c.user.account.id, state: :running})
+
+    thread =
+      Repo.update!(
+        Ecto.Changeset.change(c.thread,
+          sandbox_id: sandbox.id,
+          workspace_ready: true,
+          base_sha: @base,
+          branch: "threads/#{c.thread.id}"
+        )
+      )
+
+    reject(Sandboxes, :create_sandbox, 2)
+
+    stub(Sandboxes, :exec, fn _, argv, _ ->
+      cond do
+        "--show-toplevel" in argv -> result("/workspace/repository")
+        "get-url" in argv -> result("https://github.com/Tuist/Example.git")
+        "symbolic-ref" in argv -> result(thread.branch)
+        "cat-file" in argv -> result("")
+        true -> flunk("unexpected checkout operation: #{inspect(argv)}")
+      end
+    end)
+
+    assert {:ok, context} = Workspace.prepare(thread, c.run)
+    assert context.thread.branch == thread.branch
+    assert :ok = Workspace.release(context)
+  end
+
   test "a missing ready checkout fails visibly without cloning or creating a replacement", c do
     sandbox = Repo.insert!(%Sandbox{account_id: c.user.account.id, state: :running})
     thread = Repo.update!(Ecto.Changeset.change(c.thread, sandbox_id: sandbox.id, workspace_ready: true, base_sha: @base))

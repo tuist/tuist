@@ -29,15 +29,34 @@ scoped to a single `workloads/<cluster>/` subdir. Key invariants:
   `Available` rollup (a sync gate, not health alerting).
 
 `cloudflare-operator.yaml` follows the same child-Kustomization pattern,
-but points at a local Helm release and waits for it to become ready.
-Alongside the release, `infra/flux/cloudflare-operator/image-automation.yaml`
-declares an `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation`
-that bump `values-mgmt.yaml`'s image tag on every merge to main; the
-initial reconcile leaves the automation suspended so the rollout can be
-confirmed by hand before it goes autonomous. `cloudflare-config.yaml`
+but explicitly health-checks the local operator Helm release rather than
+waiting on every resource in its inventory. The controller and its CRDs
+must be ready before configuration applies; unrelated source resources
+must not block that runtime dependency.
+The release consumes `oci://ghcr.io/tuist/charts/cloudflare-operator`.
+The image workflow publishes chart versions `0.2.<run-number>-<attempt>`
+after the image succeeds, embedding its SHA tag and immutable digest in
+the chart defaults. Flux selects the newest matching `0.2.x` artifact;
+image delivery never writes back to Git. Chart and operator source changes
+both trigger publication, and a failed publication leaves the installed
+release unchanged. `cloudflare-config.yaml`
 depends on the release and applies the Cloudflare resources under
 `infra/flux/cloudflare-config/`, preventing Flux from applying a custom
 resource before its definition exists.
+
+During the first migration, Flux may report no matching OCI chart until
+the main-branch publication completes. The existing Helm release keeps
+running; do not remove its readiness gate or activate crawler exemptions
+to work around this. The GHCR chart package must allow public reads, as
+the Flux source intentionally has no registry credentials. Verify an
+anonymous `helm pull` after the first publication. Removing the old image
+automation manifests lets Flux prune those three resources without
+changing repository branch protections.
+
+To roll back, pin `HelmRelease.spec.chart.spec.version` to a known published
+version in a reviewed PR; restore the range only when resuming upgrades.
+Do not change the image independently of its chart or deploy another Helm
+release alongside the existing `cloudflare-operator` release.
 
 The adopted rate-limit resource starts in `read_only`. That mode deliberately
 reports `Ready=False`, so the configuration Kustomization does not wait on

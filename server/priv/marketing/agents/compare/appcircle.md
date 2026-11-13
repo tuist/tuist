@@ -31,8 +31,4 @@ Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) whil
 
 Sources checked on **2026-10-08**: [Appcircle documentation](https://docs.appcircle.io/), [Enterprise self-hosting](https://docs.appcircle.io/self-hosted-appcircle), [Appcircle MCP](https://docs.appcircle.io/appcircle-ai/ai-features-on-appcircle/appcircle-mcp), [Build Insights reports](https://docs.appcircle.io/appcircle-ai/ai-insights/build-insights), [Tuist Cache](/marketing-markdown/cache), [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp), and [Tuist self-hosting](/en/docs-markdown/guides/server/self-host/server). This comparison is written by Tuist; it does not audit every Appcircle module.
 
-## Limitations
-
-An MCP endpoint is not proof of equivalent investigation depth or safe autonomous actions. Check authentication, supported tools, deployment requirements, and commercial terms. Tuist module caching and selective testing require generated Xcode projects. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No speedup, cost saving, or universal licensing advantage is claimed.
-
 Related: [Codemagic](/marketing-markdown/compare/codemagic), [Bitrise](/marketing-markdown/compare/bitrise), and [all comparisons](/marketing-markdown/compare).

@@ -10,6 +10,17 @@ bucket: shards
 # keeps archives in each account's own storage. Never rename it on an
 # existing target.
 archiveBucket: ""
+# Shared sandbox archive budget across all accounts on this store. New uploads
+# overflow to account storage; this is not a filesystem quota or retention rule.
+archiveBudgetGiB: 100
+# GitHub Actions cache entries of the Linux runners at this store's site, in
+# their own bucket. The lifecycle job creates it and caps it at maxGB (decimal)
+# with a Garage quota, which refuses any write beyond it; the server evicts
+# least recently used entries before the cap. Entries are rebuildable. Empty
+# keeps the cache off this store, and jobs then use GitHub's cache.
+actionsCache:
+  bucket: ""
+  maxGB: 0
 # Start with 1 in every environment; 3 is an optional future topology. Never change
 # this on an existing release: create a new store and immutable target instead.
 replicas: 1

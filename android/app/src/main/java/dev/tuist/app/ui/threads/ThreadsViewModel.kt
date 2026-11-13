@@ -3,7 +3,6 @@ package dev.tuist.app.ui.threads
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.tuist.app.api.OrganizationsApi
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.featureflags.FeatureFlag
 import dev.tuist.app.data.featureflags.FeatureFlagsRepository
@@ -19,13 +18,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import retrofit2.Retrofit
 
 enum class ThreadSheet {
     NEW,
     MODELS,
     REPOSITORIES,
-    ACCOUNTS,
     DETAILS,
     SHIP,
 }
@@ -33,7 +30,6 @@ enum class ThreadSheet {
 data class ThreadsState(
     val enabled: Boolean = false,
     val account: String = "",
-    val accounts: List<String> = emptyList(),
     val threads: List<ServerThread> = emptyList(),
     val selected: ServerThread? = null,
     val cursor: String? = null,
@@ -65,11 +61,9 @@ constructor(
     transport: ThreadTransport,
     auth: AuthRepository,
     flags: FeatureFlagsRepository,
-    retrofit: Retrofit,
     private val watcher: ThreadWatcher,
 ) : ViewModel() {
     private val api = transport.api
-    private val organizations = retrofit.create(OrganizationsApi::class.java)
     private val _state = MutableStateFlow(ThreadsState())
     val state = _state.asStateFlow()
     private var generation = 0
@@ -80,8 +74,8 @@ constructor(
 
     init {
         viewModelScope.launch {
-            combine(auth.authState, flags.enabled) { session, enabled ->
-                    (session as? AuthState.LoggedIn)?.account?.handle to (FeatureFlag.AI in enabled)
+            combine(auth.authState, auth.session, flags.enabled) { state, _, enabled ->
+                    (state as? AuthState.LoggedIn)?.account?.handle to (FeatureFlag.AI in enabled)
                 }
                 .distinctUntilChanged()
                 .collect { (account, enabled) ->
@@ -96,44 +90,10 @@ constructor(
                             account = account.orEmpty(),
                         )
                     if (account != null && enabled) {
-                        val fence = generation
                         refresh()
-                        launch {
-                            try {
-                                val values =
-                                    organizations
-                                        .listOrganizations()
-                                        .body()
-                                        ?.organizations
-                                        .orEmpty()
-                                        .map { it.name }
-                                if (fence == generation)
-                                    _state.update { it.copy(accounts = listOf(account) + values) }
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (_: Exception) {
-                                /* Personal account remains usable. */
-                            }
-                        }
                     }
                 }
         }
-    }
-
-    fun selectAccount(account: String) {
-        if (
-            account !in _state.value.accounts ||
-                account == _state.value.account ||
-                _state.value.busy
-        )
-            return
-        generation++
-        catalog?.cancel()
-        createRequest = null
-        messageRequest = null
-        _state.value =
-            ThreadsState(enabled = true, account = account, accounts = _state.value.accounts)
-        refresh()
     }
 
     suspend fun refresh(quiet: Boolean = false) {
@@ -346,8 +306,7 @@ constructor(
         }
     }
 
-    fun archive() {
-        val thread = _state.value.selected ?: return
+    fun archive(thread: ServerThread) {
         mutate { account ->
             val updated =
                 api.archive(
@@ -357,7 +316,7 @@ constructor(
                 )
             _state.update {
                 it.copy(
-                    selected = merge(it.selected, updated),
+                    selected = if (it.selected?.id == updated.id) merge(it.selected, updated) else it.selected,
                     threads = it.threads.map { row -> if (row.id == updated.id) updated else row },
                 )
             }
@@ -440,7 +399,6 @@ constructor(
                 ThreadsState(
                     enabled = it.enabled,
                     account = it.account,
-                    accounts = it.accounts,
                     denied = true,
                     loading = false,
                 )

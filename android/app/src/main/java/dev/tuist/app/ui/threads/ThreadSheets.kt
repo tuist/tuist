@@ -72,19 +72,6 @@ internal fun ThreadSheets(
                             )
                         }
                     }
-                    ThreadSheet.ACCOUNTS -> {
-                        SheetTitle(R.string.threads_accounts)
-                        state.accounts.forEach { account ->
-                            ListItem(
-                                headlineContent = { Text(account) },
-                                trailingContent = {
-                                    if (account == state.account) Icon(Icons.Default.Check, null)
-                                },
-                                modifier =
-                                    Modifier.clickable { onAction(ThreadAction.Account(account)) },
-                            )
-                        }
-                    }
                     ThreadSheet.DETAILS ->
                         state.selected?.let { thread ->
                             SheetTitle(R.string.threads_details)

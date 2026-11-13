@@ -6,6 +6,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Tests.RunSelections
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -57,7 +58,13 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       )
 
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id, git_commit_sha: @sha, scheme: "App", test_impact_run_id: run.id)
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        git_commit_sha: @sha,
+        scheme: "App",
+        test_impact_run_id: run.id,
+        test_modules: []
+      )
 
     load_run =
       RunsFixtures.test_case_run_fixture(
@@ -78,6 +85,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         %{path: "App/Project.swift"}
       ]
     )
+
+    RunSelections.record(project.id, [test_run.id])
 
     %{run: run, test_run: test_run, load_run: load_run}
   end

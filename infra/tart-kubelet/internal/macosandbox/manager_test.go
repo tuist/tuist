@@ -20,9 +20,12 @@ type fakeRuntime struct {
 	memory                   map[string]string
 	busy                     bool
 	worker                   WorkerStatus
+	workerEnv                map[string]string
 	saveErr, errorRecovery   error
+	createErr                error
 	saveStarted, saveRelease chan struct{}
 	creates, warms           int
+	claimedVolumeGB          int
 	// Warm VMs boot in the background.
 	mu          sync.Mutex
 	cpuPermille int64
@@ -30,6 +33,10 @@ type fakeRuntime struct {
 
 func (f *fakeRuntime) Create(_ context.Context, r *Record) error {
 	f.creates++
+	if f.createErr != nil {
+		f.states[r.SandboxID] = "booting" // A VM that never became ready.
+		return f.createErr
+	}
 	f.states[r.SandboxID] = "running"
 	f.memory[r.SandboxID] = "in-memory-session"
 	return nil
@@ -41,6 +48,7 @@ func (f *fakeRuntime) Warm(_ context.Context, r *Record) error {
 	defer f.mu.Unlock()
 	f.warms++
 	f.states[r.VMName()] = "warm"
+	r.WorkspaceVolumeGB = r.WorkspaceGB
 	return nil
 }
 func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
@@ -49,6 +57,7 @@ func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
 	if f.states[r.VMName()] != "warm" {
 		return errors.New("not warm")
 	}
+	f.claimedVolumeGB = r.WorkspaceVolumeGB
 	delete(f.states, r.VMName())
 	f.states[r.SandboxID] = "running"
 	f.memory[r.SandboxID] = "in-memory-session"
@@ -115,9 +124,10 @@ func (f *fakeRuntime) Exec(_ context.Context, r *Record, _ protocol.ExecArgs, _ 
 	}
 	return protocol.ExecResult{}, nil
 }
-func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, _ map[string]string) (WorkerStatus, error) {
+func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, env map[string]string) (WorkerStatus, error) {
 	if action == "start" {
 		f.worker = WorkerStatus{Running: true, ID: r.WorkerID}
+		f.workerEnv = env
 	}
 	if action == "stop" {
 		f.worker.Running = false
@@ -226,7 +236,7 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil {
+	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread", 0); err != nil {
 		t.Fatal(err)
 	}
 	// The hold survives a host restart, CI demand and the idle grace.
@@ -261,7 +271,7 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 		t.Fatal("the pause did not end the hold")
 	}
 	// A new turn resumes the evicted VM; releasing it makes it evictable again.
-	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil || r.states[a.SandboxID] != "running" {
+	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread", 0); err != nil || r.states[a.SandboxID] != "running" {
 		t.Fatal("hold did not resume the sandbox", err)
 	}
 	if err := recovered.Release(a.SandboxID, "amp:amp-thread"); err != nil {
@@ -272,6 +282,43 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 		t.Fatal("a released sandbox stayed resident", err)
 	}
 }
+
+// A running VM already holds its charge, so holds on it, new or renewed, need
+// no grant while CI holds it. A hold nobody renews expires, and the idle VM is
+// checkpointed once its idle grace is up, not when CI asks for the room.
+func TestHoldsOnARunningVMNeedNoGrantAndExpire(t *testing.T) {
+	m, r, c, a := harness(t)
+	m.Grace = time.Minute
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "commands", 0); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if err := m.Hold(ctx, a.SandboxID, "commands", 100*time.Millisecond); err != nil {
+		t.Fatalf("renewing the current hold needed the grant: %v", err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "amp:other", 100*time.Millisecond); err != nil {
+		t.Fatalf("a new hold on a running VM needed the grant: %v", err)
+	}
+	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("CI evicted a sandbox under a live hold", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("CI demand evicted an idle VM before its grace was up", err)
+	}
+	m.Grace = time.Nanosecond
+	if err := m.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.states[a.SandboxID] != "evicted" || c.held[a.SandboxID] {
+		t.Fatal("an expired hold kept the VM past its idle grace")
+	}
+}
+
 func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
 	m, r, _, a := harness(t)
 	ctx := context.Background()
@@ -293,8 +340,9 @@ func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
 		t.Fatal("a paused sandbox reported guest CPU")
 	}
 }
-func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
+func TestIdleEvictionSparesWorkAndRetainsFailedFence(t *testing.T) {
 	m, r, c, a := harness(t)
+	m.Grace = time.Nanosecond
 	ctx := context.Background()
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
@@ -307,7 +355,7 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !c.held[a.SandboxID] {
-		t.Fatal("CI interrupted active work")
+		t.Fatal("idle eviction interrupted active work")
 	}
 	r.worker.Running = false
 	r.saveErr = errors.New("checkpoint failed")
@@ -325,7 +373,38 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatal("successful eviction kept charge")
 	}
 	if err := m.Resume(ctx, a.SandboxID); !errors.Is(err, ErrCapacity) {
-		t.Fatalf("resume admitted while CI queued: %v", err)
+		t.Fatalf("resume admitted while CI holds the grant: %v", err)
+	}
+}
+
+// A running VM already holds its charge, so commands into it (log reads,
+// stdin, cancel) work while CI holds the grant. Resuming one still needs it.
+func TestExecIntoRunningSandboxNeedsNoGrantButResumeDoes(t *testing.T) {
+	m, _, c, a := harness(t)
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "commands", 0); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if _, err := m.Exec(ctx, protocol.ExecArgs{SandboxID: a.SandboxID}, nil); err != nil {
+		t.Fatalf("exec into a running sandbox needed the grant: %v", err)
+	}
+	if err := m.Release(a.SandboxID, "commands"); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = true
+	if err := m.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if _, err := m.Exec(ctx, protocol.ExecArgs{SandboxID: a.SandboxID}, nil); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("exec resumed a paused sandbox without the grant: %v", err)
+	}
+	if m.Snapshot()[0].State != "paused" {
+		t.Fatal("refused exec changed the sandbox's state")
 	}
 }
 func TestConcurrentCreatesCannotOverbookLastSlot(t *testing.T) {
@@ -355,6 +434,7 @@ func TestReportsAndCILaunchDoNotWaitForCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.allow = false
+	m.Grace = time.Nanosecond
 	r.saveStarted = make(chan struct{})
 	r.saveRelease = make(chan struct{})
 	done := make(chan error, 1)
@@ -415,6 +495,39 @@ func TestInterruptedDeleteIsRetriedAfterRestart(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(m.Root, a.SandboxID+".json")); !os.IsNotExist(err) {
 		t.Fatal("journal leaked")
+	}
+}
+
+// A host that cannot reach the server never receives a delete for a create
+// that failed there, so recovery must free the slot itself.
+func TestFailedCreateIsDeletedAndReleasedAfterRestart(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := context.Background()
+	r.createErr = errors.New("VM exited before guest readiness")
+	if m.Create(ctx, a) == nil {
+		t.Fatal("expected create failure")
+	}
+	if !c.held[a.SandboxID] {
+		t.Fatal("uncertain start released its reservation before the VM was deleted")
+	}
+	r.createErr = nil
+	r.errorRecovery = errors.New("creation did not finish")
+	recovered := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := recovered.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovered.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.held) != 0 || len(r.states) != 0 || len(recovered.Snapshot()) != 0 {
+		t.Fatalf("failed create kept its slot: held=%v vms=%v reported=%v", c.held, r.states, recovered.Snapshot())
+	}
+	if _, err := os.Stat(filepath.Join(m.Root, a.SandboxID+".json")); !os.IsNotExist(err) {
+		t.Fatal("journal leaked")
+	}
+	r.errorRecovery = nil
+	if err := recovered.Create(ctx, a); err != nil {
+		t.Fatalf("retrying the create: %v", err)
 	}
 }
 func TestDispatchFencesOwnerAndKeepsCredentialsOutOfJournal(t *testing.T) {

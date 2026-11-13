@@ -346,6 +346,8 @@ spec:
             - name: TUIST_SANDBOX_ARCHIVE_AFTER_HOURS
               value: {{ . | quote }}
             {{- end }}
+            - name: TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT
+              value: {{ .Values.sandboxes.archiveDiskHighWaterPercent | quote }}
             {{- end }}
             {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
@@ -540,6 +542,13 @@ spec:
             {{- fail "kuraVolumesCSI.thinRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
             {{- end }}
             - name: TUIST_KURA_THIN_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.kuraVolumesCSI.thinEnrolledRegions }}
+            {{- if not $.Values.kuraVolumesCSI.enabled }}
+            {{- fail "kuraVolumesCSI.thinEnrolledRegions requires kuraVolumesCSI.enabled, which installs the kura-thin-encrypted-nvme StorageClass" }}
+            {{- end }}
+            - name: TUIST_KURA_THIN_ENROLLED_REGIONS
               value: {{ join "," . | quote }}
             {{- end }}
             {{- with .Values.server.kuraEndpointUrls }}

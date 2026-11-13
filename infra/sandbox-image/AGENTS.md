@@ -11,7 +11,7 @@ node only covers what is inside the VM and how the template reaches a node.
 |---|---|
 | `cmd/sbx-init` | PID 1. Mounts proc, sysfs, devtmpfs, devpts, /dev/shm, /run, /tmp and cgroup2; names the guest from the kernel command line; configures `lo` and `eth0` (`10.0.0.2/30`, default route `10.0.0.1`, MAC left to the VMM) with netlink; writes `/etc/resolv.conf`, `/etc/hostname` and `/etc/hosts`; creates `/workspace` and `/mnt/memory`; supervises `sbx-agent` with 1s to 30s backoff; reaps orphans; powers off on SIGTERM (and on SIGINT, which is what Firecracker's ctrl-alt-del becomes). Logs to the console and `/dev/kmsg`. Linux-only; the non-Linux build is a stub. |
 | `cmd/sbx-agent` | vsock server on port 5000. `-listen tcp://127.0.0.1:5000` runs it on a TCP socket for development. |
-| `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`, or, with `SBX_CLAUDE_CODE_WORK_ORDER`, one Claude Code session's `claude self-hosted-runner` (see `infra/claude-code-runners/README.md`). |
+| `cmd/sbx-worker` | Runs one already-claimed Managed Agents work item with the Anthropic Go SDK's `EnvironmentWorker.HandleItem`, or, with `SBX_CLAUDE_CODE_WORK_ORDER`, one Claude Code session's `claude self-hosted-runner` (see `infra/claude-code-runners/README.md`). Started by that runner with `CLAUDE_RUNNER_CLAUDE_BIN`, it is the session wrapper: it adds `TUIST_OIDC_TOKEN` and execs Claude Code, keeping stdin and fd 3. It must stay root-owned in the guest so sessions cannot change it. With `SBX_CHECKOUT_PATH` and `SBX_CHECKOUT_COMMIT` (`checkout.go`), it copies the host's checkout master to the runner's clone before the runner starts (macOS: the image in `SBX_CHECKOUT_SHARE`; Linux: a tar over vsock port `SBX_CHECKOUT_VSOCK`, accepted only with its end-of-archive blocks) and exports that commit's objects in CI's export format after the runner exits. A repository already at the path that holds `.git/sbx-checkout-prepared.json` came from the host's prepared workspace: the worker moves that marker to its export state instead of seeding. A failed checkout only costs the clone; it never stops the session. |
 | `cmd/sbx-macos` | Darwin-only stdin bridge for Tart guest execution and managed workers. Process-group fencing tests must run on macOS; the provider image workflow gates publication on that suite. |
 | `internal/protocol` | Request and response frames, newline-delimited JSON. |
 | `internal/exec` | Command registry: process groups, streamed stdout/stderr, timeouts (exit 124), kill by exec id. |
@@ -19,6 +19,7 @@ node only covers what is inside the VM and how the template reaches a node.
 | `internal/guest` | The Linux implementation of `System`: `clock_settime`, `sethostname`, neighbour flush, workspace disk. Stubs elsewhere. |
 | `internal/sysconfig` | Rendering of the hostname, hosts and resolver files and kernel command line parsing. |
 | `Dockerfile`, `install-template.sh` | Template image and its entrypoint. |
+| `agent-home` | Tuist MCP configuration for Amp and Claude Code and the skill installed into `user`'s home. |
 
 The rootfs is Ubuntu 24.04 with the apt toolchain listed in the Dockerfile plus
 Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
@@ -31,6 +32,16 @@ to the version `sbx-worker` expects; keep the two and
 `AGENT_BROWSER_VERSION`, matching Amp's default orb image) is installed
 globally, with its Chrome for Testing in `/home/user/.agent-browser` and the
 browser's system libraries from apt.
+
+Agents get the project's Tuist data without setup. The Tuist CLI is at
+`/usr/local/bin/tuist`, pinned by `TUIST_VERSION`/`TUIST_SHA256` to a release
+that signs in with the sandbox's workload identity. `agent-home/` holds what
+`user`'s home receives: `amp-settings.json` becomes
+`~/.config/amp/settings.json` and `claude.json` becomes `~/.claude.json`, each
+declaring a `tuist` MCP server at `${TUIST_URL}/mcp` that authenticates with
+`${amp:id-token}` or `${TUIST_OIDC_TOKEN}`; `skills/` becomes
+`~/.claude/skills/`, which both Amp and Claude Code read. Claude Code rewrites
+`~/.claude.json` and Amp writes its settings, so both stay owned by `user`.
 
 ## Boot contract
 
@@ -79,13 +90,16 @@ the host is not amd64, and formats the rootfs natively with `mkfs.ext4 -d`.
 Build args: `KERNEL_URL` (Firecracker CI 6.1.155 by default), `KERNEL_SHA256`
 (verified when non-empty), `NODE_MAJOR`, `ANT_VERSION`, `AGENT_BROWSER_VERSION`, `ROOTFS_SIZE`,
 `VERSION` (stamped into `sbx-agent`'s `agent_version`), `AMP_VERSION` (pinned
-Linux amd64 CLI, verified against its published SHA-256).
+Linux amd64 CLI, verified against its published SHA-256), `TUIST_VERSION` and
+`TUIST_SHA256` (the release's `tuist-linux-x86_64.tar.gz` and its line in
+`SHASUMS256.txt`).
 
 ## Template init container
 
 The final stage is Alpine with GNU coreutils and carries `/template/vmlinux`,
 `/template/vmlinux.config`, `/template/rootfs.ext4` (sparse, 12 GiB) and
-`/template/metadata.json`. sandboxd's DaemonSet runs it as an init container
+`/template/metadata.json`, which records the guest `user`'s `runner_uid` and
+`runner_gid` for sandboxd's prepared checkout workspaces. sandboxd's DaemonSet runs it as an init container
 with the node's `/data/sandboxes` mounted at `/host` and `TEMPLATE_TAG` set
 (`TEMPLATE_NAME` defaults to `default`, `TEMPLATE_DIR` to
 `/host/templates/<name>/<tag>`). `install-template.sh` copies the files with

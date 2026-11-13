@@ -12,8 +12,14 @@ defmodule TuistWeb.API.ThreadsController do
 
   def index(conn, params) do
     case Threads.list(conn.assigns.app_user, conn.assigns.thread_account, params["cursor"]) do
-      {:ok, page} -> json(conn, %{threads: Enum.map(page.threads, &Threads.serialize/1), next_cursor: page.next_cursor})
-      {:error, reason} -> error(conn, reason)
+      {:ok, page} ->
+        json(conn, %{
+          conn.assigns.threads_collection => Enum.map(page.threads, &Threads.serialize/1),
+          :next_cursor => page.next_cursor
+        })
+
+      {:error, reason} ->
+        error(conn, reason)
     end
   end
 
@@ -62,7 +68,7 @@ defmodule TuistWeb.API.ThreadsController do
 
   def ship_preview(conn, _params) do
     case Threads.ship_preview(conn.assigns.app_user, conn.assigns.thread_account, conn.path_params["id"]) do
-      {:ok, preview} -> json(conn, preview)
+      {:ok, preview} -> json(conn, Map.put(preview, :jam_id, preview.thread_id))
       {:error, reason} -> error(conn, reason)
     end
   end

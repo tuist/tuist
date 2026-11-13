@@ -12,7 +12,7 @@ wait_seconds=${TUIST_ORB_CAPACITY_WAIT_SECONDS:-90}
 if [[ ! "$wait_seconds" =~ ^(0|[1-9][0-9]?)$ ]] || (( wait_seconds > 90 )); then
     echo 'TUIST_ORB_CAPACITY_WAIT_SECONDS must be an integer between 0 and 90.' >&2; exit 1;
 fi
-capacity_timeout='Timed out waiting for sandbox capacity or account CPU/RAM budget. If the account is at its disk quota, Tuist may still be archiving a paused Orb to make room, which can take a few minutes. Please retry shortly.'
+capacity_timeout='Timed out waiting for sandbox capacity or account CPU/RAM budget. If sandbox nodes are out of disk, Tuist may still be archiving a paused Orb to make room, which can take a few minutes. Please retry shortly.'
 
 : "${TUIST_URL:?Set the Tuist server URL}"
 
@@ -123,13 +123,12 @@ while true; do
         (( delay <= 10 )) || delay=10
         continue
     fi
-    if [[ "$ORB_OPERATION" == spawn && "$status" == 429 ]] &&
-        grep -Eiq $'^x-tuist-orb-refusal: sandbox-limit\r?$' "$headers"; then
-        echo 'The Tuist account reached its limit of Orbs kept on sandbox nodes, and paused Orbs count toward it. Delete threads you no longer need, then retry.' >&2
-        exit 1
-    fi
     if grep -Eiq $'^x-tuist-orb-refusal: unknown-orb-type\r?$' "$headers"; then
         echo "Tuist does not offer the orb type '${ORB_TYPE:-}'. Use one of the types listed on the Tuist Amp integration page." >&2
+        exit 1
+    fi
+    if grep -Eiq $'^x-tuist-orb-refusal: snapshot-not-saved\r?$' "$headers"; then
+        echo 'The Orb paused, but Tuist could not save its project snapshot, so new threads will run .agents/setup.' >&2
         exit 1
     fi
     if grep -Eiq $'^x-tuist-orb-refusal: orb-type-mismatch\r?$' "$headers"; then

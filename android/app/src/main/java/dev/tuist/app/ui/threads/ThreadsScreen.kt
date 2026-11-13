@@ -41,8 +41,6 @@ sealed interface ThreadAction {
 
     data class Repository(val value: ThreadRepository?) : ThreadAction
 
-    data class Account(val value: String) : ThreadAction
-
     data class Archived(val value: Boolean) : ThreadAction
 
     data object Back : ThreadAction
@@ -55,7 +53,7 @@ sealed interface ThreadAction {
 
     data object Send : ThreadAction
 
-    data object Archive : ThreadAction
+    data class Archive(val thread: ServerThread) : ThreadAction
 
     data object LoadMore : ThreadAction
 
@@ -88,14 +86,13 @@ fun ThreadsScreen(viewModel: ThreadsViewModel = hiltViewModel()) {
             is ThreadAction.Reply -> viewModel.reply(action.value)
             is ThreadAction.Model -> viewModel.model(action.value)
             is ThreadAction.Repository -> viewModel.repository(action.value)
-            is ThreadAction.Account -> viewModel.selectAccount(action.value)
             is ThreadAction.Archived -> viewModel.archived(action.value)
             ThreadAction.Back -> viewModel.back()
             ThreadAction.Refresh -> viewModel.refresh()
             ThreadAction.RetryModels -> viewModel.loadCatalog()
             ThreadAction.Create -> viewModel.create()
             ThreadAction.Send -> viewModel.send()
-            ThreadAction.Archive -> viewModel.archive()
+            is ThreadAction.Archive -> viewModel.archive(action.thread)
             ThreadAction.LoadMore -> viewModel.loadMore()
             ThreadAction.PreviewShip -> viewModel.previewShip()
             ThreadAction.ApproveShip -> viewModel.approveShip()
@@ -107,6 +104,16 @@ fun ThreadsScreen(viewModel: ThreadsViewModel = hiltViewModel()) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
+    var archiveTarget by remember(state.account, state.enabled, state.denied) {
+        mutableStateOf<ServerThread?>(null)
+    }
+    val performAction: (ThreadAction) -> Unit = { action ->
+        if (action is ThreadAction.Archive && action.thread.archiveStatus != "archived") {
+            archiveTarget = action.thread
+        } else {
+            onAction(action)
+        }
+    }
     MaterialTheme(
         colorScheme =
             MaterialTheme.colorScheme.copy(
@@ -115,17 +122,9 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
     ) {
         BackHandler(state.selected != null && state.sheet == null) { onAction(ThreadAction.Back) }
         if (!state.enabled || state.denied) {
-            val personalAccount = state.accounts.firstOrNull()
             ThreadUnavailable(
                 R.string.threads_access_title,
                 R.string.threads_access_description,
-                action =
-                    if (
-                        state.enabled && personalAccount != null && personalAccount != state.account
-                    )
-                        R.string.threads_personal_account
-                    else null,
-                onClick = { onAction(ThreadAction.Account(personalAccount!!)) },
             )
             return@MaterialTheme
         }
@@ -147,7 +146,7 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             if (state.selected != null) {
-                ThreadConversation(state, onAction)
+                ThreadConversation(state, performAction)
             } else {
                 TopAppBar(
                     title = {
@@ -164,14 +163,6 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
                         }
                     },
                     actions = {
-                        IconButton(
-                            onClick = { onAction(ThreadAction.Sheet(ThreadSheet.ACCOUNTS)) }
-                        ) {
-                            Icon(
-                                Icons.Default.AccountCircle,
-                                stringResource(R.string.threads_accounts),
-                            )
-                        }
                         IconButton(
                             onClick = { onAction(ThreadAction.Refresh) },
                             enabled = !state.busy,
@@ -262,6 +253,38 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
                                                 modifier = Modifier.size(14.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
+                                            Box {
+                                                var menu by remember { mutableStateOf(false) }
+                                                IconButton(
+                                                    onClick = { menu = true },
+                                                    enabled = !state.busy,
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.MoreVert,
+                                                        stringResource(R.string.threads_item_actions, thread.title),
+                                                    )
+                                                }
+                                                DropdownMenu(
+                                                    expanded = menu,
+                                                    onDismissRequest = { menu = false },
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                stringResource(
+                                                                    if (thread.archiveStatus == "archived") R.string.threads_restore
+                                                                    else R.string.threads_archive
+                                                                )
+                                                            )
+                                                        },
+                                                        enabled = !state.busy,
+                                                        onClick = {
+                                                            menu = false
+                                                            performAction(ThreadAction.Archive(thread))
+                                                        },
+                                                    )
+                                                }
+                                            }
                                         }
                                         Text(
                                             thread.title,
@@ -299,6 +322,27 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
             }
         }
         state.sheet?.let { sheet -> ThreadSheets(sheet, state, onAction) }
+        archiveTarget?.let { thread ->
+            AlertDialog(
+                onDismissRequest = { archiveTarget = null },
+                title = { Text(stringResource(R.string.threads_archive_confirmation)) },
+                text = { Text(stringResource(R.string.threads_archive_description)) },
+                confirmButton = {
+                    TextButton(
+                        enabled = !state.busy,
+                        onClick = {
+                            archiveTarget = null
+                            onAction(ThreadAction.Archive(thread))
+                        },
+                    ) { Text(stringResource(R.string.threads_archive)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { archiveTarget = null }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                },
+            )
+        }
         if (state.error && (!state.threads.isEmpty() || state.sheet != null)) {
             AlertDialog(
                 onDismissRequest = { onAction(ThreadAction.DismissError) },

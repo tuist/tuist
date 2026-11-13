@@ -16,11 +16,11 @@
       "Each code can be used once if you lose access to your authenticator."
     )}
   </p>
-  <div data-part="actions">
+  <div data-part="recovery-actions">
     <.button
       type="button"
       variant="secondary"
-      size="large"
+      size="medium"
       data-copy-recovery-codes
       data-copy-success={dgettext("dashboard_auth", "Recovery codes copied")}
       data-copy-failure={
@@ -34,8 +34,8 @@
     <span data-copy-status role="status" class="auth-copy-status"></span>
     <.button
       variant="primary"
-      size="large"
-      href={~p"/users/settings/mfa"}
+      size="medium"
+      href={~p"/#{@current_user.account.name}/settings/authentication"}
       label={dgettext("dashboard_auth", "I saved my recovery codes")}
     />
   </div>

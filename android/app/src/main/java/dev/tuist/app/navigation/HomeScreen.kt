@@ -32,6 +32,21 @@ import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.profile.ProfileScreen
 import dev.tuist.app.ui.threads.ThreadsScreen
 import dev.tuist.app.ui.threads.ThreadsViewModel
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 
 @Composable
 fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
@@ -48,6 +63,36 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
         navController.navigateAppRoute(route)
         navigation.consume(url)
     }
+    val profilesViewModel: ProfilesViewModel = hiltViewModel()
+    val profiles by profilesViewModel.auth.profiles.collectAsStateWithLifecycle()
+    val loading by profilesViewModel.loading.collectAsStateWithLifecycle()
+    val failed by profilesViewModel.failed.collectAsStateWithLifecycle()
+    val session by profilesViewModel.auth.session.collectAsStateWithLifecycle()
+    var choosing by remember { mutableStateOf(false) }
+    val chooserLabel = stringResource(R.string.profiles_title)
+
+    if (choosing) AlertDialog(
+        onDismissRequest = { choosing = false; profilesViewModel.cancelSelection() },
+        title = { Text(chooserLabel) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (loading) Text(stringResource(R.string.profiles_switching))
+                if (failed) Text(stringResource(R.string.profiles_switch_failed))
+                profiles.forEach { profile ->
+                    val active = profile.id == session.profileId
+                    TextButton(enabled = !loading, onClick = {
+                        profilesViewModel.select(profile.id) { choosing = false }
+                    }) {
+                        Text((if (active) "✓ " else "") + profile.label + "\n" + profile.server)
+                    }
+                }
+                TextButton(onClick = { choosing = false; profilesViewModel.cancelSelection(); profilesViewModel.auth.beginAddProfile() }) {
+                    Text(stringResource(R.string.profiles_add))
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { choosing = false; profilesViewModel.cancelSelection() }) { Text(stringResource(R.string.profiles_cancel)) } },
+    )
 
     LaunchedEffect(threadsState.enabled) {
         if (!threadsState.enabled && currentDestination?.hasRoute<HomeTabs.Threads>() == true) {
@@ -93,6 +138,24 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
                     selected = currentDestination?.hierarchy?.any {
                         it.hasRoute<HomeTabs.Profile>()
                     } == true,
+                    modifier = Modifier
+                        .semantics { onLongClick(chooserLabel) { choosing = true; true } }
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                val held = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                    waitForUpOrCancellation(PointerEventPass.Initial)
+                                    false
+                                } ?: true
+                                if (held) {
+                                    choosing = true
+                                    do {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        event.changes.forEach { it.consume() }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
+                        },
                     onClick = { navigation.open(AppRoute.Profile) },
                     icon = {
                         if (currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Profile>() } == true) {

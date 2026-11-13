@@ -1,0 +1,878 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::collections::HashSet;
+
+use api::v1::{ArrowIpc, SemanticType};
+use bytes::Bytes;
+use common_error::ext::BoxedError;
+use common_grpc::flight::{FlightEncoder, FlightMessage};
+use datatypes::arrow::record_batch::RecordBatch;
+use mito2::request::check_bulk_insert_batch;
+use snafu::{OptionExt, ResultExt, ensure};
+use store_api::codec::PrimaryKeyEncoding;
+use store_api::metadata::RegionMetadataRef;
+use store_api::region_request::{AffectedRows, RegionBulkInsertsRequest, RegionRequest};
+use store_api::storage::RegionId;
+
+use crate::batch_modifier::{TagColumnInfo, modify_batch_sparse};
+use crate::engine::MetricEngineInner;
+use crate::error;
+use crate::error::Result;
+use crate::metrics::MITO_OPERATION_ELAPSED;
+
+impl MetricEngineInner {
+    /// Bulk-inserts rows into a metric region.
+    ///
+    /// **Logical region path:** The request payload is a logical `RecordBatch`
+    /// (timestamp, value and tag columns). It is transformed to physical format
+    /// via `modify_batch_sparse`, encoded to Arrow IPC, and forwarded as a
+    /// `BulkInserts` request to the data region.
+    ///
+    /// **Physical region path:** The request payload is already in physical format
+    /// (produced by the batcher's `flush_batch_physical`). It is forwarded directly
+    /// to the data region with no transformation.
+    ///
+    /// Returns the number of affected rows, or `0` if the input batch is empty.
+    pub async fn bulk_insert_region(
+        &self,
+        region_id: RegionId,
+        request: RegionBulkInsertsRequest,
+    ) -> Result<AffectedRows> {
+        if request.payload.num_rows() == 0 {
+            return Ok(0);
+        }
+        if self.is_physical_region(region_id) {
+            let _timer = MITO_OPERATION_ELAPSED
+                .with_label_values(&["bulk_insert_physical"])
+                .start_timer();
+            return self.bulk_insert_physical_region(region_id, request).await;
+        }
+
+        let _timer = MITO_OPERATION_ELAPSED
+            .with_label_values(&["bulk_insert_logical"])
+            .start_timer();
+        self.bulk_insert_logical_region(region_id, request).await
+    }
+
+    /// Passthrough for bulk inserts targeting a physical data region.
+    ///
+    /// The batch is already in physical format (with `__primary_key`, timestamp,
+    /// value columns), so no logical-to-physical transformation is needed.
+    async fn bulk_insert_physical_region(
+        &self,
+        region_id: RegionId,
+        mut request: RegionBulkInsertsRequest,
+    ) -> Result<AffectedRows> {
+        // Other logical tables can add fields to the shared physical schema.
+        // Let Mito fill fields absent from this batch before writing it.
+        request.aligned_schema_version = None;
+        self.data_region
+            .write_data(region_id, RegionRequest::BulkInserts(request))
+            .await
+    }
+
+    /// Bulk-inserts logical rows, transforming them to physical format first.
+    async fn bulk_insert_logical_region(
+        &self,
+        region_id: RegionId,
+        request: RegionBulkInsertsRequest,
+    ) -> Result<AffectedRows> {
+        let (physical_region_id, data_region_id, primary_key_encoding) =
+            self.find_data_region_meta(region_id)?;
+
+        if primary_key_encoding != PrimaryKeyEncoding::Sparse {
+            return error::UnsupportedRegionRequestSnafu {
+                request: RegionRequest::BulkInserts(request),
+            }
+            .fail();
+        }
+
+        let batch = request.payload;
+        if batch.num_rows() == 0 {
+            return Ok(0);
+        }
+
+        let logical_metadata = self
+            .logical_region_metadata(physical_region_id, region_id)
+            .await?;
+        let (tag_columns, non_tag_indices) = self.resolve_tag_columns_from_metadata(
+            region_id,
+            data_region_id,
+            &batch,
+            &logical_metadata,
+        )?;
+        // The rewrite below copies columns without checking them, and would encode a
+        // duplicated tag into the primary key twice.
+        check_bulk_insert_batch(&logical_metadata, &batch)
+            .map_err(BoxedError::new)
+            .context(error::MitoWriteOperationSnafu)?;
+        let modified_batch = modify_batch_sparse(
+            batch.clone(),
+            region_id.table_id(),
+            &tag_columns,
+            &non_tag_indices,
+        )?;
+        let (schema, data_header, payload) = record_batch_to_ipc(&modified_batch)?;
+
+        let partition_expr_version = request.partition_expr_version;
+
+        let request = RegionBulkInsertsRequest {
+            skip_wal: request.skip_wal,
+            region_id: data_region_id,
+            payload: modified_batch,
+            raw_data: ArrowIpc {
+                schema,
+                data_header,
+                payload,
+            },
+            partition_expr_version,
+            aligned_schema_version: None,
+        };
+        self.data_region
+            .write_data(data_region_id, RegionRequest::BulkInserts(request))
+            .await
+    }
+
+    fn resolve_tag_columns_from_metadata(
+        &self,
+        logical_region_id: RegionId,
+        data_region_id: RegionId,
+        batch: &RecordBatch,
+        logical_metadata: &RegionMetadataRef,
+    ) -> Result<(Vec<TagColumnInfo>, Vec<usize>)> {
+        let tag_names: HashSet<&str> = logical_metadata
+            .column_metadatas
+            .iter()
+            .filter_map(|column| {
+                if column.semantic_type == SemanticType::Tag {
+                    Some(column.column_schema.name.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut tag_columns = Vec::new();
+        let mut non_tag_indices = Vec::new();
+        {
+            let state = self.state.read().unwrap();
+            let physical_columns = state
+                .physical_region_states()
+                .get(&data_region_id)
+                .context(error::PhysicalRegionNotFoundSnafu {
+                    region_id: data_region_id,
+                })?
+                .physical_columns();
+
+            for (index, field) in batch.schema().fields().iter().enumerate() {
+                let name = field.name();
+                let column_id = physical_columns
+                    .get(name)
+                    .map(|info| info.column_id)
+                    .with_context(|| error::ColumnNotFoundSnafu {
+                        name: name.clone(),
+                        region_id: logical_region_id,
+                    })?;
+                if tag_names.contains(name.as_str()) {
+                    tag_columns.push(TagColumnInfo {
+                        name: name.clone(),
+                        index,
+                        column_id,
+                    });
+                } else {
+                    non_tag_indices.push(index);
+                }
+            }
+        }
+
+        tag_columns.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok((tag_columns, non_tag_indices))
+    }
+}
+
+fn record_batch_to_ipc(record_batch: &RecordBatch) -> Result<(Bytes, Bytes, Bytes)> {
+    let mut encoder = FlightEncoder::default();
+    let schema = encoder.encode_schema(record_batch.schema().as_ref());
+    let mut iter = encoder
+        .encode(FlightMessage::RecordBatch(record_batch.clone()))
+        .into_iter();
+
+    let Some(flight_data) = iter.next() else {
+        return error::UnexpectedRequestSnafu {
+            reason: "Failed to encode empty flight data",
+        }
+        .fail();
+    };
+    ensure!(
+        iter.next().is_none(),
+        error::UnexpectedRequestSnafu {
+            reason: "Bulk insert RecordBatch with dictionary arrays is unsupported".to_string(),
+        }
+    );
+
+    Ok((
+        schema.data_header,
+        flight_data.data_header,
+        flight_data.data_body,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches;
+    use std::sync::Arc;
+
+    use api::v1::ArrowIpc;
+    use common_error::ext::ErrorExt;
+    use common_query::prelude::{greptime_timestamp, greptime_value};
+    use common_recordbatch::RecordBatches;
+    use datafusion::parquet::basic::Encoding;
+    use datatypes::arrow::array::{Float64Array, StringArray, TimestampMillisecondArray};
+    use datatypes::arrow::datatypes::{DataType, Field, Schema as ArrowSchema, TimeUnit};
+    use datatypes::arrow::record_batch::RecordBatch;
+    use mito2::config::MitoConfig;
+    use mito2::sst::parquet::metadata::MetadataLoader;
+    use mito2::sst::parquet::reader::MetadataCacheMetrics;
+    use store_api::metric_engine_consts::{
+        METRIC_ENGINE_NAME, PHYSICAL_TABLE_METADATA_KEY, PRIMARY_KEY_ENCODING,
+    };
+    use store_api::mito_engine_options::EXPERIMENTAL_SST_FLOAT_FIELD_ENCODING;
+    use store_api::path_utils::table_dir;
+    use store_api::region_engine::RegionEngine;
+    use store_api::region_request::{
+        PathType, RegionBulkInsertsRequest, RegionCloseRequest, RegionFlushRequest,
+        RegionOpenRequest, RegionPutRequest, RegionRequest,
+    };
+    use store_api::storage::{RegionId, ScanRequest};
+
+    use super::record_batch_to_ipc;
+    use crate::batch_modifier::{TagColumnInfo, modify_batch_sparse};
+    use crate::engine::MetricEngine;
+    use crate::error::Error;
+    use crate::test_util::{self, TestEnv};
+
+    fn build_logical_batch(start: usize, rows: usize) -> RecordBatch {
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new(
+                greptime_timestamp(),
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new(greptime_value(), DataType::Float64, true),
+            Field::new("job", DataType::Utf8, true),
+        ]));
+
+        let mut ts = Vec::with_capacity(rows);
+        let mut values = Vec::with_capacity(rows);
+        let mut tags = Vec::with_capacity(rows);
+        for i in start..start + rows {
+            ts.push(i as i64);
+            values.push(i as f64);
+            tags.push("tag_0".to_string());
+        }
+
+        RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(TimestampMillisecondArray::from(ts)),
+                Arc::new(Float64Array::from(values)),
+                Arc::new(StringArray::from(tags)),
+            ],
+        )
+        .unwrap()
+    }
+
+    fn build_bulk_request(
+        logical_region_id: RegionId,
+        batch: RecordBatch,
+        skip_wal: bool,
+    ) -> RegionRequest {
+        let (schema, data_header, payload) = record_batch_to_ipc(&batch).unwrap();
+        RegionRequest::BulkInserts(RegionBulkInsertsRequest {
+            skip_wal,
+            region_id: logical_region_id,
+            payload: batch,
+            raw_data: ArrowIpc {
+                schema,
+                data_header,
+                payload,
+            },
+            partition_expr_version: None,
+            aligned_schema_version: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_rejects_duplicate_tag() {
+        use common_error::status_code::StatusCode;
+
+        let env = TestEnv::new().await;
+        env.init_metric_region().await;
+        let logical_region_id = env.default_logical_region_id();
+
+        let batch = build_logical_batch(0, 2);
+        let mut fields = batch.schema().fields().to_vec();
+        let mut columns = batch.columns().to_vec();
+        fields.push(fields[2].clone());
+        columns.push(columns[2].clone());
+        let batch = RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns).unwrap();
+        let err = env
+            .metric()
+            .handle_request(
+                logical_region_id,
+                build_bulk_request(logical_region_id, batch, false),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.status_code(), StatusCode::InvalidArguments, "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_physical_region_rejects_malformed_primary_key() {
+        use common_error::status_code::StatusCode;
+        use datatypes::arrow::array::{ArrayRef, BinaryArray, Int64Array};
+        use store_api::storage::consts::PRIMARY_KEY_COLUMN_NAME;
+
+        let env = TestEnv::new().await;
+        env.init_metric_region().await;
+        let physical_region_id = env.default_physical_region_id();
+        let logical_region_id = env.default_logical_region_id();
+        let tag_columns = vec![TagColumnInfo {
+            name: "job".to_string(),
+            index: 2,
+            column_id: 2,
+        }];
+        let batch = modify_batch_sparse(
+            build_logical_batch(0, 2),
+            logical_region_id.table_id(),
+            &tag_columns,
+            &[0, 1],
+        )
+        .unwrap();
+        let primary_key_index = batch.schema().index_of(PRIMARY_KEY_COLUMN_NAME).unwrap();
+        let with_primary_key = |primary_key: Option<ArrayRef>, extra: Option<ArrayRef>| {
+            let mut fields = batch.schema().fields().to_vec();
+            let mut columns = batch.columns().to_vec();
+            fields.remove(primary_key_index);
+            columns.remove(primary_key_index);
+            for array in [primary_key, extra].into_iter().flatten() {
+                fields.push(Arc::new(Field::new(
+                    PRIMARY_KEY_COLUMN_NAME,
+                    array.data_type().clone(),
+                    true,
+                )));
+                columns.push(array);
+            }
+            RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns).unwrap()
+        };
+        let encoded = batch.column(primary_key_index).clone();
+        let rejected = [
+            with_primary_key(None, None),
+            with_primary_key(Some(Arc::new(Int64Array::from(vec![1, 2]))), None),
+            with_primary_key(
+                Some(Arc::new(BinaryArray::from_opt_vec(vec![Some(b"a"), None]))),
+                None,
+            ),
+            with_primary_key(Some(encoded.clone()), Some(encoded)),
+        ];
+        for batch in rejected {
+            let err = env
+                .metric()
+                .handle_request(
+                    physical_region_id,
+                    build_bulk_request(physical_region_id, batch, false),
+                )
+                .await
+                .unwrap_err();
+            assert_eq!(err.status_code(), StatusCode::InvalidArguments, "{err:?}");
+        }
+    }
+
+    async fn init_dense_metric_region(env: &TestEnv) -> RegionId {
+        let physical_region_id = env.default_physical_region_id();
+        env.create_physical_region(
+            physical_region_id,
+            &TestEnv::default_table_dir(),
+            vec![(PRIMARY_KEY_ENCODING.to_string(), "dense".to_string())],
+        )
+        .await;
+
+        let logical_region_id = env.default_logical_region_id();
+        let request = test_util::create_logical_region_request(
+            &["job"],
+            physical_region_id,
+            &table_dir("test", logical_region_id.table_id()),
+        );
+        env.metric()
+            .handle_request(logical_region_id, RegionRequest::Create(request))
+            .await
+            .unwrap();
+        logical_region_id
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_empty_batch_returns_zero() {
+        let env = TestEnv::new().await;
+        env.init_metric_region().await;
+        let logical_region_id = env.default_logical_region_id();
+
+        let batch = build_logical_batch(0, 0);
+        let request = RegionRequest::BulkInserts(RegionBulkInsertsRequest {
+            skip_wal: false,
+            region_id: logical_region_id,
+            payload: batch,
+            raw_data: ArrowIpc::default(),
+            partition_expr_version: None,
+            aligned_schema_version: None,
+        });
+        let response = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 0);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_physical_region_passthrough() {
+        check_bulk_insert_physical_region_passthrough(false, false, false).await;
+        check_bulk_insert_physical_region_passthrough(true, false, false).await;
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_physical_region_close_recovery() {
+        check_bulk_insert_physical_region_passthrough(false, true, false).await;
+        check_bulk_insert_physical_region_passthrough(true, true, false).await;
+    }
+
+    #[tokio::test]
+    async fn test_physical_bulk_partition_columns_preserve_stored_rows() {
+        for skip_wal in [false, true] {
+            let stripped =
+                check_bulk_insert_physical_region_passthrough(skip_wal, true, false).await;
+            let retained =
+                check_bulk_insert_physical_region_passthrough(skip_wal, true, true).await;
+            assert_eq!(retained, stripped, "skip_wal={skip_wal}");
+        }
+    }
+
+    async fn check_bulk_insert_physical_region_passthrough(
+        skip_wal: bool,
+        close: bool,
+        retain_partition_columns: bool,
+    ) -> String {
+        // Use flat format so that BulkMemtable is used (supports write_bulk).
+        let mito_config = MitoConfig {
+            default_flat_format: true,
+            ..Default::default()
+        };
+        let mut env = TestEnv::with_mito_config("", mito_config, Default::default()).await;
+        env.init_metric_region().await;
+        env.metric().inner.flush_task.stop().await.unwrap();
+        let physical_region_id = env.default_physical_region_id();
+        let logical_region_id = env.default_logical_region_id();
+
+        // First, do a normal logical bulk insert so we can compare results.
+        let logical_batch = build_logical_batch(0, 3);
+        let logical_request = build_bulk_request(logical_region_id, logical_batch, skip_wal);
+        let response = env
+            .metric()
+            .handle_request(logical_region_id, logical_request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 3);
+
+        // Now build a physical-format batch using modify_batch_sparse (simulating
+        // what the batcher's flush_batch_physical does) and send it directly to
+        // the physical region.
+        let tag_columns = vec![TagColumnInfo {
+            name: "job".to_string(),
+            index: 2,
+            column_id: 2, // column_id for "job" in the physical table
+        }];
+        let non_tag_indices = if retain_partition_columns {
+            vec![0, 1, 2] // timestamp, value, and the job partition column
+        } else {
+            vec![0, 1] // timestamp, value
+        };
+        let second_batch = build_logical_batch(3, 3);
+        let physical_batch = modify_batch_sparse(
+            second_batch,
+            logical_region_id.table_id(),
+            &tag_columns,
+            &non_tag_indices,
+        )
+        .unwrap();
+        assert_eq!(
+            physical_batch.column_by_name("job").is_some(),
+            retain_partition_columns
+        );
+        let request = build_bulk_request(physical_region_id, physical_batch, skip_wal);
+        let response = env
+            .metric()
+            .handle_request(physical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 3);
+
+        // Verify all 6 rows are readable from the logical region.
+        let stream = env
+            .metric()
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 6);
+
+        let stat = env.mito().region_statistic(physical_region_id).unwrap();
+        assert_eq!(stat.sst_num, 0);
+        let reopened = if close {
+            env.metric()
+                .handle_request(
+                    physical_region_id,
+                    RegionRequest::Close(RegionCloseRequest::default()),
+                )
+                .await
+                .unwrap();
+            // Recreating the wrapper prevents its metadata cache from hiding data loss.
+            MetricEngine::try_new(env.mito(), Default::default()).unwrap()
+        } else {
+            // Stopping workers without Close exercises recovery from WAL alone.
+            env.reopen_engine(Default::default()).await;
+            env.metric()
+        };
+        reopened.inner.flush_task.stop().await.unwrap();
+        reopened
+            .handle_request(
+                physical_region_id,
+                RegionRequest::Open(RegionOpenRequest {
+                    engine: METRIC_ENGINE_NAME.to_string(),
+                    table_dir: TestEnv::default_table_dir(),
+                    path_type: PathType::Bare,
+                    options: [(PHYSICAL_TABLE_METADATA_KEY.to_string(), String::new())]
+                        .into_iter()
+                        .collect(),
+                    skip_wal_replay: false,
+                    checkpoint: None,
+                    requirements: Default::default(),
+                }),
+            )
+            .await
+            .unwrap();
+        let stat = env
+            .mito()
+            .region_statistic(crate::utils::to_data_region_id(physical_region_id))
+            .unwrap();
+        assert_eq!(stat.sst_num > 0, skip_wal && close);
+        let stream = reopened
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        assert_eq!(
+            batches.iter().map(|b| b.num_rows()).sum::<usize>(),
+            if skip_wal && !close { 0 } else { 6 },
+        );
+        batches.pretty_print().unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_physical_region_empty_batch() {
+        // Use flat format so that BulkMemtable is used (supports write_bulk).
+        let mito_config = MitoConfig {
+            default_flat_format: true,
+            ..Default::default()
+        };
+        let env = TestEnv::with_mito_config("", mito_config, Default::default()).await;
+        env.init_metric_region().await;
+        let physical_region_id = env.default_physical_region_id();
+
+        let batch = build_logical_batch(0, 0);
+        let request = build_bulk_request(physical_region_id, batch, false);
+        let response = env
+            .metric()
+            .handle_request(physical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 0);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_unknown_column_errors() {
+        let env = TestEnv::new().await;
+        env.init_metric_region().await;
+        let logical_region_id = env.default_logical_region_id();
+
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new(
+                greptime_timestamp(),
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new(greptime_value(), DataType::Float64, true),
+            Field::new("nonexistent_column", DataType::Utf8, true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(TimestampMillisecondArray::from(vec![0i64])),
+                Arc::new(Float64Array::from(vec![1.0])),
+                Arc::new(StringArray::from(vec!["val"])),
+            ],
+        )
+        .unwrap();
+
+        let request = build_bulk_request(logical_region_id, batch, false);
+        let err = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap_err();
+        let Some(err) = err.as_any().downcast_ref::<Error>() else {
+            panic!("unexpected error type");
+        };
+        assert_matches!(err, Error::ColumnNotFound { .. });
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_multiple_tag_columns() {
+        let env = TestEnv::new().await;
+        let physical_region_id = env.default_physical_region_id();
+        env.create_physical_region(physical_region_id, &TestEnv::default_table_dir(), vec![])
+            .await;
+        let logical_region_id = env.default_logical_region_id();
+        let request = test_util::create_logical_region_request(
+            &["host", "region"],
+            physical_region_id,
+            &table_dir("test", logical_region_id.table_id()),
+        );
+        env.metric()
+            .handle_request(logical_region_id, RegionRequest::Create(request))
+            .await
+            .unwrap();
+
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new(
+                greptime_timestamp(),
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                false,
+            ),
+            Field::new(greptime_value(), DataType::Float64, true),
+            Field::new("host", DataType::Utf8, true),
+            Field::new("region", DataType::Utf8, true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(TimestampMillisecondArray::from(vec![0i64, 1, 2])),
+                Arc::new(Float64Array::from(vec![10.0, 20.0, 30.0])),
+                Arc::new(StringArray::from(vec!["h1", "h2", "h1"])),
+                Arc::new(StringArray::from(vec!["us-east", "us-west", "eu-west"])),
+            ],
+        )
+        .unwrap();
+
+        let request = build_bulk_request(logical_region_id, batch, false);
+        let response = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 3);
+
+        let stream = env
+            .metric()
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_accumulates_rows() {
+        let env = TestEnv::new().await;
+        env.init_metric_region().await;
+        let logical_region_id = env.default_logical_region_id();
+
+        let request = build_bulk_request(logical_region_id, build_logical_batch(0, 3), false);
+        let response = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 3);
+
+        let request = build_bulk_request(logical_region_id, build_logical_batch(3, 5), false);
+        let response = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, 5);
+
+        let stream = env
+            .metric()
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 8);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_sparse_encoding() {
+        let env = TestEnv::new().await;
+        let physical_region_id = env.default_physical_region_id();
+        env.create_physical_region(
+            physical_region_id,
+            &TestEnv::default_table_dir(),
+            vec![(
+                EXPERIMENTAL_SST_FLOAT_FIELD_ENCODING.to_string(),
+                "byte_stream_split".to_string(),
+            )],
+        )
+        .await;
+        let logical_region_id = env.default_logical_region_id();
+        env.create_logical_region(physical_region_id, logical_region_id)
+            .await;
+
+        let rows = 4;
+        let request = build_bulk_request(logical_region_id, build_logical_batch(0, rows), false);
+        let response = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap();
+        assert_eq!(response.affected_rows, rows);
+
+        let data_region_id = crate::utils::to_data_region_id(physical_region_id);
+        env.mito()
+            .handle_request(
+                data_region_id,
+                RegionRequest::Flush(RegionFlushRequest::default()),
+            )
+            .await
+            .unwrap();
+
+        let region = env.mito().find_region(data_region_id).unwrap();
+        let entry = env
+            .mito()
+            .all_ssts_from_manifest()
+            .await
+            .into_iter()
+            .find(|entry| {
+                entry.region_id == data_region_id
+                    && entry.visible
+                    && entry.file_path.ends_with(".parquet")
+            })
+            .unwrap();
+        let mut cache_metrics = MetadataCacheMetrics::default();
+        let footer = MetadataLoader::new(
+            region.access_layer().object_store().clone(),
+            &entry.file_path,
+            entry.file_size,
+        )
+        .load(&mut cache_metrics)
+        .await
+        .unwrap();
+        let field_column_index = footer
+            .file_metadata()
+            .schema_descr()
+            .columns()
+            .iter()
+            .position(|column| column.name() == greptime_value())
+            .unwrap();
+        assert!(!footer.row_groups().is_empty());
+        assert!(footer.row_groups().iter().all(|row_group| {
+            row_group
+                .column(field_column_index)
+                .encodings()
+                .any(|encoding| encoding == Encoding::BYTE_STREAM_SPLIT)
+        }));
+
+        let stream = env
+            .metric()
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let batches = RecordBatches::try_collect(stream).await.unwrap();
+        assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), rows);
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_dense_encoding_rejected() {
+        let env = TestEnv::new().await;
+        let logical_region_id = init_dense_metric_region(&env).await;
+
+        let request = build_bulk_request(logical_region_id, build_logical_batch(0, 2), false);
+        let err = env
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap_err();
+        let Some(err) = err.as_any().downcast_ref::<Error>() else {
+            panic!("unexpected error type");
+        };
+        assert_matches!(err, Error::UnsupportedRegionRequest { .. });
+    }
+
+    #[tokio::test]
+    async fn test_bulk_insert_matches_put() {
+        let env_put = TestEnv::new().await;
+        env_put.init_metric_region().await;
+        let logical_region_id = env_put.default_logical_region_id();
+        let schema = test_util::row_schema_with_tags(&["job"]);
+        let rows = test_util::build_rows(1, 5);
+        env_put
+            .metric()
+            .handle_request(
+                logical_region_id,
+                RegionRequest::Put(RegionPutRequest {
+                    skip_wal: false,
+                    rows: api::v1::Rows { schema, rows },
+                    hint: None,
+                    partition_expr_version: None,
+                }),
+            )
+            .await
+            .unwrap();
+        let put_stream = env_put
+            .metric()
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let put_batches = RecordBatches::try_collect(put_stream).await.unwrap();
+        let put_output = put_batches.pretty_print().unwrap();
+
+        let env_bulk = TestEnv::new().await;
+        env_bulk.init_metric_region().await;
+        let request = build_bulk_request(logical_region_id, build_logical_batch(0, 5), false);
+        env_bulk
+            .metric()
+            .handle_request(logical_region_id, request)
+            .await
+            .unwrap();
+        let bulk_stream = env_bulk
+            .metric()
+            .scan_to_stream(logical_region_id, ScanRequest::default())
+            .await
+            .unwrap();
+        let bulk_batches = RecordBatches::try_collect(bulk_stream).await.unwrap();
+        let bulk_output = bulk_batches.pretty_print().unwrap();
+
+        assert_eq!(put_output, bulk_output);
+    }
+}

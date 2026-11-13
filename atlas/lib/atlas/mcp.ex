@@ -439,8 +439,8 @@ defmodule Atlas.MCP do
   @doc """
   Spends the caller's approval for this exact call, or files a request for one.
 
-  Returns `:ok` when an approved, unspent and unexpired approval matches the
-  user, tool and arguments; the approval is consumed in the same statement, so
+  Returns `{:ok, approval}` when an approved, unspent and unexpired approval
+  matches the user, tool and arguments; the approval is consumed in the same statement, so
   two concurrent calls cannot share it. Otherwise returns
   `{:approval_required, approval}` with the pending request a person decides in
   the Atlas web UI, reusing an open request for the same call.
@@ -473,7 +473,7 @@ defmodule Atlas.MCP do
     case Repo.update_all(spend, set: [consumed_at: now, updated_at: now]) do
       {1, [approval]} ->
         audit_tool_approval("mcp_tool_approval.consumed", approval)
-        :ok
+        {:ok, approval}
 
       {0, _} ->
         :approval_required
@@ -497,15 +497,30 @@ defmodule Atlas.MCP do
     {:approval_required, approval}
   end
 
-  def list_pending_tool_approvals(%User{id: user_id}) do
+  @doc """
+  The caller's unexpired, unspent requests with `status`. `server_names` or
+  `except_server_names` keep each request on the one page that can show what
+  it approves.
+  """
+  def list_tool_approvals(%User{id: user_id}, status, opts \\ []) do
     now = DateTime.utc_now()
 
-    Repo.all(
-      from(a in ToolApproval,
-        where: a.user_id == ^user_id and a.status == "pending" and a.expires_at > ^now,
-        order_by: [desc: a.inserted_at]
-      )
+    from(a in ToolApproval,
+      where: a.user_id == ^user_id and a.status == ^status and a.expires_at > ^now and is_nil(a.consumed_at),
+      order_by: [desc: a.inserted_at]
     )
+    |> filter_servers(opts)
+    |> Repo.all()
+  end
+
+  def list_pending_tool_approvals(%User{} = user, opts \\ []), do: list_tool_approvals(user, "pending", opts)
+
+  defp filter_servers(query, opts) do
+    query = if names = opts[:server_names], do: from(a in query, where: a.server_name in ^names), else: query
+
+    if names = opts[:except_server_names],
+      do: from(a in query, where: a.server_name not in ^names),
+      else: query
   end
 
   @doc """
@@ -513,9 +528,11 @@ defmodule Atlas.MCP do
 
   Only the person whose upstream session the call would use may decide it, and
   this is reachable only from the browser session: no MCP tool decides an
-  approval, so the agent that asked cannot also answer.
+  approval, so the agent that asked cannot also answer. An `arguments` option
+  approves those arguments instead of the requested ones, for an owner who
+  edited the call before approving it.
   """
-  def decide_tool_approval(%User{id: user_id}, id, decision) when decision in ["approved", "rejected"] do
+  def decide_tool_approval(%User{id: user_id}, id, decision, opts \\ []) when decision in ["approved", "rejected"] do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     query =
@@ -523,8 +540,16 @@ defmodule Atlas.MCP do
         where: a.id == ^id and a.user_id == ^user_id and a.status == "pending" and a.expires_at > ^now,
         select: a
       )
+      |> filter_servers(opts)
 
-    case Repo.update_all(query, set: [status: decision, decided_at: now, updated_at: now]) do
+    # An owner who edited the call approves the edited arguments, not the request's.
+    changes =
+      case {decision, opts[:arguments]} do
+        {"approved", %{} = arguments} -> [arguments: arguments, arguments_digest: arguments_digest(arguments)]
+        _ -> []
+      end
+
+    case Repo.update_all(query, set: [status: decision, decided_at: now, updated_at: now] ++ changes) do
       {1, [approval]} ->
         audit_tool_approval("mcp_tool_approval.#{decision}", approval)
         {:ok, approval}
@@ -540,7 +565,7 @@ defmodule Atlas.MCP do
       target_id: approval.id,
       target_label: "#{approval.server_name}/#{approval.tool_name}",
       metadata: %{
-        "path" => "/admin/mcps",
+        "path" => "/approvals/#{approval.id}",
         "server_name" => approval.server_name,
         "tool_name" => approval.tool_name,
         "arguments" => approval.arguments,

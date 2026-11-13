@@ -269,6 +269,95 @@ defmodule Tuist.Gradle.TimelineTest do
     refute Timeline.normalize(build, [], [], [], []).has_metrics
   end
 
+  test "failure messages are sanitized, bounded per build and exposed as step logs" do
+    long = String.duplicate("é", 9000)
+
+    failed_tasks =
+      Enum.map(1..35, fn index ->
+        Map.put(task(":app:t#{index}", "failed", DateTime.add(@start, 1000 + index, :millisecond)), :failure, %{
+          message: "Execution failed for task ':app:t#{index}'.",
+          truncated: false
+        })
+      end)
+
+    id =
+      GradleFixtures.build_fixture(
+        started_at: @start,
+        status: "failure",
+        tasks:
+          [
+            Map.put(task(":app:compileJava", "failed", DateTime.add(@start, 900, :millisecond)), :failure, %{
+              message: "Compilation failed\n> Authorization: Bearer abc123 in /Users/me/app/A.java"
+            }),
+            Map.put(task(":app:lint", "failed", DateTime.add(@start, 950, :millisecond)), :failure, %{
+              message: long,
+              truncated: true
+            }),
+            task(":app:assemble", "executed", DateTime.add(@start, 800, :millisecond))
+          ] ++ failed_tasks,
+        configuration_operations: [
+          %{phase: "settings", build_path: ":", started_at: @start, duration_ms: 10},
+          %{
+            phase: "project",
+            build_path: ":",
+            project_path: ":app",
+            started_at: DateTime.add(@start, 100, :millisecond),
+            duration_ms: 10,
+            failure: %{message: "A problem occurred evaluating project ':app'.\n> configuration failed"}
+          }
+        ]
+      )
+
+    {:ok, build} = Gradle.get_build(id)
+
+    IngestRepo.insert_all(ConfigurationOperation, [
+      %{
+        id: Ecto.UUID.generate(),
+        gradle_build_id: id,
+        project_id: build.project_id + 1,
+        phase: "project",
+        build_path: ":",
+        project_path: ":secret",
+        started_at: DateTime.to_naive(@start),
+        duration_ms: 1,
+        failure_message: "foreign failure",
+        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      }
+    ])
+
+    failures = Gradle.list_failures(build)
+    # Configuration, compileJava and lint take three of the 32 slots, leaving 29 for t1..t29.
+    assert length(failures) == 32
+    refute Enum.any?(failures, &(&1.message == "foreign failure"))
+
+    assert [configuration, compile, lint | _] = failures
+    assert %{kind: "configuration", title: "project", target: ":app", truncated: false} = configuration
+    assert configuration.message =~ "configuration failed"
+    assert %{kind: "task", title: ":app:compileJava"} = compile
+    assert compile.message == "Compilation failed\n> Authorization: <REDACTED> in <LOCAL_PATH>"
+    refute compile.message =~ "abc123"
+    refute compile.message =~ "/Users/me"
+    assert %{truncated: true} = lint
+    assert byte_size(lint.message) == 16_384
+    assert String.valid?(lint.message)
+    assert Enum.any?(failures, &(&1.title == ":app:t29"))
+    refute Enum.any?(failures, &(&1.title == ":app:t30"))
+
+    assert {:ok, %{log: log, log_truncated: false, status: "failure"}} = RecordedSteps.get(build, compile.step_id)
+    assert log == compile.message
+    assert {:ok, %{log: config_log, status: "failure"}} = RecordedSteps.get(build, configuration.step_id)
+    assert config_log == configuration.message
+
+    {:ok, %{steps: steps}} = RecordedSteps.list(build, %{category: "configuration", sort_by: "start_ms"})
+    assert Enum.map(steps, &{&1.title, &1.status}) == [{"settings", "unknown"}, {"project", "failure"}]
+    assert {:ok, %{log: nil, log_truncated: false}} = RecordedSteps.get(build, hd(steps).id)
+
+    assert %{status: "failure"} = Enum.find(Timeline.load(build).events, &(&1.title == "project"))
+
+    {:ok, %{steps: [assemble]}} = RecordedSteps.list(build, %{search: ":app:assemble"})
+    assert {:ok, %{log: nil, status: "success"}} = RecordedSteps.get(build, assemble.id)
+  end
+
   defp task(path, outcome, started_at), do: %{task_path: path, outcome: outcome, started_at: started_at, duration_ms: 100}
 
   defp metric(timestamp),

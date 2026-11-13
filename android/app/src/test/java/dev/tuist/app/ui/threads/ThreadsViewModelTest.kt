@@ -1,8 +1,6 @@
 package dev.tuist.app.ui.threads
 
 import androidx.lifecycle.ViewModelStore
-import dev.tuist.app.api.OrganizationsApi
-import dev.tuist.app.api.model.OrganizationList1
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.featureflags.FeatureFlag
 import dev.tuist.app.data.featureflags.FeatureFlagsRepository
@@ -20,7 +18,6 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
-import retrofit2.Retrofit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ThreadsViewModelTest {
@@ -30,11 +27,10 @@ class ThreadsViewModelTest {
     private val transport = mockk<ThreadTransport>()
     private val api = mockk<ThreadsApi>()
     private val watcher = mockk<ThreadWatcher>()
-    private val retrofit = mockk<Retrofit>()
-    private val organizations = mockk<OrganizationsApi>()
     private val authState =
         MutableStateFlow<AuthState>(AuthState.LoggedIn(Account("alice@example.com", "alice")))
     private val enabled = MutableStateFlow<Set<FeatureFlag>>(emptySet())
+    private val session = MutableStateFlow(dev.tuist.app.data.auth.TokenStorage.Session("alice-login", 0))
     private val store = ViewModelStore()
     private val model = ThreadModel("chatgpt", "chosen-model", "Chosen model")
     private val thread =
@@ -59,11 +55,9 @@ class ThreadsViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { auth.authState } returns authState
+        every { auth.session } returns session
         every { flags.enabled } returns enabled
         every { transport.api } returns api
-        every { retrofit.create(OrganizationsApi::class.java) } returns organizations
-        coEvery { organizations.listOrganizations() } returns
-            Response.success(OrganizationList1(emptyList()))
         coEvery { api.list(any(), any()) } returns ThreadPage(listOf(thread))
         coEvery { api.history(any(), any(), any()) } returns thread
         coEvery { api.repositories(any()) } returns ThreadRepositories(emptyList())
@@ -77,9 +71,74 @@ class ThreadsViewModelTest {
     }
 
     private fun viewModel() =
-        ThreadsViewModel(transport, auth, flags, retrofit, watcher).also {
+        ThreadsViewModel(transport, auth, flags, watcher).also {
             store.put("threads", it)
         }
+
+    @Test
+    fun `list archive and restore update only the target without opening it or losing drafts`() =
+        runTest(dispatcher) {
+            val other = thread.copy(id = "other", title = "Other thread")
+            coEvery { api.list("alice", null) } returns ThreadPage(listOf(thread, other))
+            enabled.value = setOf(FeatureFlag.AI)
+            val vm = viewModel()
+            runCurrent()
+            vm.draft("Keep my new thread draft")
+            val archived = thread.copy(archiveStatus = "archived", revision = 2)
+            coEvery { api.archive("alice", "id", ArchiveThread("archived")) } returns archived
+            vm.archive(thread)
+            vm.archive(thread)
+            runCurrent()
+            assertNull(vm.state.value.selected)
+            assertEquals(listOf(archived, other), vm.state.value.threads)
+            assertEquals("Keep my new thread draft", vm.state.value.draft)
+            assertFalse(vm.state.value.busy)
+            coVerify(exactly = 1) { api.archive("alice", "id", ArchiveThread("archived")) }
+
+            coEvery { api.history("alice", "other", null) } returns other
+            vm.open(other)
+            runCurrent()
+            vm.reply("Keep my reply too")
+            val restored = archived.copy(archiveStatus = "active", revision = 3)
+            coEvery { api.archive("alice", "id", ArchiveThread("active")) } returns restored
+            vm.archive(archived)
+            runCurrent()
+            assertEquals(other, vm.state.value.selected)
+            assertEquals(listOf(restored, other), vm.state.value.threads)
+            assertEquals("Keep my reply too", vm.state.value.reply)
+        }
+
+    @Test
+    fun `failed list archive keeps the thread and draft and reports an error`() =
+        runTest(dispatcher) {
+            enabled.value = setOf(FeatureFlag.AI)
+            val vm = viewModel()
+            runCurrent()
+            vm.draft("Keep this draft")
+            coEvery { api.archive(any(), any(), any()) } throws IOException("Offline")
+            vm.archive(thread)
+            runCurrent()
+            assertEquals(listOf(thread), vm.state.value.threads)
+            assertNull(vm.state.value.selected)
+            assertEquals("Keep this draft", vm.state.value.draft)
+            assertTrue(vm.state.value.error)
+            assertFalse(vm.state.value.busy)
+        }
+
+    @Test fun `threads use personal account despite legacy organization selection`() = runTest(dispatcher) {
+        enabled.value = setOf(FeatureFlag.AI)
+        session.value = session.value.copy(organization = "organization-one")
+        val vm = viewModel()
+        runCurrent()
+        assertEquals("alice", vm.state.value.account)
+        coVerify { api.list("alice", null) }
+        session.value = session.value.copy(generation = 1, organization = "organization-two")
+        runCurrent()
+        assertEquals("alice", vm.state.value.account)
+        coVerify(exactly = 0) { api.list("organization-one", null) }
+        coVerify(exactly = 0) { api.list("organization-two", null) }
+        assertEquals("alice", (authState.value as AuthState.LoggedIn).account.handle)
+    }
 
     @Test
     fun `disjoint inbox refresh restarts pagination and load more reaches every thread`() =
@@ -223,26 +282,24 @@ class ThreadsViewModelTest {
         }
 
     @Test
-    fun `a denied organization can return to the personal account without retaining its data`() =
+    fun `denied threads stay scoped to the login until the global profile changes`() =
         runTest(dispatcher) {
-            coEvery { organizations.listOrganizations() } returns
-                Response.success(OrganizationList1(listOf(mockk { every { name } returns "team" })))
-            coEvery { api.list("team", any()) } throws
-                retrofit2.HttpException(Response.error<ThreadPage>(403, "".toResponseBody()))
             enabled.value = setOf(FeatureFlag.AI)
             val vm = viewModel()
             runCurrent()
             vm.draft("Private draft")
-            vm.selectAccount("team")
-            runCurrent()
+            coEvery { api.list("alice", any()) } throws
+                retrofit2.HttpException(Response.error<ThreadPage>(403, "".toResponseBody()))
+            vm.refresh(quiet = false)
             assertTrue(vm.state.value.denied)
+            assertEquals("alice", vm.state.value.account)
             assertTrue(vm.state.value.threads.isEmpty())
             assertEquals("", vm.state.value.draft)
-            coEvery { api.list("alice", any()) } returns ThreadPage(emptyList())
-            vm.selectAccount("alice")
+            coEvery { api.list("bob", any()) } returns ThreadPage(emptyList())
+            authState.value = AuthState.LoggedIn(Account("bob@example.com", "bob"))
             runCurrent()
             assertFalse(vm.state.value.denied)
-            assertEquals("alice", vm.state.value.account)
+            assertEquals("bob", vm.state.value.account)
             assertTrue(vm.state.value.threads.isEmpty())
         }
 

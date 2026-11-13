@@ -50,7 +50,7 @@ class ThreadWatcherTest {
     private var credential: String? = "private+/=token"
     private var invalidations = 0
     private var disconnections = 0
-    private var authorize: suspend (String) -> Unit = { authorized.add(it) }
+    private var authorize: suspend (String) -> String = { authorized.add(it); "threads" }
     private val watcher =
         ThreadWatcher(retrofit, moshi, { authorize(it) }, { credential }) {
             client,
@@ -276,7 +276,7 @@ class ThreadWatcherTest {
             runCurrent()
             assertTrue(attempts.isEmpty())
             assertEquals(1, disconnections)
-            authorize = { credential = "fresh-from-http" }
+            authorize = { credential = "fresh-from-http"; "threads" }
             advanceTimeBy(2_000)
             runCurrent()
             val expected =
@@ -298,15 +298,30 @@ class ThreadWatcherTest {
     @Test
     fun `injected constructor authorizes HTTP before reading current storage token`() = runTest {
         val storage = mockk<TokenStorage>()
+        every { storage.snapshot() } returns TokenStorage.Session("profile", 0)
         val transport = mockk<ThreadTransport>()
-        val api = mockk<ThreadsApi>()
-        every { transport.api } returns api
-        coEvery { api.list("acme", null) } throws IOException("offline")
+        coEvery { transport.dialect("acme") } throws IOException("offline")
         val injected = ThreadWatcher(retrofit, moshi, storage, transport)
         val job = launch { injected.watch("acme", null, {}, {}) }
         runCurrent()
-        coVerify(exactly = 1) { api.list("acme", null) }
+        coVerify(exactly = 1) { transport.dialect("acme") }
         verify(exactly = 0) { storage.getAccessToken() }
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `legacy negotiation selects matching socket path and topic`() = runTest {
+        authorize = { "jams" }
+        val job = launch { watch("thread-id") }
+        runCurrent()
+        val attempt = attempts.single()
+        assertEquals("/prefix/jams/socket/websocket", attempt.request.url.encodedPath)
+        attempt.open()
+        runCurrent()
+        assertEquals("jams:acme:thread-id", attempt.sent.single()[2])
+        attempt.message("phx_reply", topic = "jams:acme:thread-id")
+        runCurrent()
+        assertEquals(1, invalidations)
         job.cancelAndJoin()
     }
 

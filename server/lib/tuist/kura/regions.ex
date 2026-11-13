@@ -480,22 +480,16 @@ defmodule Tuist.Kura.Regions do
   # `runner_platforms` declares which runner fleets a region's nodes are
   # provisioned for and routed to — the cluster-locality boundary from
   # the runner's side. A region only serves fleets whose runtime is
-  # network-adjacent to its node pool:
-  #
-  #   * `scw-fr-par-runners` is pinned to Scaleway fr-par capacity next
-  #     to the Apple-Silicon Mac mini fleet, so it serves `:macos` only —
-  #     handing its URL to a Linux runner would route cache traffic
-  #     across the WAN, which is worse than the public ingress it's
-  #     meant to replace.
+  # network-adjacent to its node pool: the rack sites' regions sit beside
+  # their Mac minis, so they serve `:macos` only — handing their URL to a
+  # Linux runner would route cache traffic across the WAN, which is worse
+  # than the public ingress it's meant to replace.
   #
   # Linux runners have no private cache region. `hetzner-staging-runners`
   # was one, on the staging cluster's Hetzner node pool, but that pool is
-  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
-  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
-  # The spec outlived the pool and kept minting instances that could
-  # never schedule, so it was removed rather than repointed — staging's
-  # Mac minis already exercise the co-located topology through
-  # `scw-fr-par-runners`, the same spec production uses.
+  # gone and its spec is now a retired tombstone. `scw-fr-par-runners`, on
+  # Scaleway Elastic Metal beside the rented Apple-Silicon fleet, retired
+  # the same way once every macOS job moved to a rack site.
   #
   # Each rack site's cache, on its storage node beside the site's minis, one
   # region per site named after it (`<site>-runners`, on node pool
@@ -553,8 +547,13 @@ defmodule Tuist.Kura.Regions do
   @rack_site_region_specs rack_site_region_specs
 
   @private_region_specs [
+                          # A catalog tombstone. The rented Mac fleet it sat beside is gone (every
+                          # macOS job runs on a rack site), so the region is retired: it is never
+                          # offered for provisioning, and the reconciler destroys the servers left
+                          # in it while its node pool still exists to run their teardown.
                           %{
                             id: "scw-fr-par-runners",
+                            retired: true,
                             replicas: 2,
                             ingress_class_name: "kura-runners",
                             display_name: "Scaleway fr-par (runner cache)",
@@ -1037,17 +1036,28 @@ defmodule Tuist.Kura.Regions do
 
   @doc """
   Whether `account`'s instance in the region is built on
-  `kura-thin-encrypted-nvme`: the region is thin-capable and the account is on
-  the `kura_thin_volumes` flag. The flag is read only in thin-capable regions.
+  `kura-thin-encrypted-nvme`: the region is thin-capable and either every
+  account in it is enrolled (`TUIST_KURA_THIN_ENROLLED_REGIONS`) or the account
+  is on the `kura_thin_volumes` flag. The flag is read only in thin-capable
+  regions that are not enrolled as a whole.
   """
-  def thin_volumes?(%__MODULE__{} = region, account) do
-    thin_volumes?(region) and Tuist.FeatureFlags.kura_thin_volumes_enabled?(account)
+  def thin_volumes?(%__MODULE__{provisioner_config: config} = region, account) do
+    thin_volumes?(region) and
+      (config[:thin_enrolled] == true or Tuist.FeatureFlags.kura_thin_volumes_enabled?(account))
   end
 
+  # A region enrolled as a whole is thin-capable too, so listing it in
+  # `TUIST_KURA_THIN_ENROLLED_REGIONS` alone is enough. `:thin_enrolled` is only
+  # ever added, so a thin-capable region's config is unchanged when no region is
+  # enrolled.
   defp configure_thin(%__MODULE__{provisioner_config: config} = region) do
-    if region.id in Tuist.Environment.kura_thin_region_ids() and
+    enrolled? = region.id in Tuist.Environment.kura_thin_enrolled_region_ids()
+
+    if (enrolled? or region.id in Tuist.Environment.kura_thin_region_ids()) and
          config[:storage_class] in ["scw-local-nvme", "kura-lvm-nvme"] do
-      %{region | provisioner_config: Map.put(config, :thin_volumes, true)}
+      config = Map.put(config, :thin_volumes, true)
+      config = if enrolled?, do: Map.put(config, :thin_enrolled, true), else: config
+      %{region | provisioner_config: config}
     else
       region
     end

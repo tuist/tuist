@@ -5,6 +5,7 @@ defmodule Atlas.TuistFeatureFlagsTest do
   alias Atlas.Audit
   alias Atlas.Authorization
   alias Atlas.Authorization.Roles
+  alias Atlas.MCP
   alias Atlas.MCP.Tools.EvaluateTuistFeatureFlags
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
   alias Atlas.MCP.Tools.ListTuistFeatureFlags
@@ -25,6 +26,17 @@ defmodule Atlas.TuistFeatureFlagsTest do
         %{"type" => "percentage_of_actors", "target" => "12.5", "enabled" => true}
       ]
     }
+  end
+
+  # Files the approval request, approves it as the requesting person, then repeats the identical call.
+  defp approved_update(conn, args) do
+    user = conn.assigns.current_user
+    assert {:error, message} = execute_tool(UpdateTuistFeatureFlag, conn, args)
+    assert message =~ "approval"
+    [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+    assert approval.tool_name == "update-feature-flag"
+    {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+    execute_tool(UpdateTuistFeatureFlag, conn, args)
   end
 
   defp mutation(attrs \\ %{}) do
@@ -180,38 +192,54 @@ defmodule Atlas.TuistFeatureFlagsTest do
     end
   end
 
-  test "updates derive actor and interface from authenticated execution and retain the exact idempotent request" do
+  test "updates run only after the caller approves the exact call, with actor and interface from execution" do
     user = insert_user!(%{scopes: ["feature_flags:write"]})
+    conn = mcp_conn(user)
     args = mutation(%{"scope" => "percentage", "percentage" => 12.5})
     result = flag()
 
-    for interface <- ~w(mcp worker api) do
-      conn = %{assigns: %{current_user: user, audit_interface: interface}}
+    expect(TuistServer, :update_feature_flag, fn "rollout", attrs ->
+      assert attrs ==
+               args
+               |> Map.delete("name")
+               |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+               |> Map.put("interface", "mcp")
 
-      expect(TuistServer, :update_feature_flag, fn "rollout", attrs ->
-        assert attrs ==
-                 args
-                 |> Map.delete("name")
-                 |> Map.put("actor", %{"id" => user.id, "email" => user.email})
-                 |> Map.put("interface", interface)
+      {:ok, result}
+    end)
 
-        {:ok, result}
-      end)
+    assert {:ok, ^result} = approved_update(conn, args)
 
-      assert {:ok, ^result} = execute_tool(UpdateTuistFeatureFlag, conn, args)
-    end
+    # The approval is spent: repeating the call files a new request rather than writing again.
+    assert {:error, message} = execute_tool(UpdateTuistFeatureFlag, conn, args)
+    assert message =~ "approval"
 
     {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_feature_flag.updated")
-    assert length(activities) == 3
-    assert Enum.sort(Enum.map(activities, & &1.interface)) == ~w(api mcp worker)
+    assert [ok] = Enum.filter(activities, &(&1.metadata["status"] == "ok"))
+    assert ok.interface == "mcp"
+    assert ok.actor_email == user.email
+    assert ok.metadata["change_id"] == args["change_id"]
+    assert ok.metadata["reason"] == args["reason"]
+    assert ok.metadata["expected_revision"] == "revision-1"
+    assert ok.metadata["revision"] == "revision-2"
+  end
 
-    for activity <- activities do
-      assert activity.actor_email == user.email
-      assert activity.metadata["change_id"] == args["change_id"]
-      assert activity.metadata["reason"] == args["reason"]
-      assert activity.metadata["expected_revision"] == "revision-1"
-      assert activity.metadata["revision"] == "revision-2"
-      assert activity.metadata["status"] == "ok"
+  test "an approval covers only its exact arguments, and worker or API contexts cannot write" do
+    user = insert_user!(%{scopes: ["feature_flags:write"]})
+    conn = mcp_conn(user)
+    reject(TuistServer, :update_feature_flag, 2)
+
+    args = mutation()
+    assert {:error, _} = execute_tool(UpdateTuistFeatureFlag, conn, args)
+    [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+    {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+
+    assert {:error, _} = execute_tool(UpdateTuistFeatureFlag, conn, %{args | "reason" => "Something else"})
+
+    for interface <- ~w(worker api) do
+      worker = %{assigns: %{current_user: user, audit_interface: interface}}
+      assert {:error, message} = execute_tool(UpdateTuistFeatureFlag, worker, args)
+      assert message =~ "only callable over Atlas MCP"
     end
   end
 
@@ -235,7 +263,7 @@ defmodule Atlas.TuistFeatureFlagsTest do
         {:ok, flag()}
       end)
 
-      assert {:ok, _} = execute_tool(UpdateTuistFeatureFlag, conn, args)
+      assert {:ok, _} = approved_update(conn, args)
     end
   end
 
@@ -292,11 +320,12 @@ defmodule Atlas.TuistFeatureFlagsTest do
         {:error, message}
       end)
 
-      assert {:error, ^message} = execute_tool(UpdateTuistFeatureFlag, conn, args)
+      assert {:error, ^message} = approved_update(conn, args)
     end
 
     {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_feature_flag.updated")
-    assert length(activities) == 2
+    # Two approval requests plus the two remote failures.
+    assert length(activities) == 4
     assert Enum.all?(activities, &(&1.metadata["status"] == "error"))
     refute Enum.any?(activities, &Map.has_key?(&1.metadata, "revision"))
   end

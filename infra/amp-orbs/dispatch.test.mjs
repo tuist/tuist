@@ -112,13 +112,14 @@ test('does not retry unmarked HTTP errors or log private response bodies', async
   }
 });
 
-test('explains the account on-node Orb limit without retrying', async () => {
-  const { code, output, requests } = await dispatch({}, () => ({ status: 429, headers: { 'X-Tuist-Orb-Refusal': 'sandbox-limit' } }));
+test('fails a pause whose project snapshot was not saved, without retrying', async () => {
+  const { code, output, requests } = await dispatch(
+    { ORB_OPERATION: 'pause', ORB_TOKEN: '', ORB_SNAPSHOT_ID: 'proj-1' },
+    () => ({ status: 503, headers: { 'X-Tuist-Orb-Refusal': 'snapshot-not-saved' } }),
+  );
   assert.notEqual(code, 0);
   assert.equal(requests.length, 1);
-  assert.match(output, /limit of Orbs kept on sandbox nodes/);
-  assert.match(output, /paused Orbs count/);
-  assert.doesNotMatch(output, /private-response-body/);
+  assert.match(output, /could not save its project snapshot/);
 });
 
 test('supports an explicitly installed template and allowed shape', async () => {

@@ -43,6 +43,26 @@ defmodule TuistOps.JIT.ChangesetsTest do
       assert Keyword.has_key?(cs.errors, :ttl_seconds)
     end
 
+    test "orb thread elevations need an Atlas approval, not Slack" do
+      thread =
+        Map.merge(@valid, %{
+          target_group: "group:tuist-canary-write",
+          orb_thread_id: "T-01a1a59e-55fb-744b-9415-b85a337f24d2"
+        })
+
+      cs = Request.create_changeset(thread)
+      refute cs.valid?
+      assert Keyword.has_key?(cs.errors, :orb_thread_id)
+
+      cs =
+        thread
+        |> Map.drop([:requester_slack_id, :slack_channel_id])
+        |> Map.put(:atlas_approval_id, "01a1bcaf-c106-7d21-9a39-12778b0aded0")
+        |> Request.create_changeset()
+
+      assert cs.valid?
+    end
+
     test "intent gets a max length to keep Slack card layout sane" do
       long = String.duplicate("x", 10_000)
       cs = Request.create_changeset(%{@valid | intent: long})

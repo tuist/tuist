@@ -55,11 +55,11 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       end
     end
 
-    test "points crawlers at the sitemap", %{conn: conn} do
+    test "advertises the marketing sitemap but not the challenged project sitemap", %{conn: conn} do
       conn = get(conn, "/robots.txt")
 
       assert response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"
-      assert response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap-projects.xml")}"
+      refute response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap-projects.xml")}"
     end
 
     test "does not block public project HTML but keeps utility routes disallowed" do
@@ -102,6 +102,31 @@ defmodule TuistWeb.RobotsTxtControllerTest do
           ] do
         assert matches?.(path)
       end
+    end
+
+    test "lets crawlers follow public legacy redirects and reach the pages behind them" do
+      patterns = RobotsTxt.disallow_patterns()
+
+      matches? = fn path ->
+        Enum.any?(patterns, fn pattern ->
+          regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
+          Regex.match?(Regex.compile!("^" <> regex), path)
+        end)
+      end
+
+      for path <- [
+            "/blog/2025/11/27/teaching-ai-to-read-xcode-builds",
+            "/blog/2025/11/27/teaching-ai-to-r",
+            "/case-studies/acme",
+            "/flaky-tests",
+            "/rss.xml",
+            "/docs/en/guides/quick-start",
+            "/pt/docs/guides/features/projects/dependencies"
+          ] do
+        refute matches?.(path), "robots.txt blocks #{path}"
+      end
+
+      assert matches?.("/docs/login")
     end
 
     test "opts llms.txt and llms-full.txt into the public content usage", %{conn: conn} do

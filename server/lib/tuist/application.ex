@@ -385,6 +385,8 @@ defmodule Tuist.Application do
           Tuist.Authentication.SubjectCache,
           Tuist.OpenGraphImages,
           TuistWeb.PublicOverviewCache,
+          TuistWeb.DashboardSearchController,
+          Tuist.Marketing.BazelShowcase,
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,

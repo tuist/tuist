@@ -7,7 +7,6 @@ defmodule TuistWeb.PreviewLiveTest do
 
   alias Tuist.AppBuilds
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
-  alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
   setup %{project: project} do
@@ -233,16 +232,17 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    Authentication.log_out_user(conn)
+    conn = conn |> delete(~p"/users/log_out") |> recycle()
     preview = AppBuildsFixtures.preview_fixture(git_commit_sha: nil, project: project)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
 
     # When
-    got = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    path = ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}"
+    got = live(conn, path)
 
     # Then
-    assert got == {:error, {:redirect, %{to: "/users/log_in", flash: %{}}}}
+    assert got == {:error, {:redirect, %{to: ~p"/users/log_in?#{%{return_to: path}}", flash: %{}}}}
   end
 
   test "it does not require authenticated user when the preview is :public", %{
@@ -251,7 +251,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    Authentication.log_out_user(conn)
+    conn = conn |> delete(~p"/users/log_out") |> recycle()
     preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
@@ -270,7 +270,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    Authentication.log_out_user(conn)
+    conn = conn |> delete(~p"/users/log_out") |> recycle()
     preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)

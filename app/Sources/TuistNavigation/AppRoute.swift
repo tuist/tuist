@@ -3,6 +3,7 @@ import Foundation
 public enum AppRouteError: Error, Equatable {
     case invalidURL
     case differentServer
+    case differentOrganization
 }
 
 public enum AppRoute: Hashable, Sendable {

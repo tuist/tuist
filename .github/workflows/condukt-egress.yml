@@ -1,0 +1,120 @@
+name: condukt-egress
+
+on:
+  pull_request:
+    paths:
+      - "condukt/native/condukt_egress/**"
+      - ".github/workflows/condukt-egress.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "condukt/native/condukt_egress/**"
+      - ".github/workflows/condukt-egress.yml"
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: condukt/native/condukt_egress
+
+jobs:
+  fmt:
+    name: cargo fmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustc --version
+          cargo --version
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+  clippy:
+    name: cargo clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustc --version
+          cargo --version
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            condukt/native/condukt_egress/target
+          key: condukt-egress-clippy-${{ hashFiles('condukt/native/condukt_egress/Cargo.lock') }}
+
+      - name: cargo clippy
+        run: cargo clippy --release --all-targets -- -D warnings
+
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup show
+          rustc --version
+          cargo --version
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            condukt/native/condukt_egress/target
+          key: condukt-egress-test-${{ hashFiles('condukt/native/condukt_egress/Cargo.lock') }}
+
+      - name: cargo test
+        run: cargo test --release
+
+  image_build:
+    name: image build (linux/amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build linux/amd64
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: condukt/native/condukt_egress
+          file: condukt/native/condukt_egress/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=condukt-egress
+          cache-to: type=gha,scope=condukt-egress,mode=max

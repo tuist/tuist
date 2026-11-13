@@ -23,12 +23,19 @@ ARG AGENT_BROWSER_VERSION=0.38.1
 # sbx-worker uses this copy only when it is that exact build.
 ARG CLAUDE_CODE_VERSION=2.1.311
 ARG CLAUDE_CODE_SHA256=86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be8489ada
+# The first release that signs in with the sandbox's workload identity (#15541)
+# without `tuist auth login`; SHA-256 of tuist-linux-x86_64.tar.gz from the
+# release's SHASUMS256.txt.
+ARG TUIST_VERSION=4.218.0-canary.28
+ARG TUIST_SHA256=7caf26caba2eca7d94c73149a0c45b53641aca8b3230c5ad8be7cab4234686c0
 # agent-browser's Chrome and libraries take about 1 GiB, and a project's
 # .agents/setup fills home (mise, caches) on this same filesystem.
 ARG ROOTFS_SIZE=12G
 ARG VERSION=dev
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
+# sbx-worker's checkout tests build and export real repositories.
+RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -50,6 +57,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
         xz-utils zstd bzip2 build-essential clang libclang-dev pkg-config cmake python3 python3-pip python3-venv \
         e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
+        ffmpeg imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js from nodesource and the GitHub CLI from its own repo; both signed.
@@ -114,6 +122,24 @@ RUN npm install -g "agent-browser@${AGENT_BROWSER_VERSION}" \
         bash -c 'cd /home/user && agent-browser install --with-deps' \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /root/.npm
 
+# Agents read the project's Tuist data with no setup: the Tuist CLI, a `tuist`
+# MCP server for Amp and Claude Code that authenticates with the sandbox's own
+# identity (`${amp:id-token}` in an Orb, the session token sbx-worker exports
+# as TUIST_OIDC_TOKEN in Claude Code), and a skill for when to use them. Amp
+# also loads skills from ~/.claude/skills.
+ARG TUIST_VERSION
+ARG TUIST_SHA256
+RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
+        "https://github.com/tuist/tuist/releases/download/${TUIST_VERSION}/tuist-linux-x86_64.tar.gz" \
+    && echo "${TUIST_SHA256}  /tmp/tuist.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
+    && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
+    && test "$(tuist version)" = "${TUIST_VERSION}"
+COPY agent-home/amp-settings.json /home/user/.config/amp/settings.json
+COPY agent-home/claude.json /home/user/.claude.json
+COPY agent-home/skills/ /home/user/.claude/skills/
+RUN chown -R user:user /home/user/.config /home/user/.claude /home/user/.claude.json
+
 RUN locale-gen en_US.UTF-8 && update-locale LANG=C.UTF-8 \
     && git lfs install --system --skip-repo \
     && usermod -s /bin/bash root \
@@ -167,8 +193,11 @@ RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootf
     && truncate -s "${ROOTFS_SIZE}" /out/rootfs.ext4 \
     && mkfs.ext4 -q -F -L rootfs -d /rootfs -E lazy_itable_init=0,lazy_journal_init=0 /out/rootfs.ext4 \
     && kernel="$(basename "${KERNEL_URL}")" && kernel="${kernel#vmlinux-}" \
-    && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s}\n' \
-        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" > /out/metadata.json \
+    && runner_uid="$(awk -F: '$1 == "user" { print $3 }' /rootfs/etc/passwd)" \
+    && runner_gid="$(awk -F: '$1 == "user" { print $4 }' /rootfs/etc/passwd)" \
+    && test -n "${runner_uid}" && test -n "${runner_gid}" \
+    && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s,"runner_uid":%s,"runner_gid":%s}\n' \
+        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" "${runner_uid}" "${runner_gid}" > /out/metadata.json \
     && cat /out/metadata.json && ls -la /out && du -h /out/*
 
 # Build with --target execution-gateway for the stateless public REAPI service.

@@ -17,6 +17,10 @@ defmodule Tuist.Marketing.Blog do
     Enum.reverse(content_entries())
   end
 
+  # Blog sources are English-only. Do not advertise translated article URLs
+  # merely because the surrounding marketing UI supports those locales.
+  def available_locales(%Tuist.Marketing.Blog.Post{}), do: ["en"]
+
   def get_categories do
     get_posts() |> Enum.map(& &1.category) |> Enum.uniq()
   end

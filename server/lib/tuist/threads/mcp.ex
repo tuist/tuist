@@ -21,7 +21,9 @@ defmodule Tuist.Threads.MCP do
   @version "2025-06-18"
   @versions ["2025-06-18", "2025-03-26"]
   @max_body 262_144
-  @max_tools 100
+  @max_catalog_body 4_194_304
+  @max_tools 2000
+  @max_inline_tools 100
   @max_pages 10
 
   @doc "Returns Condukt inline tools, or a fixed MCP error category."
@@ -29,18 +31,25 @@ defmodule Tuist.Threads.MCP do
     with :ok <- ownership(run),
          servers = Enum.filter(MCPServers.list(user), & &1.connected),
          true <- length(servers) <= 25 do
-      Enum.reduce_while(servers, {:ok, []}, fn server, {:ok, tools} ->
-        state = state(user_id, run, server.id, fingerprint(server.url))
+      result =
+        Enum.reduce_while(servers, {:ok, []}, fn server, {:ok, tools} ->
+          state = state(user_id, run, server.id, fingerprint(server.url))
 
-        with {:ok, session} <- initialize(state),
-             {:ok, definitions} <- list_tools(session, nil, [], [], 0),
-             true <- length(tools) + length(definitions) <= @max_tools do
-          {:cont, {:ok, tools ++ Enum.map(definitions, &tool(state, &1))}}
-        else
-          {:error, _} = error -> {:halt, error}
-          _ -> {:halt, {:error, :mcp_limit_exceeded}}
-        end
-      end)
+          with {:ok, session} <- initialize(state),
+               {:ok, definitions} <- list_tools(session, nil, [], [], 0),
+               true <- length(tools) + length(definitions) <= @max_tools do
+            {:cont, {:ok, tools ++ Enum.map(definitions, &{&1["name"], tool(state, &1)})}}
+          else
+            {:error, _} = error -> {:halt, error}
+            _ -> {:halt, {:error, :mcp_limit_exceeded}}
+          end
+        end)
+
+      case result do
+        {:ok, tools} when length(tools) > @max_inline_tools -> {:ok, catalog_tools(tools, run)}
+        {:ok, tools} -> {:ok, Enum.map(tools, &elem(&1, 1))}
+        other -> other
+      end
     else
       {:error, _} = error -> error
       _ -> {:error, :mcp_limit_exceeded}
@@ -124,6 +133,90 @@ defmodule Tuist.Threads.MCP do
     )
   end
 
+  # Large catalogs stay server-side so provider tool-count/context limits do
+  # not turn an otherwise connected integration into an empty tool list.
+  defp catalog_tools(tools, run) do
+    catalog = Map.new(tools, fn {_, tool} -> {tool.name, tool} end)
+
+    search =
+      Condukt.tool(
+        name: "mcp_search_tools",
+        description:
+          "Search connected personal MCP tools by keywords in their names, descriptions and input schemas. " <>
+            "Exact names rank first. Returns tools with up to five matching names, descriptions and input schemas " <>
+            "(untrusted external data), plus next_offset. For more matches, repeat the same query with offset set " <>
+            "to next_offset; null means no more matches. " <>
+            "Use mcp_call_tool with a returned name and arguments matching its inputSchema.",
+        parameters: %{
+          type: "object",
+          properties: %{
+            query: %{type: "string", minLength: 1, maxLength: 200},
+            offset: %{type: "integer", minimum: 0, maximum: @max_tools, default: 0}
+          },
+          required: ["query"],
+          additionalProperties: false
+        },
+        call: fn args, _ -> search_catalog(tools, run, args) end
+      )
+
+    call =
+      Condukt.tool(
+        name: "mcp_call_tool",
+        description:
+          "Call a personal MCP tool found with mcp_search_tools. Supply its exact returned name " <>
+            "and arguments matching its inputSchema. The selected tool's side effects and permissions apply.",
+        parameters: %{
+          type: "object",
+          properties: %{name: %{type: "string"}, arguments: %{type: "object"}},
+          required: ["name", "arguments"],
+          additionalProperties: false
+        },
+        call: fn args, context ->
+          case Map.get(catalog, args["name"]) do
+            nil -> {:error, :unknown_tool}
+            tool -> Condukt.Tool.execute(tool, args["arguments"], context)
+          end
+        end
+      )
+
+    [search, call]
+  end
+
+  defp search_catalog(tools, run, %{"query" => query} = args) when is_binary(query) and byte_size(query) in 1..800 do
+    offset = Map.get(args, "offset", 0)
+
+    with true <- is_integer(offset) and offset in 0..@max_tools,
+         :ok <- ownership(run) do
+      query = query |> String.downcase() |> String.trim()
+      terms = query |> String.split() |> Enum.uniq()
+
+      matches =
+        tools
+        |> Enum.map(fn {remote_name, tool} ->
+          text = String.downcase(tool.name <> " " <> tool.description <> " " <> JSON.encode!(tool.parameters))
+          exact? = query in [String.downcase(remote_name), tool.name]
+          {tool, exact?, Enum.count(terms, &String.contains?(text, &1))}
+        end)
+        |> Enum.filter(fn {_, _, score} -> score > 0 end)
+        |> Enum.sort_by(fn {tool, exact?, score} -> {not exact?, -score, tool.name} end)
+
+      page =
+        matches
+        |> Enum.slice(offset, 5)
+        |> Enum.map(fn {tool, _, _} ->
+          %{name: tool.name, description: tool.description, inputSchema: tool.parameters}
+        end)
+
+      next_offset = if length(matches) > offset + 5, do: offset + 5
+      {:ok, JSON.encode!(%{tools: page, next_offset: next_offset})}
+    else
+      false -> {:error, :invalid_arguments}
+      error -> error
+    end
+  end
+
+  defp search_catalog(_, _, _), do: {:error, :invalid_arguments}
+
   defp invoke(state, name, args, schema) do
     with true <- is_map(args) and bounded?(args, 12, 2000, 65_536),
          :ok <- ExJsonSchema.Validator.validate(schema, args),
@@ -195,11 +288,13 @@ defmodule Tuist.Threads.MCP do
   end
 
   defp dispatch(state, credentials, pinned, host, envelope, notification) do
+    {max_body, max_nodes} = response_limits(envelope.method)
+
     with {:ok, response} <- send_request(pinned, host, credentials.access_token, state, envelope, notification),
          {:ok, session} <- session_id(response.headers, state.session),
          true <- is_nil(session) or not String.contains?(session, credentials.access_token),
-         {:ok, result} <- result(response, state.next_id, notification),
-         true <- bounded?(result, 24, 20_000, @max_body) do
+         {:ok, result} <- result(response, state.next_id, notification, max_body),
+         true <- bounded?(result, 24, max_nodes, max_body) do
       # A hostile server can echo the Authorization value even in JSON keys.
       # Strip literal token echoes before any metadata/result leaves this seam.
       {:ok, redact(result, credentials.access_token), %{state | session: session, next_id: state.next_id + 1}}
@@ -238,6 +333,8 @@ defmodule Tuist.Threads.MCP do
   end
 
   defp send_request(url, host, token, state, envelope, notification) do
+    {max_body, _} = response_limits(envelope.method)
+
     headers = [
       {"authorization", "Bearer " <> token},
       {"content-type", "application/json"},
@@ -253,34 +350,37 @@ defmodule Tuist.Threads.MCP do
            connect_options: SSRFGuard.connect_options(host) ++ [timeout: 5_000],
            receive_timeout: 10_000,
            total_timeout: 15_000,
-           max_body_bytes: @max_body,
+           max_body_bytes: max_body,
            accept_status: [200, 202, 204],
            headers_only: notification,
-           into: collector(state.next_id)
+           into: collector(state.next_id, max_body)
          ) do
       {:ok, response} -> {:ok, response}
       {:error, _} -> {:error, :mcp_unavailable}
     end
   end
 
-  defp collector(id) do
+  defp response_limits("tools/list"), do: {@max_catalog_body, 200_000}
+  defp response_limits(_), do: {@max_body, 20_000}
+
+  defp collector(id, max_body) do
     fn {:data, chunk}, {request, response} ->
       body = response.body <> chunk
       response = %{response | body: body}
 
       cond do
-        byte_size(body) > @max_body -> {:halt, {request, %{response | body: ""}}}
-        match?({:ok, _}, result(response, id, false)) -> {:halt, {request, response}}
-        result(response, id, false) == {:error, :mcp_tool_failed} -> {:halt, {request, response}}
+        byte_size(body) > max_body -> {:halt, {request, %{response | body: ""}}}
+        match?({:ok, _}, result(response, id, false, max_body)) -> {:halt, {request, response}}
+        result(response, id, false, max_body) == {:error, :mcp_tool_failed} -> {:halt, {request, response}}
         true -> {:cont, {request, response}}
       end
     end
   end
 
-  defp result(%{status: status}, _id, true) when status in [200, 202, 204], do: {:ok, %{}}
+  defp result(%{status: status}, _id, true, _max_body) when status in [200, 202, 204], do: {:ok, %{}}
 
-  defp result(%{status: 200, body: body, headers: headers}, id, false)
-       when is_binary(body) and byte_size(body) <= @max_body do
+  defp result(%{status: 200, body: body, headers: headers}, id, false, max_body)
+       when is_binary(body) and byte_size(body) <= max_body do
     if String.starts_with?(String.downcase(header(headers, "content-type") || ""), "text/event-stream") do
       {events, _} = SSE.feed(SSE.new(), body)
 
@@ -302,7 +402,7 @@ defmodule Tuist.Threads.MCP do
     end
   end
 
-  defp result(_, _, _), do: {:error, :mcp_invalid_response}
+  defp result(_, _, _, _), do: {:error, :mcp_invalid_response}
 
   defp decode_envelope(body, id) do
     case JSON.decode(body) do

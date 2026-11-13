@@ -44,6 +44,9 @@ type CAS struct {
 	transferred int64
 	reads       map[string]*readTotal
 	slowest     []casRead
+	// Host, when set, serves input blobs from the node; see readHost.
+	Host       HostBlobs
+	hostFailed atomic.Bool
 }
 
 // casRead is one input read RPC. It carries sizes, durations and the serving
@@ -287,6 +290,19 @@ func (c *CAS) Read(ctx context.Context, d *re.Digest, out io.Writer) error {
 		c.observeRead(casRead{rpc: "seeded", blobs: 1, bytes: d.SizeBytes})
 		_, err := out.Write(b)
 		return err
+	}
+	if f, ok := out.(rewindable); ok && c.Host != nil && !c.hostFailed.Load() {
+		if c.readHost(ctx, d, f) == nil {
+			return nil
+		}
+		// Read this and every later blob from the CAS.
+		c.hostFailed.Store(true)
+		if err := f.Truncate(0); err != nil {
+			return err
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
 	}
 	var p peer.Peer
 	started := time.Now()

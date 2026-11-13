@@ -19,6 +19,7 @@ defmodule Tuist.Sandboxes.Router do
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.VCS
 
@@ -78,12 +79,19 @@ defmodule Tuist.Sandboxes.Router do
   A platform other than the environment's takes that platform's default
   template and shape, so one environment serves both Linux and macOS.
   """
-  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}} = item)
+  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}})
       when is_binary(session_id) do
     platform =
       case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-        %Sandbox{platform: platform} -> platform
-        nil -> requested_platform(AgentSessions.get_agent_session_by_anthropic_session_id(session_id), item)
+        %Sandbox{platform: platform} ->
+          platform
+
+        nil ->
+          requested_platform(
+            AgentSessions.get_agent_session_by_anthropic_session_id(session_id),
+            agent_environment,
+            session_id
+          )
       end
 
     if is_nil(platform) or platform == agent_environment.platform,
@@ -93,13 +101,38 @@ defmodule Tuist.Sandboxes.Router do
 
   def session_environment(%AgentEnvironment{} = agent_environment, _item), do: agent_environment
 
-  defp requested_platform(%AgentSession{platform: platform}, _item) when not is_nil(platform), do: platform
+  defp requested_platform(%AgentSession{platform: platform}, _agent_environment, _session_id) when not is_nil(platform),
+    do: platform
 
-  defp requested_platform(_agent_session, item) do
-    case metadata(item)["tuist_platform"] do
-      "linux" -> :linux
-      platform when platform in ["darwin", "macos"] -> :darwin
-      _none -> nil
+  # Work items carry only the session id, so the session's own metadata
+  # comes from the control plane, with the environment's credential.
+  defp requested_platform(_agent_session, %AgentEnvironment{} = agent_environment, session_id) do
+    case AgentSessions.credential(agent_environment) do
+      {:ok, credential} -> read_platform(credential, agent_environment, session_id)
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp read_platform(credential, agent_environment, session_id) do
+    case ControlPlane.get_session(credential, session_id) do
+      {:ok, %{"metadata" => %{"tuist_platform" => platform}}} ->
+        case platform do
+          "linux" -> :linux
+          platform when platform in ["darwin", "macos"] -> :darwin
+          _other -> nil
+        end
+
+      {:ok, _session} ->
+        nil
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: could not read session metadata, using the environment's platform",
+          agent_environment_id: agent_environment.id,
+          session_id: session_id,
+          reason: inspect(reason)
+        )
+
+        nil
     end
   end
 
@@ -270,8 +303,8 @@ defmodule Tuist.Sandboxes.Router do
   defp blank_to_nil(_value), do: nil
 
   @doc "Starts `sbx-worker` with `env`, ending the residency when it does not start."
-  def start_worker(sandbox, env) do
-    case Sandboxes.start_worker(sandbox, env) do
+  def start_worker(sandbox, env, checkout \\ nil) do
+    case Sandboxes.start_worker(sandbox, env, checkout) do
       {:ok, _data} = ok ->
         ok
 

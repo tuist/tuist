@@ -108,6 +108,25 @@ defmodule Tuist.TestImpactAnalysis.InputTest do
     assert %{reproduced: nil} = Input.evidence(input, test_case_id(input, "testAdd()"))
   end
 
+  test "reads the baseline's blobs from its file changes once they are written", %{
+    project: project,
+    run: run,
+    repository_id: repository_id
+  } do
+    # What the baseline's blobs decide: the version each test reproduces.
+    evidence = fn ->
+      for changed_files <- [[], [changed("Sources/Math.swift", [])]],
+          do: load(project, run, repository_id, changed_files: changed_files).evidence
+    end
+
+    listed = evidence.()
+    Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+
+    assert Tuist.GitHistory.FileChanges.current(repository_id, "c1")
+    assert evidence.() == listed
+    assert [[%{reproduced: %{sha: "c1"}}], [%{reproduced: nil}]] = Enum.map(listed, &Map.values/1)
+  end
+
   test "keeps only the requested modules", %{project: project, run: run, repository_id: repository_id} do
     assert load(project, run, repository_id, modules: ["OtherTests"]).tests == []
   end

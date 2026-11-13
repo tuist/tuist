@@ -1,6 +1,9 @@
 package scaling
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 const (
 	gib = int64(1024) * 1024 * 1024
@@ -466,5 +469,63 @@ func TestAllocateFleetShapeCapPrefersFloorsOfPoolsInUse(t *testing.T) {
 
 	if got["b-in-use"] != 1 || got["a-idle"] != 0 {
 		t.Fatalf("the one seat should keep the pool in use warm, got %v", got)
+	}
+}
+
+// A full rack after a quiet hour: no pool is in use, 27-1 had a fan-out this
+// morning and 26-3 only runs a nightly job. Both hold a learned floor of
+// eight and six seats are left. 27-1 gets them, rather than the two
+// splitting them and neither having its burst warm.
+func TestAllocateFleet_IdleFloorsGoToTheMostRecentlyUsedPool(t *testing.T) {
+	slot := 24 * gib
+	now := time.Date(2026, 11, 13, 11, 16, 0, 0, time.UTC)
+	pools := []PoolDemand{
+		{Name: "26-3", PerPodCost: slot, Floor: 8, Target: 8, LastDemandAt: now.Add(-11 * time.Hour)},
+		{Name: "27-1", PerPodCost: slot, Floor: 8, Target: 8, LastDemandAt: now.Add(-20 * time.Minute)},
+		{Name: "27-0", PerPodCost: slot, Floor: 9, Load: 2, Target: 9, InUse: true, LastDemandAt: now},
+	}
+
+	got := AllocateFleet(pools, 15*slot, nil)
+
+	if got["27-0"] != 9 {
+		t.Errorf("27-0 = %d, want 9 (in use: its load and its floor)", got["27-0"])
+	}
+	if got["27-1"] != 6 || got["26-3"] != 0 {
+		t.Errorf("the six seats left should all keep 27-1 warm, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
+	}
+}
+
+// A pool that has never had work goes after one that has, and the next
+// recently used pool takes what the first leaves.
+func TestAllocateFleet_IdleFloorsByRecencySpendWhatIsLeft(t *testing.T) {
+	slot := 24 * gib
+	now := time.Date(2026, 11, 13, 11, 16, 0, 0, time.UTC)
+	pools := []PoolDemand{
+		{Name: "a-never", PerPodCost: slot, Floor: 2, Target: 2},
+		{Name: "b-old", PerPodCost: slot, Floor: 3, Target: 3, LastDemandAt: now.Add(-20 * time.Hour)},
+		{Name: "c-recent", PerPodCost: slot, Floor: 3, Target: 3, LastDemandAt: now.Add(-2 * time.Hour)},
+	}
+
+	got := AllocateFleet(pools, 5*slot, nil)
+
+	if got["c-recent"] != 3 || got["b-old"] != 2 || got["a-never"] != 0 {
+		t.Errorf("want c-recent=3 b-old=2 a-never=0, got %v", got)
+	}
+}
+
+// The shape cap seats idle floors the same way: the rack's 8 vCPU seats are
+// capped per shape before the byte budget, and that cap decides first.
+func TestAllocateFleetShapeCapSeatsIdleFloorsByRecency(t *testing.T) {
+	slot := 24 * gib
+	now := time.Date(2026, 11, 13, 11, 16, 0, 0, time.UTC)
+	pools := []PoolDemand{
+		{Name: "26-3", PerPodCost: slot, Floor: 8, Target: 8, ShapeKey: "8vcpu", LastDemandAt: now.Add(-11 * time.Hour)},
+		{Name: "27-1", PerPodCost: slot, Floor: 8, Target: 8, ShapeKey: "8vcpu", LastDemandAt: now.Add(-20 * time.Minute)},
+	}
+
+	got := AllocateFleet(pools, 1000*gib, map[string]int32{"8vcpu": 10})
+
+	if got["27-1"] != 8 || got["26-3"] != 2 {
+		t.Errorf("want 27-1=8 26-3=2, got %v", got)
 	}
 }

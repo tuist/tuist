@@ -15,6 +15,20 @@ class ThreadsScreenTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Test
+    fun emptyInboxStartsANewThread() {
+        withPreview("empty") {
+            eventually { find("Threads").isNotEmpty() }
+            eventually { find("Make something happen").isNotEmpty() }
+            capture("empty")
+            click("New thread")
+            eventually { find("Start thread").isNotEmpty() }
+            eventually {
+                find("Only you can see this thread. Repository tools run in an isolated Tuist sandbox.").isNotEmpty()
+            }
+        }
+    }
+
+    @Test
     fun modelFailureCanRecoverWithoutLosingTheDraft() {
         withPreview("error") {
             assertFalse(actionNode("Start thread").isEnabled)
@@ -35,11 +49,42 @@ class ThreadsScreenTest {
             eventually { find("Show the changes").any { it.isEditable } }
             click("Thread actions")
             click("Archive thread")
+            click("Archive thread")
             eventually {
                 find("This thread is archived. Restore it from the menu to continue.").isNotEmpty()
             }
             eventually { find("Send message").isEmpty() }
             capture("archived")
+        }
+    }
+
+    @Test
+    fun listActionsCancelArchiveAndRestoreWithoutOpeningTheConversation() {
+        withPreview("list") {
+            click("Actions for Make flaky tests easier to find")
+            eventually { find("Archive thread").isNotEmpty() }
+            capture("list-actions")
+            click("Archive thread")
+            eventually { find("Archive this thread?").isNotEmpty() }
+            capture("list-archive-confirmation")
+            click("Cancel")
+            assertTrue(find("Make flaky tests easier to find").isNotEmpty())
+            click("Actions for Make flaky tests easier to find")
+            click("Archive thread")
+            click("Archive thread")
+            eventually { find("Make flaky tests easier to find").isEmpty() }
+            assertTrue(find("Send message").isEmpty())
+            capture("list-after-archive")
+            click("Archived")
+            eventually { find("Make flaky tests easier to find").isNotEmpty() }
+            click("Actions for Make flaky tests easier to find")
+            eventually { find("Restore thread").isNotEmpty() }
+            capture("list-restore")
+            click("Restore thread")
+            eventually { find("Make flaky tests easier to find").isEmpty() }
+            click("Active")
+            eventually { find("Make flaky tests easier to find").isNotEmpty() }
+            assertTrue(find("Send message").isEmpty())
         }
     }
 
@@ -77,12 +122,12 @@ class ThreadsScreenTest {
     }
 
     @Test
-    fun deniedOrganizationCanReturnToThePersonalAccount() {
+    fun deniedOrganizationCannotBypassGlobalSelection() {
         withPreview("denied") {
             capture("denied")
-            click("Back to personal account")
-            eventually { find("Make something happen").isNotEmpty() }
-            assertTrue(find("sample-user").isNotEmpty())
+            assertTrue(find("Threads are not available").isNotEmpty())
+            assertTrue(find("Back to personal account").isEmpty())
+            assertTrue(find("Switch account").isEmpty())
             assertTrue(find("Make flaky tests easier to find").isEmpty())
         }
     }
@@ -179,6 +224,8 @@ class ThreadsScreenTest {
     }
 
     private fun capture(name: String) {
+        instrumentation.waitForIdleSync()
+        Thread.sleep(250)
         val directory =
             File(instrumentation.targetContext.getExternalFilesDir(null), "threads-screenshots")
                 .apply { mkdirs() }

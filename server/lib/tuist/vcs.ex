@@ -738,7 +738,15 @@ defmodule Tuist.VCS do
   of their Git ref. Otherwise, results match `:git_ref`, including both head and
   merge refs for a pull request. Returns nil when no results are available.
   """
-  def get_run_report(
+  def get_run_report(params) do
+    case get_run_report_sections(params) do
+      nil -> nil
+      report -> report.summary
+    end
+  end
+
+  @doc "Returns the report and its actionable test sections from the same insight snapshot."
+  def get_run_report_sections(
         %{
           git_remote_url_origin: git_remote_url_origin,
           preview_url: preview_url,
@@ -806,9 +814,14 @@ defmodule Tuist.VCS do
     if Enum.all?(bodies, &is_nil/1) do
       nil
     else
-      """
-      #{@tuist_run_report_prefix}
-      """ <> Enum.map_join(bodies, "", &(&1 || ""))
+      %{
+        summary:
+          """
+          #{@tuist_run_report_prefix}
+          """ <> Enum.map_join(bodies, "", &(&1 || "")),
+        failed_tests: failed_tests_body,
+        flaky_tests: flaky_tests_body
+      }
     end
   end
 

@@ -95,6 +95,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
+         |> assign(:out_of_memory, JobMetrics.out_of_memory(machine_metrics))
          |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job || bitrise_build)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})

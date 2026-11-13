@@ -14,15 +14,17 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [codebase-search/](codebase-search/AGENTS.md) | Bounded hosted source-code search |
 | [cache/](cache/AGENTS.md) | Cache service |
 | [registry/](registry/AGENTS.md) | Stateless package registry read frontend |
-| [pulse/](pulse/AGENTS.md) | Headless observability, alerting, and reliability backend |
+| [pulse/](pulse/AGENTS.md) | Pulse, Tuist's fork of GreptimeDB (observability database) |
 | [kura/](kura/AGENTS.md) | Rust distributed cache mesh |
 | [cas-plugin/](cas-plugin/AGENTS.md) | Xcode CAS plugin and per-machine proxy |
 | [tuist_ex/](tuist_ex/AGENTS.md) | Elixir build and test instrumentation |
+| [condukt/](condukt/AGENTS.md) | Elixir agent framework and native sandboxes |
 | [tuist_common/](tuist_common/AGENTS.md) | Shared Elixir utilities |
 | [atlas/](atlas/AGENTS.md) | Internal operations app |
 | [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
 | [gradle/](gradle/AGENTS.md) | Gradle plugin |
 | [app/](app/AGENTS.md), [android/](android/AGENTS.md) | Companion apps |
+| [code/](code/AGENTS.md) | Tuist Code, the Rust-core client built alongside the companion apps |
 | [noora/](noora/AGENTS.md) | Phoenix component library and Storybook |
 | [slack/](slack/AGENTS.md) | Public Slack invitation app |
 | [tuist-ops/](tuist-ops/AGENTS.md) | Internal operations and access approvals |
@@ -49,13 +51,16 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
   `server/AGENTS.md` for the required export documentation details.
 - Before operating on shared infrastructure, read `infra/AGENTS.md`, including
   its human-only elevation rules.
+- Never commit `provenance = "github-attestations"` into the root `mise.lock`.
+  A local `mise install` records it, but release and deploy workflows install
+  with attestations off and then refuse the tool (`mise-lock.yml` checks this).
 
 ## Commits and pull requests
 
 Use conventional commits with the affected subsystem as scope, for example
 `fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
-`android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`,
-`slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `skills`, `search`, `status`,
+`android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`, `code`,
+`slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
 `grafana-datasource`, `docs`, and `handbook`.
 
 PR descriptions must explain what changed, why, the root cause for fixes, relevant

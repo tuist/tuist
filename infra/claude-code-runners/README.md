@@ -42,6 +42,9 @@ environment.
 `Tuist.Sandboxes.ClaudeCodeReconciler` keeps one Deployment per connected
 environment (`claude-code-<id>` in the Amp provider namespace) running this
 image: `claude self-hosted-runner orchestrator` with the environment secret.
+An orchestrator polls for spawn requests every 5 s (fixed, with 20% jitter),
+so the Deployment runs two replicas to shorten the wait for the next poll;
+Anthropic hands each request to one of them.
 When a session needs a runner, the orchestrator's `hooks/spawn-runner` posts the
 work order to `/api/internal/claude-code-runners/spawn` with the Deployment's
 projected service-account token (audience `tuist-claude-code-runners`). The
@@ -53,8 +56,47 @@ exits after `max_idle_seconds` without activity, which pauses the sandbox; the
 session's next message resumes the same sandbox.
 
 Claude Code is pinned to one version in this Dockerfile, the template
-Dockerfile and `sbx-worker`; macOS guests download and verify the pinned binary
-on first use.
+Dockerfile, `sbx-worker` and tart-kubelet (`internal/macosandbox/tools.go`,
+whose test checks the pin against `sbx-worker`). macOS hosts download and
+verify the pinned build once and share it with their VMs; a session copies
+it from the share, and downloads it only when the host has not fetched it yet.
+
+## Timing a session's start
+
+- The orchestrator's container log has its polls, dispatches and hook
+  outcomes (`[runner:orchestrator] ok ... (<n>ms)`), with session IDs and
+  email addresses replaced by `-`. Its `/metrics` on port 8080, scraped by
+  annotation, has `claude_code_self_hosted_orchestrator_session_queue_wait_seconds`
+  (from the session's queueing to the orchestrator claiming its spawn request)
+  and `..._spawn_hook_duration_seconds`.
+- The server logs `sandboxes: claude code spawn request` when it answers
+  (`spawn_result`, admission `duration_ms`), and `sandboxes: claude code
+  runner started` with `placement_ms` (placement, carve-out growth and the
+  VM's create or resume) and `spawn_ms` (request to started worker). The
+  request log keeps only a sample of successful responses, so do not look
+  for the spawn there.
+- sandboxd logs the runner's own lines (`Registered`, `Picked up session`,
+  `child spawned`, `a turn started`) as the worker's guest output.
+
+## Startup and caches
+
+- **Tuist cache:** the worker gets `TUIST_URL` and, when the account has an
+  in-rack cache at the node's site, `TUIST_CACHE_ENDPOINT`. `sbx-worker`
+  starts the runner with itself as `--exec-path`; that wrapper exports the
+  session's `CLAUDE_CODE_SESSION_ACCESS_TOKEN` as `TUIST_OIDC_TOKEN` and execs
+  Claude Code, so Tuist clients sign in with the session identity
+  (`Tuist.OIDC`). The token is the one at spawn time (four hours by default).
+- **Cached checkouts (macOS and Linux):** the hook sends
+  `CLAUDE_RUNNER_PRIMARY_REPO_URL` as `repository_url`. When the account's
+  GitHub installation reads that github.com repository, the worker starts
+  with the repository's CI checkout volume: before the runner starts,
+  `sbx-worker` copies the node's master of it to the runner's canonical clone
+  (`<base-dir>/<owner>/<repo>`), so the runner fetches only what it lacks
+  ([pre-warmed checkouts](https://code.claude.com/docs/en/self-hosted-environments-deploy#reuse-a-pre-warmed-checkout)).
+  After the runner exits it exports the default branch's commit the server
+  named at allocation, which the node verifies and builds the next master
+  from, under the rules CI exports follow. macOS goes through a per-VM share,
+  Linux through vsock to sandboxd and the runner-cache agent.
 
 `run-orchestrator.test.sh` and `spawn-runner.test.mjs` run in the sandbox-image
 workflow. Not yet run end to end: a live session needs a Team or Enterprise

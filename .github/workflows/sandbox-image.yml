@@ -76,6 +76,41 @@ jobs:
         working-directory: infra/sandbox-image
         run: go vet ./...
       - uses: docker/setup-buildx-action@v3
+      - name: Build guest for validation
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/sandbox-image
+          file: infra/sandbox-image/Dockerfile
+          target: guest
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: sandbox-guest:test
+      - name: Exercise guest recording and image tools
+        run: |
+          docker run --rm --read-only --user user --tmpfs /tmp:rw,size=64m \
+            --entrypoint sh -i sandbox-guest:test -eu <<'EOF'
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          ffmpeg -v error -f lavfi -i color=c=blue:s=16x16:d=0.2 \
+            -c:v libx264 -pix_fmt yuv420p "$work/recording.mp4"
+          ffmpeg -v error -i "$work/recording.mp4" -frames:v 1 "$work/frame.png"
+          convert "$work/frame.png" -resize 8x8 "$work/thumbnail.png"
+          test "$(identify -format '%wx%h' "$work/thumbnail.png")" = 8x8
+          EOF
+      - name: Check agent Tuist access configuration
+        run: |
+          # Not --read-only: the CLI writes under the passwd home of `user`,
+          # whatever HOME says, and that home is writable in the guest.
+          docker run --rm --user user --entrypoint sh -i sandbox-guest:test -eu <<'EOF'
+          tuist version
+          # The clients rewrite these files, so `user` must own them.
+          test -O /home/user/.config/amp/settings.json
+          test -O /home/user/.claude.json
+          jq -e '."amp.mcpServers".tuist.headers.Authorization == "Bearer ${amp:id-token}"' /home/user/.config/amp/settings.json
+          jq -e '.mcpServers.tuist.headers.Authorization == "Bearer ${TUIST_OIDC_TOKEN}"' /home/user/.claude.json
+          test -O /home/user/.claude/skills/verifying-work-with-tuist/SKILL.md
+          EOF
       # The template builds without a layer cache: importing and exporting its
       # multi-GiB rootfs layers takes longer than rebuilding them.
       - name: Validate template build

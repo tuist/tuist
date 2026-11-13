@@ -114,7 +114,7 @@ defmodule Tuist.MixProject do
       {:ueberauth_google, "~> 0.12"},
       {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
-      {:condukt, github: "tuist/condukt", tag: "1.14.0", override: true},
+      {:condukt, path: "../condukt", override: true},
       # Earlier ReqLLM releases use newer Finch APIs without declaring the dependency.
       {:req_llm, "~> 1.26.0", override: true},
       {:telemetry_test, "~> 0.1.2"},

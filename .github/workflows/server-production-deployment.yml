@@ -164,6 +164,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Every deploy leg needs this job, so a version collision from two
+      # PRs merged independently stops before canary migrates.
+      - name: Check migration versions are unique
+        run: .github/scripts/server-migration-versions.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked git-cliff jq"
@@ -275,7 +279,7 @@ jobs:
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
-            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/sandbox-image/|infra/amp-orbs/|infra/claude-code-runners/|infra/sandboxd/|\.github/scripts/sandbox-(image-version|image-exists|live-image-tag)\.sh$|\.github/scripts/sandboxd-image-version\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image|sandboxd-image)\.yml)' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|condukt/|infra/certificate-trust/(policy\.json|pem-store\.sh)$|infra/kura-controller/|infra/sandbox-image/|infra/amp-orbs/|infra/claude-code-runners/|infra/sandboxd/|\.github/scripts/sandbox-(image-version|image-exists|live-image-tag)\.sh$|\.github/scripts/sandboxd-image-version\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image|sandboxd-image)\.yml)' \
             || true)"
           if [ -n "$deployable_paths" ]; then
             echo "Deployable paths changed since $base:"

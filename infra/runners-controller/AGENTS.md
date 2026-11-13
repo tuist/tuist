@@ -103,7 +103,12 @@ cancellable and leaves the reserve intact. See
   last hour: `Signals.InUse`) before pools that only hold a learned floor,
   in `capByShape` too. Learned floors on a busy rack sum past its seats, and
   an even split left the pools whose jobs were arriving short of warm
-  runners while pools with no job in an hour stayed warm.
+  runners while pools with no job in an hour stayed warm. The floors of
+  pools not in use are then funded whole, most recently used first
+  (`status.lastDemandAt`, the recency tart-kubelet ranks goldens by), so a
+  pool with a fan-out this morning stays warm before one whose only jobs
+  are a nightly run: on 2026-11-13 the two split a full rack's last seats
+  evenly and neither had its burst warm.
 
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the
@@ -1509,6 +1514,37 @@ deploying over staging's live Kura rehearsal. The provider automatically set
 the queued workflow ran as UID 1000 with KVM acceleration. The committed
 [`android-smoke` fixture](../kata-kvm-kernel/android-smoke/AGENTS.md) passed
 both Gradle Managed Device instrumentation and all 15 Macrobenchmark cold starts.
+
+## Exclusive CPUs
+
+A Linux `kata-qemu` pool with `spec.exclusiveCPUs: true` gets whole cores per
+Pod: `podtemplate.Build` puts the pool's CPU and memory on the Pod
+(`.spec.resources`, requests equal to limits) instead of the runner container,
+gives no container CPU or memory of its own, and adds the
+`tuist.dev/pod-level-resource-managers=true` node selector, which the CAPI
+provider sets on Kata hosts running kubelet v1.36's pod-level resource
+managers. `fleetNodeSelector` adds the same label. Build refuses an odd or
+fractional CPU count, since the hosts allocate whole two-thread cores.
+
+Keep every container free of its own CPU and memory: a container with its own
+Guaranteed CPU takes an exclusive slice out of the budget and leaves the others
+on an empty shared pool, which the kubelet rejects. Never give a Pod with a
+Pod-level budget a `devices.tuist.dev/kvm` request: kubelet's pod-level
+admission skips device allocation and can panic on concurrent starts
+(kubernetes/kubernetes#143490). A pool with both `exclusiveCPUs` and
+`nestedVirtualization` gets `/dev/kvm` from `cmd/kvm-nri-plugin` instead, a
+containerd NRI plugin (`internal/kvmnri`) that adds the device to the
+containers a kata-qemu Pod in the runners namespace names in
+`tuist.dev/kvm-containers`. Build sets that annotation to `poller,runner`,
+requests no device, and has the poller exit before claiming a job when
+`/dev/kvm` is missing, since a stopped plugin adds nothing. dind keeps creating
+the guest's node with `mknod`. Helm combines the two only with
+`runnersFleetLinux.nestedVirtualization.nri.enabled`, which deploys the
+DaemonSet. Code that sizes a Pod
+(`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
+budget when it is set, or a running job looks nearly free.
+`isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.
+Why and how to roll it out: `infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`.
 
 ## Linux cache volumes
 
