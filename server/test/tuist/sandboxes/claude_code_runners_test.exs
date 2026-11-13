@@ -2,6 +2,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -11,8 +12,11 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
   alias Tuist.Sandboxes.Anthropic.Supervisor, as: AnthropicSupervisor
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.ClaudeCodeRunners
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
+  alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker
 
   setup :set_mimic_global
 
@@ -187,5 +191,121 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
     reject(&Capacity.admissible?/2)
 
     assert {:error, :disabled} = ClaudeCodeRunners.spawn(agent_environment, @order)
+  end
+
+  describe "a Linux environment with a setup script" do
+    @setup_script "mise install && mix compile\n"
+
+    setup %{account: account} do
+      agent_environment =
+        agent_environment_fixture(
+          account: account,
+          kind: :claude_code,
+          anthropic_environment_id: "ccpool_01linux",
+          setup_script: @setup_script
+        )
+
+      test_pid = self()
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [] end)
+      stub(Capacity, :admissible?, fn _environment, _session -> true end)
+      stub(Capacity, :admit_turn, fn _sandbox, fun -> fun.() end)
+      stub(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+      stub(CacheVolumes, :allocate_sandbox_checkout, fn _sandbox, _repository, _work_id -> {:error, :unavailable} end)
+
+      stub(Nodes, :connected_nodes, fn ->
+        [
+          %{
+            name: "node-a",
+            disk: %{},
+            default_template: "default",
+            default_template_tag: "sha-new",
+            templates: [%{name: "default", ready: true, tag: "sha-new", rootfs_bytes: 1}]
+          }
+        ]
+      end)
+
+      stub(Nodes, :call, fn "node-a", command, args, _opts ->
+        send(test_pid, {String.to_atom(command), args})
+        {:ok, %{}}
+      end)
+
+      %{agent_environment: agent_environment}
+    end
+
+    defp node_calls(count) do
+      for _ <- 1..count do
+        receive do
+          call -> call
+        after
+          5_000 -> flunk("expected #{count} node calls")
+        end
+      end
+    end
+
+    defp order(session_id) do
+      %{
+        order_id: "order-" <> session_id,
+        session_id: session_id,
+        work_order: "header.claims.signature",
+        repository_url: "https://github.com/acme/app"
+      }
+    end
+
+    defp builds(agent_environment) do
+      Repo.all(from(s in DiskSnapshot, where: s.agent_environment_id == ^agent_environment.id and s.state == :building))
+    end
+
+    # The runner's task asks for the build after it started the worker.
+    defp await_build(agent_environment, tries \\ 50) do
+      case builds(agent_environment) do
+        [] when tries > 0 ->
+          Process.sleep(20)
+          await_build(agent_environment, tries - 1)
+
+        builds ->
+          builds
+      end
+    end
+
+    test "a session of a repository without a snapshot starts on the template at once and has one built", %{
+      agent_environment: agent_environment
+    } do
+      assert {:ok, :accepted} = ClaudeCodeRunners.spawn(agent_environment, order("session_01"))
+      # Nothing runs in the session's sandbox before its runner.
+      assert [{:create, create}, {:start_worker, _start}] = node_calls(2)
+      refute Map.has_key?(create, :from_disk_snapshot)
+
+      assert [%DiskSnapshot{repository: "acme/app"} = build] = await_build(agent_environment)
+      assert build.setup_sha256 == ClaudeCodeSnapshots.setup_sha256(@setup_script)
+      assert_enqueued(worker: BuildRepositorySnapshotWorker, args: %{disk_snapshot_id: build.id})
+
+      # Another session while it builds does not build again.
+      assert {:ok, :accepted} = ClaudeCodeRunners.spawn(agent_environment, order("session_02"))
+      assert [{:create, _create}, {:start_worker, _start}] = node_calls(2)
+      Process.sleep(200)
+      assert [^build] = builds(agent_environment)
+    end
+
+    test "a session of a repository with a snapshot boots from it", %{
+      account: account,
+      agent_environment: agent_environment
+    } do
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          agent_environment_id: agent_environment.id,
+          repository: "acme/app",
+          setup_sha256: ClaudeCodeSnapshots.setup_sha256(@setup_script),
+          template_tag: "sha-new"
+        )
+
+      stub(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:ok, "node-a"} end)
+
+      assert {:ok, :accepted} = ClaudeCodeRunners.spawn(agent_environment, order("session_01"))
+      assert [{:create, create}, {:start_worker, _start}] = node_calls(2)
+      assert create.from_disk_snapshot == snapshot.id
+      Process.sleep(200)
+      assert builds(agent_environment) == []
+    end
   end
 end

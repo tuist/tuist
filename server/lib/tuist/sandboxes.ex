@@ -538,6 +538,8 @@ defmodule Tuist.Sandboxes do
   sandbox, no longer holds the copy, or the clone fails, an archived
   snapshot is restored from object storage on any node with room; the
   sandbox boots from the template when there is no archive or that fails.
+  `id:` gives the sandbox a known id, so a caller that loses the answer
+  finds what it created.
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs = Map.drop(attrs, [:purpose, "purpose"])
@@ -547,7 +549,7 @@ defmodule Tuist.Sandboxes do
       |> platform_defaults()
       |> Map.put(:account_id, account_id)
 
-    changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
+    changeset = Sandbox.create_changeset(%Sandbox{id: Keyword.get(opts, :id)}, attrs)
 
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, sandbox} <- Concurrency.admit(account_id, requested, fn -> Repo.insert(changeset) end) do
