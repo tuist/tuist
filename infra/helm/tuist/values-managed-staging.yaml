@@ -198,8 +198,9 @@ server:
       # Linux runners reuse ordinary regional instances. Before deploying,
       # complete the staging migration in linux-runner-private-cache.md:
       # drain the retired experiment and qualify the existing GRA host as EU-West.
-      # Preserve the independent macOS private cache.
-      value: scw-fr-par-runners,eu-west,ca-east
+      # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
+      # tears down its leftovers whether or not it is listed here.
+      value: eu-west,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.

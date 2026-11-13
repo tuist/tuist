@@ -273,14 +273,13 @@ server:
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
-    # scw-fr-par-runners is the macOS-serving private (runner-cache)
-    # region: this cluster's Elastic Metal node (kuraFleet) hosts the
-    # per-account cache pods and dispatch routes the Mac fleet's build
-    # cache to it over the Private Network. ber1-runners is the BER1 rack's
-    # cache on ber1-store-a, beside the rack's minis; only the accounts the
-    # runner_site_cache flag enables get a node there.
+    # ber1-runners is the BER1 rack's cache on ber1-store-a, beside the
+    # rack's minis; only the accounts the runner_site_cache flag enables get a
+    # node there. scw-fr-par-runners, the cache beside the rented Scaleway Mac
+    # fleet, is retired (Tuist.Kura.Regions): the reconciler tears down its
+    # leftovers on the kuraFleet nodes whether or not it is listed here.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,ber1-runners
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT

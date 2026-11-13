@@ -23,18 +23,18 @@ defmodule Tuist.Kura.RunnerCacheTest do
   setup :set_mimic_from_context
 
   # Drive Regions.available/0 to the real private-region catalog:
-  # `scw-fr-par-runners` serves [:macos] and is the only private region
-  # (Linux runners have none). It provisions through KubernetesController
-  # whose `provision/3` is pure (builds the instance name), and
-  # `destroy_server/1` only flips DB state — so reconcile runs for real
-  # against the sandbox.
+  # `ber1-runners` serves [:macos] (Linux runners have no private region).
+  # It provisions through KubernetesController whose `provision/3` is pure
+  # (builds the instance name), and `destroy_server/1` only flips DB state —
+  # so reconcile runs for real against the sandbox. Every account is a site
+  # account unless a test says otherwise, and none is pinned or excluded.
   setup do
     stub(Tuist.Environment, :env, fn -> :prod end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
-      ["scw-fr-par-runners"]
+      ["ber1-runners"]
     end)
 
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
@@ -43,12 +43,17 @@ defmodule Tuist.Kura.RunnerCacheTest do
       %{@site_macos_pool => %{site: "ber1", platform: :macos}}
     end)
 
+    stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :runner_site_cache_pinned?, fn _ -> false end)
+    stub(FeatureFlags, :runner_site_cache_excluded?, fn _ -> false end)
+
     :ok
   end
 
-  # A macOS account also gets a job claimed on the rented fleet now, which is
-  # what the region without a site needs to hold its node, unless a test
-  # passes `rented_job: false` to control the account's jobs itself.
+  # A macOS account also gets a job at the ber1 site whose build hit the remote
+  # cache, which is the traffic the site's region admits on, unless a test
+  # passes `site_job: false` to control the account's jobs itself.
   defp account_with_profiles(platforms, opts \\ []) do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
@@ -69,8 +74,8 @@ defmodule Tuist.Kura.RunnerCacheTest do
       })
     end
 
-    if :macos in platforms and Keyword.get(opts, :rented_job, true) do
-      claimed_job(account, @rented_macos_pool)
+    if :macos in platforms and Keyword.get(opts, :site_job, true) do
+      build_in_job(account, @site_macos_pool, site: "ber1")
     end
 
     account
@@ -157,15 +162,14 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert :ok = RunnerCache.reconcile()
 
     # A region's cache only serves the fleet it sits next to. macOS
-    # profiles get the Scaleway fr-par node; there is no Linux-serving
-    # region, so a Linux-only account gets nothing rather than a node in
-    # the macOS region, whose URL would route cache traffic across the WAN.
+    # profiles get the site's node; there is no Linux-serving region, so a
+    # Linux-only account gets nothing rather than a node in the macOS region,
+    # whose URL would route cache traffic across the WAN.
     assert server_regions(linux_only) == []
-    assert server_regions(macos_too) == ["scw-fr-par-runners"]
+    assert server_regions(macos_too) == ["ber1-runners"]
   end
 
   test "a site's region holds nodes only for accounts on the site cache flag" do
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
     on_site = account_with_profiles([:macos])
     build_in_job(on_site, @site_macos_pool)
     off_site = account_with_profiles([:macos])
@@ -176,8 +180,8 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(on_site) == ["ber1-runners", "scw-fr-par-runners"]
-    assert server_regions(off_site) == ["scw-fr-par-runners"]
+    assert server_regions(on_site) == ["ber1-runners"]
+    assert server_regions(off_site) == []
   end
 
   test "tears down a site's node when the account leaves the site cache flag" do
@@ -214,11 +218,11 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "a site's region counts the jobs of its pool claimed at the site, not those claimed at another" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
-    at_site = account_with_profiles([:macos])
+    at_site = account_with_profiles([:macos], site_job: false)
     build_in_job(at_site, @site_macos_pool, site: "ber1")
-    elsewhere = account_with_profiles([:macos])
+    elsewhere = account_with_profiles([:macos], site_job: false)
     build_in_job(elsewhere, @site_macos_pool, site: "larch")
-    before_sites = account_with_profiles([:macos])
+    before_sites = account_with_profiles([:macos], site_job: false)
     build_in_job(before_sites, @site_macos_pool)
     set_runner_availability([at_site.id, elsewhere.id, before_sites.id])
     stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
@@ -233,16 +237,16 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "a site's region holds nodes only for flagged accounts whose site jobs hit the remote cache" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
-    remote_hits = account_with_profiles([:macos])
+    remote_hits = account_with_profiles([:macos], site_job: false)
     build_in_job(remote_hits, @site_macos_pool)
-    local_only = account_with_profiles([:macos])
+    local_only = account_with_profiles([:macos], site_job: false)
     build_in_job(local_only, @site_macos_pool, remote_hits: 0)
-    hits_off_site = account_with_profiles([:macos])
+    hits_off_site = account_with_profiles([:macos], site_job: false)
     claimed_job(hits_off_site, @site_macos_pool, workflow_run_id: System.unique_integer([:positive]))
     build_in_job(hits_off_site, @rented_macos_pool)
-    stale = account_with_profiles([:macos])
+    stale = account_with_profiles([:macos], site_job: false)
     build_in_job(stale, @site_macos_pool, days_ago: 8)
-    no_jobs = account_with_profiles([:macos], rented_job: false)
+    no_jobs = account_with_profiles([:macos], site_job: false)
     set_runner_availability([remote_hits.id, local_only.id, hits_off_site.id, stale.id, no_jobs.id])
     stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> true end)
     stub(FeatureFlags, :runner_site_enabled?, fn _ -> false end)
@@ -258,7 +262,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "keeps a site's node while it serves hits and tears it down once they stop" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
-    account = account_with_profiles([:macos], rented_job: false)
+    account = account_with_profiles([:macos], site_job: false)
     set_runner_availability([account.id])
     stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> true end)
     stub(FeatureFlags, :runner_site_enabled?, fn _ -> false end)
@@ -275,7 +279,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "keeps a site's nodes when its traffic cannot be read" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
-    account = account_with_profiles([:macos], rented_job: false)
+    account = account_with_profiles([:macos], site_job: false)
     build_in_job(account, @site_macos_pool)
     set_runner_availability([account.id])
     stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> true end)
@@ -291,9 +295,9 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "a site's region holds nodes for pinned site accounts without site traffic" do
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
-    pinned = account_with_profiles([:macos], rented_job: false)
-    pinned_off_site = account_with_profiles([:macos], rented_job: false)
-    unpinned = account_with_profiles([:macos], rented_job: false)
+    pinned = account_with_profiles([:macos], site_job: false)
+    pinned_off_site = account_with_profiles([:macos], site_job: false)
+    unpinned = account_with_profiles([:macos], site_job: false)
     set_runner_availability([pinned.id, pinned_off_site.id, unpinned.id])
     stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
     stub(FeatureFlags, :runner_site_enabled?, fn account -> account.id != pinned_off_site.id end)
@@ -306,64 +310,17 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(unpinned) == []
   end
 
-  test "tears down an excluded account's site node and keeps its other regions' nodes" do
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+  test "tears down an excluded account's site node even when it is pinned" do
     account = account_with_profiles([:macos])
-    build_in_job(account, @site_macos_pool)
     set_runner_availability([account.id])
-    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
-    stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["ber1-runners", "scw-fr-par-runners"]
+    assert server_regions(account) == ["ber1-runners"]
 
     stub(FeatureFlags, :runner_site_cache_excluded?, fn _ -> true end)
     stub(FeatureFlags, :runner_site_cache_pinned?, fn _ -> true end)
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(account) == ["scw-fr-par-runners"]
-  end
-
-  test "the rented fleet's region holds nodes only for accounts with recent jobs there" do
-    rented = account_with_profiles([:macos], rented_job: false)
-    claimed_job(rented, @rented_macos_pool, days_ago: 6)
-    at_site = account_with_profiles([:macos], rented_job: false)
-    claimed_job(at_site, @site_macos_pool)
-    stale = account_with_profiles([:macos], rented_job: false)
-    claimed_job(stale, @rented_macos_pool, days_ago: 8)
-    linux_jobs = account_with_profiles([:macos], rented_job: false)
-    claimed_job(linux_jobs, "tuist-tuist-runner-pool-linux-2vcpu-8gb", platform: "linux")
-    idle = account_with_profiles([:macos], rented_job: false)
-    set_runner_availability([rented.id, at_site.id, stale.id, linux_jobs.id, idle.id])
-
-    assert :ok = RunnerCache.reconcile()
-
-    assert server_regions(rented) == ["scw-fr-par-runners"]
-    assert server_regions(at_site) == []
-    assert server_regions(stale) == []
-    assert server_regions(linux_jobs) == []
-    assert server_regions(idle) == []
-  end
-
-  test "tears down the rented fleet's node once the account's jobs there age out" do
-    account = account_with_profiles([:macos])
-    set_runner_availability([account.id])
-    assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["scw-fr-par-runners"]
-
-    eight_days_ago = DateTime.add(DateTime.utc_now(), -8 * 86_400, :second)
-
-    Repo.update_all(from(j in WorkflowJob, where: j.account_id == ^account.id),
-      set: [claimed_at: eight_days_ago, updated_at: DateTime.truncate(eight_days_ago, :second)]
-    )
-
-    assert :ok = RunnerCache.reconcile()
     assert server_regions(account) == []
-
-    Repo.update_all(from(s in Server, where: s.account_id == ^account.id), set: [status: :destroyed])
-    claimed_job(account, @rented_macos_pool)
-
-    assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["scw-fr-par-runners"]
   end
 
   test "is inert without a private runner-cache region" do
@@ -387,7 +344,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([existing.id])
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(existing) == ["scw-fr-par-runners"]
+    assert server_regions(existing) == ["ber1-runners"]
 
     candidate = account_with_profiles([:macos])
     stub(FunWithFlags, :get_flag, fn :runners -> {:error, :unavailable} end)
@@ -397,7 +354,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
       RunnerCache.reconcile()
     end
 
-    assert server_regions(existing) == ["scw-fr-par-runners"]
+    assert server_regions(existing) == ["ber1-runners"]
     assert server_regions(candidate) == []
   end
 
@@ -406,7 +363,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["scw-fr-par-runners"]
+    assert server_regions(account) == ["ber1-runners"]
 
     set_runner_availability([])
 
@@ -419,13 +376,13 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
     server = activate(account)
-    assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
+    assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == server.url
 
     set_runner_availability([])
     assert :ok = RunnerCache.reconcile()
 
     assert %Server{status: :drain_pending, drain_started_at: %DateTime{}} = Repo.get!(Server, server.id)
-    assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == nil
 
     assert :ok = RunnerCache.reconcile()
 
@@ -438,12 +395,12 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert :ok = RunnerCache.reconcile()
     server = activate(account)
     an_hour_ago = DateTime.add(DateTime.utc_now(), -3600, :second)
-    in_flight = claimed_job(account, @rented_macos_pool, status: "running", claimed_at: an_hour_ago)
-    claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago)
+    in_flight = claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "ber1")
+    claimed_job(account, @rented_macos_pool, status: "running", claimed_at: an_hour_ago)
     set_runner_availability([])
     assert :ok = RunnerCache.reconcile()
     drained_for(server, 20 * 60)
-    claimed_job(account, @rented_macos_pool, status: "claimed")
+    claimed_job(account, @site_macos_pool, status: "claimed", site: "ber1")
 
     assert :ok = RunnerCache.reconcile()
     assert Repo.get!(Server, server.id).status == :drain_pending
@@ -455,14 +412,10 @@ defmodule Tuist.Kura.RunnerCacheTest do
   end
 
   test "a drained site node waits only for the jobs claimed at its site" do
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ber1-runners"] end)
-    stub(FeatureFlags, :runner_site_cache_enabled?, fn _ -> false end)
-    stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
     account = account_with_profiles([:macos])
-    build_in_job(account, @site_macos_pool, site: "ber1")
     set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
-    server = activate(account, "ber1-runners")
+    server = activate(account)
     an_hour_ago = DateTime.add(DateTime.utc_now(), -3600, :second)
     at_site = claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "ber1")
     claimed_job(account, @site_macos_pool, status: "running", claimed_at: an_hour_ago, site: "larch")
@@ -484,7 +437,13 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
     server = activate(account)
-    claimed_job(account, @rented_macos_pool, status: "running", claimed_at: DateTime.add(DateTime.utc_now(), -7, :hour))
+
+    claimed_job(account, @site_macos_pool,
+      status: "running",
+      claimed_at: DateTime.add(DateTime.utc_now(), -7, :hour),
+      site: "ber1"
+    )
+
     set_runner_availability([])
     assert :ok = RunnerCache.reconcile()
 
@@ -512,7 +471,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert %Server{status: :active, drain_started_at: nil} = Repo.get!(Server, server.id)
     assert Repo.aggregate(from(s in Server, where: s.account_id == ^account.id), :count) == 1
-    assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
+    assert Kura.runner_cache_endpoint_url(account, :macos, "ber1") == server.url
   end
 
   test "tears down a region's node when its served platforms lose their profiles" do
@@ -520,7 +479,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["scw-fr-par-runners"]
+    assert server_regions(account) == ["ber1-runners"]
 
     # Dropping the macOS profile leaves nothing the region serves, so its
     # node is torn down. The remaining Linux profile has no region of its
@@ -539,7 +498,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert :ok = RunnerCache.reconcile()
 
     assert server_regions(unavailable) == []
-    assert server_regions(enabled) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["ber1-runners"]
   end
 
   test "narrows actor-only production availability before evaluating accounts" do
@@ -562,7 +521,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert :ok = RunnerCache.reconcile()
 
     assert server_regions(unavailable) == []
-    assert server_regions(enabled) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["ber1-runners"]
   end
 
   test "macOS-only accounts get a node in the macOS-serving region" do
@@ -571,7 +530,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(account) == ["scw-fr-par-runners"]
+    assert server_regions(account) == ["ber1-runners"]
   end
 
   test "is inert without a runtime image tag except for tear-downs" do
@@ -603,8 +562,8 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(first) == ["scw-fr-par-runners"]
-    assert server_regions(second) == ["scw-fr-par-runners"]
+    assert server_regions(first) == ["ber1-runners"]
+    assert server_regions(second) == ["ber1-runners"]
   end
 
   test "provisions only the account enabled by the runner flag in canary" do
@@ -615,7 +574,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(enabled) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["ber1-runners"]
     assert server_regions(other) == []
   end
 
@@ -686,7 +645,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     accounts = Enum.map(1..12, fn _index -> account_with_profiles([:macos]) end)
 
     Enum.each(accounts, fn account ->
-      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "ber1-runners", image_tag: "0.5.2"})
       deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
       assert {:ok, deployment} = Kura.mark_running(deployment)
       assert {:ok, deployment} = Kura.mark_failed(deployment, "temporary failure")
@@ -722,8 +681,8 @@ defmodule Tuist.Kura.RunnerCacheTest do
   test "does not retry a disabled failed server outside the teardown batch" do
     servers =
       Enum.map(1..101, fn _index ->
-        account = account_with_profiles([:macos])
-        {:ok, server} = Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+        account = account_with_profiles([:macos], site_job: false)
+        {:ok, server} = Kura.create_server(%{account_id: account.id, region: "ber1-runners", image_tag: "0.5.2"})
         server
       end)
 
@@ -748,15 +707,15 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([enabled.id, other.id])
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(enabled) == ["scw-fr-par-runners"]
-    assert server_regions(other) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["ber1-runners"]
+    assert server_regions(other) == ["ber1-runners"]
 
     stub(Tuist.Environment, :env, fn -> :can end)
     set_runner_availability([enabled.id])
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(enabled) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["ber1-runners"]
     assert server_regions(other) == []
   end
 
@@ -765,7 +724,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
-    server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
+    server = Repo.get_by!(Server, account_id: account.id, region: "ber1-runners")
     deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
     {:ok, deployment} = Kura.mark_running(deployment)
     {:ok, deployment} = Kura.mark_failed(deployment, "temporary failure")
@@ -786,7 +745,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
-    server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
+    server = Repo.get_by!(Server, account_id: account.id, region: "ber1-runners")
     initial = Repo.get_by!(Deployment, kura_server_id: server.id)
     {:ok, initial} = Kura.mark_running(initial)
     {:ok, initial} = Kura.mark_failed(initial, "temporary failure")
@@ -799,7 +758,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     for minutes <- [180, 120, 50] do
       Repo.insert!(%Deployment{
-        cluster_id: "scw-fr-par",
+        cluster_id: "ber1",
         image_tag: "0.5.2",
         kura_server_id: server.id,
         status: :failed,
@@ -831,7 +790,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
-    server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
+    server = Repo.get_by!(Server, account_id: account.id, region: "ber1-runners")
     deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
     {:ok, deployment} = Kura.mark_running(deployment)
     {:ok, _deployment} = Kura.mark_failed(deployment, "broken image")
@@ -845,9 +804,9 @@ defmodule Tuist.Kura.RunnerCacheTest do
              Repo.get_by!(Deployment, kura_server_id: server.id, status: :pending)
   end
 
-  defp activate(account, region \\ "scw-fr-par-runners") do
+  defp activate(account) do
     Server
-    |> Repo.get_by!(account_id: account.id, region: region)
+    |> Repo.get_by!(account_id: account.id, region: "ber1-runners")
     |> Server.observation_changeset(%{
       status: :active,
       url: "https://#{account.id}.runners.example.com",

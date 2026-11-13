@@ -266,8 +266,9 @@ server:
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Public validation uses the existing OVH ca-east fleet. Retire the
       # Dedibox EU-West instances before the later fleet-retirement change.
-      # Preserve the Scaleway private cache beside the Mac mini fleet.
-      value: scw-fr-par-runners,ca-east
+      # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
+      # tears down its leftovers whether or not it is listed here.
+      value: ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
