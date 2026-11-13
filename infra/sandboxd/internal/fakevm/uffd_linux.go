@@ -8,6 +8,18 @@ import (
 	"unsafe"
 )
 
+// UserfaultfdSupported reports whether this kernel lets an unprivileged
+// process open a user-mode userfaultfd, which SizedMemory needs. Some CI
+// kernels and sandboxes leave the syscall out.
+func UserfaultfdSupported() bool {
+	fd, _, errno := syscall.Syscall(323, syscall.O_CLOEXEC|1, 0, 0)
+	if errno != 0 {
+		return false
+	}
+	syscall.Close(int(fd))
+	return true
+}
+
 // guestMemory does Firecracker's side of a Uffd snapshot load: it maps
 // size bytes of anonymous memory, registers them with a userfaultfd (user
 // mode only, which needs no privilege) and hands the descriptor and layout

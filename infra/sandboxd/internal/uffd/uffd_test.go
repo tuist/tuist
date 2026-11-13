@@ -36,6 +36,14 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
+	// Some CI kernels and sandboxes leave userfaultfd out; every test here
+	// needs it.
+	fd, _, errno := syscall.Syscall(323, syscall.O_CLOEXEC|uffdUser, 0, 0)
+	if errno != 0 {
+		fmt.Fprintln(os.Stderr, "skipping: this kernel has no unprivileged userfaultfd:", errno)
+		os.Exit(0)
+	}
+	syscall.Close(int(fd))
 	os.Exit(m.Run())
 }
 
