@@ -19,6 +19,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxNode
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
   alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
   alias Tuist.Sandboxes.Workers.DeleteArchiveCopyWorker
@@ -130,6 +131,81 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Repo.update!(Ecto.Changeset.change(uploading, archive_upload_id: nil))
       assert {:error, :no_room} = Capacity.admission(environment, "new-session")
       assert [%{args: %{"node_names" => ["node-a"]}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+  end
+
+  describe "offloading paused sandboxes off a node CI takes" do
+    setup do
+      Repo.insert!(%SandboxNode{
+        name: "node-a",
+        pod_name: "sandboxd-a",
+        memory_limit_bytes: @gib,
+        allocation_reclaim: true
+      })
+
+      :ok
+    end
+
+    defp paused(account, opts), do: sandbox_fixture([account: account, state: :paused, node_name: "node-a"] ++ opts)
+
+    defp expect_failed_upload(expected_id) do
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == expected_id
+        {:error, "upload failed"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+    end
+
+    test "moves every source's paused sandboxes, oldest first and one at a time, however recent",
+         %{account: account} do
+      # Paused an hour ago: the age threshold (24 h) would leave them all on the node.
+      plain = paused(account, paused_at: hours_ago(1))
+      orb = paused(account, amp_orb_id: "orb-1", paused_at: hours_ago(2))
+      paused(account, purpose: :remote_execution, paused_at: hours_ago(3))
+      paused(account, residency_work_id: "turn", paused_at: hours_ago(4))
+      sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      assert :ok = Archives.move_off_node("node-a")
+      assert [%{args: %{"node_names" => ["node-a"], "ci" => true}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      expect_failed_upload(orb.id)
+      assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true)
+
+      # The failed one backs off, and the next observation moves the next one.
+      expect_failed_upload(plain.id)
+      assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true)
+      assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"], ci: true)
+    end
+
+    test "leaves the sandboxes where they are once the reservation is gone, or with the tier off",
+         %{account: account} do
+      paused(account, paused_at: hours_ago(1))
+      reject(&Nodes.call/4)
+
+      Repo.update_all(from(n in SandboxNode, where: n.name == "node-a"), set: [allocation_reclaim: false])
+      assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"], ci: true)
+
+      stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
+      assert :ok = Archives.move_off_node("node-a")
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+
+    test "a resume its node refuses for room queues that sandbox's archive", %{account: account} do
+      sandbox = paused(account, paused_at: hours_ago(1))
+      stub(Capacity, :admit, fn _sandbox -> {:error, :no_capacity} end)
+
+      assert {:error, :no_capacity} = Sandboxes.resume(sandbox)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
+
+      # The account's quota is no reason to move it.
+      other = paused(account, paused_at: hours_ago(1))
+      stub(Capacity, :admit, fn _sandbox -> {:error, :sandbox_concurrency_limit} end)
+      assert {:error, :sandbox_concurrency_limit} = Sandboxes.resume(other)
+      assert [_only_the_first] = all_enqueued(worker: ArchiveSandboxesWorker)
     end
   end
 
@@ -359,6 +435,34 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert archived.archive_bytes == 2 * @gib
       assert Repo.reload!(recent).state == :paused
       assert Archives.archived_bytes(account.id) == 502 * @gib
+    end
+
+    test "asks the node for the memory image too and records where the disks start", %{account: account} do
+      sandbox = paused_orb(account, memory_mb: 8192)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", args, _opts ->
+        assert args.memory
+        # The disks' 14 GiB and the 8 GiB memory image.
+        assert length(args.part_urls) * args.part_size > 22 * @gib
+
+        {:ok, data} = archive_result()
+
+        {:ok,
+         Map.merge(data, %{"tail_offset" => 700, "tail_sha256" => "tail", "compat" => "zen5", "memory_bytes" => 3 * @gib})}
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{
+               state: :archived,
+               archive_memory: %{"tail_offset" => 700, "tail_sha256" => "tail", "compat" => "zen5"}
+             } =
+               Repo.reload!(sandbox)
     end
 
     test "does nothing but clean up while no threshold is configured", %{account: account} do
@@ -782,6 +886,89 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect(Nodes, :call, fn "node-b", "delete", _args, _opts -> {:ok, %{}} end)
       assert :ok = perform_job(ArchiveSandboxesWorker, job.args)
       assert Repo.reload!(sandbox).state == :archived
+    end
+
+    test "an archive with memory resumes warm on a node of its kind and stays until that node loaded it",
+         %{account: account} do
+      memory = %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"}
+      sandbox = archived_orb(account, archive_memory: memory)
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+
+      expect(Capacity, :place, fn placed, filter ->
+        assert filter.(%{name: "node-b", snapshot_compat: "zen5"})
+        refute filter.(%{name: "node-a", snapshot_compat: "zen4"})
+        refute filter.(%{name: "node-c"})
+        Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-b"}))
+        {:ok, "node-b"}
+      end)
+
+      expect(Nodes, :call, fn "node-b", "create", args, _opts ->
+        assert args.from_archive ==
+                 %{url: "https://s3/get", bytes: 3 * @gib, sha256: "abc123", tail_offset: 900, tail_sha256: "tail"}
+
+        {:ok, %{"memory_pending" => true}}
+      end)
+
+      stub(Nodes, :call, fn "node-b", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      stub(Storage, :delete_object, fn _key, _account -> flunk("the archive went while its memory was loading") end)
+
+      assert {:ok, %Sandbox{state: :running}} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+
+      assert %Sandbox{archive_key: key, archive_memory: %{"loading_since" => _}} = Repo.reload!(sandbox)
+      assert key == sandbox.archive_key
+      Archives.run()
+      assert Repo.reload!(sandbox).archive_key == key
+
+      # Only the node holding it can report it loaded.
+      Sandboxes.handle_node_event("node-a", %{"event" => "memory_loaded", "sandbox_id" => sandbox.id})
+      assert Repo.reload!(sandbox).archive_key == key
+
+      expect(Storage, :delete_object, fn ^key, _account -> :ok end)
+      Sandboxes.handle_node_event("node-b", %{"event" => "memory_loaded", "sandbox_id" => sandbox.id})
+      assert %Sandbox{archive_key: nil, archive_memory: nil, archived_at: nil} = Repo.reload!(sandbox)
+    end
+
+    test "an archive with memory cold boots elsewhere when no node of its kind is connected", %{account: account} do
+      sandbox =
+        archived_orb(account, archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      expect(Capacity, :place, fn _placed, _warm -> {:error, :no_node} end)
+
+      expect(Capacity, :place, fn placed, any ->
+        assert any.(%{name: "node-a", snapshot_compat: "zen4"})
+        Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-a"}))
+        {:ok, "node-a"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
+      stub(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      expect(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "node-a"}} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+
+      assert Repo.reload!(sandbox).archive_key == nil
+    end
+
+    test "a memory report that beats the create answer still lets the archive go", %{account: account} do
+      # The restore placed it and waits on the node's create answer.
+      sandbox =
+        archived_orb(account,
+          state: :creating,
+          node_name: "node-b",
+          archive_memory: %{"tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"}
+        )
+
+      stub(Storage, :delete_object, fn _key, _account -> flunk("the archive went before the restore finished") end)
+      Sandboxes.handle_node_event("node-b", %{"event" => "memory_loaded", "sandbox_id" => sandbox.id})
+      assert Repo.reload!(sandbox).archive_key == sandbox.archive_key
+
+      running = sandbox |> Repo.reload!() |> Sandbox.update_changeset(%{state: :running}) |> Repo.update!()
+      expect(Storage, :delete_object, fn _key, _account -> :ok end)
+      assert :ok = Archives.memory_loading(running)
+      assert Repo.reload!(sandbox).archive_key == nil
     end
 
     test "a failed restore keeps the Orb archived for the next spawn", %{account: account} do
@@ -1355,11 +1542,15 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
     test "physical space must fit the full Orb or snapshot archive plus headroom", %{account: account} do
       # 4 GiB rootfs + 7 GiB workspace + 64 MiB disk overhead + 512 MiB
-      # kernel, then 1% framing/compression allowance and 1 GiB headroom.
-      uncompressed = 11 * @gib + 576 * 1024 * 1024
-      required = uncompressed + div(uncompressed, 100) + @gib
+      # kernel, for an Orb also its 4 GiB of memory and 64 MiB of VM state,
+      # then 1% framing/compression allowance and 1 GiB headroom.
+      snapshot_bytes = 11 * @gib + 576 * 1024 * 1024
+      orb_bytes = snapshot_bytes + 4 * @gib + 64 * 1024 * 1024
 
-      for volume <- [:data, :metadata], offset <- [-1, 0, 1] do
+      for {subject, uncompressed} <- [orb: orb_bytes, snapshot: snapshot_bytes],
+          required = uncompressed + div(uncompressed, 100) + @gib,
+          volume <- [:data, :metadata],
+          offset <- [-1, 0, 1] do
         {data, metadata} =
           if volume == :data, do: {required + offset, 200 * @gib}, else: {200 * @gib, required + offset}
 
@@ -1381,11 +1572,14 @@ defmodule Tuist.Sandboxes.ArchivesTest do
           if op == "delete", do: {:ok, %{}}, else: archive_result()
         end)
 
-        assert {:ok, archived} = Archives.archive(paused_orb(account, workspace_gb: 7))
-        assert archived.archive_store == expected_store
-        snapshot = disk_snapshot_fixture(account: account, workspace_gb: 7)
-        assert {:ok, snapshot} = Archives.archive_disk_snapshot(snapshot)
-        assert snapshot.archive_store == expected_store
+        if subject == :orb do
+          assert {:ok, archived} = Archives.archive(paused_orb(account, workspace_gb: 7))
+          assert archived.archive_store == expected_store
+        else
+          snapshot = disk_snapshot_fixture(account: account, workspace_gb: 7)
+          assert {:ok, snapshot} = Archives.archive_disk_snapshot(snapshot)
+          assert snapshot.archive_store == expected_store
+        end
       end
     end
 

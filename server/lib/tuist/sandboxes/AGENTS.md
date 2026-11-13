@@ -276,7 +276,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   unset), or the least recently paused one on nodes whose disk refused a new sandbox (`make_node_room/1`, at most
   one upload from them at a time), is uploaded by its node (`archive` command with presigned multipart
   part URLs; the daemon holds no storage credentials) as kernel, rootfs and
-  workspace without the memory image, to `sandbox-archives/<account_id>/`
+  workspace, with the memory image and VM state ahead of them when the
+  server asks (`memory: true`) and the image is current, to `sandbox-archives/<account_id>/`
   in the archive bucket of the in-rack store at the node's site (a shard
   storage target with an `archive_bucket`, recorded in `archive_store`), or
   in the account's storage when there is none available, the store's shared
@@ -294,9 +295,19 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `Capacity.place/1`, or by `place/2` among the nodes at its store's site,
   created
   with `from_archive` and cold boots; a failed restore reverts the row to
-  `archived`, never to `error`, because the object is the only copy. The
+  `archived`, never to `error`, because the object is the only copy. An
+  archive with memory (`archive_memory`: the disk stream's `tail_offset`
+  and `tail_sha256`, and the writing node's `compat`, its hello's
+  `snapshot_compat`: CPU model and flags, host kernel version and
+  Firecracker version) is placed only on nodes with the same
+  `snapshot_compat`, waiting for room on them, and resumes warm: the node
+  downloads only the disk stream, loads the VM state with a Uffd memory
+  backend and serves memory chunks by ranged GETs as the guest touches
+  them while a fill fetches the rest (sandboxd `internal/uffd`). It cold
+  boots elsewhere only when no such node is connected. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
-  with the sandbox, or with the account. `archived` rows are outside every
+  after a warm restore only once its node reports `memory_loaded` (or two
+  hours later), with the sandbox, or with the account. `archived` rows are outside every
   node reservation and the CPU and memory quota. Each store's archive budget counts Orb
   and disk snapshot archives across all accounts, including restored objects
   awaiting deletion, leaving room for shard artifacts; uploads can cross it.
@@ -307,6 +318,21 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `Environment.sandbox_archive_disk_high_water_percent/0` (default 85% of
   the reserved disk budget, snapshot copies included), rechecking pressure
   before uploading. Real failures back off for five minutes from the attempt; a newer `paused_at` bypasses an older attempt without bypassing pause age or upload/residency guards. Node transport interruptions and abandoned uploads clear backoff. Each Orb upload atomically queues `RecoverArchiveUploadWorker` for five minutes later. A separate cluster-wide upload lock spans the caller's transfer, without a pooled connection or blocking resume/delete; recovery retries in a minute while that caller is alive, otherwise discards only that upload and requeues a still-paused Orb. Process/replica death releases the lock regardless of Oban state. Releasing the upload claim and requeueing commit together. Keep the 45-minute abandoned-upload sweep as fallback for pre-rollout Orb uploads and snapshot uploads. Restores stuck for 15 minutes are reverted.
+  Moving off a node CI takes: a paused Linux sandbox resumes only on its own
+  node, so while the runners-controller's allocation for a node asks for a
+  reclaim (`Capacity.ci_reclaim?/1`, a host reservation or unhealthy node,
+  not an expired grant), `ReclaimCapacityWorker` calls
+  `Archives.move_off_node/1` after pausing the idle ones: it archives the
+  least recently paused sandbox there of any source (not remote execution),
+  whatever its pause age, one upload from the node at a time, each
+  allocation observation queuing the next, and rechecks the reclaim before
+  uploading. A resume the node refuses for room (`:no_capacity`, not quota)
+  queues that sandbox's archive too (`Archives.move_off/1`). CI waits on none
+  of it. A resume the node admits during an upload cancels it and resumes
+  warm; one still refused keeps answering `:no_capacity` until the archive
+  completes, after which it restores on any node and cold boots (files kept,
+  processes and memory lost). Off with the tier. Archived non-Orb rows keep
+  the 14-day retention of their pause.
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,

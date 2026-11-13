@@ -4,12 +4,14 @@ defmodule Tuist.Sandboxes.AllocationTest do
 
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: KubernetesClient
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.SandboxNode
+  alias Tuist.Sandboxes.Workers.ArchiveSandboxesWorker
 
   @gib 1024 * 1024 * 1024
 
@@ -108,10 +110,32 @@ defmodule Tuist.Sandboxes.AllocationTest do
       {:ok, %{}}
     end)
 
+    stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
     assert :ok = Capacity.reconcile_allocation(node.name)
     assert Repo.reload!(idle).state == :paused
     assert Repo.reload!(active).residency_work_id == "active"
     assert Repo.get!(SandboxNode, node.name).memory_limit_bytes == 5 * @gib
+
+    # CI is taking the node, so the sandbox it just paused moves to storage.
+    node_name = node.name
+
+    assert [%{args: %{"node_names" => [^node_name], "ci" => true}}] =
+             all_enqueued(worker: ArchiveSandboxesWorker)
+  end
+
+  test "an expired grant reclaims without moving paused sandboxes off the node", %{node: node, row: row} do
+    sandbox_fixture(node_name: node.name, state: :paused, paused_at: DateTime.utc_now(:second))
+    stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+
+    row
+    |> Ecto.Changeset.change(allocation_reclaim: false, allocation_observed_at: DateTime.add(DateTime.utc_now(), -60))
+    |> Repo.update!()
+
+    stub(Nodes, :call, fn _, "reclaim", _, _ -> {:ok, %{}} end)
+    stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _, _, _ -> {:ok, %{}} end)
+
+    assert :ok = Capacity.reconcile_allocation(node.name)
+    assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
   end
 
   test "a pause keeps a fresh growth that another placement has not reserved yet", %{node: node} do

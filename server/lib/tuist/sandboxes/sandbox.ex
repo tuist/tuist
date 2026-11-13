@@ -63,6 +63,11 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :archive_upload_id, :string
     field :archive_bytes, :integer
     field :archive_sha256, :string
+    # Set when the archive holds the memory image ahead of its disks:
+    # `tail_offset` and `tail_sha256` locate the disk stream, `compat` is
+    # the snapshot compatibility of nodes that can resume it warm, and
+    # `loading_since` marks a warm restore still reading memory from it.
+    field :archive_memory, :map
     field :archive_attempted_at, :utc_datetime
     field :archived_at, :utc_datetime
 
@@ -147,6 +152,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :archive_upload_id,
       :archive_bytes,
       :archive_sha256,
+      :archive_memory,
       :archive_attempted_at,
       :archived_at
     ])

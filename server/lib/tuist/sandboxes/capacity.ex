@@ -190,6 +190,15 @@ defmodule Tuist.Sandboxes.Capacity do
     %{node: node_name} |> ReclaimCapacityWorker.new() |> Oban.insert!()
   end
 
+  @doc """
+  Whether the runners-controller's latest allocation for the node asks for
+  a reclaim: a CI host reservation (or an unhealthy node) is taking it. An
+  expired grant alone, such as a stopped controller, is not.
+  """
+  def ci_reclaim?(name) when is_binary(name) do
+    match?(%SandboxNode{allocation_reclaim: true}, Repo.get(SandboxNode, name))
+  end
+
   def shared_node?(name) when is_binary(name), do: Repo.get(SandboxNode, name) != nil
   def shared_node?(_name), do: false
 
@@ -205,6 +214,9 @@ defmodule Tuist.Sandboxes.Capacity do
         if elastic?(node) do
           pressure = not allocation_allows?(node, 0)
           if pressure, do: Enum.each(reclaimable(node_name), &reclaim_one(node, &1))
+          # CI is taking the node, so a paused sandbox would wait for it to
+          # resume; move them, the ones just paused included, to storage.
+          if ci_reclaim?(node_name), do: Archives.move_off_node(node_name)
 
           case shrink(node, pressure) do
             {:error, reason} -> {:error, reason}
