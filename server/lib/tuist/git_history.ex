@@ -93,6 +93,19 @@ defmodule Tuist.GitHistory do
       "**/.tool-versions",
       "**/mise.toml",
       "**/.mise.toml"
+    ],
+    cargo: [
+      "**/Cargo.toml",
+      "**/Cargo.lock",
+      "**/build.rs",
+      "**/.cargo/config",
+      "**/.cargo/config.toml",
+      "**/.config/nextest.toml",
+      "**/rust-toolchain",
+      "**/rust-toolchain.toml",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
     ]
   }
 

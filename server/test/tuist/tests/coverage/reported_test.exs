@@ -1514,25 +1514,30 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
   end
 
-  test "a Mix project is not stopped by a commit that changes only Xcode's build inputs", %{
-    project: project,
-    account: account
-  } do
-    track_default_files()
-    project = project |> Ecto.Changeset.change(build_system: :mix) |> Tuist.Repo.update!()
-    base_run(project, account)
-    head_run(project, account, head_files())
+  for {build_system, input} <- [mix: "server/config/runtime.exs", cargo: "crates/cli/Cargo.lock"] do
+    @build_system build_system
+    @input input
 
-    record_build_inputs(account, %{"Package.resolved" => "one", "server/mix.lock" => "one"}, %{
-      "Package.resolved" => "two",
-      "server/mix.lock" => "one"
-    })
+    test "a #{build_system} project is not stopped by a commit that changes only Xcode's build inputs", %{
+      project: project,
+      account: account
+    } do
+      track_default_files()
+      project = project |> Ecto.Changeset.change(build_system: @build_system) |> Tuist.Repo.update!()
+      base_run(project, account)
+      head_run(project, account, head_files())
 
-    assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
-    assert reasons(reported) == []
+      record_build_inputs(account, %{"Package.resolved" => "one", @input => "one"}, %{
+        "Package.resolved" => "two",
+        @input => "one"
+      })
 
-    record_build_inputs(account, %{"server/config/runtime.exs" => "one"}, %{"server/config/runtime.exs" => "two"})
-    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+      assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
+      assert reasons(reported) == []
+
+      record_build_inputs(account, %{@input => "one"}, %{@input => "two"})
+      assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+    end
   end
 
   defp record_build_inputs(account, base, head) do
