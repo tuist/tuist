@@ -157,6 +157,12 @@ Developers pick the environment, and with it the platform, when they start a clo
 
 Sessions in these environments use your organization's Claude Code usage as usual, and their sandboxes count toward your Tuist account.
 
+### Faster session starts and builds {#claude-code-caching}
+
+- **Tuist cache:** sessions get `TUIST_URL` and, when your account has a cache in the same rack, `TUIST_CACHE_ENDPOINT`. The Tuist CLI and the `tuist_ex` Mix tasks in a session sign in on their own with the session's identity token. See <.localized_link href="/guides/server/authentication#claude-code-sessions">Claude Code sessions</.localized_link> in the authentication guide.
+- **Cached checkouts:** when the Tuist GitHub app of your account can read a session's repository, a new session starts from the same cached checkout your Tuist runners use, so it fetches only the commits it lacks instead of cloning. When the session ends, it gives back the objects of the default branch's latest commit, which keeps the cached checkout current even for repositories that don't run CI on Tuist. Only the commit GitHub reports for the default branch updates it; a session's own branches never do. Disable sandboxes or uninstall the app to stop this.
+- **macOS:** the Mac shares the Claude Code build sessions run with each VM, so a new session doesn't download it.
+
 ## Use a Mac from any Claude Code session {#remote-mac}
 
 Claude Code sessions that run on Linux, such as cloud sessions in an Anthropic-hosted environment, can still build and test Apple-platform code on a Tuist macOS sandbox, as described in <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>. Unlike a **Tuist macOS** environment, nothing needs connecting and the session keeps its own environment. For cloud sessions:

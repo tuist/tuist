@@ -416,6 +416,8 @@ func main() {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
 		}
+		// Sandbox VMs start from the same checkout masters as CI VMs.
+		sandboxService.Checkouts = customVolumes
 		// Every host of the class warms the custom HEADs the server lists for it.
 		prefetch = &podagent.PrefetchPoller{Source: &podagent.ServerPrefetch{Client: typedClient}, Custom: customVolumes, Checkouts: customVolumes}
 		if err := mgr.Add(prefetch); err != nil {

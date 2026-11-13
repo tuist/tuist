@@ -283,6 +283,51 @@ with runner cache volumes, containerd and kubelet (kubelet evicts Pods below
 action's command starts, so the build cannot read the project's CAS through
 the host.
 
+## Guest to host: checkout
+
+With `CHECKOUT_AGENT_URL` set, a worker whose `start_worker` carries a
+`checkout` grant (`protocol.CheckoutGrant`) starts from the node's checkout
+master of its repository and exports back to it (`internal/checkout`), under
+the rules CI checkouts follow (`infra/runners-controller/cache-volumes.md`,
+"Cached checkouts"). The daemon adds `SBX_CHECKOUT_PATH` (the grant's `path`),
+`SBX_CHECKOUT_COMMIT` (its `commit`) and `SBX_CHECKOUT_VSOCK=5002` to the
+worker env and listens on `<jail root>/v.sock_5002`, where Firecracker
+forwards the guest's connections to CID 2 port 5002, for as long as that
+worker runs: the worker's exit disarms it before freeing the worker slot, so a
+pause or delete never leaves it armed. Without an agent, with an invalid grant
+(no `id`, a `path` that is not absolute and clean) or when the listener fails,
+the env is unchanged and the guest clones as before; the worker always starts.
+
+One request per connection, a JSON line; at most one seed and one export per
+arming, and four connections at a time:
+
+```
+{"op":"seed"}
+{"op":"export"}   followed by the export's tar stream
+```
+
+A seed answers `{"ok":true}` and a tar of the master's repository directory
+(paths relative to it, `.git` included; directories, regular files and symlinks
+with their permission bits, no owners), then closes; or `{"error":"cold"}` when
+the node holds no master, or `{"error":"unavailable"}`. A tree is complete only
+when it ends with its end-of-archive blocks: a stream that fails midway, or
+reaches 60 GB, is cut before them. An export is the CI format (`head`,
+`shallow`, `pack`, `lfs/<oid>`, see `infra/runner-cache/checkout_export.go`).
+Firecracker does not pass a guest's write shutdown on to the host socket, so
+the daemon reads the export up to its end-of-archive blocks, forwards exactly
+those bytes, and answers `{"ok":true}` once the agent queued it or
+`{"error":"export refused"}`; an export past 30 GB and 64 MiB fails rather than
+being cut. A seed gets 10 minutes and an export 6, the agent's part included.
+
+The daemon reaches the node's runner-cache agent through its Service
+(`internalTrafficPolicy: Local`, port 8090) with `POST
+/sandbox-checkout/seed` and `POST /sandbox-checkout/export`, each starting
+with `{"pod_name": POD_NAME, "grant": ...}`. The agent authorizes the daemon's
+Pod by name, node and address. Guests share that address and the Pod's
+NetworkPolicy identity, so the chart lists 8090 in `DAEMON_ONLY_TCP_PORTS`:
+nothing the guest sends reaches the agent except the export bytes the daemon
+relays, which the agent verifies as it does a CI job's.
+
 ## Node to server: WebSocket
 
 The daemon dials `GET /api/internal/sandboxes/nodes/connect` on the in-cluster
@@ -527,6 +572,7 @@ agent so the manager runs end to end without KVM).
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
+| `CHECKOUT_AGENT_URL` | | The node's runner-cache agent, e.g. `http://<runner-cache-volumes Service>.tuist-runners.svc.cluster.local:8090`; see "Guest to host: checkout". Needs `POD_NAME`. Empty ignores checkout grants. The chart sets it, and lists 8090 in `DAEMON_ONLY_TCP_PORTS`, when Linux cache volumes are enabled. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
 

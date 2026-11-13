@@ -104,7 +104,13 @@ or after the bounded 30-second idle grace. Ownership reconciliation and eviction
 run independently of image downloads and control connection preparation, so a
 failed or slow image update cannot delay returning idle capacity to CI.
 It does not interrupt an active managed
-worker or exec command. CI may therefore wait for active native work to finish
+worker or exec command, nor a hold (`hold_residency`): an Amp Orb's turn, or
+the server's `commands` residency, which on macOS outlives the last command as
+a ten-minute session lease so an agent thinking between commands keeps its VM
+(`server/lib/tuist/sandboxes/commands.ex`). Only a new hold needs a grant;
+renewing the current one does not. A hold with `hold_ms` ends that long after
+it was last renewed even if the server never releases it; the server sets it
+two minutes past the lease, so this only backstops a lost release. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains
 its reservation. No capacity is released merely because a save was requested.
 Node hello/report frames always include the resident boolean, including false
@@ -150,7 +156,10 @@ named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
 instead of waiting when the host lacks room, the template or disk. A create of
 the same template, image and shape claims a ready VM under the same
 grant as a cold create: the host creates the execution Pod, deletes the warm
-Pod, and the VM keeps its name for life. Other shapes and hosts without a
+Pod, and the VM keeps its name for life. A warm VM already has a 10 GB
+workspace volume, the size Amp Orbs and agent environments request, so their
+claim runs no guest command. APFS cannot change a volume's quota, so a claim
+for another size replaces the volume. Other shapes and hosts without a
 ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those
 hosts first, and claimed creates record the `warm` boot source. A kubelet
 restart deletes unclaimed warm VMs and fails their Pods; the pool refills them.
@@ -205,6 +214,23 @@ deletes retry after restart. The existing server 14-day cleanup applies; orphan
 VMs are deleted on reconnect when their server row no longer exists. Runtime/tool
 versions and template caches are deliberately retained for compatibility; reclaim
 those only after verifying no journal or checkpoint references them.
+
+## Cached checkouts
+
+With the runner cache enabled (`--custom-cache-url`), every sandbox VM, warm
+ones included, boots with a `sandbox-checkout` share at
+`<runner-cache-root>/custom/sandbox-checkouts/<VM>/`, recorded in the sandbox's
+journal and kept for the VM's life, since a restore needs the shares it was
+saved with. VMs booted before this keep booting without one and their sessions
+clone. A `start_worker` carrying the server's checkout grant
+(`protocol.CheckoutGrant`) puts a CoW clone of the CI checkout master in the
+share (`podagent.CustomVolumes.SeedSandbox`), or queues a restore of the
+volume's HEAD on a cold host, and ends the use; `sbx-worker` copies the tree to
+the runner's clone. The guest leaves its export in the share, and the host takes
+it only after an eviction's save or a delete has fenced the VM
+(`CollectSandbox`), then builds from it like a default-branch CI job's export.
+Not yet qualified on a host: attaching the clone from the share in a VM
+claimed from the warm pool.
 
 ## Acceptance and rollback
 

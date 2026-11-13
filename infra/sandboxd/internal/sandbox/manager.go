@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
+	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
@@ -75,8 +76,13 @@ type Deps struct {
 	// Blobs, when set, serves execution guests large input blobs from the
 	// node; see serveBlobs.
 	Blobs *blobcache.Cache
-	Events     func(protocol.Event)
-	Log        *slog.Logger
+	// Checkouts, when set, is the node's runner-cache agent: a worker whose
+	// start_worker carries a checkout grant is served the repository's master
+	// and exports back to it; see armCheckout.
+	Checkouts      checkout.Agent
+	CheckoutLimits checkout.Limits
+	Events         func(protocol.Event)
+	Log            *slog.Logger
 }
 
 type Manager struct {
@@ -94,6 +100,9 @@ type Manager struct {
 	log       *slog.Logger
 	claims    *Claims
 	blobs     *blobcache.Cache
+	// checkouts and checkoutLimits serve workers' checkout grants.
+	checkouts      checkout.Agent
+	checkoutLimits checkout.Limits
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -177,6 +186,7 @@ func New(cfg Config, deps Deps) *Manager {
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
 		blobs:     deps.Blobs,
+		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -1013,7 +1023,7 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 		sb.mu.Unlock()
 		return res, fmt.Errorf("%w: %s", ErrWorkerRunning, args.SandboxID)
 	}
-	agent := sb.agent
+	agent, inst := sb.agent, sb.inst
 	// Reserve the worker slot before the handshake so two concurrent
 	// start_worker commands cannot both start one.
 	run := &workerRun{started: time.Now(), done: make(chan struct{})}
@@ -1022,8 +1032,12 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 
 	log := m.log.With("sandbox", args.SandboxID, "process", "sbx-worker")
 	logLines := newLineLogger(log)
-	proc, err := agent.Start(ctx, vsock.ExecRequest{Cmd: []string{m.cfg.WorkerPath}, Env: args.Env, Cwd: guestWorkspace}, logLines.write)
+	// Served only while this worker runs: a pause waits for the worker, and
+	// the exit below disarms before it frees the worker slot.
+	env, disarm := m.armCheckout(inst, args, log)
+	proc, err := agent.Start(ctx, vsock.ExecRequest{Cmd: []string{m.cfg.WorkerPath}, Env: env, Cwd: guestWorkspace}, logLines.write)
 	if err != nil {
+		disarm()
 		sb.mu.Lock()
 		if sb.worker == run {
 			sb.worker = nil
@@ -1039,6 +1053,7 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 	log.Info("worker started", "exec_id", proc.ID(), "env_keys", len(args.Env))
 	go func() {
 		code, waitErr := proc.Wait(context.Background())
+		disarm()
 		logLines.flush()
 		duration := time.Since(run.started)
 		sb.mu.Lock()

@@ -14,7 +14,15 @@ defmodule Tuist.Sandboxes.Commands do
   (and, on macOS, the host hold of the same name), so idle pauses, capacity
   reclaim and host idle eviction leave it alone. Commands share it, so a
   sandbox runs several at once; an agent turn holding the sandbox refuses
-  them with `:busy`. The residency ends when the last command does.
+  them with `:busy`. The residency ends when the last command does, except
+  on macOS: there it is the session's lease and lasts until the sandbox has
+  been idle for ten minutes (`end_lease/1`), with the host hold
+  set to expire a little later in case the server never ends it. An agent
+  thinks between commands for longer than the host's idle eviction, and a
+  checkpointed VM can only come back on its own Mac, so without the lease
+  most commands waited for that Mac to leave CI. The lease holds the VM's
+  CI slot and the account's quota; `Sandboxes.pause/1` gives both back at
+  once. A sandbox the account API creates or resumes takes it too (`keep/1`).
   `Tuist.Sandboxes.Workers.CommandWatchWorker` enforces each timeout and
   records commands nobody reads again.
   """
@@ -27,8 +35,13 @@ defmodule Tuist.Sandboxes.Commands do
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.SandboxCommand
   alias Tuist.Sandboxes.Workers.CommandWatchWorker
+  alias Tuist.Sandboxes.Workers.EndLeaseWorker
 
   @residency "commands"
+  @lease_seconds 600
+  @host_hold_slack_seconds 120
+  @host_wait_ms 25_000
+  @host_poll_ms 1_000
   @default_timeout_ms to_timeout(hour: 1)
   @max_timeout_ms to_timeout(hour: 6)
   @max_wait_seconds 50
@@ -191,6 +204,12 @@ defmodule Tuist.Sandboxes.Commands do
   otherwise the command reads an empty stdin) and `:id` (a UUID the client
   chose, so that sending the request again answers the command it started
   instead of starting another).
+
+  While CI holds the sandbox's host, admission refuses the resume or the
+  command. The start then tries again every second for up to
+  #{div(@host_wait_ms, 1000)} seconds before it answers the refusal, so the
+  command starts as soon as the host frees instead of after the client's
+  next retry.
   """
   def start(%Sandbox{} = sandbox, params) do
     with {:ok, script} <- script(params),
@@ -199,8 +218,12 @@ defmodule Tuist.Sandboxes.Commands do
       # A request sent again with the same `id`, such as after a gateway
       # error hid the answer, gets the command the first one started.
       case id && get(sandbox, id) do
-        {:ok, command} -> {:ok, serialize(command)}
-        _ -> start_new(sandbox, id || Ecto.UUID.generate(), params, script, env)
+        {:ok, command} ->
+          {:ok, serialize(command)}
+
+        _ ->
+          deadline = System.monotonic_time(:millisecond) + @host_wait_ms
+          start_admitted(sandbox, id || Ecto.UUID.generate(), params, script, env, deadline)
       end
     end
   end
@@ -213,6 +236,31 @@ defmodule Tuist.Sandboxes.Commands do
       :error -> {:error, :invalid_command}
     end
   end
+
+  defp start_admitted(sandbox, id, params, script, env, deadline) do
+    case start_new(sandbox, id, params, script, env) do
+      {:error, reason} = error ->
+        if host_busy?(reason) and System.monotonic_time(:millisecond) + @host_poll_ms < deadline do
+          Process.sleep(@host_poll_ms)
+
+          case Sandboxes.get_sandbox_by_id(sandbox.id) do
+            %Sandbox{} = fresh -> start_admitted(fresh, id, params, script, env, deadline)
+            nil -> {:error, :not_found}
+          end
+        else
+          error
+        end
+
+      result ->
+        result
+    end
+  end
+
+  # `{:host_busy, why}` is a resume its own Mac refused; a replaced Mac
+  # never takes it back.
+  defp host_busy?(:no_capacity), do: true
+  defp host_busy?({:host_busy, why}), do: why != :replaced
+  defp host_busy?(_reason), do: false
 
   defp start_new(sandbox, id, params, script, env) do
     with {:ok, running} <- Sandboxes.ensure_running(sandbox) do
@@ -268,7 +316,9 @@ defmodule Tuist.Sandboxes.Commands do
 
       {:error, reason} ->
         Repo.delete!(command)
-        release_if_idle(sandbox)
+        # A start that failed does not begin a session, but it leaves one
+        # that was already leased alone.
+        release_if_idle(sandbox, lease: sandbox.residency_work_id == @residency)
         {:error, reason}
     end
   end
@@ -511,24 +561,98 @@ defmodule Tuist.Sandboxes.Commands do
 
   @doc """
   Ends the shared residency, and releases the macOS host hold, once none of
-  the sandbox's commands runs. The check and the release happen under the
-  sandbox row's lock. `start/2` inserts its running row before it holds
-  the sandbox, so a release either sees that row and keeps the residency,
-  or ends it first and the start takes it again.
+  the sandbox's commands runs; on macOS it leases the sandbox to the
+  session instead (`lease: false` ends it there too). The check and the
+  release happen under the sandbox row's lock. `start/2` inserts its
+  running row before it holds the sandbox, so a release either sees that
+  row and keeps the residency, or ends it first and the start takes it
+  again.
   """
-  def release_if_idle(%Sandbox{id: sandbox_id}) do
-    {:ok, released} =
+  def release_if_idle(%Sandbox{id: sandbox_id}, opts \\ []) do
+    lease? = Keyword.get(opts, :lease, true)
+
+    sandbox_id
+    |> when_idle(fn
+      %Sandbox{platform: :darwin} = sandbox when lease? -> {:lease, sandbox}
+      sandbox -> end_commands_residency(sandbox)
+    end)
+    |> after_idle()
+  end
+
+  @doc """
+  Leases a macOS sandbox the account API just created or resumed to the
+  session, as its commands do, so the agent's first command after it does
+  not wait to resume it. Linux sandboxes are answered as they are.
+  """
+  def keep(%Sandbox{platform: :darwin} = sandbox) do
+    with {:ok, held} <- Sandboxes.prepare_shared_residency(sandbox, @residency) do
+      lease(held)
+      {:ok, held}
+    end
+  end
+
+  def keep(%Sandbox{} = sandbox), do: {:ok, sandbox}
+
+  @doc """
+  Ends the session's lease once the sandbox has been idle for its length,
+  which lets the sandbox pause. A command running, newer activity or
+  another residency keeps it; activity moves the check to when the lease
+  would end after it.
+  """
+  def end_lease(sandbox_id) do
+    sandbox_id
+    |> when_idle(fn sandbox ->
+      if DateTime.after?(lease_ends_at(sandbox), DateTime.utc_now()),
+        do: {:later, sandbox},
+        else: end_commands_residency(sandbox)
+    end)
+    |> after_idle()
+  end
+
+  # Runs `fun` under the sandbox row's lock when the commands residency
+  # holds the sandbox and none of its commands runs.
+  defp when_idle(sandbox_id, fun) do
+    {:ok, outcome} =
       Repo.transaction(fn ->
         sandbox = Repo.one(from(s in Sandbox, where: s.id == ^sandbox_id, lock: "FOR UPDATE"))
         running = Repo.exists?(from(c in SandboxCommand, where: c.sandbox_id == ^sandbox_id and c.status == :running))
-
-        if (sandbox && sandbox.residency_work_id == @residency) and not running do
-          {:ok, _} = ensure_ended(Sandboxes.end_residency(sandbox_id, @residency))
-          sandbox
-        end
+        if match?(%Sandbox{residency_work_id: @residency}, sandbox) and not running, do: fun.(sandbox)
       end)
 
-    if released && is_binary(released.node_name), do: _ = Sandboxes.release_host_residency(released, @residency)
+    outcome
+  end
+
+  defp end_commands_residency(%Sandbox{} = sandbox) do
+    {:ok, _} = ensure_ended(Sandboxes.end_residency(sandbox.id, @residency))
+    {:released, sandbox}
+  end
+
+  defp after_idle({:lease, sandbox}), do: lease(sandbox)
+  defp after_idle({:later, sandbox}), do: schedule_lease_end(sandbox, lease_ends_at(sandbox))
+
+  defp after_idle({:released, %Sandbox{node_name: node} = sandbox}) when is_binary(node) do
+    _ = Sandboxes.release_host_residency(sandbox, @residency)
+    :ok
+  end
+
+  defp after_idle(_outcome), do: :ok
+
+  # The host hold runs a little past the lease, so it only ends on its own
+  # when the server never ended the lease.
+  defp lease(%Sandbox{} = sandbox) do
+    _ = Sandboxes.hold_host_residency(sandbox, @residency, (@lease_seconds + @host_hold_slack_seconds) * 1000)
+    schedule_lease_end(sandbox, DateTime.add(DateTime.utc_now(), @lease_seconds))
+  end
+
+  defp lease_ends_at(%Sandbox{last_active_at: %DateTime{} = at}), do: DateTime.add(at, @lease_seconds)
+  defp lease_ends_at(%Sandbox{}), do: DateTime.utc_now()
+
+  defp schedule_lease_end(%Sandbox{id: id}, at) do
+    {:ok, _job} =
+      %{sandbox_id: id}
+      |> EndLeaseWorker.new(scheduled_at: at, replace: [scheduled: [:scheduled_at], available: [:scheduled_at]])
+      |> Oban.insert()
+
     :ok
   end
 

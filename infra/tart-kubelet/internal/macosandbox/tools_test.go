@@ -67,3 +67,63 @@ func TestProvisionAmpCLIInstallsOnlyAVerifiedBinary(t *testing.T) {
 		})
 	}
 }
+
+func TestProvisionClaudeCodeSharesOnlyThePinnedBuild(t *testing.T) {
+	binary := []byte("claude darwin binary")
+	for name, served := range map[string][]byte{"verified": binary, "mismatch": []byte("another binary")} {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/9.9.9/darwin-arm64/claude" {
+					http.NotFound(w, r)
+					return
+				}
+				_, _ = w.Write(served)
+			}))
+			defer server.Close()
+			base, version, checksum := claudeCodeBase, claudeCodeVersion, claudeCodeDarwinSHA256
+			claudeCodeBase, claudeCodeVersion = server.URL, "9.9.9"
+			claudeCodeDarwinSHA256 = fmt.Sprintf("%x", sha256.Sum256(binary))
+			defer func() { claudeCodeBase, claudeCodeVersion, claudeCodeDarwinSHA256 = base, version, checksum }()
+
+			tools := t.TempDir()
+			err := provisionClaudeCode(context.Background(), tools, server.Client())
+			path := filepath.Join(tools, "claude-code", "9.9.9", "claude")
+			info, statErr := os.Stat(path)
+			if name == "mismatch" {
+				if err == nil || statErr == nil {
+					t.Fatalf("a mismatched build must not be shared: err=%v stat=%v", err, statErr)
+				}
+				entries, _ := os.ReadDir(filepath.Dir(path))
+				if len(entries) != 0 {
+					t.Fatalf("left %d files next to the shared build", len(entries))
+				}
+				return
+			}
+			if err != nil || statErr != nil {
+				t.Fatalf("provision: %v, stat: %v", err, statErr)
+			}
+			if info.Mode()&0111 == 0 {
+				t.Fatalf("shared build is not executable: %v", info.Mode())
+			}
+			if got, _ := os.ReadFile(path); !bytes.Equal(got, binary) {
+				t.Fatalf("shared build = %q", got)
+			}
+		})
+	}
+}
+
+// sbx-worker only takes the shared build when it is the one it pins.
+func TestClaudeCodePinMatchesSbxWorker(t *testing.T) {
+	source, err := os.ReadFile("../../../sandbox-image/cmd/sbx-worker/claude_code.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		fmt.Sprintf("claudeCodeVersion      = %q", claudeCodeVersion),
+		fmt.Sprintf("%q: %q", "darwin-arm64", claudeCodeDarwinSHA256),
+	} {
+		if !bytes.Contains(source, []byte(want)) {
+			t.Fatalf("sbx-worker does not pin %s", want)
+		}
+	}
+}

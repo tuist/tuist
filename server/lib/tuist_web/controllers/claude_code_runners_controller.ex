@@ -30,17 +30,28 @@ defmodule TuistWeb.ClaudeCodeRunnersController do
     end
   end
 
-  defp order(%{"order_id" => order_id, "session_id" => session_id, "work_order" => work_order})
+  # `repository_url`, the session's primary repository, is optional and only
+  # picks a cached checkout; one Tuist cannot use is ignored, never refused.
+  defp order(%{"order_id" => order_id, "session_id" => session_id, "work_order" => work_order} = params)
        when is_binary(order_id) and is_binary(session_id) and is_binary(work_order) do
     if Regex.match?(~r/\A[A-Za-z0-9._-]{1,255}\z/, order_id) and Regex.match?(~r/\A[A-Za-z0-9_-]{1,255}\z/, session_id) and
          Regex.match?(~r/\A[A-Za-z0-9_.-]{1,16384}\z/, work_order) do
-      {:ok, %{order_id: order_id, session_id: session_id, work_order: work_order}}
+      {:ok,
+       %{
+         order_id: order_id,
+         session_id: session_id,
+         work_order: work_order,
+         repository_url: repository_url(params["repository_url"])
+       }}
     else
       :error
     end
   end
 
   defp order(_params), do: :error
+
+  defp repository_url(url) when is_binary(url) and byte_size(url) <= 2048, do: url
+  defp repository_url(_url), do: nil
 
   defp respond(conn, {:ok, :accepted}), do: send_resp(conn, :accepted, "")
   defp respond(conn, {:ok, :running}), do: send_resp(conn, :no_content, "")

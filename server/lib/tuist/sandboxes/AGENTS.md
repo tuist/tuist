@@ -199,7 +199,24 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   the `claude-code:<env>:<session>` lock (`wait: false`), finds or creates
   the sandbox, records the residency with `created:` like the router, and
   starts `sbx-worker` with `SBX_CLAUDE_CODE_WORK_ORDER`. The work order is
-  the runner's credential: keep it out of rows and logs.
+  the runner's credential: keep it out of rows and logs. The worker also gets
+  `Sandboxes.tuist_env/2` (as Amp Orbs do); with it, `sbx-worker` runs
+  itself as the runner's `--exec-path` session wrapper and hands each
+  session's `CLAUDE_CODE_SESSION_ACCESS_TOKEN` to Tuist clients as
+  `TUIST_OIDC_TOKEN`, which `Tuist.OIDC` accepts (`sk-ant-cc-` prefix,
+  ES256 against Anthropic's JWKS, `ccr:role` `session_worker`, `aud`
+  containing `ccr:pool_id`) for an enabled `claude_code` environment of an
+  account with sandboxes, as a CI token that never outlives the session
+  token. For the spawn hook's `repository_url`, each worker start allocates
+  the repository's CI checkout volume
+  (`Runners.CacheVolumes.allocate_sandbox_checkout/3`, one use per work id)
+  and sends it as `start_worker`'s `checkout` with the guest path
+  `<base-dir>/<owner>/<repo>`. The commit is the default branch's head from
+  GitHub at allocation, never the guest's, so a session's export moves the
+  master only to it; anything else only adds objects. The node seeds the
+  guest from its master and takes the export behind the VM's fence
+  (`infra/tart-kubelet/internal/macosandbox/checkout.go`, sandboxd's
+  "Guest to host: checkout").
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
@@ -268,9 +285,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
   retryable). Disk is not an account limit: each node's disk budget bounds
-  it, and archiving frees it, so concurrency analytics chart no disk. The
-  `accounts.sandbox_disk_gb_limit` column is unused and is dropped in a
-  later release.
+  it, and archiving frees it, so concurrency analytics chart no disk.
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
   than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or
   below it (a new VM process), records activity. A running Orb quiet for
@@ -295,10 +310,12 @@ CI reservation revocation, zero extra warm memory, timestamp ordering and resize
 serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/fleet-sharing.md).
 `ReclaimCapacityWorker` applies pressure after the allocation is committed.
 Shared-node idle pauses (all macOS hosts too) have zero grace and enqueue
-shrink work, except 20 s after the last command ends (`Commands` residency),
-so a command run such as a sync then a build does not wait out a pause and a
-resume; CI pressure still pauses that idle sandbox at once. Active
-residencies and daemon worker/exec guards remain authoritative.
+shrink work, except 20 s after the last command ends on Linux (`Commands`
+residency), so a command run such as a sync then a build does not wait out a
+pause and a resume; CI pressure still pauses that idle sandbox at once. On
+macOS the `Commands` residency itself outlives the last command as the
+session's ten-minute lease (see `Commands` below). Active residencies and
+daemon worker/exec guards remain authoritative.
 
 Account compute admission is independent of CI: `Tuist.Sandboxes.Concurrency`
 charges creating, resuming and running rows against account vCPU/RAM limits.
@@ -389,9 +406,16 @@ socket, the poller and the caller share a replica:
   guest. A `sandbox_commands` row records each command (never its env).
   All commands share the residency `commands` (`begin_shared_residency/2`,
   plus a macOS host hold of the same name), so a sandbox runs several at
-  once but an agent turn refuses them with `:busy`. `release_if_idle/1`
+  once but an agent turn refuses them with `:busy`. `release_if_idle/2`
   ends it under the sandbox row lock once no row is `running`; `start/2`
   inserts its row before holding, which closes the race with a release.
+  On macOS it is kept instead as the session's lease: joining it needs no
+  grant, the host hold gets `hold_ms` (lease plus two minutes) as a
+  backstop, and `EndLeaseWorker` ends it once `last_active_at` is ten
+  minutes old. `Query` create and resume take it too (`keep/1`). A refused
+  start (`:no_capacity`, `{:host_busy, _}`) is retried inside the request
+  every second for 25 s, so a command starts within a second of its host
+  freeing.
   `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
   kills each command at its deadline and records commands no client reads.
   The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,

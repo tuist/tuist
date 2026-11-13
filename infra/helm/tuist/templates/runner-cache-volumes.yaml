@@ -10,6 +10,11 @@ metadata:
   namespace: {{ $namespace }}
 {{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
 {{- $imageTag := required "cacheVolumes.image.tag or runnersController.image.tag is required" ($volumes.image.tag | default .Values.runnersController.image.tag) }}
+{{- /* sandboxd on the same nodes seeds and exports its sessions' checkouts through this agent. */}}
+{{- $sandboxNamespace := "" }}
+{{- if .Values.sandboxes.enabled }}
+{{- $sandboxNamespace = .Values.sandboxes.namespace | default "tuist-sandboxes" }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -34,6 +39,34 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ $name }}
+{{- if $sandboxNamespace }}
+---
+# The agent authorizes a sandbox checkout's caller as the sandboxd Pod on its
+# node, by that Pod's name, address and phase.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $sandboxNamespace | quote }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $sandboxNamespace | quote }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -136,6 +169,9 @@ spec:
             - --min-free-gb={{ .Values.runnersFleetLinux.cacheVolumes.minFreeGB }}
             - --volume-gb={{ .Values.runnersFleetLinux.cacheVolumes.volumeGB }}
             - --max-volume-gb={{ .Values.runnersFleetLinux.cacheVolumes.maxVolumeGB }}
+            {{- if $sandboxNamespace }}
+            - --sandboxes-namespace={{ $sandboxNamespace }}
+            {{- end }}
           env:
             - name: NODE_NAME
               valueFrom:
@@ -213,6 +249,19 @@ spec:
               tuist.dev/runner: "true"
       ports:
         - {protocol: TCP, port: 8090}
+    {{- if $sandboxNamespace }}
+    # sandboxd seeds and exports its sessions' checkouts; its guests share the
+    # Pod's identity, so sandboxd drops their traffic to this port itself.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $sandboxNamespace | quote }}
+          podSelector:
+            matchLabels:
+              tuist.dev/sandboxd: "true"
+      ports:
+        - {protocol: TCP, port: 8090}
+    {{- end }}
     - from:
         - namespaceSelector:
             matchLabels:
