@@ -11,11 +11,6 @@ Tuist can publish build, test, preview, and bundle insights on open and draft [T
 
 Installing the plugin does not run builds or tests. Your existing workflows continue uploading results to Tuist, and the integration brings those results into your Trails.
 
-> [!IMPORTANT]
-> **Early access**
->
-> Entire plugins require partner registration, and Entire's Findings, discussions, and webhook contracts are experimental. Your Tuist administrator can enable the integration for all accounts or selected accounts. Your Entire project must also be allowed to install the registered plugin.
-
 ## Setup {#setup}
 
 An administrator of the Tuist account installs the plugin, then connects repositories to Tuist projects, as with the <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link> and <.localized_link href="/guides/integrations/gitforge/origin">Origin</.localized_link> integrations.
