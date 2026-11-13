@@ -310,10 +310,19 @@ jobs:
           dir="$RUNNER_TEMP/greptimedb-deploy"
           values=()
           if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
-          if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" \
+          # The legacy pulse release was uninstalled with --keep-history. Helm
+          # 4.2's upgrade --install reads that history unsorted, misses the
+          # uninstall record and fails; install --replace sorts by revision and
+          # installs a new revision on top of the kept history.
+          action=(upgrade --install)
+          last=$(helm history pulse -n observability -o json 2>/dev/null | jq -r 'max_by(.revision).status') || last=
+          if [[ "$last" == uninstalled ]]; then action=(install --replace); fi
+          if ! helm "${action[@]}" pulse "$dir/tuist-pulse-0.1.0.tgz" \
             "${values[@]}" \
             --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" \
             -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+            # Helm's error line names the failing step, not rendered values.
+            grep -m1 '^Error' "$dir/helm.log" || true
             echo '::error::Pulse rollout failed; state retained for diagnosis.'
             exit 1
           fi
