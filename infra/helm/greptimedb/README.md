@@ -139,10 +139,10 @@ separately; Helm readiness is not evidence of it.
 `tuist` account ID, configured reader enrollment and the Pulse flag. It prints
 only numeric IDs and booleans; raw RPC output is withheld.
 
-Product readers are configured declaratively in the `tuist` chart: staging reads
-Greptime (`TUIST_PULSE_BACKEND=greptime`, database `public`, username `dashboard`);
-canary and production have no enrolled reader. Logs and traces support literal
-text search rather than LogQL/TraceQL.
+Product readers are configured declaratively in the `tuist` chart: staging and
+production read Greptime (`TUIST_PULSE_BACKEND=greptime`, database `public`,
+username `dashboard`); canary has no enrolled reader. Logs and traces support
+literal text search rather than LogQL/TraceQL.
 
 ## Routine deployments remain independent
 

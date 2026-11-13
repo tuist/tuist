@@ -6,6 +6,9 @@ name: CLI Canary Release
 # managers that exclude prereleases by default (mise, Homebrew) never resolve
 # them unless a user opts in explicitly.
 #
+# If GitHub creates no runs for a CLI-touching push, no canary is cut until
+# the next one; a commit touching this file cuts it.
+#
 # Stable releases are NOT cut from main. A line is frozen onto a
 # releases/<major>.<minor>.x branch and published as an RC (cli-rc.yml), soaks,
 # then is promoted to stable X.Y.0 (cli-promote.yml). Patches on a stable line

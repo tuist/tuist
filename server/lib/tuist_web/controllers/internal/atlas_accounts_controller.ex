@@ -4,6 +4,7 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Ops.AccountPlans
   alias Tuist.Ops.RunnerConcurrencyLimits
 
   # Resolves an organization or user handle to the account ID that feature
@@ -35,14 +36,37 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
     respond(conn, RunnerConcurrencyLimits.update(account_id, conn.body_params, conn.assigns.atlas_principal))
   end
 
+  def plan(conn, %{"account_id" => account_id}) do
+    respond(conn, AccountPlans.get(account_id))
+  end
+
+  def update_plan(conn, %{"account_id" => account_id}) do
+    respond(conn, AccountPlans.update(account_id, conn.body_params, conn.assigns.atlas_principal))
+  end
+
   defp respond(conn, {:ok, result}), do: json(conn, result)
 
   defp respond(conn, {:error, reason}) do
     status =
       case reason do
-        :resource_not_found -> :not_found
-        reason when reason in [:stale_revision, :change_id_conflict] -> :conflict
-        _ -> :unprocessable_entity
+        :resource_not_found ->
+          :not_found
+
+        reason
+        when reason in [
+               :stale_revision,
+               :change_id_conflict,
+               :already_enterprise,
+               :subscription_exists,
+               :no_cancellable_subscription
+             ] ->
+          :conflict
+
+        :stripe_request_failed ->
+          :bad_gateway
+
+        _ ->
+          :unprocessable_entity
       end
 
     conn |> put_status(status) |> json(%{error: Atom.to_string(reason)})

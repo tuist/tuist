@@ -40,7 +40,8 @@ which Amp's app installer locks.
 
 Agents get the project's Tuist data without setup. The Tuist CLI is at
 `/usr/local/bin/tuist`, pinned by `TUIST_VERSION`/`TUIST_SHA256` to a release
-that signs in with the sandbox's workload identity. `agent-home/` holds what
+that signs in with the sandbox's workload identity.
+`.github/workflows/update-tuist-cli.yml` bumps both with `mise.toml`'s pin. `agent-home/` holds what
 `user`'s home receives: `amp-settings.json` becomes
 `~/.config/amp/settings.json` and `claude.json` becomes `~/.claude.json`, each
 declaring a `tuist` MCP server at `${TUIST_URL}/mcp` that authenticates with

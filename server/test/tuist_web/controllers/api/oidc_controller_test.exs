@@ -266,7 +266,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       %{account: account}
     end
 
-    test "grants a session of a connected environment CI access to its account, for no longer than the session token",
+    test "grants a session of a connected environment CI and sandbox access to its account, for no longer than the session token",
          %{conn: conn, account: account} do
       expires_at = DateTime.utc_now() |> DateTime.add(600) |> DateTime.to_unix()
 
@@ -274,7 +274,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
       {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
       assert claims["sub"] == to_string(account.id)
-      assert claims["scopes"] == ["ci"]
+      assert claims["scopes"] == ["ci", "account:sandboxes:write"]
+      assert claims["preferred_username"] == account.name
       assert claims["all_projects"] == true
       assert response["expires_in"] in 590..600
       assert claims["exp"] <= expires_at

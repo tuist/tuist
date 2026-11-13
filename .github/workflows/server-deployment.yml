@@ -422,8 +422,11 @@ jobs:
               "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
             }
           skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
-      - uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
         name: Build and push server image
+        continue-on-error: true
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./server/Dockerfile
@@ -444,6 +447,28 @@ jobs:
           # every hosted-server event lands in Atlas without a release tag.
           # Reuse the image tag so the Atlas release matches the image the pod
           # runs (`sha-<12chars>`).
+          build-args: |
+            TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
+            MIX_ENV=prod
+      - name: Wait before retrying build and push server image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push server image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |
             TUIST_HOSTED=1
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
@@ -514,8 +539,30 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      # Base images come straight from Docker Hub and gcr.io, and their
+      # metadata lookups occasionally fail (a gcr.io digest that exists has
+      # come back "not found"). One failed lookup should not stop the deploy,
+      # so a failed build waits and runs once more; the builder's layer cache
+      # makes the second attempt cheap.
+      - id: build-push
         name: Build and push ${{ matrix.name }} image
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: ${{ matrix.cache && format('type=registry,ref={0}/{1}', env.REGISTRY, matrix.cache) || '' }}
+          cache-to: ${{ matrix.cache && format('type=registry,ref={0}/{1},mode=max', env.REGISTRY, matrix.cache) || '' }}
+      - name: Wait before retrying build and push ${{ matrix.name }} image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push ${{ matrix.name }} image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -626,12 +673,31 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
         name: Build and push Kura runtime image
+        continue-on-error: true
+        uses: docker/build-push-action@v6
         with:
           # context/file are repo-root-relative regardless of the job's
           # working-directory default. Dockerfile.release bakes the prebuilt
           # bin/${TARGETARCH}/kura staged above and performs no compilation.
+          context: ./kura
+          file: ./kura/Dockerfile.release
+          build-contexts: certificate-trust=./infra/certificate-trust
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=kura-runtime
+          cache-to: type=gha,mode=max,scope=kura-runtime
+      - name: Wait before retrying build and push Kura runtime image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push Kura runtime image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
           context: ./kura
           file: ./kura/Dockerfile.release
           build-contexts: certificate-trust=./infra/certificate-trust

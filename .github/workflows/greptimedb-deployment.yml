@@ -8,6 +8,9 @@ on:
       - .github/workflows/greptimedb-deployment.yml
       - .github/scripts/greptimedb*
       - .github/scripts/pulse-readiness*
+      # The readiness test also pins each environment's Pulse reader account.
+      - infra/helm/tuist/values-managed-*.yaml
+      - infra/helm/tuist/templates/server-config-external-secrets.yaml
       - .github/workflows/server-deployment.yml
       - infra/helm/k8s-monitoring/values-staging.yaml
       - infra/helm/k8s-monitoring/values-canary.yaml
@@ -23,6 +26,9 @@ on:
       - .github/workflows/greptimedb-deployment.yml
       - .github/scripts/greptimedb*
       - .github/scripts/pulse-readiness*
+      # The readiness test also pins each environment's Pulse reader account.
+      - infra/helm/tuist/values-managed-*.yaml
+      - infra/helm/tuist/templates/server-config-external-secrets.yaml
       - .github/workflows/server-deployment.yml
       - infra/helm/k8s-monitoring/values-staging.yaml
       - infra/helm/k8s-monitoring/values-canary.yaml

@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import test from 'node:test';
 
-test('managed product configuration scopes Greptime to the staging Tuist account', () => {
+test('managed product configuration scopes Greptime to each environment\'s Tuist account', () => {
   for (const environment of ['staging', 'canary', 'production']) {
     const yaml = execFileSync('helm', ['template', 'tuist', 'infra/helm/tuist',
       '-f', 'infra/helm/tuist/values-managed-common.yaml',
@@ -15,17 +15,22 @@ test('managed product configuration scopes Greptime to the staging Tuist account
     const server = objects.find(object => object.kind === 'Deployment' &&
       object.metadata.labels?.['app.kubernetes.io/component'] === 'server');
     const container = server.spec.template.spec.containers.find(container => container.name === 'server');
-    const connection = Object.fromEntries(container.env.filter(variable => variable.name.startsWith('TUIST_PULSE_'))
-      .map(variable => [variable.name, variable.value]));
-    assert.deepEqual(connection, environment === 'staging' ? {
-      TUIST_PULSE_BACKEND: 'greptime', TUIST_PULSE_ACCOUNT_ID: '2',
+    const pulseEnv = container.env.filter(variable => variable.name.startsWith('TUIST_PULSE_'));
+    // A repeated name would let a later entry silently override the asserted one.
+    assert.equal(new Set(pulseEnv.map(variable => variable.name)).size, pulseEnv.length, environment);
+    const connection = Object.fromEntries(pulseEnv.map(variable => [variable.name, variable.value]));
+    // The tuist account is 2 in staging and 3 in production; canary has no reader.
+    const accountID = {staging: '2', production: '3'}[environment];
+    assert.deepEqual(connection, accountID ? {
+      TUIST_PULSE_BACKEND: 'greptime', TUIST_PULSE_ACCOUNT_ID: accountID,
       TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000', TUIST_PULSE_TENANT: 'public',
     } : {}, environment);
     const secret = objects.find(object => object.kind === 'ExternalSecret' &&
       object.spec.data?.some(source => source.secretKey === 'TUIST_PULSE_TOKEN'));
-    if (environment !== 'staging') {
+    if (!accountID) {
       assert.equal(secret, undefined);
     } else {
+      assert.ok(secret, `${environment}: no ExternalSecret syncs TUIST_PULSE_TOKEN`);
       assert.ok(container.envFrom.some(source => source.secretRef?.name === secret.spec.target.name));
       assert.equal(secret.spec.data.find(source => source.secretKey === 'TUIST_PULSE_TOKEN').remoteRef.key,
         'PULSE_TOKEN/password');

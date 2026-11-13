@@ -104,6 +104,10 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    # Reuse the existing environment-scoped readonly dashboard credential,
+    # which also backs the pulse release's pulse-dashboard-auth Secret.
+    pulse:
+      enabled: true
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
       enabled: true
@@ -241,6 +245,17 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Production's tuist account ID is 3 (staging uses 2; production's
+    # organization ID is 1). Membership and the account-scoped pulse feature
+    # flag remain independently required.
+    - name: TUIST_PULSE_BACKEND
+      value: greptime
+    - name: TUIST_PULSE_ACCOUNT_ID
+      value: "3"
+    - name: TUIST_PULSE_URL
+      value: http://pulse.observability.svc.cluster.local:4000
+    - name: TUIST_PULSE_TENANT
+      value: public
     # Registered production plugin; its private signing key stays in ESO.
     - name: TUIST_ENTIRE_PLUGIN_SLUG
       value: tuist

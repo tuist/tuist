@@ -19,7 +19,7 @@ defmodule Atlas.Authorization do
     "contracts" => "Enterprise contract templates and generation",
     "documents" => "The document library and document downloads",
     "engineering" => "Engineering projects, domains, errors, and postmortems",
-    "feature_flags" => "Tuist feature flag and runner concurrency limit inspection and rollout control",
+    "feature_flags" => "Tuist feature flag, runner concurrency limit and account plan inspection and control",
     "finance" => "Finance transactions, invoices, and reconciliation",
     "gtm" => "GTM opportunities, outreach, and campaigns",
     "inference" => "LLM inference relay tokens, profiles, and providers",

@@ -369,7 +369,7 @@ defmodule TuistWeb.OpsAccountLive do
     account = Accounts.create_customer_when_absent(socket.assigns.account)
     customer = fetch_stripe_customer(account.customer_id)
 
-    if customer_has_billing_details?(customer) do
+    if Billing.billing_details_complete?(customer) do
       # Customer already has name/email/address on Stripe: upgrade in
       # one click without prompting ops to re-enter anything.
       {:ok, _sub} = Billing.upgrade_to_enterprise(account, %{})
@@ -492,22 +492,6 @@ defmodule TuistWeb.OpsAccountLive do
       _ -> %{}
     end
   end
-
-  defp customer_has_billing_details?(%{address: %{} = address} = customer) do
-    Enum.all?(
-      [
-        Map.get(customer, :name),
-        Map.get(customer, :email),
-        address.line1,
-        address.city,
-        address.postal_code,
-        address.country
-      ],
-      &(is_binary(&1) and &1 != "")
-    )
-  end
-
-  defp customer_has_billing_details?(_), do: false
 
   def prefill(customer, field, fallback \\ "")
   def prefill(nil, _field, fallback), do: fallback

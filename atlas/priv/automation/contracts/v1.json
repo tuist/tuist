@@ -213,6 +213,8 @@
     "update_tuist_runner_concurrency_limits": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
     "get_tuist_runner_concurrency_limits": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "get_tuist_account": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "get_tuist_account_plan": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "update_tuist_account_plan": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
     "update_my_business_profile": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "get_account_feature_usage": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
     "update_automation_trigger": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",

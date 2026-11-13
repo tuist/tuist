@@ -5,7 +5,9 @@ defmodule Atlas.TuistAccountsTest do
   alias Atlas.Audit
   alias Atlas.MCP
   alias Atlas.MCP.Tools.GetTuistAccount
+  alias Atlas.MCP.Tools.GetTuistAccountPlan
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
+  alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
   alias Atlas.TuistServer
 
@@ -216,6 +218,151 @@ defmodule Atlas.TuistAccountsTest do
 
     for args <- [%{}, %{"account_id" => -1}, %{"account_id" => 1, "platform" => "macos"}] do
       assert {:error, _} = execute_tool(GetTuistRunnerConcurrencyLimits, conn, args)
+    end
+  end
+
+  describe "plans" do
+    defp plan(effective_plan, revision) do
+      subscription = %{
+        "subscription_id" => "sub_1",
+        "plan" => "enterprise",
+        "status" => "active",
+        "cancel_at_period_end" => false,
+        "current_period_start" => "2026-11-01T00:00:00Z",
+        "current_period_end" => "2026-12-01T00:00:00Z",
+        "trial_end" => nil,
+        "created_at" => "2026-11-13T10:00:00Z",
+        "updated_at" => "2026-11-13T10:00:00Z"
+      }
+
+      %{
+        "account_id" => 42,
+        "account_handle" => "acme",
+        "stripe_customer_id" => "cus_1",
+        "effective_plan" => effective_plan,
+        "subscription" => if(effective_plan != "air", do: subscription),
+        "recent_subscriptions" => [%{subscription | "status" => "canceled"}],
+        "payment_failed" => false,
+        "cache_access_blocked" => false,
+        "revision" => revision
+      }
+    end
+
+    defp plan_change(attrs \\ %{}) do
+      Map.merge(
+        %{
+          "account_id" => 42,
+          "operation" => "upgrade_to_enterprise",
+          "expected_revision" => "revision-1",
+          "reason" => "Enterprise contract signed",
+          "change_id" => Ecto.UUID.generate()
+        },
+        attrs
+      )
+    end
+
+    test "reads the plan of a Tuist account ID and audits the target" do
+      user = insert_user!(%{scopes: ["feature_flags:read"]})
+      result = plan("air", "revision-1")
+
+      expect(TuistServer, :get_account_plan, fn 42 -> {:ok, result} end)
+      assert {:ok, ^result} = execute_tool(GetTuistAccountPlan, mcp_conn(user), %{"account_id" => 42})
+
+      {[activity], _} = Audit.list_activities(actor_id: user.id, action: "tuist_account_plan.inspected")
+      assert activity.target_id == "42"
+      assert activity.metadata == %{"status" => "ok", "revision" => "revision-1"}
+    end
+
+    test "plan changes run only after the caller approves the exact call, and audits leave billing details out" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      result = plan("enterprise", "revision-2")
+
+      args =
+        plan_change(%{
+          "billing_details" => %{
+            "name" => "Acme",
+            "email" => "ap@acme.test",
+            "address" => %{
+              "line1" => "1 Example Street",
+              "city" => "Springfield",
+              "postal_code" => "12345",
+              "country" => "US"
+            }
+          }
+        })
+
+      expect(TuistServer, :update_account_plan, fn 42, attrs ->
+        assert attrs ==
+                 args
+                 |> Map.delete("account_id")
+                 |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+                 |> Map.put("interface", "mcp")
+
+        {:ok, result}
+      end)
+
+      assert {:error, message} = execute_tool(UpdateTuistAccountPlan, conn, args)
+      assert message =~ "/approvals/"
+      [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+      assert approval.tool_name == "update-account-plan"
+
+      # Another operation is a different call that the approval does not cover.
+      other_call = args |> Map.put("operation", "cancel_at_period_end") |> Map.delete("billing_details")
+      {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+      assert {:error, _} = execute_tool(UpdateTuistAccountPlan, conn, other_call)
+
+      assert {:ok, ^result} = execute_tool(UpdateTuistAccountPlan, conn, args)
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_account_plan.updated")
+      assert [ok] = Enum.filter(activities, &(&1.metadata["status"] == "ok"))
+      assert ok.target_id == "42"
+
+      assert ok.metadata == %{
+               "operation" => "upgrade_to_enterprise",
+               "expected_revision" => "revision-1",
+               "reason" => args["reason"],
+               "change_id" => args["change_id"],
+               "effective_plan" => "enterprise",
+               "revision" => "revision-2",
+               "status" => "ok"
+             }
+    end
+
+    test "plan changes are refused without write scope, outside MCP, from Slack, or with invalid arguments" do
+      writer = insert_user!(%{scopes: ["feature_flags:write"]})
+      reader = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
+      reject(TuistServer, :update_account_plan, 2)
+
+      assert {:error, _} = execute_tool(UpdateTuistAccountPlan, reader, plan_change())
+
+      for assigns <- [
+            %{audit_interface: "worker"},
+            %{audit_interface: "api"},
+            %{mcp_claims: %{"slack_agent" => "systems_investigator"}}
+          ] do
+        conn = %{assigns: Map.put(assigns, :current_user, writer)}
+        assert {:error, _} = execute_tool(UpdateTuistAccountPlan, conn, plan_change())
+      end
+
+      address = %{"line1" => "1 Main St", "city" => "Berlin", "postal_code" => "10115", "country" => "DE"}
+      details = %{"name" => "Acme", "email" => "ap@acme.test", "address" => address}
+
+      for attrs <- [
+            %{"operation" => "upgrade_to_pro"},
+            %{"account_id" => "42"},
+            %{"reason" => " "},
+            %{"change_id" => "not-a-uuid"},
+            %{"plan" => "enterprise"},
+            %{"actor" => %{"id" => Ecto.UUID.generate(), "email" => "forged@tuist.dev"}},
+            %{"billing_details" => Map.delete(details, "address")},
+            %{"billing_details" => put_in(details, ["address", "country"], "Germany")},
+            %{"billing_details" => put_in(details, ["address", "unit"], "4")}
+          ] do
+        assert {:error, _} = execute_tool(UpdateTuistAccountPlan, mcp_conn(writer), plan_change(attrs))
+      end
+
+      assert MCP.list_pending_tool_approvals(writer, server_names: ["tuist-server"]) == []
     end
   end
 
