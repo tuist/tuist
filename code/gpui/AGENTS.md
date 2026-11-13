@@ -142,7 +142,7 @@ The GPUI source layout in `once.toml` requires Once's `build_script_sources`
 support; optimized Windows builds also require its build-script debug-assertions
 fix, and Windows staged builds need its Cargo workspace path comparison fix,
 its non-verbatim command path fix, and `SystemRoot` in Rust test environments.
-All are available in the pinned 0.77.5 release. Use the published binary
+All are available in Once 0.77.5 and later; the workspace pins 0.81.1. Use the published binary
 installed by mise. Do not replace this dependency with patched Cargo sources.
 
 ```sh

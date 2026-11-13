@@ -28,7 +28,7 @@ Apple builds require Apple Silicon macOS/Xcode and `rustup target add aarch64-ap
 
 Swift imports the core's C module, Kotlin calls its JNI bridge, and the existing Rust navigation crate re-exports the same `Tab` type. GPUI and its dependency graph are not in the native frontend build closures. Platform code supplies localized presentation, browser callbacks, secure storage and ordinary platform-trusted HTTPS; Rust owns authentication, refresh and authorized API operations, without its own mobile HTTP/TLS stack. See [the bridge contract](crates/core/README.md).
 
-Mise runs `prepare-native.py` before graph loading. When invoking Once directly, run `python3 prepare-native.py` first. This derives an ignored metadata-only Cargo workspace and vendors its dependencies, avoiding desktop feature unification and generated-target collisions in Once 0.77.5. Every external version/source/checksum must match the authoritative `Cargo.lock`; first-party compilation always uses the original `crates/` sources, never the metadata stubs. Preparation may download missing crates. For Android, additionally run `python3 android/dependencies.py prepare`; its checksum-locked AndroidX Browser closure and final-APK resource verification are documented in [Android dependencies](android/DEPENDENCIES.md).
+Mise runs `prepare-native.py` before graph loading. When invoking Once directly, run `python3 prepare-native.py` first. This derives an ignored metadata-only Cargo workspace and vendors its dependencies, avoiding desktop feature unification and generated-target collisions in Once 0.77 and later. Every external version/source/checksum must match the authoritative `Cargo.lock`; first-party compilation always uses the original `crates/` sources, never the metadata stubs. Preparation may download missing crates. For Android, additionally run `python3 android/dependencies.py prepare`; its checksum-locked AndroidX Browser closure and final-APK resource verification are documented in [Android dependencies](android/DEPENDENCIES.md).
 
 ## Native profiles, authentication and sessions
 
@@ -53,15 +53,15 @@ Linux executables built through Once can be published with the Tuist CLI's `shar
 
 Native Apple/Android bundles declare **Tuist Code** as their display name and use the isolated `dev.tuist.code` identity. Their icons are rendered from the shipping `../app/Resources/TuistApp/AppIcon.icon`; regenerate the checked-in raster/ICNS resources on a Mac with Xcode 26+ using `bash apple/generate-icons.sh`. Shipping resources are read-only inputs. Explicit PNG/ICNS resources keep icons in Once's cached outputs, including the iOS fallback icons.
 
-Hosted metadata currently has limitations: Once 0.77.5 omits the Android display label and preview icon payloads, and the server projects Android names from the application ID. Raw Linux executable previews are labeled CLI regardless of whether they open a GUI. Bundle icons do not repair existing hosted previews; metadata publication and a fresh upload are needed.
+Once (0.81.0 and later) publishes each Apple and Android bundle's icon and display name with the artifact, and the server shows them on the preview. Raw Linux executable previews published with `tuist share` are labeled CLI regardless of whether they open a GUI and carry no icon. Bundle icon changes do not repair existing hosted previews; a fresh upload is needed.
 
 ## GPUI frontend
 
 Build the Linux/Windows frontend through Once with `mise run build`, then launch with `mise run run`. macOS remains a GPUI development host; the native Swift macOS target is the new Apple frontend. This is an early shell, not a replacement for the shipping Swift app's preview browsing or installation features.
 
 The GPUI source layout uses Once's `build_script_sources` support, included in
-the pinned [Once 0.77.5 release](https://github.com/tuist/once/releases/tag/0.77.5).
-This release also aligns build-script debug assertions with optimized crates,
+Once 0.77.5 and later; the workspace pins [Once 0.81.1](https://github.com/tuist/once/releases/tag/0.81.1).
+That support also aligns build-script debug assertions with optimized crates,
 which GPUI needs to generate shaders for Windows packaging.
 Run `mise install` to install the published toolchain before building.
 

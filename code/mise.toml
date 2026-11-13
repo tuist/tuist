@@ -1,5 +1,5 @@
 [tools]
-"github:tuist/once" = "0.77.5"
+"github:tuist/once" = "0.81.1"
 rust = "1.98.1"
 jq = "1.8.1"
 yq = "4.52.5"
