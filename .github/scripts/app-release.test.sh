@@ -61,6 +61,11 @@ workflow = json.load(open(sys.argv[1]))
 components = json.load(open(sys.argv[2]))
 release_paths = next(c["include_paths"] for c in components["components"] if c["name"] == "app")
 
+def releases(path):
+    # git-cliff globs let "**/" match zero directories, unlike fnmatch.
+    return any(fnmatch.fnmatchcase(path, p) or fnmatch.fnmatchcase(path, p.replace("**/", ""))
+               for p in release_paths)
+
 def triggers(path):
     selected = False
     for pattern in workflow["on"]["push"]["paths"]:
@@ -68,34 +73,31 @@ def triggers(path):
             selected = not pattern.startswith("!")
     return selected
 
-for path in ["app/gpui/src/main.rs", "app/crates/core/src/lib.rs",
-             "app/apple/Sources/AppWorkspace.swift", "app/ios/Sources/App.swift",
-             "app/macos/Sources/App.swift", "app/android/src/MainActivity.kt",
-             "app/distribution/release.sh", "app/Cargo.toml", "app/Cargo.lock",
-             "app/modules/browser.star", "app/native-dependencies/once.toml", "app/prepare-native.py",
-             "app/once.toml", "app/mise.toml", "app/README.md"]:
-    assert not triggers(path), f"Parallel client triggers shipping release: {path}"
-    assert not any(fnmatch.fnmatchcase(path, p) for p in release_paths), path
+for path in ["code/gpui/src/main.rs", "code/crates/core/src/lib.rs",
+             "code/apple/Sources/AppWorkspace.swift", "code/android/src/dev/tuist/code/MainActivity.kt",
+             "code/once.toml", "code/mise.toml", "code/README.md"]:
+    assert not triggers(path), f"Tuist Code triggers shipping release: {path}"
+    assert not releases(path), path
 
 for path in ["app/Sources/TuistApp/App.swift", "app/Resources/TuistApp/icon.png",
              "app/Tests/TuistAppTests/AppTests.swift", "app/Project.swift",
              "app/appcast.xml", "app/Fixtures/Navigation/routes.json",
              "mise/tasks/app/release/homebrew-cask.sh", "cli/Sources/TuistCore/Models/File.swift"]:
     assert triggers(path), f"Shipping release no longer triggers: {path}"
-    assert any(fnmatch.fnmatchcase(path, p) for p in release_paths), path
+    assert releases(path), path
 PY
-ok 'parallel clients cannot trigger or influence shipping release detection'
+ok 'Tuist Code cannot trigger or influence shipping release detection'
 
 # shellcheck disable=SC2016 # Keep the runner workspace expression literal.
-test "$(yq -r '.env.MISE_CEILING_PATHS' "$root/.github/workflows/app-next.yml")" = '${{ github.workspace }}' ||
-  fail 'Parallel CI must stop mise before the parent toolchain on every platform'
+test "$(yq -r '.env.MISE_CEILING_PATHS' "$root/.github/workflows/code.yml")" = '${{ github.workspace }}' ||
+  fail 'Tuist Code CI must stop mise before the parent toolchain on every platform'
 physical_root=$(cd "$root" && pwd -P)
 MISE_IGNORED_CONFIG_PATHS='' MISE_CEILING_PATHS="$physical_root" \
-  mise -C "$root/app" config ls --json > "$scratch/app-configs.json"
-jq -e --arg app "$physical_root/app/mise.toml" --arg parent "$physical_root/mise.toml" \
-  'any(.[]; .path == $app) and all(.[]; .path != $parent)' "$scratch/app-configs.json" >/dev/null ||
-  fail 'Parallel CI loaded the parent toolchain or lost the app toolchain'
-ok 'parallel CI retains the app toolchain without loading the parent configuration'
+  mise -C "$root/code" config ls --json > "$scratch/code-configs.json"
+jq -e --arg code "$physical_root/code/mise.toml" --arg parent "$physical_root/mise.toml" \
+  'any(.[]; .path == $code) and all(.[]; .path != $parent)' "$scratch/code-configs.json" >/dev/null ||
+  fail 'Tuist Code CI loaded the parent toolchain or lost its own toolchain'
+ok 'Tuist Code CI retains its toolchain without loading the parent configuration'
 
 # shellcheck disable=SC2016 # Assert literal GitHub expressions, never interpolate them.
 jq -e '

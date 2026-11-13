@@ -70,9 +70,3 @@ Derived/
 Tuist/.build
 
 build/artifacts
-
-### Parallel Rust client ###
-/target/
-/native-dependencies/Cargo.*
-/native-dependencies/crates/
-/native-dependencies/vendor/

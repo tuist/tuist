@@ -1,4 +1,0 @@
-module TuistAppCore {
-    header "tuist_app.h"
-    export *
-}

@@ -16,21 +16,6 @@ on:
       - main
     paths:
       - app/**
-      # Parallel Once clients produce CI artifacts only, never shipping releases.
-      - '!app/gpui/**'
-      - '!app/crates/**'
-      - '!app/distribution/**'
-      - '!app/apple/**'
-      - '!app/ios/**'
-      - '!app/macos/**'
-      - '!app/android/**'
-      - '!app/modules/**'
-      - '!app/native-dependencies/**'
-      - '!app/prepare-native.py'
-      - '!app/Cargo.*'
-      - '!app/once.toml'
-      - '!app/mise.toml'
-      - '!app/README.md'
       - mise/tasks/app/**
       - cli/Sources/TuistSupport/**
       - cli/Sources/TuistCore/**
@@ -62,8 +47,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Preserve the shipping toolchain and root hook in app/ working directories.
-  MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/app/mise.toml
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
