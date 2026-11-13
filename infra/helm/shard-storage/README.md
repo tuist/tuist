@@ -56,6 +56,19 @@ account storage until refreshed; missing readings alone do not trigger
 offloading. No Garage restart, manual migration or expiry change is required.
 Restores and deletes continue using the archive's recorded key and store.
 
+With `actionsCache.bucket` set (`actions-cache` in every environment), it also
+holds the GitHub Actions cache of the Linux runners at its site
+(`server/lib/tuist/runners/AGENTS.md`). The hourly lifecycle job creates the
+bucket through Garage's admin API, grants it to the store's key, and caps it at
+`actionsCache.maxGB` decimal GB with a bucket quota: Garage refuses any write
+beyond it, and the server evicts least recently used entries at 90% of it. The
+target publishes the bucket and the cap as `actions_cache_bucket` and
+`actions_cache_bytes`. The admin token, given only to the lifecycle job, is the RPC secret, so enabling it on an
+existing store takes one controlled restart (`OnDelete`): until the store pod
+is recreated, the lifecycle job's `actions-cache` container fails and runners
+keep using GitHub's cache. Entries are rebuildable, so the bucket may be
+emptied or dropped at any time.
+
 The `scw-local-nvme` provisioner enforces the configured PVC with an XFS project
 quota (200 GiB by default, 3 TiB in the production overlay). The pod requests
 the same amount of `ephemeral-storage` for scheduler accounting. Install in
@@ -70,10 +83,11 @@ Garage uses path-style S3 on a ClusterIP at port 3900. Singleton RPC binds to
 loopback. Replicated stores allow RPC on 3901 only between their own pods and
 DNS to CoreDNS; a separate headless Service publishes peer addresses even before
 readiness. With an archive bucket, the Service also exposes port 3903 and the
-NetworkPolicy admits it only from `serverNamespace`, not runners or sandbox
-guests. Garage's `/metrics` needs no token; administrative operations still
-require an admin token, which the server is not given. Without an archive
-bucket the listener remains unexposed.
+NetworkPolicy admits it from `serverNamespace`, not runners or sandbox guests.
+Garage's `/metrics` needs no token; administrative operations still require an
+admin token, which the server is not given. With an Actions cache bucket, the
+NetworkPolicy also admits the lifecycle job there. Without either the listener
+remains unexposed.
 Fresh environment overlays apply **three-day archive expiration** and one-day
 incomplete multipart abortion through S3 lifecycle. This applies only to this
 store's disposable Mix/Cargo archives: shard plans, test results, Xcode artifacts,

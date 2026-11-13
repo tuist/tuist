@@ -95,6 +95,14 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   and `MemAvailable` in the same pass — kata hot-plugs the sandbox up
   to the shape's memory after boot, so a total cached at sidecar
   start goes stale mid-job. `metrics-sampler_test.sh` covers both.
+- `externals/node{20,24}{,_alpine}/bin/node` — the node shim
+  (`cmd/tuist-node-shim`), with the runner's node renamed to `node.real` beside
+  it. The runner sets `ACTIONS_RESULTS_URL` immediately before it starts each
+  JavaScript action, so only the shim can point it at the cache agent
+  (`TUIST_CACHE_VOLUME_URL`). It does so only for GitHub's own results URL,
+  after `/actions-cache/healthz` answered within 150 ms, and not when the job
+  sets `TUIST_ACTIONS_CACHE` to `0` or `false`. A runner release that changes
+  its node externals fails the image build until the shim covers them.
 - `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
   Built from the Go source in `cmd/runner-shell-agent/`. The trusted
   `shell` native sidecar waits for the poller to stage a JIT (claimed

@@ -381,3 +381,28 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   aside before creating the replacement). Unlinking and immediately recreating
   a file can reuse its inode on Linux, so it does not reliably exercise the
   different-inode guard.
+
+- `ActionsCache` (`actions_cache.go`) serves GitHub's cache v2 protocol on the
+  Linux agent's :8090: the three JSON twirp cache methods, plus Put Blob, Put
+  Block, Put Block List and ranged reads (`Range` or `x-ms-range`) on
+  `/actions-cache/blobs/<id>`, the parts of Azure Blob Storage `@actions/cache`
+  and buildkit's `type=gha` client use. Every other `/twirp/` request goes to
+  GitHub unchanged. Jobs reach it only through the runner image's node shim.
+- Any failure is a miss (`ok: false`) or a refused save, never a 5xx: clients
+  retry those with backoff, which costs more than rebuilding. Blob refusals are
+  4xx for the same reason (413 without room). The index call shares a 5-second
+  budget; never wait longer for the server or proxy cache calls to GitHub.
+- Blob links carry an HMAC over operation, entry, expiry and the caller Pod's
+  UID, keyed per process, and the caller is resolved again by source address.
+  A link never authorizes another Pod or the other operation.
+- Entries live in a store, never on the host: the in-rack shard store's
+  quota-capped bucket at the host's site, or the account's own storage, as the
+  server places them. A restore relays ranged reads from the store's presigned
+  URL. `/actions-cache/healthz` fails while the store has not answered for 30
+  seconds, so the node shim leaves jobs on GitHub's cache during an outage.
+- `ActionsStore` stages uploads under `actions-cache/uploads/` on the cache
+  filesystem until `Run` copies them to the store (a presigned PUT bound to the
+  SHA-256) and the server commits them; a failed copy drops the entry. It writes
+  through the same 16 MiB writeback bound, at most four streams at a time, and
+  admits only above the reserve. Staging never evicts masters; uploads idle for
+  an hour are removed.

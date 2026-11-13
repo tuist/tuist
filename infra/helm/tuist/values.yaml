@@ -3199,6 +3199,14 @@ runnersFleetLinux:
     dockerCache:
       enabled: false
       pools: []
+    # Serves the GitHub Actions cache (actions/cache, setup actions, buildx
+    # type=gha) from each node, with entries in the shard store's quota-capped
+    # `actionsCache.bucket` (infra/helm/shard-storage) or the account's own
+    # storage. Jobs use GitHub's cache whenever the node or the store does not
+    # answer.
+    actionsCache:
+      enabled: false
+      store: http://shard-storage.kura.svc.cluster.local:3900
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and

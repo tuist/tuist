@@ -3,6 +3,7 @@ defmodule TuistWeb.RunnerCacheVolumesController do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.ActionsCache
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.ExecutionTokens
   alias Tuist.Runners.VolumePrefetch
@@ -158,6 +159,56 @@ defmodule TuistWeb.RunnerCacheVolumesController do
   end
 
   def masters(conn, _), do: send_resp(conn, :bad_request, "")
+
+  # The GitHub Actions cache entry a running job restores (`ActionsCache.lookup/1`).
+  def actions_cache_lookup(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, entry} <- ActionsCache.lookup(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(%{entry: entry})
+    else
+      error -> actions_cache_error(conn, error)
+    end
+  end
+
+  def actions_cache_reserve(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, id} <- ActionsCache.reserve(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(%{id: id})
+    else
+      error -> actions_cache_error(conn, error)
+    end
+  end
+
+  # Where the agent uploads an entry it received (`ActionsCache.upload/1`).
+  def actions_cache_upload(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, upload} <- ActionsCache.upload(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(upload)
+    else
+      error -> actions_cache_error(conn, error)
+    end
+  end
+
+  def actions_cache_commit(conn, params) do
+    with :ok <- authenticate(conn),
+         :ok <- ActionsCache.commit(params) do
+      send_resp(conn, :no_content, "")
+    else
+      error -> actions_cache_error(conn, error)
+    end
+  end
+
+  defp actions_cache_error(conn, {:error, :pending}) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> put_resp_header("retry-after", "1")
+    |> put_status(425)
+    |> json(%{error: "job execution pending"})
+  end
+
+  defp actions_cache_error(conn, {:error, :conflict}), do: send_resp(conn, :conflict, "")
+  defp actions_cache_error(conn, {:error, :not_found}), do: send_resp(conn, :not_found, "")
+  defp actions_cache_error(conn, _), do: send_resp(conn, :forbidden, "")
 
   defp authenticate(conn) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
