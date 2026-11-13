@@ -278,6 +278,11 @@ spec:
             # takes their exports; the Service keeps traffic on this node.
             - name: CHECKOUT_AGENT_URL
               value: "http://{{ $checkoutAgentName }}.{{ $checkoutAgentNamespace }}.svc.cluster.local:8090"
+            {{- if .Values.sandboxes.checkoutWorkspacesGiB }}
+            # Prepared workspaces built from those seeds, out of DISK_BUDGET_GIB.
+            - name: CHECKOUT_WORKSPACES_GIB
+              value: {{ .Values.sandboxes.checkoutWorkspacesGiB | quote }}
+            {{- end }}
             {{- end }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"

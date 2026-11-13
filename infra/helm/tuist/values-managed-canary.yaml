@@ -909,6 +909,7 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 48
   diskGiB: 50
+  checkoutWorkspacesGiB: 10
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
   archiveAfterHours: 1

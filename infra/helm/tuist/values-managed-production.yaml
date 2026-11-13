@@ -2372,6 +2372,7 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 48
   diskGiB: 200
+  checkoutWorkspacesGiB: 20
   # Paused Orbs otherwise pile up on their nodes over a working day; a resume
   # after four hours cold boots from the archive instead.
   archiveAfterHours: 4

@@ -170,8 +170,11 @@ RUN mkdir -p /rootfs/dev /rootfs/proc /rootfs/sys /rootfs/run /rootfs/tmp /rootf
     && truncate -s "${ROOTFS_SIZE}" /out/rootfs.ext4 \
     && mkfs.ext4 -q -F -L rootfs -d /rootfs -E lazy_itable_init=0,lazy_journal_init=0 /out/rootfs.ext4 \
     && kernel="$(basename "${KERNEL_URL}")" && kernel="${kernel#vmlinux-}" \
-    && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s}\n' \
-        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" > /out/metadata.json \
+    && runner_uid="$(awk -F: '$1 == "user" { print $3 }' /rootfs/etc/passwd)" \
+    && runner_gid="$(awk -F: '$1 == "user" { print $4 }' /rootfs/etc/passwd)" \
+    && test -n "${runner_uid}" && test -n "${runner_gid}" \
+    && printf '{"name":"default","kernel":"%s","built_at":"%s","rootfs_bytes":%s,"runner_uid":%s,"runner_gid":%s}\n' \
+        "${kernel}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(stat -c %s /out/rootfs.ext4)" "${runner_uid}" "${runner_gid}" > /out/metadata.json \
     && cat /out/metadata.json && ls -la /out && du -h /out/*
 
 # Build with --target execution-gateway for the stateless public REAPI service.

@@ -239,3 +239,42 @@ func TestCheckoutSeedCutShortIsDiscarded(t *testing.T) {
 		t.Fatalf("a complete stream was refused: %v", err)
 	}
 }
+
+// A repository the host prepared in the workspace image is used as is, and
+// its marker becomes the state the export starts from, once.
+func TestCheckoutAdoptsAPreparedRepository(t *testing.T) {
+	base := t.TempDir()
+	repo := filepath.Join(base, "acme", "app")
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	head := strings.Repeat("ab", 20)
+	lfs := strings.Repeat("cd", 32)
+	marker := filepath.Join(repo, checkoutPreparedFile)
+	if err := os.WriteFile(marker, []byte(`{"base":"`+head+`","lfs":["`+lfs+`"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(checkoutPathEnv, repo)
+	t.Setenv(checkoutCommitEnv, strings.Repeat("01", 20))
+	t.Setenv(checkoutVsockEnv, "5002")
+	c, err := checkoutFromEnv(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.dial = func(uint32) (net.Conn, error) { t.Fatal("a prepared repository was seeded again"); return nil, nil }
+
+	result, err := c.seed(context.Background())
+	if err != nil || result != "prepared" {
+		t.Fatalf("seed = %q, %v", result, err)
+	}
+	state, err := os.ReadFile(c.state)
+	if err != nil || !strings.Contains(string(state), head) || !strings.Contains(string(state), lfs) {
+		t.Fatalf("state %q, %v", state, err)
+	}
+	if _, err := os.Lstat(marker); err == nil {
+		t.Fatal("the marker stayed in the repository")
+	}
+	if result, _ := c.seed(context.Background()); result != "present" {
+		t.Fatalf("a second worker found %q", result)
+	}
+}

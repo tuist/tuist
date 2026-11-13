@@ -370,6 +370,12 @@ const (
 	CheckoutShareEnv  = "SBX_CHECKOUT_SHARE"
 	CheckoutVsockEnv  = "SBX_CHECKOUT_VSOCK"
 	CheckoutVsockPort = 5002
+	// CheckoutPreparedFile, inside the repository, marks a tree the host put in
+	// the workspace image before the guest started (a prepared workspace). It
+	// holds the master's commit and LFS objects as JSON ({"base","lfs"}), which
+	// the guest takes as the state its export starts from. sbx-worker names it
+	// too.
+	CheckoutPreparedFile = ".git/sbx-checkout-prepared.json"
 )
 
 type CreateResult struct {

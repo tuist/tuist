@@ -60,6 +60,11 @@ var testGrant = protocol.CheckoutGrant{ID: "11111111-1111-4111-8111-111111111111
 // serve arms a listener the way the manager does and returns its socket path.
 func serve(t *testing.T, agent Agent, limits Limits) string {
 	t.Helper()
+	return serveRecording(t, agent, limits, nil)
+}
+
+func serveRecording(t *testing.T, agent Agent, limits Limits, record Recorder) string {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "v.sock_5002")
 	l, err := net.Listen("unix", path)
 	if err != nil {
@@ -69,7 +74,7 @@ func serve(t *testing.T, agent Agent, limits Limits) string {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		Serve(ctx, l, agent, testGrant, limits, nil)
+		Serve(ctx, l, agent, testGrant, limits, nil, record)
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -264,7 +269,7 @@ func TestDisarmClosesTheListener(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		Serve(ctx, l, &fakeAgent{}, testGrant, Limits{}, nil)
+		Serve(ctx, l, &fakeAgent{}, testGrant, Limits{}, nil, nil)
 	}()
 	cancel()
 	select {

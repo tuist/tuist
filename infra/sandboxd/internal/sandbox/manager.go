@@ -81,8 +81,12 @@ type Deps struct {
 	// and exports back to it; see armCheckout.
 	Checkouts      checkout.Agent
 	CheckoutLimits checkout.Limits
-	Events         func(protocol.Event)
-	Log            *slog.Logger
+	// Workspaces, when set with Checkouts, keeps prepared workspaces built
+	// from seeds, which a fresh sandbox's first worker starts from; see
+	// preparedWorkspace.
+	Workspaces *checkout.Workspaces
+	Events     func(protocol.Event)
+	Log        *slog.Logger
 }
 
 type Manager struct {
@@ -103,6 +107,7 @@ type Manager struct {
 	// checkouts and checkoutLimits serve workers' checkout grants.
 	checkouts      checkout.Agent
 	checkoutLimits checkout.Limits
+	workspaces     *checkout.Workspaces
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -141,6 +146,10 @@ type Sandbox struct {
 	// out an upload.
 	resumes       uint64
 	cancelArchive context.CancelFunc
+	// fresh is set on a sandbox created from the template snapshot until its
+	// first exec or worker: its workspace is the empty disk the create
+	// formatted, which a prepared workspace may replace.
+	fresh bool
 }
 
 var (
@@ -186,7 +195,7 @@ func New(cfg Config, deps Deps) *Manager {
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
 		blobs:     deps.Blobs,
-		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits,
+		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -370,6 +379,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	sb.meta.Generation = 0
 	sb.meta.FirecrackerVersion = artifacts.Meta.FirecrackerVersion
 	sb.meta.Error = ""
+	sb.fresh = !preparedWorkspace
 	err = sb.meta.Save(root)
 	sb.mu.Unlock()
 	if err != nil {
@@ -957,6 +967,7 @@ func (m *Manager) acquireAgent(id string) (*Sandbox, vsock.Agent, error) {
 		return nil, nil, fmt.Errorf("%w: %s", ErrPausing, id)
 	}
 	sb.inflight++
+	sb.fresh = false
 	return sb, sb.agent, nil
 }
 
@@ -1028,13 +1039,18 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 	// start_worker commands cannot both start one.
 	run := &workerRun{started: time.Now(), done: make(chan struct{})}
 	sb.worker = run
+	fresh := sb.fresh && sb.inflight == 0
+	sb.fresh = false
+	meta := sb.meta
 	sb.mu.Unlock()
 
 	log := m.log.With("sandbox", args.SandboxID, "process", "sbx-worker")
 	logLines := newLineLogger(log)
+	key, keyed := m.workspaceKey(meta, args.Checkout)
+	prepared := keyed && fresh && m.preparedWorkspace(ctx, sb, inst, agent, key, log)
 	// Served only while this worker runs: a pause waits for the worker, and
 	// the exit below disarms before it frees the worker slot.
-	env, disarm := m.armCheckout(inst, args, log)
+	env, disarm := m.armCheckout(inst, args, log, m.recorder(keyed && !prepared, key))
 	proc, err := agent.Start(ctx, vsock.ExecRequest{Cmd: []string{m.cfg.WorkerPath}, Env: env, Cwd: guestWorkspace}, logLines.write)
 	if err != nil {
 		disarm()

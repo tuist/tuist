@@ -63,6 +63,9 @@ reflink, so rootfs clones are instant copy-on-write):
   disk-snapshot.json  {id, template, tag, workspace_gb, source_sandbox, created_at}
 /data/sandboxes/blobs/<scope>/<sha256>-<size>
                       remote-execution input blobs (BLOB_CACHE_GIB), emptied at startup
+/data/sandboxes/checkouts/<key digest>.ext4, <key digest>.json
+                      prepared checkout workspaces (CHECKOUT_WORKSPACES_GIB); unfinished
+                      .build-* directories are removed at startup
 ```
 
 The jail directory is the jailer's chroot, so every sandbox sees the same
@@ -319,6 +322,30 @@ those bytes, and answers `{"ok":true}` once the agent queued it or
 `{"error":"export refused"}`; an export past 30 GB and 64 MiB fails rather than
 being cut. A seed gets 10 minutes and an export 6, the agent's part included.
 
+With `CHECKOUT_WORKSPACES_GIB` set, the daemon also keeps prepared workspaces
+(`internal/checkout/workspaces.go`) so a session copies the tree into its guest
+only once per node. A seed it relays is recorded to `checkouts/.build-*` and,
+once complete, built in the background into an ext4 image of the sandbox's
+workspace size, with the tree at the grant's path below `/workspace`, owned by
+the template's runner user (`runner_uid`/`runner_gid` in the template's
+`metadata.json`; templates without them get no images), and
+`protocol.CheckoutPreparedFile` in its `.git` naming the master's commit and LFS
+objects. It is formatted on the host with `mkfs.ext4 -d` from the agent's tree,
+never from a guest's disk. An image is keyed by the grant's scope and clear
+generation, that path, the disk size and the owner, is used for
+`CHECKOUT_WORKSPACES_TTL` (6h) after it is built and then removed, so the next
+seed rebuilds it from a newer master, and images beyond the budget go oldest
+first. When `start_worker` carries a grant whose image is here and the sandbox
+was created from the template snapshot and has run nothing yet, the daemon
+reflinks the image beside the jail's `workspace.ext4`, has the guest
+`umount /workspace`, renames the clone over the disk, `PATCH /drives/workspace`
+reopens it, and `configure` (no format) flushes and mounts it. The guest's
+worker then finds the repository in place and adopts the marker as its export
+state. A guest that cannot unmount keeps its empty workspace and seeds as
+before; a failure after the rename puts the empty disk back. The images count
+in `disk.templates_bytes` and come out of `DISK_BUDGET_GIB` like the blob
+cache.
+
 The daemon reaches the node's runner-cache agent through its Service
 (`internalTrafficPolicy: Local`, port 8090) with `POST
 /sandbox-checkout/seed` and `POST /sandbox-checkout/export`, each starting
@@ -573,6 +600,8 @@ agent so the manager runs end to end without KVM).
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `DAEMON_ONLY_TCP_PORTS` | | Comma-separated TCP ports the daemon reaches through the pod and the guests may not, on any address: forwarded guest traffic to them is dropped. The chart lists the server Pods' target port (unless `guestServerAccess`) and the in-rack archive store's port when `sandboxes.networkPolicy.archiveStoreEgress` is on. `DAEMON_ONLY_TCP_PORT`, the single port an older chart sets, is still read. |
 | `CHECKOUT_AGENT_URL` | | The node's runner-cache agent, e.g. `http://<runner-cache-volumes Service>.tuist-runners.svc.cluster.local:8090`; see "Guest to host: checkout". Needs `POD_NAME`. Empty ignores checkout grants. The chart sets it, and lists 8090 in `DAEMON_ONLY_TCP_PORTS`, when Linux cache volumes are enabled. |
+| `CHECKOUT_WORKSPACES_GIB` | `0` | Budget for prepared checkout workspaces under `DATA_DIR/checkouts`, taken out of `DISK_BUDGET_GIB` (the daemon reports the budget less this and the blob cache, and refuses to start unless both fit). Needs `CHECKOUT_AGENT_URL`. `0` disables them. A build also needs free space for four times the budget plus 10 GiB. |
+| `CHECKOUT_WORKSPACES_TTL` | `6h` | How long a prepared workspace is used after it is built. |
 | `GUESTS_REACH_SERVER` | `false` | With `SERVER_URL` set and this false, the daemon resolves `SERVER_URL` at startup (retrying cluster DNS for a minute) and drops guest traffic to those addresses and port. |
 | `LOG_LEVEL` | `info` | slog level. |
 

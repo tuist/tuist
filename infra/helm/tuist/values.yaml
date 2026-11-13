@@ -2764,6 +2764,12 @@ sandboxes:
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
+  # With Linux cache volumes on, the daemon keeps a prepared workspace image
+  # per repository from the first seed of its checkout master on the node,
+  # and a fresh sandbox's first worker starts from a reflink of it instead of
+  # copying the tree into the guest. The images come out of diskGiB. 0 turns
+  # them off. See infra/sandboxd/AGENTS.md, "Guest to host: checkout".
+  checkoutWorkspacesGiB: 0
   # Hours an Amp Orb stays paused on its node before the server archives its
   # kernel, rootfs and workspace (not its memory image) to the account's
   # object storage and deletes the node copy, releasing its disk reservation.

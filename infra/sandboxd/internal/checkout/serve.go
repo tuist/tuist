@@ -90,23 +90,29 @@ type Response struct {
 	Error string `json:"error,omitempty"`
 }
 
+// Recorder starts keeping a copy of the tree a seed relays (see
+// Workspaces.Recorder). It returns nil to keep none.
+type Recorder func() Recording
+
 type server struct {
 	agent    Agent
 	grant    protocol.CheckoutGrant
 	limits   Limits
 	log      *slog.Logger
+	record   Recorder
 	seeded   atomic.Bool
 	exported atomic.Bool
 }
 
 // Serve answers one worker's guest for grant until ctx ends, then closes l and
 // waits for the requests it accepted, which ctx ends too. An arming serves at
-// most one seed and one export.
-func Serve(ctx context.Context, l net.Listener, agent Agent, grant protocol.CheckoutGrant, limits Limits, log *slog.Logger) {
+// most one seed and one export. A non-nil record keeps a copy of the seed's
+// tree for the node's prepared workspaces.
+func Serve(ctx context.Context, l net.Listener, agent Agent, grant protocol.CheckoutGrant, limits Limits, log *slog.Logger, record Recorder) {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &server{agent: agent, grant: grant, limits: limits.withDefaults(), log: log}
+	s := &server{agent: agent, grant: grant, limits: limits.withDefaults(), log: log, record: record}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go func() {
@@ -190,11 +196,23 @@ func (s *server) seed(ctx context.Context, conn net.Conn) {
 	if reply(conn, Response{OK: true}) != nil {
 		return
 	}
-	n, err := io.Copy(conn, io.LimitReader(tree, s.limits.SeedBytes))
+	// The copy sees what the guest is sent; a recording never fails the seed.
+	var recording Recording
+	if s.record != nil {
+		recording = s.record()
+	}
+	var source io.Reader = io.LimitReader(tree, s.limits.SeedBytes)
+	if recording != nil {
+		source = io.TeeReader(source, recording)
+	}
+	n, err := io.Copy(conn, source)
 	if err == nil && n == s.limits.SeedBytes {
 		if extra, _ := tree.Read(make([]byte, 1)); extra > 0 {
 			err = errors.New("seed exceeds its bound")
 		}
+	}
+	if recording != nil {
+		recording.Finish(err == nil)
 	}
 	if err != nil {
 		s.log.Warn("checkout seed interrupted", "use", s.grant.ID, "bytes", n, "error", err)

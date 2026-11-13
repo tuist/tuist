@@ -103,6 +103,9 @@ func (c *sessionCheckout) seed(ctx context.Context) (string, error) {
 		if c.share != "" {
 			_ = os.Remove(filepath.Join(c.share, checkoutImageName))
 		}
+		if c.adoptPrepared() {
+			return "prepared", nil
+		}
 		return "present", nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, checkoutSeedTimeout)
@@ -149,6 +152,40 @@ func (c *sessionCheckout) seed(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return "warm", nil
+}
+
+// checkoutPreparedFile marks a repository the host put in the workspace
+// image before the guest started, with the master's commit and LFS objects
+// (sandboxd's protocol.CheckoutPreparedFile). The first worker takes it as
+// the state its export starts from.
+const checkoutPreparedFile = ".git/sbx-checkout-prepared.json"
+
+// adoptPrepared moves a prepared tree's state to where the export reads it,
+// unless the session already has one. It reports whether it did.
+func (c *sessionCheckout) adoptPrepared() bool {
+	marker := filepath.Join(c.path, checkoutPreparedFile)
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return false
+	}
+	defer os.Remove(marker)
+	if _, err := os.Lstat(c.state); err == nil {
+		return false
+	}
+	var state checkoutState
+	if json.Unmarshal(data, &state) != nil || !checkoutCommitPattern.MatchString(state.Base) {
+		return false
+	}
+	for _, oid := range state.LFS {
+		if !checkoutOIDPattern.MatchString(oid) {
+			return false
+		}
+	}
+	data, err = json.Marshal(state)
+	if err != nil {
+		return false
+	}
+	return os.WriteFile(c.state, data, 0o644) == nil
 }
 
 // seedFromImage copies the clone of the master the macOS host put in the share,

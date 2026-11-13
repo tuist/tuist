@@ -1139,7 +1139,17 @@ The archive contains everything needed to understand the account's complete data
   the sandbox; Linux, streamed over vsock from the cache agent), and after the session the
   objects of the default branch's commit GitHub reported at the session's start go to
   `.incoming/sandbox-<use UUID>` and are built from like a default-branch job's export. A
-  session's own commits and branches never reach a master. `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
+  session's own commits and branches never reach a master. On Linux, the node's sandbox
+  daemon also keeps the tree of the last seed it relayed for each volume as a prepared
+  workspace image (`/data/sandboxes/checkouts/<key digest>.ext4`, with `<key digest>.json`
+  naming the volume's scope and clear generation, the repository's path in the workspace,
+  the image size, the runner user and when it was built): an ext4 workspace disk holding
+  that copy of the master's tree, which a new session's sandbox on the node starts from as a
+  reflink clone instead of a seed. An image is used for six hours after it is built, then
+  removed and rebuilt from the next seed; images are also removed oldest first beyond the
+  node's `sandboxes.checkoutWorkspacesGiB`, and at daemon start only unfinished builds are
+  discarded. It holds the same content as the master it was copied from; a clone becomes
+  part of that sandbox's disk (see Sandboxes). `<runner-cache-root>/custom/checkouts/.bin/git-lfs` is the pinned Git LFS binary the
   host uses, not customer data.
 
 - **Docker cache volumes** (Linux hosts, `<cache filesystem>/images/<use UUID>.img` and
