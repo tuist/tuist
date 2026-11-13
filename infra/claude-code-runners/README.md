@@ -97,6 +97,23 @@ it from the share, and downloads it only when the host has not fetched it yet.
   named at allocation, which the node verifies and builds the next master
   from, under the rules CI exports follow. macOS goes through a per-VM share,
   Linux through vsock to sandboxd and the runner-cache agent.
+- **Setup script and repository snapshots (Linux):** an environment's
+  optional `setup_script` (set on create or with `PATCH
+  .../agent-environments/<id>`, at most 64 KB) prepares a repository: install
+  toolchains and dependencies, prebuild. Sessions boot from the newest
+  snapshot of their repository built with the current script, so the runner
+  only fetches what changed. A session that finds none starts on the
+  template as without a script and has one built in the background: a
+  builder sandbox of the environment's shape clones the default branch with
+  a contents-read token, runs the script there as `user` in a Bash login
+  shell for up to an hour, with only the Tuist environment above (no Tuist
+  or GitHub credential), and its disks are saved once it exits 0. No
+  session waits for it. The script's output is in `~/.claude-code-setup.log`
+  in the sessions. A failed script is logged and not built again for an
+  hour. A changed script or a new template image on the nodes builds again
+  on the next session; a new snapshot replaces the older ones of the
+  repository, and one unused for 72 hours is deleted. macOS environments do
+  not take a script yet.
 
 `run-orchestrator.test.sh` and `spawn-runner.test.mjs` run in the sandbox-image
 workflow. Not yet run end to end: a live session needs a Team or Enterprise

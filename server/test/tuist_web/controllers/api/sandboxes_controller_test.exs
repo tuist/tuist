@@ -369,6 +369,32 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
       assert response["message"] =~ "minLength"
     end
+
+    test "sets a Linux Claude Code environment's setup script and refuses one on other environments", %{
+      conn: conn,
+      account: account
+    } do
+      claude_code =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_01linux")
+
+      assert %{"setup_script" => "mise install\n"} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{claude_code.id}", %{
+                 setup_script: "mise install\n"
+               })
+               |> json_response(:ok)
+
+      managed_agents = agent_environment_fixture(account: account)
+
+      response =
+        conn
+        |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{managed_agents.id}", %{
+          setup_script: "mise install\n"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "setup_script"
+    end
   end
 
   describe "authorization" do

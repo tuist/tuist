@@ -1,6 +1,9 @@
 defmodule Tuist.Sandboxes.DiskSnapshots do
   @moduledoc """
-  Disk snapshots of paused sandboxes (`Tuist.Sandboxes.DiskSnapshot`).
+  Disk snapshots of paused sandboxes (`Tuist.Sandboxes.DiskSnapshot`): of
+  Amp Orbs under Amp's identifier, and of the builder sandboxes in which a
+  Claude Code environment's setup script prepared a repository
+  (`Tuist.Sandboxes.ClaudeCodeSnapshots`).
 
   Saving a snapshot is a copy-on-write clone on the node that held its
   source sandbox, and a sandbox created from it on that node clones it
@@ -23,10 +26,10 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   archived, and it is the first thing dropped when a node needs room
   (`drop_copy/1`).
 
-  Snapshots unused for longer than Amp reuses one are deleted with their
-  archive and copies, copies unused for a day are dropped, and the node's
-  reports reconcile copies the database no longer knows and rows whose copy
-  the node lost.
+  Snapshots unused for longer than Amp reuses one, Claude Code snapshots
+  included, are deleted with their archive and copies, copies unused for a
+  day are dropped, and the node's reports reconcile copies the database no
+  longer knows and rows whose copy the node lost.
   """
   import Ecto.Query
 
@@ -35,12 +38,14 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   alias Tuist.Runners.Sites
   alias Tuist.Runners.VolumePlacement
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshotCopy
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker
   alias Tuist.Sandboxes.Workers.CopyDiskSnapshotWorker
   alias Tuist.Tasks
 
@@ -49,6 +54,11 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # Amp reuses a project snapshot for up to 72 hours.
   @unused_retention_hours 72
   @stuck_saving_minutes 15
+  # A build's command runs for at most an hour
+  # (`Tuist.Sandboxes.ClaudeCodeSnapshots`); its job then saves or fails it.
+  @stuck_build_minutes 90
+  # A failed build keeps its key from building again for this long.
+  @failed_build_retry_minutes 60
   # A report can be older than a save that just finished.
   @report_grace_seconds 120
   @save_timeout 120_000
@@ -87,6 +97,116 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   @doc """
+  The newest ready snapshot of `repository` (`owner/name`) a Claude Code
+  environment saved after running the setup script whose SHA-256 is
+  `setup_sha256`, for the environment's template and workspace size. Only a
+  snapshot of a template tag a connected node creates new sandboxes with
+  qualifies: the rootfs carries `sbx-worker`, so a snapshot of an older
+  image would hold sessions back on it.
+  """
+  def find_ready_for_repository(%AgentEnvironment{} = agent_environment, repository, setup_sha256)
+      when is_binary(repository) and is_binary(setup_sha256) do
+    case current_template_tags(agent_environment.template) do
+      [] ->
+        nil
+
+      tags ->
+        Repo.one(
+          from(s in DiskSnapshot,
+            where: s.agent_environment_id == ^agent_environment.id and s.repository == ^repository,
+            where: s.setup_sha256 == ^setup_sha256 and s.state == :ready,
+            where: s.template == ^agent_environment.template and s.template_tag in ^tags,
+            where: s.workspace_gb == ^agent_environment.workspace_gb,
+            order_by: [desc: s.inserted_at],
+            limit: 1
+          )
+        )
+    end
+  end
+
+  # The tag a node gives a new sandbox of `template`: its configured default
+  # tag for its default template, else the only one it has ready
+  # (sandboxd's `resolveTemplate`).
+  defp current_template_tags(template) do
+    Nodes.connected_nodes()
+    |> Enum.flat_map(fn node ->
+      configured = Map.get(node, :default_template_tag)
+
+      if Map.get(node, :default_template) == template and is_binary(configured) do
+        [configured]
+      else
+        for %{name: ^template, ready: true, tag: tag} <- Map.get(node, :templates, []), is_binary(tag), do: tag
+      end
+    end)
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Starts building the snapshot of `repository` for a Claude Code
+  environment and the setup script whose SHA-256 is `setup_sha256`
+  (`Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker`). Answers
+  `{:error, :already_building}` while a build of the same key runs or for a
+  while after one failed.
+  """
+  def start_build(%AgentEnvironment{} = agent_environment, repository, setup_sha256)
+      when is_binary(repository) and is_binary(setup_sha256) do
+    attrs = %{
+      account_id: agent_environment.account_id,
+      agent_environment_id: agent_environment.id,
+      repository: repository,
+      setup_sha256: setup_sha256,
+      template: agent_environment.template,
+      workspace_gb: agent_environment.workspace_gb,
+      last_used_at: now()
+    }
+
+    Repo.transaction(fn ->
+      with {:ok, build} <- attrs |> DiskSnapshot.build_changeset() |> Repo.insert(),
+           {:ok, _job} <- %{disk_snapshot_id: build.id} |> BuildRepositorySnapshotWorker.new() |> Oban.insert() do
+        build
+      else
+        {:error, reason} ->
+          Repo.rollback(if unique_violation?(reason), do: :already_building, else: reason)
+      end
+    end)
+  end
+
+  defp unique_violation?(%Ecto.Changeset{errors: errors}),
+    do: Enum.any?(errors, fn {_field, {_message, opts}} -> opts[:constraint] == :unique end)
+
+  defp unique_violation?(_reason), do: false
+
+  @doc """
+  Saves the disks of a build's paused builder sandbox as the repository's
+  snapshot, replacing the environment's older snapshots of the repository,
+  and ends the build.
+  """
+  def save_build(%DiskSnapshot{state: :building} = build, %Sandbox{state: :paused, node_name: node_name} = sandbox)
+      when is_binary(node_name) do
+    with {:ok, ready} <-
+           do_save(sandbox, %{
+             agent_environment_id: build.agent_environment_id,
+             repository: build.repository,
+             setup_sha256: build.setup_sha256
+           }) do
+      Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^build.id))
+      {:ok, ready}
+    end
+  end
+
+  @doc """
+  Marks a build failed. The row keeps the key from building again until
+  `delete_expired/0` removes it.
+  """
+  def fail_build(%DiskSnapshot{state: :building, id: id}) do
+    Repo.update_all(from(s in DiskSnapshot, where: s.id == ^id and s.state == :building),
+      set: [state: :failed, updated_at: now()]
+    )
+
+    :ok
+  end
+
+  @doc """
   Saves a paused sandbox's disks under `amp_snapshot_id` on its node and
   replaces the older snapshots saved under that identifier, then queues its
   upload to object storage (`Archives.queue_disk_snapshot/1`). The
@@ -98,17 +218,15 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     if saved_since_pause?(sandbox, amp_snapshot_id) do
       {:ok, :already_saved}
     else
-      do_save(sandbox, amp_snapshot_id)
+      do_save(sandbox, %{amp_snapshot_id: amp_snapshot_id, lineage_id: lineage_id(sandbox, amp_snapshot_id)})
     end
   end
 
   def save(%Sandbox{state: state}, _amp_snapshot_id), do: {:error, {:invalid_state, state}}
 
-  defp do_save(%Sandbox{node_name: node_name} = sandbox, amp_snapshot_id) do
+  defp do_save(%Sandbox{node_name: node_name} = sandbox, key) do
     attrs = %{
       account_id: sandbox.account_id,
-      amp_snapshot_id: amp_snapshot_id,
-      lineage_id: lineage_id(sandbox, amp_snapshot_id),
       source_sandbox_id: sandbox.id,
       node_name: node_name,
       template: sandbox.template,
@@ -116,6 +234,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       workspace_gb: sandbox.workspace_gb,
       last_used_at: now()
     }
+
+    attrs = Map.merge(attrs, key)
 
     with {:ok, node} <- connected_node(node_name),
          {:ok, snapshot} <-
@@ -175,10 +295,25 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     Repo.exists?(query)
   end
 
+  # A Claude Code environment keeps one snapshot per repository: the newest
+  # save replaces the older ready ones, whichever setup script they ran.
+  # Builds of the repository are left to finish.
+  #
   # Amp refreshes a project snapshot under a new identifier: it spawns an
   # Orb from the current one and has it save the next. Once that save is
   # ready Amp boots new Orbs from it, so copies of the identifier the Orb
   # was spawned from are superseded too, not only older saves of this one.
+  defp delete_superseded(%DiskSnapshot{agent_environment_id: agent_environment_id} = snapshot, _sandbox)
+       when is_integer(agent_environment_id) do
+    from(s in DiskSnapshot,
+      where:
+        s.agent_environment_id == ^agent_environment_id and s.repository == ^snapshot.repository and
+          s.state == :ready and s.id != ^snapshot.id and s.inserted_at <= ^snapshot.inserted_at
+    )
+    |> Repo.all()
+    |> Enum.each(&delete/1)
+  end
+
   defp delete_superseded(%DiskSnapshot{} = snapshot, %Sandbox{amp_base_snapshot_id: base}) do
     superseded_ids = Enum.reject([snapshot.amp_snapshot_id, base], &is_nil/1)
 
@@ -321,17 +456,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   @doc """
-  Deletes snapshots unused for longer than Amp reuses one, and saves that
-  never finished.
+  Deletes snapshots unused for longer than Amp reuses one, saves that never
+  finished, builds that outlived their command's deadline (with their
+  builder sandbox), and failed builds old enough to try again.
   """
   def delete_expired do
     unused_before = DateTime.add(now(), -@unused_retention_hours, :hour)
     stuck_before = DateTime.add(now(), -@stuck_saving_minutes, :minute)
+    build_before = DateTime.add(now(), -@stuck_build_minutes, :minute)
+    failed_before = DateTime.add(now(), -@failed_build_retry_minutes, :minute)
 
     from(s in DiskSnapshot,
       where:
         (s.state == :ready and s.last_used_at < ^unused_before) or
-          (s.state == :saving and s.updated_at < ^stuck_before)
+          (s.state == :saving and s.updated_at < ^stuck_before) or
+          (s.state == :building and s.inserted_at < ^build_before) or
+          (s.state == :failed and s.updated_at < ^failed_before)
     )
     |> Repo.all()
     |> Enum.each(fn snapshot ->
@@ -342,9 +482,14 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
         last_used_at: snapshot.last_used_at
       )
 
+      delete_builder(snapshot)
       delete(snapshot)
     end)
 
+    delete_expired_copies()
+  end
+
+  defp delete_expired_copies do
     copy_unused_before = DateTime.add(now(), -@copy_unused_hours, :hour)
     copy_stuck_before = DateTime.add(now(), -@stuck_copying_minutes, :minute)
 
@@ -364,6 +509,16 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       delete_copy(copy)
     end)
   end
+
+  # A build's builder sandbox has the build's id.
+  defp delete_builder(%DiskSnapshot{state: :building, id: id}) do
+    case Sandboxes.get_sandbox_by_id(id) do
+      %Sandbox{} = sandbox -> Sandboxes.delete(sandbox)
+      nil -> :ok
+    end
+  end
+
+  defp delete_builder(_snapshot), do: :ok
 
   @doc """
   Aligns the database with the disk snapshots a node lists in its `hello`

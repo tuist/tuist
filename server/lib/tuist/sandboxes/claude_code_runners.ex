@@ -22,6 +22,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   after the session has been idle for the environment's `max_idle_seconds`,
   which ends the residency and pauses the sandbox; the session's next message
   resumes the same sandbox, checkout included.
+
+  When the environment has a setup script, a new Linux sandbox boots from
+  the repository's snapshot, where the runner finds its clone in place and
+  only fetches what changed since. A new session that finds no snapshot
+  starts on the template and has one built for the sessions after it
+  (`Tuist.Sandboxes.ClaudeCodeSnapshots`).
   """
   alias Tuist.FeatureFlags
   alias Tuist.Repo
@@ -30,6 +36,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Anthropic.Supervisor, as: AnthropicSupervisor
   alias Tuist.Sandboxes.Capacity
+  alias Tuist.Sandboxes.ClaudeCodeSnapshots
   alias Tuist.Sandboxes.Router
   alias Tuist.Sandboxes.Sandbox
 
@@ -91,6 +98,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
     work_id = "claude-code-" <> (:sha256 |> :crypto.hash(order_id) |> Base.encode16(case: :lower) |> binary_part(0, 32))
 
     repository = repository(Map.get(order, :repository_url))
+    snapshot = repository && ClaudeCodeSnapshots.find(agent_environment, repository)
 
     started_at = System.monotonic_time()
 
@@ -101,6 +109,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
         fn ->
           with {:ok, sandbox, created?} <-
                  Router.find_or_create_sandbox(agent_environment, session_id,
+                   from_disk_snapshot: snapshot,
                    prefer_nodes: checkout_nodes(agent_environment, repository)
                  ),
                placement_ms = milliseconds_since(started_at),
@@ -111,6 +120,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
                    worker_env(agent_environment, sandbox, work_id, work_order),
                    checkout(sandbox, repository, work_id)
                  ) do
+            if (created? and repository) && is_nil(snapshot),
+              do: ClaudeCodeSnapshots.request_build(agent_environment, repository)
+
             {:ok, sandbox, placement_ms}
           end
         end,

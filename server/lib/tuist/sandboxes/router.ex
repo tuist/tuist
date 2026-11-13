@@ -140,8 +140,9 @@ defmodule Tuist.Sandboxes.Router do
 
   @doc """
   The session's sandbox, created from the environment when it has none or
-  only one that died, with whether this call created it. A created one
-  goes to the `prefer_nodes:` first when they have room
+  only one that died, with whether this call created it. A created sandbox
+  is cloned from `opts[:from_disk_snapshot]` when given, and otherwise goes
+  to the `prefer_nodes:` first when they have room
   (`Tuist.Sandboxes.create_sandbox/3`).
   """
   def find_or_create_sandbox(agent_environment, session_id, opts \\ []) do
@@ -178,7 +179,7 @@ defmodule Tuist.Sandboxes.Router do
                memory_mb: agent_environment.memory_mb,
                workspace_gb: agent_environment.workspace_gb
              },
-             Keyword.take(opts, [:prefer_nodes])
+             Keyword.take(opts, [:from_disk_snapshot, :prefer_nodes])
            ) do
       {:ok, sandbox, true}
     end
@@ -266,12 +267,15 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  # Private github.com repositories the account named are cloned with a
-  # token minted for that one repository with read access to its
-  # contents, passed to git as an HTTP header through its environment.
-  # Without an installation, or for anonymous repositories, git gets no
-  # credentials.
-  defp credentials(account, url, :account) do
+  @doc """
+  The git environment that clones `url` with the account's credentials, and
+  the secret to redact from git's output. Private github.com repositories
+  the account named are cloned with a token minted for that one repository
+  with read access to its contents, passed to git as an HTTP header through
+  its environment. Without an installation, or for anonymous repositories,
+  git gets no credentials.
+  """
+  def credentials(account, url, :account) do
     with %URI{scheme: "https", host: "github.com", path: "/" <> _ = path} <- URI.parse(url),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{token: token}} when is_binary(token) <-
@@ -288,7 +292,7 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  defp credentials(_account, _url, :anonymous), do: {%{}, nil}
+  def credentials(_account, _url, :anonymous), do: {%{}, nil}
 
   defp redact(output, nil), do: output
   defp redact(output, secret), do: String.replace(output, secret, "[REDACTED]")
