@@ -43,7 +43,7 @@ test('native Linux ImageOS matches the actual Ubuntu release, not a fixed profil
 test('Linux staging waits and fails closed in canary; other environments preserve background holds', () => {
   const deploy = deployment.jobs.deploy;
   const helm = deploy.steps.find(step => step.name === 'helm upgrade --install');
-  assert.equal(deploy['timeout-minutes'], 125);
+  assert.equal(deploy['timeout-minutes'], 150);
   assert.equal(helm['timeout-minutes'], 70);
   assert.match(helm.run, /if ! bash \.github\/scripts\/linux-runner-image-prepare\.sh "\$kvm_render" "\$HELM_RELEASE_NAME" "\$NAMESPACE"/);
   assert.match(helm.run, /::warning::Could not check Linux image staging/);
