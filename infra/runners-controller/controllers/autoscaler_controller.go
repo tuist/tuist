@@ -697,14 +697,15 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			lastDemandAt = p.Status.LastDemandAt.Time
 		}
 		demands = append(demands, scaling.PoolDemand{
-			Name:         p.Name,
-			PerPodCost:   cost,
-			Floor:        scaling.WarmFloor(sig, k),
-			InUse:        sig.InUse(),
-			LastDemandAt: lastDemandAt,
-			Load:         sig.Load(),
-			Target:       scaling.DesiredReplicas(sig, k),
-			ShapeKey:     shape.key(),
+			Name:          p.Name,
+			PerPodCost:    cost,
+			Floor:         scaling.WarmFloor(sig, k),
+			InUse:         sig.InUse(),
+			HoursWithJobs: sig.HoursWithJobs,
+			LastDemandAt:  lastDemandAt,
+			Load:          sig.Load(),
+			Target:        scaling.DesiredReplicas(sig, k),
+			ShapeKey:      shape.key(),
 		})
 		members[p.Name] = fleetMember{pool: p, cost: cost, queued: sig.Queued}
 	}

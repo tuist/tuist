@@ -104,11 +104,15 @@ cancellable and leaves the reserve intact. See
   in `capByShape` too. Learned floors on a busy rack sum past its seats, and
   an even split left the pools whose jobs were arriving short of warm
   runners while pools with no job in an hour stayed warm. The floors of
-  pools not in use are then funded whole, most recently used first
-  (`status.lastDemandAt`, the recency tart-kubelet ranks goldens by), so a
-  pool with a fan-out this morning stays warm before one whose only jobs
-  are a nightly run: on 2026-11-13 the two split a full rack's last seats
-  evenly and neither had its burst warm.
+  pools not in use are then funded whole, the pool with jobs in the most
+  hours of the last two weeks first (the server's `hours_with_jobs`
+  signal), then the most recently used (`status.lastDemandAt`, the recency
+  tart-kubelet ranks goldens by), so a pool with fan-outs every working
+  hour stays warm before one whose only jobs are a nightly run. On
+  2026-11-13 an even split left neither with its burst warm, and ranking by
+  recency alone then gave the nightly pool every seat because its last job
+  ended four minutes later. A server without the signal reports 0 for
+  every pool, which leaves recency to decide.
 
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the

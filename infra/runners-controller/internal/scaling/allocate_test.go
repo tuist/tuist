@@ -513,6 +513,45 @@ func TestAllocateFleet_IdleFloorsByRecencySpendWhatIsLeft(t *testing.T) {
 	}
 }
 
+// The rack at 15:30 on 2026-11-13: 26-3's nightly-only jobs finished four
+// minutes after 27-1's, and 27-0 holds the rest. Recency alone gave 26-3 all
+// seven seats left; 27-1, with jobs in 249 hours of the last two weeks
+// against 26-3's 34, gets them.
+func TestAllocateFleet_IdleFloorsGoToThePoolUsedInMoreHours(t *testing.T) {
+	slot := 24 * gib
+	now := time.Date(2026, 11, 13, 15, 30, 0, 0, time.UTC)
+	pools := []PoolDemand{
+		{Name: "26-3", PerPodCost: slot, Floor: 8, Target: 8, HoursWithJobs: 34, LastDemandAt: now.Add(-60 * time.Minute)},
+		{Name: "27-1", PerPodCost: slot, Floor: 11, Target: 11, HoursWithJobs: 249, LastDemandAt: now.Add(-64 * time.Minute)},
+		{Name: "27-0", PerPodCost: slot, Floor: 11, Load: 4, Target: 11, InUse: true, HoursWithJobs: 257, LastDemandAt: now},
+	}
+
+	got := AllocateFleet(pools, 18*slot, nil)
+
+	if got["27-0"] != 11 {
+		t.Errorf("27-0 = %d, want 11 (in use: its load and its floor)", got["27-0"])
+	}
+	if got["27-1"] != 7 || got["26-3"] != 0 {
+		t.Errorf("the seven seats left should keep 27-1 warm, got 27-1=%d 26-3=%d", got["27-1"], got["26-3"])
+	}
+}
+
+// The shape cap ranks idle floors by hours with jobs before recency too.
+func TestAllocateFleetShapeCapSeatsIdleFloorsByHoursWithJobs(t *testing.T) {
+	slot := 24 * gib
+	now := time.Date(2026, 11, 13, 15, 30, 0, 0, time.UTC)
+	pools := []PoolDemand{
+		{Name: "26-3", PerPodCost: slot, Floor: 8, Target: 8, ShapeKey: "8vcpu", HoursWithJobs: 34, LastDemandAt: now.Add(-60 * time.Minute)},
+		{Name: "27-1", PerPodCost: slot, Floor: 11, Target: 11, ShapeKey: "8vcpu", HoursWithJobs: 249, LastDemandAt: now.Add(-64 * time.Minute)},
+	}
+
+	got := AllocateFleet(pools, 1000*gib, map[string]int32{"8vcpu": 13})
+
+	if got["27-1"] != 11 || got["26-3"] != 2 {
+		t.Errorf("want 27-1=11 26-3=2, got %v", got)
+	}
+}
+
 // The shape cap seats idle floors the same way: the rack's 8 vCPU seats are
 // capped per shape before the byte budget, and that cap decides first.
 func TestAllocateFleetShapeCapSeatsIdleFloorsByRecency(t *testing.T) {
