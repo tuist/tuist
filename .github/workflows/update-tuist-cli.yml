@@ -1,5 +1,7 @@
 # Bumps the `tuist` dev-tooling pin in mise.toml to the latest CLI release
-# (including canary prereleases) and regenerates mise.lock in the SAME commit.
+# (including canary prereleases) and regenerates mise.lock in the SAME commit,
+# along with the Tuist CLI the sandbox image (infra/sandbox-image/Dockerfile)
+# installs.
 #
 # Renovate can't own this: its custom regex manager bumps mise.toml but can't
 # write mise.lock (the six per-platform checksums need fetching, not regex), and
@@ -65,6 +67,18 @@ jobs:
           set -euo pipefail
           sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml
           grep -E '^[[:space:]]*tuist = "' mise.toml
+      - name: Bump the sandbox image's Tuist CLI
+        if: steps.resolve.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          sha=$(curl -fsSL --retry 3 "https://github.com/tuist/tuist/releases/download/${VERSION}/SHASUMS256.txt" \
+            | awk '$2 ~ /(^|\/)tuist-linux-x86_64\.tar\.gz$/ { print $1 }')
+          if [ -z "$sha" ]; then echo "No tuist-linux-x86_64.tar.gz checksum in ${VERSION}" >&2; exit 1; fi
+          sed -i -E -e "s|^ARG TUIST_VERSION=.*|ARG TUIST_VERSION=${VERSION}|" \
+            -e "s|^ARG TUIST_SHA256=.*|ARG TUIST_SHA256=${sha}|" infra/sandbox-image/Dockerfile
+          grep -E '^ARG TUIST_(VERSION|SHA256)=' infra/sandbox-image/Dockerfile
       - uses: ./.github/actions/mise
         if: steps.resolve.outputs.changed == 'true'
         with:
@@ -115,12 +129,13 @@ jobs:
           commit-message: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
           title: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
           body: |
-            Bumps the `tuist` dev-tooling pin in `mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves.
+            Bumps the `tuist` dev-tooling pin in `mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves, and the sandbox image's Tuist CLI to the same release.
 
             Opened by the `update-tuist-cli` workflow.
           add-paths: |
             mise.toml
             mise.lock
+            infra/sandbox-image/Dockerfile
           committer: "github-actions <github-actions@github.com>"
           author: "github-actions <github-actions@github.com>"
       - name: Enable auto-merge
