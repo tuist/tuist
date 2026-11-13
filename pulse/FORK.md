@@ -71,6 +71,10 @@ line under its license header, or a `Tuist:` comment at the change.
     this check; Tuist's deployments do not expose the MySQL port.
   - SQL texts over 8 MiB. Parsing runs on a stack sized to the input, so a long
     statement cannot overflow the parser or its drop.
+- **Release image protoc** ([`docker/buildx/ubuntu/Dockerfile`](docker/buildx/ubuntu/Dockerfile)).
+  The image `pulse-release.yml` builds installed Ubuntu 22.04's protoc 3.12,
+  which cannot compile `substrait`'s proto3 optional fields. It now installs
+  protoc 29.3 from GitHub, checksum-pinned, as upstream's dev-builder does.
 
 ## Build, release and deploy
 
