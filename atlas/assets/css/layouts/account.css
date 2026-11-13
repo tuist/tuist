@@ -211,6 +211,20 @@
       overflow-wrap: anywhere;
     }
 
+    & [data-part="arguments"] {
+      margin: 0;
+      max-height: 24rem;
+      overflow: auto;
+      padding: var(--noora-spacing-4);
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-secondary);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-code-small);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
     & [data-part="hint"] {
       margin: 0;
       color: var(--noora-surface-label-secondary);

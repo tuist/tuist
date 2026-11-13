@@ -1369,7 +1369,7 @@
               "transformations": []
             }
           },
-          "description": "From the Kura nodes themselves: `kura_node_info` exported by every production Kura pod, labelled with the tenant (account handle) and region. Accounts = distinct tenants, Instances = distinct tenant+region pairs (one per `KuraInstance`), Pods = replicas. Runner-cache instances in the `scw-fr-par-runners` region count too.",
+          "description": "From the Kura nodes themselves: `kura_node_info` exported by every production Kura pod, labelled with the tenant (account handle) and region. Accounts = distinct tenants, Instances = distinct tenant+region pairs (one per `KuraInstance`), Pods = replicas. Runner-cache instances in the rack site regions (`<site>-runners`) count too.",
           "id": 4,
           "links": [],
           "title": "Live Kura instances",

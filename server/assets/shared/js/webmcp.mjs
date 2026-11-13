@@ -183,7 +183,7 @@ const dashboardHeaderbar = (document) => document?.querySelector("header[data-we
 // The sidebar's pages, then the breadcrumbs' accounts and projects; only links
 // to dashboard paths, so the menus' create-account and create-project entries,
 // which are in the footer, are left out.
-function dashboardLinks(document, location) {
+export function dashboardLinks(document, location) {
   const headerbar = dashboardHeaderbar(document);
   if (!headerbar) return [];
 
@@ -202,9 +202,24 @@ function dashboardLinks(document, location) {
       return { link, title, description: `The ${title} ${kind}` };
     });
 
+  const linkedPages = [...sidebarPages, ...menuPages(accounts, "account"), ...menuPages(projects, "project")];
+  // The search catalog's titles and descriptions come first, but a page already
+  // linked on this page keeps that link, so it still navigates through LiveView.
+  const links = new Map(linkedPages.map((page) => [page.link.getAttribute("href"), page.link]).reverse());
+  const catalog = document.querySelector("#dashboard-search")?.dataset.pages;
+  const catalogPages = catalog
+    ? JSON.parse(catalog).map((page) => {
+        let link = links.get(page.path);
+        if (!link) {
+          link = document.createElement("a");
+          link.href = page.path;
+        }
+        return { ...page, link };
+      })
+    : [];
   const seen = new Set();
-  return [...sidebarPages, ...menuPages(accounts, "account"), ...menuPages(projects, "project")].flatMap((page) => {
-    const path = page.link.getAttribute("href");
+  return [...catalogPages, ...linkedPages].flatMap((page) => {
+    const path = page.path ?? page.link.getAttribute("href");
     if (seen.has(path)) return [];
     seen.add(path);
     return [

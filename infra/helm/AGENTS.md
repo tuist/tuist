@@ -134,8 +134,9 @@ Helm-installed resource; publishing it is a separate rollout step.
   OVH uses both. Staging reuses its prepared Gravelines host as ordinary EU-West
   capacity after retiring the private Linux experiment; its platform overlay
   enables the same public EU-West gateway as production. Staging also retains
-  OVH `ca-east` for remote comparisons; canary uses `ca-east`. Retain the
-  separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
+  OVH `ca-east` for remote comparisons; canary uses `ca-east`. The Scaleway
+  Elastic Metal Mac runner cache (`kuraFleet`) is retired and its chart support
+  removed; the `scw-local-nvme` storage it introduced follows `tuist.kuraCachePools`.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
 - Cilium policy inspection uses the same read tier, limited to
@@ -223,7 +224,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   quarantined-volume reaper exclusion belong together; see
   [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
 
-- Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
+- Runner Kura uses `platform`'s per-site `kura-<site>-runners` ingress-nginx DaemonSets with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. The catalog configures the process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
 
 - The Once events listener (`once.events.v1`, gRPC on the server's port 4001) is served by `platform`'s `grpc-ingress-nginx` controller (`nginx-grpc` class), and its hosts are DNS-only with a cert-manager certificate. Do not move it to the main `nginx` class or turn Cloudflare proxying back on. The main controller keeps upstream keepalive off for the Bandit backends, which makes ingress-nginx send `Connection: close` upstream. HTTP/2 forbids that header, and Cowboy resets the stream with PROTOCOL_ERROR (nginx logs `upstream rejected request with error 1`). Cloudflare answers gRPC to a proxied host with a 403. To check a change, send a gRPC-shaped request (`content-type: application/grpc`) to the host: a healthy listener answers HTTP 200 with a `grpc-status` header.
 

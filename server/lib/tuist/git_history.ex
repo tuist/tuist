@@ -64,10 +64,15 @@ defmodule Tuist.GitHistory do
     window_commits: 5_000,
     deepen_budget_seconds: 60,
     upload_batch_size: 500,
-    # The inputs that change what tests do without changing a source they
-    # compile: dependency pins and manifests, project generation and build
-    # settings, test plans, and the Xcode version.
-    tracked_file_globs: [
+    commit_file_limit: 200_000
+  }
+
+  # The inputs, per build system, that change what tests do without changing
+  # a source they compile: dependency pins and manifests, project and build
+  # settings, test plans, and the toolchain version. A build system without
+  # its own list tracks Xcode's, as every project did before.
+  @tracked_file_globs %{
+    xcode: [
       "**/Package.resolved",
       "**/Package.swift",
       "**/Project.swift",
@@ -81,7 +86,27 @@ defmodule Tuist.GitHistory do
       "**/Cartfile.resolved",
       ".xcode-version"
     ],
-    commit_file_limit: 200_000
+    mix: [
+      "**/mix.exs",
+      "**/mix.lock",
+      "**/config/**",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ],
+    cargo: [
+      "**/Cargo.toml",
+      "**/Cargo.lock",
+      "**/build.rs",
+      "**/.cargo/config",
+      "**/.cargo/config.toml",
+      "**/.config/nextest.toml",
+      "**/rust-toolchain",
+      "**/rust-toolchain.toml",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ]
   }
 
   @insert_chunk_size 5_000
@@ -111,12 +136,12 @@ defmodule Tuist.GitHistory do
   - `tracked_file_globs`: the files, beyond the sources a test compiles, whose
     identity a commit's evidence depends on, read off the commit's file
     listing: any change to one refuses carrying evidence forward at that
-    commit. The same defaults for every project for now;
+    commit. Chosen by the project's build system, Xcode's when it has none;
   - `commit_file_limit`: how many files of a commit's tree a client lists
     before marking the listing truncated.
   """
   def settings(%Project{} = project) do
-    defaults = Map.merge(@defaults, Environment.git_history_defaults())
+    defaults = defaults(project.build_system)
 
     overrides =
       %{
@@ -129,7 +154,13 @@ defmodule Tuist.GitHistory do
     Map.merge(defaults, overrides)
   end
 
-  def settings(nil), do: Map.merge(@defaults, Environment.git_history_defaults())
+  def settings(nil), do: defaults(nil)
+
+  defp defaults(build_system) do
+    @defaults
+    |> Map.put(:tracked_file_globs, Map.get(@tracked_file_globs, build_system, @tracked_file_globs.xcode))
+    |> Map.merge(Environment.git_history_defaults())
+  end
 
   @doc """
   The key a remote URL identifies a repository by: host, owner and name,
@@ -674,18 +705,36 @@ defmodule Tuist.GitHistory do
   defp lock_refs(repository_id),
     do: Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
 
-  @doc "Runs `fun` holding the repository's ref lock, so no commit changes place meanwhile."
-  def with_refs_lock(repository_id, fun) do
-    {:ok, result} =
+  defp try_lock_refs(repository_id) do
+    %{rows: [[locked]]} =
+      Repo.query!("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
+
+    locked
+  end
+
+  @doc """
+  Runs `fun` holding the repository's ref lock, so no commit changes place
+  meanwhile. With `wait: false` it returns `:busy` at once when another
+  holds the lock. A `Repo.rollback/1` in `fun` returns its value.
+  """
+  def with_refs_lock(repository_id, fun, opts \\ []) do
+    result =
       Repo.transaction(
         fn ->
-          lock_refs(repository_id)
-          fun.()
+          if Keyword.get(opts, :wait, true) do
+            lock_refs(repository_id)
+            fun.()
+          else
+            if try_lock_refs(repository_id), do: fun.(), else: Repo.rollback(:busy)
+          end
         end,
         timeout: to_timeout(minute: 5)
       )
 
-    result
+    case result do
+      {:ok, result} -> result
+      {:error, reason} -> reason
+    end
   end
 
   @doc """
@@ -1252,8 +1301,10 @@ defmodule Tuist.GitHistory do
 
   @doc """
   Of the given SHAs, the ones whose file listing the repository lacks,
-  counting a listing whose files expired as missing. A truncated listing is
-  not missing: uploading it again would stop at the same limit.
+  counting a listing whose files expired as missing, unless the commit's
+  file changes are current (`Tuist.GitHistory.FileChanges.current/2`): a
+  commit written from a selection diff has no staged files. A truncated
+  listing is not missing: uploading it again would stop at the same limit.
   """
   def missing_listings(_repository_id, []), do: []
 
@@ -1264,12 +1315,13 @@ defmodule Tuist.GitHistory do
     stored =
       Repo.all(
         from(l in CommitListing,
-          where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff,
+          where: l.repository_id == ^repository_id and l.sha in ^shas and l.staged and l.inserted_at >= ^cutoff,
           select: l.sha
         )
       )
 
-    shas -- stored
+    missing = shas -- stored
+    missing -- FileChanges.current_among(repository_id, missing)
   end
 
   @doc """
@@ -1290,7 +1342,8 @@ defmodule Tuist.GitHistory do
     listed =
       Repo.all(
         from(l in CommitListing,
-          where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff and not l.truncated,
+          where: l.repository_id == ^repository_id and l.sha in ^shas and l.staged and l.inserted_at >= ^cutoff,
+          where: not l.truncated,
           select: l.sha
         )
       )
@@ -1311,7 +1364,8 @@ defmodule Tuist.GitHistory do
   requests and marks the last with `complete: true`, which records the
   listing as stored (`truncated:` when the client stopped at the limit).
   Repeating a request changes nothing: rows replace their equals and the
-  listing row is written once, and again only once its files expired.
+  listing row is written once, and again only once its files expired or
+  when it was written from a selection diff, without staged files.
   """
   def record_listing(repository_id, sha, files, opts \\ []) do
     now = NaiveDateTime.utc_now()
@@ -1346,11 +1400,12 @@ defmodule Tuist.GitHistory do
         ],
         on_conflict:
           from(l in CommitListing,
-            where: l.inserted_at < ^listing_cutoff(),
+            where: l.inserted_at < ^listing_cutoff() or not l.staged,
             update: [
               set: [
                 files_count: fragment("EXCLUDED.files_count"),
                 truncated: fragment("EXCLUDED.truncated"),
+                staged: true,
                 inserted_at: fragment("EXCLUDED.inserted_at")
               ]
             ]

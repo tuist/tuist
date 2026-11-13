@@ -206,12 +206,17 @@ defmodule Tuist.Shards do
         opts \\ []
       ) do
     with {:ok, actor} <- plan_storage(project, account, plan_id, opts) do
-      Storage.multipart_complete_upload(
-        artifact_object_key(account, project, plan_id, artifact),
-        upload_id,
-        parts,
-        actor
-      )
+      key = artifact_object_key(account, project, plan_id, artifact)
+
+      # Clients replay a completion whose response they lost, for example while the shard store
+      # restarts; the store then no longer knows the upload, but the object is there.
+      case Storage.multipart_complete_upload(key, upload_id, parts, actor) do
+        {:error, :multipart_upload_not_found} = error ->
+          if Storage.object_exists?(key, actor), do: :ok, else: error
+
+        result ->
+          result
+      end
     end
   end
 

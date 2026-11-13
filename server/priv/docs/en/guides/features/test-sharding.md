@@ -11,7 +11,7 @@ Modern CI hosts offer multi-core environments that allow some degree of test par
 
 In those cases, you need a system that distributes tests across multiple CI runners and aggregates the results back into a unified view. That's what test sharding does.
 
-Tuist uses historical test timing data to intelligently balance the load across shards using a [bin-packing algorithm](https://en.wikipedia.org/wiki/Bin_packing_problem), so each runner finishes at roughly the same time. Results from all shards are automatically aggregated in <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link>, giving you a single unified view of your test suite across all shards.
+Tuist uses historical test timing data to intelligently balance the load across shards using a [bin-packing algorithm](https://en.wikipedia.org/wiki/Bin_packing_problem), so each runner finishes at roughly the same time. Results from all shards are automatically aggregated in <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link>, giving you a single unified view of your test suite across all shards. Sharding shortens wall-clock time but can add machine time; [Slow tests](https://tuist.dev/solutions/slow-tests) and [CI costs](https://tuist.dev/solutions/ci-costs) explain how to weigh the two.
 
 <.home_cards>
   <.home_card

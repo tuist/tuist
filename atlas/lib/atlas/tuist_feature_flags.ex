@@ -177,7 +177,7 @@ defmodule Atlas.TuistFeatureFlags do
         {:approval_required, approval} ->
           {:error,
            "This Tuist production write needs a person's approval for this exact call. Ask the person you are working " <>
-             "for to approve request #{approval.id} at #{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
+             "for to approve request #{approval.id} at #{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
              "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
              "Never approve it yourself."}
       end

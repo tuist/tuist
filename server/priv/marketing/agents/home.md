@@ -34,6 +34,7 @@ The distinction is **less necessary work versus more execution capacity**. Compu
 | My tests are flaky | [Investigate failures, contain known flakes, and restore reliability](/marketing-markdown/solutions/flaky-tests) |
 | My tests take too long | [Find slow tests, avoid unchanged targets, or balance shards](/marketing-markdown/solutions/slow-tests) |
 | My CI costs are going up | [Measure duplicate work, retries, and total execution cost](/marketing-markdown/solutions/ci-costs) |
+| Bazel is slow on GitHub Actions | [Share a remote cache across ephemeral runners and see where each job spends time](/marketing-markdown/solutions/bazel-github-actions) |
 | Which provider or approach fits? | [Compare Tuist with runner, CI/CD, and build-acceleration providers](/marketing-markdown/compare) |
 
 ## Build systems and Tuist infrastructure
@@ -42,8 +43,9 @@ Keep the build systems that fit the organization and use one productivity platfo
 
 - [Xcode](/marketing-markdown/build-systems/xcode): shared compilation outputs and build/test evidence; generated-project features remain a separate path.
 - [Gradle](/marketing-markdown/build-systems/gradle): shared cacheable task outputs and task/test insights.
-- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching and build/test reporting; Linux remote execution is a separate opt-in for enabled accounts.
+- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching, Linux remote execution, and build/test reporting.
 - [Mix / Elixir](/marketing-markdown/build-systems/elixir): compiled dependency caching, compilation insights, ExUnit history, flaky detection, and test sharding.
+- [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle): how the two differ, where each fits, and how teams run both.
 - [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.
 
 ## Why Tuist

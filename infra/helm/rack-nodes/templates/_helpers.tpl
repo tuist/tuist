@@ -64,9 +64,6 @@ over the same values. rack_chart_test.go keeps the two in step.
 */ -}}
 {{- define "rackNodes.kuraCachePools" -}}
 {{- $pools := list -}}
-{{- if .Values.kuraFleet.enabled -}}
-{{- $pools = append $pools (.Values.kuraFleet.nodePool | default "kura-scw-fr-par") -}}
-{{- end -}}
 {{- if .Values.ovhFleet.enabled -}}
 {{- $pools = append $pools (.Values.ovhFleet.nodePool | default "kura-ovh") -}}
 {{- end -}}

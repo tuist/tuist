@@ -51,10 +51,7 @@
             color={if @enabled, do: "success", else: "neutral"}
           />
         </div>
-        <TuistWeb.Components.UserSecurity.mfa_controls
-          :if={@enabled}
-          recovery_code_count={@recovery_code_count}
-        />
+        <TuistWeb.Components.UserSecurity.mfa_controls :if={@enabled} />
         <form :if={!@enabled} method="post" action={~p"/users/settings/mfa/enroll"}>
           <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
           <.button

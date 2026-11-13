@@ -102,6 +102,10 @@
           <span data-part="label">{@sandbox.id}</span>
         </div>
         <div data-part="metadata">
+          <div data-part="title">{dgettext("dashboard_sandboxes", "Created by")}</div>
+          <SandboxesLive.creator_badge_cell creator={@sandbox.creator_actor} />
+        </div>
+        <div data-part="metadata">
           <div data-part="title">{dgettext("dashboard_sandboxes", "vCPUs")}</div>
           <span data-part="label">{@sandbox.vcpus}</span>
         </div>

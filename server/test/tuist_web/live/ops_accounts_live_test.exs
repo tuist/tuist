@@ -29,7 +29,7 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     assert_redirect(view, path, 5_000)
 
     challenged = conn |> recycle() |> get(path)
-    assert redirected_to(challenged) == ~p"/users/log_in"
+    assert redirected_to(challenged) == ~p"/users/log_in?#{%{return_to: path}}"
     assert get_session(challenged, :user_return_to) == path
   end
 

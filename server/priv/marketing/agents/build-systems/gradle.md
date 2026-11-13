@@ -45,4 +45,4 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 Written by Tuist. Sources reviewed on **2026-10-09**: [Gradle build-cache documentation](https://docs.gradle.org/current/userguide/build_cache.html), [configuration-cache documentation](https://docs.gradle.org/current/userguide/configuration_cache.html), and the linked Tuist integration references.
 
-[All build systems](/marketing-markdown/build-systems) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)
+[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)

@@ -118,7 +118,7 @@ The Rust desktop app uses `tuist-navigation::Route` for the same wire format and
 gpui URL events, and authenticated local forwarding from a second launch all
 reach the root before the signed-in workspace. OAuth remains on its loopback
 callback, separate from navigation. Linux and Windows require explicit protocol
-registration; see `desktop/README.md`. They do not claim all HTTPS links.
+registration; see `code/README.md`. They do not claim all HTTPS links.
 
 Desktop preview browsing is not implemented yet. A preview link opens a handoff
 screen with the identifiers, **Copy link**, **Open on web**, and Back, not fetched

@@ -1,9 +1,9 @@
 defmodule Atlas.TuistAccounts do
   @moduledoc """
-  Authorized, audited operator access to Tuist accounts for runner
-  onboarding: resolving a handle to the Tuist account ID that feature flag
-  gates and runner limits are keyed by, and reading or changing the account's
-  runner concurrency limits.
+  Authorized, audited operator access to Tuist accounts: resolving a handle
+  to the Tuist account ID that feature flag gates, runner limits and plans are
+  keyed by, reading or changing the account's runner concurrency limits, and
+  reading or changing its billing plan as the ops account page does.
 
   These are rollout controls alongside `Atlas.TuistFeatureFlags`, so they use
   the same `feature_flags:read`/`feature_flags:write` scopes and the same
@@ -50,9 +50,49 @@ defmodule Atlas.TuistAccounts do
     "additionalProperties" => false
   }
 
+  @text %{"type" => "string", "minLength" => 1, "maxLength" => 255}
+  @update_plan_schema %{
+    "type" => "object",
+    "properties" => %{
+      "account_id" => @account_id,
+      "operation" => %{"type" => "string", "enum" => ~w(upgrade_to_enterprise start_open_source cancel_at_period_end)},
+      # Only for upgrade_to_enterprise, when the Stripe customer lacks them.
+      "billing_details" => %{
+        "type" => "object",
+        "properties" => %{
+          "name" => @text,
+          "email" => %{"type" => "string", "minLength" => 3, "maxLength" => 320},
+          "address" => %{
+            "type" => "object",
+            "properties" => %{
+              "line1" => @text,
+              "line2" => @text,
+              "city" => @text,
+              "state" => @text,
+              "postal_code" => @text,
+              "country" => %{"type" => "string", "pattern" => "^[A-Za-z]{2}$"}
+            },
+            "required" => ~w(line1 city postal_code country),
+            "additionalProperties" => false
+          }
+        },
+        "required" => ~w(name email address),
+        "additionalProperties" => false
+      },
+      "expected_revision" => %{"type" => "string", "minLength" => 1},
+      "reason" => %{"type" => "string", "minLength" => 1, "maxLength" => 1000},
+      "change_id" => %{"type" => "string", "format" => "uuid"}
+    },
+    "required" => ~w(account_id operation expected_revision reason change_id),
+    "additionalProperties" => false
+  }
+
   def lookup_schema, do: @lookup_schema
   def limits_schema, do: @limits_schema
   def update_limits_schema, do: @update_limits_schema
+  # A plan read takes the same single account ID as a limits read.
+  def plan_schema, do: @limits_schema
+  def update_plan_schema, do: @update_plan_schema
 
   def account_schema do
     %{
@@ -97,6 +137,48 @@ defmodule Atlas.TuistAccounts do
         }
       },
       "required" => ~w(account_id account_handle revision limits),
+      "additionalProperties" => false
+    }
+  end
+
+  def plan_output_schema do
+    string = %{"type" => "string"}
+    nullable_string = %{"type" => ["string", "null"]}
+
+    subscription_properties = %{
+      "subscription_id" => string,
+      "plan" => string,
+      "status" => string,
+      "cancel_at_period_end" => %{"type" => "boolean"},
+      "current_period_start" => nullable_string,
+      "current_period_end" => nullable_string,
+      "trial_end" => nullable_string,
+      "created_at" => string,
+      "updated_at" => string
+    }
+
+    subscription = %{
+      "type" => "object",
+      "properties" => subscription_properties,
+      "required" => Map.keys(subscription_properties),
+      "additionalProperties" => false
+    }
+
+    %{
+      "type" => "object",
+      "properties" => %{
+        "account_id" => %{"type" => "integer"},
+        "account_handle" => string,
+        "stripe_customer_id" => nullable_string,
+        "effective_plan" => %{"type" => "string", "enum" => ~w(air pro enterprise open_source)},
+        "subscription" => Map.put(subscription, "type", ["object", "null"]),
+        "recent_subscriptions" => %{"type" => "array", "items" => subscription},
+        "payment_failed" => %{"type" => "boolean"},
+        "cache_access_blocked" => %{"type" => "boolean"},
+        "revision" => string
+      },
+      "required" => ~w(account_id account_handle stripe_customer_id effective_plan subscription recent_subscriptions
+                       payment_failed cache_access_blocked revision),
       "additionalProperties" => false
     }
   end
@@ -154,6 +236,48 @@ defmodule Atlas.TuistAccounts do
         else: %{}
 
     record("tuist_runner_concurrency.updated", user, account_id(args), metadata, result, opts)
+  end
+
+  def get_plan(user, args, opts \\ []) do
+    result =
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:read"),
+           :ok <- validate(@limits_schema, args) do
+        TuistServer.get_account_plan(args["account_id"])
+      end
+
+    record("tuist_account_plan.inspected", user, account_id(args), %{}, result, opts)
+  end
+
+  def update_plan(user, args, opts \\ []) do
+    result =
+      with :ok <- validate_interface(opts),
+           :ok <- authorize(user, "feature_flags:write"),
+           :ok <- validate(@update_plan_schema, args),
+           :ok <- validate_update(args),
+           :ok <- TuistFeatureFlags.approve_write(user, "update-account-plan", args, opts) do
+        attrs =
+          args
+          |> Map.delete("account_id")
+          |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+          |> Map.put("interface", Keyword.get(opts, :interface, "mcp"))
+
+        TuistServer.update_account_plan(args["account_id"], attrs)
+      end
+
+    # Billing details stay out of the audit metadata; mcp.tool_called keeps the arguments.
+    metadata =
+      if is_map(args),
+        do: Map.take(args, ~w(operation expected_revision reason change_id)),
+        else: %{}
+
+    metadata =
+      case result do
+        {:ok, %{"effective_plan" => plan}} -> Map.put(metadata, "effective_plan", plan)
+        _ -> metadata
+      end
+
+    record("tuist_account_plan.updated", user, account_id(args), metadata, result, opts)
   end
 
   defp authorize(%User{} = user, scope) do

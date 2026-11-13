@@ -99,7 +99,15 @@ spec:
 {{- end }}
 {{- with .Values.sandboxes.macos.warm }}
 {{- if .enabled }}
-{{- $poolName := include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos-sandbox-warm") }}
+{{- $warm := . }}
+{{- $basePoolName := include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos-sandbox-warm") }}
+{{- range $memoryMB := ($warm.memoryMB | default (list 8192)) }}
+{{- if not (has (int $memoryMB) (list 8192 16384 24576)) }}
+{{- fail (printf "sandboxes.macos.warm.memoryMB: %v is not a macOS sandbox shape (8192, 16384 or 24576)" $memoryMB) }}
+{{- end }}
+{{- /* 8 GiB keeps the pool's original name and dispatch label. */}}
+{{- $suffix := ternary "" (printf "-%dgb" (div (int $memoryMB) 1024)) (eq (int $memoryMB) 8192) }}
+{{- $poolName := printf "%s%s" $basePoolName $suffix }}
 ---
 # Pre-booted sandbox VMs share the CI warm-pool budget: the runners-controller
 # preempts and rolls this pool like any CI pool, and its idle VMs give way to CI
@@ -120,21 +128,21 @@ metadata:
 spec:
   labels: []
   replicas: 0
-  {{- $warmFleet := .fleetSelector | default (include "tuist.runnersFleetName" $) }}
+  {{- $warmFleet := $warm.fleetSelector | default (include "tuist.runnersFleetName" $) }}
   image: {{ ternary $rackImage $image (eq $warmFleet (include "tuist.rackFleetName" $)) | quote }}
   os: darwin
   fleetSelector: {{ $warmFleet | quote }}
-  dispatchLabel: "tuist-internal-macos-sandbox-warm"
+  dispatchLabel: {{ printf "tuist-internal-macos-sandbox-warm%s" $suffix | quote }}
   runnerLabels: []
-  # The shape a default sandbox create asks for; other shapes cold-boot.
+  # Only a create of exactly this shape claims one; other shapes cold-boot.
   podCPUMilli: 8000
-  podMemoryMB: 8192
+  podMemoryMB: {{ int $memoryMB }}
   autoscaling:
     enabled: true
-    # No always-on warm VM yet. Rendered explicitly: the CRD defaults an
-    # absent floor to 1.
-    minWarmPoolFloor: 0
-    maxReplicas: {{ .maxReplicas | default 1 }}
+    # Rendered explicitly: the CRD defaults an absent floor to 1.
+    minWarmPoolFloor: {{ $warm.minWarmPoolFloor | default 0 }}
+    maxReplicas: {{ $warm.maxReplicas | default 1 }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

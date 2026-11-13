@@ -140,9 +140,12 @@ defmodule Tuist.Sandboxes.Router do
 
   @doc """
   The session's sandbox, created from the environment when it has none or
-  only one that died, with whether this call created it.
+  only one that died, with whether this call created it. A created sandbox
+  is cloned from `opts[:from_disk_snapshot]` when given, and otherwise goes
+  to the `prefer_nodes:` first when they have room
+  (`Tuist.Sandboxes.create_sandbox/3`).
   """
-  def find_or_create_sandbox(agent_environment, session_id) do
+  def find_or_create_sandbox(agent_environment, session_id, opts \\ []) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
         {:ok, sandbox, false}
@@ -154,26 +157,30 @@ defmodule Tuist.Sandboxes.Router do
       # resumed; drop what is left of it and start the session afresh.
       %Sandbox{} = sandbox ->
         with {:ok, _deleted} <- Sandboxes.delete(sandbox) do
-          create_sandbox(agent_environment, session_id)
+          create_sandbox(agent_environment, session_id, opts)
         end
 
       nil ->
-        create_sandbox(agent_environment, session_id)
+        create_sandbox(agent_environment, session_id, opts)
     end
   end
 
-  defp create_sandbox(agent_environment, session_id) do
+  defp create_sandbox(agent_environment, session_id, opts) do
     with {:ok, account} <- Accounts.get_account_by_id(agent_environment.account_id),
          {:ok, sandbox} <-
-           Sandboxes.create_sandbox(account, %{
-             agent_environment_id: agent_environment.id,
-             anthropic_session_id: session_id,
-             platform: agent_environment.platform,
-             template: agent_environment.template,
-             vcpus: agent_environment.vcpus,
-             memory_mb: agent_environment.memory_mb,
-             workspace_gb: agent_environment.workspace_gb
-           }) do
+           Sandboxes.create_sandbox(
+             account,
+             %{
+               agent_environment_id: agent_environment.id,
+               anthropic_session_id: session_id,
+               platform: agent_environment.platform,
+               template: agent_environment.template,
+               vcpus: agent_environment.vcpus,
+               memory_mb: agent_environment.memory_mb,
+               workspace_gb: agent_environment.workspace_gb
+             },
+             Keyword.take(opts, [:from_disk_snapshot, :prefer_nodes])
+           ) do
       {:ok, sandbox, true}
     end
   end
@@ -260,12 +267,15 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  # Private github.com repositories the account named are cloned with a
-  # token minted for that one repository with read access to its
-  # contents, passed to git as an HTTP header through its environment.
-  # Without an installation, or for anonymous repositories, git gets no
-  # credentials.
-  defp credentials(account, url, :account) do
+  @doc """
+  The git environment that clones `url` with the account's credentials, and
+  the secret to redact from git's output. Private github.com repositories
+  the account named are cloned with a token minted for that one repository
+  with read access to its contents, passed to git as an HTTP header through
+  its environment. Without an installation, or for anonymous repositories,
+  git gets no credentials.
+  """
+  def credentials(account, url, :account) do
     with %URI{scheme: "https", host: "github.com", path: "/" <> _ = path} <- URI.parse(url),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{token: token}} when is_binary(token) <-
@@ -282,7 +292,7 @@ defmodule Tuist.Sandboxes.Router do
     end
   end
 
-  defp credentials(_account, _url, :anonymous), do: {%{}, nil}
+  def credentials(_account, _url, :anonymous), do: {%{}, nil}
 
   defp redact(output, nil), do: output
   defp redact(output, secret), do: String.replace(output, secret, "[REDACTED]")
@@ -303,8 +313,8 @@ defmodule Tuist.Sandboxes.Router do
   defp blank_to_nil(_value), do: nil
 
   @doc "Starts `sbx-worker` with `env`, ending the residency when it does not start."
-  def start_worker(sandbox, env) do
-    case Sandboxes.start_worker(sandbox, env) do
+  def start_worker(sandbox, env, checkout \\ nil) do
+    case Sandboxes.start_worker(sandbox, env, checkout) do
       {:ok, _data} = ok ->
         ok
 

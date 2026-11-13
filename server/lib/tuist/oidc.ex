@@ -7,12 +7,16 @@ defmodule Tuist.OIDC do
   - CircleCI
   - Bitrise
   - Amp orbs, through account-connected Amp workspaces
+  - Claude Code cloud sessions, through account-connected Claude Code
+    environments (session tokens, `sk-ant-cc-<JWT>`)
   - Configured workload identity providers
   """
 
   alias Tuist.Accounts.OIDCTrustPolicy
+  alias Tuist.Accounts.User
   alias Tuist.KeyValueStore
   alias Tuist.OIDC.Workload
+  alias Tuist.ReportActor
 
   @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)
@@ -26,8 +30,18 @@ defmodule Tuist.OIDC do
   @audience "tuist"
   # Amp recommends an audience that names the relying service.
   @amp_audience "https://tuist.dev"
+  # https://code.claude.com/docs/en/self-hosted-environments-identity
+  @claude_code_token_prefix "sk-ant-cc-"
+  @claude_code_issuer "ccr"
+  @claude_code_jwks_uri "https://api.anthropic.com/v1/code/.well-known/jwks.json"
 
   def claims(token, account_handle \\ nil)
+
+  # Anthropic marks the tokens of sessions in self-hosted environments with
+  # this prefix; Anthropic-hosted sessions' tokens carry another one and are
+  # signed by other keys.
+  def claims(@claude_code_token_prefix <> token, _account_handle) when byte_size(token) <= 16_384,
+    do: claude_code_claims(token)
 
   def claims(token, account_handle) when is_binary(token) and byte_size(token) <= 16_384 do
     with {:ok, issuer} <- peek_issuer(token) do
@@ -42,6 +56,22 @@ defmodule Tuist.OIDC do
   end
 
   def claims(_, _), do: {:error, :invalid_token}
+
+  # A session token proves a session in one environment, named in `aud` and
+  # `ccr:pool_id`; other tokens of self-hosted environments (environment
+  # secrets, runner tokens, work orders) share the keys but not the role.
+  defp claude_code_claims(token) do
+    with {:ok, @claude_code_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, @claude_code_jwks_uri, ["ES256"]),
+         %{"ccr:role" => "session_worker", "ccr:pool_id" => "ccpool_" <> _ = environment_id, "exp" => exp} <- claims,
+         :ok <- audience_includes(claims, environment_id) do
+      {:ok, %{claude_code_environment_id: environment_id, expires_at: exp}}
+    else
+      {:ok, _issuer} -> {:error, :invalid_token}
+      %{} -> {:error, :invalid_token}
+      error -> error
+    end
+  end
 
   @doc """
   The verified claims of a GitHub Actions token minted for `audience`.
@@ -64,10 +94,99 @@ defmodule Tuist.OIDC do
   def github_actions_claims(_, _), do: {:error, :invalid_token}
 
   @doc """
+  The identity a coding agent presents to the MCP endpoint with its own token:
+  an Amp orb's ID token minted for `audience`, the origin of the MCP URL (what
+  `${amp:id-token}` sends), or a Claude Code session token. Returns the same
+  identities as `claims/2` for those providers and refuses every other token.
+  """
+  def agent_claims(@claude_code_token_prefix <> token, _audience) when byte_size(token) <= 16_384,
+    do: claude_code_claims(token)
+
+  def agent_claims(token, audience) when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, @amp_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, amp_jwks_uri()),
+         :ok <- audience_includes(claims, audience),
+         %{"token_use" => "exchanged"} <- claims do
+      {:ok, amp_identity(claims)}
+    else
+      {:ok, _issuer} -> {:error, :invalid_token}
+      %{} -> {:error, :invalid_token}
+      error -> error
+    end
+  end
+
+  def agent_claims(_, _), do: {:error, :invalid_token}
+
+  @doc """
   Verifies an Amp token against the account's custom trust policies, which
   predate Amp workspace connections and also cover personal threads.
   """
   def amp_policy_claims(token, account_handle), do: Workload.claims(token, @amp_issuer, account_handle)
+
+  @doc "The signed creator of an Amp thread, for attribution only, never authorization."
+  def amp_creator(token, audience) when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, @amp_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, amp_jwks_uri()),
+         :ok <- audience_includes(claims, audience),
+         %{"token_use" => "exchanged", "user_id" => user_id, "thread_id" => thread_id, "sub" => subject} <- claims,
+         true <- is_binary(subject),
+         true <- is_binary(user_id) and Regex.match?(~r/\Auser_[A-Za-z0-9_-]{1,120}\z/, user_id),
+         {:ok, thread_uuid} <- amp_thread_uuid(thread_id),
+         ^subject <- amp_creator_subject(claims, user_id, thread_id) do
+      name =
+        Enum.find(
+          [claims["preferred_username"], claims["name"], claims["email"], user_id],
+          &ReportActor.valid_identifier?/1
+        )
+
+      {:ok,
+       %{
+         user_id: user_id,
+         thread_id: "T-" <> thread_uuid,
+         name: name,
+         email: amp_creator_email(claims),
+         username: if(ReportActor.valid_identifier?(claims["preferred_username"]), do: claims["preferred_username"])
+       }}
+    else
+      _ -> {:error, :invalid_token}
+    end
+  rescue
+    _ -> {:error, :invalid_token}
+  end
+
+  def amp_creator(_, _), do: {:error, :invalid_token}
+
+  defp amp_creator_email(%{"email_verified" => true, "email" => email})
+       when is_binary(email) and byte_size(email) in 1..254 do
+    if String.valid?(email) and User.email_valid?(email), do: email
+  end
+
+  defp amp_creator_email(_), do: nil
+
+  defp amp_thread_uuid("T-" <> uuid), do: Ecto.UUID.cast(uuid)
+  defp amp_thread_uuid(_), do: :error
+
+  defp amp_creator_subject(claims, user_id, thread_id) do
+    workspace = claims["workspace_id"]
+    project = claims["project_id"]
+
+    case {workspace, project, amp_uuid(workspace), amp_uuid(project)} do
+      {nil, nil, _, _} ->
+        "user:#{user_id}:thread:#{thread_id}"
+
+      {_, nil, workspace_uuid, _} when is_binary(workspace_uuid) ->
+        "workspace:#{workspace}:user:#{user_id}:thread:#{thread_id}"
+
+      {nil, _, _, project_uuid} when is_binary(project_uuid) ->
+        "user:#{user_id}:project:#{project}:thread:#{thread_id}"
+
+      {_, _, workspace_uuid, project_uuid} when is_binary(workspace_uuid) and is_binary(project_uuid) ->
+        "workspace:#{workspace}:project:#{project}:user:#{user_id}:thread:#{thread_id}"
+
+      _ ->
+        nil
+    end
+  end
 
   defp audience_includes(%{"aud" => audience}, audience), do: :ok
 
@@ -204,10 +323,10 @@ defmodule Tuist.OIDC do
       String.starts_with?(url, "git@github.com:")
   end
 
-  defp verify(token, jwks_uri) do
+  defp verify(token, jwks_uri, algorithms \\ ["RS256"]) do
     with {:ok, kid} <- peek_kid(token),
          {:ok, jwks} <- fetch_jwks(jwks_uri),
-         {:ok, claims} <- verify_signature(token, jwks, kid),
+         {:ok, claims} <- verify_signature(token, jwks, kid, algorithms),
          :ok <- validate_expiration(claims),
          :ok <- validate_not_before(claims) do
       {:ok, claims}
@@ -235,17 +354,17 @@ defmodule Tuist.OIDC do
     end)
   end
 
-  defp verify_signature(token, %{"keys" => keys}, kid) do
+  defp verify_signature(token, %{"keys" => keys}, kid, algorithms) do
     with {:ok, key} <- find_key(keys, kid),
          {true, %JOSE.JWT{fields: fields}, _jws} <-
-           JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), ["RS256"], token) do
+           JOSE.JWT.verify_strict(JOSE.JWK.from_map(key), algorithms, token) do
       {:ok, fields}
     else
       _ -> {:error, :invalid_signature}
     end
   end
 
-  defp verify_signature(_, _, _), do: {:error, :invalid_signature}
+  defp verify_signature(_, _, _, _), do: {:error, :invalid_signature}
 
   defp find_key(keys, nil), do: {:ok, List.first(keys)}
 

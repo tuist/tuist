@@ -78,6 +78,45 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
     }
   end
 
+  @doc """
+  `job_schema/0` plus `out_of_memory`, which only `get_runner_job` returns:
+  it reads the job's machine metrics.
+  """
+  def job_detail_schema do
+    job_schema()
+    |> put_in(["properties", "out_of_memory"], %{
+      "type" => ["object", "null"],
+      "description" =>
+        "What the runner VM killed for running out of memory during the job, or null when it killed nothing.",
+      "properties" => %{
+        "kill_count" => %{"type" => "integer", "description" => "Processes the runner VM killed."},
+        "first_kill_at" => %{"type" => "string", "description" => "When the first kill was reported (ISO 8601)."},
+        "victim" => %{
+          "type" => ["object", "null"],
+          "description" => "The process killed last, or null when the runner did not name it.",
+          "properties" => %{
+            "process" => %{"type" => "string"},
+            "memory_bytes" => %{"type" => "integer", "description" => "Memory the process was using."},
+            "container" => %{
+              "type" => ["string", "null"],
+              "description" => "Its Docker container: null outside a container, docker-build for a docker build step."
+            },
+            "image" => %{"type" => ["string", "null"], "description" => "That container's image."}
+          },
+          "required" => ["process", "memory_bytes", "container", "image"],
+          "additionalProperties" => false
+        },
+        "description" => %{
+          "type" => "string",
+          "description" => "What happened and what to change, as the job page's \"Ran out of memory\" alert says it."
+        }
+      },
+      "required" => ["kill_count", "first_kill_at", "victim", "description"],
+      "additionalProperties" => false
+    })
+    |> Map.update!("required", &(&1 ++ ["out_of_memory"]))
+  end
+
   def workflow_schema do
     %{
       "type" => "object",
@@ -193,7 +232,22 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "network_bytes_in" => %{"type" => "integer"},
         "network_bytes_out" => %{"type" => "integer"},
         "disk_used_bytes" => %{"type" => "integer"},
-        "disk_total_bytes" => %{"type" => "integer"}
+        "disk_total_bytes" => %{"type" => "integer"},
+        "oom_kill_count" => %{
+          "type" => "integer",
+          "description" => "Processes the runner VM killed for running out of memory since the job started."
+        },
+        "oom_victim_process" => %{
+          "type" => "string",
+          "description" => "The process the runner VM killed last for running out of memory, or empty."
+        },
+        "oom_victim_memory_bytes" => %{"type" => "integer", "description" => "Memory that process was using."},
+        "oom_victim_container" => %{
+          "type" => "string",
+          "description" =>
+            "That process's Docker container: empty outside a container, docker-build for a docker build step."
+        },
+        "oom_victim_image" => %{"type" => "string", "description" => "That container's image, or empty."}
       },
       "required" => [
         "timestamp",
@@ -204,7 +258,12 @@ defmodule Tuist.MCP.Components.Tools.RunnerTools do
         "network_bytes_in",
         "network_bytes_out",
         "disk_used_bytes",
-        "disk_total_bytes"
+        "disk_total_bytes",
+        "oom_kill_count",
+        "oom_victim_process",
+        "oom_victim_memory_bytes",
+        "oom_victim_container",
+        "oom_victim_image"
       ],
       "additionalProperties" => false
     }
@@ -530,21 +589,26 @@ defmodule Tuist.MCP.Components.Tools.GetRunnerJob do
       "required" => ["account_handle", "workflow_job_id"],
       "additionalProperties" => false
     },
-    output_schema: Tuist.MCP.Components.Tools.RunnerTools.job_schema()
+    output_schema: Tuist.MCP.Components.Tools.RunnerTools.job_detail_schema()
 
   alias Tuist.MCP.Components.Tools.RunnerTools
   alias Tuist.MCP.Tool, as: MCPTool
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
 
   @impl EMCP.Tool
-  def description, do: "Get a CI runner job for an account."
+  def description,
+    do: "Get a CI runner job for an account, including whether its machine ran out of memory and what to change."
 
   @impl EMCP.Tool
   def call(conn, %{"workflow_job_id" => workflow_job_id} = arguments) do
     with :ok <- MCPTool.validate_input(__MODULE__, arguments),
          {:ok, account} <- RunnerTools.authorize_account(arguments, conn.assigns),
          {:ok, job} <- Jobs.get_for_account(account.id, workflow_job_id) do
-      MCPTool.json_response(RunnerTools.serialize_job(job), __MODULE__)
+      job
+      |> RunnerTools.serialize_job()
+      |> Map.put(:out_of_memory, JobMetrics.out_of_memory_report(job.workflow_job_id))
+      |> MCPTool.json_response(__MODULE__)
     else
       {:error, :not_found} -> EMCP.Tool.error("Runner job not found: #{workflow_job_id}")
       {:error, message} -> EMCP.Tool.error(message)

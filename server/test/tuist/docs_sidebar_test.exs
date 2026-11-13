@@ -120,7 +120,8 @@ defmodule Tuist.Docs.SidebarTest do
                "/en/guides/features/build-insights/rust",
                "/en/guides/features/test-insights/rust",
                "/en/guides/features/test-insights/flaky-tests/rust",
-               "/en/guides/features/test-sharding/rust"
+               "/en/guides/features/test-sharding/rust",
+               "/en/guides/features/test-code-coverage/rust"
              ])
   end
 

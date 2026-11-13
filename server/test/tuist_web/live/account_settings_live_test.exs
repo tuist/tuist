@@ -59,7 +59,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
     assert has_element?(view, "#authentication-settings #passkeys-settings")
-    assert has_element?(view, "#passkey-add", "Create a passkey")
+    assert has_element?(view, "#passkey-add", "Add passkey")
     refute html =~ "passkey-registration"
 
     session = Accounts.get_user_session(get_session(conn, :user_token))
@@ -70,7 +70,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     conn = put_session(conn, :user_token, result.session.token)
     {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
-    assert has_element?(view, "#mfa-recovery-count", "10 recovery codes remaining")
+    refute has_element?(view, "#mfa-recovery-count")
     document = Floki.parse_document!(html)
 
     assert Floki.find(document, "#regenerate-recovery-modal-portal form[action='/users/settings/mfa/recovery']") != []

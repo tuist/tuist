@@ -129,8 +129,16 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
 
     case structured_data do
       nil -> []
-      data -> Enum.map(data, &JSON.encode!/1)
+      data -> Enum.map(data, &encode_for_script_tag/1)
     end
+  end
+
+  # The JSON is written raw into a <script> element, which ends at the first
+  # `</script>` no matter where it sits, and changelog and blog text can quote
+  # HTML. `<` only ever appears inside JSON strings, so escaping it as \u003c
+  # keeps the value identical for parsers while the tag can no longer close early.
+  defp encode_for_script_tag(data) do
+    data |> JSON.encode!() |> String.replace("<", "\\u003c")
   end
 
   def get_faq_structured_data(faqs) do
@@ -163,25 +171,18 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
         ),
       "brand" => get_organization_structured_data(),
       "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
-      "offers" =>
-        Enum.map(plans, fn plan ->
-          offer = %{
-            "@type" => "Offer",
-            "name" => "Tuist #{plan.name}",
-            "url" => Tuist.Environment.app_url(path: ~p"/pricing"),
-            "description" => plan.description,
-            "availability" => "https://schema.org/InStock",
-            "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png")
-          }
-
-          # Display prices are localized labels, not fixed totals. Only Air is free;
-          # Pro is metered above allowances and Enterprise has negotiated pricing.
-          if plan.id == :air do
-            Map.merge(offer, %{"price" => "0.00", "priceCurrency" => "USD"})
-          else
-            offer
-          end
-        end)
+      # Display prices are localized labels, not fixed totals. Only Air has a
+      # fixed price (free); Pro is metered above allowances and Enterprise is
+      # negotiated, so neither can be an `Offer`, which search engines reject
+      # without a `price`. The range's floor is the one price we can state.
+      "offers" => %{
+        "@type" => "AggregateOffer",
+        "lowPrice" => "0.00",
+        "priceCurrency" => "USD",
+        "offerCount" => length(plans),
+        "url" => Tuist.Environment.app_url(path: ~p"/pricing"),
+        "availability" => "https://schema.org/InStock"
+      }
     }
   end
 
@@ -290,9 +291,12 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
   @doc """
   Marks a product page up as the feature it documents. `path` is the localized
   page path so the node's identity matches the page's canonical URL.
+
+  Pass `free: false` for features billed outside the free tier, such as
+  Compute, so the node does not claim a $0 offer.
   """
-  def get_feature_structured_data(name, description, path) do
-    %{
+  def get_feature_structured_data(name, description, path, opts \\ []) do
+    node = %{
       "@context" => "https://schema.org",
       "@type" => "SoftwareApplication",
       "name" => "Tuist #{name}",
@@ -305,28 +309,34 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
         "@type" => "SoftwareApplication",
         "name" => "Tuist",
         "url" => Tuist.Environment.app_url()
-      },
-      "offers" => %{
+      }
+    }
+
+    if Keyword.get(opts, :free, true) do
+      Map.put(node, "offers", %{
         "@type" => "Offer",
         "price" => "0",
         "priceCurrency" => "USD",
         "url" => Tuist.Environment.app_url(path: ~p"/pricing")
-      }
-    }
+      })
+    else
+      node
+    end
   end
 
   @doc """
   Assigns the `SoftwareApplication` and breadcrumb markup a product page needs.
 
   `path` is the unlocalized page path; the locale in scope decides the URLs the
-  nodes point at, so the markup agrees with the page's canonical URL.
+  nodes point at, so the markup agrees with the page's canonical URL. `opts`
+  are passed to `get_feature_structured_data/4`.
   """
-  def assign_feature_structured_data(target, name, description, path) do
+  def assign_feature_structured_data(target, name, description, path, opts \\ []) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
     localized_path = Localization.localized_href(path, locale)
 
     put_structured_data(target, [
-      get_feature_structured_data(name, description, localized_path),
+      get_feature_structured_data(name, description, localized_path, opts),
       get_breadcrumbs_structured_data([
         {"Tuist", Tuist.Environment.app_url(path: Localization.localized_href("/", locale))},
         {name, Tuist.Environment.app_url(path: localized_path)}
@@ -361,19 +371,28 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
+  # Listing pages point at their entries instead of embedding them: each entry
+  # carries its full markup on its own page, and inlining all of them made the
+  # blog and changelog ship hundreds of kilobytes of JSON-LD. `position`
+  # belongs on the `ListItem`, not on the entry.
+  defp item_list(entries) do
+    %{
+      "@type" => "ItemList",
+      "numberOfItems" => length(entries),
+      "itemListElement" =>
+        entries
+        |> Enum.with_index(1)
+        |> Enum.map(fn {{name, url}, position} ->
+          %{"@type" => "ListItem", "position" => position, "name" => name, "url" => url}
+        end)
+    }
+  end
+
   def get_blog_structured_markup_data(posts) do
     %{
       "@context" => "https://schema.org",
       "@type" => "CollectionPage",
-      "mainEntityOfPage" => %{
-        "@type" => "ItemList",
-        "itemListElement" =>
-          posts
-          |> Enum.with_index()
-          |> Enum.map(fn {post, index} ->
-            post |> get_blog_post_structured_markup_data() |> Map.put("position", index + 1)
-          end)
-      },
+      "mainEntity" => item_list(Enum.map(posts, &{&1.title, Tuist.Environment.app_url(path: &1.slug)})),
       "name" => dgettext("marketing", "Tuist's blog"),
       "description" =>
         dgettext(
@@ -426,27 +445,11 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
   def get_changelog_structured_data(entries) do
     %{
       "@context" => "https://schema.org",
-      "@type" => "ItemList",
+      "@type" => "CollectionPage",
+      "mainEntity" => item_list(Enum.map(entries, &{&1.title, Tuist.Environment.app_url(path: "/changelog/#{&1.id}")})),
       "name" => dgettext("marketing", "Changelog"),
       "description" => dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
-      "publisher" => StructuredMarkup.get_organization_structured_data(),
-      "itemListElement" =>
-        entries
-        |> Enum.with_index()
-        |> Enum.map(fn {entry, index} ->
-          %{
-            "@type" => "ListItem",
-            "position" => index + 1,
-            "item" => %{
-              "@type" => "Article",
-              "headline" => entry.title,
-              "datePublished" => Timex.format!(entry.date, "{ISO:Extended}"),
-              "url" => Tuist.Environment.app_url(path: "/changelog/#{entry.id}"),
-              "articleSection" => entry.category,
-              "description" => entry.body
-            }
-          }
-        end)
+      "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end
 
@@ -468,12 +471,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
 
   def get_case_study_article_structured_data(case_study, locale \\ "en") do
     date_time = DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC")
-
-    case_study_url =
-      case_study
-      |> Customers.case_study_href()
-      |> Localization.localized_href(locale)
-      |> absolute_url()
+    case_study_url = case_study_url(case_study, locale)
 
     %{
       "@context" => "https://schema.org",
@@ -501,21 +499,23 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     %{
       "@context" => "https://schema.org",
       "@type" => "CollectionPage",
-      "mainEntityOfPage" => %{
-        "@type" => "ItemList",
-        "itemListElement" =>
-          cases
-          |> Enum.with_index()
-          |> Enum.map(fn {case_study, index} ->
-            case_study
-            |> get_case_study_article_structured_data(locale)
-            |> Map.put("position", index + 1)
+      "mainEntity" =>
+        item_list(
+          Enum.map(cases, fn case_study ->
+            {case_study.title, case_study_url(case_study, locale)}
           end)
-      },
+        ),
       "name" => dgettext("marketing", "Tuist Customers"),
       "description" => dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
+  end
+
+  defp case_study_url(case_study, locale) do
+    case_study
+    |> Customers.case_study_href()
+    |> Localization.localized_href(locale)
+    |> absolute_url()
   end
 
   defp absolute_url(href) do

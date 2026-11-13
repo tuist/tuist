@@ -1,6 +1,12 @@
 name: Pulse Release
 
-# Publish version-matched source, image and OCI chart before managed deployment.
+# Publishes the GreptimeDB fork in pulse/ as ghcr.io/tuist/pulse:<version>,
+# tagged pulse@<version>. Versions are the upstream version the fork is based on
+# plus a fork revision, such as 1.3.0-1.
+#
+# This only publishes. Nothing deploys a release: the clusters' pulse release
+# runs the image pinned in infra/helm/greptimedb/values.yaml, and
+# greptimedb-deployment.yml rolls it out on dispatch.
 on:
   push:
     branches: [main]
@@ -15,6 +21,10 @@ concurrency:
   group: pulse-release
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check:
     name: Check Pulse release
@@ -22,21 +32,39 @@ jobs:
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
-      should-release: ${{ steps.check.outputs.pulse-should-release }}
-      tag: ${{ steps.check.outputs.pulse-next-version }}
-      version: ${{ steps.check.outputs.pulse-next-version-number }}
+      should-release: ${{ steps.check.outputs.should-release }}
+      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.check.outputs.version }}
+      upstream: ${{ steps.check.outputs.upstream }}
+      previous: ${{ steps.check.outputs.previous }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "--locked git-cliff jq"
-          cache: "false"
-          github_token: ${{ github.token }}
       - id: check
-        run: mise run --skip-tools release:check pulse
+        run: |
+          set -euo pipefail
+          upstream=$(sed -nE '/^\[workspace\.package\]/,/^\[/ s/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' pulse/Cargo.toml)
+          [[ "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          previous=$(git tag -l "pulse@${upstream}-*" | grep -E "^pulse@${upstream//./\\.}-[0-9]+$" \
+            | sort -t- -k2 -n | tail -n1 || true)
+          revision=1
+          should=true
+          if [[ -n "$previous" ]]; then
+            revision=$(( ${previous##*-} + 1 ))
+            if git diff --quiet "$previous" HEAD -- pulse; then should=false; fi
+          fi
+          version="${upstream}-${revision}"
+          printf 'upstream:  %s\nprevious:  %s\nnext:      pulse@%s\nrelease?   %s\n' \
+            "$upstream" "${previous:-<none>}" "$version" "$should"
+          {
+            echo "should-release=$should"
+            echo "tag=pulse@$version"
+            echo "version=$version"
+            echo "upstream=$upstream"
+            echo "previous=$previous"
+          } >> "$GITHUB_OUTPUT"
 
   validate:
     needs: check
@@ -44,74 +72,33 @@ jobs:
     uses: ./.github/workflows/pulse.yml
 
   publish:
-    name: Publish Pulse image and chart
+    name: Publish Pulse image
     needs: [check, validate]
     if: needs.check.outputs.should-release == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 60
-    outputs:
-      source-sha: ${{ steps.source.outputs.sha }}
+    runs-on: tuist-linux-large
+    timeout-minutes: 240
     permissions:
       contents: write
       packages: write
-      actions: write
     env:
       TAG: ${{ needs.check.outputs.tag }}
       VERSION: ${{ needs.check.outputs.version }}
-    defaults:
-      run:
-        shell: bash
+      UPSTREAM: ${{ needs.check.outputs.upstream }}
+      PREVIOUS: ${{ needs.check.outputs.previous }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "--locked git-cliff jq helm"
-          cache: "false"
-          github_token: ${{ github.token }}
-      - name: Prepare versioned source and release notes
-        id: source
-        env:
-          GITHUB_TOKEN: ""
-          GH_TOKEN: ""
+      - name: Refuse to replace a published version
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
           [[ "$TAG" == "pulse@$VERSION" ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          # Never replace a version that another run has already published.
           if git show-ref --verify --quiet "refs/tags/$TAG"; then
             echo "Release tag already exists: $TAG" >&2
             exit 1
           fi
-          latest=$(git tag -l | grep -E '^pulse@[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)
-          range=()
-          if [[ -n "$latest" ]]; then range=("$latest..HEAD"); fi
-          git cliff --config pulse/cliff.toml --include-path 'pulse/**/*' \
-            --include-path 'infra/helm/pulse/**/*' \
-            --include-path '.github/workflows/pulse*.yml' --tag "$TAG" \
-            -- "${range[@]}" > "$RUNNER_TEMP/pulse-release.md"
-          sed -i -E "s/^([[:space:]]*version:[[:space:]]*)\"[^\"]+\"/\1\"${VERSION}\"/" pulse/mix.exs
-          sed -i -E "s/^version:.*/version: ${VERSION}/; s/^appVersion:.*/appVersion: \"${VERSION}\"/" infra/helm/pulse/Chart.yaml
-          grep -Eq "^[[:space:]]*version: \"${VERSION//./\\.}\",?$" pulse/mix.exs
-          # Like the other monorepo packages, stamp the tagged tree only.
-          # Consumers derive their NIF download version from this mix.exs.
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pulse/mix.exs infra/helm/pulse/Chart.yaml
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(pulse): stamp version $VERSION"
-          fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      # Validate and package before publishing anything.
-      - name: Package Helm chart
-        run: |
-          set -euo pipefail
-          helm lint --strict infra/helm/pulse \
-            --set storage.bucket=lint --set storage.region=lint --set existingSecret=lint
-          helm package infra/helm/pulse --version "$VERSION" --app-version "$VERSION" \
-            --destination "$RUNNER_TEMP/chart"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Log in to GitHub Container Registry
@@ -120,52 +107,90 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push image
-        id: image
+      # Upstream's release build: the nightly profile (thin LTO, no debug info).
+      # The embedded web dashboard (servers/dashboard) is left out; nothing routes
+      # to it.
+      # Built into the local daemon and pushed only after the checks below, so
+      # a failing image never reaches the registry under a release tag.
+      - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: pulse
-          file: pulse/Dockerfile
-          push: true
+          file: pulse/docker/buildx/ubuntu/Dockerfile
+          load: true
           platforms: linux/amd64
           build-args: |
-            MIX_ENV=prod
-          tags: |
-            ghcr.io/tuist/pulse:${{ env.VERSION }}
-            ghcr.io/tuist/pulse:latest
+            CARGO_PROFILE=nightly
+            OUTPUT_DIR=nightly
+          tags: ghcr.io/tuist/pulse:${{ env.VERSION }}
           labels: |
             org.opencontainers.image.source=https://github.com/tuist/tuist
-            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ env.VERSION }}
-      - name: Push Helm chart
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_ACTOR: ${{ github.actor }}
+            org.opencontainers.image.licenses=Apache-2.0
+      # Before pushing: the image starts, and the queries that crashed
+      # GreptimeDB v1.3.0 with a stack overflow are rejected while it stays up.
+      - name: Check the image survives deeply nested queries
         run: |
           set -euo pipefail
-          echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$GH_ACTOR" --password-stdin
-          helm push "$RUNNER_TEMP/chart/pulse-${VERSION}.tgz" oci://ghcr.io/tuist/charts
-      - name: Record immutable publication inputs
+          image="ghcr.io/tuist/pulse:${VERSION}"
+          docker run --rm "$image" --version | tee "$RUNNER_TEMP/version.txt"
+          grep -q "version: ${UPSTREAM}" "$RUNNER_TEMP/version.txt"
+          docker run -d --name pulse-smoke -p 127.0.0.1:4000:4000 "$image" \
+            standalone start --http-addr 0.0.0.0:4000 --data-home /tmp/greptimedb >/dev/null
+          trap 'docker logs --tail 50 pulse-smoke; docker rm -f pulse-smoke >/dev/null' EXIT
+          for _ in $(seq 60); do curl -fsS http://127.0.0.1:4000/health >/dev/null && break; sleep 2; done
+          rejected() {
+            local status
+            status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST --data-urlencode "$2=$3" "http://127.0.0.1:4000$1")
+            [[ "$status" == 4?? ]] || { echo "::error::$1 answered $status for ${#3} bytes"; return 1; }
+            curl -fsS http://127.0.0.1:4000/health >/dev/null
+          }
+          chain() { local out=""; for ((i = 1; i < $2; i++)); do out+="$1"; done; printf '%s' "$out"; }
+          rejected /v1/prometheus/api/v1/query query "$(chain 'vector(1)+' 80)vector(1)"
+          rejected /v1/sql sql "TQL EVAL (0, 0, '1s') $(chain 'vector(1)+' 80)vector(1)"
+          rejected /v1/sql sql "SELECT $(chain '1+' 4096)1"
+          rejected /v1/sql sql "$(chain 'SELECT 1 UNION ALL ' 256)SELECT 1"
+          rejected /v1/prometheus/api/v1/format_query query "$(chain '1+' 16384)1"
+          [[ "$(docker inspect -f '{{.State.Running}}' pulse-smoke)" == true ]]
+      - name: Push the checked image
+        id: image
+        run: |
+          set -euo pipefail
+          image="ghcr.io/tuist/pulse:${VERSION}"
+          if docker manifest inspect "$image" > /dev/null 2>&1; then
+            echo "::error::$image is already published." >&2
+            exit 1
+          fi
+          docker push "$image"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+          echo "digest=${digest#*@}" >> "$GITHUB_OUTPUT"
+      - name: Write release notes and manifest
         env:
-          SOURCE_SHA: ${{ steps.source.outputs.sha }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           set -euo pipefail
-          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          chart_sha256=$(sha256sum "$RUNNER_TEMP/chart/pulse-${VERSION}.tgz" | cut -d' ' -f1)
-          jq -n --arg tag "$TAG" --arg version "$VERSION" --arg source_sha "$SOURCE_SHA" \
-            --arg image_digest "$IMAGE_DIGEST" --arg chart_sha256 "$chart_sha256" \
-            '{tag: $tag, version: $version, source_sha: $source_sha,
-              image_digest: $image_digest, chart_sha256: $chart_sha256}' \
+          range=HEAD
+          if [[ -n "$PREVIOUS" ]]; then range="$PREVIOUS..HEAD"; fi
+          {
+            echo "GreptimeDB ${UPSTREAM} with Tuist's changes (pulse/FORK.md)."
+            echo
+            echo "Image: \`ghcr.io/tuist/pulse:${VERSION}@${IMAGE_DIGEST}\`"
+            echo
+            echo "## Changes"
+            echo
+            git log --no-merges --format='- %s' "$range" -- pulse | head -n 200
+          } > "$RUNNER_TEMP/pulse-release.md"
+          jq -n --arg tag "$TAG" --arg version "$VERSION" --arg upstream "$UPSTREAM" \
+            --arg source_sha "$GITHUB_SHA" --arg image_digest "$IMAGE_DIGEST" \
+            '{tag: $tag, version: $version, upstream_version: $upstream,
+              source_sha: $source_sha, image: "ghcr.io/tuist/pulse", image_digest: $image_digest}' \
             > "$RUNNER_TEMP/pulse-release.json"
-      - name: Tag the exact published source
-        env:
-          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+      - name: Tag the published source
         run: |
           set -euo pipefail
-          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
-          git tag "$TAG" "$SOURCE_SHA"
+          git tag "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$TAG"
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -173,27 +198,6 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: Pulse ${{ env.VERSION }}
           body_path: ${{ runner.temp }}/pulse-release.md
-          files: |
-            ${{ runner.temp }}/chart/pulse-${{ env.VERSION }}.tgz
-            ${{ runner.temp }}/pulse-release.json
+          files: ${{ runner.temp }}/pulse-release.json
           fail_on_unmatched_files: true
-      - name: Dispatch NIF release
-        # GITHUB_TOKEN tag pushes do not trigger workflows. Run trusted control
-        # code on main, with the immutable release tag as data, not as code.
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run pulse-nif-release.yml --ref main -f "version=$TAG"
-
-  deploy:
-    name: Deploy Pulse production
-    needs: [check, publish]
-    if: needs.check.outputs.should-release == 'true'
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/pulse-deployment.yml
-    with:
-      version: ${{ needs.check.outputs.version }}
-      source_sha: ${{ needs.publish.outputs.source-sha }}
-    secrets:
-      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          make_latest: false

@@ -27,6 +27,7 @@ import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitc
 import ImageFallback from "./js/ImageFallback.js";
 import PageFavicon from "./js/PageFavicon.mjs";
 import JSONInput from "./js/JSONInput.mjs";
+import DashboardSearch from "./js/DashboardSearch.mjs";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
@@ -67,6 +68,7 @@ Hooks.GoogleOneTap = GoogleOneTap;
 Hooks.ImageFallback = ImageFallback;
 Hooks.PageFavicon = PageFavicon;
 Hooks.JSONInput = JSONInput;
+Hooks.DashboardSearch = DashboardSearch;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;

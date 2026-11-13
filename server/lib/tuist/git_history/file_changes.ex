@@ -74,6 +74,11 @@ defmodule Tuist.GitHistory.FileChanges do
   ) = {files_count:UInt64}
   """
   @kept ~U[2100-01-01 00:00:00Z]
+  @regular_file 0o100644
+  # A statement names the commits above it writes for, and ClickHouse bounds
+  # its syntax tree (`max_ast_elements`, 50,000): each takes about 90 of
+  # them, and more the further up a chain of forks it sits.
+  @above_chunk 200
   @columns "repository_id, ref_id, position, generation, sha, path, git_blob_id, mode, expires_at, row_version, is_deleted"
 
   @doc "Queues the commit's file changes to be written at its place."
@@ -105,6 +110,39 @@ defmodule Tuist.GitHistory.FileChanges do
   end
 
   @doc """
+  Queues, in every repository, the listed commits whose file changes are not
+  written at the place they hold although they can be: a commit whose
+  listing is still stored, and one with rows kept at a place it no longer
+  holds. Their write was lost (its job failed every attempt, or never ran),
+  since one that is queued is folded into its job. Returns how many were
+  queued.
+
+  A commit no ref owns is among them: its write gives it a detached ref,
+  unless its first parents still reach no commit a ref owns.
+  """
+  def enqueue_unwritten do
+    now = DateTime.utc_now()
+
+    unwritten =
+      Repo.all(
+        from(l in CommitListing,
+          join: c in Commit,
+          on: c.repository_id == l.repository_id and c.sha == l.sha,
+          where: not l.truncated,
+          where:
+            is_nil(c.ref_id) or
+              fragment("(?, ?) IS DISTINCT FROM (?, ?)", l.changes_ref_id, l.changes_position, c.ref_id, c.position),
+          where: (l.staged and l.inserted_at > ^staged_since(now)) or l.changes_expires_at > ^now,
+          order_by: [l.repository_id, asc_nulls_last: c.position, desc: c.generation],
+          select: {l.repository_id, l.sha}
+        )
+      )
+
+    Enum.each(unwritten, fn {repository_id, sha} -> enqueue(repository_id, sha) end)
+    length(unwritten)
+  end
+
+  @doc """
   Writes the commit's file changes at the place it holds, retiring the rows
   it left at a place it no longer holds. Returns `:written`; `:moved` when
   the rows were copied from its old place, or `:deferred` while a commit
@@ -123,6 +161,195 @@ defmodule Tuist.GitHistory.FileChanges do
         do: write_at_place(listing, commit(repository_id, sha) || detached(listing)),
         else: :skipped
     end)
+  end
+
+  @doc """
+  Writes the file changes of a commit no listing is stored for from a diff
+  against `base_sha`, whose file changes are current: the base's files with
+  `diff` applied (maps with `path`, `status` and `blob`, empty or nil for a
+  deleted path). The diff carries no mode, so a path keeps the base's and an
+  added one is a regular file. Its listing row is stored with the rows and
+  their marker, in the same transaction, without staged files
+  (`staged: false`): the commit is no longer missing a listing
+  (`Tuist.GitHistory.missing_listings/2`) while its file changes are current.
+
+  Returns `:written`. Otherwise it writes nothing and returns `:listed` when
+  the commit has a listing row; `:no_base` when the base's file changes are
+  not current; `:mismatch` when the diff does not apply to the base's files
+  (it adds a path the base has, or changes or deletes one it lacks, as a
+  submodule's); `:too_many_files` past `file_limit`; `:pending` while the
+  commit has no place (it is not in the graph yet, or its first parents
+  reach no commit a ref owns); or `:busy` when another write holds the
+  repository's ref lock, which this one does not wait for.
+  """
+  def write_from_diff(repository_id, sha, base_sha, diff, file_limit) do
+    GitHistory.with_refs_lock(
+      repository_id,
+      fn ->
+        with :ok <- unlisted(repository_id, sha),
+             {:ok, base} <- written_base(repository_id, base_sha),
+             {:ok, entries, files_count} <- applied(repository_id, base, diff),
+             :ok <- if(files_count <= file_limit, do: :ok, else: :too_many_files),
+             {:ok, listing} <- insert_listing(repository_id, sha, files_count),
+             %{} = commit <- placed_commit(repository_id, sha) do
+          vacate(listing, commit.place)
+          expires_at = expires_at(repository_id, commit.place)
+          above = above(repository_id, commit.place, sha)
+          rows = insert_changes(listing, commit, expires_at, above, diffed_files(base, commit, entries))
+          mark(listing, commit.place, expires_at, count(listing, commit.place, above, rows))
+          :written
+        else
+          reason -> Repo.rollback(reason)
+        end
+      end,
+      wait: false
+    )
+  end
+
+  defp unlisted(repository_id, sha) do
+    if Repo.exists?(from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == ^sha)),
+      do: :listed,
+      else: :ok
+  end
+
+  defp written_base(repository_id, sha) do
+    base =
+      Repo.one(
+        from([l, c] in placed(repository_id),
+          where: l.sha == ^sha,
+          select: %{place: {c.ref_id, c.position}, files_count: l.files_count}
+        )
+      )
+
+    if base, do: {:ok, base}, else: :no_base
+  end
+
+  # The diff's paths as the commit has them, `{path, blob, mode}` with an
+  # empty blob for a path it deleted, and how many files the commit has.
+  defp applied(repository_id, base, diff) do
+    chain = GitHistory.chain(base.place, :at)
+
+    at_base =
+      diff
+      |> Enum.map(& &1.path)
+      |> bound()
+      |> Enum.flat_map(fn paths ->
+        ClickHouseRepo.query!(state_sql(chain, "path IN {paths:Array(String)}"), %{
+          repository_id: repository_id,
+          paths: paths
+        }).rows
+      end)
+      |> Map.new(fn [path, _blob, mode] -> {path, mode} end)
+
+    entries = Enum.map(diff, &entry(&1, Map.get(at_base, &1.path)))
+
+    if :mismatch in entries or length(Enum.uniq_by(diff, & &1.path)) != length(diff) do
+      :mismatch
+    else
+      added = Enum.count(diff, &(&1.status == "A"))
+      deleted = Enum.count(diff, &(&1.status == "D"))
+      {:ok, entries, base.files_count + added - deleted}
+    end
+  end
+
+  # A diff entry as the commit has it, given the base's mode for its path
+  # (nil when the base lacks it).
+  defp entry(%{path: path, status: status} = file, mode) do
+    case {status, mode, Map.get(file, :blob) || ""} do
+      {"A", nil, blob} when blob != "" -> {path, blob, @regular_file}
+      {"D", mode, ""} when is_integer(mode) -> {path, "", mode}
+      {status, mode, blob} when status not in ["A", "D"] and is_integer(mode) and blob != "" -> {path, blob, mode}
+      _ -> :mismatch
+    end
+  end
+
+  # A listing row inserted by an upload meanwhile wins: the upload writes its
+  # file changes.
+  defp insert_listing(repository_id, sha, files_count) do
+    listing = %{
+      repository_id: repository_id,
+      sha: sha,
+      files_count: files_count,
+      truncated: false,
+      staged: false,
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    case Repo.insert_all(CommitListing, [listing], on_conflict: :nothing, conflict_target: [:repository_id, :sha]) do
+      {1, _} -> {:ok, struct(CommitListing, listing)}
+      {0, _} -> :listed
+    end
+  end
+
+  defp placed_commit(repository_id, sha) do
+    commit(repository_id, sha) || (GitHistory.detach(repository_id, sha) && commit(repository_id, sha)) || :pending
+  end
+
+  # The commit's files read from the base's state with the diff's entries in
+  # place of their paths. Only the diff's paths and those with a row on the
+  # base's chain and not on the one below the commit, or the other way
+  # round, can differ from what is below the commit: when the base is the
+  # nearest written commit below, those are the diff's alone.
+  defp diffed_files(base, commit, entries) do
+    chunks = entries |> bound(&elem(&1, 0)) |> Enum.with_index()
+
+    params =
+      Enum.reduce(chunks, %{}, fn {chunk, index}, params ->
+        Map.merge(params, %{
+          "paths_#{index}" => Enum.map(chunk, &elem(&1, 0)),
+          "blobs_#{index}" => Enum.map(chunk, &elem(&1, 1)),
+          "modes_#{index}" => Enum.map(chunk, &elem(&1, 2))
+        })
+      end)
+
+    base_chain = GitHistory.chain(base.place, :at)
+    diffed = "(SELECT arrayJoin(#{array_sql(chunks, "paths", "String")}))"
+
+    paths =
+      case between(base_chain, GitHistory.chain(commit.place, :below)) do
+        [] ->
+          "path IN #{diffed}"
+
+        ranges ->
+          positions =
+            Enum.map_join(ranges, " OR ", fn %{ref_id: ref_id, lo: lo, hi: hi} ->
+              "(ref_id = #{ref_id} AND position > #{lo} AND position <= #{hi})"
+            end)
+
+          """
+          (path IN #{diffed} OR path IN (
+            SELECT path FROM git_file_changes FINAL
+            WHERE repository_id = {repository_id:Int64} AND expires_at > now() AND (#{positions})
+          ))
+          """
+      end
+
+    %{
+      listed: """
+      SELECT path, git_blob_id, mode, 1 AS listed
+      FROM (
+        SELECT path, git_blob_id, mode FROM (#{state_sql(base_chain, paths)}) WHERE path NOT IN #{diffed}
+        UNION ALL
+        SELECT e.1 AS path, e.2 AS git_blob_id, e.3 AS mode
+        FROM (
+          SELECT arrayJoin(arrayZip(
+            #{array_sql(chunks, "paths", "String")}, #{array_sql(chunks, "blobs", "String")},
+            #{array_sql(chunks, "modes", "UInt32")}
+          )) AS e
+        )
+        WHERE e.2 != ''
+      )
+      """,
+      paths: paths,
+      complete: "1",
+      params: params
+    }
+  end
+
+  # One array bound as a parameter per chunk, which ClickHouse caps at 128 KiB.
+  defp array_sql(chunks, name, type) do
+    parameters = Enum.map(chunks, fn {_chunk, index} -> ", {#{name}_#{index}:Array(#{type})}" end)
+    "arrayConcat(CAST([], 'Array(#{type})')#{parameters})"
   end
 
   # A commit no ref owns gets a ref of its own to be written on, while there
@@ -173,11 +400,10 @@ defmodule Tuist.GitHistory.FileChanges do
 
   defp written(_listing), do: nil
 
+  defp staged?(listing), do: listing.staged and DateTime.after?(listing.inserted_at, staged_since(DateTime.utc_now()))
+
   # A day early: the listing's files expire on their own, part by part.
-  defp staged?(listing) do
-    days = Environment.coverage_retention_days().files
-    DateTime.after?(listing.inserted_at, DateTime.add(DateTime.utc_now(), -(days - 1), :day))
-  end
+  defp staged_since(now), do: DateTime.add(now, -(Environment.coverage_retention_days().files - 1), :day)
 
   defp write_listing(listing, commit, written) do
     if listed_files(listing) == listing.files_count do
@@ -185,7 +411,7 @@ defmodule Tuist.GitHistory.FileChanges do
       vacate(listing, commit.place)
       expires_at = expires_at(listing.repository_id, commit.place)
       above = above(listing.repository_id, commit.place, listing.sha)
-      rows = insert_changes(listing, commit, expires_at, above)
+      rows = insert_changes(listing, commit, expires_at, above, staged_files(listing))
 
       if rows > 0 or unchanged?(listing, commit) do
         mark(listing, commit.place, expires_at, count(listing, commit.place, above, rows))
@@ -215,24 +441,23 @@ defmodule Tuist.GitHistory.FileChanges do
   # that expired) would record every file it missed as gone. The statement
   # that reads the listing counts it too, on the replica it reads it from,
   # and writes nothing unless the files add up.
-  defp insert_changes(listing, %{place: {ref_id, position}} = commit, expires_at, []) do
+  defp insert_changes(listing, %{place: {ref_id, position}} = commit, expires_at, [], files) do
     insert(
       """
       SELECT {repository_id:Int64}, {ref_id:Int64}, {position:UInt32}, {generation:UInt32}, {sha:String},
         if(l.listed = 1, l.path, s.path), l.git_blob_id, l.mode, {expires_at:DateTime},
         #{version_sql({ref_id, position})}, 0
-      #{compared_sql(commit)}
-      WHERE #{@changed} AND #{@complete}
+      #{compared_sql(commit, files)}
+      WHERE #{@changed} AND #{files.complete}
       """,
-      %{
+      Map.merge(files.params, %{
         repository_id: listing.repository_id,
         ref_id: ref_id,
         position: position,
         generation: commit.generation,
         sha: listing.sha,
-        expires_at: expires_at,
-        files_count: listing.files_count
-      }
+        expires_at: expires_at
+      })
     )
   end
 
@@ -240,11 +465,20 @@ defmodule Tuist.GitHistory.FileChanges do
   # gets, for every path the commit changes and it reads from below the
   # commit, a row holding what was there. It reads a path from below when
   # neither it nor anything between the two has a row for it: rows of commits
-  # still to move up the ref may lie between. The rows go in the statement
-  # that writes the commit's own, so no attempt can leave one without the
-  # other. A path the commit already has a row for is from an earlier attempt
-  # that did: a commit written since reads that row.
-  defp insert_changes(listing, %{place: {ref_id, position} = place} = commit, expires_at, above) do
+  # still to move up the ref may lie between. The commit's own rows go in
+  # the last statement, with or after every row of the commits above: until
+  # then those rows hold what the commits read anyway, so an attempt that
+  # stops between two statements changes no commit's files, and the next one
+  # passes over the commits that have theirs. A path the commit already has a
+  # row for is from an earlier attempt that finished: a commit written since
+  # reads that row.
+  defp insert_changes(listing, commit, expires_at, above, files) do
+    {before, [last]} = above |> Enum.chunk_every(@above_chunk) |> Enum.split(-1)
+    Enum.each(before, &insert_with_above(listing, commit, expires_at, &1, files, false))
+    insert_with_above(listing, commit, expires_at, last, files, true)
+  end
+
+  defp insert_with_above(listing, %{place: {ref_id, position} = place} = commit, expires_at, above, files, own?) do
     held = held_sql([place | Enum.map(above, & &1.place)])
     read = Enum.map(above, &read_above(&1.place, place))
 
@@ -269,6 +503,37 @@ defmodule Tuist.GitHistory.FileChanges do
           "{above_shas:Array(String)}[#{index}], toDateTime({above_expires_at:Array(UInt32)}[#{index}]), [#{ranges}])"
       end)
 
+    compensated = """
+    arrayMap(
+      a -> (a.1, a.2, a.3, a.4, c.below_blob_id, c.below_mode, a.5),
+      arrayFilter(
+        a -> h.own = 0 AND NOT arrayExists(
+          row -> arrayExists(r -> row.1 = r.1 AND row.2 > r.2 AND row.2 <= r.3, a.6), h.places
+        ),
+        [#{targets}]
+      )
+    )
+    """
+
+    # A statement before the last fails on a listing that does not add up
+    # where it reads it, rather than write nothing: the last one, reading it
+    # whole on another replica, would write the commit's rows without the
+    # rows this one owed the commits above.
+    complete = if own?, do: files.complete, else: "(SELECT throwIf(NOT (#{files.complete}), 'listing incomplete')) = 0"
+
+    written =
+      if own? do
+        """
+        arrayConcat(
+          [(toInt64({ref_id:Int64}), toUInt32({position:UInt32}), toUInt32({generation:UInt32}), {sha:String},
+            c.git_blob_id, c.mode, {expires_at:DateTime})],
+          #{compensated}
+        )
+        """
+      else
+        compensated
+      end
+
     insert(
       """
       WITH greatest(#{System.os_time(:microsecond)}, (
@@ -276,25 +541,12 @@ defmodule Tuist.GitHistory.FileChanges do
       )) AS version
       SELECT {repository_id:Int64}, t.1, t.2, t.3, t.4, path, t.5, t.6, t.7, version, 0
       FROM (
-        SELECT c.path AS path,
-          arrayConcat(
-            [(toInt64({ref_id:Int64}), toUInt32({position:UInt32}), toUInt32({generation:UInt32}), {sha:String},
-              c.git_blob_id, c.mode, {expires_at:DateTime})],
-            arrayMap(
-              a -> (a.1, a.2, a.3, a.4, c.below_blob_id, c.below_mode, a.5),
-              arrayFilter(
-                a -> h.own = 0 AND NOT arrayExists(
-                  row -> arrayExists(r -> row.1 = r.1 AND row.2 > r.2 AND row.2 <= r.3, a.6), h.places
-                ),
-                [#{targets}]
-              )
-            )
-          ) AS targets
+        SELECT c.path AS path, #{written} AS targets
         FROM (
           SELECT if(l.listed = 1, l.path, s.path) AS path, l.git_blob_id AS git_blob_id, l.mode AS mode,
             s.git_blob_id AS below_blob_id, s.mode AS below_mode
-          #{compared_sql(commit)}
-          WHERE #{@changed} AND #{@complete}
+          #{compared_sql(commit, files)}
+          WHERE #{@changed} AND #{complete}
         ) AS c
         LEFT JOIN (
           SELECT path, groupArray((ref_id, position)) AS places,
@@ -305,17 +557,16 @@ defmodule Tuist.GitHistory.FileChanges do
         ) AS h ON h.path = c.path
       ) ARRAY JOIN targets AS t
       """,
-      %{
+      Map.merge(files.params, %{
         repository_id: listing.repository_id,
         ref_id: ref_id,
         position: position,
         generation: commit.generation,
         sha: listing.sha,
         expires_at: expires_at,
-        files_count: listing.files_count,
         above_shas: Enum.map(above, & &1.sha),
         above_expires_at: Enum.map(above, &DateTime.to_unix(&1.expires_at))
-      }
+      })
     )
   end
 
@@ -338,18 +589,20 @@ defmodule Tuist.GitHistory.FileChanges do
   defp count(_listing, _place, [], rows), do: rows
 
   defp count(listing, place, above, _rows) do
-    %{rows: counted} =
-      ClickHouseRepo.query!(
-        """
-        SELECT ref_id, position, count() FROM git_file_changes FINAL
-        WHERE repository_id = {repository_id:Int64} AND expires_at > now()
-          AND (#{held_sql([place | Enum.map(above, & &1.place)])})
-        GROUP BY ref_id, position
-        """,
-        %{repository_id: listing.repository_id}
-      )
-
-    counted = Map.new(counted, fn [ref_id, position, count] -> {{ref_id, position}, count} end)
+    counted =
+      [place | Enum.map(above, & &1.place)]
+      |> Enum.chunk_every(@above_chunk)
+      |> Enum.flat_map(fn places ->
+        ClickHouseRepo.query!(
+          """
+          SELECT ref_id, position, count() FROM git_file_changes FINAL
+          WHERE repository_id = {repository_id:Int64} AND expires_at > now() AND (#{held_sql(places)})
+          GROUP BY ref_id, position
+          """,
+          %{repository_id: listing.repository_id}
+        ).rows
+      end)
+      |> Map.new(fn [ref_id, position, count] -> {{ref_id, position}, count} end)
 
     for commit <- above do
       Repo.update_all(
@@ -364,27 +617,43 @@ defmodule Tuist.GitHistory.FileChanges do
   # Nothing written is a commit that changed nothing only when a replica
   # that has the whole listing says so.
   defp unchanged?(listing, commit) do
+    files = staged_files(listing)
+
     %{rows: [[unchanged]]} =
       ClickHouseRepo.query!(
-        "SELECT countIf(#{@changed}) = 0 AND #{@complete} #{compared_sql(commit)}",
-        %{repository_id: listing.repository_id, sha: listing.sha, files_count: listing.files_count}
+        "SELECT countIf(#{@changed}) = 0 AND #{files.complete} #{compared_sql(commit, files)}",
+        Map.merge(files.params, %{repository_id: listing.repository_id, sha: listing.sha})
       )
 
     unchanged == 1
   end
 
-  # The listing's files beside the ones below the commit.
-  defp compared_sql(commit) do
+  # The commit's files (`l`) beside the ones below it (`s`), over the paths
+  # that can differ between the two.
+  defp compared_sql(commit, files) do
     """
-    FROM (
+    FROM (#{files.listed}) AS l
+    FULL OUTER JOIN (#{state_sql(GitHistory.chain(commit.place, :below), files.paths)}) AS s ON s.path = l.path
+    """
+  end
+
+  # Where a write reads the commit's files from: `listed` selects them, over
+  # the `paths` condition, and `complete` says, in the statement that reads
+  # them, whether they are whole. Here, its staged listing, checked against
+  # its file count.
+  defp staged_files(listing) do
+    %{
+      listed: """
       SELECT path, argMax(git_blob_id, inserted_at) AS git_blob_id, argMax(mode, inserted_at) AS mode, 1 AS listed
       FROM git_commit_files
       WHERE repository_id = {repository_id:Int64} AND sha = {sha:String}
       GROUP BY path
       HAVING git_blob_id != ''
-    ) AS l
-    FULL OUTER JOIN (#{state_sql(GitHistory.chain(commit.place, :below))}) AS s ON s.path = l.path
-    """
+      """,
+      paths: "1",
+      complete: @complete,
+      params: %{files_count: listing.files_count}
+    }
   end
 
   # Rows that move up their own ref (a rebuild placed a commit below them)
@@ -472,9 +741,18 @@ defmodule Tuist.GitHistory.FileChanges do
 
   # Each place has one owner at a time: what another commit left at this one
   # (a branch rewritten, the refs rebuilt) goes before the commit's own rows.
-  defp vacate(listing, place) do
-    preserve_above(listing, place, :at)
-    delete(listing.repository_id, place, "sha != {sha:String}", %{sha: listing.sha})
+  defp vacate(listing, {ref_id, position} = place) do
+    left =
+      from(c in FileChange,
+        hints: ["FINAL"],
+        where: c.repository_id == ^listing.repository_id and c.ref_id == ^ref_id and c.position == ^position,
+        where: c.sha != ^listing.sha
+      )
+
+    if ClickHouseRepo.exists?(left) do
+      preserve_above(listing, place, :at)
+      delete(listing.repository_id, place, "sha != {sha:String}", %{sha: listing.sha})
+    end
   end
 
   defp delete(repository_id, {ref_id, position}, condition, params) do
@@ -798,13 +1076,13 @@ defmodule Tuist.GitHistory.FileChanges do
     end
   end
 
-  defp bound(values) do
+  defp bound(values, key \\ & &1) do
     values
     |> Enum.uniq()
     |> Enum.chunk_while(
       {[], 0, 0},
       fn value, {chunk, count, bytes} ->
-        size = byte_size(value) + 3
+        size = byte_size(key.(value)) + 3
 
         if count == @bound_paths or (count > 0 and bytes + size > @bound_bytes),
           do: {:cont, chunk, {[value], 1, size}},
@@ -867,7 +1145,7 @@ defmodule Tuist.GitHistory.FileChanges do
 
   # Each path's newest row along the chain, the nearest ref first, without
   # the paths that row says are gone.
-  defp state_sql(chain, condition \\ "1") do
+  defp state_sql(chain, condition) do
     refs = Enum.map_join(chain, ", ", & &1.ref_id)
     newest = "(-toInt64(indexOf([#{refs}], ref_id)), position)"
 

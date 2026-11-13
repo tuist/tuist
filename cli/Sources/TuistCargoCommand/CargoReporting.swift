@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCI
+import TuistGit
 import TuistServer
 
 struct CargoBuildOutcome {
@@ -33,6 +34,9 @@ struct CargoReporting {
     let environment: [String: String]
     let handle: String
     let serverURL: URL
+    /// Whether test runs collect code coverage (`tuist.toml`'s `[test_insights.coverage] upload`, or
+    /// `TUIST_COVERAGE_UPLOAD`).
+    var uploadsCoverage = false
 
     func metadata() async -> [String: Any] {
         let ci = CIController().ciInfo()
@@ -147,7 +151,7 @@ struct CargoReporting {
         ]
     }
 
-    func tests(run: CargoNextestRun, metadata: [String: Any], failed: Bool) async {
+    func tests(run: CargoNextestRun, metadata: [String: Any], failed: Bool, coverage: CargoCoverage.Report? = nil) async {
         guard let current = CargoNextestRun.fingerprint(run.junitURL), current != run.previousReport,
               let report = try? NextestReport.read(run.junitURL) else { return }
         var payload = metadata
@@ -165,11 +169,12 @@ struct CargoReporting {
         )
         if let inventory = run.inventory { payload["enumerated_tests"] = inventory.enumeration }
         if let shardID = run.shardID { payload["shard_plan_id"] = shardID; payload["shard_index"] = run.shardIndex }
-        await submit(payload, kind: "tests")
+        await submitTests(payload, coverage: coverage)
     }
 
     func tests(
-        report: CargoTestReport, metadata: [String: Any], failed: Bool, shardID: String? = nil, shardIndex: Int? = nil
+        report: CargoTestReport, metadata: [String: Any], failed: Bool, shardID: String? = nil, shardIndex: Int? = nil,
+        coverage: CargoCoverage.Report? = nil
     ) async {
         var payload = metadata
         let label = environment["TUIST_SCHEME"].flatMap { $0.isEmpty ? nil : $0 }
@@ -185,7 +190,94 @@ struct CargoReporting {
             uniquingKeysWith: { _, new in new }
         )
         if let shardID { payload["shard_plan_id"] = shardID; payload["shard_index"] = shardIndex }
+        await submitTests(payload, coverage: coverage)
+    }
+
+    /// Submits a test run with what it says about coverage: whether it was set up to collect it, and, when it was,
+    /// the commit's Git history (uploaded before the run, its file listing after), the tests a narrowed run ran,
+    /// the coverage, inline or uploaded first when large, and the evidence.
+    private func submitTests(_ payload: [String: Any], coverage: CargoCoverage.Report?) async {
+        var payload = payload
+        payload["coverage_enabled"] = coverage?.enabled ?? false
+        guard let coverage, coverage.enabled else { return await submit(payload, kind: "tests") }
+        let git = GitController()
+        let history: CollectedGitHistory?
+        if let gitInfo = try? await git.gitInfo(workingDirectory: directory) {
+            history = await GitHistoryService().publish(
+                gitInfo: gitInfo, workingDirectory: directory, fullHandle: handle, serverURL: serverURL, coverage: true
+            )
+        } else {
+            history = nil
+        }
+        if let history {
+            let fields: [String: Any?] = [
+                "base_branch": history.payload.baseBranch,
+                "merge_base_sha": history.payload.mergeBaseSHA,
+                "is_pull_request": history.payload.isPullRequest,
+                "pull_request_number": history.payload.pullRequestNumber,
+                "git_object_format": history.payload.objectFormat,
+                "history_source": history.payload.source,
+                "history_fallback_reason": history.payload.fallbackReason,
+                "git_dirty": history.payload.dirty,
+                // On a pull request's merge checkout, the commit the history and the listing describe.
+                "git_commit_sha": history.history.headSHA.isEmpty ? nil : history.history.headSHA,
+                "git_branch": history.branch,
+            ]
+            for case let (key, value?) in fields {
+                payload[key] = value
+            }
+        }
+        if let identifiers = coverage.onlyTestIdentifiers { payload["only_test_identifiers"] = identifiers }
+        if let result = coverage.result {
+            if let block = await coverageBlock(result, coverage: coverage, testRunID: payload["id"] as? String ?? "") {
+                payload["coverage"] = block
+            }
+            if let evidence = result.evidence { payload["coverage_evidence"] = evidence }
+        }
         await submit(payload, kind: "tests")
+        await GitHistoryService().upload(
+            history, workingDirectory: directory, fullHandle: handle, serverURL: serverURL, coverage: true
+        )
+    }
+
+    private func coverageBlock(_ result: CargoCoverage.Result, coverage: CargoCoverage.Report, testRunID: String) async
+        -> [String: Any]?
+    {
+        var block: [String: Any] = [
+            "tool": "llvm-cov", "tool_version": coverage.toolVersion, "platform": coverage.platform, "partial": result.partial,
+        ]
+        var files = result.files
+        let paths = files.compactMap { $0["path"] as? String }
+        let blobs = await CargoCoverage.blobIDs(
+            paths: paths, root: coverage.repositoryRoot, process: process, environment: environment
+        )
+        for index in files.indices {
+            if let path = files[index]["path"] as? String, let blob = blobs[path] { files[index]["git_blob_id"] = blob }
+        }
+        let lines = files.compactMap { try? JSONSerialization.data(withJSONObject: $0) }
+        let compressed = CargoCoverage.deflate(Data(lines.joined(separator: Data("\n".utf8))))
+        let threshold = (try? await GetCoverageSettingsService().inlineThresholdBytes(fullHandle: handle, serverURL: serverURL))
+            ?? 5_000_000
+        guard compressed.count > threshold else {
+            block["files"] = files
+            return block
+        }
+        do {
+            let upload = try await CreateCoverageUploadService().createCoverageUpload(
+                fullHandle: handle, serverURL: serverURL, testRunId: testRunID
+            )
+            let file = FileManager.default.temporaryDirectory
+                .appendingPathComponent("tuist-coverage-\(UUID().uuidString).deflate")
+            defer { try? FileManager.default.removeItem(at: file) }
+            try compressed.write(to: file)
+            try await CoverageFileUploader().upload(file: AbsolutePath(validating: file.path), to: upload.uploadURL)
+            block["storage_key"] = upload.storageKey
+            return block
+        } catch {
+            AlertController.current
+                .warning(.alert("The run's code coverage could not be uploaded: \(error.localizedDescription)"))
+            return nil
+        }
     }
 
     private func submit(_ payload: [String: Any], kind: String) async {

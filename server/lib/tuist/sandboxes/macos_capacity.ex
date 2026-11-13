@@ -43,9 +43,12 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     end
   end
 
+  # A turn on a running VM takes no capacity the VM does not already hold,
+  # so it needs no grant: CI and sandboxes are served first come, first
+  # served, and CI demand arriving later does not take a running VM's place.
   def admit_turn(sandbox, apply) do
     with {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name),
-         true <- info[:generation] == sandbox.node_uid and allowed?(info) do
+         true <- info[:generation] == sandbox.node_uid do
       apply.()
     else
       _ -> {:error, :no_capacity}
@@ -75,9 +78,12 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   defp quota(%Sandbox{state: state}) when state in @charged, do: :ok
   defp quota(sandbox), do: Capacity.quota(sandbox.account_id, sandbox)
 
-  defp host_admission(%Sandbox{node_name: node_name, node_uid: node_uid}) do
+  # Only a paused sandbox asks the host for new capacity; a running one
+  # already holds it.
+  defp host_admission(%Sandbox{node_name: node_name, node_uid: node_uid, state: state}) do
     status =
       case Nodes.lookup(node_name) do
+        {:ok, _pid, %{generation: ^node_uid}} when state == :running -> :ok
         {:ok, _pid, %{generation: ^node_uid} = info} -> grant_status(info)
         {:ok, _pid, _info} -> :node_replaced
         {:error, reason} -> reason

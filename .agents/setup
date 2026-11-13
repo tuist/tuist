@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Prepares an Amp orb (Debian 12) for working on this monorepo: the root and
+# Prepares an Amp orb (Debian/Ubuntu) for working on this monorepo: the root and
 # server mise toolchains, PostgreSQL 16, ClickHouse, and a bootstrapped,
 # compiled server. Idempotent; warm runs only verify what is already there.
 set -euo pipefail
+
+# macOS Orbs serve CLI and app work and have their own setup.
+if [[ "$(uname -s)" == Darwin ]]; then
+  exec "$(dirname "${BASH_SOURCE[0]}")/setup-macos" "$@"
+fi
 
 # The stdout and stderr Amp gives setup can fail a write with EAGAIN when its
 # reader falls behind a burst of output. awk, coreutils and Rust's println!
@@ -17,11 +22,27 @@ stdout_relay=$!
 exec 2> >(node -e "$relay" >&4 3>&- 4>&-)
 stderr_relay=$!
 exec 3>&- 4>&-
-# Exit only after the relays have passed on the last output, often the error.
-trap 'exec >&- 2>&-; wait "$stdout_relay" "$stderr_relay"' EXIT
+clean_lockfiles=()
+finish() {
+  local status=$?
+  # mise records Linux checksums (and provenance, which the root mise.lock
+  # must never carry) into these lockfiles while installing. Restore them even
+  # when a step fails, so a failed setup does not hand threads a dirty worktree,
+  # and fail an otherwise successful setup when the restore fails, so no
+  # snapshot carries them.
+  if ((${#clean_lockfiles[@]})) && ! git -C "$repo_root" checkout -- "${clean_lockfiles[@]}"; then
+    ((status)) || status=1
+  fi
+  # Exit only after the relays have passed on the last output, often the error.
+  exec >&- 2>&-
+  wait "$stdout_relay" "$stderr_relay" || true
+  exit "$status"
+}
+trap finish EXIT
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+setup_started=$SECONDS
 
 step() {
   printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
@@ -59,8 +80,8 @@ retry() {
 }
 
 # --- System packages -------------------------------------------------------
-# Erlang builds from source (mise.lock has no Linux URL for core:erlang), so
-# keep its build dependencies alongside PostgreSQL 16, which the server
+# Keep Erlang's build dependencies, which mise needs if it falls back to a
+# source build (see ImageOS below), alongside PostgreSQL 16, which the server
 # requires and Debian 12 does not ship.
 apt_packages=(
   autoconf build-essential libssl-dev libncurses-dev unzip
@@ -82,8 +103,8 @@ if ((${#missing_packages[@]})); then
       https://www.postgresql.org/media/keys/ACCC4CF8.asc
     echo "$pgdg_list" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
   fi
-  sudo apt-get update -q
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
+  timed "Updating system package lists" sudo apt-get update -q
+  timed "Installing system packages" sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${missing_packages[@]}"
 fi
 
 # --- PostgreSQL 16 ---------------------------------------------------------
@@ -127,6 +148,13 @@ if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise
 fi
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export MISE_YES=1
+# mise installs prebuilt Erlang (builds.hex.pm) only on Ubuntu and compiles OTP
+# from source with kerl elsewhere, a minute or more of a cold setup on Debian
+# 12 orbs. The Ubuntu 22.04 build runs on Debian 12 (glibc 2.36, OpenSSL 3),
+# and mise reads the distribution from ImageOS before /etc/os-release.
+if [[ "$(. /etc/os-release && echo "$ID-$VERSION_ID")" == debian-12 ]]; then
+  export ImageOS=ubuntu22
+fi
 # github: tools (ClickHouse, MinIO) verify attestations through api.github.com.
 # Orbs share egress IPs, so anonymous requests hit the 60/hour limit and the
 # install fails; authenticate with the orb's gh login when there is one.
@@ -146,10 +174,8 @@ esac
 EOF
 fi
 
-# mise records Linux checksums into these lockfiles while installing. Restore
-# them afterwards so orbs start with a clean worktree, unless they already
-# carried someone's edits.
-clean_lockfiles=()
+# finish restores these lockfiles on exit unless they already carried
+# someone's edits.
 for lockfile in mise.lock server/mise.lock; do
   git diff --quiet -- "$lockfile" && clean_lockfiles+=("$lockfile")
 done
@@ -193,7 +219,7 @@ if [[ -z "${TUIST_OIDC_TOKEN:-}" ]]; then
 fi
 
 step "Starting ClickHouse"
-mise run --no-deps clickhouse:start
+timed "Starting ClickHouse" mise run --no-deps clickhouse:start
 
 # deps.get, aube installs, Noora build, dev compile, and database
 # create/migrate; on a stale snapshot only what changed.
@@ -201,11 +227,17 @@ step "Bootstrapping server dependencies and databases"
 timed "Bootstrapping server dependencies and databases" mise run --no-deps install --no-seed
 
 # Seed here so the snapshot carries the data to every thread. A stale
-# snapshot is seeded already, and the seeds are not idempotent.
+# snapshot is seeded already, and the seeds are not idempotent. Seed the dev
+# databases in the background while the test build compiles into its own
+# build path: in sequence the two took three minutes of a cold setup, and
+# overlapped about two. Buffer the seed's output so the steps stay readable.
 dev_db="$(mise exec -- printenv TUIST_SERVER_POSTGRES_DB)"
+seed_pid=""
 if ! psql -h localhost -d "$dev_db" -Atqc "SELECT EXISTS (SELECT 1 FROM users)" | grep -qx t; then
-  step "Seeding $dev_db"
-  timed "Seeding $dev_db" mise run --no-deps db:seed
+  step "Seeding $dev_db in the background"
+  seed_log="$(mktemp)"
+  timed "Seeding $dev_db" mise run --no-deps db:seed >"$seed_log" 2>&1 &
+  seed_pid=$!
 fi
 
 # What the test alias does before running tests, so a thread's first
@@ -217,15 +249,21 @@ timed "Compiling the server test build" env MIX_ENV=test mise exec -- mix compil
 step "Creating and migrating the server test databases"
 timed "Creating and migrating the server test databases" env MIX_ENV=test mise exec -- mix "do" ecto.create --quiet + run priv/repo/timezone.exs + ecto.migrate --quiet
 
+if [[ -n "$seed_pid" ]]; then
+  step "Waiting for the $dev_db seed"
+  seed_status=0
+  wait "$seed_pid" || seed_status=$?
+  cat "$seed_log"
+  rm -f "$seed_log"
+  ((seed_status == 0)) || exit "$seed_status"
+fi
+
 # Stop the databases cleanly so their data directories are consistent in
 # the snapshot. Nothing restarts them on resume: most threads never touch the
 # server, so the server service and the orb guidance start them on demand.
 step "Stopping ClickHouse and PostgreSQL"
 mise run --no-deps clickhouse:stop
 sudo pg_ctlcluster 16 main stop
-
-cd "$repo_root"
-((${#clean_lockfiles[@]} == 0)) || git checkout -- "${clean_lockfiles[@]}"
 
 step "Writing orb kubeconfig"
 # Contexts for the kube-orb-<env> gateways. The file holds no credential:
@@ -297,4 +335,4 @@ EOF
 } >"$guidance.tmp"
 mv "$guidance.tmp" "$guidance"
 
-step "Setup finished"
+step "Setup finished in $((SECONDS - setup_started))s"

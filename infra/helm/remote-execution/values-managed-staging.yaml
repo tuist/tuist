@@ -10,17 +10,18 @@ gateway:
     enabled: true
     host: execution-staging.tuist.dev
 workers:
-  # Six slots' ceilings (277 GiB) plus the 20 GiB blob cache. The host's data
-  # filesystem has less free than that: staging overcommits on purpose, since
-  # the workspace and rootfs images are sparse and only fill as VMs write.
-  diskGiB: 300
-  # Staging's one runners-linux host, beside its CI runners and the agent
-  # sandbox daemon: 1 VM always, up to 6 ahead of queued actions.
+  # Ten slots' ceilings (about 460 GiB) plus the 20 GiB blob cache. The host's
+  # data filesystem has less free than that: staging overcommits on purpose,
+  # since the workspace and rootfs images are sparse and only fill as VMs write.
+  diskGiB: 480
+  # Staging's runners-linux host, beside its CI runners and the agent
+  # sandbox daemon: 1 VM always, up to 10 ahead of queued actions, which is
+  # what the host's 24 vCPUs hold beside a 2 vCPU runner without oversubscribing.
   sharedHosts:
     enabled: true
-    nodes:
-      - tuist-tuist-ovh-fleet-runners-linux-h72m4-llfpg
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: runners-linux
     floorSlots: 1
-    ceilingSlots: 6
+    ceilingSlots: 10
     tolerations:
       - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}

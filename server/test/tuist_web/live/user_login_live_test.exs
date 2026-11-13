@@ -46,9 +46,11 @@ defmodule TuistWeb.UserLoginLiveTest do
     test "renders SSO button if Okta is configured", %{conn: conn} do
       stub(Environment, :okta_oauth_configured?, fn -> true end)
       stub(Environment, :tuist_hosted?, fn -> false end)
-      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+      {:ok, lv, html} = live(conn, ~p"/users/log_in")
 
       assert html =~ "SSO"
+      assert has_element?(lv, "[data-part='authentication-methods'] #passkey-login")
+      assert has_element?(lv, "[data-part='authentication-methods'] [data-part='sso']")
     end
 
     test "does not render SSO button if Okta is not configured and not tuist hosted", %{
@@ -106,7 +108,7 @@ defmodule TuistWeb.UserLoginLiveTest do
                "Log in with a passkey"
              )
 
-      assert has_element?(lv, "#passkey-login ~ #login_form")
+      assert has_element?(lv, "[data-part='oauth-providers'] #passkey-login")
     end
 
     test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do

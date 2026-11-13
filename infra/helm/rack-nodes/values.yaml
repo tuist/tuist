@@ -38,8 +38,6 @@ runnersFleet:
   runnerImageSemver: ""
 
 # The Kura cache fleets whose pools the rented CSI plugin serves.
-kuraFleet:
-  enabled: false
 ovhFleet:
   enabled: false
 ovhFleets: {}

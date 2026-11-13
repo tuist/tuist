@@ -81,39 +81,31 @@ managed shared Secret, using the same signing key as their server.
 
 ## Organization Pulse dashboard
 
-Production connects the organization dashboard to the private
-`pulse.observability.svc.cluster.local:4000` Service, tenant `tuist`, with stable
-account ID `3` (not organization ID `1`). `server.config.pulse.enabled` syncs
-the existing `PULSE_TOKEN/password` field from the environment's 1Password
-vault through the server-config ExternalSecret. Verify that source exists and
-its Pulse ExternalSecret is Ready before enabling this mapping: a missing
-field fails the shared server-config sync. No token is stored in chart values.
-The connection is disabled by default and in canary.
+Staging and production configure a reader; canary has none.
+`server.config.pulse.enabled` syncs the existing `PULSE_TOKEN/password` field
+from the environment's 1Password vault through the server-config
+ExternalSecret. Verify that source exists before enabling this mapping: a
+missing field fails the shared server-config sync. The `pulse` release's
+`pulse-dashboard-auth` ExternalSecret reads the same field, so it being Ready
+proves the source. No token is stored in chart values.
 
-Staging uses the Greptime reader at
-`http://greptimedb.observability.svc.cluster.local:4000`, database `public`,
-with stable account ID `2`, the staging `tuist` account. It uses the same
-environment-scoped `PULSE_TOKEN/password` source, authenticated as the readonly
-`dashboard` user. The managed staging overlay owns this configuration; do not
-patch the Deployment separately. After deploying a reader-capable server image,
-confirm the live account still resolves to ID `2` before enabling only that
-account's `pulse` actor gate in staging. Never use production's ID `3` there.
+Both read the `pulse` release at
+`http://pulse.observability.svc.cluster.local:4000`, database `public`, as the
+readonly `dashboard` user, with the environment's stable `tuist` account ID:
+`2` in staging and `3` in production (not production's organization ID `1`).
+Never swap the two. The managed overlays own this configuration; do not patch
+the Deployment separately. The Pulse chart admits the server only when deployed
+with `dashboard=true`. Enable only that account's `pulse` actor gate, never the
+flag globally, and confirm the live account still resolves to the configured
+ID first. Disable the account gate to withdraw access without touching Pulse or
+telemetry collection. The server reads the token from its environment at
+startup, so after rotating `PULSE_TOKEN/password` and letting ESO reconcile,
+roll the server replicas as well as Pulse.
 Verify metrics, logs and traces (both tables and analytics) on every serving
 replica, and verify other accounts and non-members remain denied. Log/span
 queries are literal text searches, with `*` selecting all; Errors are not
 supported by this backend. Configuring the connection alone does not enable
 the feature flag or constitute a successful live-reader verification.
-
-For production, after the normal server deployment cascade, verify the server-config
-ExternalSecret is Ready and every web replica has the three non-secret
-`TUIST_PULSE_*` connection settings. Enable only the `pulse` actor gate for
-account `3` through the audited feature-flag operator API, then verify the four
-dashboard pages and MCP tools as a current Tuist member. The flag and current
-membership are required even when the connection is configured. Do not enable
-the flag globally. Rotate the vault token through the existing Pulse credential
-procedure, wait for ESO reconciliation, and roll the server replicas to reload
-their environment token. Disable the account gate to withdraw access without
-removing the shared Pulse service or affecting telemetry collection.
 
 ## Local validation
 

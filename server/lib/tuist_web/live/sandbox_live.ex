@@ -157,6 +157,7 @@ defmodule TuistWeb.SandboxLive do
   end
 
   defp assign_sandbox(socket, sandbox) do
+    [sandbox] = Sandboxes.preload_creators([sandbox])
     assign(socket, sandbox: sandbox)
   end
 

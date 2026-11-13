@@ -13,11 +13,12 @@ provider in the fleet at all. OVH's own datacenter availability API returns
 syd, waw, ynm`.
 
 The box is a worker in the same cluster as every other region's node pool, so
-this is the Elastic Metal pattern with a different provisioning call. See
-[scaleway-elastic-metal-support.md](scaleway-elastic-metal-support.md) for the
-shared parts: the stub `TuistCluster`, the identity-mint self-join, the orphan
-reclaimer, and why upstream per-provider CAPI providers do not fit clusters
-whose infrastructure provider is caph.
+this is the OVH pattern with a different provisioning call. The shared parts
+are the stub `TuistCluster`, the identity-mint self-join and the orphan
+reclaimer; upstream per-provider CAPI providers do not fit clusters whose
+infrastructure provider is caph. That rationale was written up in the retired
+Scaleway Elastic Metal design (`docs/scaleway-elastic-metal-support.md`,
+removed in November 2026; read it from git history).
 
 ## The contract Vultr cannot honour
 

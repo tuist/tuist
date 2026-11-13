@@ -1,0 +1,196 @@
+create table t (
+    ts timestamp time index,
+    val double,
+    host string,
+    idc string,
+    primary key (host, idc),
+)
+partition on columns (host) (
+    host < '1024',
+    host >= '1024'
+);
+
+Affected Rows: 0
+
+-- SQLNESS REPLACE (metrics.*) REDACTED
+-- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
+-- SQLNESS REPLACE (Hash.*) REDACTED
+-- SQLNESS REPLACE (-+) -
+-- SQLNESS REPLACE (\s\s+) _
+-- SQLNESS REPLACE (peers.*) REDACTED
+-- SQLNESS REPLACE region=\d+\(\d+,\s+\d+\) region=REDACTED
+-- might write to different partitions
+-- SQLNESS REPLACE "partition_count":\{(.*?)\} "partition_count":REDACTED
+-- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
+explain analyze
+select sum(val) from t group by host;
+
++-+-+-+
+| stage | node | plan_|
++-+-+-+
+| 0_| 0_|_CooperativeExec REDACTED
+|_|_|_MergeScanExec: REDACTED
+|_|_|_|
+| 1_| 0_|_ProjectionExec: expr=[sum(t.val)@1 as sum(t.val)] REDACTED
+|_|_|_AggregateExec: mode=FinalPartitioned, gby=[host@0 as host], aggr=[sum(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[host@1 as host], aggr=[sum(t.val)] REDACTED
+|_|_|_SeqScan: region=REDACTED, "partition_count":REDACTED, "projection": ["val", "host"], "filters": ["host < Utf8(\"1024\") OR host IS NULL"], "time_range":REDACTED
+|_|_|_|
+| 1_| 1_|_ProjectionExec: expr=[sum(t.val)@1 as sum(t.val)] REDACTED
+|_|_|_AggregateExec: mode=FinalPartitioned, gby=[host@0 as host], aggr=[sum(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[host@1 as host], aggr=[sum(t.val)] REDACTED
+|_|_|_SeqScan: region=REDACTED, "partition_count":REDACTED, "projection": ["val", "host"], "filters": ["host >= Utf8(\"1024\")"], "time_range":REDACTED
+|_|_|_|
+|_|_| Total rows: 0_|
++-+-+-+
+
+-- SQLNESS REPLACE (metrics.*) REDACTED
+-- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
+-- SQLNESS REPLACE (-+) -
+-- SQLNESS REPLACE (\s\s+) _
+-- SQLNESS REPLACE (peers.*) REDACTED
+-- SQLNESS REPLACE region=\d+\(\d+,\s+\d+\) region=REDACTED
+-- might write to different partitions
+-- SQLNESS REPLACE "partition_count":\{(.*?)\} "partition_count":REDACTED
+-- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
+explain analyze
+select sum(val) from t;
+
++-+-+-+
+| stage | node | plan_|
++-+-+-+
+| 0_| 0_|_AggregateExec: mode=Final, gby=[], aggr=[__sum_merge(__sum_state(t.val)) as sum(t.val)] REDACTED
+|_|_|_CoalescePartitionsExec REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[], aggr=[__sum_merge(__sum_state(t.val)) as sum(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_MergeScanExec: REDACTED
+|_|_|_|
+| 1_| 0_|_AggregateExec: mode=Final, gby=[], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_CoalescePartitionsExec REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_SeqScan: region=REDACTED, "partition_count":REDACTED, "projection": ["val"], "filters": ["host < Utf8(\"1024\") OR host IS NULL"], "time_range":REDACTED
+|_|_|_|
+| 1_| 1_|_AggregateExec: mode=Final, gby=[], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_CoalescePartitionsExec REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_SeqScan: region=REDACTED, "partition_count":REDACTED, "projection": ["val"], "filters": ["host >= Utf8(\"1024\")"], "time_range":REDACTED
+|_|_|_|
+|_|_| Total rows: 1_|
++-+-+-+
+
+-- SQLNESS REPLACE (metrics.*) REDACTED
+-- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
+-- SQLNESS REPLACE (Hash.*) REDACTED
+-- SQLNESS REPLACE (-+) -
+-- SQLNESS REPLACE (\s\s+) _
+-- SQLNESS REPLACE (peers.*) REDACTED
+-- SQLNESS REPLACE region=\d+\(\d+,\s+\d+\) region=REDACTED
+-- might write to different partitions
+-- SQLNESS REPLACE "partition_count":\{(.*?)\} "partition_count":REDACTED
+-- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
+explain analyze
+select sum(val) from t group by idc;
+
++-+-+-+
+| stage | node | plan_|
++-+-+-+
+| 0_| 0_|_ProjectionExec: expr=[sum(t.val)@1 as sum(t.val)] REDACTED
+|_|_|_AggregateExec: mode=FinalPartitioned, gby=[idc@0 as idc], aggr=[__sum_merge(__sum_state(t.val)) as sum(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[idc@0 as idc], aggr=[__sum_merge(__sum_state(t.val)) as sum(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_MergeScanExec: REDACTED
+|_|_|_|
+| 1_| 0_|_AggregateExec: mode=FinalPartitioned, gby=[idc@0 as idc], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[idc@1 as idc], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_SeqScan: region=REDACTED, "partition_count":REDACTED, "projection": ["val", "idc"], "filters": ["host < Utf8(\"1024\") OR host IS NULL"], "time_range":REDACTED
+|_|_|_|
+| 1_| 1_|_AggregateExec: mode=FinalPartitioned, gby=[idc@0 as idc], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_RepartitionExec: partitioning=REDACTED
+|_|_|_AggregateExec: mode=Partial, gby=[idc@1 as idc], aggr=[__sum_state(t.val)] REDACTED
+|_|_|_SeqScan: region=REDACTED, "partition_count":REDACTED, "projection": ["val", "idc"], "filters": ["host >= Utf8(\"1024\")"], "time_range":REDACTED
+|_|_|_|
+|_|_| Total rows: 0_|
++-+-+-+
+
+insert into t values
+    (1000, 1, '1000-x', 'a'),
+    (1000, 2, '1000-y', 'a'),
+    (1000, 3, '2000-x', 'a'),
+    (1000, 4, '2000-y', 'a');
+
+Affected Rows: 4
+
+-- group keys derived from the partition column span regions
+select substr(host, 6, 1) as g, count(*), sum(val) from t group by g order by g;
+
++---+----------+------------+
+| g | count(*) | sum(t.val) |
++---+----------+------------+
+| x | 2        | 4.0        |
+| y | 2        | 6.0        |
++---+----------+------------+
+
+-- count(*) and count(1) are rewritten to count(ts), sharing the same state column
+select count(*), count(1), count(ts) from t;
+
++----------+-----------------+-------------+
+| count(*) | count(Int64(1)) | count(t.ts) |
++----------+-----------------+-------------+
+| 4        | 4               | 4           |
++----------+-----------------+-------------+
+
+select count(*) as a, count(ts) as b from t;
+
++---+---+
+| a | b |
++---+---+
+| 4 | 4 |
++---+---+
+
+-- the cast is hidden from the state column name
+select count(*), count(ts::bigint) from t;
+
++----------+-------------+
+| count(*) | count(t.ts) |
++----------+-------------+
+| 4        | 4           |
++----------+-------------+
+
+-- grouping sets are computed on the frontend, only the PostgreSQL dialect parses them
+-- SQLNESS PROTOCOL POSTGRES
+select host, idc, sum(val) from t group by grouping sets ((host, idc), (host)) order by host, idc;
+
++--------+-----+------------+
+| host   | idc | sum(t.val) |
++--------+-----+------------+
+| 1000-x | a   | 1.0        |
+| 1000-x |     | 1.0        |
+| 1000-y | a   | 2.0        |
+| 1000-y |     | 2.0        |
+| 2000-x | a   | 3.0        |
+| 2000-x |     | 3.0        |
+| 2000-y | a   | 4.0        |
+| 2000-y |     | 4.0        |
++--------+-----+------------+
+
+-- SQLNESS PROTOCOL POSTGRES
+select host, sum(val) from t group by rollup(host) order by host;
+
++--------+------------+
+| host   | sum(t.val) |
++--------+------------+
+| 1000-x | 1.0        |
+| 1000-y | 2.0        |
+| 2000-x | 3.0        |
+| 2000-y | 4.0        |
+|        | 10.0       |
++--------+------------+
+
+drop table t;
+
+Affected Rows: 0
+

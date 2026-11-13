@@ -1,0 +1,330 @@
+CREATE TABLE fox (
+    ts TIMESTAMP TIME INDEX,
+    fox STRING,
+);
+
+Affected Rows: 0
+
+INSERT INTO fox VALUES
+    (1, 'The quick brown fox jumps over the lazy dog'),
+    (2, 'The             fox jumps over the lazy dog'),
+    (3, 'The quick brown     jumps over the lazy dog'),
+    (4, 'The quick brown fox       over the lazy dog'),
+    (5, 'The quick brown fox jumps      the lazy dog'),
+    (6, 'The quick brown fox jumps over          dog'),
+    (7, 'The quick brown fox jumps over the      dog');
+
+Affected Rows: 7
+
+ALTER TABLE fox MODIFY COLUMN fox SET INVERTED INDEX;
+
+Affected Rows: 0
+
+SELECT fox FROM fox WHERE MATCHES(fox, '"fox jumps"') ORDER BY ts;
+
++---------------------------------------------+
+| fox                                         |
++---------------------------------------------+
+| The quick brown fox jumps over the lazy dog |
+| The             fox jumps over the lazy dog |
+| The quick brown fox jumps      the lazy dog |
+| The quick brown fox jumps over          dog |
+| The quick brown fox jumps over the      dog |
++---------------------------------------------+
+
+SHOW CREATE TABLE fox;
+
++-------+-------------------------------------+
+| Table | Create Table                        |
++-------+-------------------------------------+
+| fox   | CREATE TABLE IF NOT EXISTS "fox" (  |
+|       |   "ts" TIMESTAMP(3) NOT NULL,       |
+|       |   "fox" STRING NULL INVERTED INDEX, |
+|       |   TIME INDEX ("ts")                 |
+|       | )                                   |
+|       |                                     |
+|       | ENGINE=mito                         |
+|       |                                     |
++-------+-------------------------------------+
+
+-- SQLNESS ARG restart=true
+SHOW CREATE TABLE fox;
+
++-------+-------------------------------------+
+| Table | Create Table                        |
++-------+-------------------------------------+
+| fox   | CREATE TABLE IF NOT EXISTS "fox" (  |
+|       |   "ts" TIMESTAMP(3) NOT NULL,       |
+|       |   "fox" STRING NULL INVERTED INDEX, |
+|       |   TIME INDEX ("ts")                 |
+|       | )                                   |
+|       |                                     |
+|       | ENGINE=mito                         |
+|       |                                     |
++-------+-------------------------------------+
+
+SHOW INDEX FROM fox;
+
++-------+------------+--------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table | Non_unique | Key_name           | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++-------+------------+--------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| fox   | 1          | INVERTED_INDEX_fox | 1            | fox         | A         |             |          |        | YES  | INVERTED   |         |               | YES     |            |
+| fox   | 1          | TIME INDEX         | 1            | ts          | A         |             |          |        |      | TIME       |         |               | YES     |            |
++-------+------------+--------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+
+ALTER TABLE fox MODIFY COLUMN fox UNSET INVERTED INDEX;
+
+Affected Rows: 0
+
+SHOW CREATE TABLE fox;
+
++-------+------------------------------------+
+| Table | Create Table                       |
++-------+------------------------------------+
+| fox   | CREATE TABLE IF NOT EXISTS "fox" ( |
+|       |   "ts" TIMESTAMP(3) NOT NULL,      |
+|       |   "fox" STRING NULL,               |
+|       |   TIME INDEX ("ts")                |
+|       | )                                  |
+|       |                                    |
+|       | ENGINE=mito                        |
+|       |                                    |
++-------+------------------------------------+
+
+-- SQLNESS ARG restart=true
+SHOW CREATE TABLE fox;
+
++-------+------------------------------------+
+| Table | Create Table                       |
++-------+------------------------------------+
+| fox   | CREATE TABLE IF NOT EXISTS "fox" ( |
+|       |   "ts" TIMESTAMP(3) NOT NULL,      |
+|       |   "fox" STRING NULL,               |
+|       |   TIME INDEX ("ts")                |
+|       | )                                  |
+|       |                                    |
+|       | ENGINE=mito                        |
+|       |                                    |
++-------+------------------------------------+
+
+SHOW INDEX FROM fox;
+
++-------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table | Non_unique | Key_name   | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++-------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| fox   | 1          | TIME INDEX | 1            | ts          | A         |             |          |        |      | TIME       |         |               | YES     |            |
++-------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+
+DROP TABLE fox;
+
+Affected Rows: 0
+
+CREATE TABLE test_pk (ts TIMESTAMP TIME INDEX, foo STRING, bar INT, PRIMARY KEY (foo, bar));
+
+Affected Rows: 0
+
+SHOW INDEX FROM test_pk;
+
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table   | Non_unique | Key_name   | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| test_pk | 0          | PRIMARY    | 1            | foo         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 0          | PRIMARY    | 2            | bar         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 1          | TIME INDEX | 1            | ts          | A         |             |          |        |      | TIME       |         |               | YES     |            |
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+
+ALTER TABLE test_pk MODIFY COLUMN foo UNSET INVERTED INDEX;
+
+Affected Rows: 0
+
+SHOW INDEX FROM test_pk;
+
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table   | Non_unique | Key_name   | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| test_pk | 0          | PRIMARY    | 1            | foo         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 0          | PRIMARY    | 2            | bar         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 1          | TIME INDEX | 1            | ts          | A         |             |          |        |      | TIME       |         |               | YES     |            |
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+
+ALTER TABLE test_pk MODIFY COLUMN bar UNSET INVERTED INDEX;
+
+Affected Rows: 0
+
+SHOW INDEX FROM test_pk;
+
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table   | Non_unique | Key_name   | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| test_pk | 0          | PRIMARY    | 1            | foo         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 0          | PRIMARY    | 2            | bar         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 1          | TIME INDEX | 1            | ts          | A         |             |          |        |      | TIME       |         |               | YES     |            |
++---------+------------+------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+
+ALTER TABLE test_pk MODIFY COLUMN foo SET INVERTED INDEX;
+
+Affected Rows: 0
+
+SHOW INDEX FROM test_pk;
+
++---------+------------+--------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table   | Non_unique | Key_name           | Seq_in_index | Column_name | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++---------+------------+--------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| test_pk | 1          | INVERTED_INDEX_foo | 1            | foo         | A         |             |          |        | YES  | INVERTED   |         |               | YES     |            |
+| test_pk | 0          | PRIMARY            | 1            | foo         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 0          | PRIMARY            | 2            | bar         | A         |             |          |        | YES  | PRIMARY    |         |               | YES     |            |
+| test_pk | 1          | TIME INDEX         | 1            | ts          | A         |             |          |        |      | TIME       |         |               | YES     |            |
++---------+------------+--------------------+--------------+-------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+
+DROP TABLE test_pk;
+
+Affected Rows: 0
+
+-- The old SST has an inverted index, but not on host.
+CREATE TABLE missing_inverted_index (
+    ts TIMESTAMP TIME INDEX,
+    indexed_col STRING INVERTED INDEX,
+    host STRING
+) WITH ('append_mode' = 'true');
+
+Affected Rows: 0
+
+INSERT INTO missing_inverted_index VALUES
+    (1, 'a', 'server1'),
+    (2, 'b', 'server2');
+
+Affected Rows: 2
+
+ADMIN FLUSH_TABLE('missing_inverted_index');
+
++---------------------------------------------+
+| ADMIN FLUSH_TABLE('missing_inverted_index') |
++---------------------------------------------+
+| 0                                           |
++---------------------------------------------+
+
+SELECT * FROM missing_inverted_index WHERE host = 'server1' ORDER BY ts;
+
++-------------------------+-------------+---------+
+| ts                      | indexed_col | host    |
++-------------------------+-------------+---------+
+| 1970-01-01T00:00:00.001 | a           | server1 |
++-------------------------+-------------+---------+
+
+ALTER TABLE missing_inverted_index MODIFY COLUMN host SET INVERTED INDEX;
+
+Affected Rows: 0
+
+SELECT * FROM missing_inverted_index WHERE host = 'server1' ORDER BY ts;
+
++-------------------------+-------------+---------+
+| ts                      | indexed_col | host    |
++-------------------------+-------------+---------+
+| 1970-01-01T00:00:00.001 | a           | server1 |
++-------------------------+-------------+---------+
+
+SELECT * FROM missing_inverted_index WHERE host = 'missing' ORDER BY ts;
+
++----+-------------+------+
+| ts | indexed_col | host |
++----+-------------+------+
++----+-------------+------+
+
+SELECT * FROM missing_inverted_index WHERE indexed_col = 'a' AND host = 'server1' ORDER BY ts;
+
++-------------------------+-------------+---------+
+| ts                      | indexed_col | host    |
++-------------------------+-------------+---------+
+| 1970-01-01T00:00:00.001 | a           | server1 |
++-------------------------+-------------+---------+
+
+SELECT * FROM missing_inverted_index WHERE indexed_col = 'b' AND host = 'server1' ORDER BY ts;
+
++----+-------------+------+
+| ts | indexed_col | host |
++----+-------------+------+
++----+-------------+------+
+
+-- New SSTs have both indexes; queries must also retain rows from the old SST.
+INSERT INTO missing_inverted_index VALUES
+    (3, 'a', 'server1'),
+    (4, 'b', 'server2');
+
+Affected Rows: 2
+
+ADMIN FLUSH_TABLE('missing_inverted_index');
+
++---------------------------------------------+
+| ADMIN FLUSH_TABLE('missing_inverted_index') |
++---------------------------------------------+
+| 0                                           |
++---------------------------------------------+
+
+SELECT * FROM missing_inverted_index WHERE host = 'server1' ORDER BY ts;
+
++-------------------------+-------------+---------+
+| ts                      | indexed_col | host    |
++-------------------------+-------------+---------+
+| 1970-01-01T00:00:00.001 | a           | server1 |
+| 1970-01-01T00:00:00.003 | a           | server1 |
++-------------------------+-------------+---------+
+
+SELECT * FROM missing_inverted_index WHERE indexed_col = 'a' AND host = 'server1' ORDER BY ts;
+
++-------------------------+-------------+---------+
+| ts                      | indexed_col | host    |
++-------------------------+-------------+---------+
+| 1970-01-01T00:00:00.001 | a           | server1 |
+| 1970-01-01T00:00:00.003 | a           | server1 |
++-------------------------+-------------+---------+
+
+-- SQLNESS ARG restart=true
+SELECT * FROM missing_inverted_index WHERE host = 'server1' ORDER BY ts;
+
++-------------------------+-------------+---------+
+| ts                      | indexed_col | host    |
++-------------------------+-------------+---------+
+| 1970-01-01T00:00:00.001 | a           | server1 |
+| 1970-01-01T00:00:00.003 | a           | server1 |
++-------------------------+-------------+---------+
+
+-- A column absent from old SSTs can still match its default value.
+ALTER TABLE missing_inverted_index ADD COLUMN source STRING DEFAULT 'legacy';
+
+Affected Rows: 0
+
+ALTER TABLE missing_inverted_index MODIFY COLUMN source SET INVERTED INDEX;
+
+Affected Rows: 0
+
+SELECT * FROM missing_inverted_index WHERE source = 'legacy' ORDER BY ts;
+
++-------------------------+-------------+---------+--------+
+| ts                      | indexed_col | host    | source |
++-------------------------+-------------+---------+--------+
+| 1970-01-01T00:00:00.001 | a           | server1 | legacy |
+| 1970-01-01T00:00:00.002 | b           | server2 | legacy |
+| 1970-01-01T00:00:00.003 | a           | server1 | legacy |
+| 1970-01-01T00:00:00.004 | b           | server2 | legacy |
++-------------------------+-------------+---------+--------+
+
+SELECT * FROM missing_inverted_index WHERE source = 'missing' ORDER BY ts;
+
++----+-------------+------+--------+
+| ts | indexed_col | host | source |
++----+-------------+------+--------+
++----+-------------+------+--------+
+
+SELECT * FROM missing_inverted_index WHERE indexed_col = 'a' AND source = 'legacy' ORDER BY ts;
+
++-------------------------+-------------+---------+--------+
+| ts                      | indexed_col | host    | source |
++-------------------------+-------------+---------+--------+
+| 1970-01-01T00:00:00.001 | a           | server1 | legacy |
+| 1970-01-01T00:00:00.003 | a           | server1 | legacy |
++-------------------------+-------------+---------+--------+
+
+DROP TABLE missing_inverted_index;
+
+Affected Rows: 0
+

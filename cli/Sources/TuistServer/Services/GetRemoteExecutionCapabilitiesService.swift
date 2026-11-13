@@ -6,15 +6,18 @@ import Mockable
 import TuistHTTP
 
 /// The executor endpoint and immutable execution image the server currently
-/// advertises for a project. The image changes with every template rollout, so
-/// callers fetch it each time instead of persisting it.
+/// advertises for a project, and how many of the account's actions execute at
+/// once. The image changes with every template rollout, so callers fetch it each
+/// time instead of persisting it.
 public struct RemoteExecutionCapabilities: Equatable, Sendable {
     public let endpoint: String
     public let image: String
+    public let maxConcurrency: Int?
 
-    public init(endpoint: String, image: String) {
+    public init(endpoint: String, image: String, maxConcurrency: Int? = nil) {
         self.endpoint = endpoint
         self.image = image
+        self.maxConcurrency = maxConcurrency
     }
 }
 
@@ -106,7 +109,9 @@ public struct GetRemoteExecutionCapabilitiesService: GetRemoteExecutionCapabilit
                       let endpoint = json["endpoint"] as? String,
                       let image = json["image"] as? String
                 else { throw GetRemoteExecutionCapabilitiesServiceError.invalidResponse }
-                return RemoteExecutionCapabilities(endpoint: endpoint, image: image)
+                return RemoteExecutionCapabilities(
+                    endpoint: endpoint, image: image, maxConcurrency: json["max_concurrency"] as? Int
+                )
             case 403:
                 throw GetRemoteExecutionCapabilitiesServiceError.notEnabled
             case 503:

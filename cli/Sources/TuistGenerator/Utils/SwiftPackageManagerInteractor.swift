@@ -65,7 +65,7 @@ public struct SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         }
 
         let workspacePath = path.appending(component: workspaceName)
-        Logger.current.notice("Resolving package dependencies using xcodebuild")
+        Logger.current.info("Resolving package dependencies using xcodebuild")
         // -list parameter is a workaround to resolve package dependencies for given workspace without specifying scheme
         var arguments = ["xcodebuild", "-resolvePackageDependencies"]
 

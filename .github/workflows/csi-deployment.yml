@@ -21,16 +21,11 @@ name: CSI Node Driver Deployment
 # This workflow closes that gap for the node CSI drivers:
 #   1. Re-applies hcloud-csi with the pool-exclusion affinity, so its
 #      DaemonSet drops off the bare-metal fleet nodes.
-#   2. Uninstalls scaleway-csi. Every managed env's kura fleet now runs
-#      on Elastic Metal (values-managed-*.yaml: kuraFleet.machine.
-#      offerType EM-*), which can't attach scw-bssd; the server
-#      provisions cache PVCs from local NVMe (`scw-local-nvme`,
-#      server/lib/tuist/kura/regions.ex) instead. The scaleway block
-#      CSI has nothing to attach there and only crash-loops, so it is
-#      dead weight on managed clusters. Idempotent: a no-op once removed.
-#      (scaleway-csi-values.yaml is kept as reference for any cluster
-#      whose kura fleet still uses `machine.kind: instance`; none of the
-#      managed envs do, which is why editing it is not a trigger here.)
+#   2. Uninstalls scaleway-csi. It served the retired Scaleway kura
+#      runner-cache pool, and no managed cluster runs Scaleway Instances
+#      or Elastic Metal Kura nodes any more; the server provisions cache
+#      PVCs from local NVMe (`scw-local-nvme`) instead. Idempotent: a
+#      no-op once removed.
 #
 # Idempotent. The matrix runs all environments in parallel: the node CSI
 # drivers are workload-level components, blast radius is per-cluster, and
@@ -106,9 +101,8 @@ jobs:
             --namespace kube-system \
             -f infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml \
             --wait --timeout 5m
-      - name: helm uninstall scaleway-csi (obsolete on Elastic Metal)
-        # Managed kura fleets moved to Elastic Metal, which can't attach
-        # scw-bssd; the server provisions scw-local-nvme instead. Remove
-        # the crash-looping scaleway-csi if present. Idempotent.
+      - name: helm uninstall scaleway-csi (obsolete)
+        # No managed cluster runs Scaleway Kura nodes; the server provisions
+        # scw-local-nvme instead. Remove scaleway-csi if present. Idempotent.
         run: |
           helm uninstall scaleway-csi --namespace kube-system --ignore-not-found --wait --timeout 3m

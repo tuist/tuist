@@ -52,6 +52,7 @@ defmodule Tuist do
       Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
+      Ops.AccountPlans,
       Ops.FeatureFlags,
       Ops.RunnerConcurrencyLimits,
       Observability,
@@ -70,6 +71,7 @@ defmodule Tuist do
       Bundles.BundleSizeApprover,
       Bundles.BundleThreshold,
       Bundles.Workers.BundleThresholdWorker,
+      DashboardSearch,
       Cache,
       Cache.Analytics,
       CacheEndpoints,
@@ -186,6 +188,7 @@ defmodule Tuist do
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.Selections,
+      Tests.RunSelections,
       Tests.TestRunStressCandidate,
       TestImpactAnalysis.Baselines,
       TestImpactAnalysis.Runs,
@@ -365,6 +368,7 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.ActionsCache,
       Runners.CacheVolumes,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,

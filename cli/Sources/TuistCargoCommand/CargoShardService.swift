@@ -17,6 +17,14 @@ struct CargoShardService {
 
     let runner: CommandRunning
 
+    /// Shard archives live on a single store per site, which refuses connections for some seconds while it restarts.
+    /// Backing off from half a second to the 30-second cap over seven retries waits about a minute, which outlasts that
+    /// restart. Replaying a lookup, a part, or a completion is safe: the server answers a completion it already made
+    /// with success, and a replayed start leaves an unused upload that the store's lifecycle aborts.
+    static var storeRetryProvider: RetryProvider {
+        RetryProvider(maximumRetryCount: 7, delayProvider: DelayProvider(baseDelayMilliseconds: 500))
+    }
+
     func plan(
         arguments: [String],
         executable: String,
@@ -89,14 +97,17 @@ struct CargoShardService {
     }
 
     private func upload(_ archive: URL, planID: String, reference: String, fullHandle: String, serverURL: URL) async throws {
-        let uploadID = try await StartShardUploadService().startUpload(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            shardPlanId: planID,
-            reference: reference,
-            artifact: nil
-        )
-        let parts = try await MultipartUploadArtifactService().multipartUploadArtifact(
+        let retryProvider = Self.storeRetryProvider
+        let uploadID = try await retryProvider.runWithRetries {
+            try await StartShardUploadService().startUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                shardPlanId: planID,
+                reference: reference,
+                artifact: nil
+            )
+        }
+        let parts = try await MultipartUploadArtifactService(retryProvider: retryProvider).multipartUploadArtifact(
             artifactPath: AbsolutePath(validating: archive.path),
             generateUploadURL: { part in
                 try await MultipartUploadGenerateURLShardsService().generateUploadURL(
@@ -110,15 +121,18 @@ struct CargoShardService {
                 )
             }, updateProgress: { _ in }
         )
-        try await MultipartUploadCompleteShardsService().completeUpload(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            shardPlanId: planID,
-            reference: reference,
-            uploadId: uploadID,
-            parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) },
-            artifact: nil
-        )
+        let completedParts = parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
+        try await retryProvider.runWithRetries {
+            try await MultipartUploadCompleteShardsService().completeUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                shardPlanId: planID,
+                reference: reference,
+                uploadId: uploadID,
+                parts: completedParts,
+                artifact: nil
+            )
+        }
     }
 
     static func emit(_ plan: Components.Schemas.ShardPlan, environment: [String: String]) throws {
@@ -151,13 +165,15 @@ struct CargoShardService {
         guard let reference = environment["TUIST_SHARD_REFERENCE"] ?? CIController().ciInfo()?.shardReference ?? planID else {
             throw CargoReportError(message: "Set TUIST_SHARD_REFERENCE or TUIST_SHARD_PLAN_ID for shard execution.")
         }
-        let shard = try await GetShardService().getShard(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            reference: reference,
-            shardPlanId: planID,
-            shardIndex: index
-        )
+        let shard = try await Self.storeRetryProvider.runWithRetries {
+            try await GetShardService().getShard(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference,
+                shardPlanId: planID,
+                shardIndex: index
+            )
+        }
         guard shard.suites.additionalProperties.isEmpty, (shard.skip ?? []).isEmpty else {
             throw CargoReportError(message: "Rust execution requires a module-granularity shard plan.")
         }
@@ -180,7 +196,7 @@ struct CargoShardService {
     static func downloadArchive(
         from url: URL,
         to archive: URL,
-        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .tuistDefault)
+        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .tuistDefault, retryProvider: storeRetryProvider)
     ) async throws {
         let (file, response) = try await transfer.download(URLRequest(url: url))
         guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {

@@ -5,23 +5,12 @@
   ...
 }: let
   hostName = config.networking.hostName;
-  env =
-    if lib.hasSuffix "-staging" hostName
-    then "staging"
-    else if lib.hasSuffix "-canary" hostName
-    then "canary"
-    else "production";
-  isNonProduction = env != "production";
+  isNonProduction = lib.hasSuffix "-staging" hostName || lib.hasSuffix "-canary" hostName;
   cachePromexScrapeInterval =
     if isNonProduction
     then "120s"
     else "60s";
   internalExporterScrapeInterval = "60s";
-  pulseUrl =
-    if env == "production"
-    then "https://pulse.tuist.dev"
-    else "https://pulse-${env}.tuist.dev";
-  pulseToken = config.services.onepassword-secrets.secrets.pulseToken.path;
 
   grafanaCloudUrl = config.services.onepassword-secrets.secrets.grafanaCloudPromRemoteWriteUrl.path;
   grafanaCloudUsername = config.services.onepassword-secrets.secrets.grafanaCloudPromUsername.path;
@@ -36,11 +25,6 @@
   grafanaCloudLokiPassword = config.services.onepassword-secrets.secrets.grafanaCloudLokiPassword.path;
 
   alloyConfig = ''
-    local.file "pulse_token" {
-      filename = "${pulseToken}"
-      is_secret = true
-    }
-
     local.file "grafana_cloud_url" {
       filename = "${grafanaCloudUrl}"
     }
@@ -91,24 +75,6 @@
       }
     }
 
-    // Separate writers keep Pulse delivery independent of Grafana Cloud.
-    // Destination labels never alter the samples sent to Cloud.
-    prometheus.remote_write "pulse" {
-      external_labels = {
-        cluster = "tuist-${env}",
-        env = "${env}",
-      }
-
-      endpoint {
-        url = "${pulseUrl}/api/v1/write"
-
-        basic_auth {
-          username = "tuist"
-          password = local.file.pulse_token.content
-        }
-      }
-    }
-
     prometheus.exporter.self "alloy" {}
 
     prometheus.exporter.unix "default" {
@@ -146,7 +112,7 @@
         replacement  = "${config.networking.hostName}"
       }
 
-      forward_to = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.pulse.receiver]
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
     prometheus.scrape "cache_promex" {
@@ -161,7 +127,7 @@
 
       scrape_interval = "${cachePromexScrapeInterval}"
 
-      forward_to = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.pulse.receiver]
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
     prometheus.scrape "unix_exporter" {
@@ -178,7 +144,7 @@
         replacement  = "${config.networking.hostName}"
       }
 
-      forward_to = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.pulse.receiver]
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
     prometheus.scrape "alloy" {
@@ -201,7 +167,7 @@
         replacement  = "${config.networking.hostName}"
       }
 
-      forward_to = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.pulse.receiver]
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
     discovery.docker "linux" {
@@ -229,7 +195,7 @@
         drop_counter_reason = "cache_request_completion_duplicate"
       }
 
-      forward_to = [loki.write.grafana_cloud.receiver, loki.write.pulse.receiver]
+      forward_to = [loki.write.grafana_cloud.receiver]
     }
 
     loki.source.file "nginx_error" {
@@ -241,7 +207,7 @@
           instance  = "${config.networking.hostName}",
         },
       ]
-      forward_to = [loki.write.grafana_cloud.receiver, loki.write.pulse.receiver]
+      forward_to = [loki.write.grafana_cloud.receiver]
     }
 
     loki.source.file "nginx_access" {
@@ -374,7 +340,7 @@
         }
       }
 
-      forward_to = [loki.write.grafana_cloud.receiver, loki.write.pulse.receiver]
+      forward_to = [loki.write.grafana_cloud.receiver]
     }
 
     loki.write "grafana_cloud" {
@@ -384,22 +350,6 @@
         basic_auth {
           username = local.file.grafana_cloud_loki_username.content
           password = local.file.grafana_cloud_loki_password.content
-        }
-      }
-    }
-
-    loki.write "pulse" {
-      external_labels = {
-        cluster = "tuist-${env}",
-        env = "${env}",
-      }
-
-      endpoint {
-        url = "${pulseUrl}/loki/api/v1/push"
-
-        basic_auth {
-          username = "tuist"
-          password = local.file.pulse_token.content
         }
       }
     }
@@ -436,7 +386,7 @@
         values = ["tmp_response_status"]
       }
 
-      forward_to = [loki.write.grafana_cloud.receiver, loki.write.pulse.receiver]
+      forward_to = [loki.write.grafana_cloud.receiver]
     }
 
     otelcol.receiver.otlp "default" {
@@ -445,84 +395,7 @@
       }
 
       output {
-        traces = [otelcol.processor.batch.default.input, otelcol.processor.transform.pulse.input]
-      }
-    }
-
-    // Only the Pulse branch gains environment identity. Cloud's resources,
-    // batching and gRPC exporter remain unchanged.
-    otelcol.processor.transform "pulse" {
-      trace_statements {
-        context = "resource"
-        statements = [
-          `set(attributes["cluster"], "tuist-${env}")`,
-          `set(attributes["env"], "${env}")`,
-          `set(attributes["deployment.environment"], "${env}")`,
-        ]
-      }
-
-      output {
-        traces = [otelcol.processor.batch.pulse.input, otelcol.connector.servicegraph.pulse.input]
-      }
-    }
-
-    // These external spans bypass the in-cluster servicegraph connector.
-    // Pairing is local to this host, not a complete cross-host service graph.
-    // Generated metrics go ONLY to Pulse, never back into Cloud's graph.
-    otelcol.connector.servicegraph "pulse" {
-      output {
-        metrics = [otelcol.exporter.prometheus.pulse_servicegraph.input]
-      }
-    }
-
-    otelcol.exporter.prometheus "pulse_servicegraph" {
-      // Preserve traces_service_graph_request_total and histogram names.
-      add_metric_suffixes = false
-      forward_to = [prometheus.relabel.pulse_servicegraph.receiver]
-    }
-
-    prometheus.relabel "pulse_servicegraph" {
-      // Each host maintains its own counters for the same service edges.
-      rule {
-        target_label = "instance"
-        replacement = "${hostName}"
-      }
-
-      forward_to = [prometheus.remote_write.pulse.receiver]
-    }
-
-    otelcol.processor.batch "pulse" {
-      send_batch_size = 2048
-      send_batch_max_size = 2048
-
-      output {
-        traces = [otelcol.exporter.otlphttp.pulse.input]
-      }
-    }
-
-    otelcol.auth.basic "pulse" {
-      username = "tuist"
-      password = local.file.pulse_token.content
-    }
-
-    otelcol.exporter.otlphttp "pulse" {
-      client {
-        endpoint = "${pulseUrl}"
-        auth = otelcol.auth.basic.pulse.handler
-      }
-
-      sending_queue {
-        enabled = true
-        num_consumers = 2
-        queue_size = 100
-        block_on_overflow = false
-      }
-
-      retry_on_failure {
-        enabled = true
-        initial_interval = "1s"
-        max_interval = "30s"
-        max_elapsed_time = "300s"
+        traces = [otelcol.processor.batch.default.input]
       }
     }
 

@@ -31,9 +31,9 @@ defmodule Tuist.Sandboxes.AmpReconciler do
     end
   end
 
-  # An Orb dispatch or a connection change holds the account's lock for as
-  # long as its VM operation takes. That is contention, not a failure: snooze
-  # instead of spending an attempt and reporting an error.
+  # A connection change holds the account's lock while it writes. That is
+  # contention, not a failure: snooze instead of spending an attempt and
+  # reporting an error.
   def reconcile(account_id, config) do
     case AmpIntegrations.with_lock(account_id, fn -> reconcile_locked(account_id, config) end) do
       {:error, :locked} -> {:snooze, 15}

@@ -36,7 +36,7 @@ Tuist recognizes these CI providers and maps their tokens to projects through yo
 - CircleCI
 - Bitrise
 
-[Amp](#amp-orbs) orbs authenticate through Amp workspaces you connect to your Tuist account.
+[Amp](#amp-orbs) orbs authenticate through Amp workspaces you connect to your Tuist account, and [Claude Code sessions](#claude-code-sessions) through the Claude Code environments you connect to run on Tuist Sandboxes.
 
 Any other identity provider that issues OpenID Connect tokens can authenticate through a [workload identity trust policy](#workload-identity-trust-policies) that you configure once for all current and future projects in your account, for example [Fly.io Machines](#flyio-machines).
 
@@ -60,9 +60,15 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 
 Like the trust configurations in [Amp's OIDC guide](https://ampcode.com/manual/orbs/oidc), Tuist verifies Amp's signature on every token and accepts it only when its audience is `https://tuist.dev`, its `token_use` is `exchanged`, its `workspace_id` matches a connected workspace, and, for a connection limited to a project, its `project_id` matches that project. Its `sub` must name the same workspace, and for a project connection the same project, as those claims: `workspace:<workspace-id>:project:<project-id>:…`, which `amp orb id-token` mints by default.
 
-Every orb a connection admits gets CI access to all current and future projects owned by the account, including cache uploads, so connect only workspaces whose members you trust with that access. Check the ID carefully: Tuist can't confirm that you belong to the workspace you connect. If a workspace is connected to several Tuist accounts, orbs must set `TUIST_OIDC_ACCOUNT` to the account to sign in to; setting it in the Amp project's environment also keeps sign-in pinned to your account. Threads outside a workspace have no workspace identity and can't use a connection. Disconnect a workspace from the Amp card to stop new sign-ins; sessions that were already issued stay valid until they expire after one hour. Sessions don't need a refresh token: when one is about to expire, the CLI in the orb mints a new Amp token and exchanges it again, so long-running orbs stay signed in while the workspace is connected.
+Every orb a connection admits gets CI access to all current and future projects owned by the account, including cache uploads. It also gets the `account:sandboxes:write` scope, so it can create <.localized_link href="/guides/features/sandboxes">sandboxes</.localized_link> and run commands in them like a member of the account, for example to build on a macOS sandbox from a Linux orb. Connect only workspaces whose members you trust with that access. Check the ID carefully: Tuist can't confirm that you belong to the workspace you connect. If a workspace is connected to several Tuist accounts, orbs must set `TUIST_OIDC_ACCOUNT` to the account to sign in to; setting it in the Amp project's environment also keeps sign-in pinned to your account. Threads outside a workspace have no workspace identity and can't use a connection. Disconnect a workspace from the Amp card to stop new sign-ins; sessions that were already issued stay valid until they expire after one hour. Sessions don't need a refresh token: when one is about to expire, the CLI in the orb mints a new Amp token and exchanges it again, so long-running orbs stay signed in while the workspace is connected.
 
 Trust policies for the Amp issuer that you created before connecting a workspace keep working when you set `TUIST_OIDC_ACCOUNT`.
+
+### Claude Code sessions {#claude-code-sessions}
+
+Each Claude Code cloud session in a self-hosted environment carries an identity token that Anthropic signs (`CLAUDE_CODE_SESSION_ACCESS_TOKEN`). In environments you <.localized_link href="/guides/features/sandboxes/claude#claude-code">connect to run on Tuist Sandboxes</.localized_link>, Tuist passes it to the session as `TUIST_OIDC_TOKEN`, so the Tuist CLI and the `tuist_ex` Mix tasks sign in on their own.
+
+Tuist verifies Anthropic's signature and accepts the token only when it is a session token (`ccr:role` is `session_worker`) whose environment, named in its audience, is connected to a Tuist account and enabled. Every session of a connected environment gets CI access to all current and future projects owned by the account, including cache uploads, and can create and use the account's sandboxes, like a member of the account. So anyone your Claude organization lets use the environment can publish to your cache and start sandboxes, such as a Mac to build on. A session's Tuist sessions expire after one hour or with its identity token, whichever comes first; the token is the one the session started with and lasts four hours by default, so a longer session loses Tuist access until its next message resumes it on a new runner. Disconnect or disable the environment to stop new sign-ins.
 
 ### Workload identity trust policies {#workload-identity-trust-policies}
 
@@ -166,7 +172,7 @@ Do not print or commit the token itself. Every Machine in the authorized Fly app
 
 ### OIDC token scopes {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For connected Amp workspaces and workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
+OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For connected Amp workspaces, connected Claude Code environments and workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
 > **Security benefits**
@@ -245,6 +251,7 @@ The command accepts the following options:
 | `account:registry:write` | Publish to the Swift package registry |
 | `account:runners:read` | Read runner jobs, workflows, profiles, and volumes |
 | `account:runners:write` | Manage runner profiles and delete runner volumes |
+| `account:sandboxes:write` | Create sandboxes and run commands in them, like a member of the account |
 | `project:previews:read` | Download previews |
 | `project:previews:write` | Upload previews |
 | `project:admin:read` | Read projects and their settings |

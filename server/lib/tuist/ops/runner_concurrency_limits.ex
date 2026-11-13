@@ -134,9 +134,11 @@ defmodule Tuist.Ops.RunnerConcurrencyLimits do
       limits = Enum.sort_by(limits, & &1.platform)
 
       # `updated_at` also changes on ops dashboard writes, which record no change row.
+      # Hash plain values only: the encoding of a struct such as DateTime can
+      # differ between replicas, which made the revision depend on the pod.
       revision =
         limits
-        |> Enum.map(&{&1.platform, &1.vcpus, &1.memory_gb, &1.updated_at})
+        |> Enum.map(&{Atom.to_string(&1.platform), &1.vcpus, &1.memory_gb, DateTime.to_iso8601(&1.updated_at)})
         |> then(&{&1, last_change})
         |> :erlang.term_to_binary()
         |> then(&:crypto.hash(:sha256, &1))

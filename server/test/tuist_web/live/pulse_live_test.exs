@@ -275,7 +275,9 @@ defmodule TuistWeb.PulseLiveTest do
 
   test "signed-out visitors must authenticate", ctx do
     conn = Phoenix.ConnTest.build_conn()
-    assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, "/#{ctx.account.name}/~/pulse/logs")
+    path = "/#{ctx.account.name}/~/pulse/logs"
+    assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+    assert destination == ~p"/users/log_in?#{%{return_to: path}}"
   end
 
   test "automatic refresh rechecks membership", ctx do

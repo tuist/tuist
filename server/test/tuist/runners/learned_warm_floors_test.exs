@@ -14,6 +14,7 @@ defmodule Tuist.Runners.LearnedWarmFloorsTest do
       fleet_name: fleet,
       repository: "acme/app",
       status: Keyword.get(opts, :status, "queued"),
+      conclusion: Keyword.get(opts, :conclusion, ""),
       enqueued_at: enqueued_at,
       updated_at: Keyword.get(opts, :updated_at, enqueued_at)
     }
@@ -83,7 +84,49 @@ defmodule Tuist.Runners.LearnedWarmFloorsTest do
     assert LearnedWarmFloors.for_fleet(fleet) == 1
   end
 
+  test "leaves out skipped jobs, which never ask for a runner" do
+    fleet = unique_fleet()
+    start = ago(600)
+
+    # One fan-out of six, three of them skipped by an `if:` condition.
+    burst!(fleet, start, 3)
+
+    for i <- 3..5 do
+      job!(fleet, DateTime.add(start, i, :second), status: "completed", conclusion: "skipped")
+    end
+
+    assert LearnedWarmFloors.for_fleet(fleet) == 3
+  end
+
   test "is zero for a pool without jobs" do
-    assert LearnedWarmFloors.for_fleet(unique_fleet()) == 0
+    fleet = unique_fleet()
+
+    assert LearnedWarmFloors.for_fleet(fleet) == 0
+    assert LearnedWarmFloors.hours_with_jobs(fleet) == 0
+  end
+
+  test "counts the hours a pool had jobs in, not its jobs" do
+    used_all_day = unique_fleet()
+    nightly = unique_fleet()
+
+    # One job in each of five hours, against one 20-job nightly fan-out
+    # (spread over a minute, so it stays within one clock hour) that also
+    # ran last.
+    for hour <- 2..6, do: job!(used_all_day, DateTime.add(ago(hour * 3600), -1800, :second))
+    an_hour_ago = ago(3600)
+    nightly_start = %{an_hour_ago | minute: 0, second: 0}
+    for i <- 0..19, do: job!(nightly, DateTime.add(nightly_start, i * 3, :second))
+
+    assert LearnedWarmFloors.hours_with_jobs(used_all_day) == 5
+    assert LearnedWarmFloors.hours_with_jobs(nightly) == 1
+  end
+
+  test "leaves skipped jobs out of the hours with jobs" do
+    fleet = unique_fleet()
+
+    job!(fleet, ago(60))
+    job!(fleet, ago(3 * 3600), status: "completed", conclusion: "skipped")
+
+    assert LearnedWarmFloors.hours_with_jobs(fleet) == 1
   end
 end

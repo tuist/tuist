@@ -388,7 +388,6 @@ func main() {
 		nodeLabels = map[string]string{}
 	}
 	nodeLabels["tuist.dev/macos-sandbox-host"] = "v1"
-	nodeLabels[macosandbox.WarmHostLabel] = "v1"
 	// The CI client inherits Tart's default store, as the CLI resolves it.
 	ciStore := os.Getenv("TART_HOME")
 	if ciStore == "" {
@@ -416,6 +415,8 @@ func main() {
 			setupLog.Error(err, "add custom volumes")
 			os.Exit(1)
 		}
+		// Sandbox VMs start from the same checkout masters as CI VMs.
+		sandboxService.Checkouts = customVolumes
 		// Every host of the class warms the custom HEADs the server lists for it.
 		prefetch = &podagent.PrefetchPoller{Source: &podagent.ServerPrefetch{Client: typedClient}, Custom: customVolumes, Checkouts: customVolumes}
 		if err := mgr.Add(prefetch); err != nil {
@@ -537,6 +538,10 @@ func main() {
 		},
 		DynamicLabels: []nodeagent.LabelAdvertisement{
 			{Name: "golden-images", Labels: goldenLabelProvider},
+			// Warm sandbox Pods select hosts that can boot one now.
+			{Name: "macos-sandbox-warm-host", Labels: sandboxService.WarmHostLabels},
+			// CI prefers hosts holding no session that can resume only here.
+			{Name: "macos-sandbox-sessions", Labels: sandboxService.SessionHostLabels},
 			// The custom volume lineages this host holds a master of, so dispatch
 			// can prefer it for jobs that attach them.
 			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {

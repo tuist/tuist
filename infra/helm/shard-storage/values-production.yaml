@@ -20,3 +20,6 @@ lifecycle:
 archiveBucket: sandbox-archives
 archiveBudgetGiB: 500
 sandboxNamespace: tuist-sandboxes
+actionsCache:
+  bucket: actions-cache
+  maxGB: 500

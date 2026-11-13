@@ -1,0 +1,880 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::io::Write;
+use std::num::{NonZeroU32, NonZeroUsize};
+use std::time::Duration;
+
+use cmd::options::GreptimeOptions;
+use common_base::memory_limit::MemoryLimit;
+use common_base::readable_size::ReadableSize;
+use common_config::{Configurable, DEFAULT_DATA_HOME, ENV_VAR_SEP};
+use common_options::datanode::{ClientOptions, DatanodeClientOptions};
+use common_runtime::global::RuntimeOptions;
+use common_telemetry::logging::{DEFAULT_LOGGING_DIR, DEFAULT_OTLP_HTTP_ENDPOINT, LoggingOptions};
+use common_test_util::temp_dir::create_named_temp_file;
+use common_wal::config::DatanodeWalConfig;
+use common_wal::config::raft_engine::RaftEngineConfig;
+use datanode::config::{DatanodeOptions, RegionEngineConfig, StorageConfig};
+use file_engine::config::EngineConfig as FileEngineConfig;
+use flow::FlownodeOptions;
+use frontend::frontend::FrontendOptions;
+use frontend::service_config::PendingRowsBatcherOptions;
+use meta_client::MetaClientOptions;
+use meta_srv::metasrv::MetasrvOptions;
+use meta_srv::selector::SelectorType;
+use metric_engine::config::EngineConfig as MetricEngineConfig;
+use mito2::config::MitoConfig;
+use query::options::QueryOptions;
+use servers::grpc::GrpcOptions;
+use servers::http::HttpOptions;
+use servers::tls::{TlsMode, TlsOption};
+use standalone::options::StandaloneOptions;
+use store_api::path_utils::WAL_DIR;
+
+#[test]
+fn test_load_datanode_runtime_options_from_runtime_section() {
+    let toml = r#"
+        [runtime]
+        global_rt_size = 8
+        compact_rt_size = 4
+        compact_rt_max_blocking_threads = 6
+        ingest_rt_size = 8
+        query_rt_size = 7
+
+        [runtime.experimental_workload_scheduler]
+        enable = true
+        query_weight = 1
+        write_weight = 4
+        sample_every_polls = 32
+    "#;
+
+    let options: GreptimeOptions<DatanodeOptions> = toml::from_str(toml).unwrap();
+
+    assert_eq!(8, options.runtime.global_rt_size);
+    assert_eq!(4, options.runtime.compact_rt_size);
+    assert_eq!(6, options.runtime.compact_rt_max_blocking_threads);
+    assert_eq!(8, options.runtime.ingest_rt_size);
+    assert_eq!(7, options.runtime.query_rt_size);
+    assert!(options.runtime.experimental_workload_scheduler.enable);
+    assert_eq!(
+        NonZeroU32::new(1).unwrap(),
+        options.runtime.experimental_workload_scheduler.query_weight
+    );
+    assert_eq!(
+        NonZeroU32::new(4).unwrap(),
+        options.runtime.experimental_workload_scheduler.write_weight
+    );
+    assert_eq!(
+        NonZeroUsize::new(32).unwrap(),
+        options
+            .runtime
+            .experimental_workload_scheduler
+            .sample_every_polls
+    );
+}
+
+#[test]
+fn test_load_runtime_options_rejects_zero_scheduler_sampling() {
+    let toml = r#"
+        [runtime.experimental_workload_scheduler]
+        sample_every_polls = 0
+    "#;
+
+    let result = toml::from_str::<GreptimeOptions<DatanodeOptions>>(toml);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_load_runtime_options_rejects_zero_scheduler_weight() {
+    let toml = r#"
+        [runtime.experimental_workload_scheduler]
+        query_weight = 0
+    "#;
+
+    let result = toml::from_str::<GreptimeOptions<DatanodeOptions>>(toml);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_load_runtime_options_without_max_blocking_threads() {
+    let toml = r#"
+        [runtime]
+        global_rt_size = 8
+        compact_rt_size = 4
+        ingest_rt_size = 8
+        query_rt_size = 7
+    "#;
+
+    let options: GreptimeOptions<DatanodeOptions> = toml::from_str(toml).unwrap();
+
+    assert_eq!(
+        RuntimeOptions::default().compact_rt_max_blocking_threads,
+        options.runtime.compact_rt_max_blocking_threads
+    );
+}
+
+#[test]
+#[cfg(feature = "hdfs-object-store")]
+fn test_load_datanode_hdfs_config() {
+    let config = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(
+        config.path(),
+        r#"
+            [storage]
+            type = "Hdfs"
+            name = "local-hdfs"
+            root = "/greptimedb"
+            name_node = "hdfs://127.0.0.1:9000"
+            enable_read_cache = false
+            options = { "dfs.client.block.write.replace-datanode-on-failure.enable" = "true" }
+        "#,
+    )
+    .unwrap();
+
+    let options =
+        GreptimeOptions::<DatanodeOptions>::load_layered_options(config.path().to_str(), "")
+            .unwrap();
+    let object_store::config::ObjectStoreConfig::Hdfs(hdfs) = options.component.storage.store
+    else {
+        unreachable!()
+    };
+
+    assert_eq!("local-hdfs", hdfs.name);
+    assert_eq!("/greptimedb", hdfs.connection.root);
+    assert_eq!("hdfs://127.0.0.1:9000", hdfs.connection.name_node);
+    assert_eq!(
+        Some(&"true".to_string()),
+        hdfs.connection
+            .options
+            .get("dfs.client.block.write.replace-datanode-on-failure.enable")
+    );
+    assert!(!hdfs.cache.enable_read_cache);
+}
+
+#[allow(deprecated)]
+#[test]
+fn test_load_datanode_example_config() {
+    let example_config = common_test_util::find_workspace_path("config/datanode.example.toml");
+    let options =
+        GreptimeOptions::<DatanodeOptions>::load_layered_options(example_config.to_str(), "")
+            .unwrap();
+
+    let expected = GreptimeOptions::<DatanodeOptions> {
+        component: DatanodeOptions {
+            node_id: Some(42),
+            default_column_prefix: Some("greptime".to_string()),
+            meta_client: Some(MetaClientOptions {
+                metasrv_addrs: vec!["127.0.0.1:3002".to_string()],
+                timeout: Duration::from_secs(3),
+                ddl_timeout: Duration::from_secs(10),
+                connect_timeout: Duration::from_secs(1),
+                tcp_nodelay: true,
+                metadata_cache_max_capacity: 100000,
+                metadata_cache_ttl: Duration::from_secs(600),
+                metadata_cache_tti: Duration::from_secs(300),
+            }),
+            wal: DatanodeWalConfig::RaftEngine(RaftEngineConfig {
+                dir: Some(format!("{}/{}", DEFAULT_DATA_HOME, WAL_DIR)),
+                sync_period: Some(Duration::from_secs(5)),
+                recovery_parallelism: 2,
+                ..Default::default()
+            }),
+            storage: StorageConfig {
+                data_home: DEFAULT_DATA_HOME.to_string(),
+                ..Default::default()
+            },
+            region_engine: vec![
+                RegionEngineConfig::Mito(MitoConfig {
+                    experimental_series_index_max_size: ReadableSize::gb(5),
+                    auto_flush_interval: Duration::from_secs(10 * 60),
+                    default_region_write_buffer_size: ReadableSize::mb(0),
+                    write_cache_ttl: Some(Duration::from_secs(60 * 60 * 8)),
+                    scan_memory_limit: MemoryLimit::Percentage(25),
+                    scan_memory_mode: mito2::config::ScanMemoryMode::Basic,
+                    ..Default::default()
+                }),
+                RegionEngineConfig::File(FileEngineConfig {}),
+                RegionEngineConfig::Metric(MetricEngineConfig {
+                    flush_metadata_region_interval: Duration::from_secs(30),
+                }),
+            ],
+            query: QueryOptions {
+                memory_pool_size: MemoryLimit::Percentage(50),
+                ..Default::default()
+            },
+            logging: LoggingOptions {
+                level: Some("info".to_string()),
+                dir: format!("{}/{}", DEFAULT_DATA_HOME, DEFAULT_LOGGING_DIR),
+                otlp_endpoint: Some(DEFAULT_OTLP_HTTP_ENDPOINT.to_string()),
+                otlp_export_protocol: Some(common_telemetry::logging::OtlpExportProtocol::Http),
+                tracing_sample_ratio: Some(Default::default()),
+                ..Default::default()
+            },
+            grpc: GrpcOptions::default()
+                .with_bind_addr("127.0.0.1:3001")
+                .with_server_addr("127.0.0.1:3001"),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    similar_asserts::assert_eq!(options, expected);
+}
+
+#[test]
+fn test_load_frontend_example_config() {
+    let example_config = common_test_util::find_workspace_path("config/frontend.example.toml");
+    let options =
+        GreptimeOptions::<FrontendOptions>::load_layered_options(example_config.to_str(), "")
+            .unwrap();
+    let expected = GreptimeOptions::<FrontendOptions> {
+        component: FrontendOptions {
+            pending_rows_batcher: PendingRowsBatcherOptions {
+                logical_table: Some(Default::default()),
+                ..Default::default()
+            },
+            default_timezone: Some("UTC".to_string()),
+            default_column_prefix: Some("greptime".to_string()),
+            auto_create_table: true,
+            meta_client: Some(MetaClientOptions {
+                metasrv_addrs: vec!["127.0.0.1:3002".to_string()],
+                timeout: Duration::from_secs(3),
+                ddl_timeout: Duration::from_secs(10),
+                connect_timeout: Duration::from_secs(1),
+                tcp_nodelay: true,
+                metadata_cache_max_capacity: 100000,
+                metadata_cache_ttl: Duration::from_secs(600),
+                metadata_cache_tti: Duration::from_secs(300),
+            }),
+            logging: LoggingOptions {
+                level: Some("info".to_string()),
+                dir: format!("{}/{}", DEFAULT_DATA_HOME, DEFAULT_LOGGING_DIR),
+                otlp_endpoint: Some(DEFAULT_OTLP_HTTP_ENDPOINT.to_string()),
+                otlp_export_protocol: Some(common_telemetry::logging::OtlpExportProtocol::Http),
+                tracing_sample_ratio: Some(Default::default()),
+                ..Default::default()
+            },
+            datanode: DatanodeClientOptions {
+                client: ClientOptions {
+                    connect_timeout: Duration::from_secs(10),
+                    tcp_nodelay: true,
+                    ..Default::default()
+                },
+            },
+            grpc: GrpcOptions {
+                bind_addr: "127.0.0.1:4001".to_string(),
+                server_addr: "127.0.0.1:4001".to_string(),
+                ..Default::default()
+            },
+            internal_grpc: Some(GrpcOptions::internal_default()),
+            http: HttpOptions {
+                cors_allowed_origins: vec!["https://example.com".to_string()],
+                ..Default::default()
+            },
+            query: QueryOptions {
+                memory_pool_size: MemoryLimit::Percentage(50),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    similar_asserts::assert_eq!(options, expected);
+}
+
+#[test]
+fn test_load_metasrv_example_config() {
+    let example_config = common_test_util::find_workspace_path("config/metasrv.example.toml");
+    let options =
+        GreptimeOptions::<MetasrvOptions>::load_layered_options(example_config.to_str(), "")
+            .unwrap();
+    let expected = GreptimeOptions::<MetasrvOptions> {
+        component: MetasrvOptions {
+            selector: SelectorType::default(),
+            data_home: DEFAULT_DATA_HOME.to_string(),
+            grpc: GrpcOptions {
+                bind_addr: "127.0.0.1:3002".to_string(),
+                server_addr: "127.0.0.1:3002".to_string(),
+                ..Default::default()
+            },
+            logging: LoggingOptions {
+                dir: format!("{}/{}", DEFAULT_DATA_HOME, DEFAULT_LOGGING_DIR),
+                level: Some("info".to_string()),
+                otlp_endpoint: Some(DEFAULT_OTLP_HTTP_ENDPOINT.to_string()),
+                otlp_export_protocol: Some(common_telemetry::logging::OtlpExportProtocol::Http),
+                tracing_sample_ratio: Some(Default::default()),
+                ..Default::default()
+            },
+            datanode: DatanodeClientOptions {
+                client: ClientOptions {
+                    timeout: Duration::from_secs(10),
+                    connect_timeout: Duration::from_secs(10),
+                    tcp_nodelay: true,
+                    ..Default::default()
+                },
+            },
+            backend_tls: Some(TlsOption {
+                mode: TlsMode::Prefer,
+                cert_path: String::new(),
+                key_path: String::new(),
+                ca_cert_path: String::new(),
+                watch: false,
+            }),
+            meta_schema_name: Some("greptime_schema".to_string()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    similar_asserts::assert_eq!(options, expected);
+}
+
+#[test]
+fn test_load_metasrv_soft_drop_config() {
+    let config = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(
+        config.path(),
+        "[gc]\nenable = true\n[gc.experimental_soft_drop]\nenable = true\nretention = \"1d\"\n",
+    )
+    .unwrap();
+
+    let options =
+        GreptimeOptions::<MetasrvOptions>::load_layered_options(config.path().to_str(), "")
+            .unwrap();
+    assert!(options.component.gc.experimental_soft_drop.enable);
+    assert_eq!(
+        Duration::from_secs(24 * 60 * 60),
+        options.component.gc.experimental_soft_drop.retention
+    );
+}
+
+#[test]
+fn test_load_flownode_example_config() {
+    let example_config = common_test_util::find_workspace_path("config/flownode.example.toml");
+    let options =
+        GreptimeOptions::<FlownodeOptions>::load_layered_options(example_config.to_str(), "")
+            .unwrap();
+    let expected = GreptimeOptions::<FlownodeOptions> {
+        component: FlownodeOptions {
+            node_id: Some(14),
+            flow: Default::default(),
+            grpc: GrpcOptions {
+                bind_addr: "127.0.0.1:6800".to_string(),
+                server_addr: "127.0.0.1:6800".to_string(),
+                runtime_size: 2,
+                ..Default::default()
+            },
+            logging: LoggingOptions {
+                dir: format!("{}/{}", DEFAULT_DATA_HOME, DEFAULT_LOGGING_DIR),
+                level: Some("info".to_string()),
+                otlp_endpoint: Some(DEFAULT_OTLP_HTTP_ENDPOINT.to_string()),
+                otlp_export_protocol: Some(common_telemetry::logging::OtlpExportProtocol::Http),
+                tracing_sample_ratio: Some(Default::default()),
+                ..Default::default()
+            },
+            tracing: Default::default(),
+            // flownode deliberately use a slower query parallelism
+            // to avoid overwhelming the frontend with too many queries
+            query: QueryOptions {
+                parallelism: 1,
+                allow_query_fallback: false,
+                memory_pool_size: MemoryLimit::Percentage(50),
+                enable_per_region_metrics: false,
+                ..Default::default()
+            },
+            meta_client: Some(MetaClientOptions {
+                metasrv_addrs: vec!["127.0.0.1:3002".to_string()],
+                timeout: Duration::from_secs(3),
+                ddl_timeout: Duration::from_secs(10),
+                connect_timeout: Duration::from_secs(1),
+                tcp_nodelay: true,
+                metadata_cache_max_capacity: 100000,
+                metadata_cache_ttl: Duration::from_secs(600),
+                metadata_cache_tti: Duration::from_secs(300),
+            }),
+            http: HttpOptions {
+                addr: "127.0.0.1:4000".to_string(),
+                ..Default::default()
+            },
+            memory: Default::default(),
+        },
+        ..Default::default()
+    };
+    similar_asserts::assert_eq!(options, expected);
+}
+
+#[test]
+fn test_load_standalone_example_config() {
+    let example_config = common_test_util::find_workspace_path("config/standalone.example.toml");
+    let options =
+        GreptimeOptions::<StandaloneOptions>::load_layered_options(example_config.to_str(), "")
+            .unwrap();
+    let expected = GreptimeOptions::<StandaloneOptions> {
+        component: StandaloneOptions {
+            pending_rows_batcher: PendingRowsBatcherOptions {
+                logical_table: Some(Default::default()),
+                ..Default::default()
+            },
+            default_timezone: Some("UTC".to_string()),
+            default_column_prefix: Some("greptime".to_string()),
+            auto_create_table: true,
+            wal: DatanodeWalConfig::RaftEngine(RaftEngineConfig {
+                dir: Some(format!("{}/{}", DEFAULT_DATA_HOME, WAL_DIR)),
+                sync_period: Some(Duration::from_secs(5)),
+                recovery_parallelism: 2,
+                ..Default::default()
+            }),
+            region_engine: vec![
+                RegionEngineConfig::Mito(MitoConfig {
+                    experimental_series_index_max_size: ReadableSize::gb(5),
+                    auto_flush_interval: Duration::from_secs(10 * 60),
+                    default_region_write_buffer_size: ReadableSize::mb(0),
+                    write_cache_ttl: Some(Duration::from_secs(60 * 60 * 8)),
+                    scan_memory_limit: MemoryLimit::Percentage(25),
+                    scan_memory_mode: mito2::config::ScanMemoryMode::Basic,
+                    ..Default::default()
+                }),
+                RegionEngineConfig::File(FileEngineConfig {}),
+                RegionEngineConfig::Metric(MetricEngineConfig {
+                    flush_metadata_region_interval: Duration::from_secs(30),
+                }),
+            ],
+            storage: StorageConfig {
+                data_home: DEFAULT_DATA_HOME.to_string(),
+                ..Default::default()
+            },
+            logging: LoggingOptions {
+                level: Some("info".to_string()),
+                dir: format!("{}/{}", DEFAULT_DATA_HOME, DEFAULT_LOGGING_DIR),
+                otlp_endpoint: Some(DEFAULT_OTLP_HTTP_ENDPOINT.to_string()),
+                otlp_export_protocol: Some(common_telemetry::logging::OtlpExportProtocol::Http),
+                tracing_sample_ratio: Some(Default::default()),
+                ..Default::default()
+            },
+            http: HttpOptions {
+                cors_allowed_origins: vec!["https://example.com".to_string()],
+                ..Default::default()
+            },
+            query: QueryOptions {
+                memory_pool_size: MemoryLimit::Percentage(50),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    similar_asserts::assert_eq!(options, expected);
+}
+
+/// Renders an example config with its `#+` options enabled, as `config.md`
+/// lists them. With `drop_none_default`, options annotated with
+/// `@toml2docs:none-default` are removed, because `config.md` does not present
+/// their example value as the default.
+fn render_example(example: &str, drop_none_default: bool) -> String {
+    let mut rendered = String::new();
+    let mut none_default = false;
+    for line in example.lines() {
+        let line = line.trim_start();
+        if line.starts_with("##") {
+            none_default |= line.contains("@toml2docs:none-default");
+            continue;
+        }
+        let line = line.strip_prefix("#+").map_or(line, str::trim_start);
+        let is_option = !line.starts_with('[') && line.contains('=');
+        if !(is_option && drop_none_default && none_default) {
+            rendered.push_str(line);
+            rendered.push('\n');
+        }
+        none_default = false;
+    }
+    rendered
+}
+
+/// Flattens leaf values into dotted paths. Arrays of tables such as
+/// `region_engine` are merged, since each element is keyed by its engine name.
+fn leaf_values(value: &toml::Value, prefix: &str, leaves: &mut Vec<(String, toml::Value)>) {
+    match value {
+        toml::Value::Table(table) => {
+            for (key, value) in table {
+                let path = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                leaf_values(value, &path, leaves);
+            }
+        }
+        toml::Value::Array(array)
+            if array.iter().all(toml::Value::is_table) && !array.is_empty() =>
+        {
+            for element in array {
+                leaf_values(element, prefix, leaves);
+            }
+        }
+        _ => leaves.push((prefix.to_string(), value.clone())),
+    }
+}
+
+/// Removes the option at a dotted path produced by [`leaf_values`].
+fn remove_leaf(value: &mut toml::Value, path: &str) -> bool {
+    match value {
+        toml::Value::Array(array) => array.iter_mut().any(|element| remove_leaf(element, path)),
+        toml::Value::Table(table) => match path.split_once('.') {
+            None => table.remove(path).is_some(),
+            Some((head, rest)) => table
+                .get_mut(head)
+                .is_some_and(|value| remove_leaf(value, rest)),
+        },
+        _ => false,
+    }
+}
+
+fn load_as_leaves<T>(
+    config: Option<&str>,
+) -> common_config::error::Result<std::collections::HashMap<String, toml::Value>>
+where
+    T: Configurable + serde::Serialize,
+{
+    let file = config.map(|config| {
+        let mut file = create_named_temp_file();
+        file.write_all(config.as_bytes()).unwrap();
+        file
+    });
+    let options = GreptimeOptions::<T>::load_layered_options(
+        file.as_ref().map(|file| file.path().to_str().unwrap()),
+        "",
+    )?;
+    let mut leaves = Vec::new();
+    leaf_values(&toml::Value::try_from(&options).unwrap(), "", &mut leaves);
+    Ok(leaves.into_iter().collect())
+}
+
+/// Returns the default of an option inside the example's other settings, so
+/// that options in sections absent by default still have one to compare with.
+/// Removes the closest enclosing table that still loads without the option.
+fn default_within_example<T>(full: &toml::Value, path: &str) -> Option<toml::Value>
+where
+    T: Configurable + serde::Serialize,
+{
+    let mut removed = path;
+    loop {
+        let mut without = full.clone();
+        assert!(remove_leaf(&mut without, removed));
+        if let Ok(defaults) = load_as_leaves::<T>(Some(&toml::to_string(&without).unwrap())) {
+            return defaults.get(path).cloned();
+        }
+        removed = removed
+            .rsplit_once('.')
+            .unwrap_or_else(|| panic!("the example does not load without `{path}`"))
+            .0;
+    }
+}
+
+/// Checks that every option in an example config exists, and that every value
+/// `config.md` presents as a default is the actual default.
+///
+/// `variants` lists tagged sections, e.g. `("wal", "provider", ["kafka"])`,
+/// whose options only deserialize under a specific tag value.
+fn check_example_defaults<T>(name: &str, variants: &[(&str, &str, &[&str])]) -> Vec<String>
+where
+    T: Configurable + serde::Serialize,
+{
+    let example = std::fs::read_to_string(common_test_util::find_workspace_path(&format!(
+        "config/{name}"
+    )))
+    .unwrap();
+    let full: toml::Value = toml::from_str(&render_example(&example, false)).unwrap();
+    let documented: toml::Value = toml::from_str(&render_example(&example, true)).unwrap();
+
+    // (options loaded from the example, options loaded without config) per variant
+    let mut loaded = vec![(
+        load_as_leaves::<T>(Some(&toml::to_string(&full).unwrap())).unwrap(),
+        load_as_leaves::<T>(None).unwrap(),
+    )];
+    for (section, tag, values) in variants {
+        for value in *values {
+            let mut variant = full.clone();
+            variant[section][tag] = toml::Value::String(value.to_string());
+            loaded.push((
+                load_as_leaves::<T>(Some(&toml::to_string(&variant).unwrap())).unwrap(),
+                load_as_leaves::<T>(Some(&format!("[{section}]\n{tag} = \"{value}\"\n"))).unwrap(),
+            ));
+        }
+    }
+
+    // Deserialize-only fields, invisible in the serialized options.
+    const SKIP_SERIALIZING: &[&str] = &[
+        "storage.access_key_id",
+        "storage.secret_access_key",
+        "storage.access_key_secret",
+        "storage.account_name",
+        "storage.account_key",
+        "storage.credential_path",
+        "storage.credential",
+        "region_engine.mito.inverted_index.intermediate_path",
+    ];
+
+    let mut errors = Vec::new();
+    let mut full_leaves = Vec::new();
+    leaf_values(&full, "", &mut full_leaves);
+    for (path, _) in full_leaves {
+        if SKIP_SERIALIZING.contains(&path.as_str())
+            || (path == "tracing.tokio_console_addr" && !cfg!(feature = "tokio-console"))
+        {
+            continue;
+        }
+        if !loaded
+            .iter()
+            .any(|(example, _)| example.contains_key(&path))
+        {
+            errors.push(format!("{name}: `{path}` is not a known option"));
+        }
+    }
+
+    // Options left unset by default and resolved where they are used.
+    let resolved_at_runtime: [(&str, toml::Value); 7] = [
+        (
+            "logging.dir",
+            format!("{DEFAULT_DATA_HOME}/{DEFAULT_LOGGING_DIR}").into(),
+        ),
+        ("logging.otlp_endpoint", DEFAULT_OTLP_HTTP_ENDPOINT.into()),
+        ("logging.otlp_export_protocol", "http".into()),
+        ("logging.tracing_sample_ratio.default_ratio", 1.0.into()),
+        ("wal.sync_period", "5s".into()),
+        (
+            "storage.copy_root",
+            format!("{DEFAULT_DATA_HOME}/copy").into(),
+        ),
+        ("flow.batching_mode.frontend_tls.enabled", false.into()),
+    ];
+
+    let mut documented_leaves = Vec::new();
+    leaf_values(&documented, "", &mut documented_leaves);
+    for (path, documented_value) in documented_leaves {
+        if SKIP_SERIALIZING.contains(&path.as_str()) {
+            continue;
+        }
+        if let Some((_, resolved)) = resolved_at_runtime.iter().find(|(p, _)| *p == path) {
+            if &documented_value != resolved {
+                errors.push(format!(
+                    "{name}: `{path}` is documented as default `{documented_value}`, but resolves to `{resolved}`"
+                ));
+            }
+            continue;
+        }
+        let mut pairs = loaded
+            .iter()
+            .filter_map(|(example, default)| Some((example.get(&path)?, default.get(&path)?)))
+            .map(|(example, default)| (example.clone(), default.clone()))
+            .collect::<Vec<_>>();
+        if pairs.is_empty() {
+            // The option sits in a section that is absent without config, or
+            // is itself optional.
+            match default_within_example::<T>(&full, &path) {
+                Some(default) => pairs.push((loaded[0].0[&path].clone(), default)),
+                None => {
+                    errors.push(format!(
+                        "{name}: `{path}` has no default to compare with; annotate it with \
+                         `@toml2docs:none-default` or list its runtime default in this test"
+                    ));
+                    continue;
+                }
+            }
+        }
+        if pairs.iter().all(|(example, default)| example != default) {
+            let (example, default) = &pairs[0];
+            errors.push(format!(
+                "{name}: `{path}` is documented as default `{example}`, but the default is `{default}`; \
+                 fix the value or annotate it with `@toml2docs:none-default`"
+            ));
+        }
+    }
+    errors
+}
+
+// The examples document HDFS storage options.
+#[cfg(feature = "hdfs-object-store")]
+#[test]
+fn test_example_configs_document_actual_defaults() {
+    const WAL: (&str, &str, &[&str]) = ("wal", "provider", &["kafka", "experimental_object_store"]);
+    const STORAGE: (&str, &str, &[&str]) =
+        ("storage", "type", &["S3", "Oss", "Azblob", "Gcs", "Hdfs"]);
+
+    let mut errors =
+        check_example_defaults::<StandaloneOptions>("standalone.example.toml", &[WAL, STORAGE]);
+    errors.extend(check_example_defaults::<FrontendOptions>(
+        "frontend.example.toml",
+        &[],
+    ));
+    errors.extend(check_example_defaults::<DatanodeOptions>(
+        "datanode.example.toml",
+        &[WAL, STORAGE],
+    ));
+    errors.extend(check_example_defaults::<MetasrvOptions>(
+        "metasrv.example.toml",
+        &[("wal", "provider", &["kafka"])],
+    ));
+    errors.extend(check_example_defaults::<FlownodeOptions>(
+        "flownode.example.toml",
+        &[],
+    ));
+    assert!(errors.is_empty(), "{}", errors.join("\n"));
+}
+
+#[test]
+fn test_load_removed_histogram_options() {
+    for enabled in [false, true] {
+        let config = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            config.path(),
+            format!(
+                "[otlp]\nexperimental_enable_exponential_histogram = {enabled}\n\
+                 [prom_store]\nenable = true\nwith_metric_engine = true\n\
+                 experimental_enable_prometheus_native_histogram = {enabled}\n"
+            ),
+        )
+        .unwrap();
+
+        let frontend =
+            GreptimeOptions::<FrontendOptions>::load_layered_options(config.path().to_str(), "")
+                .unwrap();
+        let standalone =
+            GreptimeOptions::<StandaloneOptions>::load_layered_options(config.path().to_str(), "")
+                .unwrap();
+        let defaults = FrontendOptions::default();
+        for options in [frontend.component, standalone.component.frontend_options()] {
+            assert_eq!(options.otlp, defaults.otlp);
+            assert_eq!(options.prom_store, defaults.prom_store);
+            let serialized = toml::to_string(&options).unwrap();
+            assert!(!serialized.contains("experimental_enable_exponential_histogram"));
+            assert!(!serialized.contains("experimental_enable_prometheus_native_histogram"));
+        }
+    }
+}
+
+#[test]
+fn test_load_standalone_user_provider_from_config() {
+    let config = tempfile::NamedTempFile::new().unwrap();
+    let user_provider = "static_user_provider:file:/tmp/greptimedb-users";
+    std::fs::write(
+        config.path(),
+        format!("user_provider = \"{user_provider}\"\n"),
+    )
+    .unwrap();
+
+    let options =
+        GreptimeOptions::<StandaloneOptions>::load_layered_options(config.path().to_str(), "")
+            .unwrap();
+
+    assert_eq!(
+        options.component.user_provider.as_deref(),
+        Some(user_provider)
+    );
+
+    let frontend_options = options.component.frontend_options();
+    assert_eq!(
+        frontend_options.user_provider.as_deref(),
+        Some(user_provider)
+    );
+}
+
+#[test]
+fn test_load_heartbeat_env_vars_from_env() {
+    let env_prefix = "HEARTBEAT_ENV_VARS_UT";
+    let env_key = [env_prefix, "HEARTBEAT_ENV_VARS"].join(ENV_VAR_SEP);
+
+    temp_env::with_var(env_key, Some("AZ,REGION"), || {
+        let expected = vec!["AZ".to_string(), "REGION".to_string()];
+
+        let datanode =
+            GreptimeOptions::<DatanodeOptions>::load_layered_options(None, env_prefix).unwrap();
+        similar_asserts::assert_eq!(datanode.component.heartbeat_env_vars, expected);
+
+        let frontend =
+            GreptimeOptions::<FrontendOptions>::load_layered_options(None, env_prefix).unwrap();
+        similar_asserts::assert_eq!(frontend.component.heartbeat_env_vars, expected);
+
+        let standalone =
+            GreptimeOptions::<StandaloneOptions>::load_layered_options(None, env_prefix).unwrap();
+        similar_asserts::assert_eq!(standalone.component.heartbeat_env_vars, expected);
+    });
+}
+
+#[test]
+fn test_load_event_types_from_env() {
+    let env_prefix = "EVENT_TYPES_UT";
+    let env_key = [env_prefix, "EVENT_RECORDER", "EVENT_TYPES"].join(ENV_VAR_SEP);
+
+    temp_env::with_var(env_key, Some("region_migration"), || {
+        for event_types in [
+            GreptimeOptions::<MetasrvOptions>::load_layered_options(None, env_prefix)
+                .unwrap()
+                .component
+                .event_recorder
+                .event_types,
+            GreptimeOptions::<StandaloneOptions>::load_layered_options(None, env_prefix)
+                .unwrap()
+                .component
+                .event_recorder
+                .event_types,
+            GreptimeOptions::<FrontendOptions>::load_layered_options(None, env_prefix)
+                .unwrap()
+                .component
+                .event_recorder
+                .event_types,
+        ] {
+            assert!(event_types.allows("region_migration"));
+            assert!(!event_types.allows("other_event"));
+        }
+    });
+}
+
+#[test]
+fn test_load_metric_config_with_removed_sparse_primary_key_encoding() {
+    // The `sparse_primary_key_encoding` option was removed from the metric
+    // engine config and is now always-on. Existing user configs that still set
+    // it must be tolerated (ignored), not rejected.
+    let mut file = create_named_temp_file();
+    let toml_str = r#"
+        node_id = 42
+
+        [meta_client]
+        metasrv_addrs = ["127.0.0.1:3002"]
+
+        [[region_engine]]
+        [region_engine.metric]
+        sparse_primary_key_encoding = false
+        flush_metadata_region_interval = "30s"
+    "#;
+    write!(file, "{}", toml_str).unwrap();
+
+    let options =
+        GreptimeOptions::<DatanodeOptions>::load_layered_options(file.path().to_str(), "")
+            .expect("config with removed 'sparse_primary_key_encoding' should load without error");
+
+    // The unknown option is ignored; known metric engine options are still parsed/applied.
+    let metric = options
+        .component
+        .region_engine
+        .iter()
+        .find_map(|c| match c {
+            RegionEngineConfig::Metric(c) => Some(c),
+            _ => None,
+        })
+        .expect("metric engine config should be present");
+    assert_eq!(
+        metric.flush_metadata_region_interval,
+        Duration::from_secs(30)
+    );
+}

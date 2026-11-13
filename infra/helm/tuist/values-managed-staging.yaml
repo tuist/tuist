@@ -191,15 +191,16 @@ server:
     - name: TUIST_PULSE_ACCOUNT_ID
       value: "2"
     - name: TUIST_PULSE_URL
-      value: http://greptimedb.observability.svc.cluster.local:4000
+      value: http://pulse.observability.svc.cluster.local:4000
     - name: TUIST_PULSE_TENANT
       value: public
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Linux runners reuse ordinary regional instances. Before deploying,
       # complete the staging migration in linux-runner-private-cache.md:
       # drain the retired experiment and qualify the existing GRA host as EU-West.
-      # Preserve the independent macOS private cache.
-      value: scw-fr-par-runners,eu-west,ca-east
+      # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
+      # tears down its leftovers whether or not it is listed here.
+      value: eu-west,ca-east
     # The remote-execution chart's gateway Ingress host, which accounts'
     # Bazel workspaces use as --remote_executor (capabilities API).
     - name: TUIST_REMOTE_EXECUTION_ENDPOINT
@@ -238,21 +239,12 @@ server:
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
     # Unset, this defaults to `linux` (kata Pods on the CNI reaching
-    # `*.svc.cluster.local`). For `macos` the endpoint is the
-    # node-port form (`http://<node PN address>:<NodePort>` on the
-    # scw-fr-par-runners region), so flip it on ONLY when the
-    # Private Network path exists end-to-end — clients treat
-    # TUIST_CACHE_ENDPOINT as a hard override, and an unreachable URL
-    # breaks macOS caching outright. Checklist (in order):
-    #   1. The PN + kura-scw-fr-par node pool exist and the minis are
-    #      attached (macosFleet.vmCachePrivateNetwork values below;
-    #      the CAPI operator attaches minis and resolves VLANs).
-    #   2. Mac mini hosts bootstrapped/drift-rolled so the VLAN
-    #      interface + pf pass + VM NAT are live, then from a runner
-    #      VM: `curl http://<node PN address>:<account NodePort>/up`.
-    # Verified end-to-end on 2026-06-12 (smoke run 27416065883):
-    # dispatch-sourced endpoint http://172.16.0.2:32675 from a Tart
-    # runner VM, cold 5.34x / warm 2.46x vs the public baseline.
+    # `*.svc.cluster.local`). For `macos` the endpoint is a rack
+    # site's private gateway; this env serves no site cache since the
+    # scw-fr-par-runners region retired, so macOS jobs fall back to
+    # the public cache. Clients treat TUIST_CACHE_ENDPOINT as a hard
+    # override, so only list a platform whose fleet reaches its
+    # region's private endpoint.
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
     # Operator project-access grants — server half only. The public key
@@ -651,21 +643,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Declarative Scaleway Elastic Metal kura runner-cache node. The provider
-# orders the bare-metal server, attaches it to the runner-cache PN, mints a
-# kubelet identity, and renders a self-join cloud-init that registers the Node
-# with the runner-cache taint. This cluster's control plane is externally
-# managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
-# itself.
-kuraFleet:
-  enabled: true
-  replicas: 1
-  machine:
-    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
-    # that still mirrors the production NVMe + 10G PN path, so staging
-    # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
-    offerType: EM-B220E-NVME
-
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
@@ -747,6 +724,11 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     replicas: 1
+    # A fresh join installs this kubelet minor; from v1.36 the Kata host also
+    # runs the pod-level resource managers. Keep it at or below the control
+    # plane's version. OnDelete: the box only moves when its Machine is deleted
+    # (infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md).
+    kubernetesVersion: "v1.36.6"
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -754,11 +736,15 @@ ovhFleets:
     endpoint: ovh-us
     # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
+    # Jobs reach the gra shard store privately once the provider attests the
+    # node's vRack routes (tuist.dev/private-network).
+    shardStorageSite: gra
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
       offer: rise-m
-      # Existing hosts are enrolled during drained network maintenance.
+      # Backfill existing OnDelete hosts during drained network enrollment.
       # All jobs share the direct regional cache path and runner pool.
+      vRackID: pn-2023588
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04
@@ -1018,11 +1004,24 @@ runnersFleetLinux:
       sizeGB: 200
     dockerCache:
       enabled: true
+    actionsCache:
+      enabled: true
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
   nestedVirtualization:
     enabled: true
+    # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet
+    # instead of the device plugin, which panics kubelet next to a Pod-level
+    # budget (kubernetes/kubernetes#143490).
+    nri:
+      enabled: true
+  # Whole cores per runner Pod on the v1.36 runner host, which carries
+  # tuist.dev/pod-level-resource-managers=true. Odd shapes keep shared cores.
+  # A kubelet restart with exclusive Pods running leaks their old cores; see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
+  exclusiveCPUs:
+    defaultEnabled: true
   # Nested-virtualization pool for Android emulator workloads (Gradle
   # Managed Devices, Macrobenchmark). An operator pool rather than a shape
   # because profiles cannot ask for /dev/kvm yet; workflows target it by

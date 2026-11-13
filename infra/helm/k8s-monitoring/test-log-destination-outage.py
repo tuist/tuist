@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix="log-destination-outage-") as temporary:
     temporary = Path(temporary)
     rendered = subprocess.check_output([
         "helm", "template", "k8s-monitoring", str(DIRECTORY), "-n", "observability",
-        "-f", str(DIRECTORY / "values-production.yaml"),
+        "-f", str(DIRECTORY / "values-canary.yaml"),
     ], text=True)
     resources = json.loads(subprocess.check_output(
         ["yq", "ea", "-o=json", "[.]", "-"], input=rendered, text=True))

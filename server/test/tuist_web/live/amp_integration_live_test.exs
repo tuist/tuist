@@ -125,7 +125,10 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
       challenged = get(conn, path)
 
       assert redirected_to(challenged) ==
-               if(unquote(invalidation) == :sso_policy, do: "/users/auth/google", else: "/users/log_in")
+               if(unquote(invalidation) == :sso_policy,
+                 do: ~p"/users/auth/google?#{%{return_to: path}}",
+                 else: ~p"/users/log_in?#{%{return_to: path}}"
+               )
 
       assert get_session(challenged, :user_return_to) == path
     end

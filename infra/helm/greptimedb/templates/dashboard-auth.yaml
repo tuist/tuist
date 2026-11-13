@@ -2,14 +2,14 @@
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: greptimedb-dashboard-auth
+  name: pulse-dashboard-auth
 spec:
   refreshInterval: 1h
   secretStoreRef:
     name: onepassword
     kind: ClusterSecretStore
   target:
-    name: greptimedb-dashboard-auth
+    name: pulse-dashboard-auth
     creationPolicy: Owner
     template:
       engineVersion: v2
@@ -17,6 +17,10 @@ spec:
         passwd: |
           dashboard:ro={{ "{{ .token | trim }}" }}
           tuist:wo={{ "{{ .token | trim }}" }}
+        # Collectors write as the write-only identity above. This Secret
+        # outlives the old pulse release, whose Secret they used before.
+        ingest-username: tuist
+        ingest-password: '{{ "{{ .token | trim }}" }}'
   data:
     - secretKey: token
       remoteRef:

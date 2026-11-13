@@ -5,7 +5,6 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Sandboxes.Analytics
-  alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.SandboxEvent
 
   @window_start ~U[2026-10-01 00:00:00Z]
@@ -142,21 +141,6 @@ defmodule Tuist.Sandboxes.AnalyticsTest do
 
     assert result.concurrency.vcpus == [6, 2, 0]
     assert result.concurrency.memory_gb == [12.0, 4.0, 0.0]
-  end
-
-  # Disk stays held while paused: the sandbox paused on 30 September still
-  # holds it, and the restored one holds it from its first start. Each hold
-  # is its node's ceiling: workspace and memory image (46 GB over three
-  # sandboxes on the first day, 28 GB over two on the second), plus the
-  # 8 GiB rootfs and 64 MiB of snapshot state each.
-  test "reports the peak disk held on nodes per day, until archive, failure or deletion", %{account: account} do
-    stub(Nodes, :connected_nodes, fn ->
-      [%{name: "node-a", templates: [%{name: "default", ready: true, rootfs_bytes: 8 * 1024 * 1024 * 1024}]}]
-    end)
-
-    result = Analytics.overview(account.id, start_datetime: @window_start, end_datetime: @window_end)
-
-    assert result.concurrency.disk_gb == [70.2, 44.1, 0.0]
   end
 
   test "buckets a short window by hour, leaving a session out of the hour it ended at", %{account: account} do

@@ -30,7 +30,7 @@ defmodule Atlas.MCP.Tools.RequestClusterElevationTest do
 
     assert {:error, message} = RequestClusterElevation.execute(agent_conn(owner), @elevation)
     assert [%{id: id, server_name: "tuist-ops"}] = MCP.list_pending_tool_approvals(owner)
-    assert message =~ "/admin/mcps#mcp-approval-#{id}"
+    assert message =~ "/approvals/#{id}"
     refute_received {:grant, _}
 
     assert {:ok, _} = MCP.decide_tool_approval(owner, id, "approved")

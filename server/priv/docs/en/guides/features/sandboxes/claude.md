@@ -156,3 +156,24 @@ Developers pick the environment, and with it the platform, when they start a clo
   ```
 
 Sessions in these environments use your organization's Claude Code usage as usual, and their sandboxes count toward your Tuist account.
+
+### Faster session starts and builds {#claude-code-caching}
+
+- **Tuist cache:** sessions get `TUIST_URL` and, when your account has a cache in the same rack, `TUIST_CACHE_ENDPOINT`. The Tuist CLI and the `tuist_ex` Mix tasks in a session sign in on their own with the session's identity token. See <.localized_link href="/guides/server/authentication#claude-code-sessions">Claude Code sessions</.localized_link> in the authentication guide.
+- **Cached checkouts:** when the Tuist GitHub app of your account can read a session's repository, a new session starts from the same cached checkout your Tuist runners use, so it fetches only the commits it lacks instead of cloning. When the session ends, it gives back the objects of the default branch's latest commit, which keeps the cached checkout current even for repositories that don't run CI on Tuist. Only the commit GitHub reports for the default branch updates it; a session's own branches never do. Disable sandboxes or uninstall the app to stop this.
+- **macOS:** the Mac shares the Claude Code build sessions run with each VM, so a new session doesn't download it.
+
+## Use a Mac from any Claude Code session {#remote-mac}
+
+Claude Code sessions that run on Linux, such as cloud sessions in an Anthropic-hosted environment, can still build and test Apple-platform code on a Tuist macOS sandbox, as described in <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>. Unlike a **Tuist macOS** environment, the session keeps its own environment.
+
+In a **Tuist Linux** environment there is nothing to set up: the Tuist CLI and the Tuist MCP server are already installed and sign in with the session's identity.
+
+For cloud sessions in an Anthropic-hosted environment:
+
+1. Make the Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> available to sessions: add `https://tuist.dev/mcp` as a connector in claude.ai and enable it for the session, or declare it in the repository's committed `.mcp.json`.
+2. Install the Tuist CLI in the environment's [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts), for example with `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`.
+3. Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope, and add it to the environment's [environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) as `TUIST_TOKEN`. Everyone who uses the environment can read it, so give it no other scope.
+4. Let the environment reach Tuist. Anthropic's default **Trusted** network access doesn't include `tuist.dev`, so pick **Custom**, keep the default domains, and add `tuist.dev` to **Allowed domains**. The CLI uploads the session's files to the Mac through `tuist.dev`, so it needs no other domain.
+
+Claude deletes the Mac when the task is done. A Mac left behind pauses when idle and is deleted after 14 days paused. Macs created this way count toward your Tuist account like any other sandbox.

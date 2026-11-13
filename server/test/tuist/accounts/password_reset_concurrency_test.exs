@@ -32,6 +32,8 @@ defmodule Tuist.Accounts.PasswordResetConcurrencyTest do
     on_exit(fn ->
       :ok = Sandbox.checkout(Repo, sandbox: false)
       Repo.delete_all(from(t in UserToken, where: t.user_id == ^user.id))
+      # Unsandboxed enrollment, disable, and recovery-code logins commit security notification jobs.
+      Repo.delete_all(from(j in Oban.Job, where: fragment("? @> ?", j.args, ^%{user_id: user.id})))
       Repo.delete!(user.account)
       Repo.delete!(user)
       Sandbox.checkin(Repo)
@@ -114,7 +116,10 @@ defmodule Tuist.Accounts.PasswordResetConcurrencyTest do
       if unquote(revocation) == :reset, do: assert_redirect(revocation, "/users/log_in")
 
       assert Accounts.get_user_by_session_token(get_session(issued, :user_token)) == nil
-      assert issued |> recycle() |> get("/#{user.account.name}/projects") |> redirected_to() == "/users/log_in"
+      path = "/#{user.account.name}/projects"
+
+      assert issued |> recycle() |> get(path) |> redirected_to() ==
+               "/users/log_in?" <> URI.encode_query(%{return_to: path})
     end
   end
 

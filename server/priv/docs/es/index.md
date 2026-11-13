@@ -1,13 +1,13 @@
 ---
 {
   "title": "¿Qué es Tuist?",
-  "description": "Un equipo de plataforma virtual para desarrolladores. Construye infraestructura para Xcode, Gradle, Bazel, Elixir, Rust y Once, con funcionalidades adaptadas a cada cadena de herramientas."
+  "description": "Tuist es una plataforma de compilación para equipos de ingeniería y sus agentes de programación. Admite flujos de trabajo de compilación y pruebas en Xcode, Gradle, Bazel, Elixir y Rust; el soporte para Once está en fase canary. Las funcionalidades varían según la cadena de herramientas y el almacenamiento en caché de compilaciones de Rust es experimental."
 }
 ---
 
-# Un equipo de plataforma virtual para desarrolladores que publican software
+# Una plataforma de compilación para equipos y sus agentes de programación
 
-**Tuist ayuda a los equipos a escalar el desarrollo de apps y publicar software más rápido**, convirtiendo la complejidad de bases de código grandes en una experiencia productiva que crece con tu equipo. Funciona con los sistemas de compilación que ya usas, en proyectos de Xcode, Gradle, Bazel, Elixir, Rust y Once. Las funcionalidades disponibles dependen de tu toolchain: los proyectos de Rust obtienen análisis de compilación y tests de Cargo, incluidos doctests, detección de tests inestables y caché de compilación experimental. Once se conecta de forma nativa para caché compartida, análisis de compilación y tests, sharding y vistas previas de aplicaciones compatibles.
+**Tuist es una plataforma de compilación para equipos de ingeniería y sus agentes de programación.** Admite flujos de trabajo de compilación y tests en Xcode, Gradle, Bazel, Elixir y Rust; el soporte para Once está en fase canary. Funciona con los sistemas de compilación que ya utilizas, en lugar de reemplazarlos. Las funcionalidades disponibles dependen de tu toolchain: los proyectos Rust obtienen análisis de compilación y tests de Cargo, incluidos doctests, detección de tests inestables y caché de compilación experimental. Once se conecta de forma nativa para caché compartida, análisis de compilación y tests, sharding y vistas previas de aplicaciones compatibles.
 
 Sigue una de las <.localized_link href="/guides/get-started">rutas de inicio</.localized_link> para tu sistema de compilación. Once se conecta directamente sin necesidad del CLI de Tuist; otras rutas explican qué herramientas de Tuist debes instalar.
 
@@ -28,7 +28,7 @@ Sigue una de las <.localized_link href="/guides/get-started">rutas de inicio</.l
 />
   <.home_card
     title="Tests selectivos"
-    details="Ejecuta solo los tests afectados por un cambio en proyectos de Xcode generados, para que el feedback llegue en segundos."
+    details="Ejecuta solo los tests afectados por un cambio en proyectos Xcode generados, para que el feedback llegue en segundos."
     link="/guides/features/selective-testing"
 />
   <.home_card
@@ -37,18 +37,18 @@ Sigue una de las <.localized_link href="/guides/get-started">rutas de inicio</.l
     link="/guides/features/runners"
 />
   <.home_card
-    title="Vistas previas"
-    details="Comparte tu app al instante con una URL. Sin retrasos por revisión en las tiendas, sin configuraciones complejas."
+    title="Previews"
+    details="Comparte tu app al instante con una URL. Sin demoras por revisión en la tienda, sin configuraciones complejas."
     link="/guides/features/previews"
 />
   <.home_card
     title="Proyectos generados"
-    details="Describe proyectos de Xcode en Swift y genéralos de forma consistente. Elimina conflictos de merge y desbloquea la caché de módulos."
+    details="Describe proyectos Xcode en Swift y genéralos de forma consistente. Elimina conflictos de merge y desbloquea la caché de módulos."
     link="/guides/features/projects"
 />
   <.home_card
     title="Registro de paquetes"
-    details="Resuelve paquetes de Swift en segundos en lugar de minutos con un registro respaldado por la red de caché de Tuist."
+    details="Resuelve paquetes Swift en segundos en lugar de minutos con un registro respaldado por la red de caché de Tuist."
     link="/guides/features/package-registries/swift"
 />
   <.home_card
@@ -58,6 +58,6 @@ Sigue una de las <.localized_link href="/guides/get-started">rutas de inicio</.l
 />
 </.home_cards>
 
-## Con la confianza de equipos que publican software a escala
+## Equipos que publican a escala confían en nosotros
 
-**Equipos de [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/) y más de 100 empresas** publican software más rápido con Tuist en sus bases de código de iOS y Android.
+**Los equipos de [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/) y más de 100 empresas adicionales** publican mejoras más rápido con Tuist en sus bases de código iOS y Android.

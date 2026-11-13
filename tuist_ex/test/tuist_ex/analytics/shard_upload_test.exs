@@ -33,7 +33,7 @@ defmodule TuistEx.Analytics.ShardUploadTest do
     assert parts == Enum.map(1..6, &%{part_number: &1, etag: "etag-#{&1}"})
   end
 
-  test "retries transient failures at most three times, preserving chunk and part number" do
+  test "retries transient failures, preserving chunk and part number" do
     parent = self()
 
     assert {:ok, [%{part_number: 1, etag: "ok"}]} =
@@ -49,11 +49,34 @@ defmodule TuistEx.Analytics.ShardUploadTest do
              )
 
     for i <- 1..3, do: assert_received({:attempt, ^i})
+  end
 
-    assert {:error, :timeout} =
-             ShardUpload.upload(["bytes"], fn _, _ -> {:error, :timeout} end,
-               sleep: fn _ -> :ok end
+  test "backs off for about a minute, long enough to outlast a restart of the store, then gives up" do
+    parent = self()
+
+    assert {:error, :econnrefused} =
+             ShardUpload.retry(
+               fn ->
+                 send(parent, :attempt)
+                 {:error, :econnrefused}
+               end,
+               &send(parent, {:slept, &1})
              )
+
+    sleeps =
+      for _ <- 1..8, do: receive(do: ({:slept, milliseconds} -> milliseconds), after: (0 -> nil))
+
+    refute_received {:slept, _}
+    assert sleeps == [500, 1000, 2000, 4000, 8000, 15_000, 15_000, 15_000]
+    for _ <- 1..9, do: assert_received(:attempt)
+    refute_received :attempt
+  end
+
+  test "does not retry a configuration or authentication failure" do
+    assert {:error, "Invalid TUIST_TOKEN"} =
+             ShardUpload.retry(fn -> {:error, "Invalid TUIST_TOKEN"} end, fn _ ->
+               flunk("must not retry")
+             end)
   end
 
   test "does not retry permanent rejection" do

@@ -48,7 +48,9 @@ defmodule TuistWeb.SandboxNodeWebSock do
       execution_deadlines: false,
       execution_slots: 0,
       direct_exec_endpoint: nil,
-      firecracker_version: nil
+      firecracker_version: nil,
+      snapshot_compat: nil,
+      lazy_disks: false
     }
   end
 
@@ -237,6 +239,8 @@ defmodule TuistWeb.SandboxNodeWebSock do
       if is_integer(value) and value in 0..128, do: value, else: 0
     end)
     |> maybe_merge(:firecracker_version, frame["firecracker_version"], & &1)
+    |> maybe_merge(:snapshot_compat, frame["snapshot_compat"], &string/1)
+    |> maybe_merge(:lazy_disks, frame["lazy_disks"], &(&1 == true))
     |> maybe_merge(:direct_exec_endpoint, frame["direct_exec_endpoint"], &direct_exec_endpoint/1)
   end
 

@@ -870,7 +870,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     docs_entries =
       Enum.map(
-        Tuist.Docs.slugs(),
+        Tuist.Docs.indexable_slugs(),
         &sitemap_entry(Tuist.Docs.Paths.public_path_from_slug(&1), nil)
       )
 
@@ -1063,6 +1063,12 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def compute(conn, _params) do
+    description =
+      dgettext(
+        "marketing",
+        "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
+      )
+
     conn
     |> assign(:head_title, dgettext("marketing", "Compute for build work · Tuist"))
     |> assign(
@@ -1070,23 +1076,19 @@ defmodule TuistWeb.Marketing.MarketingController do
       SocialCards.image_url("compute")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
-      )
-    )
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
-      ])
-    )
+    |> assign(:head_description, description)
+    # Runners are billed per minute on every plan, so the node claims no free offer.
+    |> assign_feature_structured_data(dgettext("marketing", "Compute"), description, "/compute", free: false)
     |> render(:compute, layout: false)
   end
 
   def tests(conn, _params) do
+    description =
+      dgettext(
+        "marketing",
+        "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
+      )
+
     conn
     |> assign(:head_title, dgettext("marketing", "Test insights, sharding, and trustworthy feedback · Tuist"))
     |> assign(
@@ -1094,19 +1096,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       SocialCards.image_url("tests")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
-      )
-    )
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
-      ])
-    )
+    |> assign(:head_description, description)
+    |> assign_feature_structured_data(dgettext("marketing", "Tests"), description, "/tests")
     |> render(:tests, layout: false)
   end
 
@@ -1153,9 +1144,16 @@ defmodule TuistWeb.Marketing.MarketingController do
         if(parent, do: [{parent.title, parent.path}], else: []) ++ [{guide.title, guide.path}]
 
     template =
-      if guide.path in ["/compare", "/compare/develocity", "/compare/namespace", "/compare/buildkite"],
-        do: :comparison,
-        else: :page
+      if guide.path in [
+           "/compare",
+           "/compare/develocity",
+           "/compare/namespace",
+           "/compare/buildkite",
+           "/compare/xcodegen",
+           "/compare/nx"
+         ],
+         do: :comparison,
+         else: :page
 
     conn
     |> assign(:head_title, guide.title)
@@ -1168,6 +1166,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         Enum.map(breadcrumbs, fn {name, path} -> {name, Tuist.Environment.app_url(path: path)} end)
       )
     )
+    |> then(&if(guide.faqs == [], do: &1, else: assign_structured_data(&1, get_faq_structured_data(guide.faqs))))
     |> assign(:page, guide)
     |> assign(:breadcrumbs, breadcrumbs)
     |> render(template, layout: false)

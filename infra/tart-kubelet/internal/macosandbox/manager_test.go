@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,10 +21,12 @@ type fakeRuntime struct {
 	memory                   map[string]string
 	busy                     bool
 	worker                   WorkerStatus
+	workerEnv                map[string]string
 	saveErr, errorRecovery   error
 	createErr                error
 	saveStarted, saveRelease chan struct{}
-	creates, warms           int
+	creates, warms, recovers int
+	claimedVolumeGB          int
 	// Warm VMs boot in the background.
 	mu          sync.Mutex
 	cpuPermille int64
@@ -46,6 +49,7 @@ func (f *fakeRuntime) Warm(_ context.Context, r *Record) error {
 	defer f.mu.Unlock()
 	f.warms++
 	f.states[r.VMName()] = "warm"
+	r.WorkspaceVolumeGB = r.WorkspaceGB
 	return nil
 }
 func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
@@ -54,6 +58,7 @@ func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
 	if f.states[r.VMName()] != "warm" {
 		return errors.New("not warm")
 	}
+	f.claimedVolumeGB = r.WorkspaceVolumeGB
 	delete(f.states, r.VMName())
 	f.states[r.SandboxID] = "running"
 	f.memory[r.SandboxID] = "in-memory-session"
@@ -97,6 +102,7 @@ func (f *fakeRuntime) Delete(_ context.Context, r *Record) error {
 	return nil
 }
 func (f *fakeRuntime) Recover(_ context.Context, r *Record) error {
+	f.recovers++
 	if f.errorRecovery != nil {
 		return f.errorRecovery
 	}
@@ -120,9 +126,10 @@ func (f *fakeRuntime) Exec(_ context.Context, r *Record, _ protocol.ExecArgs, _ 
 	}
 	return protocol.ExecResult{}, nil
 }
-func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, _ map[string]string) (WorkerStatus, error) {
+func (f *fakeRuntime) Worker(_ context.Context, r *Record, action string, env map[string]string) (WorkerStatus, error) {
 	if action == "start" {
 		f.worker = WorkerStatus{Running: true, ID: r.WorkerID}
+		f.workerEnv = env
 	}
 	if action == "stop" {
 		f.worker.Running = false
@@ -231,7 +238,7 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil {
+	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread", 0); err != nil {
 		t.Fatal(err)
 	}
 	// The hold survives a host restart, CI demand and the idle grace.
@@ -266,7 +273,7 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 		t.Fatal("the pause did not end the hold")
 	}
 	// A new turn resumes the evicted VM; releasing it makes it evictable again.
-	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil || r.states[a.SandboxID] != "running" {
+	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread", 0); err != nil || r.states[a.SandboxID] != "running" {
 		t.Fatal("hold did not resume the sandbox", err)
 	}
 	if err := recovered.Release(a.SandboxID, "amp:amp-thread"); err != nil {
@@ -277,6 +284,43 @@ func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 		t.Fatal("a released sandbox stayed resident", err)
 	}
 }
+
+// A running VM already holds its charge, so holds on it, new or renewed, need
+// no grant while CI holds it. A hold nobody renews expires, and the idle VM is
+// checkpointed once its idle grace is up, not when CI asks for the room.
+func TestHoldsOnARunningVMNeedNoGrantAndExpire(t *testing.T) {
+	m, r, c, a := harness(t)
+	m.Grace = time.Minute
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "commands", 0); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	if err := m.Hold(ctx, a.SandboxID, "commands", 100*time.Millisecond); err != nil {
+		t.Fatalf("renewing the current hold needed the grant: %v", err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "amp:other", 100*time.Millisecond); err != nil {
+		t.Fatalf("a new hold on a running VM needed the grant: %v", err)
+	}
+	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("CI evicted a sandbox under a live hold", err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if err := m.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("CI demand evicted an idle VM before its grace was up", err)
+	}
+	m.Grace = time.Nanosecond
+	if err := m.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.states[a.SandboxID] != "evicted" || c.held[a.SandboxID] {
+		t.Fatal("an expired hold kept the VM past its idle grace")
+	}
+}
+
 func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
 	m, r, _, a := harness(t)
 	ctx := context.Background()
@@ -298,8 +342,9 @@ func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
 		t.Fatal("a paused sandbox reported guest CPU")
 	}
 }
-func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
+func TestIdleEvictionSparesWorkAndRetainsFailedFence(t *testing.T) {
 	m, r, c, a := harness(t)
+	m.Grace = time.Nanosecond
 	ctx := context.Background()
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
@@ -312,7 +357,7 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !c.held[a.SandboxID] {
-		t.Fatal("CI interrupted active work")
+		t.Fatal("idle eviction interrupted active work")
 	}
 	r.worker.Running = false
 	r.saveErr = errors.New("checkpoint failed")
@@ -330,7 +375,7 @@ func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {
 		t.Fatal("successful eviction kept charge")
 	}
 	if err := m.Resume(ctx, a.SandboxID); !errors.Is(err, ErrCapacity) {
-		t.Fatalf("resume admitted while CI queued: %v", err)
+		t.Fatalf("resume admitted while CI holds the grant: %v", err)
 	}
 }
 
@@ -342,7 +387,7 @@ func TestExecIntoRunningSandboxNeedsNoGrantButResumeDoes(t *testing.T) {
 	if err := m.Create(ctx, a); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Hold(ctx, a.SandboxID, "commands"); err != nil {
+	if err := m.Hold(ctx, a.SandboxID, "commands", 0); err != nil {
 		t.Fatal(err)
 	}
 	c.allow = false
@@ -391,6 +436,7 @@ func TestReportsAndCILaunchDoNotWaitForCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.allow = false
+	m.Grace = time.Nanosecond
 	r.saveStarted = make(chan struct{})
 	r.saveRelease = make(chan struct{})
 	done := make(chan error, 1)
@@ -426,6 +472,51 @@ func TestRecoveryRefusesWrongOwnerAndNeverFreesUnknownVM(t *testing.T) {
 	}
 	if !c.held[a.SandboxID] || recovered.Snapshot()[0].State != "error" {
 		t.Fatal("unknown VM became free capacity")
+	}
+}
+
+// A VM found with no process and no checkpoint holds no CPU or memory: it
+// gives its slot back once, without being retried every reconcile, and stays
+// listed in error until the server deletes it.
+func TestLostVMReleasesItsReservationOnceUntilDeleted(t *testing.T) {
+	m, r, c, a := harness(t)
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	r.errorRecovery = fmt.Errorf("sandbox process lost without a checkpoint; %w", ErrVMLost)
+	c.releaseErr = errors.New("API unavailable")
+	recovered := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := recovered.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !c.held[a.SandboxID] || !recovered.Snapshot()[0].Resident {
+		t.Fatal("a failed release dropped the reservation")
+	}
+	c.releaseErr = nil
+	if err := recovered.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	info := recovered.Snapshot()[0]
+	if c.held[a.SandboxID] || info.Resident || info.State != "error" {
+		t.Fatalf("lost VM kept its slot: held %v, %+v", c.held[a.SandboxID], info)
+	}
+	// The release is journaled, so neither a reconcile nor a restart retries it.
+	again := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c}
+	if err := again.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	before := r.recovers
+	for i := 0; i < 3; i++ {
+		if err := again.Reconcile(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r.recovers != before {
+		t.Fatalf("lost VM was recovered %d more times", r.recovers-before)
+	}
+	if err := again.Delete(ctx, a.SandboxID); err != nil || len(again.Snapshot()) != 0 {
+		t.Fatal("lost VM could not be deleted", err)
 	}
 }
 func TestInterruptedDeleteIsRetriedAfterRestart(t *testing.T) {

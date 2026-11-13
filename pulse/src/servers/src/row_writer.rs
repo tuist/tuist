@@ -1,0 +1,580 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use ahash::{HashMap as AHashMap, HashMapExt};
+use api::helper::encode_json_value;
+use api::v1::column_data_type_extension::TypeExt;
+use api::v1::helper::time_index_column_schema;
+use api::v1::value::ValueData;
+use api::v1::{
+    ColumnDataType, ColumnDataTypeExtension, ColumnOptions, ColumnSchema, JsonTypeExtension, Row,
+    RowInsertRequest, RowInsertRequests, Rows, SemanticType, Value,
+};
+use arrow_schema::extension::{
+    EXTENSION_TYPE_METADATA_KEY, EXTENSION_TYPE_NAME_KEY, ExtensionType,
+};
+use common_grpc::precision::Precision;
+use common_time::Timestamp;
+use common_time::timestamp::TimeUnit;
+use common_time::timestamp::TimeUnit::Nanosecond;
+use datatypes::extension::json::{Json2ExtensionType, JsonMetadata};
+use datatypes::json::JsonSettings;
+use datatypes::value::Value as DataValue;
+use serde::Serialize;
+use snafu::{OptionExt, ResultExt, ensure};
+
+use crate::error::{
+    ConvertScalarValueSnafu, IncompatibleSchemaSnafu, InternalSnafu, Result, RowWriterSnafu,
+    TimePrecisionSnafu, TimestampOverflowSnafu, ToJsonSnafu,
+};
+
+/// The intermediate data structure for building the write request.
+/// It constructs the `schema` and `rows` as all input data row
+/// parsing is completed.
+pub struct TableData {
+    schema: Vec<ColumnSchema>,
+    rows: Vec<Row>,
+    column_indexes: AHashMap<String, usize>,
+}
+
+impl TableData {
+    pub fn new(num_columns: usize, num_rows: usize) -> Self {
+        Self {
+            schema: Vec::with_capacity(num_columns),
+            rows: Vec::with_capacity(num_rows),
+            column_indexes: AHashMap::with_capacity(num_columns),
+        }
+    }
+
+    #[inline]
+    pub fn num_columns(&self) -> usize {
+        self.schema.len()
+    }
+
+    #[inline]
+    pub fn num_rows(&self) -> usize {
+        self.rows.len()
+    }
+
+    #[inline]
+    pub fn alloc_one_row(&self) -> Vec<Value> {
+        vec![Value { value_data: None }; self.num_columns()]
+    }
+
+    #[inline]
+    pub fn add_row(&mut self, values: Vec<Value>) {
+        self.rows.push(Row { values })
+    }
+
+    #[inline]
+    pub fn reserve_rows(&mut self, additional: usize) {
+        self.rows.reserve(additional);
+    }
+
+    pub(crate) fn ensure_column(&mut self, column_schema: ColumnSchema) -> Result<usize> {
+        if let Some(index) = self.column_indexes.get(&column_schema.column_name).copied() {
+            check_schema_number(
+                column_schema.datatype,
+                column_schema.semantic_type,
+                &self.schema[index],
+            )?;
+            return Ok(index);
+        }
+
+        let index = self.schema.len();
+        let name = column_schema.column_name.clone();
+        self.schema.push(column_schema);
+        self.column_indexes.insert(name, index);
+        Ok(index)
+    }
+
+    /// Ensures a default column schema without allocating its name when it already exists.
+    pub(crate) fn ensure_column_by_name(
+        &mut self,
+        name: &str,
+        datatype: ColumnDataType,
+        semantic_type: SemanticType,
+    ) -> Result<usize> {
+        if let Some(index) = self.column_indexes.get(name).copied() {
+            check_schema(datatype, semantic_type, &self.schema[index])?;
+            return Ok(index);
+        }
+
+        self.ensure_column(ColumnSchema {
+            column_name: name.to_string(),
+            datatype: datatype as i32,
+            semantic_type: semantic_type as i32,
+            ..Default::default()
+        })
+    }
+
+    #[allow(dead_code)]
+    pub fn columns(&self) -> &Vec<ColumnSchema> {
+        &self.schema
+    }
+
+    pub fn into_schema_and_rows(self) -> (Vec<ColumnSchema>, Vec<Row>) {
+        (self.schema, self.rows)
+    }
+
+    /// Writes a field value without enforcing that later writes use the same datatype
+    /// as the first-seen schema entry.
+    ///
+    /// The OTLP trace v1 path uses this to preserve raw mixed values inside one request
+    /// so the frontend can reconcile them later against both the full batch and the
+    /// existing table schema.
+    pub fn write_field_unchecked(
+        &mut self,
+        name: impl ToString,
+        datatype: ColumnDataType,
+        value: Option<ValueData>,
+        one_row: &mut Vec<Value>,
+    ) {
+        self.write_column_unchecked(
+            ColumnSchema {
+                column_name: name.to_string(),
+                datatype: datatype as i32,
+                semantic_type: SemanticType::Field as i32,
+                ..Default::default()
+            },
+            value,
+            one_row,
+        );
+    }
+
+    pub fn write_column_unchecked(
+        &mut self,
+        column_schema: ColumnSchema,
+        value: Option<ValueData>,
+        one_row: &mut Vec<Value>,
+    ) {
+        if let Some(index) = self.column_indexes.get(&column_schema.column_name).copied() {
+            one_row[index].value_data = value;
+        } else {
+            let index = self.schema.len();
+            let name = column_schema.column_name.clone();
+            self.schema.push(column_schema);
+            self.column_indexes.insert(name, index);
+            one_row.push(Value { value_data: value });
+        }
+    }
+}
+
+pub struct MultiTableData {
+    table_data_map: HashMap<String, TableData>,
+}
+
+impl Default for MultiTableData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MultiTableData {
+    pub fn new() -> Self {
+        Self {
+            table_data_map: HashMap::new(),
+        }
+    }
+
+    pub fn get_or_default_table_data(
+        &mut self,
+        table_name: impl ToString,
+        num_columns: usize,
+        num_rows: usize,
+    ) -> &mut TableData {
+        self.table_data_map
+            .entry(table_name.to_string())
+            .or_insert_with(|| TableData::new(num_columns, num_rows))
+    }
+
+    pub fn add_table_data(&mut self, table_name: impl ToString, table_data: TableData) {
+        self.table_data_map
+            .insert(table_name.to_string(), table_data);
+    }
+
+    #[allow(dead_code)]
+    pub fn num_tables(&self) -> usize {
+        self.table_data_map.len()
+    }
+
+    /// Returns the request and number of rows in it.
+    pub fn into_row_insert_requests(self) -> (RowInsertRequests, usize) {
+        let mut total_rows = 0;
+        let inserts = self
+            .table_data_map
+            .into_iter()
+            .map(|(table_name, table_data)| {
+                total_rows += table_data.num_rows();
+                let num_columns = table_data.num_columns();
+                let (schema, mut rows) = table_data.into_schema_and_rows();
+                for row in &mut rows {
+                    if num_columns > row.values.len() {
+                        row.values.resize(num_columns, Value { value_data: None });
+                    }
+                }
+
+                RowInsertRequest {
+                    table_name,
+                    rows: Some(Rows { schema, rows }),
+                }
+            })
+            .collect::<Vec<_>>();
+        let row_insert_requests = RowInsertRequests { inserts };
+
+        (row_insert_requests, total_rows)
+    }
+}
+
+/// Write data as tags into the table data.
+pub fn write_tags<K>(
+    table_data: &mut TableData,
+    tags: impl Iterator<Item = (K, String)>,
+    one_row: &mut Vec<Value>,
+) -> Result<()>
+where
+    K: AsRef<str> + Into<String>,
+{
+    let ktv_iter = tags.map(|(k, v)| (k, ColumnDataType::String, Some(ValueData::StringValue(v))));
+    write_by_semantic_type(table_data, SemanticType::Tag, ktv_iter, one_row)
+}
+
+/// Write data as fields into the table data.
+pub fn write_fields(
+    table_data: &mut TableData,
+    fields: impl Iterator<Item = (String, ColumnDataType, Option<ValueData>)>,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    write_by_semantic_type(table_data, SemanticType::Field, fields, one_row)
+}
+
+/// Write data as a tag into the table data.
+pub fn write_tag(
+    table_data: &mut TableData,
+    name: impl ToString,
+    value: impl ToString,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    write_by_semantic_type(
+        table_data,
+        SemanticType::Tag,
+        std::iter::once((
+            name.to_string(),
+            ColumnDataType::String,
+            Some(ValueData::StringValue(value.to_string())),
+        )),
+        one_row,
+    )
+}
+
+/// Write float64 data as a field into the table data.
+pub fn write_f64(
+    table_data: &mut TableData,
+    name: impl ToString,
+    value: f64,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    write_fields(
+        table_data,
+        std::iter::once((
+            name.to_string(),
+            ColumnDataType::Float64,
+            Some(ValueData::F64Value(value)),
+        )),
+        one_row,
+    )
+}
+
+pub(crate) fn build_json_column_schema(name: impl ToString) -> ColumnSchema {
+    ColumnSchema {
+        column_name: name.to_string(),
+        datatype: ColumnDataType::Binary as i32,
+        semantic_type: SemanticType::Field as i32,
+        datatype_extension: Some(ColumnDataTypeExtension {
+            type_ext: Some(TypeExt::JsonType(JsonTypeExtension::JsonBinary.into())),
+        }),
+        ..Default::default()
+    }
+}
+
+pub fn write_json(
+    table_data: &mut TableData,
+    name: impl ToString,
+    value: jsonb::Value,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    write_by_schema(
+        table_data,
+        std::iter::once((
+            build_json_column_schema(name),
+            Some(ValueData::BinaryValue(value.to_vec())),
+        )),
+        one_row,
+    )
+}
+
+pub(crate) fn build_json2_column_schema(name: impl ToString) -> ColumnSchema {
+    let extension = Json2ExtensionType::new(Arc::new(JsonMetadata::new(JsonSettings::new_v2())));
+    let mut options = ColumnOptions::default();
+    options.options.insert(
+        EXTENSION_TYPE_NAME_KEY.to_string(),
+        Json2ExtensionType::NAME.to_string(),
+    );
+    if let Some(metadata) = extension.serialize_metadata() {
+        options
+            .options
+            .insert(EXTENSION_TYPE_METADATA_KEY.to_string(), metadata);
+    }
+
+    ColumnSchema {
+        column_name: name.to_string(),
+        datatype: ColumnDataType::Json as i32,
+        semantic_type: SemanticType::Field as i32,
+        options: Some(options),
+        ..Default::default()
+    }
+}
+
+/// Encodes a JSON2 field without constructing its column schema.
+pub(crate) fn encode_json2(value: impl Serialize) -> Result<ValueData> {
+    let json = serde_json::to_value(value).context(ToJsonSnafu)?;
+    let value = JsonSettings::new_v2()
+        .encode(json)
+        .context(ConvertScalarValueSnafu)?;
+    let DataValue::Json(value) = value else {
+        return InternalSnafu {
+            err_msg: "JSON2 encoding returned a non-JSON value",
+        }
+        .fail();
+    };
+    Ok(ValueData::JsonValue(encode_json_value(*value)))
+}
+
+pub(crate) fn write_by_schema(
+    table_data: &mut TableData,
+    kv_iter: impl Iterator<Item = (ColumnSchema, Option<ValueData>)>,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    let TableData {
+        schema,
+        column_indexes,
+        ..
+    } = table_data;
+
+    for (column_schema, value) in kv_iter {
+        let index = column_indexes.get(&column_schema.column_name);
+        if let Some(index) = index {
+            check_schema_number(
+                column_schema.datatype,
+                column_schema.semantic_type,
+                &schema[*index],
+            )?;
+            one_row[*index].value_data = value;
+        } else {
+            let index = schema.len();
+            let key = column_schema.column_name.clone();
+            schema.push(column_schema);
+            column_indexes.insert(key, index);
+            one_row.push(Value { value_data: value });
+        }
+    }
+
+    Ok(())
+}
+
+fn write_by_semantic_type<K>(
+    table_data: &mut TableData,
+    semantic_type: SemanticType,
+    ktv_iter: impl Iterator<Item = (K, ColumnDataType, Option<ValueData>)>,
+    one_row: &mut Vec<Value>,
+) -> Result<()>
+where
+    K: AsRef<str> + Into<String>,
+{
+    let TableData {
+        schema,
+        column_indexes,
+        ..
+    } = table_data;
+
+    for (name, datatype, value) in ktv_iter {
+        let index = column_indexes.get(name.as_ref()).copied();
+        if let Some(index) = index {
+            check_schema(datatype, semantic_type, &schema[index])?;
+            one_row[index].value_data = value;
+        } else {
+            let index = schema.len();
+            let name = name.into();
+            schema.push(ColumnSchema {
+                column_name: name.clone(),
+                datatype: datatype as i32,
+                semantic_type: semantic_type as i32,
+                ..Default::default()
+            });
+            column_indexes.insert(name, index);
+            one_row.push(Value { value_data: value });
+        }
+    }
+
+    Ok(())
+}
+
+/// Write timestamp data as milliseconds into the table data.
+pub fn write_ts_to_millis(
+    table_data: &mut TableData,
+    name: impl ToString,
+    ts: Option<i64>,
+    precision: Precision,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    write_ts_to(
+        table_data,
+        name,
+        ts,
+        precision,
+        TimestampType::Millis,
+        one_row,
+    )
+}
+
+/// Write timestamp data as nanoseconds into the table data.
+pub fn write_ts_to_nanos(
+    table_data: &mut TableData,
+    name: impl ToString,
+    ts: Option<i64>,
+    precision: Precision,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    write_ts_to(
+        table_data,
+        name,
+        ts,
+        precision,
+        TimestampType::Nanos,
+        one_row,
+    )
+}
+
+enum TimestampType {
+    Millis,
+    Nanos,
+}
+
+fn write_ts_to(
+    table_data: &mut TableData,
+    name: impl ToString,
+    ts: Option<i64>,
+    precision: Precision,
+    ts_type: TimestampType,
+    one_row: &mut Vec<Value>,
+) -> Result<()> {
+    let TableData {
+        schema,
+        column_indexes,
+        ..
+    } = table_data;
+    let name = name.to_string();
+
+    let ts = match ts {
+        Some(timestamp) => match ts_type {
+            TimestampType::Millis => precision.to_millis(timestamp),
+            TimestampType::Nanos => precision.to_nanos(timestamp),
+        }
+        .with_context(|| TimestampOverflowSnafu {
+            error: format!(
+                "timestamp {} overflow with precision {}",
+                timestamp, precision
+            ),
+        })?,
+        None => {
+            let timestamp = Timestamp::current_time(Nanosecond);
+            let unit: TimeUnit = precision.try_into().context(RowWriterSnafu)?;
+            let timestamp = timestamp
+                .convert_to(unit)
+                .with_context(|| TimePrecisionSnafu {
+                    name: precision.to_string(),
+                })?
+                .into();
+            match ts_type {
+                TimestampType::Millis => precision.to_millis(timestamp),
+                TimestampType::Nanos => precision.to_nanos(timestamp),
+            }
+            .with_context(|| TimestampOverflowSnafu {
+                error: format!(
+                    "timestamp {} overflow with precision {}",
+                    timestamp, precision
+                ),
+            })?
+        }
+    };
+
+    let (datatype, ts) = match ts_type {
+        TimestampType::Millis => (
+            ColumnDataType::TimestampMillisecond,
+            ValueData::TimestampMillisecondValue(ts),
+        ),
+        TimestampType::Nanos => (
+            ColumnDataType::TimestampNanosecond,
+            ValueData::TimestampNanosecondValue(ts),
+        ),
+    };
+
+    let index = column_indexes.get(&name);
+    if let Some(index) = index {
+        check_schema(datatype, SemanticType::Timestamp, &schema[*index])?;
+        one_row[*index].value_data = Some(ts);
+    } else {
+        let index = schema.len();
+        schema.push(time_index_column_schema(&name, datatype));
+        column_indexes.insert(name, index);
+        one_row.push(ts.into())
+    }
+
+    Ok(())
+}
+
+fn check_schema(
+    datatype: ColumnDataType,
+    semantic_type: SemanticType,
+    schema: &ColumnSchema,
+) -> Result<()> {
+    check_schema_number(datatype as i32, semantic_type as i32, schema)
+}
+
+fn check_schema_number(datatype: i32, semantic_type: i32, schema: &ColumnSchema) -> Result<()> {
+    ensure!(
+        schema.datatype == datatype,
+        IncompatibleSchemaSnafu {
+            column_name: &schema.column_name,
+            datatype: "datatype",
+            expected: schema.datatype,
+            actual: datatype,
+        }
+    );
+
+    ensure!(
+        schema.semantic_type == semantic_type,
+        IncompatibleSchemaSnafu {
+            column_name: &schema.column_name,
+            datatype: "semantic_type",
+            expected: schema.semantic_type,
+            actual: semantic_type,
+        }
+    );
+
+    Ok(())
+}

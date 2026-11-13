@@ -44,8 +44,10 @@ workers:
     tuist.dev/workload: remote-execution
     kubernetes.io/arch: amd64
     kubernetes.io/os: linux
-  # Run on named Linux runner hosts beside CI and the agent sandbox daemon
-  # instead of dedicated hosts (replaces nodeSelector and perNodeConcurrency).
+  # Run on Linux runner hosts beside CI and the agent sandbox daemon instead
+  # of dedicated hosts (replaces nodeSelector and perNodeConcurrency): one
+  # worker on every host nodeSelector matches, such as a whole runner pool,
+  # so a reinstalled or added host gets one without a values change.
   # Each worker holds an elastic memory carve-out: it starts at floorSlots VMs,
   # which runner Pods can never take, and the server grows it in place up to
   # ceilingSlots ahead of queued CI, then shrinks it back once the VMs are
@@ -54,7 +56,7 @@ workers:
   # Workers connect as `<node>.remote-execution` and serve every account.
   sharedHosts:
     enabled: false
-    nodes: []
+    nodeSelector: {}
     floorSlots: 1
     ceilingSlots: 4
     tolerations: []

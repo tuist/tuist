@@ -75,7 +75,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     assert name == warm.name
   end
 
-  test "a turn starts on a VM resumed for it even when CI closed the grant during the restore", %{node: node} do
+  test "turns on a running VM need no grant, even when CI closed it during the restore", %{node: node} do
     sandbox = sandbox(state: :paused, node_name: node.name, node_uid: "node-uid", resident: false)
     closed = %{node | admission: Map.put(node.admission, "allow", false)}
     restored = start_supervised!({Agent, fn -> false end})
@@ -87,7 +87,8 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     end)
 
     assert {:ok, %{state: :running, residency_work_id: "amp:orb"}} = Sandboxes.prepare_residency(sandbox, "amp:orb")
-    assert {:error, :no_capacity} = Sandboxes.begin_residency(Repo.reload!(sandbox), "amp:other")
+    # First come, first served: the running VM keeps its place for its next turn.
+    assert {:ok, %{residency_work_id: "amp:other"}} = Sandboxes.begin_residency(Repo.reload!(sandbox), "amp:other")
   end
 
   test "CI revocation, stale grants and replaced control identities deny new work", %{node: node} do

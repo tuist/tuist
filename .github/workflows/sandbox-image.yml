@@ -98,6 +98,19 @@ jobs:
           convert "$work/frame.png" -resize 8x8 "$work/thumbnail.png"
           test "$(identify -format '%wx%h' "$work/thumbnail.png")" = 8x8
           EOF
+      - name: Check agent Tuist access configuration
+        run: |
+          # Not --read-only: the CLI writes under the passwd home of `user`,
+          # whatever HOME says, and that home is writable in the guest.
+          docker run --rm --user user --entrypoint sh -i sandbox-guest:test -eu <<'EOF'
+          tuist version
+          # The clients rewrite these files, so `user` must own them.
+          test -O /home/user/.config/amp/settings.json
+          test -O /home/user/.claude.json
+          jq -e '."amp.mcpServers".tuist.headers.Authorization == "Bearer ${amp:id-token}"' /home/user/.config/amp/settings.json
+          jq -e '.mcpServers.tuist.headers.Authorization == "Bearer ${TUIST_OIDC_TOKEN}"' /home/user/.claude.json
+          test -O /home/user/.claude/skills/verifying-work-with-tuist/SKILL.md
+          EOF
       # The template builds without a layer cache: importing and exporting its
       # multi-GiB rootfs layers takes longer than rebuilding them.
       - name: Validate template build

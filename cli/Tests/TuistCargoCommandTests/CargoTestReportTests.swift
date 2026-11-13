@@ -235,6 +235,68 @@ struct CargoTestReportTests {
         ) == nil)
     }
 
+    @Test(.inTemporaryDirectory) func attributesSameNamedTargetsOfAWorkspaceByTheirBinariesPackage() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory).pathString
+        // ripgrep: `grep-matcher` and `ripgrep` both build `tests/tests.rs` as `integration`.
+        let targets = [("grep-matcher", "\(directory)/crates/matcher"), ("ripgrep", directory)].map { package, root in
+            CargoTestTarget(
+                module: "\(package)::integration", name: "integration", source: "\(root)/tests/tests.rs", isLibrary: false,
+                packageDirectory: root, workspaceRoot: directory
+            )
+        }
+        let output = summary("test matches ... ok", passed: 1) + summary("test searches ... ok", passed: 1)
+        func modules(_ errors: String) -> [String?]? {
+            CargoTestReport.read(stdout: Data(output.utf8), stderr: Data(errors.utf8), targets: targets, directory: directory)?
+                .modules.map { $0["name"] as? String }
+        }
+        // Cargo 1.100 builds each unit in `build/<package>/<hash>/out`.
+        #expect(modules("""
+             Running tests/tests.rs (target/debug/build/ripgrep/fedcba9876543210/out/integration-fedcba9876543210)
+             Running tests/tests.rs (target/debug/build/grep-matcher/0123456789abcdef/out/integration-0123456789abcdef)
+        """) == ["ripgrep::integration", "grep-matcher::integration"])
+        // Earlier versions put both in `deps`, and each unit's fingerprint in `.fingerprint/<package>-<hash>`.
+        let legacy = """
+             Running tests/tests.rs (target/debug/deps/integration-0123456789abcdef)
+             Running tests/tests.rs (target/debug/deps/integration-fedcba9876543210)
+        """
+        #expect(modules(legacy) == nil)
+        for unit in ["grep-matcher-0123456789abcdef", "ripgrep-fedcba9876543210"] {
+            try FileManager.default.createDirectory(
+                atPath: "\(directory)/target/debug/.fingerprint/\(unit)", withIntermediateDirectories: true
+            )
+        }
+        #expect(modules(legacy) == ["grep-matcher::integration", "ripgrep::integration"])
+    }
+
+    @Test func attributesMergedDoctestsOfSeveralWorkspacePackagesByTheirFiles() throws {
+        // ripgrep's doctests: rustdoc prints a package's unmerged doctests, its merged ones, then one footer, and a
+        // package without doctests an empty summary and no footer. By position alone, `grep_pcre2` could take
+        // `grep_cli`'s merged summary and `grep_printer` the empty one; Cargo names each doctest by its file relative
+        // to the workspace root, which says whose it is.
+        let packages = ["globset", "grep", "grep-cli", "grep-pcre2", "grep-printer"]
+        let libraries = packages.map { package in
+            CargoTestTarget(
+                module: package, name: package.replacingOccurrences(of: "-", with: "_"),
+                source: "/w/crates/\(package)/src/lib.rs", isLibrary: true, packageDirectory: "/w/crates/\(package)",
+                workspaceRoot: "/w"
+            )
+        }
+        let footer = "all doctests ran in 0.12s; merged doctests compilation took 0.12s\n"
+        let output = summary("test crates/globset/src/lib.rs - escape (line 1123) ... ok", passed: 1) + footer
+            + summary("", passed: 0)
+            + summary("test crates/grep-cli/src/lib.rs - (line 51) ... ignored", passed: 0, ignored: 1)
+            + summary("test crates/grep-cli/src/lib.rs - is_tty (line 80) ... ok", passed: 1) + footer
+            + summary("", passed: 0)
+            + summary("test crates/grep-printer/src/lib.rs - (line 30) ... ok", passed: 1) + footer
+        let headings = packages.map { "Doc-tests \($0.replacingOccurrences(of: "-", with: "_"))" }.joined(separator: "\n")
+        let report = try #require(CargoTestReport.read(
+            stdout: Data(output.utf8), stderr: Data(headings.utf8), targets: libraries, directory: "/w/crates/grep-cli"
+        ))
+        #expect(report.modules.map { ($0["test_cases"] as? [[String: Any]])?.count } == [1, 0, 2, 0, 1])
+        #expect(report.modules.map { $0["name"] as? String } == packages
+            .map { "\($0)::doctest/\($0.replacingOccurrences(of: "-", with: "_"))" })
+    }
+
     @Test func leavesNonstandardHarnessesAndNonexecutingCommandsAlone() {
         for args in [
             ["test", "--no-run"], ["test", "--", "--list"], ["test", "--quiet"],

@@ -1,12 +1,17 @@
 defmodule Tuist.EntireTrails.Client do
   @moduledoc """
-  Entire's commit Checks and Trail Findings APIs.
+  Entire's commit Checks, Trail Findings, and Trail discussions APIs.
   Authentication and regional routing use the shared Entire plugin client.
   """
 
   alias Tuist.Entire.Client, as: Entire
 
   require Logger
+
+  @checks %{"contents" => "read", "checks" => "write", "findings" => "write"}
+  # Comments use their own token, so installations that have not granted
+  # discussions keep receiving checks and findings.
+  @discussions %{"contents" => "read", "discussions" => "write"}
 
   def trails(installation, repository) do
     list(installation, repository, path(repository) <> "/trails", params: [{"status", "open,draft"}])
@@ -16,14 +21,17 @@ defmodule Tuist.EntireTrails.Client do
     request(:get, installation, repository, trail_path(repository, number))
   end
 
-  def publish(installation, repository, number, summary) do
+  # Entire shows a suite's key as its label on the Trail, and customers enter it
+  # to require the check, so it is the project's handle. A project has at most
+  # one connection, which keeps it unique among Tuist's suites on a commit.
+  def publish(installation, repository, number, %{branch: branch, key: key, details_url: details_url}, summary) do
     attempt = "tuist-#{summary.id}-#{DateTime.to_unix(summary.reported_at, :microsecond)}"
-    key = "tuist-insights-#{summary.connection_id}"
     reviews = trail_path(repository, number) <> "/reviews"
 
     state = %{
       key: key,
       name: "Tuist insights",
+      details_url: details_url,
       external_id: attempt,
       status: "completed",
       conclusion: "neutral",
@@ -38,6 +46,7 @@ defmodule Tuist.EntireTrails.Client do
              repository,
              path(repository) <> "/commits/#{segment(summary.head_sha)}/check-runs",
              json: %{
+               branch: branch,
                check_suite: state,
                check_runs: [
                  Map.merge(state, %{key: "report", output: %{title: "Tuist insights", summary: summary.report_body}})
@@ -78,6 +87,63 @@ defmodule Tuist.EntireTrails.Client do
     end
   end
 
+  # Entire has no idempotency key for discussions. A comment whose create
+  # response was lost is found again by its marker and author.
+  def find_comment(installation, repository, number, marker) do
+    base = trail_path(repository, number) <> "/discussions"
+
+    with {:ok, discussions} <- list(installation, repository, base, permissions: @discussions) do
+      discussions
+      |> Enum.filter(&owned?(&1["created_by_identity"], installation))
+      |> Enum.reduce_while({:ok, nil}, fn discussion, {:ok, nil} ->
+        case comment_message(installation, repository, base <> "/" <> segment(discussion["id"]), marker) do
+          {:ok, nil} -> {:cont, {:ok, nil}}
+          {:ok, message} -> {:halt, {:ok, %{discussion_id: discussion["id"], message_id: message["id"]}}}
+          {:error, _} = error -> {:halt, error}
+        end
+      end)
+    end
+  end
+
+  defp comment_message(installation, repository, path, marker) do
+    with {:ok, %{"messages" => messages}} <- request(:get, installation, repository, path, permissions: @discussions) do
+      {:ok,
+       Enum.find(
+         messages || [],
+         &(owned?(&1["identity"], installation) and String.contains?(&1["body"] || "", marker))
+       )}
+    end
+  end
+
+  def create_comment(installation, repository, number, title, body) do
+    case request(:post, installation, repository, trail_path(repository, number) <> "/discussions",
+           permissions: @discussions,
+           json: %{title: title, body: body}
+         ) do
+      {:ok, %{"discussion" => %{"id" => discussion_id}, "message" => %{"id" => message_id}}} ->
+        {:ok, %{discussion_id: discussion_id, message_id: message_id}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  def update_comment(installation, repository, number, %{discussion_id: discussion_id, message_id: message_id}, body) do
+    request(
+      :patch,
+      installation,
+      repository,
+      trail_path(repository, number) <> "/discussions/#{segment(discussion_id)}/messages/#{segment(message_id)}",
+      permissions: @discussions,
+      json: %{body: body}
+    )
+  end
+
+  defp owned?(%{"kind" => "automation", "automation" => %{"installation_id" => remote_id}}, installation),
+    do: remote_id == installation.remote_id
+
+  defp owned?(_, _), do: false
+
   defp list(installation, repository, path, opts, items \\ []) do
     with {:ok, body} <- request(:get, installation, repository, path, opts) do
       if is_nil(body["items"]) do
@@ -98,12 +164,9 @@ defmodule Tuist.EntireTrails.Client do
   end
 
   defp request(method, installation, repository, path, opts \\ []) do
-    with {:ok, token} <-
-           Entire.access_token(installation, repository.id, %{
-             "contents" => "read",
-             "checks" => "write",
-             "findings" => "write"
-           }) do
+    {permissions, opts} = Keyword.pop(opts, :permissions, @checks)
+
+    with {:ok, token} <- Entire.access_token(installation, repository.id, permissions) do
       Entire.region_request(method, repository, path, token, opts)
     end
   end

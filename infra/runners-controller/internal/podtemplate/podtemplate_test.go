@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/kvmnri"
 )
 
 const testDindImage = "docker:28-dind"
@@ -73,8 +74,8 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 		t.Fatal("macOS pod is missing golden node affinity")
 	}
 	terms := aff.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-	if len(terms) != 1 {
-		t.Fatalf("preferred terms = %d, want 1", len(terms))
+	if len(terms) != 2 {
+		t.Fatalf("preferred terms = %d, want the golden and session-free ones", len(terms))
 	}
 	exprs := terms[0].Preference.MatchExpressions
 	if len(exprs) != 1 {
@@ -85,6 +86,10 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 	}
 	if exprs[0].Operator != corev1.NodeSelectorOpExists {
 		t.Fatalf("affinity operator = %q, want Exists", exprs[0].Operator)
+	}
+	// A CI job avoids hosts whose sandbox sessions can resume only there.
+	if exprs := terms[1].Preference.MatchExpressions; len(exprs) != 1 || exprs[0].Key != MacosSandboxSessionsLabel || exprs[0].Operator != corev1.NodeSelectorOpDoesNotExist {
+		t.Fatalf("second preference = %+v, want %s DoesNotExist", terms[1].Preference, MacosSandboxSessionsLabel)
 	}
 	// Soft, not required: a Pod must still schedule onto a cold host when
 	// no warm one is free.
@@ -897,7 +902,6 @@ func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
 		"fractional cpus": func(p *tuistv1.RunnerPool) { p.Spec.PodCPUMilli = 2500 },
 		"runc":            func(p *tuistv1.RunnerPool) { p.Spec.RuntimeClass = "" },
 		"macos":           func(p *tuistv1.RunnerPool) { p.Spec.OS = "darwin"; p.Spec.RuntimeClass = "" },
-		"nested KVM":      func(p *tuistv1.RunnerPool) { p.Spec.NestedVirtualization = true },
 	} {
 		t.Run(name, func(t *testing.T) {
 			pool := basePool("linux")
@@ -907,6 +911,98 @@ func TestBuild_ExclusiveCPUsFailsClosed(t *testing.T) {
 				t.Error("Build accepted exclusive CPUs; want refusal")
 			}
 		})
+	}
+}
+
+func TestKVMContainersAnnotationMatchesThePlugin(t *testing.T) {
+	if KVMContainersAnnotation != kvmnri.KVMContainersAnnotation {
+		t.Errorf("podtemplate annotates %q, kvm-nri-plugin reads %q", KVMContainersAnnotation, kvmnri.KVMContainersAnnotation)
+	}
+}
+
+func TestBuild_ExclusiveCPUsWithNestedKVMGetsKVMThroughNRI(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.ExclusiveCPUs = true
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	// A device-plugin resource next to a Pod-level budget is what panics the
+	// kubelet (kubernetes/kubernetes#143490).
+	if pod.Spec.Resources == nil {
+		t.Fatal("pod.Spec.Resources = nil, want the Pod-level budget")
+	}
+	if _, ok := pod.Spec.Resources.Limits[KVMResourceName]; ok {
+		t.Errorf("Pod-level budget requests %s", KVMResourceName)
+	}
+	for _, c := range append(append([]corev1.Container{}, pod.Spec.Containers...), pod.Spec.InitContainers...) {
+		if _, ok := c.Resources.Requests[KVMResourceName]; ok {
+			t.Errorf("container %q requests %s alongside the Pod-level budget", c.Name, KVMResourceName)
+		}
+	}
+	if got := pod.Annotations[KVMContainersAnnotation]; got != "poller,runner" {
+		t.Errorf("%s = %q, want poller,runner", KVMContainersAnnotation, got)
+	}
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
+		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
+	}
+	for _, label := range []string{KVMNodeLabel, PodLevelResourceManagersNodeLabel} {
+		if got := pod.Spec.NodeSelector[label]; got != "true" {
+			t.Errorf("nodeSelector %s = %q, want \"true\"", label, got)
+		}
+	}
+	if !strings.Contains(initContainerByName(t, pod, "dind").Args[0], "mknod /dev/kvm c 10 232") {
+		t.Error("dind no longer creates the guest's /dev/kvm for Docker")
+	}
+
+	// Run the poller command with fakes: without /dev/kvm it must exit
+	// before the externals wait and before it can claim a job.
+	poller := initContainerByName(t, pod, "poller").Command
+	if len(poller) != 3 || poller[0] != "sh" {
+		t.Fatalf("poller command = %q, want a sh -c wrapper", poller)
+	}
+	for _, kvm := range []string{"missing", "present"} {
+		t.Run("kvm "+kvm, func(t *testing.T) {
+			dir := t.TempDir()
+			script := strings.ReplaceAll(poller[2], "/usr/local/bin/dispatch-poll.sh", filepath.Join(dir, "dispatch-poll.sh"))
+			script = strings.ReplaceAll(script, externalsStagePath, dir)
+			device := "/dev/null" // a character device, as /dev/kvm is
+			if kvm == "missing" {
+				device = filepath.Join(dir, "kvm")
+			} else if err := os.WriteFile(filepath.Join(dir, externalsStagedMarker), nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			script = strings.ReplaceAll(script, "/dev/kvm", device)
+			if err := os.WriteFile(filepath.Join(dir, "dispatch-poll.sh"), []byte("#!/bin/sh\ntouch "+filepath.Join(dir, "polled")+"\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			out, err := exec.Command("sh", "-c", script).CombinedOutput()
+			_, polled := os.Stat(filepath.Join(dir, "polled"))
+			if kvm == "missing" {
+				if err == nil || polled == nil || !strings.Contains(string(out), "kvm is missing") {
+					t.Fatalf("poller without /dev/kvm: err=%v polled=%v output=%q, want exit 1 before polling", err, polled == nil, out)
+				}
+				return
+			}
+			if err != nil || polled != nil {
+				t.Fatalf("poller with /dev/kvm did not poll: %v, %q", err, out)
+			}
+		})
+	}
+}
+
+func TestBuild_NestedKVMWithoutExclusiveCPUsKeepsTheDevicePlugin(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	if _, ok := pod.Annotations[KVMContainersAnnotation]; ok {
+		t.Errorf("pod carries %s without exclusive CPUs", KVMContainersAnnotation)
+	}
+	if quantity := containerByName(t, pod, "runner").Resources.Limits[KVMResourceName]; quantity.Value() != 1 {
+		t.Errorf("runner %s = %v, want 1", KVMResourceName, quantity)
+	}
+	if strings.Contains(strings.Join(initContainerByName(t, pod, "poller").Command, " "), "/dev/kvm") {
+		t.Error("poller checks /dev/kvm, which the device plugin gives only the runner")
 	}
 }
 
@@ -1275,6 +1371,30 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 	}
 }
 
+func TestMetricsSidecarReadsTheDindReportOnlyOnCacheVolumePools(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	metrics := initContainerByName(t, build(t, pool), "metrics")
+	want := corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run/tuist-dind", ReadOnly: true}
+	if !slices.Contains(metrics.VolumeMounts, want) {
+		t.Fatalf("metrics mounts = %+v, want %+v", metrics.VolumeMounts, want)
+	}
+	if got := envValue(metrics.Env, "TUIST_RUNNER_DIND_MEMORY_FILE"); got != "/var/run/tuist-dind/tuist-dind-memory" {
+		t.Fatalf("TUIST_RUNNER_DIND_MEMORY_FILE = %q", got)
+	}
+
+	// Pools without cache volumes run no reporter, so their Pods stay as
+	// they are instead of rolling for a mount nothing writes to.
+	pool.Spec.CacheVolumeRoot = ""
+	pool.Spec.CacheVolumeURL = ""
+	for _, mount := range initContainerByName(t, build(t, pool), "metrics").VolumeMounts {
+		if mount.Name == "dind-sock" {
+			t.Fatalf("metrics mounts dind-sock without cache volumes: %+v", mount)
+		}
+	}
+}
+
 func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
@@ -1308,20 +1428,21 @@ func TestPreferCacheVolumeNode(t *testing.T) {
 	PreferCacheVolumeNode(pod, "b03")
 
 	terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-	if len(terms) != 2 {
-		t.Fatalf("terms = %+v, want the golden and one volume preference", terms)
+	if len(terms) != 3 {
+		t.Fatalf("terms = %+v, want the golden, session-free and one volume preference", terms)
 	}
 	if terms[0].Preference.MatchExpressions[0].Key != GoldenNodeAffinityKey(p.Spec.Image) {
 		t.Fatal("the golden preference must stay first")
 	}
-	field := terms[1].Preference.MatchFields[0]
+	field := terms[2].Preference.MatchFields[0]
 	if field.Key != "metadata.name" || field.Operator != corev1.NodeSelectorOpIn || strings.Join(field.Values, ",") != "b03" {
 		t.Fatalf("volume preference = %+v, want metadata.name In [b03]", field)
 	}
-	// A host without the golden pulls the image for minutes; one without a
-	// volume only starts that volume cold.
-	if terms[1].Weight >= terms[0].Weight {
-		t.Fatalf("volume preference weighs %d, want less than the golden %d", terms[1].Weight, terms[0].Weight)
+	// A host without the golden pulls the image for minutes; a session on a
+	// full host waits or moves cold; a host without a volume only starts that
+	// volume cold.
+	if !(terms[0].Weight > terms[1].Weight && terms[1].Weight > terms[2].Weight) {
+		t.Fatalf("weights golden %d, session-free %d, volume %d, want strictly decreasing", terms[0].Weight, terms[1].Weight, terms[2].Weight)
 	}
 }
 
@@ -1418,16 +1539,29 @@ func TestDockerCacheNeedsCacheVolumes(t *testing.T) {
 func TestBuild_MacOSSandboxWarmPoolHoldsNoCredentialAndNeedsAWarmHost(t *testing.T) {
 	pool := basePool("darwin")
 	pool.Labels = map[string]string{MacosSandboxWarmLabel: "true"}
+	pool.Spec.PodMemoryMB = 8192
 	pod := build(t, pool)
 
 	if pod.Labels[MacosSandboxWarmLabel] != "true" || pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "v1" {
 		t.Fatalf("warm Pod not labelled or not pinned to warm hosts: labels=%v selector=%v", pod.Labels, pod.Spec.NodeSelector)
+	}
+	// A larger warm VM reserves more disk, so it selects the label tart-kubelet
+	// advertises only with room for that shape, never the 8 GiB one.
+	pool.Spec.PodMemoryMB = 24576
+	large := build(t, pool)
+	if large.Spec.NodeSelector["tuist.dev/macos-sandbox-warm-host-24576"] != "v1" || large.Spec.NodeSelector[MacosSandboxWarmHostLabel] != "" {
+		t.Fatalf("24 GiB warm Pod selector = %v", large.Spec.NodeSelector)
 	}
 	if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {
 		t.Fatal("warm Pod mounts a ServiceAccount token")
 	}
 	if len(pod.Spec.Containers[0].Env) != 0 || len(pod.Spec.Volumes) != 0 {
 		t.Fatalf("warm Pod carries dispatch env or volumes: %v %v", pod.Spec.Containers[0].Env, pod.Spec.Volumes)
+	}
+
+	// A warm VM becomes a session itself, so it need not avoid hosts holding one.
+	if terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution; len(terms) != 1 || terms[0].Preference.MatchExpressions[0].Key == MacosSandboxSessionsLabel {
+		t.Fatalf("warm Pod preferences = %+v, want only the golden one", terms)
 	}
 
 	ci := build(t, basePool("darwin"))
