@@ -1015,7 +1015,6 @@ struct ProjectDescriptorGeneratorTests {
         #expect(addedRef.path == "LocalPackages/MyPackage")
     }
 
-
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,

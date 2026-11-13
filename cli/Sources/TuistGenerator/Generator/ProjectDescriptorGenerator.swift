@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -380,7 +381,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         localConfig: GeneratorLocalPackageReferenceConfig
     ) throws {
         let mainGroupName = localConfig.grouping == .original ? "Project" : "Packages"
-        let baseGroup = try root.group(namedOrPath: mainGroupName)
+        let baseGroup = try getGroup(in: root, namedOrPath: mainGroupName)
             ?? root.addGroup(named: mainGroupName, options: .withoutFolder).first
 
         let components = makeGroupComponents(from: localConfig)
@@ -392,7 +393,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             if localConfig.grouping == .original {
                 currentGroup = try resolveStructuredReference(named: folder, in: group, project: project)
             } else {
-                currentGroup = try group.group(namedOrPath: folder)
+                currentGroup = try getGroup(in: group, namedOrPath: folder)
                     ?? group.addGroup(named: folder, options: .withoutFolder).first
             }
         }
@@ -409,7 +410,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             return group
         }
         
-        if let reference = parent.childReference(namedOrPath: name),
+        if let reference = childReference(in: parent, namedOrPath: name),
            !(reference is PBXGroup),
            let index = parent.children.firstIndex(of: reference) {
             parent.children.remove(at: index)
@@ -433,8 +434,10 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         // Calculate relative path to sourceRoot
         var relativePath = config.path
-        if relativePath.hasPrefix(config.sourceRoot + "/") {
-            relativePath.removeFirst(config.sourceRoot.count + 1)
+        if let sourceRoot = try? AbsolutePath(validating: config.sourceRoot),
+           let path = try? AbsolutePath(validating: config.path),
+           sourceRoot.isAncestor(of: path) {
+            relativePath = path.relative(to: sourceRoot).pathString
         }
 
         var components = relativePath.split(separator: "/").map(String.init)
@@ -446,10 +449,9 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 components.removeFirst(excludeComponents.count)
             }
         }
-
-        // Remove last element
-        components.removeLast()
-
+        
+        // The last component is the package directory itself, so the group is built from its parents only.
+        _ = components.popLast()
         return components
     }
 
@@ -486,17 +488,15 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         // TODO: Determine if this can be inferred by the set Xcode version
         .xcode13
     }
-}
 
-private extension PBXGroup {
-    func group(namedOrPath nameOrPath: String) -> PBXGroup? {
-        return children
+    private func getGroup(in parent: PBXGroup, namedOrPath nameOrPath: String) -> PBXGroup? {
+        parent.children
             .compactMap { $0 as? PBXGroup }
-            .first(where: { $0.name == nameOrPath || $0.path == nameOrPath })
+            .first { $0.name == nameOrPath || $0.path == nameOrPath }
     }
 
-    func childReference(namedOrPath nameOrPath: String) -> PBXFileElement? {
-        return children.first(where: { $0.path == nameOrPath || ($0.name == nameOrPath) })
+    private func childReference(in parent: PBXGroup, namedOrPath nameOrPath: String) -> PBXFileElement? {
+        parent.children.first { $0.path == nameOrPath || $0.name == nameOrPath }
     }
 }
 
