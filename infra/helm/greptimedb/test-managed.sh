@@ -41,7 +41,9 @@ for environment in staging canary; do
     length == 6 and
     any(.[]; .kind == "ExternalSecret" and .metadata.name == "greptimedb-dashboard-auth" and
       .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
-      (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo="))) and
+      (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo=")) and
+      .spec.target.template.data["ingest-username"] == "tuist" and
+      (.spec.target.template.data["ingest-password"] | contains(".token"))) and
     any(.[]; .kind == "StatefulSet" and
       .spec.template.spec.initContainers[0].name == "combine-auth" and
       any(.spec.template.spec.volumes[]; .name == "auth-inputs" and (.projected.sources | length) == 2)) and

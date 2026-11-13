@@ -68,4 +68,16 @@ if [[ -n "$legacy" ]]; then jq -e '.spec.replicas == 0' <<< "$legacy" >/dev/null
 kubectl -n "$namespace" get pods -o json | jq -e '
   all(.items[]; all(.spec.containers[];
     (.image | test("^ghcr.io/tuist/pulso(:|@|$)")) | not))' >/dev/null
+# Alloy fails its whole config load, Grafana Cloud included, when a
+# referenced Secret is missing. Collectors that write to Greptime need its
+# ingest login to exist first; check its ExternalSecret, never the Secret.
+values="${OBSERVABILITY_CHART_PATH:-}/values-$DEPLOY_ENV.yaml"
+if [[ -n "${OBSERVABILITY_CHART_PATH:-}" ]] && grep -q 'greptimedb-dashboard-auth' "$values"; then
+  kubectl -n "$namespace" get externalsecret greptimedb-dashboard-auth -o json | jq -e '
+    (.spec.target.template.data | has("ingest-username") and has("ingest-password")) and
+    any(.status.conditions[]?; .type == "Ready" and .status == "True")' >/dev/null || {
+    echo "::error::Collectors write to Greptime, but its ingest login is not ready; deploy the backend with dashboard=true first."
+    exit 1
+  }
+fi
 echo "PASS: $backend ready; no legacy writers"

@@ -17,6 +17,10 @@ spec:
         passwd: |
           dashboard:ro={{ "{{ .token | trim }}" }}
           tuist:wo={{ "{{ .token | trim }}" }}
+        # Collectors write as the write-only identity above. This Secret
+        # outlives the old pulse release, whose Secret they used before.
+        ingest-username: tuist
+        ingest-password: '{{ "{{ .token | trim }}" }}'
   data:
     - secretKey: token
       remoteRef:

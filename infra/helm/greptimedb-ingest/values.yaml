@@ -1,7 +1,0 @@
-# Must be installed by upgrading the EXISTING pulse release after qualification.
-environment: staging
-image: nginxinc/nginx-unprivileged:1.28.0-alpine
-replicas: 1
-resources:
-  requests: {cpu: 50m, memory: 32Mi}
-  limits: {memory: 128Mi}
