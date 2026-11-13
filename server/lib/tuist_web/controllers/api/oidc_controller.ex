@@ -220,10 +220,12 @@ defmodule TuistWeb.API.OIDCController do
   end
 
   # A session of a connected Claude Code environment runs on the account's
-  # sandboxes, and gets CI access like a build would, for its cache.
+  # sandboxes, and gets CI access like a build would, for its cache. Like an
+  # Amp Orb, it can also start sandboxes and run commands in them, such as a
+  # Mac to build on.
   defp authorized_account(%{claude_code_environment_id: environment_id}, _token, _account_handle) do
     with {:ok, account} <- Sandboxes.claude_code_environment_account(environment_id) do
-      {:ok, account, %{"all_projects" => true}}
+      {:ok, account, %{"all_projects" => true, "scopes" => ["ci", "account:sandboxes:write"]}}
     end
   end
 
@@ -271,7 +273,8 @@ defmodule TuistWeb.API.OIDCController do
   defp token_ttl_seconds(_claims), do: @token_ttl_seconds
 
   defp generate_token(account, grant, ttl_seconds) do
-    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, grant)
+    # `preferred_username` names the account, which `tuist auth whoami` prints.
+    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"], "preferred_username" => account.name}, grant)
 
     case Guardian.encode_and_sign(account, claims, ttl: {ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}

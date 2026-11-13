@@ -165,7 +165,11 @@ Sessions in these environments use your organization's Claude Code usage as usua
 
 ## Use a Mac from any Claude Code session {#remote-mac}
 
-Claude Code sessions that run on Linux, such as cloud sessions in an Anthropic-hosted environment, can still build and test Apple-platform code on a Tuist macOS sandbox, as described in <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>. Unlike a **Tuist macOS** environment, nothing needs connecting and the session keeps its own environment. For cloud sessions:
+Claude Code sessions that run on Linux, such as cloud sessions in an Anthropic-hosted environment, can still build and test Apple-platform code on a Tuist macOS sandbox, as described in <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>. Unlike a **Tuist macOS** environment, the session keeps its own environment.
+
+In a **Tuist Linux** environment there is nothing to set up: the Tuist CLI and the Tuist MCP server are already installed and sign in with the session's identity.
+
+For cloud sessions in an Anthropic-hosted environment:
 
 1. Make the Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> available to sessions: add `https://tuist.dev/mcp` as a connector in claude.ai and enable it for the session, or declare it in the repository's committed `.mcp.json`.
 2. Install the Tuist CLI in the environment's [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts), for example with `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`.

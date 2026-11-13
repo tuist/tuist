@@ -85,7 +85,8 @@ it from the share, and downloads it only when the host has not fetched it yet.
   starts the runner with itself as `--exec-path`; that wrapper exports the
   session's `CLAUDE_CODE_SESSION_ACCESS_TOKEN` as `TUIST_OIDC_TOKEN` and execs
   Claude Code, so Tuist clients sign in with the session identity
-  (`Tuist.OIDC`). The token is the one at spawn time (four hours by default).
+  (`Tuist.OIDC`), which also lets them use the account's sandboxes. The
+  guest image ships the Tuist CLI, so a Linux session can drive a Tuist Mac. The token is the one at spawn time (four hours by default).
 - **Cached checkouts (macOS and Linux):** the hook sends
   `CLAUDE_RUNNER_PRIMARY_REPO_URL` as `repository_url`. When the account's
   GitHub installation reads that github.com repository, the worker starts

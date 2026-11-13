@@ -207,8 +207,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `TUIST_OIDC_TOKEN`, which `Tuist.OIDC` accepts (`sk-ant-cc-` prefix,
   ES256 against Anthropic's JWKS, `ccr:role` `session_worker`, `aud`
   containing `ccr:pool_id`) for an enabled `claude_code` environment of an
-  account with sandboxes, as a CI token that never outlives the session
-  token. For the spawn hook's `repository_url`, each worker start allocates
+  account with sandboxes, as a CI token with `account:sandboxes:write` (so a
+  Linux session can drive a Tuist Mac with the image's Tuist CLI) that never
+  outlives the session token. For the spawn hook's `repository_url`, each worker start allocates
   the repository's CI checkout volume
   (`Runners.CacheVolumes.allocate_sandbox_checkout/3`, one use per work id)
   and sends it as `start_worker`'s `checkout` with the guest path
