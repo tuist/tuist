@@ -103,7 +103,12 @@ cancellable and leaves the reserve intact. See
   last hour: `Signals.InUse`) before pools that only hold a learned floor,
   in `capByShape` too. Learned floors on a busy rack sum past its seats, and
   an even split left the pools whose jobs were arriving short of warm
-  runners while pools with no job in an hour stayed warm.
+  runners while pools with no job in an hour stayed warm. The floors of
+  pools not in use are then funded whole, most recently used first
+  (`status.lastDemandAt`, the recency tart-kubelet ranks goldens by), so a
+  pool with a fan-out this morning stays warm before one whose only jobs
+  are a nightly run: on 2026-11-13 the two split a full rack's last seats
+  evenly and neither had its burst warm.
 
   A tier that cannot be funded in full is split proportionally to cost,
   and the whole Pods the rounding leaves go one per pool per round to the
