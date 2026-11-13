@@ -223,8 +223,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   last 6 hours (`CacheVolumes.recent_sandbox_checkout_nodes/4`
   into `Capacity.place/3`'s `prefer:`): they hold its master and, for
   sandboxd's `CHECKOUT_WORKSPACES_TTL`, the workspace prepared from that seed.
-  Only the plain reservation prefers them; a full one is passed over, never
-  reclaimed or grown for.
+  The plain reservation and a carve-out growth prefer them; pausing idle
+  sandboxes for room does not, since a pause costs about what they save.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
