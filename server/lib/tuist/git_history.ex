@@ -64,10 +64,15 @@ defmodule Tuist.GitHistory do
     window_commits: 5_000,
     deepen_budget_seconds: 60,
     upload_batch_size: 500,
-    # The inputs that change what tests do without changing a source they
-    # compile: dependency pins and manifests, project generation and build
-    # settings, test plans, and the Xcode version.
-    tracked_file_globs: [
+    commit_file_limit: 200_000
+  }
+
+  # The inputs, per build system, that change what tests do without changing
+  # a source they compile: dependency pins and manifests, project and build
+  # settings, test plans, and the toolchain version. A build system without
+  # its own list tracks Xcode's, as every project did before.
+  @tracked_file_globs %{
+    xcode: [
       "**/Package.resolved",
       "**/Package.swift",
       "**/Project.swift",
@@ -81,7 +86,14 @@ defmodule Tuist.GitHistory do
       "**/Cartfile.resolved",
       ".xcode-version"
     ],
-    commit_file_limit: 200_000
+    mix: [
+      "**/mix.exs",
+      "**/mix.lock",
+      "**/config/**",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
+    ]
   }
 
   @insert_chunk_size 5_000
@@ -111,12 +123,12 @@ defmodule Tuist.GitHistory do
   - `tracked_file_globs`: the files, beyond the sources a test compiles, whose
     identity a commit's evidence depends on, read off the commit's file
     listing: any change to one refuses carrying evidence forward at that
-    commit. The same defaults for every project for now;
+    commit. Chosen by the project's build system, Xcode's when it has none;
   - `commit_file_limit`: how many files of a commit's tree a client lists
     before marking the listing truncated.
   """
   def settings(%Project{} = project) do
-    defaults = Map.merge(@defaults, Environment.git_history_defaults())
+    defaults = defaults(project.build_system)
 
     overrides =
       %{
@@ -129,7 +141,13 @@ defmodule Tuist.GitHistory do
     Map.merge(defaults, overrides)
   end
 
-  def settings(nil), do: Map.merge(@defaults, Environment.git_history_defaults())
+  def settings(nil), do: defaults(nil)
+
+  defp defaults(build_system) do
+    @defaults
+    |> Map.put(:tracked_file_globs, Map.get(@tracked_file_globs, build_system, @tracked_file_globs.xcode))
+    |> Map.merge(Environment.git_history_defaults())
+  end
 
   @doc """
   The key a remote URL identifies a repository by: host, owner and name,
