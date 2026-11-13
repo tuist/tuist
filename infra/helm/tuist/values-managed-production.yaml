@@ -1663,9 +1663,9 @@ rackFleet:
   # every image rather than one per image, so it does not need moving as
   # customers move between Xcodes. At three, 27.1's 10-job fan-outs left
   # 9 to 23% of its jobs a day over the 10 s queue-time target in the week
-  # to 2026-11-13; eight covers the p90 burst of every image but 26.3's
-  # nightly 12, and the in-use pools are funded first when floors sum past
-  # the rack's seats.
+  # to 2026-11-13; eight covers the p90 burst of every image but 27.1's 11
+  # (raised below) and 26.3's nightly 12, and the in-use pools are funded
+  # first when floors sum past the rack's seats.
   #
   # 26.6 also keeps one runner whatever its history, since a new account's
   # first job lands there and `tuist-macos` resolves there.
@@ -1692,6 +1692,16 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 8
+          maxReplicas: 32
+      # 27.1's fan-outs outgrow eight: its p90 burst was 11 in the 14 days to
+      # 2026-11-13, and eight left 14% of its jobs on a cold runner. Funded
+      # first while it is the most recently used pool, so on a full rack the
+      # extra three come out of other pools' idle floors, never their jobs.
+      "27.1":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 0
+          maxLearnedWarmPoolFloor: 11
           maxReplicas: 32
       # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
