@@ -7,9 +7,9 @@
 ---
 # Generated Xcode project {#generated-xcode-project-code-coverage}
 
-<!-- @snippet: ./_xcode-early-access -->
-
 Code coverage tells you which lines of your code your tests executed. Tuist uploads the line coverage of every `tuist test` run and folds the runs of a commit into one figure, for the project, each target and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
+
+<!-- @snippet: ./_xcode-requirements -->
 
 The figure stays accurate when Tuist skips work. Your targets from the <.localized_link href="/guides/features/cache/module-cache">binary cache</.localized_link> are built with coverage counters, so their code is measured like code built from source. And when <.localized_link href="/guides/features/selective-testing/generated-xcode-project">selective testing</.localized_link> skips a test target, the target keeps the coverage it had in an earlier run, through the [target-level coverage](#target-level-coverage) Tuist records on every run.
 

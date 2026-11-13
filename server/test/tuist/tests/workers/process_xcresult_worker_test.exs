@@ -169,7 +169,6 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     } do
       id = Ecto.UUID.generate()
       expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
-      stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _ -> true end)
 
       expect(XCResultProcessor, :process_local, fn _path, opts ->
         assert opts[:read_coverage] == (@reporting_version == 0)
