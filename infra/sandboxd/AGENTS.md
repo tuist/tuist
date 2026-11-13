@@ -141,7 +141,7 @@ memory image until they cold boot.
   `cold_boot` resume. No template shape snapshot is needed, and the guest
   keeps its workspace. The first pause writes the sandbox's own memory
   image.
-- `archive {sandbox_id, part_size, part_urls, memory}`: refuse unless the
+- `archive {sandbox_id, part_size, part_urls, memory, lazy_disks}`: refuse unless the
   sandbox is paused with `disks_synced`, so a cold restore of the disks
   alone is always possible; stream `vmlinux`, `rootfs.ext4` and
   `workspace.ext4` as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
@@ -152,10 +152,14 @@ memory image until they cold boot.
   written by this Firecracker, and the node's snapshot compatibility known), the object
   starts with the image's non-zero 2 MiB chunks, each a zstd frame in a
   skippable frame, and the disk stream after them also carries the VM
-  state and the chunks' index (`internal/archive/memory.go`). Answers the
+  state and the chunks' index (`internal/archive/memory.go`). With
+  `lazy_disks` too, `rootfs.ext4` and `workspace.ext4` follow the memory as
+  chunks the same way (chunks in holes left out), and the disk stream holds
+  their indexes (`<disk>.index`) instead of the disks. Answers the
   parts' ETags, the object's `bytes` and `sha256`, `stored_bytes` and
   `disks_synced`, and with memory the disk stream's `tail_offset` and
-  `tail_sha256`, the node's `compat` and `memory_bytes`. The sandbox stays paused on the node;
+  `tail_sha256`, the node's `compat`, `memory_bytes` and `lazy_disks`.
+  Hello's `lazy_disks` says the daemon restores such archives. The sandbox stays paused on the node;
   the server deletes it once the upload is complete. A `resume` or `delete`
   cancels an archive in flight instead of waiting for it. Transport errors
   never carry the signed URL.
@@ -189,7 +193,18 @@ memory image until they cold boot.
   SHA-256) ahead of a two-stream fill of the rest, answers
   `memory_pending`, and emits `memory_loaded` once every chunk is
   installed (or a pause wrote the memory locally). A chunk that cannot be
-  fetched kills the VM. Elsewhere it cold boots the disks.
+  fetched kills the VM. Elsewhere it cold boots the disks. With
+  `lazy_disks` (`internal/lazydisk`, `internal/sandbox/lazydisks.go`) each
+  disk is a FUSE mount over its path in the jail, which the jailer's
+  recursive bind carries into the chroot: a chunk the guest reads or
+  writes first is fetched then into `<disk>.fill`, a four-stream fill per
+  disk fetches the rest, and once both are complete the files replace the
+  mounts (detached lazily) and Firecracker reopens its drives on them
+  (`PATCH /drives`); `memory_loaded` waits for the disks too. A pause
+  waits for the fill (up to ten minutes) before it saves the sandbox; a
+  disk chunk that cannot be fetched kills the VM; a daemon restart during
+  the fill leaves the sandbox in error. Without root and `/dev/fuse`, and
+  for a cold boot, the disks are filled before the VM starts.
 - `delete {sandbox_id}`: kill the VM if running, tear down the netns, remove
   the jail dir. Deleting an id the node does not hold succeeds and removes
   whatever is left on disk under it.

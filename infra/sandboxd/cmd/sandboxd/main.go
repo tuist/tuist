@@ -395,6 +395,7 @@ func main() {
 					ExecutionSlots:     executionSlots,
 					DirectExecEndpoint: directExecEndpoint,
 					SnapshotCompat:     snapshotCompat,
+					LazyDisks:          true,
 					DefaultTemplate:    templateName,
 					DefaultTemplateTag: defaultTemplate.Tag,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),

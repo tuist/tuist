@@ -32,6 +32,8 @@ defmodule Tuist.Accounts.PasswordResetConcurrencyTest do
     on_exit(fn ->
       :ok = Sandbox.checkout(Repo, sandbox: false)
       Repo.delete_all(from(t in UserToken, where: t.user_id == ^user.id))
+      # Unsandboxed enrollment, disable, and recovery-code logins commit security notification jobs.
+      Repo.delete_all(from(j in Oban.Job, where: fragment("? @> ?", j.args, ^%{user_id: user.id})))
       Repo.delete!(user.account)
       Repo.delete!(user)
       Sandbox.checkin(Repo)

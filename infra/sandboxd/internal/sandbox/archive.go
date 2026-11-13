@@ -17,6 +17,7 @@ import (
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/archive"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/lazydisk"
 	"github.com/tuist/tuist/infra/sandboxd/internal/uffd"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
@@ -135,6 +136,7 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 			return res, err
 		}
 		defer memory.close()
+		memory.lazyDisks = args.LazyDisks
 		header.Memory = &archive.MemoryHeader{Size: memory.size, Compat: m.cfg.SnapshotCompat}
 	}
 	res, err = m.upload(ctx, args.PartURLs, args.PartSize, header, sources, memory, start)
@@ -203,6 +205,8 @@ func openArchivedFiles(dir string) ([]archive.Source, func(), error) {
 type archivedMemory struct {
 	mem, snapshot *os.File
 	size          int64
+	// lazyDisks chunks the rootfs and the workspace after the memory too.
+	lazyDisks bool
 }
 
 func openMemory(root string) (*archivedMemory, error) {
@@ -240,7 +244,7 @@ func (m *Manager) upload(ctx context.Context, partURLs []string, partSize int64,
 	}
 	var tail io.Writer = uploader
 	tailHash := sha256.New()
-	var tailOffset, memoryBytes int64
+	var tailOffset, memoryBytes, diskBytes int64
 	if memory != nil {
 		var index archive.MemoryIndex
 		index, memoryBytes, err = archive.WriteMemory(uploader, 0, memory.mem)
@@ -254,6 +258,15 @@ func (m *Manager) upload(ctx context.Context, partURLs []string, partSize int64,
 		}
 		defer indexFile.Close()
 		sources = append(sources, archive.Source{Name: firecracker.SnapshotPath, File: memory.snapshot}, archive.Source{Name: archive.MemoryIndexName, File: indexFile})
+		if memory.lazyDisks {
+			var closeIndexes func()
+			sources, diskBytes, closeIndexes, err = writeLazyDisks(uploader, sources)
+			if err != nil {
+				uploader.Close()
+				return res, err
+			}
+			defer closeIndexes()
+		}
 		tailOffset = uploader.Bytes()
 		tail = io.MultiWriter(uploader, tailHash)
 	}
@@ -269,14 +282,47 @@ func (m *Manager) upload(ctx context.Context, partURLs []string, partSize int64,
 		parts = append(parts, protocol.ArchivePart{PartNumber: part.PartNumber, ETag: part.ETag})
 	}
 	res = protocol.ArchiveResult{
-		Parts: parts, Bytes: uploader.Bytes(), SHA256: uploader.SHA256(), StoredBytes: stored + memoryBytes,
+		Parts: parts, Bytes: uploader.Bytes(), SHA256: uploader.SHA256(), StoredBytes: stored + memoryBytes + diskBytes,
 		DisksSynced: header.DisksSynced, DurationMs: time.Since(start).Milliseconds(),
 	}
 	if memory != nil {
 		res.TailOffset, res.TailSHA256 = tailOffset, hex.EncodeToString(tailHash.Sum(nil))
-		res.Compat, res.MemoryBytes = header.Memory.Compat, memoryBytes
+		res.Compat, res.MemoryBytes, res.LazyDisks = header.Memory.Compat, memoryBytes, memory.lazyDisks
 	}
 	return res, nil
+}
+
+// writeLazyDisks writes the rootfs and the workspace among sources to the
+// object as chunks, and answers the sources with each of them replaced by
+// its chunk index, and how many bytes of the disks it stored.
+func writeLazyDisks(uploader *archive.Uploader, sources []archive.Source) ([]archive.Source, int64, func(), error) {
+	var indexes []*os.File
+	closeIndexes := func() {
+		for _, f := range indexes {
+			f.Close()
+		}
+	}
+	var stored int64
+	out := make([]archive.Source, 0, len(sources))
+	for _, src := range sources {
+		if src.Name != firecracker.RootfsPath && src.Name != firecracker.WorkspacePath {
+			out = append(out, src)
+			continue
+		}
+		index, n, err := archive.WriteChunks(uploader, uploader.Bytes(), src.File)
+		var indexFile *os.File
+		if err == nil {
+			indexFile, err = tempFileWith(index.Marshal())
+		}
+		if err != nil {
+			closeIndexes()
+			return nil, stored, nil, fmt.Errorf("archiving %s: %w", src.Name, err)
+		}
+		indexes = append(indexes, indexFile)
+		stored += n
+		out = append(out, archive.Source{Name: archive.DiskIndexName(src.Name), File: indexFile})
+	}
+	return out, stored, closeIndexes, nil
 }
 
 // tempFileWith is an unlinked file holding data, for archive.Write.
@@ -329,6 +375,9 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 		return res, err
 	}
 	for _, name := range archivedFiles {
+		if src.LazyDisks && name != firecracker.KernelPath {
+			continue
+		}
 		if err := vm.Chown(filepath.Join(sb.root, name), uid, uid); err != nil {
 			return res, err
 		}
@@ -339,11 +388,16 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	log = log.With("slot", slot, "from_archive", true)
 	if header.Memory != nil {
 		if header.Memory.Compat == m.cfg.SnapshotCompat && header.Memory.Size == int64(args.MemoryMB)<<20 {
-			return m.warmCreate(ctx, sb, src, uid, log)
+			return m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
 		}
 		log.Warn("archived memory needs another kind of node; cold booting the disks", "compat", header.Memory.Compat, "node_compat", m.cfg.SnapshotCompat)
 		for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName} {
 			_ = os.Remove(filepath.Join(sb.root, name))
+		}
+	}
+	if src.LazyDisks {
+		if err := m.fillDisks(ctx, sb, src, args.WorkspaceGB, uid, log); err != nil {
+			return res, err
 		}
 	}
 	return m.coldCreate(ctx, sb, log)
@@ -370,6 +424,16 @@ func (m *Manager) downloadArchive(ctx context.Context, src *protocol.ArchiveSour
 		offset, size, sum = src.TailOffset, src.Bytes-src.TailOffset, src.TailSHA256
 		limits[firecracker.SnapshotPath] = maxSnapshotBytes
 		limits[archive.MemoryIndexName] = archive.MaxMemoryIndexBytes(int64(memoryMB) << 20)
+		// The disk stream holds the disks' indexes; the disks are read
+		// from the object ahead of it.
+		if src.LazyDisks {
+			delete(limits, firecracker.RootfsPath)
+			delete(limits, firecracker.WorkspacePath)
+			limits[archive.DiskIndexName(firecracker.RootfsPath)] = archive.MaxMemoryIndexBytes(maxRootfsBytes)
+			limits[archive.DiskIndexName(firecracker.WorkspacePath)] = archive.MaxMemoryIndexBytes(int64(workspaceGB) << 30)
+		}
+	} else if src.LazyDisks {
+		return archive.Header{}, errors.New("from_archive has lazy disks without a tail")
 	}
 	removeFiles := func() {
 		for name := range limits {
@@ -397,7 +461,7 @@ func (m *Manager) downloadArchive(ctx context.Context, src *protocol.ArchiveSour
 		removeFiles()
 		return header, fmt.Errorf("%w: it holds template %s with a %d GB workspace", ErrArchiveMismatch, header.Template, header.WorkspaceGB)
 	}
-	if size := vm.FileSize(filepath.Join(dir, firecracker.WorkspacePath)); size != int64(workspaceGB)<<30 {
+	if size := vm.FileSize(filepath.Join(dir, firecracker.WorkspacePath)); !src.LazyDisks && size != int64(workspaceGB)<<30 {
 		removeFiles()
 		return header, fmt.Errorf("%w: workspace image is %d bytes", ErrArchiveMismatch, size)
 	}
@@ -411,7 +475,23 @@ func (m *Manager) downloadArchive(ctx context.Context, src *protocol.ArchiveSour
 // fetches the rest. Until every chunk is on the node the sandbox depends on
 // the archive, so the server keeps it until EventMemoryLoaded; a chunk that
 // cannot be fetched kills the VM, which could never run on without it.
-func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.ArchiveSource, uid int, log *slog.Logger) (protocol.CreateResult, error) {
+func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.ArchiveSource, workspaceGB, uid int, log *slog.Logger) (protocol.CreateResult, error) {
+	var disks *lazyDisks
+	if src.LazyDisks {
+		if !lazydisk.Supported() {
+			if err := m.fillDisks(ctx, sb, src, workspaceGB, uid, log); err != nil {
+				return protocol.CreateResult{}, err
+			}
+		} else {
+			var err error
+			if disks, err = m.openLazyDisks(sb, src, workspaceGB, uid, true); err != nil {
+				return protocol.CreateResult{}, err
+			}
+			sb.mu.Lock()
+			sb.lazy, sb.disksPending = disks, true
+			sb.mu.Unlock()
+		}
+	}
 	data, err := os.ReadFile(filepath.Join(sb.root, archive.MemoryIndexName))
 	if err != nil {
 		return protocol.CreateResult{}, err
@@ -454,6 +534,9 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 		<-served
 		return protocol.CreateResult{}, err
 	}
+	if disks != nil {
+		go m.serveLazyDisks(sb, disks, inst, log)
+	}
 	// The memory server lives as long as this Firecracker process.
 	go func() {
 		select {
@@ -485,16 +568,31 @@ func (m *Manager) warmCreate(ctx context.Context, sb *Sandbox, src *protocol.Arc
 	return protocol.CreateResult{BootMs: time.Since(started).Milliseconds(), MemoryPending: true}, nil
 }
 
-// memoryLoaded reports that a warm restore no longer needs its archive.
+// memoryLoaded reports that a warm restore's memory is all on the node.
 func (m *Manager) memoryLoaded(sb *Sandbox, stats uffd.Stats, elapsed time.Duration) {
 	sb.mu.Lock()
-	pending := sb.memoryPending
-	sb.memoryPending = false
 	id := sb.meta.ID
 	sb.mu.Unlock()
 	m.log.Info("sandbox memory loaded from its archive", "sandbox", id, "elapsed", elapsed,
 		"chunks", stats.Chunks, "faulted", stats.Faulted, "filled", stats.Filled, "zero", stats.Zero, "faults", stats.Faults, "bytes", stats.Bytes)
-	if pending {
+	m.restorePartLoaded(sb, true)
+}
+
+// restorePartLoaded records that a warm restore's memory, or its disks,
+// are all on the node, and tells the server once both are, so it deletes
+// the archive.
+func (m *Manager) restorePartLoaded(sb *Sandbox, memory bool) {
+	sb.mu.Lock()
+	pending := sb.memoryPending || sb.disksPending
+	if memory {
+		sb.memoryPending = false
+	} else {
+		sb.disksPending = false
+	}
+	loaded := pending && !sb.memoryPending && !sb.disksPending
+	id := sb.meta.ID
+	sb.mu.Unlock()
+	if loaded {
 		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
 	}
 }

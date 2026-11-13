@@ -465,6 +465,27 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                Repo.reload!(sandbox)
     end
 
+    test "asks a node that restores lazy disks to chunk them and records it", %{account: account} do
+      sandbox = paused_orb(account)
+      stub(Nodes, :lookup, fn "node-a" -> {:ok, self(), %{lazy_disks: true}} end)
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", args, _opts ->
+        assert args.memory and args.lazy_disks
+        {:ok, data} = archive_result()
+        {:ok, Map.merge(data, %{"tail_offset" => 700, "tail_sha256" => "tail", "compat" => "zen5", "lazy_disks" => true})}
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, archive_memory: %{"lazy_disks" => true, "node" => "node-a"}} =
+               Repo.reload!(sandbox)
+    end
+
     test "does nothing but clean up while no threshold is configured", %{account: account} do
       stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
       sandbox = paused_orb(account)
@@ -928,6 +949,45 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect(Storage, :delete_object, fn ^key, _account -> :ok end)
       Sandboxes.handle_node_event("node-b", %{"event" => "memory_loaded", "sandbox_id" => sandbox.id})
       assert %Sandbox{archive_key: nil, archive_memory: nil, archived_at: nil} = Repo.reload!(sandbox)
+    end
+
+    test "an archive with lazy disks restores only on nodes that read them", %{account: account} do
+      memory = %{
+        "tail_offset" => 900,
+        "tail_sha256" => "tail",
+        "compat" => "zen5",
+        "node" => "node-d",
+        "lazy_disks" => true
+      }
+
+      archived_orb(account, archive_memory: memory)
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+
+      expect(Capacity, :place, fn _placed, warm, [avoid: ["node-d"]] ->
+        refute warm.(%{name: "node-b", snapshot_compat: "zen5"})
+        assert warm.(%{name: "node-b", snapshot_compat: "zen5", lazy_disks: true})
+        {:error, :no_node}
+      end)
+
+      # Without a node of its kind it cold boots, still only where the disks
+      # can be read.
+      expect(Capacity, :place, fn placed, any ->
+        refute any.(%{name: "node-a", snapshot_compat: "zen4"})
+        assert any.(%{name: "node-a", snapshot_compat: "zen4", lazy_disks: true})
+        Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-a"}))
+        {:ok, "node-a"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "create", args, _opts ->
+        assert args.from_archive.lazy_disks
+        {:ok, %{}}
+      end)
+
+      stub(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+      expect(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "node-a"}} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
     end
 
     test "an archive with memory cold boots elsewhere when no node of its kind is connected", %{account: account} do

@@ -20,6 +20,7 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
 	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/lazydisk"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
@@ -154,8 +155,11 @@ type Sandbox struct {
 	// formatted, which a prepared workspace may replace.
 	fresh bool
 	// memoryPending is set while a warm restore still reads memory from
-	// its archive; EventMemoryLoaded clears it.
+	// its archive, disksPending while it still reads its disks (lazy, until
+	// then); EventMemoryLoaded reports both cleared.
 	memoryPending bool
+	disksPending  bool
+	lazy          *lazyDisks
 }
 
 var (
@@ -609,6 +613,7 @@ func (m *Manager) discard(sb *Sandbox) {
 	meta := sb.meta
 	sb.mu.Unlock()
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
+	m.dropLazyDisks(sb)
 	_ = os.RemoveAll(vm.JailDir(m.cfg.JailBase, meta.ID))
 	if meta.Slot >= 0 {
 		m.slots.Release(meta.Slot)
@@ -801,6 +806,12 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.markDied(sb, fmt.Sprintf("pause: firecracker did not die: %v", err))
 		return res, err
 	}
+	// A restore whose disks still arrive from its archive holds them
+	// whole only once the fill ends.
+	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
+		m.markDied(sb, fmt.Sprintf("pause: the restored disks could not be completed: %v", err))
+		return res, err
+	}
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
@@ -830,9 +841,9 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
 	// The snapshot read every page, so a warm restore's memory is all on
-	// the node now.
-	memoryLoaded := sb.memoryPending
-	sb.memoryPending = false
+	// the node now, and its disks were settled above.
+	memoryLoaded := sb.memoryPending || sb.disksPending
+	sb.memoryPending, sb.disksPending = false, false
 	sb.meta.State = protocol.StatePaused
 	sb.meta.Generation++
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
@@ -913,6 +924,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	sb.mu.Lock()
 	sb.inst = nil
 	sb.mu.Unlock()
+	m.dropLazyDisks(sb)
 	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err
@@ -1280,6 +1292,16 @@ func (m *Manager) Recover(ctx context.Context) error {
 			}
 		}
 		hasDisks := vm.Exists(filepath.Join(root, firecracker.RootfsPath)) && vm.Exists(filepath.Join(root, firecracker.WorkspacePath)) && vm.Exists(filepath.Join(root, firecracker.KernelPath))
+		for _, name := range lazyDiskNames {
+			// A previous daemon's mount over a disk being restored.
+			lazydisk.Unmount(filepath.Join(root, name))
+			if vm.Exists(filepath.Join(root, name+lazyDiskSuffix)) {
+				// Its disks were still arriving from its archive, which the
+				// server restores again.
+				meta.State = protocol.StateError
+				meta.Error = "daemon restarted while the sandbox's disks were still loading from its archive"
+			}
+		}
 		switch meta.State {
 		case protocol.StatePaused:
 			if !meta.ColdBoot && meta.FirecrackerVersion != m.cfg.FirecrackerVersion && hasDisks {

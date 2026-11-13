@@ -80,9 +80,9 @@ retry() {
 }
 
 # --- System packages -------------------------------------------------------
-# mise uses prebuilt Erlang on Ubuntu, but falls back to a source build on
-# Debian. Keep its build dependencies alongside PostgreSQL 16, which the
-# server requires and Debian 12 does not ship.
+# Keep Erlang's build dependencies, which mise needs if it falls back to a
+# source build (see ImageOS below), alongside PostgreSQL 16, which the server
+# requires and Debian 12 does not ship.
 apt_packages=(
   autoconf build-essential libssl-dev libncurses-dev unzip
   ffmpeg inotify-tools postgresql-16 postgresql-client-16
@@ -148,6 +148,13 @@ if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise
 fi
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export MISE_YES=1
+# mise installs prebuilt Erlang (builds.hex.pm) only on Ubuntu and compiles OTP
+# from source with kerl elsewhere, a minute or more of a cold setup on Debian
+# 12 orbs. The Ubuntu 22.04 build runs on Debian 12 (glibc 2.36, OpenSSL 3),
+# and mise reads the distribution from ImageOS before /etc/os-release.
+if [[ "$(. /etc/os-release && echo "$ID-$VERSION_ID")" == debian-12 ]]; then
+  export ImageOS=ubuntu22
+fi
 # github: tools (ClickHouse, MinIO) verify attestations through api.github.com.
 # Orbs share egress IPs, so anonymous requests hit the 60/hour limit and the
 # install fails; authenticate with the orb's gh login when there is one.
@@ -220,11 +227,17 @@ step "Bootstrapping server dependencies and databases"
 timed "Bootstrapping server dependencies and databases" mise run --no-deps install --no-seed
 
 # Seed here so the snapshot carries the data to every thread. A stale
-# snapshot is seeded already, and the seeds are not idempotent.
+# snapshot is seeded already, and the seeds are not idempotent. Seed the dev
+# databases in the background while the test build compiles into its own
+# build path: in sequence the two took three minutes of a cold setup, and
+# overlapped about two. Buffer the seed's output so the steps stay readable.
 dev_db="$(mise exec -- printenv TUIST_SERVER_POSTGRES_DB)"
+seed_pid=""
 if ! psql -h localhost -d "$dev_db" -Atqc "SELECT EXISTS (SELECT 1 FROM users)" | grep -qx t; then
-  step "Seeding $dev_db"
-  timed "Seeding $dev_db" mise run --no-deps db:seed
+  step "Seeding $dev_db in the background"
+  seed_log="$(mktemp)"
+  timed "Seeding $dev_db" mise run --no-deps db:seed >"$seed_log" 2>&1 &
+  seed_pid=$!
 fi
 
 # What the test alias does before running tests, so a thread's first
@@ -235,6 +248,15 @@ timed "Compiling the server test build" env MIX_ENV=test mise exec -- mix compil
 
 step "Creating and migrating the server test databases"
 timed "Creating and migrating the server test databases" env MIX_ENV=test mise exec -- mix "do" ecto.create --quiet + run priv/repo/timezone.exs + ecto.migrate --quiet
+
+if [[ -n "$seed_pid" ]]; then
+  step "Waiting for the $dev_db seed"
+  seed_status=0
+  wait "$seed_pid" || seed_status=$?
+  cat "$seed_log"
+  rm -f "$seed_log"
+  ((seed_status == 0)) || exit "$seed_status"
+fi
 
 # Stop the databases cleanly so their data directories are consistent in
 # the snapshot. Nothing restarts them on resume: most threads never touch the

@@ -831,13 +831,22 @@ defmodule Tuist.Sandboxes do
   # node it was archived from only when no other can; only when none is
   # connected does it cold boot its disks on another.
   defp place_restore(sandbox, archive \\ nil) do
-    site = Archives.restore_site(archive || sandbox)
-    on_site = if site, do: &(Sites.shard_storage_site(&1.name) == site), else: fn _node -> true end
+    subject = archive || sandbox
+    site = Archives.restore_site(subject)
+    on_site = restore_nodes(site, Archives.lazy_disks?(subject))
 
-    case Archives.memory_compat(archive || sandbox) do
+    case Archives.memory_compat(subject) do
       nil when is_nil(site) -> Capacity.place(sandbox)
       nil -> Capacity.place(sandbox, on_site)
-      compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(archive || sandbox))
+      compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(subject))
+    end
+  end
+
+  # An archive with lazy disks restores only on nodes that read them.
+  defp restore_nodes(site, lazy_disks?) do
+    fn node ->
+      (is_nil(site) or Sites.shard_storage_site(node.name) == site) and
+        (not lazy_disks? or Map.get(node, :lazy_disks) == true)
     end
   end
 
