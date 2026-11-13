@@ -360,6 +360,18 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.cache(invocation: narrow).restoreLocally())
     }
 
+    @Test(.inTemporaryDirectory) func cachesAndReplaysUnusedExternReports() async throws {
+        let fixture = try await fixture()
+        let report = #"{"$message_type":"unused_extern","lint_level":"force-warn","unused_extern_names":["itoa"]}"#
+        try await fixture.cache().store(stdout: Data(), stderr: Data(report.utf8))
+        try fixture.removeOutputs()
+        var cache = try fixture.cache()
+        var replayed = Data()
+        cache.replay = { _, stderr in replayed = stderr }
+        #expect(try await cache.restoreLocally())
+        #expect(String(decoding: replayed, as: UTF8.self) == report)
+    }
+
     @Test(.inTemporaryDirectory) func neverReplaysTerminalSpecificRemoteCompilerStreams() async throws {
         let fixture = try await fixture()
         let remote = CargoMemoryCache()
