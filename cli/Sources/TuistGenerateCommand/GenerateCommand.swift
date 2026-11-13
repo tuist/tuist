@@ -8,7 +8,6 @@ public struct GenerateCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "generate",
             abstract: "Generate a project or inspect generation runs.",
-            discussion: "Pass --quiet to suppress generation progress output. Warnings and errors may still be reported.",
             subcommands: subcommands,
             defaultSubcommand: defaultSubcommand
         )

@@ -4,12 +4,10 @@
     import Path
     import TuistAlert
     import TuistConfig
-    import TuistConstants
     import TuistCore
     import TuistEnvironment
     import TuistExtension
     import TuistKit
-    import TuistLogging
     import TuistServer
     import TuistSupport
 
@@ -22,7 +20,7 @@
                 _superCommandName: "generate",
                 abstract: "Generates an Xcode workspace to start working on the project.",
                 discussion:
-                "Use 'tuist generate list' and 'tuist generate show' to inspect generation runs. Pass --quiet to suppress generation progress output. Warnings and errors may still be reported."
+                "Use 'tuist generate list' and 'tuist generate show' to inspect generation runs."
             )
         }
 
@@ -77,22 +75,6 @@
         var destination: CacheDestination = .all
 
         public func run() async throws {
-            let isQuiet = MachineReadableOutput.isQuiet(arguments: Environment.current.arguments)
-                || Environment.current.variables[Constants.EnvironmentVariables.quiet] != nil
-            try await Logger.$current.withValue(Self.generationLogger(Logger.current, isQuiet: isQuiet)) {
-                try await generate()
-            }
-        }
-
-        static func generationLogger(_ logger: Logger, isQuiet: Bool) -> Logger {
-            var logger = logger
-            if isQuiet {
-                logger.logLevel = max(logger.logLevel, .warning)
-            }
-            return logger
-        }
-
-        private func generate() async throws {
             if !binaryCache {
                 AlertController.current.warning(.alert(
                     "The \(.command("--no-binary-cache")) flag is deprecated.",
