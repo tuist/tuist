@@ -1,0 +1,105 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#[cfg(feature = "enterprise")]
+use common_catalog::consts::FILE_ENGINE;
+use common_catalog::format_full_table_name;
+use snafu::OptionExt;
+use store_api::metric_engine_consts::METRIC_ENGINE_NAME;
+
+use crate::ddl::drop_table::DropTableProcedure;
+use crate::ddl::utils::extract_region_wal_options;
+#[cfg(feature = "enterprise")]
+use crate::ddl::utils::is_metric_engine_logical_table;
+use crate::error::{self, Result};
+#[cfg(feature = "enterprise")]
+use crate::key::table_route::TableRouteValue;
+
+impl DropTableProcedure {
+    #[cfg(feature = "enterprise")]
+    fn apply_soft_drop_fallbacks(
+        &mut self,
+        table_info_value: &crate::key::table_info::TableInfoValue,
+        table_route_value: &TableRouteValue,
+        is_physical: bool,
+    ) {
+        // TODO(hl): support soft-dropping logical tables.
+        if self.data.soft_drop_enabled
+            && is_metric_engine_logical_table(&table_info_value.table_info, table_route_value)
+        {
+            self.data.soft_drop_enabled = false;
+        }
+
+        if is_physical
+            && self.data.soft_drop_enabled
+            && table_info_value.table_info.meta.engine == FILE_ENGINE
+        {
+            self.data.soft_drop_enabled = false;
+        }
+    }
+
+    /// Fetches the table info and physical table route.
+    pub(crate) async fn fill_table_metadata(&mut self) -> Result<()> {
+        let task = &self.data.task;
+        let (physical_table_id, physical_table_route_value) = self
+            .context
+            .table_metadata_manager
+            .table_route_manager()
+            .get_physical_table_route(task.table_id)
+            .await?;
+
+        let table_info_value = self
+            .context
+            .table_metadata_manager
+            .table_info_manager()
+            .get(task.table_id)
+            .await?
+            .with_context(|| error::TableInfoNotFoundSnafu {
+                table: format_full_table_name(&task.catalog, &task.schema, &task.table),
+            })?
+            .into_inner();
+        #[cfg(feature = "enterprise")]
+        let table_route_value = TableRouteValue::new(
+            self.data.table_id(),
+            physical_table_id,
+            physical_table_route_value.region_routes.clone(),
+        );
+        #[cfg(feature = "enterprise")]
+        self.apply_soft_drop_fallbacks(
+            &table_info_value,
+            &table_route_value,
+            physical_table_id == self.data.table_id(),
+        );
+
+        if physical_table_id == self.data.table_id() {
+            let engine = table_info_value.table_info.meta.engine;
+            // rollback only if dropping the metric physical table fails
+            self.data.allow_rollback = engine.as_str() == METRIC_ENGINE_NAME;
+
+            // Deletes topic-region mapping if dropping physical table
+            let datanode_table_values = self
+                .context
+                .table_metadata_manager
+                .datanode_table_manager()
+                .regions(physical_table_id, &physical_table_route_value)
+                .await?;
+            self.data.region_wal_options = extract_region_wal_options(&datanode_table_values)?;
+        }
+
+        self.data.physical_region_routes = physical_table_route_value.region_routes;
+        self.data.physical_table_id = Some(physical_table_id);
+
+        Ok(())
+    }
+}

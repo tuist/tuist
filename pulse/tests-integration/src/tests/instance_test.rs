@@ -1,0 +1,4337 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::env;
+use std::sync::Arc;
+
+use client::{DEFAULT_SCHEMA_NAME, OutputData};
+use common_catalog::consts::DEFAULT_CATALOG_NAME;
+use common_error::ext::{ErrorExt, RetryHint};
+use common_error::status_code::StatusCode;
+use common_query::Output;
+use common_recordbatch::util;
+use common_test_util::recordbatch::check_output_stream;
+use datatypes::arrow::array::{
+    ArrayRef, AsArray, StringArray, TimestampMillisecondArray, UInt64Array,
+};
+use frontend::error::Error;
+use frontend::instance::Instance;
+use operator::error::Error as OperatorError;
+use query::datafusion::QUERY_PARALLELISM_HINT;
+use query::options::QUERY_ENABLE_REMOTE_DYNAMIC_FILTER_PUSHDOWN;
+use rstest::rstest;
+use rstest_reuse::apply;
+use servers::error as server_error;
+use servers::query_handler::sql::SqlQueryHandler;
+use session::context::{QueryContext, QueryContextRef};
+
+use crate::tests::test_util::{
+    MockInstance, both_instances_cases, both_instances_cases_with_custom_storages,
+    check_unordered_output_stream, create_local_file_test_dir, distributed,
+    distributed_with_multiple_object_stores, find_testing_resource, prepare_path, standalone,
+    standalone_instance_case, standalone_with_multiple_object_stores,
+};
+
+#[apply(both_instances_cases)]
+async fn test_create_database_and_insert_query(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(&instance, "create database test").await.data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql(
+        &instance,
+        r#"create table greptime.test.demo(
+             host STRING,
+             cpu DOUBLE,
+             memory DOUBLE,
+             ts timestamp,
+             TIME INDEX(ts)
+)"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        r#"insert into test.demo(host, cpu, memory, ts) values
+                           ('host1', 66.6, 1024, 1655276557000),
+                           ('host2', 88.8,  333.3, 1655276558000)
+                           "#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let query_output = execute_sql(&instance, "select ts from test.demo order by ts limit 1")
+        .await
+        .data;
+    match query_output {
+        OutputData::Stream(s) => {
+            let batches = util::collect(s).await.unwrap();
+            assert_eq!(1, batches[0].num_columns());
+            let expected = Arc::new(TimestampMillisecondArray::from_iter_values(vec![
+                1655276557000_i64,
+            ])) as ArrayRef;
+            assert_eq!(batches[0].column(0), &expected);
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_admin_discard_unflushed_data(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    execute_sql(
+        &instance,
+        r#"CREATE TABLE discard_unflushed_data_test (
+            host STRING PRIMARY KEY,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX
+        ) ENGINE = mito"#,
+    )
+    .await;
+    execute_sql(
+        &instance,
+        "INSERT INTO discard_unflushed_data_test VALUES ('persisted', 1, 1)",
+    )
+    .await;
+    execute_sql(
+        &instance,
+        "ADMIN FLUSH_TABLE('discard_unflushed_data_test')",
+    )
+    .await;
+    execute_sql(
+        &instance,
+        "INSERT INTO discard_unflushed_data_test VALUES ('unflushed', 2, 2)",
+    )
+    .await;
+
+    let region_output = execute_sql(
+        &instance,
+        "SELECT greptime_partition_id FROM information_schema.partitions \
+         WHERE table_name = 'discard_unflushed_data_test' LIMIT 1",
+    )
+    .await;
+    let OutputData::Stream(stream) = region_output.data else {
+        panic!("expected region id stream");
+    };
+    let batches = util::collect(stream).await.unwrap();
+    let region_ids = batches[0].column(0);
+    let region_ids = region_ids.as_any().downcast_ref::<UInt64Array>().unwrap();
+    let region_id = region_ids.value(0);
+
+    let admin_sql = format!("ADMIN discard_unflushed({region_id})");
+    for _ in 0..2 {
+        let output = execute_sql(&instance, &admin_sql).await;
+        let OutputData::RecordBatches(batches) = output.data else {
+            panic!("expected ADMIN result batches");
+        };
+        let result = batches.iter().next().unwrap().column(0);
+        let result = result.as_any().downcast_ref::<UInt64Array>().unwrap();
+        assert_eq!(0, result.value(0));
+    }
+
+    let output = execute_sql(
+        &instance,
+        "SELECT host, val FROM discard_unflushed_data_test ORDER BY host",
+    )
+    .await;
+    assert_eq!(
+        "+-----------+-----+\n\
+         | host      | val |\n\
+         +-----------+-----+\n\
+         | persisted | 1.0 |\n\
+         +-----------+-----+",
+        output.data.pretty_print().await
+    );
+
+    assert!(
+        try_execute_sql(&instance, &format!("SELECT discard_unflushed({region_id})"),)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_distributed_scalar_latest_with_query_parallelism_below_regions() {
+    common_telemetry::init_default_ut_logging();
+
+    let distributed = crate::tests::create_distributed_instance(
+        "test_distributed_scalar_latest_with_query_parallelism_below_regions",
+    )
+    .await;
+    let frontend = distributed.frontend();
+
+    execute_sql(
+        &frontend,
+        r#"
+CREATE TABLE cpu (
+    rack STRING NULL,
+    os STRING NULL,
+    usage_user BIGINT NULL,
+    greptime_timestamp TIMESTAMP(9) NOT NULL,
+    TIME INDEX (greptime_timestamp)
+)
+PARTITION ON COLUMNS (rack) (
+    rack < '2',
+    rack >= '2' AND rack < '4',
+    rack >= '4' AND rack < '6',
+    rack >= '6' AND rack < '8',
+    rack >= '8'
+)
+ENGINE = mito
+WITH (append_mode = 'true', sst_format = 'flat')
+"#,
+    )
+    .await;
+
+    execute_sql(
+        &frontend,
+        r#"
+INSERT INTO cpu VALUES
+    ('1', 'linux', 10, '2023-06-12 01:04:49'),
+    ('1', 'linux', 15, '2023-06-12 01:04:50'),
+    ('3', 'windows', 25, '2023-06-12 01:05:00'),
+    ('5', 'mac', 30, '2023-06-12 01:03:00'),
+    ('7', 'linux', 45, '2023-06-12 02:00:00'),
+    ('2', 'linux', 20, '2023-06-12 01:04:51'),
+    ('2', 'windows', 22, '2023-06-12 01:06:00'),
+    ('4', 'mac', 12, '2023-06-12 00:59:00'),
+    ('6', 'linux', 35, '2023-06-12 01:04:55'),
+    ('8', 'windows', 50, '2023-06-12 02:10:00')
+"#,
+    )
+    .await;
+
+    let latest_sql = r#"
+SELECT rack, os, greptime_timestamp
+FROM cpu
+WHERE greptime_timestamp = (
+    SELECT greptime_timestamp
+    FROM cpu
+    ORDER BY greptime_timestamp DESC
+    LIMIT 1
+)
+"#;
+
+    let result = execute_sql_with_query_parallelism(&frontend, latest_sql, 1)
+        .await
+        .data
+        .pretty_print()
+        .await;
+    assert_eq!(
+        result,
+        r#"+------+---------+---------------------+
+| rack | os      | greptime_timestamp  |
++------+---------+---------------------+
+| 8    | windows | 2023-06-12T02:10:00 |
++------+---------+---------------------+"#
+    );
+
+    let explain =
+        execute_sql_with_query_parallelism(&frontend, &format!("EXPLAIN {latest_sql}"), 1)
+            .await
+            .data
+            .pretty_print()
+            .await;
+    assert!(
+        explain.contains("SortExec"),
+        "query_parallelism=1 with five regions should insert SortExec below MergeSortExec; explain:\n{explain}"
+    );
+    assert!(
+        explain.contains("MergeSortExec"),
+        "query_parallelism=1 with five regions should keep the distributed merge stage stable; explain:\n{explain}"
+    );
+}
+
+#[apply(both_instances_cases)]
+async fn test_metric_logical_scan_tag_order(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f04_scan_phy (
+            host STRING PRIMARY KEY,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX
+        ) ENGINE = metric WITH (physical_metric_table = 'true')"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f04_scan_logical (
+            host STRING PRIMARY KEY,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX
+        ) ENGINE = metric WITH (on_physical_table = 'f04_scan_phy')"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        "INSERT INTO f04_scan_logical (host, val, ts) VALUES \
+         ('a', 1, 0), ('b', 2, 0), ('c', 3, 0), ('d', 4, 0), \
+         ('e', 5, 0), ('f', 6, 0), ('g', 7, 0), ('h', 8, 0)",
+    )
+    .await;
+
+    // The ordered rows are compared exactly as printed. Sorting them before
+    // comparing (or comparing them unordered) would accept a scan that returns
+    // the physical table's tag order instead of the requested `host` order.
+    async fn ordered_rows(instance: &Arc<Instance>, sql: &str, parallelism: usize) -> String {
+        execute_sql_with_query_parallelism(instance, sql, parallelism)
+            .await
+            .data
+            .pretty_print()
+            .await
+    }
+
+    let all_hosts = "\
++------+---------------------+-----+
+| host | ts                  | val |
++------+---------------------+-----+
+| a    | 1970-01-01T00:00:00 | 1.0 |
+| b    | 1970-01-01T00:00:00 | 2.0 |
+| c    | 1970-01-01T00:00:00 | 3.0 |
+| d    | 1970-01-01T00:00:00 | 4.0 |
+| e    | 1970-01-01T00:00:00 | 5.0 |
+| f    | 1970-01-01T00:00:00 | 6.0 |
+| g    | 1970-01-01T00:00:00 | 7.0 |
+| h    | 1970-01-01T00:00:00 | 8.0 |
++------+---------------------+-----+";
+    let first_three_hosts = "\
++------+---------------------+-----+
+| host | ts                  | val |
++------+---------------------+-----+
+| a    | 1970-01-01T00:00:00 | 1.0 |
+| b    | 1970-01-01T00:00:00 | 2.0 |
+| c    | 1970-01-01T00:00:00 | 3.0 |
++------+---------------------+-----+";
+
+    // `host` is NOT NULL, so `NULLS FIRST` and the SQL default `NULLS LAST` return the same
+    // rows. The `NULLS FIRST` queries spell out the ordering the scan used to claim, so the
+    // optimizer may drop the sort and expose a wrong tag order; the `NULLS LAST` queries
+    // keep the sort. Both are replayed in memory and after flushing the physical table.
+    let mut mismatches = Vec::new();
+    for flushed in [false, true] {
+        if flushed {
+            execute_sql(&frontend, "ADMIN FLUSH_TABLE('f04_scan_phy')").await;
+        }
+        for parallelism in [1, 4] {
+            for (query, expected) in [
+                (
+                    "SELECT host, ts, val FROM f04_scan_logical ORDER BY host NULLS FIRST",
+                    all_hosts,
+                ),
+                (
+                    "SELECT host, ts, val FROM f04_scan_logical ORDER BY host NULLS FIRST LIMIT 3",
+                    first_three_hosts,
+                ),
+                (
+                    "SELECT host, ts, val FROM f04_scan_logical ORDER BY host NULLS LAST",
+                    all_hosts,
+                ),
+                (
+                    "SELECT host, ts, val FROM f04_scan_logical ORDER BY host NULLS LAST LIMIT 3",
+                    first_three_hosts,
+                ),
+            ] {
+                let actual = ordered_rows(&frontend, query, parallelism).await;
+                if actual.trim() != expected.trim() {
+                    mismatches.push(format!(
+                        "query `{query}` with query_parallelism={parallelism} flushed={flushed} \
+                         returned:\n{actual}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "logical metric table rows are not ordered by host, expected `a`..`h`:\n{}",
+        mismatches.join("\n---\n")
+    );
+}
+
+/// The uppercase tag `"A"` sorts before the physical `__table_id`/`__tsid` row key prefix
+/// by name, but it is not a prefix of the row key. A scan that claims it as ordering or
+/// partitioning lets the optimizer skip the sort or the repartition the query needs, so the
+/// per-host count comes back split across scan partitions in physical tsid order.
+#[apply(both_instances_cases)]
+async fn test_metric_logical_scan_uppercase_tag_order(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f04_upper_phy (
+            "A" STRING,
+            marker STRING,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX,
+            PRIMARY KEY ("A", marker)
+        ) ENGINE = metric WITH (physical_metric_table = 'true')"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f04_upper_logical (
+            "A" STRING,
+            marker STRING,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX,
+            PRIMARY KEY ("A", marker)
+        ) ENGINE = metric WITH (on_physical_table = 'f04_upper_phy')"#,
+    )
+    .await;
+
+    // 8 hosts x 4 markers x 2 timestamps = 64 rows. Every host spans four series, so a count
+    // computed per scan partition would return several rows per host with partial counts.
+    let mut rows = Vec::with_capacity(64);
+    for host in 0..8 {
+        for marker in ["a", "b", "c", "d"] {
+            for ts in [1000, 2000] {
+                rows.push(format!("('h{host}', '{marker}', {host}, {ts})"));
+            }
+        }
+    }
+    execute_sql(
+        &frontend,
+        &format!(
+            "INSERT INTO f04_upper_logical (\"A\", marker, val, ts) VALUES {}",
+            rows.join(", ")
+        ),
+    )
+    .await;
+
+    let expected = "\
++----+---+
+| A  | n |
++----+---+
+| h0 | 8 |
+| h1 | 8 |
+| h2 | 8 |
+| h3 | 8 |
+| h4 | 8 |
+| h5 | 8 |
+| h6 | 8 |
+| h7 | 8 |
++----+---+";
+
+    // The rows are compared exactly as printed: sorting them before comparing would accept
+    // a wrong count or a wrong row order. `NULLS FIRST` spells out the ordering the scan
+    // used to claim, so the optimizer may drop the sort; the default `NULLS LAST` keeps it
+    // and a failure there can only come from a wrong partitioning claim. Both orders are
+    // replayed in memory and after flushing the physical table.
+    let queries = [
+        "SELECT \"A\", count(*) AS n FROM f04_upper_logical GROUP BY \"A\" ORDER BY \"A\"",
+        "SELECT \"A\", count(*) AS n FROM f04_upper_logical GROUP BY \"A\" ORDER BY \"A\" NULLS FIRST",
+    ];
+
+    let mut mismatches = Vec::new();
+    for flushed in [false, true] {
+        if flushed {
+            execute_sql(&frontend, "ADMIN FLUSH_TABLE('f04_upper_phy')").await;
+        }
+        for parallelism in [1, 4] {
+            for query in queries {
+                let actual = execute_sql_with_query_parallelism(&frontend, query, parallelism)
+                    .await
+                    .data
+                    .pretty_print()
+                    .await;
+                if actual.trim() != expected.trim() {
+                    mismatches.push(format!(
+                        "query `{query}` with query_parallelism={parallelism} flushed={flushed} \
+                         returned:\n{actual}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "logical metric table must return one row of eight per host in `A` order:\n{}",
+        mismatches.join("\n---\n")
+    );
+}
+
+/// The small shape of the same problem: four rows and two groups. Each host has two series,
+/// so the count must not be computed per scan partition, and `ORDER BY "A"` pins the exact
+/// row order at query_parallelism 4 as well as at 1.
+#[apply(both_instances_cases)]
+async fn test_metric_logical_scan_small_group_count(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f04_upper_min_phy (
+            "A" STRING,
+            marker STRING,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX,
+            PRIMARY KEY ("A", marker)
+        ) ENGINE = metric WITH (physical_metric_table = 'true')"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f04_upper_min_logical (
+            "A" STRING,
+            marker STRING,
+            val DOUBLE,
+            ts TIMESTAMP TIME INDEX,
+            PRIMARY KEY ("A", marker)
+        ) ENGINE = metric WITH (on_physical_table = 'f04_upper_min_phy')"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        "INSERT INTO f04_upper_min_logical (\"A\", marker, val, ts) VALUES \
+         ('h0', 'a', 1, 1000), ('h0', 'b', 2, 1000), \
+         ('h1', 'a', 3, 1000), ('h1', 'b', 4, 1000)",
+    )
+    .await;
+
+    let expected = "\
++----+---+
+| A  | n |
++----+---+
+| h0 | 2 |
+| h1 | 2 |
++----+---+";
+    // `NULLS FIRST` spells out the ordering the scan used to claim and is replayed next to
+    // the default `NULLS LAST` order, in memory and after flushing the physical table.
+    let queries = [
+        "SELECT \"A\", count(*) AS n FROM f04_upper_min_logical GROUP BY \"A\" ORDER BY \"A\"",
+        "SELECT \"A\", count(*) AS n FROM f04_upper_min_logical GROUP BY \"A\" ORDER BY \"A\" NULLS FIRST",
+    ];
+
+    let mut mismatches = Vec::new();
+    for flushed in [false, true] {
+        if flushed {
+            execute_sql(&frontend, "ADMIN FLUSH_TABLE('f04_upper_min_phy')").await;
+        }
+        for parallelism in [1, 4] {
+            for query in queries {
+                let actual = execute_sql_with_query_parallelism(&frontend, query, parallelism)
+                    .await
+                    .data
+                    .pretty_print()
+                    .await;
+                if actual.trim() != expected.trim() {
+                    mismatches.push(format!(
+                        "query `{query}` with query_parallelism={parallelism} flushed={flushed} \
+                         returned:\n{actual}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "small logical metric grouping must return [h0, 2] and [h1, 2]:\n{}",
+        mismatches.join("\n---\n")
+    );
+}
+
+#[apply(both_instances_cases)]
+async fn test_partitioned_merge_scan_left_join_repartitions(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+    execute_sql(
+        &frontend,
+        r#"
+CREATE TABLE join_repro (
+    k STRING,
+    kind STRING,
+    v DOUBLE,
+    ts TIMESTAMP NOT NULL,
+    TIME INDEX (ts)
+)
+PARTITION ON COLUMNS (k) (
+    k < '1',
+    k >= '1' AND k < '2',
+    k >= '2' AND k < '3',
+    k >= '3' AND k < '4',
+    k >= '4' AND k < '5',
+    k >= '5' AND k < '6',
+    k >= '6' AND k < '7',
+    k >= '7' AND k < '8',
+    k >= '8' AND k < '9',
+    k >= '9' AND k < 'a',
+    k >= 'a' AND k < 'b',
+    k >= 'b' AND k < 'c',
+    k >= 'c' AND k < 'd',
+    k >= 'd' AND k < 'e',
+    k >= 'e' AND k < 'f',
+    k >= 'f'
+)
+ENGINE = mito
+WITH (append_mode = 'true')
+"#,
+    )
+    .await;
+
+    let mut rows = Vec::new();
+    for key in [
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'z',
+    ] {
+        rows.push(format!("('{key}', 'root', 1.0, '2024-01-01 00:00:00')"));
+        if key != 'z' {
+            for _ in 0..3 {
+                rows.push(format!("('{key}', 'child', 1.0, '2024-01-01 00:00:00')"));
+            }
+        }
+    }
+    execute_sql(
+        &frontend,
+        &format!("INSERT INTO join_repro VALUES {}", rows.join(",")),
+    )
+    .await;
+
+    let aggregate_sql = r#"SELECT count(*) roots, count(c.n) roots_with_children, sum(c.n) children
+FROM (SELECT k FROM join_repro WHERE kind = 'root') r
+LEFT JOIN (SELECT k, count(*) n FROM join_repro WHERE kind = 'child' GROUP BY k) c ON c.k = r.k"#;
+    for parallelism in [16, 8] {
+        let output = execute_sql_with_query_parallelism(&frontend, aggregate_sql, parallelism)
+            .await
+            .data
+            .pretty_print()
+            .await;
+        assert_eq!(
+            output,
+            "+-------+---------------------+----------+\n| roots | roots_with_children | children |\n+-------+---------------------+----------+\n| 17    | 16                  | 48       |\n+-------+---------------------+----------+"
+        );
+
+        let explain = execute_sql_with_query_parallelism(
+            &frontend,
+            &format!("EXPLAIN {aggregate_sql}"),
+            parallelism,
+        )
+        .await
+        .data
+        .pretty_print()
+        .await;
+        assert!(
+            explain.contains("HashJoinExec: mode=Partitioned"),
+            "query_parallelism={parallelism} should use a partitioned hash join; explain:\n{explain}"
+        );
+        assert!(
+            explain.contains("RepartitionExec: partitioning=Hash([k@0]"),
+            "query_parallelism={parallelism} should repartition on the join key; explain:\n{explain}"
+        );
+
+        let ordered_sql = r#"SELECT r.k, c.n
+FROM (SELECT k FROM join_repro WHERE kind = 'root') r
+LEFT JOIN (SELECT k, count(*) n FROM join_repro WHERE kind = 'child' GROUP BY k) c ON c.k = r.k
+ORDER BY r.k"#;
+        let ordered = execute_sql_with_query_parallelism(&frontend, ordered_sql, parallelism)
+            .await
+            .data
+            .pretty_print()
+            .await;
+        assert_eq!(
+            ordered,
+            r#"+---+---+
+| k | n |
++---+---+
+| 0 | 3 |
+| 1 | 3 |
+| 2 | 3 |
+| 3 | 3 |
+| 4 | 3 |
+| 5 | 3 |
+| 6 | 3 |
+| 7 | 3 |
+| 8 | 3 |
+| 9 | 3 |
+| a | 3 |
+| b | 3 |
+| c | 3 |
+| d | 3 |
+| e | 3 |
+| f | 3 |
+| z |   |
++---+---+"#
+        );
+
+        let pruned_sql = r#"SELECT count(*) roots, count(c.n) roots_with_children, sum(c.n) children
+FROM (SELECT k FROM join_repro WHERE kind = 'root' AND k >= '1' AND k < '9') r
+LEFT JOIN (SELECT k, count(*) n FROM join_repro WHERE kind = 'child' AND k < '8' GROUP BY k) c ON c.k = r.k"#;
+        let pruned = execute_sql_with_query_parallelism(&frontend, pruned_sql, parallelism)
+            .await
+            .data
+            .pretty_print()
+            .await;
+        assert_eq!(
+            pruned,
+            "+-------+---------------------+----------+\n| roots | roots_with_children | children |\n+-------+---------------------+----------+\n| 8     | 7                   | 21       |\n+-------+---------------------+----------+"
+        );
+
+        let pruned_explain = execute_sql_with_query_parallelism(
+            &frontend,
+            &format!("EXPLAIN {pruned_sql}"),
+            parallelism,
+        )
+        .await
+        .data
+        .pretty_print()
+        .await;
+        assert!(
+            pruned_explain.contains("HashJoinExec: mode=Partitioned"),
+            "query_parallelism={parallelism} pruned join should remain partitioned; explain:\n{pruned_explain}"
+        );
+        let hash_repartition_lines = pruned_explain
+            .lines()
+            .filter(|line| line.contains("RepartitionExec: partitioning=Hash([k@0]"))
+            .count();
+        assert_eq!(
+            hash_repartition_lines, 2,
+            "query_parallelism={parallelism} pruned join should repartition both inputs on k; explain:\n{pruned_explain}"
+        );
+    }
+}
+
+/// Regression test for `MatchesConstantTermOptimizer` dropping `FilterExec`'s `fetch`.
+///
+/// On a single-partition plan the `LIMIT` is enforced by the `fetch` that the physical
+/// `LimitPushdown` rule leaves on the `FilterExec`, so a rule rebuilding that `FilterExec`
+/// has to carry the `fetch` over. While it does not, the limit is silently lifted for
+/// `matches_term` filters and
+/// `SELECT count(*) FROM (SELECT ts, msg FROM t WHERE matches_term(msg, 'foo') LIMIT 1) s`
+/// returns the number of matching rows (2) instead of 1.
+///
+/// `query_parallelism=4` is expected to stay correct, because the limit is then materialized
+/// above the scan instead of being delegated to the `FilterExec`; the test pins down that
+/// contrast. The metric-engine logical table covers the same filter on a shared physical
+/// region.
+///
+/// Both matching rows share `ts` and `msg`, so the limited output does not depend on the
+/// order in which the scan returns them.
+#[apply(both_instances_cases)]
+async fn test_matches_term_subquery_limit_count(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+
+    execute_sql(
+        &frontend,
+        r#"
+CREATE TABLE f07_mito_msgs (
+    ts TIMESTAMP TIME INDEX,
+    host STRING PRIMARY KEY,
+    msg STRING,
+    val DOUBLE
+)
+ENGINE = mito
+"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"INSERT INTO f07_mito_msgs (ts, host, msg, val) VALUES
+    (0, 'host1', 'foo bar', 1.0),
+    (0, 'host2', 'foo bar', 2.0),
+    (0, 'host3', 'other baz', 3.0)"#,
+    )
+    .await;
+
+    execute_sql(
+        &frontend,
+        r#"
+CREATE TABLE f07_metric_phy (
+    ts TIMESTAMP TIME INDEX,
+    val DOUBLE,
+    host STRING,
+    msg STRING,
+    PRIMARY KEY (host, msg)
+)
+ENGINE = metric
+WITH ('physical_metric_table' = '')
+"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"
+CREATE TABLE f07_metric_msgs (
+    ts TIMESTAMP TIME INDEX,
+    val DOUBLE,
+    host STRING,
+    msg STRING,
+    PRIMARY KEY (host, msg)
+)
+ENGINE = metric
+WITH ('on_physical_table' = 'f07_metric_phy')
+"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"INSERT INTO f07_metric_msgs (ts, host, msg, val) VALUES
+    (0, 'host1', 'foo bar', 1.0),
+    (0, 'host2', 'foo bar', 2.0),
+    (0, 'host3', 'other baz', 3.0)"#,
+    )
+    .await;
+
+    for table in ["f07_mito_msgs", "f07_metric_msgs"] {
+        let limited = format!("SELECT ts, msg FROM {table} WHERE matches_term(msg, 'foo') LIMIT 1");
+        let count = format!("SELECT count(*) FROM ({limited}) s");
+
+        let limit_rows = execute_sql_with_query_parallelism(&frontend, &limited, 1)
+            .await
+            .data
+            .pretty_print()
+            .await;
+        assert_eq!(
+            limit_rows,
+            r#"+---------------------+---------+
+| ts                  | msg     |
++---------------------+---------+
+| 1970-01-01T00:00:00 | foo bar |
++---------------------+---------+"#,
+            "query_parallelism=1: `{limited}` must return exactly the single limited row"
+        );
+
+        for parallelism in [1, 4] {
+            let count_rows = execute_sql_with_query_parallelism(&frontend, &count, parallelism)
+                .await
+                .data
+                .pretty_print()
+                .await;
+            assert_eq!(
+                count_rows,
+                r#"+----------+
+| count(*) |
++----------+
+| 1        |
++----------+"#,
+                "query_parallelism={parallelism}: the LIMIT 1 of the subquery must cap `{count}` to one row"
+            );
+        }
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_partitioned_merge_scan_semi_join_repartitions(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+    execute_sql(
+        &frontend,
+        r#"
+CREATE TABLE semi_join_repro (
+    ts TIMESTAMP TIME INDEX,
+    key_id INT,
+    is_match BOOLEAN,
+    PRIMARY KEY (key_id)
+)
+PARTITION ON COLUMNS (key_id) (
+    key_id < 10,
+    key_id >= 10 AND key_id < 20,
+    key_id >= 20 AND key_id < 30,
+    key_id >= 30
+)
+ENGINE = mito
+"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"INSERT INTO semi_join_repro VALUES
+('2026-10-09 00:00:00', 1, false),
+('2026-10-09 00:00:01', 1, true),
+('2026-10-09 00:00:00', 11, false),
+('2026-10-09 00:00:01', 11, true),
+('2026-10-09 00:00:00', 21, false),
+('2026-10-09 00:00:01', 21, true),
+('2026-10-09 00:00:00', 31, false),
+('2026-10-09 00:00:01', 31, true)"#,
+    )
+    .await;
+
+    let query = r#"SELECT t.key_id, MIN(t.ts) AS first_ts
+FROM semi_join_repro t
+WHERE t.key_id IN (
+    SELECT s.key_id FROM semi_join_repro s WHERE s.is_match = true
+)
+GROUP BY t.key_id
+ORDER BY t.key_id"#;
+    let mut query_ctx = QueryContext::with_db_name(None);
+    query_ctx.set_extension(QUERY_PARALLELISM_HINT, "2");
+    query_ctx.set_extension(QUERY_ENABLE_REMOTE_DYNAMIC_FILTER_PUSHDOWN, "true");
+    let query_ctx = Arc::new(query_ctx);
+    let output = execute_sql_with(&frontend, query, query_ctx.clone())
+        .await
+        .data
+        .pretty_print()
+        .await;
+    let expected = r#"+--------+---------------------+
+| key_id | first_ts            |
++--------+---------------------+
+| 1      | 2026-10-09T00:00:00 |
+| 11     | 2026-10-09T00:00:00 |
+| 21     | 2026-10-09T00:00:00 |
+| 31     | 2026-10-09T00:00:00 |
++--------+---------------------+"#;
+    assert_eq!(output, expected);
+
+    let explain = execute_sql_with(&frontend, &format!("EXPLAIN {query}"), query_ctx.clone())
+        .await
+        .data
+        .pretty_print()
+        .await;
+    assert!(
+        explain.contains("HashJoinExec: mode=Partitioned, join_type=LeftSemi"),
+        "parallel IN query should use a partitioned left-semi join; explain:\n{explain}"
+    );
+    assert!(
+        explain.contains("RepartitionExec: partitioning=Hash([key_id@1], 2)")
+            && explain.contains("RepartitionExec: partitioning=Hash([key_id@0], 2)"),
+        "parallel left-semi join should repartition both inputs on key_id; explain:\n{explain}"
+    );
+
+    let analyze_explain = execute_sql_with(
+        &frontend,
+        &format!("EXPLAIN ANALYZE VERBOSE {query}"),
+        query_ctx.clone(),
+    )
+    .await
+    .data
+    .pretty_print()
+    .await;
+    let has_remote_dyn_filter = |explain: &str| {
+        explain.lines().any(|line| {
+            line.contains("SeqScan: region=")
+                && line.contains("\"dyn_filters\"")
+                && line.contains("DynamicFilter")
+        })
+    };
+    assert!(
+        has_remote_dyn_filter(&analyze_explain),
+        "expected remote region SeqScan dyn_filters to include DynamicFilter; explain:\n{analyze_explain}"
+    );
+
+    let mut query_ctx_without_rdf = QueryContext::with_db_name(None);
+    query_ctx_without_rdf.set_extension(QUERY_PARALLELISM_HINT, "2");
+    query_ctx_without_rdf.set_extension(QUERY_ENABLE_REMOTE_DYNAMIC_FILTER_PUSHDOWN, "false");
+    let query_ctx_without_rdf = Arc::new(query_ctx_without_rdf);
+    let output_without_rdf = execute_sql_with(&frontend, query, query_ctx_without_rdf.clone())
+        .await
+        .data
+        .pretty_print()
+        .await;
+    assert_eq!(output_without_rdf, expected);
+
+    let analyze_explain_without_rdf = execute_sql_with(
+        &frontend,
+        &format!("EXPLAIN ANALYZE VERBOSE {query}"),
+        query_ctx_without_rdf,
+    )
+    .await
+    .data
+    .pretty_print()
+    .await;
+    assert!(
+        !analyze_explain_without_rdf
+            .lines()
+            .any(|line| line.contains("SeqScan: region=") && line.contains("\"dyn_filters\"")),
+        "expected no region SeqScan dyn_filters line when remote dynamic filter pushdown is disabled; explain:\n{analyze_explain_without_rdf}"
+    );
+}
+
+/// Sorting by `CAST(ts AS TIMESTAMP(0))` must not be optimized as if it were sorting by the
+/// (millisecond) time index column.
+///
+/// The windowed sort rule still recognizes the cast as the time index column, but the working
+/// ranges it derives from the region scan's `PartitionRange`s stay in the unit of the table's time
+/// index (millisecond here). `PartSortExec` projects those ranges onto the unit of the sort column
+/// while `WindowedSortExec` does not, so sorted runs (second) are checked against working ranges
+/// (millisecond) and the range invariant trips with
+/// "Current batch have data on the left side of working range, something is very wrong".
+///
+/// The two rows are 1000 seconds apart, so casting the millisecond time index to second precision
+/// truncates sub-second parts and collapses the first row onto second 0, which is before the start
+/// of the region's time range.
+///
+/// `to_timestamp_seconds(ts)` casts the time index to second precision *inside* the function, so it
+/// has to be rejected exactly like the cast in the plan; the cast is just not visible as a
+/// `CastExpr`. `to_timestamp_millis(ts)` keeps the values of the millisecond time index and is used
+/// as the value-preserving control.
+#[apply(standalone_instance_case)]
+async fn test_windowed_sort_sort_column_cast_time_unit_mismatch(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f05_mito_wc (
+            ts TIMESTAMP(3) TIME INDEX,
+            host STRING PRIMARY KEY,
+            val DOUBLE
+        ) ENGINE = mito"#,
+    )
+    .await;
+
+    // The metric engine flavor only creates its physical table explicitly; rows are written to and
+    // read from the logical table built on it.
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f05_metric_phy (
+            ts TIMESTAMP(3) TIME INDEX,
+            host STRING PRIMARY KEY,
+            val DOUBLE
+        ) ENGINE = metric WITH ('physical_metric_table' = '')"#,
+    )
+    .await;
+    execute_sql(
+        &frontend,
+        r#"CREATE TABLE f05_metric_wc (
+            ts TIMESTAMP(3) TIME INDEX,
+            host STRING PRIMARY KEY,
+            val DOUBLE
+        ) ENGINE = metric WITH ('on_physical_table' = 'f05_metric_phy')"#,
+    )
+    .await;
+
+    let rows_by_time_index = r#"+-------------------------+------+
+| ts                      | host |
++-------------------------+------+
+| 1970-01-01T00:00:00.001 | a    |
+| 1970-01-01T00:16:40.001 | b    |
++-------------------------+------+"#;
+    let rows_by_cast = r#"+---------------------+------+
+| t                   | host |
++---------------------+------+
+| 1970-01-01T00:00:00 | a    |
+| 1970-01-01T00:16:40 | b    |
++---------------------+------+"#;
+    // `ORDER BY t DESC` returns the same rows in the opposite order; without distinct cast values
+    // the two rows tie and this expectation would be vacuous. `rows_by_cast` is an ascending
+    // fixture, so the descending query needs its own.
+    let rows_by_cast_desc = r#"+---------------------+------+
+| t                   | host |
++---------------------+------+
+| 1970-01-01T00:16:40 | b    |
+| 1970-01-01T00:00:00 | a    |
++---------------------+------+"#;
+
+    // `to_timestamp_seconds` casts the millisecond time index to second precision inside the
+    // function, so it returns the same rows as the direct cast above (the function is registered
+    // without a session time zone, so its result stays a naive timestamp).
+    let rows_by_seconds_wrapper = rows_by_cast;
+    let rows_by_seconds_wrapper_desc = rows_by_cast_desc;
+    // `to_timestamp_millis` keeps the values of the millisecond time index, so the control below
+    // returns the same rows as sorting by the time index itself, only under the `t` alias.
+    let rows_by_millis_wrapper = r#"+-------------------------+------+
+| t                       | host |
++-------------------------+------+
+| 1970-01-01T00:00:00.001 | a    |
+| 1970-01-01T00:16:40.001 | b    |
++-------------------------+------+"#;
+
+    for table in ["f05_mito_wc", "f05_metric_wc"] {
+        let output = execute_sql(
+            &frontend,
+            &format!("INSERT INTO {table} (ts, host, val) VALUES (1, 'a', 1), (1000001, 'b', 2)"),
+        )
+        .await
+        .data;
+        assert!(matches!(output, OutputData::AffectedRows(2)), "{table}");
+
+        // Controls: sorting by the time index itself, applying a fetch, or sorting by the cast
+        // together with another column all keep working.
+        let output = execute_sql(
+            &frontend,
+            &format!("SELECT ts, host FROM {table} ORDER BY ts"),
+        )
+        .await
+        .data;
+        check_output_stream(output, rows_by_time_index).await;
+
+        let output = execute_sql(
+            &frontend,
+            &format!("SELECT to_timestamp_millis(ts) AS t, host FROM {table} ORDER BY t"),
+        )
+        .await
+        .data;
+        check_output_stream(output, rows_by_millis_wrapper).await;
+
+        let output = execute_sql(
+            &frontend,
+            &format!("SELECT CAST(ts AS TIMESTAMP(0)) AS t, host FROM {table} ORDER BY t LIMIT 10"),
+        )
+        .await
+        .data;
+        check_output_stream(output, rows_by_cast).await;
+
+        let output = execute_sql(
+            &frontend,
+            &format!("SELECT CAST(ts AS TIMESTAMP(0)) AS t, host FROM {table} ORDER BY t, host"),
+        )
+        .await
+        .data;
+        check_output_stream(output, rows_by_cast).await;
+    }
+
+    // Ordering by the cast or a function wrapper that casts inside the function returns the same
+    // rows as the controls above.
+    for table in ["f05_mito_wc", "f05_metric_wc"] {
+        for parallelism in [1, 4] {
+            for (sql, expected) in [
+                (
+                    format!("SELECT CAST(ts AS TIMESTAMP(0)) AS t, host FROM {table} ORDER BY t"),
+                    rows_by_cast,
+                ),
+                (
+                    format!(
+                        "SELECT CAST(ts AS TIMESTAMP(0)) AS t, host FROM {table} ORDER BY t DESC"
+                    ),
+                    rows_by_cast_desc,
+                ),
+                (
+                    format!("SELECT to_timestamp_seconds(ts) AS t, host FROM {table} ORDER BY t"),
+                    rows_by_seconds_wrapper,
+                ),
+                (
+                    format!(
+                        "SELECT to_timestamp_seconds(ts) AS t, host FROM {table} ORDER BY t DESC"
+                    ),
+                    rows_by_seconds_wrapper_desc,
+                ),
+            ] {
+                let output = execute_sql_with_query_parallelism(&frontend, &sql, parallelism)
+                    .await
+                    .data;
+                check_output_stream(output, expected).await;
+            }
+        }
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_show_create_table(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+    let sql = if instance.is_distributed_mode() {
+        r#"create table demo(
+    n INT PRIMARY KEY,
+    ts timestamp,
+    TIME INDEX(ts)
+)
+PARTITION ON COLUMNS (n) (
+    n < 1,
+    n >= 1 AND n < 10,
+    n >= 10 AND n < 100,
+    n >= 100
+)"#
+    } else {
+        r#"create table demo(
+    host STRING,
+    cpu DOUBLE,
+    memory DOUBLE,
+    ts timestamp,
+    TIME INDEX(ts)
+)"#
+    };
+    let output = execute_sql(&frontend, sql).await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&frontend, "show create table demo").await.data;
+
+    let expected = if instance.is_distributed_mode() {
+        r#"+-------+-------------------------------------+
+| Table | Create Table                        |
++-------+-------------------------------------+
+| demo  | CREATE TABLE IF NOT EXISTS "demo" ( |
+|       |   "n" INT NULL,                     |
+|       |   "ts" TIMESTAMP(3) NOT NULL,       |
+|       |   TIME INDEX ("ts"),                |
+|       |   PRIMARY KEY ("n")                 |
+|       | )                                   |
+|       | PARTITION ON COLUMNS ("n") (        |
+|       |   n < 1,                            |
+|       |   n >= 1 AND n < 10,                |
+|       |   n >= 10 AND n < 100,              |
+|       |   n >= 100                          |
+|       | )                                   |
+|       | ENGINE=mito                         |
+|       |                                     |
++-------+-------------------------------------+"#
+    } else {
+        r#"+-------+-------------------------------------+
+| Table | Create Table                        |
++-------+-------------------------------------+
+| demo  | CREATE TABLE IF NOT EXISTS "demo" ( |
+|       |   "host" STRING NULL,               |
+|       |   "cpu" DOUBLE NULL,                |
+|       |   "memory" DOUBLE NULL,             |
+|       |   "ts" TIMESTAMP(3) NOT NULL,       |
+|       |   TIME INDEX ("ts")                 |
+|       | )                                   |
+|       |                                     |
+|       | ENGINE=mito                         |
+|       |                                     |
++-------+-------------------------------------+"#
+    };
+
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_database_ingest_rate_limit_not_inherited(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+    execute_sql(
+        &frontend,
+        "CREATE DATABASE limited WITH ('ingest_rows_rate_limit'='1000', 'skip_wal'='true')",
+    )
+    .await;
+    let ctx = Arc::new(QueryContext::with(DEFAULT_CATALOG_NAME, "limited"));
+
+    for (name, sql) in [
+        ("source", "CREATE TABLE source (ts TIMESTAMP TIME INDEX)"),
+        ("copy", "CREATE TABLE copy LIKE source"),
+    ] {
+        execute_sql_with(&frontend, sql, ctx.clone()).await;
+        let table = frontend
+            .catalog_manager()
+            .table(DEFAULT_CATALOG_NAME, "limited", name, None)
+            .await
+            .unwrap()
+            .unwrap();
+        let options = &table.table_info().meta.options;
+        assert!(!options.extra_options.contains_key("ingest_rows_rate_limit"));
+        assert!(options.skip_wal);
+
+        let output =
+            execute_sql_with(&frontend, &format!("SHOW CREATE TABLE {name}"), ctx.clone()).await;
+        let OutputData::RecordBatches(batches) = output.data else {
+            unreachable!()
+        };
+        let batch = batches.iter().next().unwrap();
+        let ddl = batch
+            .column_by_name("Create Table")
+            .unwrap()
+            .as_string::<i32>()
+            .value(0);
+        assert!(!ddl.contains("ingest_rows_rate_limit"));
+        execute_sql_with(&frontend, &format!("DROP TABLE {name}"), ctx.clone()).await;
+        execute_sql_with(&frontend, ddl, ctx.clone()).await;
+    }
+
+    let output = execute_sql(&frontend, "SHOW CREATE DATABASE limited").await;
+    assert!(
+        output
+            .data
+            .pretty_print()
+            .await
+            .contains("ingest_rows_rate_limit")
+    );
+}
+
+#[apply(standalone_instance_case)]
+async fn test_extra_external_table_options(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+    let format = "json";
+    let location = find_testing_resource("/tests/data/json/various_type.json");
+    let table_name = "various_type_json_with_schema";
+    let sql = &format!(
+        r#"CREATE EXTERNAL TABLE {table_name} (
+            ts TIMESTAMP TIME INDEX DEFAULT 0,
+            a BIGINT NULL,
+            b DOUBLE NULL,
+            c BOOLEAN NULL,
+            d STRING NULL,
+            e TIMESTAMP(0) NULL,
+            f DOUBLE NULL,
+            g TIMESTAMP(0) NULL,
+          ) WITH (foo='bar', location='{location}', format='{format}');"#,
+    );
+
+    let result = try_execute_sql(&frontend, sql).await;
+    let err = result.unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::ParseSql { .. }
+    ));
+}
+
+#[apply(standalone_instance_case)]
+async fn test_show_create_external_table(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let fe_instance = instance.frontend();
+    let format = "csv";
+    let location = find_testing_resource("/tests/data/csv/various_type.csv");
+    let table_name = "various_type_csv";
+
+    let output = execute_sql(
+        &fe_instance,
+        &format!(
+            r#"create external table {table_name} with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&fe_instance, &format!("show create table {table_name};"))
+        .await
+        .data;
+
+    let OutputData::RecordBatches(record_batches) = output else {
+        unreachable!()
+    };
+
+    // We can't directly test `show create table` by check_output_stream because the location name length depends on the current filesystem.
+    let record_batches = record_batches.iter().collect::<Vec<_>>();
+    let column = record_batches[0].column_by_name("Create Table").unwrap();
+    let column = column.as_string::<i32>();
+    let actual = column.value(0);
+    let expect = format!(
+        r#"CREATE EXTERNAL TABLE IF NOT EXISTS "various_type_csv" (
+  "c_int" BIGINT NULL,
+  "c_float" DOUBLE NULL,
+  "c_string" DOUBLE NULL,
+  "c_bool" BOOLEAN NULL,
+  "c_date" DATE NULL,
+  "c_datetime" TIMESTAMP(0) NULL,
+  "greptime_timestamp" TIMESTAMP(3) NOT NULL DEFAULT '1970-01-01 00:00:00+0000',
+  TIME INDEX ("greptime_timestamp")
+)
+
+ENGINE=file
+WITH(
+  format = 'csv',
+  location = '{location}'
+)"#
+    );
+    assert_eq!(actual.to_string(), expect);
+}
+
+#[apply(both_instances_cases)]
+async fn test_issue477_same_table_name_in_different_databases(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    // Create database a and b
+    let output = execute_sql(&instance, "create database a").await.data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+    let output = execute_sql(&instance, "create database b").await.data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    // Create table a.demo and b.demo
+    let output = execute_sql(
+        &instance,
+        r#"create table a.demo(
+             host STRING,
+             ts timestamp,
+             TIME INDEX(ts)
+)"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        r#"create table b.demo(
+             host STRING,
+             ts timestamp,
+             TIME INDEX(ts)
+)"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // Insert different data into a.demo and b.demo
+    let output = execute_sql(
+        &instance,
+        r#"insert into a.demo(host, ts) values
+                           ('host1', 1655276557000)
+                           "#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+    let output = execute_sql(
+        &instance,
+        r#"insert into b.demo(host, ts) values
+                           ('host2',1655276558000)
+                           "#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    // Query data and assert
+    assert_query_result(
+        &instance,
+        "select host,ts from a.demo order by ts limit 1",
+        1655276557000,
+        "host1",
+    )
+    .await;
+
+    assert_query_result(
+        &instance,
+        "select host,ts from b.demo order by ts",
+        1655276558000,
+        "host2",
+    )
+    .await;
+}
+
+async fn assert_query_result(instance: &Arc<Instance>, sql: &str, ts: i64, host: &str) {
+    let query_output = execute_sql(instance, sql).await.data;
+    match query_output {
+        OutputData::Stream(s) => {
+            let batches = util::collect(s).await.unwrap();
+            // let columns = batches[0].df_recordbatch.columns();
+            assert_eq!(2, batches[0].num_columns());
+            let expected = vec![
+                Arc::new(StringArray::from_iter_values(vec![host])) as ArrayRef,
+                Arc::new(TimestampMillisecondArray::from_iter_values(vec![ts])) as ArrayRef,
+            ];
+            assert_eq!(batches[0].columns(), &expected);
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_insert(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    // create table
+    assert!(matches!(
+        execute_sql(
+            &instance,
+            "create table demo(host string, cpu double, memory double, ts timestamp time index);",
+        )
+        .await
+        .data,
+        OutputData::AffectedRows(0)
+    ));
+
+    let output = execute_sql(
+        &instance,
+        r#"insert into demo(host, cpu, memory, ts) values
+                           ('host1', 66.6, 1024, 1655276557000),
+                           ('host2', 88.8,  333.3, 1655276558000)
+                           "#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_insert_by_select(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    // create table
+    assert!(matches!(
+        execute_sql(
+            &instance,
+            "create table demo1(host string, cpu double, memory double, ts timestamp time index);",
+        )
+        .await
+        .data,
+        OutputData::AffectedRows(0)
+    ));
+    assert!(matches!(
+        execute_sql(
+            &instance,
+            "create table demo2(host string, cpu double, memory double, ts timestamp time index);",
+        )
+        .await
+        .data,
+        OutputData::AffectedRows(0)
+    ));
+
+    let output = execute_sql(
+        &instance,
+        r#"insert into demo1(host, cpu, memory, ts) values
+                           ('host1', 66.6, 1024, 1655276557000),
+                           ('host2', 88.8,  333.3, 1655276558000)
+                           "#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let err = try_execute_sql(&instance, "insert into demo2(host) select * from demo1")
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::TableOperation {
+            source: OperatorError::PlanStatement { .. },
+            ..
+        }
+    ));
+
+    let err = try_execute_sql(&instance, "insert into demo2 select cpu,memory from demo1")
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::TableOperation {
+            source: OperatorError::PlanStatement { .. },
+            ..
+        }
+    ));
+    assert!(matches!(
+        try_execute_sql(&instance, "insert into demo2(ts) select memory from demo1")
+            .await
+            .unwrap()
+            .data,
+        OutputData::AffectedRows(2),
+    ));
+
+    let output = execute_sql(&instance, "insert into demo2 select * from demo1")
+        .await
+        .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let output = execute_sql(&instance, "select * from demo2 order by ts")
+        .await
+        .data;
+    let expected = "\
++-------+------+--------+-------------------------+
+| host  | cpu  | memory | ts                      |
++-------+------+--------+-------------------------+
+|       |      |        | 1970-01-01T00:00:00.333 |
+|       |      |        | 1970-01-01T00:00:01.024 |
+| host1 | 66.6 | 1024.0 | 2022-06-15T07:02:37     |
+| host2 | 88.8 | 333.3  | 2022-06-15T07:02:38     |
++-------+------+--------+-------------------------+";
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_query(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(&instance, "select sum(number) from numbers limit 20")
+        .await
+        .data;
+    match output {
+        OutputData::Stream(recordbatch) => {
+            let numbers = util::collect(recordbatch).await.unwrap();
+            assert_eq!(1, numbers[0].num_columns());
+            assert_eq!(numbers[0].column(0).len(), 1);
+
+            let expected = Arc::new(UInt64Array::from_iter_values(vec![4950_u64])) as ArrayRef;
+            assert_eq!(numbers[0].column(0), &expected);
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_show_databases_tables(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let expected = "\
++--------------------+
+| Database           |
++--------------------+
+| greptime_private   |
+| information_schema |
+| public             |
++--------------------+\
+";
+    let output = execute_sql(&instance, "show databases").await;
+    check_unordered_output_stream(output, expected).await;
+
+    let output = execute_sql(&instance, "show databases like '%bl%'").await;
+    let expected = "\
++----------+
+| Database |
++----------+
+| public   |
++----------+\
+";
+    check_unordered_output_stream(output, expected).await;
+
+    let expected = "\
++------------------+
+| Tables_in_public |
++------------------+
+| numbers          |
++------------------+\
+";
+    let output = execute_sql(&instance, "show tables").await;
+    check_unordered_output_stream(output, expected).await;
+
+    assert!(matches!(execute_sql(
+        &instance,
+        "create table demo(host string, cpu double, memory double, ts timestamp time index, primary key (host));",
+    ).await.data, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, "show tables").await;
+    let expected = "\
++------------------+
+| Tables_in_public |
++------------------+
+| demo             |
+| numbers          |
++------------------+\
+";
+    check_unordered_output_stream(output, expected).await;
+
+    let output = execute_sql(&instance, "SHOW FULL TABLES WHERE Table_type != 'VIEW'").await;
+    let expected = "\
++------------------+-----------------+
+| Tables_in_public | Table_type      |
++------------------+-----------------+
+| demo             | BASE TABLE      |
+| numbers          | LOCAL TEMPORARY |
++------------------+-----------------+\
+";
+    check_unordered_output_stream(output, expected).await;
+
+    let output = execute_sql(
+        &instance,
+        "SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'",
+    )
+    .await;
+    let expected = "\
++------------------+------------+
+| Tables_in_public | Table_type |
++------------------+------------+
+| demo             | BASE TABLE |
++------------------+------------+\
+";
+    check_unordered_output_stream(output, expected).await;
+
+    // show tables like [string]
+    let output = execute_sql(&instance, "show tables like 'de%'").await;
+    let expected = "\
++------------------+
+| Tables_in_public |
++------------------+
+| demo             |
++------------------+\
+";
+    check_unordered_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_create(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(
+        &instance,
+        r#"create table test_table(
+                            host string,
+                            ts timestamp,
+                            cpu double default 0,
+                            memory double,
+                            TIME INDEX (ts),
+                            PRIMARY KEY(host)
+                        ) engine=mito;"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_distributed_local_file_access_disabled() {
+    let instance = distributed().await.frontend();
+    execute_sql(
+        &instance,
+        "CREATE TABLE local_file_access_distributed (
+            ts TIMESTAMP TIME INDEX,
+            host STRING PRIMARY KEY,
+            val DOUBLE
+        );",
+    )
+    .await;
+
+    let statements = [
+        "COPY local_file_access_distributed TO 'local_file_access/table.parquet';",
+        "COPY local_file_access_distributed FROM 'local_file_access/table.parquet';",
+        "COPY (SELECT * FROM local_file_access_distributed) TO 'local_file_access/query.parquet';",
+        "COPY DATABASE public TO 'local_file_access/database/';",
+        "COPY DATABASE public FROM 'local_file_access/database/';",
+        "CREATE EXTERNAL TABLE local_file_access_external WITH (
+            location = 'local_file_access/table.parquet',
+            format = 'parquet'
+        );",
+    ];
+
+    for statement in statements {
+        let error = try_execute_sql(&instance, statement).await.unwrap_err();
+        assert_eq!(error.status_code(), StatusCode::InvalidArguments);
+        assert_eq!(error.retry_hint(), RetryHint::NonRetryable);
+        let message = error.output_msg();
+        assert!(
+            message.contains("SQL access to the local filesystem is disabled"),
+            "{message}"
+        );
+        assert!(
+            message.contains("use S3, OSS, GCS, or AzBlob instead"),
+            "{message}"
+        );
+    }
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_external_create(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let tmp_dir = create_local_file_test_dir("test_execute_external_create");
+    let location = prepare_path(tmp_dir.path().to_str().unwrap());
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table test_table_0(
+                            ts timestamp time index default 0,
+                            host string,
+                            cpu double default 0,
+                            memory double
+                        ) with (location='{location}', format='csv');"#
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table test_table_1(
+                            ts timestamp default 0,
+                            host string,
+                            cpu double default 0,
+                            memory double,
+                            time index (ts)
+                        ) with (location='{location}', format='csv');"#
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_external_create_infer_format(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let tmp_dir = create_local_file_test_dir("test_execute_external_create_infer_format");
+    let location = prepare_path(tmp_dir.path().to_str().unwrap());
+
+    let output = execute_sql(
+        &instance,
+        &format!(r#"create external table test_table with (location='{location}', format='csv');"#),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_external_create_without_ts(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let tmp_dir = create_local_file_test_dir("test_execute_external_create_without_ts");
+    let location = prepare_path(tmp_dir.path().to_str().unwrap());
+
+    let result = try_execute_sql(
+        &instance,
+        &format!(
+            r#"create external table test_table(
+                            host string,
+                            cpu double default 0,
+                            memory double
+                        ) with (location='{location}', format='csv');"#
+        ),
+    )
+    .await;
+    let err = result.unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::ParseSql { .. }
+    ));
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_external_create_with_invalid_ts(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let tmp_dir = create_local_file_test_dir("test_execute_external_create_with_invalid_ts");
+    let location = prepare_path(tmp_dir.path().to_str().unwrap());
+
+    let result = try_execute_sql(
+        &instance,
+        &format!(
+            r#"create external table test_table(
+                            ts timestamp time index null,
+                            host string,
+                            cpu double default 0,
+                            memory double
+                        ) with (location='{location}', format='csv');"#
+        ),
+    )
+    .await;
+    let err = result.unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::ParseSql { .. }
+    ));
+
+    let result = try_execute_sql(
+        &instance,
+        &format!(
+            r#"create external table test_table(
+                            ts bigint time index,
+                            host string,
+                            cpu double default 0,
+                            memory double
+                        ) with (location='{location}', format='csv');"#
+        ),
+    )
+    .await;
+    let err = result.unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::ParseSql { .. }
+    ));
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_parquet(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "parquet";
+    let location = find_testing_resource("/tests/data/parquet/various_type.parquet");
+    let table_name = "various_type_parquet";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| Column             | Type                 | Key | Null | Default                  | Semantic Type |
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| c_int              | Int64                |     | YES  |                          | FIELD         |
+| c_float            | Float64              |     | YES  |                          | FIELD         |
+| c_string           | Float64              |     | YES  |                          | FIELD         |
+| c_bool             | Boolean              |     | YES  |                          | FIELD         |
+| c_date             | Date                 |     | YES  |                          | FIELD         |
+| c_datetime         | TimestampSecond      |     | YES  |                          | FIELD         |
+| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++--------------------+----------------------+-----+------+--------------------------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++-------+-----------+----------+--------+------------+---------------------+---------------------+
+| c_int | c_float   | c_string | c_bool | c_date     | c_datetime          | greptime_timestamp  |
++-------+-----------+----------+--------+------------+---------------------+---------------------+
+| 1     | 1.1       | 1.11     | true   | 1970-01-01 | 1970-01-01T00:00:00 | 1970-01-01T00:00:00 |
+| 2     | 2.2       | 2.22     | true   | 2020-11-08 | 2020-11-08T01:00:00 | 1970-01-01T00:00:00 |
+| 3     |           | 3.33     | true   | 1969-12-31 | 1969-11-08T02:00:00 | 1970-01-01T00:00:00 |
+| 4     | 4.4       |          | false  |            |                     | 1970-01-01T00:00:00 |
+| 5     | 6.6       |          | false  | 1990-01-01 | 1990-01-01T03:00:00 | 1970-01-01T00:00:00 |
+| 4     | 4000000.0 |          | false  |            |                     | 1970-01-01T00:00:00 |
+| 4     | 4e-6      |          | false  |            |                     | 1970-01-01T00:00:00 |
++-------+-----------+----------+--------+------------+---------------------+---------------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(
+        &instance,
+        &format!("select c_bool,c_int,c_bool as b from {table_name};"),
+    )
+    .await
+    .data;
+    let expect = "\
++--------+-------+-------+
+| c_bool | c_int | b     |
++--------+-------+-------+
+| true   | 1     | true  |
+| true   | 2     | true  |
+| true   | 3     | true  |
+| false  | 4     | false |
+| false  | 5     | false |
+| false  | 4     | false |
+| false  | 4     | false |
++--------+-------+-------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_orc(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "orc";
+    let location = find_testing_resource("/src/common/datasource/tests/orc/test.orc");
+    let table_name = "various_type_orc";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} with (location='{location}', format='{format}');"#,
+        ),
+    )
+        .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++------------------------+----------------------+-----+------+--------------------------+---------------+
+| Column                 | Type                 | Key | Null | Default                  | Semantic Type |
++------------------------+----------------------+-----+------+--------------------------+---------------+
+| double_a               | Float64              |     | YES  |                          | FIELD         |
+| a                      | Float32              |     | YES  |                          | FIELD         |
+| b                      | Boolean              |     | YES  |                          | FIELD         |
+| str_direct             | String               |     | YES  |                          | FIELD         |
+| d                      | String               |     | YES  |                          | FIELD         |
+| e                      | String               |     | YES  |                          | FIELD         |
+| f                      | String               |     | YES  |                          | FIELD         |
+| int_short_repeated     | Int32                |     | YES  |                          | FIELD         |
+| int_neg_short_repeated | Int32                |     | YES  |                          | FIELD         |
+| int_delta              | Int32                |     | YES  |                          | FIELD         |
+| int_neg_delta          | Int32                |     | YES  |                          | FIELD         |
+| int_direct             | Int32                |     | YES  |                          | FIELD         |
+| int_neg_direct         | Int32                |     | YES  |                          | FIELD         |
+| bigint_direct          | Int64                |     | YES  |                          | FIELD         |
+| bigint_neg_direct      | Int64                |     | YES  |                          | FIELD         |
+| bigint_other           | Int64                |     | YES  |                          | FIELD         |
+| utf8_increase          | String               |     | YES  |                          | FIELD         |
+| utf8_decrease          | String               |     | YES  |                          | FIELD         |
+| timestamp_simple       | TimestampNanosecond  |     | YES  |                          | FIELD         |
+| date_simple            | Date                 |     | YES  |                          | FIELD         |
+| greptime_timestamp     | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++------------------------+----------------------+-----+------+--------------------------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+---------------------+
+| double_a | a   | b     | str_direct | d   | e   | f     | int_short_repeated | int_neg_short_repeated | int_delta | int_neg_delta | int_direct | int_neg_direct | bigint_direct | bigint_neg_direct | bigint_other | utf8_increase | utf8_decrease | timestamp_simple           | date_simple | greptime_timestamp  |
++----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+---------------------+
+| 1.0      | 1.0 | true  | a          | a   | ddd | aaaaa | 5                  | -5                     | 1         | 5             | 1          | -1             | 1             | -1                | 5            | a             | eeeee         | 2023-04-01T20:15:30.002    | 2023-04-01  | 1970-01-01T00:00:00 |
+| 2.0      | 2.0 | false | cccccc     | bb  | cc  | bbbbb | 5                  | -5                     | 2         | 4             | 6          | -6             | 6             | -6                | -5           | bb            | dddd          | 2021-08-22T07:26:44.525777 | 2023-03-01  | 1970-01-01T00:00:00 |
+| 3.0      |     |       |            |     |     |       |                    |                        |           |               |            |                |               |                   | 1            | ccc           | ccc           | 2023-01-01T00:00:00        | 2023-01-01  | 1970-01-01T00:00:00 |
+| 4.0      | 4.0 | true  | ddd        | ccc | bb  | ccccc | 5                  | -5                     | 4         | 2             | 3          | -3             | 3             | -3                | 5            | dddd          | bb            | 2023-02-01T00:00:00        | 2023-02-01  | 1970-01-01T00:00:00 |
+| 5.0      | 5.0 | false | ee         | ddd | a   | ddddd | 5                  | -5                     | 5         | 1             | 2          | -2             | 2             | -2                | 5            | eeeee         | a             | 2023-03-01T00:00:00        | 2023-03-01  | 1970-01-01T00:00:00 |
++----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+---------------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(
+        &instance,
+        &format!("select double_a,a, str_direct as c, a as another_a from {table_name};"),
+    )
+    .await
+    .data;
+    let expect = "\
++----------+-----+--------+-----------+
+| double_a | a   | c      | another_a |
++----------+-----+--------+-----------+
+| 1.0      | 1.0 | a      | 1.0       |
+| 2.0      | 2.0 | cccccc | 2.0       |
+| 3.0      |     |        |           |
+| 4.0      | 4.0 | ddd    | 4.0       |
+| 5.0      | 5.0 | ee     | 5.0       |
++----------+-----+--------+-----------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_orc_with_schema(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "orc";
+    let location = find_testing_resource("/src/common/datasource/tests/orc/test.orc");
+    let table_name = "various_type_orc";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} (
+                a float,
+                b boolean,
+                d string,
+                missing string,
+                timestamp_simple timestamp time index,
+            ) with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++------------------+----------------------+-----+------+---------+---------------+
+| Column           | Type                 | Key | Null | Default | Semantic Type |
++------------------+----------------------+-----+------+---------+---------------+
+| a                | Float32              |     | YES  |         | FIELD         |
+| b                | Boolean              |     | YES  |         | FIELD         |
+| d                | String               |     | YES  |         | FIELD         |
+| missing          | String               |     | YES  |         | FIELD         |
+| timestamp_simple | TimestampMillisecond | PRI | NO   |         | TIMESTAMP     |
++------------------+----------------------+-----+------+---------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++-----+-------+-----+---------+-------------------------+
+| a   | b     | d   | missing | timestamp_simple        |
++-----+-------+-----+---------+-------------------------+
+| 1.0 | true  | a   |         | 2023-04-01T20:15:30.002 |
+| 2.0 | false | bb  |         | 2021-08-22T07:26:44.525 |
+|     |       |     |         | 2023-01-01T00:00:00     |
+| 4.0 | true  | ccc |         | 2023-02-01T00:00:00     |
+| 5.0 | false | ddd |         | 2023-03-01T00:00:00     |
++-----+-------+-----+---------+-------------------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_csv(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "csv";
+    let location = find_testing_resource("/tests/data/csv/various_type.csv");
+    let table_name = "various_type_csv";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| Column             | Type                 | Key | Null | Default                  | Semantic Type |
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| c_int              | Int64                |     | YES  |                          | FIELD         |
+| c_float            | Float64              |     | YES  |                          | FIELD         |
+| c_string           | Float64              |     | YES  |                          | FIELD         |
+| c_bool             | Boolean              |     | YES  |                          | FIELD         |
+| c_date             | Date                 |     | YES  |                          | FIELD         |
+| c_datetime         | TimestampSecond      |     | YES  |                          | FIELD         |
+| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++--------------------+----------------------+-----+------+--------------------------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++-------+-----------+----------+--------+------------+---------------------+---------------------+
+| c_int | c_float   | c_string | c_bool | c_date     | c_datetime          | greptime_timestamp  |
++-------+-----------+----------+--------+------------+---------------------+---------------------+
+| 1     | 1.1       | 1.11     | true   | 1970-01-01 | 1970-01-01T00:00:00 | 1970-01-01T00:00:00 |
+| 2     | 2.2       | 2.22     | true   | 2020-11-08 | 2020-11-08T01:00:00 | 1970-01-01T00:00:00 |
+| 3     |           | 3.33     | true   | 1969-12-31 | 1969-11-08T02:00:00 | 1970-01-01T00:00:00 |
+| 4     | 4.4       |          | false  |            |                     | 1970-01-01T00:00:00 |
+| 5     | 6.6       |          | false  | 1990-01-01 | 1990-01-01T03:00:00 | 1970-01-01T00:00:00 |
+| 4     | 4000000.0 |          | false  |            |                     | 1970-01-01T00:00:00 |
+| 4     | 4e-6      |          | false  |            |                     | 1970-01-01T00:00:00 |
++-------+-----------+----------+--------+------------+---------------------+---------------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_copy_from_inherits_skip_wal() {
+    use crate::test_util::{MockInstanceImpl, assert_wal_delta};
+
+    // Local COPY access is intentionally restricted to the standalone harness.
+    let mut env = MockInstanceImpl::new("copy_from_skip_wal", false).await;
+    let instance = env.frontend();
+    let directory = create_local_file_test_dir("copy_from_skip_wal");
+    let csv_path = directory.path().join("copy_skip_wal.csv");
+    std::fs::copy(
+        find_testing_resource("/tests/data/csv/headerless.csv"),
+        &csv_path,
+    )
+    .unwrap();
+    execute_sql(
+        &instance,
+        "CREATE TABLE copy_skip_wal(host_id INT, host_name STRING, reading_value DOUBLE, ts TIMESTAMP TIME INDEX);",
+    )
+    .await;
+
+    let commands = [
+        format!(
+            "COPY copy_skip_wal FROM '{}' WITH (FORMAT='csv', HEADERS='false');",
+            prepare_path(&csv_path.display().to_string())
+        ),
+        format!(
+            "COPY DATABASE public FROM '{}/' WITH (FORMAT='csv', HEADERS='false');",
+            prepare_path(&directory.path().display().to_string())
+        ),
+    ];
+    for command in commands {
+        for skip_wal in [Some(true), Some(false), None] {
+            let ctx = QueryContext::arc();
+            if let Some(skip_wal) = skip_wal {
+                ctx.set_skip_wal(skip_wal);
+            }
+            let before = env.flush_and_snapshot_wal().await;
+            let output = execute_sql_with(&instance, &command, ctx).await;
+            assert!(matches!(output.data, OutputData::AffectedRows(2)));
+            assert_wal_delta(
+                &before,
+                &env.flush_and_snapshot_wal().await,
+                skip_wal == Some(true),
+            );
+        }
+    }
+    env.shutdown().await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_copy_from_headerless_csv(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+    let csv_path = find_testing_resource("/tests/data/csv/headerless.csv");
+    let skip_bad_records_csv_path =
+        find_testing_resource("/tests/data/csv/headerless_skip_bad_records.csv");
+    let extra_columns_csv_path =
+        find_testing_resource("/tests/data/csv/headerless_extra_columns.csv");
+    let fewer_columns_csv_path =
+        find_testing_resource("/tests/data/csv/headerless_fewer_columns.csv");
+
+    let output = execute_sql(
+        &instance,
+        "CREATE TABLE csv_headerless(host_id INT, host_name STRING, reading_value DOUBLE, ts TIMESTAMP TIME INDEX);",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        &format!("COPY csv_headerless FROM '{csv_path}' WITH (FORMAT='csv', HEADERS='false');"),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let output = execute_sql(&instance, "SELECT * FROM csv_headerless ORDER BY ts;")
+        .await
+        .data;
+    let expect = "\
++---------+-----------+---------------+---------------------+
+| host_id | host_name | reading_value | ts                  |
++---------+-----------+---------------+---------------------+
+| 1       | Alice     | 10.5          | 2024-01-01T00:00:00 |
+| 2       | Bob       | 30.5          | 2024-01-01T00:00:02 |
++---------+-----------+---------------+---------------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(
+        &instance,
+        "CREATE TABLE csv_headerless_skip_bad_records(host_id INT, host_name STRING, reading_value DOUBLE, ts TIMESTAMP TIME INDEX);",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_headerless_skip_bad_records FROM '{skip_bad_records_csv_path}' WITH (FORMAT='csv', HEADERS='false', SKIP_BAD_RECORDS='true');"
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let output = execute_sql(
+        &instance,
+        "SELECT * FROM csv_headerless_skip_bad_records ORDER BY ts;",
+    )
+    .await
+    .data;
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(
+        &instance,
+        "CREATE TABLE csv_headerless_extra_columns(host_id INT, host_name STRING, reading_value DOUBLE, ts TIMESTAMP TIME INDEX);",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_headerless_extra_columns FROM '{extra_columns_csv_path}' WITH (FORMAT='csv', HEADERS='false');"
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let output = execute_sql(
+        &instance,
+        "SELECT * FROM csv_headerless_extra_columns ORDER BY ts;",
+    )
+    .await
+    .data;
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(
+        &instance,
+        "CREATE TABLE csv_headerless_fewer_columns(host_id INT, host_name STRING, ts TIMESTAMP TIME INDEX, reading_value DOUBLE DEFAULT 42.0);",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_headerless_fewer_columns FROM '{fewer_columns_csv_path}' WITH (FORMAT='csv', HEADERS='false');"
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let output = execute_sql(
+        &instance,
+        "SELECT * FROM csv_headerless_fewer_columns ORDER BY ts;",
+    )
+    .await
+    .data;
+    let expect = "\
++---------+-----------+---------------------+---------------+
+| host_id | host_name | ts                  | reading_value |
++---------+-----------+---------------------+---------------+
+| 1       | Alice     | 2024-01-01T00:00:00 | 42.0          |
+| 2       | Bob       | 2024-01-01T00:00:02 | 42.0          |
++---------+-----------+---------------------+---------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_copy_from_csv_strict_headers(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+    let tmp_dir = create_local_file_test_dir("test_execute_copy_from_csv_strict_headers");
+    let matching_path = tmp_dir.path().join("matching.csv");
+    let unknown_path = tmp_dir.path().join("unknown.csv");
+    let missing_path = tmp_dir.path().join("missing.csv");
+    let duplicate_path = tmp_dir.path().join("duplicate.csv");
+    let matching_location = prepare_path(matching_path.to_str().unwrap());
+    let unknown_location = prepare_path(unknown_path.to_str().unwrap());
+    let missing_location = prepare_path(missing_path.to_str().unwrap());
+    let duplicate_location = prepare_path(duplicate_path.to_str().unwrap());
+    std::fs::write(
+        &matching_path,
+        "ts,host_id,reading_value\n2024-01-01T00:00:00,1,10.5\n",
+    )
+    .unwrap();
+    std::fs::write(
+        &unknown_path,
+        "host_id,reading_value,ts,extra\n1,10.5,2024-01-01T00:00:00,ignored\n",
+    )
+    .unwrap();
+    std::fs::write(&missing_path, "host_id,ts\n1,2024-01-01T00:00:00\n").unwrap();
+    std::fs::write(
+        &duplicate_path,
+        "host_id,reading_value,ts,host_id\n1,10.5,2024-01-01T00:00:00,2\n",
+    )
+    .unwrap();
+
+    let output = execute_sql(
+        &instance,
+        "CREATE TABLE csv_strict_headers(host_id INT, reading_value DOUBLE, ts TIMESTAMP TIME INDEX);",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_strict_headers FROM '{}' WITH (FORMAT='csv', STRICT_HEADERS='true');",
+            matching_location
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql(&instance, "SELECT * FROM csv_strict_headers;")
+        .await
+        .data;
+    let expect = "\
++---------+---------------+---------------------+
+| host_id | reading_value | ts                  |
++---------+---------------+---------------------+
+| 1       | 10.5          | 2024-01-01T00:00:00 |
++---------+---------------+---------------------+";
+    check_output_stream(output, expect).await;
+
+    let err = try_execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_strict_headers FROM '{}' WITH (FORMAT='csv', STRICT_HEADERS='true');",
+            unknown_location
+        ),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::TableOperation {
+            source: OperatorError::CsvHeaderMismatch {
+                unknown_columns,
+                missing_columns,
+                duplicate_columns,
+                ..
+            },
+            ..
+        } if unknown_columns == &vec!["extra".to_string()]
+            && missing_columns.is_empty()
+            && duplicate_columns.is_empty()
+    ));
+
+    let err = try_execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_strict_headers FROM '{}' WITH (FORMAT='csv', STRICT_HEADERS='true');",
+            missing_location
+        ),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::TableOperation {
+            source: OperatorError::CsvHeaderMismatch {
+                unknown_columns,
+                missing_columns,
+                duplicate_columns,
+                ..
+            },
+            ..
+        } if unknown_columns.is_empty()
+            && missing_columns == &vec!["reading_value".to_string()]
+            && duplicate_columns.is_empty()
+    ));
+
+    let err = try_execute_sql(
+        &instance,
+        &format!(
+            "COPY csv_strict_headers FROM '{}' WITH (FORMAT='csv', STRICT_HEADERS='true');",
+            duplicate_location
+        ),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        unwrap_frontend_error(&err),
+        Error::TableOperation {
+            source: OperatorError::CsvHeaderMismatch {
+                unknown_columns,
+                missing_columns,
+                duplicate_columns,
+                ..
+            },
+            ..
+        } if unknown_columns.is_empty()
+            && missing_columns.is_empty()
+            && duplicate_columns == &vec!["host_id".to_string()]
+    ));
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_json(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "json";
+    let location = find_testing_resource("/tests/data/json/various_type.json");
+    let table_name = "various_type_json";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| Column             | Type                 | Key | Null | Default                  | Semantic Type |
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| a                  | Int64                |     | YES  |                          | FIELD         |
+| b                  | Float64              |     | YES  |                          | FIELD         |
+| c                  | Boolean              |     | YES  |                          | FIELD         |
+| d                  | String               |     | YES  |                          | FIELD         |
+| e                  | Int64                |     | YES  |                          | FIELD         |
+| f                  | String               |     | YES  |                          | FIELD         |
+| g                  | String               |     | YES  |                          | FIELD         |
+| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++--------------------+----------------------+-----+------+--------------------------+---------------+";
+
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++-----------------+------+-------+------+------------+----------------+-------------------------+---------------------+
+| a               | b    | c     | d    | e          | f              | g                       | greptime_timestamp  |
++-----------------+------+-------+------+------------+----------------+-------------------------+---------------------+
+| 1               | 2.0  | false | 4    | 1681319393 | 1.02           | 2012-04-23T18:25:43.511 | 1970-01-01T00:00:00 |
+| -10             | -3.5 | true  | 4    | 1681356393 | -0.3           | 2016-04-23T18:25:43.511 | 1970-01-01T00:00:00 |
+| 2               | 0.6  | false | text | 1681329393 | 1377.223       |                         | 1970-01-01T00:00:00 |
+| 1               | 2.0  | false | 4    |            | 1337.009       |                         | 1970-01-01T00:00:00 |
+| 7               | -3.5 | true  | 4    |            | 1              |                         | 1970-01-01T00:00:00 |
+| 1               | 0.6  | false | text |            | 1338           | 2018-10-23T18:33:16.481 | 1970-01-01T00:00:00 |
+| 1               | 2.0  | false | 4    |            | 12345829100000 |                         | 1970-01-01T00:00:00 |
+| 5               | -3.5 | true  | 4    |            | 99999999.99    |                         | 1970-01-01T00:00:00 |
+| 1               | 0.6  | false | text |            | 1              |                         | 1970-01-01T00:00:00 |
+| 1               | 2.0  | false | 4    |            | 1              |                         | 1970-01-01T00:00:00 |
+| 1               | -3.5 | true  | 4    |            | 1              |                         | 1970-01-01T00:00:00 |
+| 100000000000000 | 0.6  | false | text |            | 1              |                         | 1970-01-01T00:00:00 |
++-----------------+------+-------+------+------------+----------------+-------------------------+---------------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_json_with_schema(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "json";
+    let location = find_testing_resource("/tests/data/json/various_type.json");
+    let table_name = "various_type_json_with_schema";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"CREATE EXTERNAL TABLE {table_name} (
+                a BIGINT NULL,
+                b DOUBLE NULL,
+                c BOOLEAN NULL,
+                d STRING NULL,
+                e TIMESTAMP(0) NULL,
+                f DOUBLE NULL,
+                g TIMESTAMP(0),
+                ts TIMESTAMP TIME INDEX DEFAULT 0,
+              ) WITH (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++--------+----------------------+-----+------+--------------------------+---------------+
+| Column | Type                 | Key | Null | Default                  | Semantic Type |
++--------+----------------------+-----+------+--------------------------+---------------+
+| a      | Int64                |     | YES  |                          | FIELD         |
+| b      | Float64              |     | YES  |                          | FIELD         |
+| c      | Boolean              |     | YES  |                          | FIELD         |
+| d      | String               |     | YES  |                          | FIELD         |
+| e      | TimestampSecond      |     | YES  |                          | FIELD         |
+| f      | Float64              |     | YES  |                          | FIELD         |
+| g      | TimestampSecond      |     | YES  |                          | FIELD         |
+| ts     | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++--------+----------------------+-----+------+--------------------------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++-----------------+------+-------+------+---------------------+------------------+---------------------+---------------------+
+| a               | b    | c     | d    | e                   | f                | g                   | ts                  |
++-----------------+------+-------+------+---------------------+------------------+---------------------+---------------------+
+| 1               | 2.0  | false | 4    | 2023-04-12T17:09:53 | 1.02             | 2012-04-23T18:25:43 | 1970-01-01T00:00:00 |
+| -10             | -3.5 | true  | 4    | 2023-04-13T03:26:33 | -0.3             | 2016-04-23T18:25:43 | 1970-01-01T00:00:00 |
+| 2               | 0.6  | false | text | 2023-04-12T19:56:33 | 1377.223         |                     | 1970-01-01T00:00:00 |
+| 1               | 2.0  | false | 4    |                     | 1337.009         |                     | 1970-01-01T00:00:00 |
+| 7               | -3.5 | true  | 4    |                     | 1.0              |                     | 1970-01-01T00:00:00 |
+| 1               | 0.6  | false | text |                     | 1338.0           | 2018-10-23T18:33:16 | 1970-01-01T00:00:00 |
+| 1               | 2.0  | false | 4    |                     | 12345829100000.0 |                     | 1970-01-01T00:00:00 |
+| 5               | -3.5 | true  | 4    |                     | 99999999.99      |                     | 1970-01-01T00:00:00 |
+| 1               | 0.6  | false | text |                     | 1.0              |                     | 1970-01-01T00:00:00 |
+| 1               | 2.0  | false | 4    |                     | 1.0              |                     | 1970-01-01T00:00:00 |
+| 1               | -3.5 | true  | 4    |                     | 1.0              |                     | 1970-01-01T00:00:00 |
+| 100000000000000 | 0.6  | false | text |                     | 1.0              |                     | 1970-01-01T00:00:00 |
++-----------------+------+-------+------+---------------------+------------------+---------------------+---------------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_json_type_cast(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "json";
+    let location = find_testing_resource("/tests/data/json/type_cast.json");
+    let table_name = "type_cast";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} (
+                hostname STRING,
+                environment STRING,
+                usage_user DOUBLE,
+                usage_system DOUBLE,
+                usage_idle DOUBLE,
+                usage_nice DOUBLE,
+                usage_iowait DOUBLE,
+                usage_irq DOUBLE,
+                usage_softirq DOUBLE,
+                usage_steal DOUBLE,
+                usage_guest DOUBLE,
+                usage_guest_nice DOUBLE,
+                ts TIMESTAMP TIME INDEX,
+                PRIMARY KEY(hostname)
+            ) with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++------------------+----------------------+-----+------+---------+---------------+
+| Column           | Type                 | Key | Null | Default | Semantic Type |
++------------------+----------------------+-----+------+---------+---------------+
+| hostname         | String               | PRI | YES  |         | TAG           |
+| environment      | String               |     | YES  |         | FIELD         |
+| usage_user       | Float64              |     | YES  |         | FIELD         |
+| usage_system     | Float64              |     | YES  |         | FIELD         |
+| usage_idle       | Float64              |     | YES  |         | FIELD         |
+| usage_nice       | Float64              |     | YES  |         | FIELD         |
+| usage_iowait     | Float64              |     | YES  |         | FIELD         |
+| usage_irq        | Float64              |     | YES  |         | FIELD         |
+| usage_softirq    | Float64              |     | YES  |         | FIELD         |
+| usage_steal      | Float64              |     | YES  |         | FIELD         |
+| usage_guest      | Float64              |     | YES  |         | FIELD         |
+| usage_guest_nice | Float64              |     | YES  |         | FIELD         |
+| ts               | TimestampMillisecond | PRI | NO   |         | TIMESTAMP     |
++------------------+----------------------+-----+------+---------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++----------+-------------+------------+--------------+------------+------------+--------------+-----------+---------------+-------------+-------------+------------------+---------------------+
+| hostname | environment | usage_user | usage_system | usage_idle | usage_nice | usage_iowait | usage_irq | usage_softirq | usage_steal | usage_guest | usage_guest_nice | ts                  |
++----------+-------------+------------+--------------+------------+------------+--------------+-----------+---------------+-------------+-------------+------------------+---------------------+
+| host_0   | test        | 32.0       | 58.0         | 36.0       | 72.0       | 61.0         | 21.0      | 53.0          | 12.0        | 59.0        | 72.0             | 2023-04-01T00:00:00 |
+| host_1   | staging     | 12.0       | 32.0         | 50.0       | 84.0       | 19.0         | 73.0      | 38.0          | 37.0        | 72.0        | 2.0              | 2023-04-01T00:00:00 |
+| host_2   | test        | 98.0       | 5.0          | 40.0       | 95.0       | 64.0         | 39.0      | 21.0          | 63.0        | 53.0        | 94.0             | 2023-04-01T00:00:00 |
+| host_3   | test        | 98.0       | 95.0         | 7.0        | 48.0       | 99.0         | 67.0      | 14.0          | 86.0        | 36.0        | 23.0             | 2023-04-01T00:00:00 |
+| host_4   | test        | 32.0       | 44.0         | 11.0       | 53.0       | 64.0         | 9.0       | 17.0          | 39.0        | 20.0        | 7.0              | 2023-04-01T00:00:00 |
++----------+-------------+------------+--------------+------------+------------+--------------+-----------+---------------+-------------+-------------+------------------+---------------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_query_external_table_json_default_ts_column(instance: Arc<dyn MockInstance>) {
+    unsafe {
+        std::env::set_var("TZ", "UTC");
+    }
+
+    let instance = instance.frontend();
+    let format = "json";
+    let location = find_testing_resource("/tests/data/json/default_ts_column.json");
+    let table_name = "default_ts_column";
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            r#"create external table {table_name} with (location='{location}', format='{format}');"#,
+        ),
+    )
+    .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, &format!("desc table {table_name};"))
+        .await
+        .data;
+    let expect = "\
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| Column             | Type                 | Key | Null | Default                  | Semantic Type |
++--------------------+----------------------+-----+------+--------------------------+---------------+
+| environment        | String               |     | YES  |                          | FIELD         |
+| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
+| hostname           | String               |     | YES  |                          | FIELD         |
+| usage_guest        | Int64                |     | YES  |                          | FIELD         |
+| usage_guest_nice   | Int64                |     | YES  |                          | FIELD         |
+| usage_idle         | Int64                |     | YES  |                          | FIELD         |
+| usage_iowait       | Int64                |     | YES  |                          | FIELD         |
+| usage_irq          | Int64                |     | YES  |                          | FIELD         |
+| usage_nice         | Int64                |     | YES  |                          | FIELD         |
+| usage_softirq      | Int64                |     | YES  |                          | FIELD         |
+| usage_steal        | Int64                |     | YES  |                          | FIELD         |
+| usage_system       | Int64                |     | YES  |                          | FIELD         |
+| usage_user         | Int64                |     | YES  |                          | FIELD         |
++--------------------+----------------------+-----+------+--------------------------+---------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql(&instance, &format!("select * from {table_name};"))
+        .await
+        .data;
+    let expect = "\
++-------------+---------------------+----------+-------------+------------------+------------+--------------+-----------+------------+---------------+-------------+--------------+------------+
+| environment | greptime_timestamp  | hostname | usage_guest | usage_guest_nice | usage_idle | usage_iowait | usage_irq | usage_nice | usage_softirq | usage_steal | usage_system | usage_user |
++-------------+---------------------+----------+-------------+------------------+------------+--------------+-----------+------------+---------------+-------------+--------------+------------+
+| test        | 2023-04-01T00:00:00 | host_0   | 59          | 72               | 36         | 61           | 21        | 72         | 53            | 12          | 58           | 32         |
+| staging     | 2023-04-01T00:00:00 | host_1   | 72          | 2                | 50         | 19           | 73        | 84         | 38            | 37          | 32           | 12         |
+| test        | 2023-04-01T00:00:00 | host_2   | 53          | 94               | 40         | 64           | 39        | 95         | 21            | 63          | 5            | 98         |
+| test        | 2023-04-01T00:00:00 | host_3   | 36          | 23               | 7          | 99           | 67        | 48         | 14            | 86          | 95           | 98         |
+| test        | 2023-04-01T00:00:00 | host_4   | 20          | 7                | 11         | 64           | 9         | 53         | 17            | 39          | 44           | 32         |
++-------------+---------------------+----------+-------------+------------------+------------+--------------+-----------+------------+---------------+-------------+--------------+------------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_rename_table(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(&instance, "create database db").await.data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let query_ctx = Arc::new(QueryContext::with(DEFAULT_CATALOG_NAME, "db"));
+    let output = execute_sql_with(
+        &instance,
+        "create table demo(host string, cpu double, memory double, ts timestamp, time index(ts))",
+        query_ctx.clone(),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // make sure table insertion is ok before altering table name
+    let output = execute_sql_with(
+        &instance,
+        "insert into demo(host, cpu, memory, ts) values ('host1', 1.1, 100, 1000), ('host2', 2.2, 200, 2000)",
+        query_ctx.clone(),
+    )
+    .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    // rename table
+    let output = execute_sql_with(
+        &instance,
+        "alter table demo rename test_table",
+        query_ctx.clone(),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql_with(&instance, "show tables", query_ctx.clone())
+        .await
+        .data;
+    let expect = "\
++--------------+
+| Tables_in_db |
++--------------+
+| test_table   |
++--------------+";
+    check_output_stream(output, expect).await;
+
+    let output = execute_sql_with(
+        &instance,
+        "select * from test_table order by ts",
+        query_ctx.clone(),
+    )
+    .await
+    .data;
+    let expected = "\
++-------+-----+--------+---------------------+
+| host  | cpu | memory | ts                  |
++-------+-----+--------+---------------------+
+| host1 | 1.1 | 100.0  | 1970-01-01T00:00:01 |
+| host2 | 2.2 | 200.0  | 1970-01-01T00:00:02 |
++-------+-----+--------+---------------------+";
+    check_output_stream(output, expected).await;
+
+    assert!(
+        try_execute_sql_with(&instance, "select * from demo", query_ctx)
+            .await
+            .is_err()
+    );
+}
+
+// should apply to both instances. tracked in #723
+#[apply(standalone_instance_case)]
+async fn test_create_table_after_rename_table(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(&instance, "create database db").await.data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    // create test table
+    let table_name = "demo";
+    let query_ctx = Arc::new(QueryContext::with(DEFAULT_CATALOG_NAME, "db"));
+    let output = execute_sql_with(
+        &instance,
+        &format!("create table {table_name}(host string, cpu double, memory double, ts timestamp, time index(ts))"),
+        query_ctx.clone(),
+    )
+        .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // rename table
+    let new_table_name = "test_table";
+    let output = execute_sql_with(
+        &instance,
+        &format!("alter table {table_name} rename {new_table_name}"),
+        query_ctx.clone(),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // create table with same name
+    // create test table
+    let output = execute_sql_with(
+        &instance,
+        &format!("create table {table_name}(host string, cpu double, memory double, ts timestamp, time index(ts))"),
+        query_ctx.clone(),
+    )
+        .await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let expect = "\
++--------------+
+| Tables_in_db |
++--------------+
+| demo         |
+| test_table   |
++--------------+";
+    let output = execute_sql_with(&instance, "show tables", query_ctx)
+        .await
+        .data;
+    check_output_stream(output, expect).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_alter_table(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    // create table
+    assert!(matches!(
+        execute_sql(
+            &instance,
+            "create table demo(host string, cpu double, memory double, ts timestamp time index);",
+        )
+        .await
+        .data,
+        OutputData::AffectedRows(0)
+    ));
+
+    // make sure table insertion is ok before altering table
+    assert!(matches!(
+        execute_sql(
+            &instance,
+            "insert into demo(host, cpu, memory, ts) values ('host1', 1.1, 100, 1000)",
+        )
+        .await
+        .data,
+        OutputData::AffectedRows(1)
+    ));
+
+    // Add column
+    let output = execute_sql(
+        &instance,
+        "alter table demo add my_tag1 string null, add my_tag2 integer",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        "insert into demo(host, cpu, memory, ts, my_tag1, my_tag2) values ('host2', 2.2, 200, 2000, 'hello', 123)",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+    let output = execute_sql(
+        &instance,
+        "insert into demo(host, cpu, memory, ts) values ('host3', 3.3, 300, 3000)",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql(&instance, "select * from demo order by ts")
+        .await
+        .data;
+    let expected = "\
++-------+-----+--------+---------------------+---------+---------+
+| host  | cpu | memory | ts                  | my_tag1 | my_tag2 |
++-------+-----+--------+---------------------+---------+---------+
+| host1 | 1.1 | 100.0  | 1970-01-01T00:00:01 |         |         |
+| host2 | 2.2 | 200.0  | 1970-01-01T00:00:02 | hello   | 123     |
+| host3 | 3.3 | 300.0  | 1970-01-01T00:00:03 |         |         |
++-------+-----+--------+---------------------+---------+---------+";
+    check_output_stream(output, expected).await;
+
+    // Drop a column
+    let output = execute_sql(&instance, "alter table demo drop column memory")
+        .await
+        .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, "select * from demo order by ts")
+        .await
+        .data;
+    let expected = "\
++-------+-----+---------------------+---------+---------+
+| host  | cpu | ts                  | my_tag1 | my_tag2 |
++-------+-----+---------------------+---------+---------+
+| host1 | 1.1 | 1970-01-01T00:00:01 |         |         |
+| host2 | 2.2 | 1970-01-01T00:00:02 | hello   | 123     |
+| host3 | 3.3 | 1970-01-01T00:00:03 |         |         |
++-------+-----+---------------------+---------+---------+";
+    check_output_stream(output, expected).await;
+
+    // insert a new row
+    let output = execute_sql(
+        &instance,
+        "insert into demo(host, cpu, ts, my_tag1, my_tag2) values ('host4', 400, 4000, 'world', 321)",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql(&instance, "select * from demo order by ts")
+        .await
+        .data;
+    let expected = "\
++-------+-------+---------------------+---------+---------+
+| host  | cpu   | ts                  | my_tag1 | my_tag2 |
++-------+-------+---------------------+---------+---------+
+| host1 | 1.1   | 1970-01-01T00:00:01 |         |         |
+| host2 | 2.2   | 1970-01-01T00:00:02 | hello   | 123     |
+| host3 | 3.3   | 1970-01-01T00:00:03 |         |         |
+| host4 | 400.0 | 1970-01-01T00:00:04 | world   | 321     |
++-------+-------+---------------------+---------+---------+";
+    check_output_stream(output, expected).await;
+}
+
+async fn test_insert_with_default_value_for_type(instance: Arc<Instance>, type_name: &str) {
+    let table_name = format!("test_table_with_{type_name}");
+    let create_sql = format!(
+        r#"create table {table_name}(
+        host string,
+        ts {type_name} DEFAULT CURRENT_TIMESTAMP(),
+        cpu double default 0,
+        TIME INDEX (ts),
+        PRIMARY KEY(host)
+    ) engine=mito;"#,
+    );
+    let output = execute_sql(&instance, &create_sql).await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // Insert with ts.
+    let output = execute_sql(
+        &instance,
+        &format!("insert into {table_name}(host, cpu, ts) values ('host1', 1.1, 1000)"),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    // Insert without ts, so it should be filled by default value.
+    let output = execute_sql(
+        &instance,
+        &format!("insert into {table_name}(host, cpu) values ('host2', 2.2)"),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql(
+        &instance,
+        &format!("select host, cpu from {table_name} order by host"),
+    )
+    .await
+    .data;
+    let expected = "\
++-------+-----+
+| host  | cpu |
++-------+-----+
+| host1 | 1.1 |
+| host2 | 2.2 |
++-------+-----+";
+    check_output_stream(output, expected).await;
+}
+
+// should apply to both instances. tracked in #1293
+#[apply(standalone_instance_case)]
+async fn test_insert_with_default_value(instance: Arc<dyn MockInstance>) {
+    test_insert_with_default_value_for_type(instance.frontend(), "timestamp").await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_use_database(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(&instance, "create database db1").await.data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let query_ctx = Arc::new(QueryContext::with(DEFAULT_CATALOG_NAME, "db1"));
+    let output = execute_sql_with(
+        &instance,
+        "create table tb1(col_i32 int, ts timestamp, TIME INDEX(ts))",
+        query_ctx.clone(),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql_with(&instance, "show tables", query_ctx.clone())
+        .await
+        .data;
+    let expected = "\
++---------------+
+| Tables_in_db1 |
++---------------+
+| tb1           |
++---------------+";
+    check_output_stream(output, expected).await;
+
+    let output = execute_sql_with(
+        &instance,
+        r#"insert into tb1(col_i32, ts) values (1, 1655276557000)"#,
+        query_ctx.clone(),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql_with(&instance, "select col_i32 from tb1", query_ctx.clone())
+        .await
+        .data;
+    let expected = "\
++---------+
+| col_i32 |
++---------+
+| 1       |
++---------+";
+    check_output_stream(output, expected).await;
+
+    // Making a particular database the default by means of the USE statement does not preclude
+    // accessing tables in other databases.
+    let output = execute_sql(&instance, "select number from public.numbers limit 1")
+        .await
+        .data;
+    let expected = "\
++--------+
+| number |
++--------+
+| 0      |
++--------+";
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_delete(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(
+        &instance,
+        r#"create table test_table(
+                            host string,
+                            ts timestamp,
+                            cpu double default 0,
+                            memory double,
+                            TIME INDEX (ts),
+                            PRIMARY KEY(host)
+                        ) engine=mito;"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(
+        &instance,
+        r#"insert into test_table(host, cpu, memory, ts) values
+                           ('host1', 66.6, 1024, 1655276557000),
+                           ('host2', 77.7,  2048, 1655276558000),
+                           ('host3', 88.8,  3072, 1655276559000)
+                           "#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(3)));
+
+    let output = execute_sql(
+        &instance,
+        "delete from test_table where host = 'host1' and ts = 1655276557000 ",
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(1)));
+
+    let output = execute_sql(&instance, "select * from test_table")
+        .await
+        .data;
+    let expect = "\
++-------+---------------------+------+--------+
+| host  | ts                  | cpu  | memory |
++-------+---------------------+------+--------+
+| host2 | 2022-06-15T07:02:38 | 77.7 | 2048.0 |
+| host3 | 2022-06-15T07:02:39 | 88.8 | 3072.0 |
++-------+---------------------+------+--------+";
+    check_output_stream(output, expect).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_copy_from_s3(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    if let Ok(bucket) = env::var("GT_S3_BUCKET")
+        && !bucket.is_empty()
+    {
+        let instance = instance.frontend();
+
+        // setups
+        assert!(matches!(execute_sql(
+                &instance,
+                "create table demo(host string, cpu double, memory double, ts timestamp time index);",
+            )
+            .await.data, OutputData::AffectedRows(0)));
+
+        let output = execute_sql(
+            &instance,
+            r#"insert into demo(host, cpu, memory, ts) values
+                            ('host1', 66.6, 1024, 1655276557000),
+                            ('host2', 88.8,  333.3, 1655276558000)
+                            "#,
+        )
+        .await
+        .data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        // export
+        let root = uuid::Uuid::new_v4().to_string();
+        let key_id = env::var("GT_S3_ACCESS_KEY_ID").unwrap();
+        let key = env::var("GT_S3_ACCESS_KEY").unwrap();
+        let region = env::var("GT_S3_REGION").unwrap();
+
+        let mut connection = format!(
+            "ACCESS_KEY_ID='{}',SECRET_ACCESS_KEY='{}',REGION='{}'",
+            key_id, key, region
+        );
+        // Honors an S3-compatible endpoint (MinIO in CI) so the test does not
+        // fall back to resolving the bucket against real AWS.
+        if let Ok(endpoint) = env::var("GT_S3_ENDPOINT_URL")
+            && !endpoint.is_empty()
+        {
+            connection = format!("{},ENDPOINT='{}'", connection, endpoint);
+        }
+
+        let copy_to_stmt = format!(
+            "Copy demo TO 's3://{}/{}/export/demo.parquet' CONNECTION ({})",
+            bucket, root, connection
+        );
+
+        let output = execute_sql(&instance, &copy_to_stmt).await.data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        struct Test<'a> {
+            sql: &'a str,
+            table_name: &'a str,
+        }
+        let tests = [
+            Test {
+                sql: &format!(
+                    "Copy with_filename FROM 's3://{}/{}/export/demo.parquet'",
+                    bucket, root
+                ),
+                table_name: "with_filename",
+            },
+            Test {
+                sql: &format!("Copy with_path FROM 's3://{}/{}/export/'", bucket, root),
+                table_name: "with_path",
+            },
+            Test {
+                sql: &format!(
+                    "Copy with_pattern FROM 's3://{}/{}/export/' WITH (PATTERN = 'demo.*')",
+                    bucket, root
+                ),
+                table_name: "with_pattern",
+            },
+        ];
+
+        for test in tests {
+            // import
+            assert!(matches!(
+                    execute_sql(
+                        &instance,
+                        &format!(
+                "create table {}(host string, cpu double, memory double, ts timestamp time index);",
+                test.table_name
+            ),
+                    )
+                    .await
+                    .data,
+                    OutputData::AffectedRows(0)
+                ));
+            let sql = format!("{} CONNECTION ({})", test.sql, connection);
+            let output = execute_sql(&instance, &sql).await.data;
+            assert!(matches!(output, OutputData::AffectedRows(2)));
+
+            let output = execute_sql(
+                &instance,
+                &format!("select * from {} order by ts", test.table_name),
+            )
+            .await
+            .data;
+            let expected = "\
++-------+------+--------+---------------------+
+| host  | cpu  | memory | ts                  |
++-------+------+--------+---------------------+
+| host1 | 66.6 | 1024.0 | 2022-06-15T07:02:37 |
+| host2 | 88.8 | 333.3  | 2022-06-15T07:02:38 |
++-------+------+--------+---------------------+";
+            check_output_stream(output, expected).await;
+        }
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_copy_from_oss(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    if let Ok(bucket) = env::var("GT_OSS_BUCKET")
+        && !bucket.is_empty()
+    {
+        let instance = instance.frontend();
+
+        assert!(matches!(
+            execute_sql(
+                &instance,
+                "create table demo(host string, cpu double, memory double, ts timestamp time index);",
+            )
+            .await
+            .data,
+            OutputData::AffectedRows(0)
+        ));
+
+        let output = execute_sql(
+            &instance,
+            r#"insert into demo(host, cpu, memory, ts) values
+                            ('host1', 66.6, 1024, 1655276557000),
+                            ('host2', 88.8,  333.3, 1655276558000)
+                            "#,
+        )
+        .await
+        .data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        let root = uuid::Uuid::new_v4().to_string();
+        let key_id = env::var("GT_OSS_ACCESS_KEY_ID").unwrap();
+        let key = env::var("GT_OSS_ACCESS_KEY").unwrap();
+        let endpoint = env::var("GT_OSS_ENDPOINT").unwrap();
+
+        let copy_to_stmt = format!(
+            "Copy demo TO 'oss://{}/{}/export/demo.parquet' CONNECTION (ACCESS_KEY_ID='{}',ACCESS_KEY_SECRET='{}',ENDPOINT='{}')",
+            bucket, root, key_id, key, endpoint
+        );
+
+        let output = execute_sql(&instance, &copy_to_stmt).await.data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        struct Test<'a> {
+            sql: &'a str,
+            table_name: &'a str,
+        }
+        let tests = [
+            Test {
+                sql: &format!(
+                    "Copy with_filename FROM 'oss://{}/{}/export/demo.parquet'",
+                    bucket, root
+                ),
+                table_name: "with_filename",
+            },
+            Test {
+                sql: &format!("Copy with_path FROM 'oss://{}/{}/export/'", bucket, root),
+                table_name: "with_path",
+            },
+            Test {
+                sql: &format!(
+                    "Copy with_pattern FROM 'oss://{}/{}/export/' WITH (PATTERN = 'demo.*')",
+                    bucket, root
+                ),
+                table_name: "with_pattern",
+            },
+        ];
+
+        for test in tests {
+            assert!(matches!(
+                execute_sql(
+                    &instance,
+                    &format!(
+                        "create table {}(host string, cpu double, memory double, ts timestamp time index);",
+                        test.table_name
+                    ),
+                )
+                .await
+                .data,
+                OutputData::AffectedRows(0)
+            ));
+
+            let sql = format!(
+                "{} CONNECTION (ACCESS_KEY_ID='{}',ACCESS_KEY_SECRET='{}',ENDPOINT='{}')",
+                test.sql, key_id, key, endpoint,
+            );
+            let output = execute_sql(&instance, &sql).await.data;
+            assert!(matches!(output, OutputData::AffectedRows(2)));
+
+            let output = execute_sql(
+                &instance,
+                &format!("select * from {} order by ts", test.table_name),
+            )
+            .await
+            .data;
+            let expected = "\
++-------+------+--------+---------------------+
+| host  | cpu  | memory | ts                  |
++-------+------+--------+---------------------+
+| host1 | 66.6 | 1024.0 | 2022-06-15T07:02:37 |
+| host2 | 88.8 | 333.3  | 2022-06-15T07:02:38 |
++-------+------+--------+---------------------+";
+            check_output_stream(output, expected).await;
+        }
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_copy_from_gcs(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    if let (Ok(bucket), Ok(scope), Ok(credential)) = (
+        env::var("GT_GCS_BUCKET"),
+        env::var("GT_GCS_SCOPE"),
+        env::var("GT_GCS_CREDENTIAL"),
+    ) && !bucket.is_empty()
+    {
+        let endpoint = env::var("GT_GCS_ENDPOINT").unwrap_or_default();
+        let instance = instance.frontend();
+
+        assert!(matches!(
+            execute_sql(
+                &instance,
+                "create table demo(host string, cpu double, memory double, ts timestamp time index);",
+            )
+            .await
+            .data,
+            OutputData::AffectedRows(0)
+        ));
+
+        let output = execute_sql(
+            &instance,
+            r#"insert into demo(host, cpu, memory, ts) values
+                            ('host1', 66.6, 1024, 1655276557000),
+                            ('host2', 88.8,  333.3, 1655276558000)
+                            "#,
+        )
+        .await
+        .data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        let root = uuid::Uuid::new_v4().to_string();
+        let mut connection = format!("SCOPE='{}',CREDENTIAL='{}'", scope, credential);
+        if !endpoint.is_empty() {
+            connection = format!("{},ENDPOINT='{}'", connection, endpoint);
+        }
+
+        let copy_to_stmt = format!(
+            "Copy demo TO 'gcs://{}/{}/export/demo.parquet' CONNECTION ({})",
+            bucket, root, connection
+        );
+
+        let output = execute_sql(&instance, &copy_to_stmt).await.data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        struct Test<'a> {
+            sql: &'a str,
+            table_name: &'a str,
+        }
+        let tests = [
+            Test {
+                sql: &format!(
+                    "Copy with_filename FROM 'gcs://{}/{}/export/demo.parquet'",
+                    bucket, root
+                ),
+                table_name: "with_filename",
+            },
+            Test {
+                sql: &format!("Copy with_path FROM 'gcs://{}/{}/export/'", bucket, root),
+                table_name: "with_path",
+            },
+            Test {
+                sql: &format!(
+                    "Copy with_pattern FROM 'gcs://{}/{}/export/' WITH (PATTERN = 'demo.*')",
+                    bucket, root
+                ),
+                table_name: "with_pattern",
+            },
+        ];
+
+        for test in tests {
+            assert!(matches!(
+                execute_sql(
+                    &instance,
+                    &format!(
+                        "create table {}(host string, cpu double, memory double, ts timestamp time index);",
+                        test.table_name
+                    ),
+                )
+                .await
+                .data,
+                OutputData::AffectedRows(0)
+            ));
+
+            let sql = format!("{} CONNECTION ({})", test.sql, connection);
+            let output = execute_sql(&instance, &sql).await.data;
+            assert!(matches!(output, OutputData::AffectedRows(2)));
+
+            let output = execute_sql(
+                &instance,
+                &format!("select * from {} order by ts", test.table_name),
+            )
+            .await
+            .data;
+            let expected = "\
++-------+------+--------+---------------------+
+| host  | cpu  | memory | ts                  |
++-------+------+--------+---------------------+
+| host1 | 66.6 | 1024.0 | 2022-06-15T07:02:37 |
+| host2 | 88.8 | 333.3  | 2022-06-15T07:02:38 |
++-------+------+--------+---------------------+";
+            check_output_stream(output, expected).await;
+        }
+    }
+}
+
+#[apply(both_instances_cases)]
+async fn test_execute_copy_from_azblob(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    if let (Ok(container), Ok(account_name), Ok(account_key), Ok(endpoint)) = (
+        env::var("GT_AZBLOB_CONTAINER"),
+        env::var("GT_AZBLOB_ACCOUNT_NAME"),
+        env::var("GT_AZBLOB_ACCOUNT_KEY"),
+        env::var("GT_AZBLOB_ENDPOINT"),
+    ) && !container.is_empty()
+    {
+        let instance = instance.frontend();
+
+        assert!(matches!(
+            execute_sql(
+                &instance,
+                "create table demo(host string, cpu double, memory double, ts timestamp time index);",
+            )
+            .await
+            .data,
+            OutputData::AffectedRows(0)
+        ));
+
+        let output = execute_sql(
+            &instance,
+            r#"insert into demo(host, cpu, memory, ts) values
+                            ('host1', 66.6, 1024, 1655276557000),
+                            ('host2', 88.8,  333.3, 1655276558000)
+                            "#,
+        )
+        .await
+        .data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        let root = uuid::Uuid::new_v4().to_string();
+
+        let copy_to_stmt = format!(
+            "Copy demo TO 'azblob://{}/{}/export/demo.parquet' CONNECTION (ACCOUNT_NAME='{}',ACCOUNT_KEY='{}',ENDPOINT='{}')",
+            container, root, account_name, account_key, endpoint
+        );
+
+        let output = execute_sql(&instance, &copy_to_stmt).await.data;
+        assert!(matches!(output, OutputData::AffectedRows(2)));
+
+        struct Test<'a> {
+            sql: &'a str,
+            table_name: &'a str,
+        }
+        let tests = [
+            Test {
+                sql: &format!(
+                    "Copy with_filename FROM 'azblob://{}/{}/export/demo.parquet'",
+                    container, root
+                ),
+                table_name: "with_filename",
+            },
+            Test {
+                sql: &format!(
+                    "Copy with_path FROM 'azblob://{}/{}/export/'",
+                    container, root
+                ),
+                table_name: "with_path",
+            },
+            Test {
+                sql: &format!(
+                    "Copy with_pattern FROM 'azblob://{}/{}/export/' WITH (PATTERN = 'demo.*')",
+                    container, root
+                ),
+                table_name: "with_pattern",
+            },
+        ];
+
+        for test in tests {
+            assert!(matches!(
+                execute_sql(
+                    &instance,
+                    &format!(
+                        "create table {}(host string, cpu double, memory double, ts timestamp time index);",
+                        test.table_name
+                    ),
+                )
+                .await
+                .data,
+                OutputData::AffectedRows(0)
+            ));
+
+            let sql = format!(
+                "{} CONNECTION (ACCOUNT_NAME='{}',ACCOUNT_KEY='{}',ENDPOINT='{}')",
+                test.sql, account_name, account_key, endpoint
+            );
+            let output = execute_sql(&instance, &sql).await.data;
+            assert!(matches!(output, OutputData::AffectedRows(2)));
+
+            let output = execute_sql(
+                &instance,
+                &format!("select * from {} order by ts", test.table_name),
+            )
+            .await
+            .data;
+            let expected = "\
++-------+------+--------+---------------------+
+| host  | cpu  | memory | ts                  |
++-------+------+--------+---------------------+
+| host1 | 66.6 | 1024.0 | 2022-06-15T07:02:37 |
+| host2 | 88.8 | 333.3  | 2022-06-15T07:02:38 |
++-------+------+--------+---------------------+";
+            check_output_stream(output, expected).await;
+        }
+    }
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_copy_from_orc_with_cast(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    let instance = instance.frontend();
+
+    // setups
+    assert!(matches!(execute_sql(
+        &instance,
+        "create table demo(bigint_direct timestamp(9), bigint_neg_direct timestamp(6), bigint_other timestamp(3), timestamp_simple timestamp(9), time index (bigint_other));",
+    )
+    .await.data, OutputData::AffectedRows(0)));
+
+    let filepath = find_testing_resource("/src/common/datasource/tests/orc/test.orc");
+
+    let output = execute_sql(
+        &instance,
+        &format!("copy demo from '{}' WITH(FORMAT='orc');", filepath),
+    )
+    .await
+    .data;
+
+    assert!(matches!(output, OutputData::AffectedRows(5)));
+
+    let output = execute_sql(
+        &instance,
+        "select * from demo order by timestamp_simple asc;",
+    )
+    .await
+    .data;
+    let expected = r#"+-------------------------------+----------------------------+-------------------------+----------------------------+
+| bigint_direct                 | bigint_neg_direct          | bigint_other            | timestamp_simple           |
++-------------------------------+----------------------------+-------------------------+----------------------------+
+| 1970-01-01T00:00:00.000000006 | 1969-12-31T23:59:59.999994 | 1969-12-31T23:59:59.995 | 2021-08-22T07:26:44.525777 |
+|                               |                            | 1970-01-01T00:00:00.001 | 2023-01-01T00:00:00        |
+| 1970-01-01T00:00:00.000000002 | 1969-12-31T23:59:59.999998 | 1970-01-01T00:00:00.005 | 2023-03-01T00:00:00        |
++-------------------------------+----------------------------+-------------------------+----------------------------+"#;
+    check_output_stream(output, expected).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_execute_copy_from_orc(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    let instance = instance.frontend();
+
+    // setups
+    assert!(matches!(execute_sql(
+        &instance,
+        "create table demo(double_a double, a float, b boolean, str_direct string, d string, e string, f string, int_short_repeated int, int_neg_short_repeated int, int_delta int, int_neg_delta int, int_direct int, int_neg_direct int, bigint_direct bigint, bigint_neg_direct bigint, bigint_other bigint, utf8_increase string, utf8_decrease string, timestamp_simple timestamp(9) time index, date_simple date);",
+    )
+    .await.data, OutputData::AffectedRows(0)));
+
+    let filepath = find_testing_resource("/src/common/datasource/tests/orc/test.orc");
+
+    let output = execute_sql(
+        &instance,
+        &format!("copy demo from '{}' WITH(FORMAT='orc');", filepath),
+    )
+    .await
+    .data;
+
+    assert!(matches!(output, OutputData::AffectedRows(5)));
+
+    let output = execute_sql(&instance, "select * from demo order by double_a;")
+        .await
+        .data;
+    let expected = r#"+----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+
+| double_a | a   | b     | str_direct | d   | e   | f     | int_short_repeated | int_neg_short_repeated | int_delta | int_neg_delta | int_direct | int_neg_direct | bigint_direct | bigint_neg_direct | bigint_other | utf8_increase | utf8_decrease | timestamp_simple           | date_simple |
++----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+
+| 1.0      | 1.0 | true  | a          | a   | ddd | aaaaa | 5                  | -5                     | 1         | 5             | 1          | -1             | 1             | -1                | 5            | a             | eeeee         | 2023-04-01T20:15:30.002    | 2023-04-01  |
+| 2.0      | 2.0 | false | cccccc     | bb  | cc  | bbbbb | 5                  | -5                     | 2         | 4             | 6          | -6             | 6             | -6                | -5           | bb            | dddd          | 2021-08-22T07:26:44.525777 | 2023-03-01  |
+| 3.0      |     |       |            |     |     |       |                    |                        |           |               |            |                |               |                   | 1            | ccc           | ccc           | 2023-01-01T00:00:00        | 2023-01-01  |
+| 4.0      | 4.0 | true  | ddd        | ccc | bb  | ccccc | 5                  | -5                     | 4         | 2             | 3          | -3             | 3             | -3                | 5            | dddd          | bb            | 2023-02-01T00:00:00        | 2023-02-01  |
+| 5.0      | 5.0 | false | ee         | ddd | a   | ddddd | 5                  | -5                     | 5         | 1             | 2          | -2             | 2             | -2                | 5            | eeeee         | a             | 2023-03-01T00:00:00        | 2023-03-01  |
++----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+"#;
+    check_output_stream(output, expected).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_cast_type_issue_1594(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    // setups
+    assert!(matches!(execute_sql(
+        &instance,
+        "create table tsbs_cpu(hostname STRING, environment STRING, usage_user DOUBLE, usage_system DOUBLE, usage_idle DOUBLE, usage_nice DOUBLE, usage_iowait DOUBLE, usage_irq DOUBLE, usage_softirq DOUBLE, usage_steal DOUBLE, usage_guest DOUBLE, usage_guest_nice DOUBLE, ts TIMESTAMP TIME INDEX, PRIMARY KEY(hostname));",
+    )
+    .await.data, OutputData::AffectedRows(0)));
+
+    let filepath = find_testing_resource("/src/common/datasource/tests/csv/type_cast.csv");
+
+    let output = execute_sql(
+        &instance,
+        &format!("copy tsbs_cpu from '{}' WITH(FORMAT='csv');", filepath),
+    )
+    .await;
+
+    assert!(matches!(output.data, OutputData::AffectedRows(5)));
+
+    let output = execute_sql(&instance, "select * from tsbs_cpu order by hostname;")
+        .await
+        .data;
+    let expected = "\
++----------+-------------+------------+--------------+------------+------------+--------------+-----------+---------------+-------------+-------------+------------------+---------------------+
+| hostname | environment | usage_user | usage_system | usage_idle | usage_nice | usage_iowait | usage_irq | usage_softirq | usage_steal | usage_guest | usage_guest_nice | ts                  |
++----------+-------------+------------+--------------+------------+------------+--------------+-----------+---------------+-------------+-------------+------------------+---------------------+
+| host_0   | test        | 32.0       | 58.0         | 36.0       | 72.0       | 61.0         | 21.0      | 53.0          | 12.0        | 59.0        | 72.0             | 2023-04-01T00:00:00 |
+| host_1   | staging     | 12.0       | 32.0         | 50.0       | 84.0       | 19.0         | 73.0      | 38.0          | 37.0        | 72.0        | 2.0              | 2023-04-01T00:00:00 |
+| host_2   | test        | 98.0       | 5.0          | 40.0       | 95.0       | 64.0         | 39.0      | 21.0          | 63.0        | 53.0        | 94.0             | 2023-04-01T00:00:00 |
+| host_3   | test        | 98.0       | 95.0         | 7.0        | 48.0       | 99.0         | 67.0      | 14.0          | 86.0        | 36.0        | 23.0             | 2023-04-01T00:00:00 |
+| host_4   | test        | 32.0       | 44.0         | 11.0       | 53.0       | 64.0         | 9.0       | 17.0          | 39.0        | 20.0        | 7.0              | 2023-04-01T00:00:00 |
++----------+-------------+------------+--------------+------------+------------+--------------+-----------+---------------+-------------+-------------+------------------+---------------------+";
+    check_output_stream(output, expected).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_copy_from_csv_skip_bad_records(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    assert!(matches!(execute_sql(
+        &instance,
+        "create table csv_skip_bad_records(host_id INT, host_name STRING, reading_value DOUBLE, ts TIMESTAMP TIME INDEX, PRIMARY KEY(host_id));",
+    )
+    .await.data, OutputData::AffectedRows(0)));
+
+    let filepath = find_testing_resource("/tests/data/csv/skip_bad_records.csv");
+
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "copy csv_skip_bad_records from '{}' WITH(FORMAT='csv', skip_bad_records='true');",
+            filepath
+        ),
+    )
+    .await
+    .data;
+
+    assert!(matches!(output, OutputData::AffectedRows(2)));
+
+    let output = execute_sql(
+        &instance,
+        "select * from csv_skip_bad_records order by host_id;",
+    )
+    .await
+    .data;
+    let expected = "\
++---------+-----------+---------------+---------------------+
+| host_id | host_name | reading_value | ts                  |
++---------+-----------+---------------+---------------------+
+| 1       | Alice     | 10.5          | 2024-01-01T00:00:00 |
+| 2       | Bob       | 30.5          | 2024-01-01T00:00:02 |
++---------+-----------+---------------+---------------------+";
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_information_schema_dot_tables(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let sql = "create table another_table(i timestamp time index)";
+    let query_ctx = Arc::new(QueryContext::with("another_catalog", "another_schema"));
+    let output = execute_sql_with(&instance, sql, query_ctx.clone())
+        .await
+        .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // User can only see information schema under current catalog.
+    // A necessary requirement to GreptimeCloud.
+    let sql = "select table_catalog, table_schema, table_name, table_type, table_id, engine from information_schema.tables where table_type != 'SYSTEM VIEW' and table_name in ('columns', 'numbers', 'tables', 'another_table') order by table_name";
+
+    let output = execute_sql(&instance, sql).await.data;
+    let expected = "\
++---------------+--------------------+------------+-----------------+----------+-------------+
+| table_catalog | table_schema       | table_name | table_type      | table_id | engine      |
++---------------+--------------------+------------+-----------------+----------+-------------+
+| greptime      | information_schema | columns    | LOCAL TEMPORARY | 4        |             |
+| greptime      | public             | numbers    | LOCAL TEMPORARY | 2        | test_engine |
+| greptime      | information_schema | tables     | LOCAL TEMPORARY | 3        |             |
++---------------+--------------------+------------+-----------------+----------+-------------+";
+
+    check_output_stream(output, expected).await;
+
+    let output = execute_sql_with(&instance, sql, query_ctx).await.data;
+    let expected = "\
++-----------------+--------------------+---------------+-----------------+----------+--------+
+| table_catalog   | table_schema       | table_name    | table_type      | table_id | engine |
++-----------------+--------------------+---------------+-----------------+----------+--------+
+| another_catalog | another_schema     | another_table | BASE TABLE      | 1024     | mito   |
+| another_catalog | information_schema | columns       | LOCAL TEMPORARY | 4        |        |
+| another_catalog | information_schema | tables        | LOCAL TEMPORARY | 3        |        |
++-----------------+--------------------+---------------+-----------------+----------+--------+";
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_show_databases(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    let instance = instance.frontend();
+
+    let sql = "show databases";
+
+    let query_ctx = Arc::new(QueryContext::with(
+        DEFAULT_CATALOG_NAME,
+        DEFAULT_SCHEMA_NAME,
+    ));
+    let output = execute_sql_with(&instance, sql, query_ctx.clone())
+        .await
+        .data;
+    let expected = "\
++--------------------+
+| Database           |
++--------------------+
+| greptime_private   |
+| information_schema |
+| public             |
++--------------------+";
+    check_output_stream(output, expected).await;
+
+    let query_ctx = Arc::new(QueryContext::with("random_catalog", DEFAULT_SCHEMA_NAME));
+    let output = execute_sql_with(&instance, sql, query_ctx.clone())
+        .await
+        .data;
+    let expected = "\
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
++--------------------+";
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_information_schema_dot_columns(instance: Arc<dyn MockInstance>) {
+    common_telemetry::init_default_ut_logging();
+    let instance = instance.frontend();
+
+    let sql = "create table another_table(i timestamp time index)";
+    let query_ctx = Arc::new(QueryContext::with("another_catalog", "another_schema"));
+    let output = execute_sql_with(&instance, sql, query_ctx.clone())
+        .await
+        .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    // User can only see information schema under current catalog.
+    // A necessary requirement to GreptimeCloud.
+    let sql = "select table_catalog, table_schema, table_name, column_name, data_type, semantic_type from information_schema.columns where table_name in ('columns', 'numbers', 'tables', 'another_table') order by table_name, column_name";
+
+    let output = execute_sql(&instance, sql).await.data;
+    let expected = "\
++---------------+--------------------+------------+--------------------------+-----------------+---------------+
+| table_catalog | table_schema       | table_name | column_name              | data_type       | semantic_type |
++---------------+--------------------+------------+--------------------------+-----------------+---------------+
+| greptime      | information_schema | columns    | character_maximum_length | bigint          | FIELD         |
+| greptime      | information_schema | columns    | character_octet_length   | bigint          | FIELD         |
+| greptime      | information_schema | columns    | character_set_name       | string          | FIELD         |
+| greptime      | information_schema | columns    | collation_name           | string          | FIELD         |
+| greptime      | information_schema | columns    | column_comment           | string          | FIELD         |
+| greptime      | information_schema | columns    | column_default           | string          | FIELD         |
+| greptime      | information_schema | columns    | column_key               | string          | FIELD         |
+| greptime      | information_schema | columns    | column_name              | string          | FIELD         |
+| greptime      | information_schema | columns    | column_type              | string          | FIELD         |
+| greptime      | information_schema | columns    | data_type                | string          | FIELD         |
+| greptime      | information_schema | columns    | datetime_precision       | bigint          | FIELD         |
+| greptime      | information_schema | columns    | extra                    | string          | FIELD         |
+| greptime      | information_schema | columns    | generation_expression    | string          | FIELD         |
+| greptime      | information_schema | columns    | greptime_data_type       | string          | FIELD         |
+| greptime      | information_schema | columns    | is_nullable              | string          | FIELD         |
+| greptime      | information_schema | columns    | numeric_precision        | bigint          | FIELD         |
+| greptime      | information_schema | columns    | numeric_scale            | bigint          | FIELD         |
+| greptime      | information_schema | columns    | ordinal_position         | bigint          | FIELD         |
+| greptime      | information_schema | columns    | privileges               | string          | FIELD         |
+| greptime      | information_schema | columns    | semantic_type            | string          | FIELD         |
+| greptime      | information_schema | columns    | srs_id                   | bigint          | FIELD         |
+| greptime      | information_schema | columns    | table_catalog            | string          | FIELD         |
+| greptime      | information_schema | columns    | table_name               | string          | FIELD         |
+| greptime      | information_schema | columns    | table_schema             | string          | FIELD         |
+| greptime      | public             | numbers    | number                   | int unsigned    | TAG           |
+| greptime      | information_schema | tables     | auto_increment           | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | avg_row_length           | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | check_time               | timestamp(0)    | FIELD         |
+| greptime      | information_schema | tables     | checksum                 | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | create_options           | string          | FIELD         |
+| greptime      | information_schema | tables     | create_time              | timestamp(0)    | FIELD         |
+| greptime      | information_schema | tables     | data_free                | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | data_length              | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | engine                   | string          | FIELD         |
+| greptime      | information_schema | tables     | index_length             | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | max_data_length          | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | max_index_length         | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | row_format               | string          | FIELD         |
+| greptime      | information_schema | tables     | table_catalog            | string          | FIELD         |
+| greptime      | information_schema | tables     | table_collation          | string          | FIELD         |
+| greptime      | information_schema | tables     | table_comment            | string          | FIELD         |
+| greptime      | information_schema | tables     | table_id                 | int unsigned    | FIELD         |
+| greptime      | information_schema | tables     | table_name               | string          | FIELD         |
+| greptime      | information_schema | tables     | table_rows               | bigint unsigned | FIELD         |
+| greptime      | information_schema | tables     | table_schema             | string          | FIELD         |
+| greptime      | information_schema | tables     | table_type               | string          | FIELD         |
+| greptime      | information_schema | tables     | temporary                | string          | FIELD         |
+| greptime      | information_schema | tables     | update_time              | timestamp(0)    | FIELD         |
+| greptime      | information_schema | tables     | version                  | bigint unsigned | FIELD         |
++---------------+--------------------+------------+--------------------------+-----------------+---------------+";
+
+    check_output_stream(output, expected).await;
+
+    let output = execute_sql_with(&instance, sql, query_ctx).await.data;
+    let expected = "\
++-----------------+--------------------+---------------+--------------------------+-----------------+---------------+
+| table_catalog   | table_schema       | table_name    | column_name              | data_type       | semantic_type |
++-----------------+--------------------+---------------+--------------------------+-----------------+---------------+
+| another_catalog | another_schema     | another_table | i                        | timestamp(3)    | TIMESTAMP     |
+| another_catalog | information_schema | columns       | character_maximum_length | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | character_octet_length   | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | character_set_name       | string          | FIELD         |
+| another_catalog | information_schema | columns       | collation_name           | string          | FIELD         |
+| another_catalog | information_schema | columns       | column_comment           | string          | FIELD         |
+| another_catalog | information_schema | columns       | column_default           | string          | FIELD         |
+| another_catalog | information_schema | columns       | column_key               | string          | FIELD         |
+| another_catalog | information_schema | columns       | column_name              | string          | FIELD         |
+| another_catalog | information_schema | columns       | column_type              | string          | FIELD         |
+| another_catalog | information_schema | columns       | data_type                | string          | FIELD         |
+| another_catalog | information_schema | columns       | datetime_precision       | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | extra                    | string          | FIELD         |
+| another_catalog | information_schema | columns       | generation_expression    | string          | FIELD         |
+| another_catalog | information_schema | columns       | greptime_data_type       | string          | FIELD         |
+| another_catalog | information_schema | columns       | is_nullable              | string          | FIELD         |
+| another_catalog | information_schema | columns       | numeric_precision        | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | numeric_scale            | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | ordinal_position         | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | privileges               | string          | FIELD         |
+| another_catalog | information_schema | columns       | semantic_type            | string          | FIELD         |
+| another_catalog | information_schema | columns       | srs_id                   | bigint          | FIELD         |
+| another_catalog | information_schema | columns       | table_catalog            | string          | FIELD         |
+| another_catalog | information_schema | columns       | table_name               | string          | FIELD         |
+| another_catalog | information_schema | columns       | table_schema             | string          | FIELD         |
+| another_catalog | information_schema | tables        | auto_increment           | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | avg_row_length           | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | check_time               | timestamp(0)    | FIELD         |
+| another_catalog | information_schema | tables        | checksum                 | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | create_options           | string          | FIELD         |
+| another_catalog | information_schema | tables        | create_time              | timestamp(0)    | FIELD         |
+| another_catalog | information_schema | tables        | data_free                | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | data_length              | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | engine                   | string          | FIELD         |
+| another_catalog | information_schema | tables        | index_length             | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | max_data_length          | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | max_index_length         | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | row_format               | string          | FIELD         |
+| another_catalog | information_schema | tables        | table_catalog            | string          | FIELD         |
+| another_catalog | information_schema | tables        | table_collation          | string          | FIELD         |
+| another_catalog | information_schema | tables        | table_comment            | string          | FIELD         |
+| another_catalog | information_schema | tables        | table_id                 | int unsigned    | FIELD         |
+| another_catalog | information_schema | tables        | table_name               | string          | FIELD         |
+| another_catalog | information_schema | tables        | table_rows               | bigint unsigned | FIELD         |
+| another_catalog | information_schema | tables        | table_schema             | string          | FIELD         |
+| another_catalog | information_schema | tables        | table_type               | string          | FIELD         |
+| another_catalog | information_schema | tables        | temporary                | string          | FIELD         |
+| another_catalog | information_schema | tables        | update_time              | timestamp(0)    | FIELD         |
+| another_catalog | information_schema | tables        | version                  | bigint unsigned | FIELD         |
++-----------------+--------------------+---------------+--------------------------+-----------------+---------------+";
+
+    check_output_stream(output, expected).await;
+}
+
+fn unwrap_frontend_error(err: &server_error::Error) -> &Error {
+    match err {
+        server_error::Error::ExecuteQuery { source, .. }
+        | server_error::Error::ExecutePlan { source, .. }
+        | server_error::Error::ExecuteGrpcQuery { source, .. }
+        | server_error::Error::ExecuteGrpcRequest { source, .. }
+        | server_error::Error::CheckDatabaseValidity { source, .. } => source
+            .as_any()
+            .downcast_ref::<Error>()
+            .expect("Expected frontend::error::Error inside BoxedError"),
+        server_error::Error::DescribeStatement { source } => source
+            .as_any()
+            .downcast_ref::<Error>()
+            .expect("Expected frontend::error::Error inside BoxedError"),
+        other => panic!("Unexpected error type: {other}"),
+    }
+}
+
+async fn execute_sql(instance: &Arc<Instance>, sql: &str) -> Output {
+    execute_sql_with(instance, sql, QueryContext::arc()).await
+}
+
+async fn execute_sql_with_query_parallelism(
+    instance: &Arc<Instance>,
+    sql: &str,
+    parallelism: usize,
+) -> Output {
+    let mut query_ctx = QueryContext::with_db_name(None);
+    query_ctx.set_extension(QUERY_PARALLELISM_HINT, parallelism.to_string());
+    execute_sql_with(instance, sql, Arc::new(query_ctx)).await
+}
+
+async fn try_execute_sql(instance: &Arc<Instance>, sql: &str) -> server_error::Result<Output> {
+    try_execute_sql_with(instance, sql, QueryContext::arc()).await
+}
+
+async fn try_execute_sql_with(
+    instance: &Arc<Instance>,
+    sql: &str,
+    query_ctx: QueryContextRef,
+) -> server_error::Result<Output> {
+    instance.do_query(sql, query_ctx).await.remove(0)
+}
+
+async fn execute_sql_with(
+    instance: &Arc<Instance>,
+    sql: &str,
+    query_ctx: QueryContextRef,
+) -> Output {
+    try_execute_sql_with(instance, sql, query_ctx)
+        .await
+        .unwrap()
+}
+
+#[apply(both_instances_cases_with_custom_storages)]
+async fn test_custom_storage(instance: Arc<dyn MockInstance>) {
+    let frontend = instance.frontend();
+    let custom_storages = [
+        ("S3", "GT_S3_BUCKET"),
+        ("Oss", "GT_OSS_BUCKET"),
+        ("Azblob", "GT_AZBLOB_CONTAINER"),
+        ("Gcs", "GT_GCS_BUCKET"),
+    ];
+    for (storage_name, custom_storage_env) in custom_storages {
+        if let Ok(env_value) = env::var(custom_storage_env) {
+            if env_value.is_empty() {
+                continue;
+            }
+            let sql = if instance.is_distributed_mode() {
+                format!(
+                    r#"create table test_table(
+                    a int null primary key,
+                    ts timestamp time index,
+                )
+                PARTITION ON COLUMNS (a) ()
+                with(storage='{storage_name}')
+                "#
+                )
+            } else {
+                format!(
+                    r#"create table test_table(a int primary key, ts timestamp time index)with(storage='{storage_name}');"#
+                )
+            };
+
+            let output = execute_sql(&instance.frontend(), &sql).await.data;
+            assert!(matches!(output, OutputData::AffectedRows(0)));
+            let output = execute_sql(
+                &frontend,
+                r#"insert into test_table(a, ts) values
+                            (1, 1655276557000),
+                            (1000, 1655276558000)
+                            "#,
+            )
+            .await
+            .data;
+            assert!(matches!(output, OutputData::AffectedRows(2)));
+
+            let output = execute_sql(&frontend, "select * from test_table")
+                .await
+                .data;
+            let expected = "\
++------+---------------------+
+| a    | ts                  |
++------+---------------------+
+| 1    | 2022-06-15T07:02:37 |
+| 1000 | 2022-06-15T07:02:38 |
++------+---------------------+";
+
+            check_output_stream(output, expected).await;
+            let output = execute_sql(&frontend, "show create table test_table")
+                .await
+                .data;
+            let OutputData::RecordBatches(record_batches) = output else {
+                unreachable!()
+            };
+
+            let record_batches = record_batches.iter().collect::<Vec<_>>();
+            let column = record_batches[0].column_by_name("Create Table").unwrap();
+            let column = column.as_string::<i32>();
+            let actual = column.value(0);
+
+            let expect = if instance.is_distributed_mode() {
+                format!(
+                    r#"CREATE TABLE IF NOT EXISTS "test_table" (
+  "a" INT NULL,
+  "ts" TIMESTAMP(3) NOT NULL,
+  TIME INDEX ("ts"),
+  PRIMARY KEY ("a")
+)
+PARTITION ON COLUMNS ("a") (
+
+)
+ENGINE=mito
+WITH(
+  storage = '{storage_name}'
+)"#
+                )
+            } else {
+                format!(
+                    r#"CREATE TABLE IF NOT EXISTS "test_table" (
+  "a" INT NULL,
+  "ts" TIMESTAMP(3) NOT NULL,
+  TIME INDEX ("ts"),
+  PRIMARY KEY ("a")
+)
+
+ENGINE=mito
+WITH(
+  storage = '{storage_name}'
+)"#
+                )
+            };
+            assert_eq!(actual.to_string(), expect);
+            let output = execute_sql(&frontend, "truncate test_table").await.data;
+            assert!(matches!(output, OutputData::AffectedRows(0)));
+            let output = execute_sql(&frontend, "select * from test_table")
+                .await
+                .data;
+            let expected = "\
++---+----+
+| a | ts |
++---+----+
++---+----+";
+
+            check_output_stream(output, expected).await;
+            let output = execute_sql(&frontend, "drop table test_table").await.data;
+            assert!(matches!(output, OutputData::AffectedRows(0)));
+        }
+    }
+}
+
+#[apply(standalone_instance_case)]
+async fn test_copy_parquet_map_to_json(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(
+        &instance,
+        r#"CREATE TABLE map_json_test (
+            "id" INT,
+            map_data JSON,
+            ts TIMESTAMP TIME INDEX
+        );"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let parquet_path = find_testing_resource("/tests/data/parquet/map_to_json.parquet");
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "COPY map_json_test FROM '{}' WITH (FORMAT='parquet');",
+            parquet_path
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(5)));
+
+    let output = execute_sql(
+        &instance,
+        "SELECT \"id\", json_to_string(map_data), map_data FROM map_json_test ORDER BY \"id\";",
+    )
+    .await
+    .data;
+
+    let expected_jsons = [
+        r#"{"a":"1","b":"2","c":"hello"}"#,
+        r#"{"x":"42","y":"test"}"#,
+        r#"{}"#,
+        r#"{"single":"value"}"#,
+        r#"{"complex":"structure","nested":"data"}"#,
+    ];
+
+    let binary: Vec<String> = expected_jsons
+        .iter()
+        .map(|json_str| {
+            let jsonb_value = jsonb::parse_value(json_str.as_bytes()).unwrap();
+            hex::encode(jsonb_value.to_vec())
+        })
+        .collect();
+
+    let expected = format!(
+        r#"+----+-----------------------------------------+----------------------------------------------------------------------------------------------+
+| id | json_to_string(map_json_test.map_data)  | map_data                                                                                     |
++----+-----------------------------------------+----------------------------------------------------------------------------------------------+
+| 1  | {{"a":"1","b":"2","c":"hello"}}           | {:<92} |
+| 2  | {{"x":"42","y":"test"}}                   | {:<92} |
+| 3  | {{}}                                      | {:<92} |
+| 4  | {{"single":"value"}}                      | {:<92} |
+| 5  | {{"complex":"structure","nested":"data"}} | {:<92} |
++----+-----------------------------------------+----------------------------------------------------------------------------------------------+"#,
+        binary[0], binary[1], binary[2], binary[3], binary[4],
+    );
+
+    check_output_stream(output, &expected).await;
+}
+
+#[apply(standalone_instance_case)]
+async fn test_copy_parquet_map_to_binary(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let output = execute_sql(
+        &instance,
+        r#"CREATE TABLE map_bin_test (
+            "id" INT,
+            map_data BINARY,
+            ts TIMESTAMP TIME INDEX
+        );"#,
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let parquet_path = find_testing_resource("/tests/data/parquet/map_to_json.parquet");
+    let output = execute_sql(
+        &instance,
+        &format!(
+            "COPY map_bin_test FROM '{}' WITH (FORMAT='parquet');",
+            parquet_path
+        ),
+    )
+    .await
+    .data;
+    assert!(matches!(output, OutputData::AffectedRows(5)));
+
+    let output = execute_sql(
+        &instance,
+        "SELECT \"id\", CAST(map_data AS STRING) FROM map_bin_test ORDER BY \"id\";",
+    )
+    .await
+    .data;
+
+    let expected = r#"+----+-----------------------------------------+
+| id | map_bin_test.map_data                   |
++----+-----------------------------------------+
+| 1  | {"a":"1","b":"2","c":"hello"}           |
+| 2  | {"x":"42","y":"test"}                   |
+| 3  | {}                                      |
+| 4  | {"single":"value"}                      |
+| 5  | {"complex":"structure","nested":"data"} |
++----+-----------------------------------------+"#;
+    check_output_stream(output, expected).await;
+}
+
+#[apply(both_instances_cases)]
+async fn test_create_table_with_json_datatype(instance: Arc<dyn MockInstance>) {
+    let instance = instance.frontend();
+
+    let sql = r#"
+CREATE TABLE b (
+    j JSON2,
+    ts TIMESTAMP TIME INDEX,
+) WITH (append_mode='true')"#;
+    let output = execute_sql(&instance, sql).await.data;
+    assert!(matches!(output, OutputData::AffectedRows(0)));
+
+    let output = execute_sql(&instance, "SHOW CREATE TABLE b").await.data;
+    let expected = r#"
++-------+-----------------------------------+
+| Table | Create Table                      |
++-------+-----------------------------------+
+| b     | CREATE TABLE IF NOT EXISTS "b" (  |
+|       |   "j" JSON2(                      |
+|       |     max_auto_expanded_paths = 100 |
+|       |   ) NULL,                         |
+|       |   "ts" TIMESTAMP(3) NOT NULL,     |
+|       |   TIME INDEX ("ts")               |
+|       | )                                 |
+|       |                                   |
+|       | ENGINE=mito                       |
+|       | WITH(                             |
+|       |   append_mode = 'true'            |
+|       | )                                 |
++-------+-----------------------------------+"#;
+    check_output_stream(output, expected).await;
+}
+
+#[rstest]
+#[case::mito(false)]
+#[case::batched_metric(true)]
+#[tokio::test(flavor = "multi_thread")]
+async fn test_histogram_ingestion_storage_lifecycle(#[case] metric_engine: bool) {
+    use api::greptime_proto::io::prometheus::write::v2::histogram::{Count, ZeroCount};
+    use api::greptime_proto::io::prometheus::write::v2::{BucketSpan, Histogram, Sample};
+    use axum::body::{Body, to_bytes};
+    use http::Request;
+    use prost::Message;
+    use servers::http::{HttpOptions, HttpServerBuilder};
+    use servers::prom_remote_write::v2::test_util as remote_write_v2;
+    use servers::prom_remote_write::validation::PromValidationMode;
+    use servers::prom_store::snappy_compress;
+    use tower::ServiceExt;
+
+    use crate::cluster::GreptimeDbClusterBuilder;
+    use crate::test_util::build_test_prom_server;
+    use crate::tests::test_util::{MockInstanceBuilder, RebuildableMockInstance, TestContext};
+
+    common_telemetry::init_default_ut_logging();
+    let builder = MockInstanceBuilder::Distributed(
+        GreptimeDbClusterBuilder::new(&format!("histogram_lifecycle_{metric_engine}"))
+            .await
+            .with_datanodes(3),
+    );
+    let mut context = TestContext::new(builder).await;
+    let make_router = |frontend: Arc<Instance>| {
+        let builder = if metric_engine {
+            build_test_prom_server(frontend.clone(), true, None)
+        } else {
+            HttpServerBuilder::new(HttpOptions::default())
+                .with_sql_handler(frontend.clone())
+                .with_prometheus_handler(frontend.clone())
+                .with_prom_handler(
+                    frontend.clone(),
+                    None,
+                    false,
+                    PromValidationMode::Strict,
+                    None,
+                )
+        };
+        let server = builder.build();
+        server.build(server.make_app()).unwrap()
+    };
+    let snapshot = |frontend: Arc<Instance>| async move {
+        let mut result = Vec::new();
+        for table in ["lifecycle_sample", "lifecycle_histogram"] {
+            let output = execute_sql(
+                &frontend,
+                &format!("select * from {table} order by greptime_timestamp"),
+            )
+            .await;
+            let OutputData::Stream(stream) = output.data else {
+                panic!("expected query stream")
+            };
+            result.push(
+                util::collect_batches(stream)
+                    .await
+                    .unwrap()
+                    .pretty_print()
+                    .unwrap(),
+            );
+        }
+        result
+    };
+    let mut router = make_router(context.frontend());
+    for round in 0..2 {
+        let timestamp = 1_000 + round * 10_000;
+        let mut labels = vec![("__name__", "lifecycle_histogram"), ("job", "api")];
+        if round == 1 {
+            // Exercise schema evolution after the first SST already exists.
+            labels.push(("zone", "east"));
+        }
+        let sample = remote_write_v2::request_with_labels_and_samples(
+            vec![("__name__", "lifecycle_sample"), ("job", "api")],
+            vec![Sample {
+                value: 42.0,
+                timestamp,
+                ..Default::default()
+            }],
+        );
+        let histograms = remote_write_v2::request_with_labels_and_histograms(
+            labels,
+            vec![Histogram {
+                timestamp,
+                start_timestamp: 500,
+                count: Some(Count::CountInt(9_007_199_254_740_993)),
+                zero_count: Some(ZeroCount::ZeroCountInt(1)),
+                zero_threshold: 0.001,
+                sum: 12.5,
+                positive_spans: vec![BucketSpan {
+                    offset: 0,
+                    length: 1,
+                }],
+                positive_deltas: vec![9_007_199_254_740_992],
+                ..Default::default()
+            }],
+        );
+        // Create the scalar table first, then add histogram storage to its physical table.
+        for request in [sample, histograms] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::post("/v1/prometheus/write")
+                        .header("Content-Encoding", "snappy")
+                        .header(
+                            "Content-Type",
+                            "application/x-protobuf;proto=io.prometheus.write.v2.Request",
+                        )
+                        .body(Body::from(
+                            snappy_compress(&request.encode_to_vec()).unwrap(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                204,
+                "{:?}",
+                to_bytes(response.into_body(), usize::MAX).await.unwrap()
+            );
+        }
+
+        let expected = snapshot(context.frontend()).await;
+        assert!(expected[1].contains("9007199254740993"), "{}", expected[1]);
+        // Rebuild before flushing, including after adding fields to the physical
+        // schema: recovery must retain the columns filled into bulk writes.
+        drop(router);
+        context.rebuild().await;
+        router = make_router(context.frontend());
+        assert_eq!(snapshot(context.frontend()).await, expected, "WAL recovery");
+        let storage_tables = if metric_engine {
+            vec!["greptime_physical_table"]
+        } else {
+            vec!["lifecycle_sample", "lifecycle_histogram"]
+        };
+        for table in &storage_tables {
+            execute_sql(
+                &context.frontend(),
+                &format!("admin flush_table('{table}')"),
+            )
+            .await;
+        }
+        assert_eq!(snapshot(context.frontend()).await, expected, "SST read");
+        if round == 1 {
+            for table in &storage_tables {
+                execute_sql(
+                    &context.frontend(),
+                    &format!("admin compact_table('{table}', 'strict_window', 'window=3600')"),
+                )
+                .await;
+            }
+            assert_eq!(snapshot(context.frontend()).await, expected, "compaction");
+            drop(router);
+            context.rebuild().await;
+            router = make_router(context.frontend());
+            assert_eq!(snapshot(context.frontend()).await, expected, "SST reopen");
+        }
+    }
+}
