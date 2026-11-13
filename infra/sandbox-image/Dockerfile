@@ -94,8 +94,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxml2 libnss3-tools pulseaudio swaybg wlr-randr xsettingsd xwayland \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=amp-wayland /out/opt/amp-wayland /opt/amp-wayland
-RUN LD_LIBRARY_PATH=/opt/amp-wayland/lib/x86_64-linux-gnu:/opt/amp-wayland/lib \
-        sh -c '! ldd /opt/amp-wayland/bin/labwc /opt/amp-wayland/libexec/waymote-streamd | grep "not found"' \
+RUN export LD_LIBRARY_PATH=/opt/amp-wayland/lib/x86_64-linux-gnu:/opt/amp-wayland/lib \
+    && ! ldd /opt/amp-wayland/bin/labwc /opt/amp-wayland/libexec/waymote-streamd | grep "not found" \
     && /opt/amp-wayland/bin/labwc --version
 
 # Node.js from nodesource and the GitHub CLI from its own repo; both signed.
