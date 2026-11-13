@@ -33,7 +33,8 @@ defmodule TuistEx.Analytics.Env do
           "CIRCLECI",
           "BITRISE_IO",
           "BUILDKITE",
-          "CODEMAGIC_ID"
+          "CODEMAGIC_ID",
+          "CM_BUILD_ID"
         ],
         &truthy?(environment.(&1))
       )
@@ -46,31 +47,48 @@ defmodule TuistEx.Analytics.Env do
       truthy?(environment.("CIRCLECI")) -> "circleci"
       truthy?(environment.("BITRISE_IO")) -> "bitrise"
       truthy?(environment.("BUILDKITE")) -> "buildkite"
-      truthy?(environment.("CODEMAGIC_ID")) -> "codemagic"
+      truthy?(environment.("CODEMAGIC_ID")) or truthy?(environment.("CM_BUILD_ID")) -> "codemagic"
       true -> nil
     end
   end
 
+  # The run identity matches the Swift command line tool's (`TuistCI`), so the
+  # server can link a run to its CI page and its Tuist Runners job, and find it
+  # from a pasted CI link, whichever client reported it.
   def ci_run_id(environment \\ &System.get_env/1) do
     case ci_provider(environment) do
       "github" -> environment.("GITHUB_RUN_ID")
       "gitlab" -> environment.("CI_PIPELINE_ID")
-      "circleci" -> environment.("CIRCLE_WORKFLOW_ID") || environment.("CIRCLE_BUILD_NUM")
+      "circleci" -> environment.("CIRCLE_BUILD_NUM")
       "bitrise" -> environment.("BITRISE_BUILD_SLUG")
-      "buildkite" -> environment.("BUILDKITE_BUILD_ID")
-      "codemagic" -> environment.("BUILD_NUMBER")
+      "buildkite" -> environment.("BUILDKITE_BUILD_NUMBER")
+      "codemagic" -> environment.("CM_BUILD_ID")
       _ -> nil
     end
   end
 
   def ci_project_handle(environment \\ &System.get_env/1) do
     case ci_provider(environment) do
-      "github" -> environment.("GITHUB_REPOSITORY")
-      "gitlab" -> environment.("CI_PROJECT_PATH")
-      "circleci" -> circleci_project_handle(environment)
-      "bitrise" -> environment.("BITRISE_APP_SLUG")
-      "buildkite" -> environment.("BUILDKITE_PIPELINE_SLUG")
-      _ -> nil
+      "github" ->
+        environment.("GITHUB_REPOSITORY")
+
+      "gitlab" ->
+        environment.("CI_PROJECT_PATH")
+
+      "circleci" ->
+        joined_handle(environment, "CIRCLE_PROJECT_USERNAME", "CIRCLE_PROJECT_REPONAME")
+
+      "bitrise" ->
+        environment.("BITRISE_APP_SLUG")
+
+      "buildkite" ->
+        joined_handle(environment, "BUILDKITE_ORGANIZATION_SLUG", "BUILDKITE_PIPELINE_SLUG")
+
+      "codemagic" ->
+        environment.("CM_PROJECT_ID")
+
+      _ ->
+        nil
     end
   end
 
@@ -199,12 +217,12 @@ defmodule TuistEx.Analytics.Env do
 
   def without_credentials(remote), do: remote
 
-  defp circleci_project_handle(environment) do
-    org = environment.("CIRCLE_PROJECT_USERNAME")
-    repo = environment.("CIRCLE_PROJECT_REPONAME")
+  defp joined_handle(environment, owner_variable, name_variable) do
+    owner = environment.(owner_variable)
+    name = environment.(name_variable)
 
-    if is_binary(org) and is_binary(repo) and org != "" and repo != "" do
-      org <> "/" <> repo
+    if is_binary(owner) and is_binary(name) and owner != "" and name != "" do
+      owner <> "/" <> name
     end
   end
 
