@@ -1024,6 +1024,17 @@ runnersFleetLinux:
   name: runners-linux
   nestedVirtualization:
     enabled: true
+    # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet
+    # instead of the device plugin, which panics kubelet next to a Pod-level
+    # budget (kubernetes/kubernetes#143490).
+    nri:
+      enabled: true
+  # Whole cores per runner Pod on the v1.36 runner host, which carries
+  # tuist.dev/pod-level-resource-managers=true. Odd shapes keep shared cores.
+  # A kubelet restart with exclusive Pods running leaks their old cores; see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
+  exclusiveCPUs:
+    defaultEnabled: true
   # Nested-virtualization pool for Android emulator workloads (Gradle
   # Managed Devices, Macrobenchmark). An operator pool rather than a shape
   # because profiles cannot ask for /dev/kvm yet; workflows target it by
