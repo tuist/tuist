@@ -57,7 +57,14 @@ func withWorkspaces(t *testing.T, h *harness) *checkout.Workspaces {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpl.Dir, template.MetadataFile), []byte(`{"name":"default","runner_uid":1001,"runner_gid":1001}`), 0o644); err != nil {
+	// The build chowns the tree to the runner user, which an unprivileged
+	// test can only do to itself, and a runner user is never root.
+	uid, gid := os.Getuid(), os.Getgid()
+	if uid == 0 {
+		uid, gid = 1001, 1001
+	}
+	metadata := `{"name":"default","runner_uid":` + strconv.Itoa(uid) + `,"runner_gid":` + strconv.Itoa(gid) + `}`
+	if err := os.WriteFile(filepath.Join(tmpl.Dir, template.MetadataFile), []byte(metadata), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	w := &checkout.Workspaces{
