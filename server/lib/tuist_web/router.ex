@@ -1368,6 +1368,7 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
     post "/runners/cache-volumes/actions-cache/lookup", RunnerCacheVolumesController, :actions_cache_lookup
+    post "/runners/cache-volumes/actions-cache/enabled", RunnerCacheVolumesController, :actions_cache_enabled
     post "/runners/cache-volumes/actions-cache/reserve", RunnerCacheVolumesController, :actions_cache_reserve
     post "/runners/cache-volumes/actions-cache/upload", RunnerCacheVolumesController, :actions_cache_upload
     post "/runners/cache-volumes/actions-cache/commit", RunnerCacheVolumesController, :actions_cache_commit

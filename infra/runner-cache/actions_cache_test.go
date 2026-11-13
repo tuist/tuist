@@ -68,6 +68,8 @@ type fakeActionsIndex struct {
 	reserved map[string]string        // id -> key
 	sizes    map[string]int64         // id -> size
 	err      error
+	disabled map[string]bool // Pod UIDs whose account keeps GitHub's cache
+	asked    int             // Enabled calls
 }
 
 func newFakeActionsIndex(store *fakeObjectStore) *fakeActionsIndex {
@@ -88,6 +90,16 @@ func (f *fakeActionsIndex) Lookup(_ context.Context, _ ActionsCaller, key string
 		}
 	}
 	return nil, nil
+}
+
+func (f *fakeActionsIndex) Enabled(_ context.Context, caller ActionsCaller) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.asked++
+	if f.err != nil {
+		return false, f.err
+	}
+	return !f.disabled[caller.PodUID], nil
 }
 
 func (f *fakeActionsIndex) Reserve(_ context.Context, _ ActionsCaller, id, key, _ string) error {
@@ -142,12 +154,29 @@ type actionsHarness struct {
 	server *httptest.Server
 	free   uint64
 	caller ActionsCaller
+	// github stands in for GitHub's results service: it answers lookups with
+	// githubAnswer and records what it was asked.
+	github       *httptest.Server
+	githubMu     sync.Mutex
+	githubAnswer string
+	githubAsked  []string
 }
 
 func newActionsHarness(t *testing.T, configure ...func(*ActionsCache)) *actionsHarness {
 	store := newFakeObjectStore(t)
-	h := &actionsHarness{t: t, store: store, index: newFakeActionsIndex(store), free: 1 << 40, caller: ActionsCaller{PodName: "pod", PodUID: "uid-1"}}
+	h := &actionsHarness{t: t, store: store, index: newFakeActionsIndex(store), free: 1 << 40, caller: ActionsCaller{PodName: "pod", PodUID: "uid-1"}, githubAnswer: `{"ok":false}`}
+	h.github = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		h.githubMu.Lock()
+		defer h.githubMu.Unlock()
+		h.githubAsked = append(h.githubAsked, fmt.Sprintf("%s %s %s", r.URL.Path, r.Header.Get("Authorization"), body))
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, h.githubAnswer)
+	}))
+	t.Cleanup(h.github.Close)
+	upstream, _ := url.Parse(h.github.URL)
 	h.cache = &ActionsCache{
+		Upstream: upstream,
 		Index:    h.index,
 		Store:    &ActionsStore{Root: t.TempDir(), Reserve: 1 << 20, FreeBytes: func(string) (uint64, error) { return h.free, nil }},
 		StoreURL: store.server.URL,
@@ -396,6 +425,79 @@ func TestActionsCacheHealthFollowsTheStore(t *testing.T) {
 	h.cache.probe(context.Background())
 	if status := health(); status != http.StatusServiceUnavailable {
 		t.Fatalf("health answered %d with the store down", status)
+	}
+}
+
+func TestActionsCacheHealthOnlyAnswersForEnabledAccounts(t *testing.T) {
+	h := newActionsHarness(t)
+	h.cache.reachable.Store(time.Now().UnixNano())
+	health := func() int {
+		return h.do(http.MethodGet, h.server.URL+ActionsHealthPath, nil, nil).StatusCode
+	}
+	// Until the server answers, such as for a job GitHub has not reported yet,
+	// the job stays on GitHub's cache and the next probe asks again.
+	h.index.err = errors.New("execution pending")
+	if status := health(); status != http.StatusServiceUnavailable {
+		t.Fatalf("health answered %d without the server's answer", status)
+	}
+	h.index.err = nil
+	h.index.disabled = map[string]bool{"uid-1": true}
+	waitFor := func(want int) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for health() != want && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if status := health(); status != want {
+			t.Fatalf("health answered %d, want %d", status, want)
+		}
+	}
+	waitFor(http.StatusServiceUnavailable)
+
+	h.caller = ActionsCaller{PodName: "other", PodUID: "uid-2"}
+	waitFor(http.StatusOK)
+	h.index.mu.Lock()
+	asked := h.index.asked
+	h.index.mu.Unlock()
+	health()
+	h.index.mu.Lock()
+	defer h.index.mu.Unlock()
+	if h.index.asked != asked {
+		t.Fatal("asked the server again for a Pod it already answered for")
+	}
+}
+
+func TestActionsCacheAsksGitHubWhatTheMirrorMisses(t *testing.T) {
+	h := newActionsHarness(t)
+	h.save("deps-new", []byte("mirror"))
+	h.githubAnswer = `{"ok":true,"signed_download_url":"https://github.example/blob","matched_key":"deps-old"}`
+
+	if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "deps-new", "version": "v1"}); !strings.HasPrefix(answer["signed_download_url"].(string), h.server.URL) {
+		t.Fatalf("a mirror hit was not served by the mirror: %v", answer)
+	}
+	if len(h.githubAsked) != 0 {
+		t.Fatalf("asked GitHub about a mirror hit: %v", h.githubAsked)
+	}
+
+	request := map[string]any{"key": "deps-old", "restore_keys": []string{"old-"}, "version": "v2"}
+	answer := h.twirp("GetCacheEntryDownloadURL", request)
+	if answer["signed_download_url"] != "https://github.example/blob" || answer["matched_key"] != "deps-old" {
+		t.Fatalf("a miss was not answered from GitHub: %v", answer)
+	}
+	sent, _ := json.Marshal(request)
+	if want := actionsCacheService + "GetCacheEntryDownloadURL Bearer token " + string(sent); h.githubAsked[0] != want {
+		t.Fatalf("GitHub was asked %q, want %q", h.githubAsked[0], want)
+	}
+
+	h.index.err = errors.New("server down")
+	if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "deps-new", "version": "v1"}); answer["matched_key"] != "deps-old" {
+		t.Fatalf("a lookup the index could not answer was not asked of GitHub: %v", answer)
+	}
+	h.index.err = nil
+
+	h.github.Close()
+	if answer := h.twirp("GetCacheEntryDownloadURL", map[string]any{"key": "deps-old", "version": "v1"}); answer["ok"] != false {
+		t.Fatalf("an unreachable GitHub did not answer a miss: %v", answer)
 	}
 }
 

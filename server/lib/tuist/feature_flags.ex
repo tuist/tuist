@@ -179,6 +179,16 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account's GitHub Actions jobs on Linux runners use the cache the
+  runner hosts serve (`Tuist.Runners.ActionsCache`) instead of GitHub's.
+  Production requires the `:runner_actions_cache` flag for the account during
+  the rollout; other environments default to enabled.
+  """
+  def runner_actions_cache_enabled?(account) do
+    Environment.env() != :prod or FunWithFlags.enabled?(:runner_actions_cache, for: account)
+  end
+
+  @doc """
   Whether a verified GitHub Actions OIDC token binds the account's runner
   session to the job it names (`Tuist.Runners.ExecutionTokens.prove/1`).
   Production requires the `:runner_oidc_execution` flag for the account during

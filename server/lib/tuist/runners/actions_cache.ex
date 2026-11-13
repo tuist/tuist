@@ -19,6 +19,7 @@ defmodule Tuist.Runners.ActionsCache do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Repo
   alias Tuist.Runners.ActionsCache.Entry
@@ -31,7 +32,7 @@ defmodule Tuist.Runners.ActionsCache do
   @retention_seconds 7 * 24 * 60 * 60
   # An upload that has not finished by then was abandoned.
   @reservation_seconds 60 * 60
-  @repository_limit_bytes 50_000_000_000
+  @repository_limit_bytes 200_000_000_000
   @store_fill_percent 90
   # One presigned PUT carries at most 5 GB.
   @max_entry_bytes 5_000_000_000
@@ -45,7 +46,8 @@ defmodule Tuist.Runners.ActionsCache do
     restore_keys = Map.get(params, "restore_keys") || []
 
     with true <- valid_key?(key) and valid_key?(version) and valid_restore_keys?(restore_keys),
-         {:ok, scope} <- job_scope(pod, node) do
+         {:ok, scope} <- job_scope(pod, node),
+         true <- enabled?(scope.account_id) do
       {:ok, restorable(find(scope, key, restore_keys, version), node)}
     else
       {:error, :pending} -> {:error, :pending}
@@ -55,10 +57,26 @@ defmodule Tuist.Runners.ActionsCache do
 
   def lookup(_), do: {:error, :unavailable}
 
+  @doc """
+  Whether the account of the job running on `pod` uses this cache. Hosts leave
+  every other account's jobs on GitHub's cache, and this index refuses them.
+  """
+  def enabled(%{"pod_name" => pod, "node_name" => node}) do
+    case CacheVolumes.running_github_job(pod, node) do
+      {:ok, job} -> {:ok, enabled?(job.account_id)}
+      error -> error
+    end
+  end
+
+  def enabled(_), do: {:error, :unavailable}
+
+  defp enabled?(account_id), do: FeatureFlags.runner_actions_cache_enabled?(%Account{id: account_id})
+
   def reserve(%{"pod_name" => pod, "node_name" => node, "id" => id, "key" => key, "version" => version}) do
     with true <- valid_key?(key) and valid_key?(version),
          {:ok, id} <- Ecto.UUID.cast(id),
          {:ok, scope} <- job_scope(pod, node),
+         true <- enabled?(scope.account_id),
          {:ok, account} <- Accounts.get_account_by_id(scope.account_id),
          {:ok, storage_target} <- place(account, node) do
       Repo.transaction(fn ->
@@ -205,7 +223,7 @@ defmodule Tuist.Runners.ActionsCache do
 
   @doc """
   Deletes reservations abandoned for an hour, entries unused for seven days,
-  per repository the least recently used entries beyond 50 GB, and per store
+  per repository the least recently used entries beyond 200 GB, and per store
   the least recently used entries beyond 90% of its bucket quota, so saves
   keep finding room under it. An entry whose object could not be deleted stays
   for the next sweep.

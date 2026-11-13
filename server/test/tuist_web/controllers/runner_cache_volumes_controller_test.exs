@@ -334,7 +334,10 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
       :ok
     end
 
-    test "answers a lookup, a pending job, a taken key, an upload and a commit" do
+    test "answers whether a job uses the cache, a lookup, a pending job, a taken key, an upload and a commit" do
+      expect(ActionsCache, :enabled, fn _ -> {:ok, false} end)
+      assert %{status: 200, resp_body: ~s({"enabled":false})} = Controller.actions_cache_enabled(conn(), %{})
+
       expect(ActionsCache, :lookup, fn _ -> {:ok, nil} end)
       assert %{status: 200, resp_body: ~s({"entry":null})} = Controller.actions_cache_lookup(conn(), %{})
 

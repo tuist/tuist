@@ -67,6 +67,8 @@ func TestActionsIndexWaitsForTheJobThenMapsConflicts(t *testing.T) {
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]any{"entry": map[string]any{"id": "e", "key": body["key"], "size_bytes": 3}})
+		case "/enabled":
+			json.NewEncoder(w).Encode(map[string]any{"enabled": body["pod_name"] == "pod"})
 		case "/reserve":
 			w.WriteHeader(http.StatusConflict)
 		case "/upload":
@@ -86,6 +88,12 @@ func TestActionsIndexWaitsForTheJobThenMapsConflicts(t *testing.T) {
 	entry, err := index.Lookup(ctx, caller, "deps", nil, "v1")
 	if err != nil || entry == nil || entry.Key != "deps" || requests.Load() != 2 {
 		t.Fatalf("lookup %+v, %v after %d requests", entry, err, requests.Load())
+	}
+	if enabled, err := index.Enabled(ctx, caller); !enabled || err != nil {
+		t.Fatalf("enabled %v, %v", enabled, err)
+	}
+	if enabled, err := index.Enabled(ctx, cachevolumes.ActionsCaller{PodName: "other"}); enabled || err != nil {
+		t.Fatalf("enabled for another pod %v, %v", enabled, err)
 	}
 	if err := index.Reserve(ctx, caller, "id", "deps", "v1"); !errors.Is(err, cachevolumes.ErrConflict) {
 		t.Fatalf("reserve %v", err)

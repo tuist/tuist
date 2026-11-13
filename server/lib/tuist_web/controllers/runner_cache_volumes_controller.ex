@@ -170,6 +170,17 @@ defmodule TuistWeb.RunnerCacheVolumesController do
     end
   end
 
+  # Whether the agent sends the job's cache requests to itself
+  # (`ActionsCache.enabled/1`).
+  def actions_cache_enabled(conn, params) do
+    with :ok <- authenticate(conn),
+         {:ok, enabled} <- ActionsCache.enabled(params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(%{enabled: enabled})
+    else
+      error -> actions_cache_error(conn, error)
+    end
+  end
+
   def actions_cache_reserve(conn, params) do
     with :ok <- authenticate(conn),
          {:ok, id} <- ActionsCache.reserve(params) do

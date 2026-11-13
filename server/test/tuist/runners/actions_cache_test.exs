@@ -6,6 +6,7 @@ defmodule Tuist.Runners.ActionsCacheTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
   alias Tuist.Repo
@@ -263,6 +264,30 @@ defmodule Tuist.Runners.ActionsCacheTest do
     end
   end
 
+  describe "enabled/1" do
+    test "an account without the flag keeps GitHub's cache: the host is told so, and lookup and reserve refuse it",
+         ctx do
+      pod = running(ctx, "pod-main", push("main"))
+      save(pod, "deps")
+      params = %{"pod_name" => pod, "node_name" => "node"}
+      assert {:ok, true} = ActionsCache.enabled(params)
+
+      stub(FeatureFlags, :runner_actions_cache_enabled?, fn %Account{id: id} -> id != ctx.account.id end)
+
+      assert {:ok, false} = ActionsCache.enabled(params)
+
+      assert {:error, :unavailable} =
+               ActionsCache.lookup(Map.merge(params, %{"key" => "deps", "version" => @version}))
+
+      assert {:error, :unavailable} =
+               ActionsCache.reserve(
+                 Map.merge(params, %{"id" => Ecto.UUID.generate(), "key" => "other", "version" => @version})
+               )
+
+      assert {:error, :unavailable} = ActionsCache.enabled(%{"pod_name" => "nobody", "node_name" => "node"})
+    end
+  end
+
   describe "reserve/1" do
     test "refuses a key and version the scope already holds, and repeats its own reservation",
          ctx do
@@ -374,14 +399,19 @@ defmodule Tuist.Runners.ActionsCacheTest do
   describe "sweep/1" do
     test "deletes abandoned reservations, idle entries and a repository's oldest entries beyond its limit",
          %{account: account} = ctx do
+      # A store with room for both, so only the repository's 200 GB evicts.
+      stub(Environment, :shard_storage_targets, fn ->
+        %{"gra-v1" => Map.put(@store, "actions_cache_bytes", 1_000_000_000_000)}
+      end)
+
       pod = running(ctx, "pod-main", push("main"))
       now = DateTime.utc_now()
 
       idle = save(pod, "idle")
-      oldest = save(pod, "oldest", min(30_000_000_000, 5_000_000_000))
-      Repo.update_all(from(e in Entry, where: e.id == ^oldest), set: [size_bytes: 30_000_000_000])
+      oldest = save(pod, "oldest", 5_000_000_000)
+      Repo.update_all(from(e in Entry, where: e.id == ^oldest), set: [size_bytes: 120_000_000_000])
       newest = save(pod, "newest", 5_000_000_000)
-      Repo.update_all(from(e in Entry, where: e.id == ^newest), set: [size_bytes: 30_000_000_000])
+      Repo.update_all(from(e in Entry, where: e.id == ^newest), set: [size_bytes: 120_000_000_000])
 
       {:ok, abandoned} =
         ActionsCache.reserve(%{
