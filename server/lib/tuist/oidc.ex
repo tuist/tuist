@@ -94,6 +94,30 @@ defmodule Tuist.OIDC do
   def github_actions_claims(_, _), do: {:error, :invalid_token}
 
   @doc """
+  The identity a coding agent presents to the MCP endpoint with its own token:
+  an Amp orb's ID token minted for `audience`, the origin of the MCP URL (what
+  `${amp:id-token}` sends), or a Claude Code session token. Returns the same
+  identities as `claims/2` for those providers and refuses every other token.
+  """
+  def agent_claims(@claude_code_token_prefix <> token, _audience) when byte_size(token) <= 16_384,
+    do: claude_code_claims(token)
+
+  def agent_claims(token, audience) when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, @amp_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, amp_jwks_uri()),
+         :ok <- audience_includes(claims, audience),
+         %{"token_use" => "exchanged"} <- claims do
+      {:ok, amp_identity(claims)}
+    else
+      {:ok, _issuer} -> {:error, :invalid_token}
+      %{} -> {:error, :invalid_token}
+      error -> error
+    end
+  end
+
+  def agent_claims(_, _), do: {:error, :invalid_token}
+
+  @doc """
   Verifies an Amp token against the account's custom trust policies, which
   predate Amp workspace connections and also cover personal threads.
   """

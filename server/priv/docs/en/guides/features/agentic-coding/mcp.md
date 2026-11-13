@@ -213,6 +213,19 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
+## Agents in Amp orbs and Claude Code cloud sessions
+
+Coding agents running in sandboxes connected to a Tuist account can authenticate to the endpoint with their own identity token, without a browser or a stored Tuist credential:
+
+- **Amp orbs** of an Amp workspace, or project, that the account connected under **Settings → Integrations → Amp** send the orb's ID token. In Amp, set the server's `Authorization` header to `Bearer ${amp:id-token}`. Amp mints the token for the origin of the server URL, so the URL must be this Tuist instance's own address, and refreshes it before it expires. Tokens minted for another origin are refused.
+- **Claude Code cloud sessions** of a connected Claude Code environment send the session token Tuist passes them as `TUIST_OIDC_TOKEN`. Set the header to `Bearer ${TUIST_OIDC_TOKEN}`.
+
+Tuist's Linux sandboxes come with this configured: a `tuist` server in Amp's user settings and in Claude Code's user configuration, both pointed at `${TUIST_URL}/mcp`, along with the Tuist CLI and a skill that tells the agent when to check its results against the project's history. Elsewhere, add the server with the header above yourself.
+
+These tokens give read-only access to every project of the connected account: they carry the read scopes of the `mcp` group and none that create, change, or delete data, such as muting or skipping tests. Disconnecting the workspace or environment stops access on the next request, and access never outlasts the token itself. An Amp workspace connected to several Tuist accounts is refused, because its token does not name one. When a connection is missing, the unauthorized response's `error_description` says so.
+
+This read-only access applies only to the Model Context Protocol endpoint. The command-line tool and build-system integrations in the same sandbox still exchange the token for the connection's CI access.
+
 ## WebMCP
 
 In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.

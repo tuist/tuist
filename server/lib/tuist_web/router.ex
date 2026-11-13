@@ -331,6 +331,7 @@ defmodule TuistWeb.Router do
   pipeline :mcp do
     plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, :load_agent_identity
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
