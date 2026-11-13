@@ -7,7 +7,7 @@
 public enum Package: Equatable, Codable, Sendable {
     case remote(url: String, requirement: Requirement)
     case registry(identifier: String, requirement: Requirement)
-    case local(path: Path)
+    case local(path: Path, config: LocalPackageReferenceConfig?)
 
     private enum Kind: String, Codable {
         case remote
@@ -31,6 +31,24 @@ public enum Package: Equatable, Codable, Sendable {
         @available(*, unavailable, message: "use upToNextMinor(from:) instead.")
         static func upToNextMinor(_: Version) {
             fatalError()
+        }
+    }
+    
+    public struct LocalPackageReferenceConfig: Equatable, Codable, Sendable {
+        /// Abitlity to group packages in Xcode Project
+        public enum Grouping: Equatable, Codable, Sendable {
+            /// Custom path to the Package
+            case custom(String)
+            /// Path to trimm from original path
+            case trimmingPrefix(String)
+            /// Path keeps original structure
+            case original
+        }
+
+        public let grouping: Grouping?
+
+        public init(grouping: Grouping? = nil) {
+            self.grouping = grouping
         }
     }
 
@@ -111,7 +129,12 @@ public enum Package: Equatable, Codable, Sendable {
     ///
     /// - Parameter path: The path of the package.
     public static func package(path: Path) -> Package {
-        .local(path: path)
+        .local(path: path, config: nil)
+    }
+
+    /// - Parameter config: Contains the path of the package and possible grouping type for local packages
+    public static func package(path: Path, grouping: LocalPackageReferenceConfig.Grouping) -> Package {
+        .local(path: path, config: .init(grouping: grouping))
     }
 
     /// Adds a package dependency that uses the version requirement, starting with the given minimum version,
