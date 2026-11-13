@@ -504,14 +504,14 @@ func (c *ActionsCache) copyOut(ctx context.Context, job actionsCopy) {
 }
 
 func (c *ActionsCache) put(ctx context.Context, job actionsCopy, upload ActionsUpload) error {
-	file, err := c.Store.Open(job.id)
+	content, err := c.Store.Open(job.id)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer content.Close()
 	ctx, cancel := context.WithTimeout(ctx, time.Hour)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, upload.URL, file)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, upload.URL, content)
 	if err != nil {
 		return err
 	}
