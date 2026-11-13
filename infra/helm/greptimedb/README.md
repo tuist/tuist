@@ -2,20 +2,22 @@
 
 Pulse is Tuist's GreptimeDB fork: its source is in [`pulse/`](../../../pulse/FORK.md)
 and `pulse-release.yml` publishes it as `ghcr.io/tuist/pulse`. In each workload
-cluster it runs as the private `greptimedb` release in namespace `observability`,
-and collectors write to it directly at `greptimedb.observability.svc.cluster.local:4000`.
-Deployments still pin the upstream Apache-2.0 GreptimeDB v1.3.0 image, which
-lacks the fork's query nesting limits: an authenticated reader can crash it with
-a deeply nested query. Only in-cluster readers (the server, Grafana over PDC)
-reach it. Switching to a fork image is one change across every pin listed in
-`pulse/FORK.md`; do it once the first `pulse-release` publishes.
+cluster this chart runs it as the private `pulse` release in namespace
+`observability`, behind Service `pulse` (`pulse.observability.svc.cluster.local:4000`).
+Every resource is named `pulse` or `pulse-*`; Greptime's own config paths,
+environment variables and WAL topic names are unchanged. The chart directory
+keeps its old name until the code is renamed.
 
-The old `pulse` release (legacy Elixir Pulse, or on staging the interim nginx
-gateway) is removed, not replaced. Pushes and pull requests only validate;
-deploying needs a `Pulse GreptimeDB Replacement` dispatch from main, and
-canary/production dispatches need their protected-environment approval. Existing
-private `greptimedb` resources and their PVC retain their names and ownership so
-a branding change cannot recreate storage.
+The chart pins the fork release in `values.yaml`, which must already be
+published: push `pulse/` to main and let `pulse-release.yml` finish before
+dispatching a deployment. Pushes and pull requests only validate; deploying
+needs a `Pulse GreptimeDB Replacement` dispatch from main, and canary/production
+dispatches need their protected-environment approval.
+
+The legacy Elixir Pulse release was uninstalled from every workload cluster
+before this release took over its name. The interim `greptimedb` release that
+ran upstream GreptimeDB in staging and canary is replaced, not migrated: see
+[Uninstalling the old greptimedb release](#uninstalling-the-old-greptimedb-release).
 
 ## Bootstrap prerequisites
 
@@ -23,13 +25,12 @@ These are desired configuration, **not a record of provisioned resources**:
 
 - Preserve `tuist-pulso-{staging,canary,production}` and their bucket-scoped
   credentials. The historical bucket names are intentional; Greptime writes under
-  its own `greptimedb/` prefix and never rewrites legacy Pulse objects.
+  its own `pulse/` prefix and never rewrites legacy Pulse objects (under
+  `tenants/`, `auth/` and `.pulse/`) or the interim release's `greptimedb/` data.
 - In each environment's `onepassword` ClusterSecretStore vault, provide
   `PULSE_TOKEN/password`, `PULSE_SECRET_KEY_BASE/password` and
   `PULSE_S3_CREDENTIALS` fields `access_key_id` and `secret_access_key`. Keep the
-  existing values: collectors and external hosts authenticate with the same token.
-- External NixOS cache hosts need opnix access to the **matching environment's**
-  `PULSE_TOKEN/password`. Never substitute a production token on staging/canary.
+  existing values: collectors authenticate with the same token.
 - Confirm the ESO store is ready, the CI environment has its usual
   `OP_SERVICE_ACCOUNT_TOKEN`, and the general pool has the requested capacity.
 - The management cluster is separate: it still runs the last Elixir Pulse
@@ -53,11 +54,11 @@ with a `maxUnavailable: 1` disruption budget:
 
 | Component | Replicas | Role |
 | --- | --- | --- |
-| `greptimedb-etcd` | 3 | Dedicated metadata quorum, never the Kubernetes etcd |
-| `greptimedb-kafka` | 3 | KRaft brokers/controllers holding the remote WAL |
-| `greptimedb-metasrv` | 3 | Leader-elected through etcd; region failover enabled |
-| `greptimedb-datanode` | 3 | Regions; local disk is a rebuildable cache |
-| `greptimedb-frontend` | 2 | Authenticated HTTP API behind Service `greptimedb:4000` |
+| `pulse-etcd` | 3 | Dedicated metadata quorum, never the Kubernetes etcd |
+| `pulse-kafka` | 3 | KRaft brokers/controllers holding the remote WAL |
+| `pulse-metasrv` | 3 | Leader-elected through etcd; region failover enabled |
+| `pulse-datanode` | 3 | Regions; local disk is a rebuildable cache |
+| `pulse-frontend` | 2 | Authenticated HTTP API behind Service `pulse:4000` |
 
 WAL topics use replication factor 3, `min.insync.replicas=2`, no unclean leader
 election and no time-based retention; Greptime prunes them after flushing to
@@ -65,7 +66,7 @@ object storage. Greptime v1.3.0 produces WAL records with `acks=all` (its pinned
 rskafka client sends `acks=-1`), so an acknowledged write is on at least two
 brokers. Local-WAL failover (`allow_region_failover_on_local_wal`) stays off and
 missing WAL entries are an error (`overwrite_entry_start_id = false`). Cluster
-data lives under `greptimedb/distributed/` so it never mixes with a standalone
+data lives under `pulse/distributed/` so it never mixes with a standalone
 backend's objects in the same bucket. The target is surviving one general-node
 failure without losing acknowledged writes; every general node is in
 `fsn1-dc14`, so this is not datacenter resilience.
@@ -104,18 +105,15 @@ on unrelated value changes.
 
 `Pulse GreptimeDB Replacement` accepts `environment=staging`, `canary` or
 `production`; this selects the protected CI environment, kubeconfig vault, shared
-observability concurrency lane and isolated `tuist-pulso-<env>/greptimedb/`
+observability concurrency lane and isolated `tuist-pulso-<env>/pulse/`
 bucket/prefix. Namespace is always `observability`. Never read credentials into
 agent context. Canary/production reject `inspect_readers` before loading
 credentials. Grafana Cloud destinations are never changed by any of these steps.
 
 Each environment moves in this order:
 
-Collectors already stopped writing to Pulse, and the old `pulse` release is
-uninstalled in staging, canary and production (see
-[Uninstalling the old pulse release](#uninstalling-the-old-pulse-release)). Each
-environment then moves in this order:
-
+0. **Remove the interim release** (staging and canary only). Dispatch with
+   `uninstall_greptimedb=true`; see below.
 1. **Install or qualify the backend.** Dispatch with `dashboard=true`. Ownership,
    storage class, capacity, ESO, S3 privacy, lifecycle and isolated-prefix gates
    must pass before the install. The `PULSE_S3_CREDENTIALS` key must have
@@ -129,7 +127,7 @@ environment then moves in this order:
    unauthenticated rejection, then rereads the data after restarting every
    stateful component.
 2. **Write to Greptime.** Deploy `k8s-monitoring` with its Greptime destinations.
-   Server deploys refuse this until `greptimedb-dashboard-auth` is Ready with its
+   Server deploys refuse this until `pulse-dashboard-auth` is Ready with its
    ingest keys, because Alloy drops its whole config, Grafana Cloud included,
    when a referenced Secret is missing. Then dispatch with
    `dashboard=true,verify_telemetry=true`, which requires recent real Kubernetes
@@ -152,23 +150,20 @@ text search rather than LogQL/TraceQL.
 ## Routine deployments remain independent
 
 The server's collector readiness gate (`pulse-readiness.sh`) follows the live
-workloads: a legacy Pulse Deployment, the interim staging gateway, or no `pulse`
-Deployment at all. Whenever Greptime is in use, its topology's workloads must be
-ready and Helm-owned by `greptimedb`; legacy `pulso` writers still fail closed.
-The observability concurrency lane serializes these dispatches and routine
-collector upgrades.
-
-The legacy Elixir Pulse release and deployment workflows were removed with its
-source. An environment still running legacy Pulse keeps its last Helm release
-until step 3; it can no longer be redeployed from this repository.
+workloads. With no `pulse` release installed it passes, and collectors still
+deploy to Grafana Cloud. Otherwise every workload of the installed topology must
+be Helm-owned by `pulse`, fully rolled out and Ready, and run a published
+`ghcr.io/tuist/pulse:<version>-tuist.<n>` image; legacy `pulso` writers still
+fail closed. The observability concurrency lane serializes these dispatches and
+routine collector upgrades.
 
 ## Authentication, schema and network
 
-Existing `greptimedb-auth` pilot credentials are created once by CI and never
+Existing `pulse-auth` pilot credentials are created once by CI and never
 rotated/read back. Pilot is for CI qualification only. With `dashboard.enabled`,
 ESO reads existing `PULSE_TOKEN/password` into a separate provider file containing
 `dashboard:ro=<token>` and `tuist:wo=<token>`. The same Secret
-(`greptimedb-dashboard-auth`) carries `ingest-username`/`ingest-password` for the
+(`pulse-dashboard-auth`) carries `ingest-username`/`ingest-password` for the
 collectors' write-only identity. A nonroot init container combines
 projected inputs into memory without exposing Secrets to Helm or agent context.
 Static providers load at startup; restart after ESO credential rotation. Tokens
@@ -191,31 +186,32 @@ Ingress exists. Parent manages server/PDC endpoint configuration.
 
 ## Rollback boundaries
 
-Rolling back is a collector change: point `k8s-monitoring` back at whatever
-backend should receive writes. Grafana Cloud is unaffected either way. The old
-`pulse` release cannot be redeployed from this repository; `--keep-history`
-retains its Helm history for inspection only. Do not uninstall the backend or
-shrink its PVC as a rollback shortcut. New Greptime data are not copied to old
-Pulse, and historical Pulse objects are neither imported nor deleted.
+Rolling back a collector change means pointing `k8s-monitoring` back at
+whatever backend should receive writes. Grafana Cloud is unaffected either way.
+Rolling back a backend change is a `helm rollback pulse` to an earlier revision.
+Do not uninstall the backend or shrink its PVC as a rollback shortcut. Pulse
+data is not copied between releases, and historical objects are neither
+imported nor deleted.
 
-## Uninstalling the old pulse release
+## Uninstalling the old greptimedb release
 
-No collector writes to Pulse any more, so the old `pulse` release (gateway in
-staging, Elixir Pulse in canary and production) is removed by dispatching with
-`environment` and `uninstall_pulse=true`. That runs only the `uninstall-pulse`
-job: no backend install and no collector rollout. It refuses while the
-environment's `k8s-monitoring` values, live `k8s-monitoring-*` ConfigMaps, or
-any pod outside the release still reference `pulse.observability` or
-`pulse-credentials`, because Alloy drops its whole config, Grafana Cloud
-included, when a referenced Secret is missing. Deploy the server to that
-environment first. It then runs `helm uninstall pulse --keep-history`, which
-removes `pulse-credentials` with the release and never touches Greptime, its
-PVCs or bucket objects, and finishes with the routine readiness gate.
+Staging and canary ran upstream GreptimeDB as the interim `greptimedb` release.
+Dispatch with `environment` and `uninstall_greptimedb=true` to remove it. That
+runs only the `uninstall-greptimedb` job: no backend install and no collector
+rollout. It refuses while the environment's `k8s-monitoring` values or live
+`k8s-monitoring-*` ConfigMaps reference the release's Service or Secrets, or any
+pod outside the release mounts its Secrets, because Alloy drops its whole
+config, Grafana Cloud included, when a referenced Secret is missing. It then
+runs `helm uninstall greptimedb --keep-history`, checks that its
+`data-greptimedb-*` PVCs survived, and finishes with the routine readiness gate.
+The PVCs, the CI-created `greptimedb-auth` Secret and the bucket's `greptimedb/`
+objects stay until someone deletes them deliberately; the staging reader loses
+the interim data, which only had a 7-day TTL.
 
-The backend deploy's storage probe does not depend on either release's
-Secret: it creates a run-scoped ExternalSecret from the rendered chart's
+The backend deploy's storage probe does not depend on any release's Secret: it
+creates a run-scoped ExternalSecret from the rendered chart's
 `PULSE_S3_CREDENTIALS` references and deletes it afterwards, so it works before
-the first install and after the old release is gone.
+the first install.
 
 ## Validation
 

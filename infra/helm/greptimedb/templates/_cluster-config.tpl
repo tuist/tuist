@@ -1,8 +1,8 @@
 {{/* Rendered once for the ConfigMap and once for the pod's restart checksum. */}}
 {{- define "greptimedb.metasrvConfig" -}}
-{{- $etcd := include "greptimedb.peers" (list "greptimedb-etcd" 2379) }}
-{{- $kafka := include "greptimedb.peers" (list "greptimedb-kafka" 9092) }}
-{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "greptimedb-metasrv") -}}
+{{- $etcd := include "greptimedb.peers" (list "pulse-etcd" 2379) }}
+{{- $kafka := include "greptimedb.peers" (list "pulse-kafka" 9092) }}
+{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "pulse-metasrv") -}}
 data_home = "/tmp/greptimedb"
 enable_telemetry = false
 backend = "etcd_store"
@@ -28,9 +28,9 @@ create_topic_timeout = "30s"
 {{- end }}
 
 {{- define "greptimedb.datanodeConfig" -}}
-{{- $etcd := include "greptimedb.peers" (list "greptimedb-etcd" 2379) }}
-{{- $kafka := include "greptimedb.peers" (list "greptimedb-kafka" 9092) }}
-{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "greptimedb-metasrv") -}}
+{{- $etcd := include "greptimedb.peers" (list "pulse-etcd" 2379) }}
+{{- $kafka := include "greptimedb.peers" (list "pulse-kafka" 9092) }}
+{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "pulse-metasrv") -}}
 enable_telemetry = false
 require_lease_before_startup = true
 init_regions_in_background = false
@@ -65,9 +65,9 @@ write_cache_size = {{ .Values.cluster.datanode.writeCacheSize | quote }}
 {{- end }}
 
 {{- define "greptimedb.frontendConfig" -}}
-{{- $etcd := include "greptimedb.peers" (list "greptimedb-etcd" 2379) }}
-{{- $kafka := include "greptimedb.peers" (list "greptimedb-kafka" 9092) }}
-{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "greptimedb-metasrv") -}}
+{{- $etcd := include "greptimedb.peers" (list "pulse-etcd" 2379) }}
+{{- $kafka := include "greptimedb.peers" (list "pulse-kafka" 9092) }}
+{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "pulse-metasrv") -}}
 enable_telemetry = false
 user_provider = "static_user_provider:file:/etc/greptimedb/auth/passwd"
 max_in_flight_write_bytes = "64MB"
@@ -86,11 +86,11 @@ metasrv_addrs = {{ $metasrv }}
 {{- end }}
 
 {{- define "greptimedb.kafkaServerProperties" -}}
-{{- $etcd := include "greptimedb.peers" (list "greptimedb-etcd" 2379) }}
-{{- $kafka := include "greptimedb.peers" (list "greptimedb-kafka" 9092) }}
-{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "greptimedb-metasrv") -}}
+{{- $etcd := include "greptimedb.peers" (list "pulse-etcd" 2379) }}
+{{- $kafka := include "greptimedb.peers" (list "pulse-kafka" 9092) }}
+{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "pulse-metasrv") -}}
 process.roles=broker,controller
-controller.quorum.voters=0@greptimedb-kafka-0.greptimedb-kafka.observability.svc.cluster.local:9093,1@greptimedb-kafka-1.greptimedb-kafka.observability.svc.cluster.local:9093,2@greptimedb-kafka-2.greptimedb-kafka.observability.svc.cluster.local:9093
+controller.quorum.voters=0@pulse-kafka-0.pulse-kafka.observability.svc.cluster.local:9093,1@pulse-kafka-1.pulse-kafka.observability.svc.cluster.local:9093,2@pulse-kafka-2.pulse-kafka.observability.svc.cluster.local:9093
 listeners=PLAINTEXT://:9092,CONTROLLER://:9093
 controller.listener.names=CONTROLLER
 inter.broker.listener.name=PLAINTEXT
@@ -110,9 +110,9 @@ log.retention.ms=-1
 {{- end }}
 
 {{- define "greptimedb.kafkaLog4j" -}}
-{{- $etcd := include "greptimedb.peers" (list "greptimedb-etcd" 2379) }}
-{{- $kafka := include "greptimedb.peers" (list "greptimedb-kafka" 9092) }}
-{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "greptimedb-metasrv") -}}
+{{- $etcd := include "greptimedb.peers" (list "pulse-etcd" 2379) }}
+{{- $kafka := include "greptimedb.peers" (list "pulse-kafka" 9092) }}
+{{- $metasrv := printf "[\"%s:3002\"]" (include "greptimedb.svc" "pulse-metasrv") -}}
 Configuration:
   Appenders:
     Console:

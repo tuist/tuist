@@ -5,8 +5,8 @@
 {{- if not (has .Values.environment (list "staging" "canary" "production")) }}
 {{- fail "GreptimeDB requires an explicit managed environment" }}
 {{- end }}
-{{- if or (ne .Values.storage.bucket (printf "tuist-pulso-%s" .Values.environment)) (ne .Values.storage.prefix "greptimedb/") }}
-{{- fail "GreptimeDB must use the selected environment's isolated greptimedb/ prefix" }}
+{{- if or (ne .Values.storage.bucket (printf "tuist-pulso-%s" .Values.environment)) (ne .Values.storage.prefix "pulse/") }}
+{{- fail "GreptimeDB must use the selected environment's isolated pulse/ prefix" }}
 {{- end }}
 {{- if not (has .Values.topology (list "standalone" "cluster")) }}
 {{- fail "GreptimeDB topology must be standalone or cluster" }}
@@ -49,7 +49,7 @@ affinity:
       - topologyKey: kubernetes.io/hostname
         labelSelector:
           matchLabels:
-            app.kubernetes.io/instance: greptimedb
+            app.kubernetes.io/instance: pulse
             app.kubernetes.io/component: {{ . }}
 {{- end }}
 
@@ -82,13 +82,13 @@ initContainers:
     defaultMode: 0440
     sources:
       - secret:
-          name: greptimedb-auth
+          name: pulse-auth
           items: [{key: passwd, path: pilot}]
       - secret:
-          name: greptimedb-dashboard-auth
+          name: pulse-dashboard-auth
           items: [{key: passwd, path: dashboard}]
   {{- else }}
-  secret: {secretName: greptimedb-auth, defaultMode: 0440}
+  secret: {secretName: pulse-auth, defaultMode: 0440}
   {{- end }}
 {{- end }}
 
