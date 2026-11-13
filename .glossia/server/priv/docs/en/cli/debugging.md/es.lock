@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bb3980a2de8850f21c21b942df71bf16b701162e6312a08411dee523d047cf5c",
+  "hash": "a42f122f03df04db2c854ceddd3ad953127c47e09191b7a85369457598597510",
   "hash_tree": {
     "root": {
       "children": [
@@ -47,7 +47,7 @@
                   "content_hash": "8e46af5e70c3152b8926be78bcdaba9d5005a57776e74a9e565cd05899e1805f"
                 },
                 "### Visualizing HAR files {#visualizing-har-files}": {
-                  "content_hash": "90a3f2cbde27386653dac165b4857a67b45c3525e5eca2b1af87fa403119bdb6"
+                  "content_hash": "f08d2185906d20810f46da478942ddcd8fc867c61263bf43654000d1ac9c7659"
                 },
                 "### Xcode cache debugging {#cache-daemon-debugging}": {
                   "content_hash": "e82bf5226bdd435e3f47ffb3d6a82830760c3305de823cf51df2d8c766be799c"
@@ -59,11 +59,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "af6dce1ebb2e14e2b8fe98f3b99e92f717bbe92e3f94bca086803af7ecb4a6f2",
+          "hash": "a908cc358f577040cee29ab344a0335b8adf33f4d425740087019ac48815084d",
           "kind": "source",
           "label": "server/priv/docs/en/cli/debugging.md",
           "metadata": {
-            "content_hash": "4c6b392ac4a11feced95e8af63c225a0ec5ac9dacccd775dbf2082574d3a410d"
+            "content_hash": "f4139fe285b3c64dfe1e9ab66c1288beac0e8100001ecf822ab46a0bb9a1099f"
           }
         },
         {
@@ -263,14 +263,14 @@
         }
       ],
       "details": {},
-      "hash": "bb3980a2de8850f21c21b942df71bf16b701162e6312a08411dee523d047cf5c",
+      "hash": "a42f122f03df04db2c854ceddd3ad953127c47e09191b7a85369457598597510",
       "kind": "translation_input",
       "label": "server/priv/docs/en/cli/debugging.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "172a060bed4f0431a65e6d56673655253002109c19b2507d1fd5cbf08022f832",
+  "output_hash": "5a51ef2f90ae660e23b09d9792986622cb316d8025a2f7cb4d82b63dd1f73a14",
   "output_path": "server/priv/docs/es/cli/debugging.md",
   "protection_state": "recorded",
   "provider": "",
@@ -290,8 +290,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "3f12ee0ec60940c5fb24bd1be70d7dedfd83ff50",
+  "source_commit_sha": "540c3834198dcfbe034593b348cd6ec956b21cb0",
   "source_path": "server/priv/docs/en/cli/debugging.md",
-  "translated_at": "2026-11-04T17:31:15.190728Z",
-  "translation_session_id": "01a1a79b-5bea-7125-be4b-946b0e79956a"
+  "translated_at": "2026-11-13T14:07:31.330967Z",
+  "translation_session_id": "01a1d53a-2aa5-7d44-983f-36b4f87cfd9f"
 }
