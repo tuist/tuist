@@ -390,6 +390,67 @@ struct GitHistoryServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func theReportSendsNothingAgainAfterTestSelectionPublished() async throws {
+        // Coverage-based test selection publishes before its baseline request; the run's report then
+        // publishes and uploads for the same checkout, as `InspectResultBundleService` does.
+        given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)
+        given(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn(["head"])
+        given(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .willReturn(())
+        given(missingListingsService)
+            .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .willReturn([])
+
+        let selected = await subject.publish(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
+        let reported = await subject.publish(
+            gitInfo: gitInfo,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
+        await subject.upload(
+            reported,
+            workingDirectory: workingDirectory,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            coverage: true
+        )
+
+        #expect(reported == selected)
+        verify(gitController).gitHistory(workingDirectory: .any, headSHA: .any, baseBranch: .any, limits: .any).called(1)
+        verify(missingCommitsService)
+            .findMissingCommits(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .any)
+            .called(1)
+        verify(uploadCommitsService)
+            .uploadCommits(
+                fullHandle: .any,
+                serverURL: .any,
+                repositoryURL: .any,
+                objectFormat: .any,
+                commits: .any,
+                branchHeads: .any
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
     func retriesCommitsTheEarlyPublishCouldNotUpload() async throws {
         Environment.mocked?.variables["CI"] = "1"
         given(gitController).hasUncommittedChanges(workingDirectory: .any).willReturn(false)

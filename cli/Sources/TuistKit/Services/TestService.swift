@@ -821,11 +821,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlan: testPlan,
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
-                    ?? destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
+                    ?? destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)),
+                coverage: UploadResultBundleService.uploadsCoverage(config: config)
             ),
             gitController: gitController,
             resolveBaselineService: resolveTestImpactBaselineService,
-            createRunService: createTestImpactRunService
+            createRunService: createTestImpactRunService,
+            gitHistoryService: gitHistoryService
         )
     }
 
