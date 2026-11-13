@@ -31,6 +31,111 @@ k8s-monitoring:
             controller:
               replicas: 2
 
+    # Independently deployed in-cluster Pulse (GreptimeDB), written directly through
+    # its native endpoints. Features leave `destinations` empty, so every
+    # feature sends to all compatible destinations. Metrics/logs share Cloud's
+    # processing; traces are unsampled. Separate write queues keep Pulse
+    # retries independent of Cloud delivery. Basic auth uses the write-only
+    # `tuist` user from the pulse release's pulse-dashboard-auth Secret; the
+    # headers match what the retired greptimedb-ingest gateway set.
+    pulse-metrics:
+      type: prometheus
+      extraLabels:
+        env: production
+
+    pulse-logs:
+      # The upstream Loki destination does not expose WAL configuration.
+      # Buffer on disk so a full Greptime retry queue cannot block Cloud or Faro.
+      type: custom
+      ecosystem: loki
+      logs:
+        enabled: true
+        target: loki.write.pulse_logs.receiver
+      config: |
+        loki.write "pulse_logs" {
+          wal {
+            enabled = true
+            max_segment_age = "1h"
+          }
+          endpoint {
+            url = "http://pulse.observability.svc.cluster.local:4000/v1/loki/api/v1/push"
+            headers = {
+              "X-Greptime-DB-Name" = "public",
+              "X-Greptime-Pipeline-Name" = "loki_otlp",
+              "X-Greptime-Log-Table-Name" = "opentelemetry_logs",
+            }
+            basic_auth {
+              username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])
+              password = remote.kubernetes.secret.pulse_logs.data["ingest-password"]
+            }
+          }
+          external_labels = {
+            cluster = "tuist-production",
+            k8s_cluster_name = "tuist-production",
+            env = "production",
+          }
+        }
+        remote.kubernetes.secret "pulse_logs" {
+          name = "pulse-dashboard-auth"
+          namespace = "observability"
+        }
+
+    pulse-traces:
+      type: otlp
+      # otlphttp appends /v1/traces: /v1/otlp/v1/traces.
+      url: http://pulse.observability.svc.cluster.local:4000/v1/otlp
+      protocol: http
+      metrics:
+        enabled: false
+      logs:
+        enabled: false
+      traces:
+        enabled: true
+      extraHeaders:
+        X-Greptime-DB-Name: public
+        X-Greptime-Pipeline-Name: greptime_trace_v1
+        X-Greptime-Trace-Table-Name: opentelemetry_traces
+      auth:
+        type: basic
+        usernameKey: ingest-username
+        passwordKey: ingest-password
+      secret:
+        create: false
+        name: pulse-dashboard-auth
+        namespace: observability
+      # Bound batches the same way the Pulse writer did; the default
+      # 8192-span trigger has no ceiling and grows without limit under load.
+      processors:
+        # Trace-ID routing keeps span pairs together before aggregation.
+        # Never send these to Cloud: Tempo already generates its own copies.
+        serviceGraphMetrics:
+          enabled: true
+          destinations: [pulse-metrics]
+          receiver:
+            otlp:
+              grpc:
+                maxReceivedMessageSize: 20MB
+          collector:
+            controller:
+              replicas: 1
+              nodeSelector:
+                node.cluster.x-k8s.io/pool: general
+            alloy:
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+        batch:
+          size: 2048
+          maxSize: 2048
+        attributes:
+          actions:
+            - action: insert
+              key: deployment.environment
+              value: production
+
   # Put the OTLP receiver on the tailnet.
   #
   # The xcresult-processor runs inside macOS Tart VMs whose only network
@@ -52,6 +157,10 @@ k8s-monitoring:
   # pointed at this hostname (see xcresultProcessor.extraEnv in the tuist
   # chart's production values).
   collectors:
+    alloy-control-plane:
+      includeDestinations:
+        - grafana-cloud-metrics
+        - pulse-metrics
     alloy-receiver:
       service:
         annotations:

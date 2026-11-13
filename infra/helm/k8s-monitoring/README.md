@@ -140,9 +140,9 @@ The rack's switches report through the Omada controller rather than a scrape of 
 
 ## Pulse (GreptimeDB)
 
-Pulse is Tuist's GreptimeDB fork, installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/greptimedb`](../greptimedb/README.md). The legacy Elixir Pulse is gone. Production joins once its Pulse backend is installed; until then it, management and pentest send only to Grafana Cloud.
+Pulse is Tuist's GreptimeDB fork, installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/greptimedb`](../greptimedb/README.md). The legacy Elixir Pulse is gone, and management and pentest send their metrics only to Grafana Cloud.
 
-Staging and canary collectors send metrics, logs and traces to Grafana Cloud and, through separate write queues, directly to Pulse (`pulse.observability.svc.cluster.local:4000`), with no gateway in between:
+Staging, canary and production collectors send metrics, logs and traces to Grafana Cloud and, through separate write queues, directly to Pulse (`pulse.observability.svc.cluster.local:4000`), with no gateway in between:
 
 - `pulse-metrics`: Prometheus remote write to `/v1/prometheus/write`, with the same relabel/drop policy as Cloud.
 - `pulse-logs`: a custom WAL-backed Loki writer to `/v1/loki/api/v1/push` with the `loki_otlp` pipeline into `opentelemetry_logs`. It sets no tenant.
@@ -166,7 +166,7 @@ still blocks ingestion and ephemeral collector replacement can lose buffered
 data. It does not repair Pulse availability or recover historical logs
 already lost during an outage.
 
-`bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret or the retired interim `greptimedb` release, or if production, management or pentest write anywhere but Cloud.
+`bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret or the retired interim `greptimedb` release, or if management or pentest write anywhere but Cloud.
 
 `python3 infra/helm/k8s-monitoring/test-log-destination-outage.py` uses the rendered
 canary Faro receiver and Pulse log writer with local backends: it fills more than the default

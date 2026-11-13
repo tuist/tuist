@@ -63,7 +63,7 @@ hcloudLoadBalancerExporter:
 # Pulse (the GreptimeDB fork) is the independent `pulse` release in the
 # observability namespace (infra/helm/greptimedb). Its
 # chart owns pulse-dashboard-auth, including the write-only Basic auth keys
-# the collectors use. Staging and canary write to it through queues
+# the collectors use. Staging, canary and production write to it through queues
 # independent of Grafana Cloud; no backend runs in this release.
 
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
@@ -321,8 +321,8 @@ k8s-monitoring:
     # Share the exact write-time identity and filtering policy with Cloud,
     # written straight to the independently released Pulse (GreptimeDB) backend. Inert
     # here: a `custom` destination without a config emits no component, so the
-    # management and pentest overlays never reference its Secret. Staging
-    # and canary set `type: prometheus` and their env label. The
+    # management and pentest overlays never reference its Secret. Staging,
+    # canary and production set `type: prometheus` and their env label. The
     # pulse release's pulse-dashboard-auth Secret carries the write-only user.
     pulse-metrics:
       type: custom
