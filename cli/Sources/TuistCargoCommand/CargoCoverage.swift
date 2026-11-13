@@ -1,6 +1,13 @@
 #if canImport(Compression)
     import Compression
 #endif
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
 import Foundation
 import Path
 import TuistAlert
@@ -44,13 +51,16 @@ struct CargoCoverage {
     }
 
     /// Instruments the build and, for a command that runs tests, prepares their recording. Without the LLVM tools
-    /// the run warns and goes on without coverage.
+    /// the run warns and goes on without coverage. `hooked` says Tuist's compiler hook sees every compilation, so it
+    /// instruments only the repository's crates (`instruments(_:environment:)`); otherwise `RUSTFLAGS` instrument
+    /// them all.
     static func prepare(
         invocation: CargoInvocation,
         environment: [String: String],
         directory: AbsolutePath,
         root: URL,
         cacheDirectory: URL?,
+        hooked: Bool,
         process: CargoProcess
     ) async -> (coverage: CargoCoverage?, environment: [String: String]) {
         let rustc = environment["RUSTC"] ?? "rustc"
@@ -73,13 +83,30 @@ struct CargoCoverage {
         let bin = URL(fileURLWithPath: sysroot).appendingPathComponent("lib/rustlib/\(host)/bin")
         let profdata = bin.appendingPathComponent("llvm-profdata").path
         let cov = bin.appendingPathComponent("llvm-cov").path
-        guard FileManager.default.isExecutableFile(atPath: profdata), FileManager.default.isExecutableFile(atPath: cov) else {
+        func present() -> Bool {
+            FileManager.default.isExecutableFile(atPath: profdata) && FileManager.default.isExecutableFile(atPath: cov)
+        }
+        // A rustup toolchain gets the component it lacks, as `cargo llvm-cov` offers to.
+        if !present(), sysroot.contains("/toolchains/") {
+            _ = try? await process.capture(
+                "rustup", arguments: ["component", "add", "llvm-tools"], environment: environment, directory: directory
+            )
+        }
+        guard present() else {
             AlertController.current.warning(.alert(
                 "Code coverage is off for this run: it needs the LLVM tools of the Rust toolchain. Install them with 'rustup component add llvm-tools'."
             ))
             return (nil, environment)
         }
-        var environment = instrumented(environment)
+        var environment = environment
+        if hooked {
+            let repository = try? await process.capture(
+                "git", arguments: ["rev-parse", "--show-toplevel"], environment: environment, directory: directory
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            environment[rootVariable] = repository.flatMap { $0.isEmpty ? nil : $0 } ?? directory.pathString
+        } else {
+            environment = instrumented(environment)
+        }
         let coverageDirectory = root.appendingPathComponent("coverage")
         do {
             // `extract` holds a shard's archive, which nextest only extracts into an existing directory.
@@ -797,5 +824,307 @@ extension CargoCoverage {
             offset += length
         } while offset < data.count
         return output
+    }
+}
+
+// MARK: - Variants
+
+/// A run that collects coverage through Tuist's compiler hook instruments only the repository's own libraries,
+/// binaries and test harnesses. Dependencies, build scripts and proc macros compile with the arguments they have without
+/// coverage, so they share their outputs and every cache entry with ordinary builds. The flag the hook adds is
+/// invisible to Cargo's fingerprints, so each instrumented crate's outputs carry a marker
+/// (`<crate><suffix>.tuist-coverage` in their directory) and, before Cargo starts, `reconcile` swaps the repository's
+/// crates built as the other variant for the ones kept aside, fingerprints included, for Cargo to judge.
+extension CargoCoverage {
+    /// The repository root whose crates the hook instruments, set by a run that collects coverage.
+    static let rootVariable = "TUIST_CARGO_COVERAGE_ROOT"
+    static let markerExtension = "tuist-coverage"
+
+    /// Whether the hook instruments this rustc invocation, in a run collecting coverage: a library, binary or test
+    /// harness of a crate in the repository and outside Cargo's home (registry and git checkouts). Build scripts and
+    /// proc macros run during the build, not in the tests, so they compile as without coverage, like doctests, which
+    /// link instrumented libraries too.
+    static func instruments(_ arguments: [String], environment: [String: String]) -> Bool {
+        guard let root = environment[rootVariable], let manifest = environment["CARGO_MANIFEST_DIR"],
+              !arguments.contains(where: { $0.hasPrefix("--print") }),
+              let name = CargoCacheInputs.values("--crate-name", in: arguments).first, !name.hasPrefix("build_script_"),
+              CargoCacheInputs.values("--emit", in: arguments).first.map({ $0.split(separator: ",").contains("link") }) ?? true,
+              arguments.contains("--test") || CargoCacheInputs.values("--crate-type", in: arguments)
+              .allSatisfy({ ["lib", "rlib", "bin"].contains($0) })
+        else { return false }
+        return isRepository(manifest, root: root, cargoHome: cargoHome(environment))
+    }
+
+    /// `<out-dir>/<crate><extra-filename>.tuist-coverage`, beside the compilation's dep-info file.
+    static func marker(_ arguments: [String]) -> URL? {
+        guard let name = CargoCacheInputs.values("--crate-name", in: arguments).first,
+              let output = CargoCacheInputs.values("--out-dir", in: arguments).first else { return nil }
+        let suffix = CargoCacheInputs.values("-C", in: arguments).first { $0.hasPrefix("extra-filename=") }
+            .map { String($0.dropFirst("extra-filename=".count)) } ?? ""
+        return URL(fileURLWithPath: output).appendingPathComponent("\(name)\(suffix).\(markerExtension)")
+    }
+
+    /// The profile directory (`<target-dir>/[<triple>/]<profile>`) a command builds into. Cargo's metadata says where
+    /// the target directory is, unless the caller already knows.
+    static func profile(
+        executable: String, arguments: [String], environment: [String: String], directory: AbsolutePath,
+        targetDirectory: URL?, process: CargoProcess
+    ) async -> URL? {
+        var target = targetDirectory
+        if target == nil {
+            let options = Array(arguments.prefix { $0 != "--" })
+            var metadata = ["metadata", "--format-version", "1", "--no-deps", "--offline"]
+            for option in ["--manifest-path", "--target-dir"] {
+                if let value = CargoCacheInputs.values(option, in: options).last { metadata += [option, value] }
+            }
+            target = (try? await process.capture(executable, arguments: metadata, environment: environment, directory: directory))
+                .flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+                .flatMap { $0["target_directory"] as? String }.map { URL(fileURLWithPath: $0) }
+        }
+        guard var profile = target else { return nil }
+        if let triple = triple(arguments, environment: environment, directory: directory) {
+            profile.appendPathComponent(triple)
+        }
+        return profile.appendingPathComponent(profileName(arguments))
+    }
+
+    /// Before Cargo starts, swaps the repository's crates that are not this run's variant (`swap`). A run collecting
+    /// coverage (`rootVariable` set) swaps those built without it; a linking command without coverage swaps the
+    /// instrumented ones of the profiles earlier coverage runs of this repository used, whose binaries would otherwise
+    /// write profiles wherever they run. Metadata-only units (`cargo check`, rust-analyzer) are never
+    /// touched, and nothing waits for another Cargo holding a profile it would only clean.
+    static func reconcile(
+        arguments: [String], environment: [String: String], profile: URL?, cacheDirectory: URL?, directory: AbsolutePath
+    ) {
+        let registry = (cacheDirectory ?? FileManager.default.temporaryDirectory.appendingPathComponent("tuist-cargo"))
+            .appendingPathComponent("coverage-profiles")
+        let cargoHome = cargoHome(environment)
+        let triple = triple(arguments, environment: environment, directory: directory) ?? ""
+        if let root = environment[rootVariable] {
+            guard let profile else { return }
+            if let entry = try? JSONEncoder().encode(["profile": profile.path, "root": root, "triple": triple]) {
+                try? FileManager.default.createDirectory(at: registry, withIntermediateDirectories: true)
+                try? entry.write(to: registry.appendingPathComponent(fingerprint(profile.path)), options: .atomic)
+            }
+            swap(profile: profile, instrumented: true, root: root, cargoHome: cargoHome, wait: true)
+            return
+        }
+        guard ["build", "b", "run", "r", "test", "t", "bench", "nextest", "test-build", "install"]
+            .contains(CargoInvocation(arguments).command ?? ""),
+            let entries = try? FileManager.default.contentsOfDirectory(atPath: registry.path)
+        else { return }
+        let here = canonical(directory.pathString)
+        let name = profileName(arguments)
+        for file in entries {
+            let entry = registry.appendingPathComponent(file)
+            guard let data = try? Data(contentsOf: entry),
+                  let fields = try? JSONDecoder().decode([String: String].self, from: data),
+                  let path = fields["profile"], let root = fields["root"]
+            else { try? FileManager.default.removeItem(at: entry); continue }
+            let profile = URL(fileURLWithPath: path)
+            let repository = canonical(root)
+            guard here == repository || here.hasPrefix(repository + "/"), profile.lastPathComponent == name,
+                  fields["triple"] ?? "" == triple
+            else { continue }
+            if swap(profile: profile, instrumented: false, root: root, cargoHome: cargoHome, wait: false) == 0 {
+                try? FileManager.default.removeItem(at: entry)
+            }
+        }
+    }
+
+    /// Swaps the profile's units that are not the `instrumented` variant for the variant kept aside earlier, and
+    /// returns how many instrumented units remain. A unit moves with its Cargo fingerprint, so Cargo judges the variant
+    /// moved back as it judged it when it was built: a source edited or a dependency rebuilt since makes it rebuild it.
+    /// Units are read from their dep-info files: in `deps` and `examples`, with their fingerprint in
+    /// `.fingerprint/<package>-<hash>`, or, in Cargo's build-directory layout since 1.100, the whole of
+    /// `build/<package>/<hash>`, whose `out` holds `<crate>-<hash>.d` (which leaves out what build scripts write to their
+    /// `OUT_DIR`). Building with coverage, a unit is the plain variant of a repository crate when it links code, is no
+    /// build script, has no marker, and its first source is the repository's (Cargo names workspace members' sources
+    /// relative to the workspace); building without it, every unit with a marker is the instrumented variant. A unit
+    /// whose fingerprint is not found is deleted instead, so Cargo rebuilds it.
+    @discardableResult
+    static func swap(profile: URL, instrumented: Bool, root: String, cargoHome: String, wait: Bool) -> Int {
+        let fileManager = FileManager.default
+        var directories: [(URL, hash: String?)] = ["deps", "examples"].map { (profile.appendingPathComponent($0), nil) }
+        let build = profile.appendingPathComponent("build")
+        for package in (try? fileManager.contentsOfDirectory(atPath: build.path)) ?? [] {
+            for hash in (try? fileManager.contentsOfDirectory(atPath: build.appendingPathComponent(package).path)) ?? [] {
+                directories.append((build.appendingPathComponent("\(package)/\(hash)/out"), hash))
+            }
+        }
+        let listings = directories.compactMap { directory, hash in
+            (try? fileManager.contentsOfDirectory(atPath: directory.path)).map { (directory, hash, $0) }
+        }.filter { !$0.2.isEmpty }
+        let stash = profile.appendingPathComponent(".tuist-coverage")
+        let away = stash.appendingPathComponent(instrumented ? "plain" : "coverage")
+        let back = stash.appendingPathComponent(instrumented ? "coverage" : "plain")
+        guard !listings.isEmpty || fileManager.fileExists(atPath: back.path) else { return 0 }
+        // Cargo 1.99 and later hold `.cargo-build-lock` while they build; earlier versions `.cargo-lock`.
+        let held = [".cargo-build-lock", ".cargo-lock"].map { profile.appendingPathComponent($0).path }
+            .first { fileManager.fileExists(atPath: $0) } ?? profile.appendingPathComponent(".cargo-lock").path
+        let lock = open(held, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
+        guard lock >= 0 else { return 1 }
+        defer { close(lock) }
+        guard flock(lock, wait ? LOCK_EX : LOCK_EX | LOCK_NB) == 0 else { return 1 }
+        let fingerprints = Dictionary(
+            ((try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent(".fingerprint").path)) ?? [])
+                .map { (String($0.split(separator: "-").last ?? ""), ".fingerprint/\($0)") },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var remaining = 0
+        for (directory, hash, names) in listings {
+            let markers = Set(names.filter { $0.hasSuffix(".\(markerExtension)") })
+            remaining += markers.count
+            for name in names where name.hasSuffix(".d") {
+                let stem = String(name.dropLast(2))
+                let marker = "\(stem).\(markerExtension)"
+                guard markers.contains(marker) != instrumented, !stem.hasPrefix("build_script_"),
+                      hash.map({ stem.hasSuffix("-" + $0) }) ?? true,
+                      let text = try? String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)
+                else { continue }
+                let (outputs, sources) = depInfo(text)
+                if instrumented {
+                    let extensions = outputs.map { URL(fileURLWithPath: $0).pathExtension }
+                    guard extensions.contains(where: { ["rlib", ""].contains($0) }),
+                          !extensions.contains(where: { ["dylib", "so", "dll", "a", "lib"].contains($0) }),
+                          let source = sources.first,
+                          !source.hasPrefix("/") || isRepository(source, root: root, cargoHome: cargoHome)
+                    else { continue }
+                }
+                if markers.contains(marker) { remaining -= 1 }
+                let unit = hash == nil ? directory.lastPathComponent + "/" + stem
+                    : String(directory.deletingLastPathComponent().path.dropFirst(profile.path.count + 1))
+                // A fingerprint moves only with every output it vouches for, or Cargo would take the other variant's.
+                let base = canonical(profile.path) + "/"
+                let relative = (outputs + [directory.appendingPathComponent(marker).path]).map { path -> String? in
+                    let path = canonical(path)
+                    return path.hasPrefix(base) ? String(path.dropFirst(base.count)) : nil
+                }
+                let paths: [String]? = if hash != nil {
+                    [unit]
+                } else if let fingerprint = fingerprints[String(stem.split(separator: "-").last ?? "")],
+                          relative.allSatisfy({ $0 != nil })
+                {
+                    relative.compactMap { $0 } + [fingerprint]
+                } else {
+                    nil
+                }
+                guard let paths, move(paths, from: profile, to: away.appendingPathComponent(unit), record: true) else {
+                    for output in outputs where !output.hasSuffix(".d") {
+                        unlink(output)
+                    }
+                    unlink(directory.appendingPathComponent(marker).path)
+                    continue
+                }
+            }
+        }
+        // The variant this build wants goes back where its slot is free; one Cargo rebuilt meanwhile is outdated.
+        let kept = fileManager.enumerator(at: back, includingPropertiesForKeys: nil)?
+            .compactMap { ($0 as? URL)?.path }.filter { $0.hasSuffix("/.tuist-paths") } ?? []
+        for list in kept {
+            let unit = URL(fileURLWithPath: list).deletingLastPathComponent()
+            if let paths = try? String(contentsOfFile: list, encoding: .utf8).split(separator: "\n").map(String.init),
+               paths.allSatisfy({ !fileManager.fileExists(atPath: profile.appendingPathComponent($0).path) }),
+               move(paths, from: unit, to: profile, record: false)
+            {
+                remaining += instrumented ? 1 : 0
+            }
+            try? fileManager.removeItem(at: unit)
+        }
+        return remaining
+    }
+
+    /// Moves the relative `paths` that exist from one directory to another. Moving into a stash (`record`) replaces
+    /// what it held and lists them in its `.tuist-paths`. False when none exists or one cannot move.
+    private static func move(_ paths: [String], from source: URL, to destination: URL, record: Bool) -> Bool {
+        let fileManager = FileManager.default
+        let present = paths.filter { fileManager.fileExists(atPath: source.appendingPathComponent($0).path) }
+        guard !present.isEmpty else { return false }
+        if record {
+            try? fileManager.removeItem(at: destination)
+            guard (try? fileManager.createDirectory(at: destination, withIntermediateDirectories: true)) != nil,
+                  (try? Data(present.joined(separator: "\n").utf8).write(to: destination.appendingPathComponent(".tuist-paths")))
+                  != nil
+            else { return false }
+        }
+        for path in present {
+            let target = destination.appendingPathComponent(path)
+            try? fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            guard rename(source.appendingPathComponent(path).path, target.path) == 0 else { return false }
+        }
+        return true
+    }
+
+    /// The outputs a rustc dep-info file names (`<output>: <sources>`) and the sources of the first one.
+    static func depInfo(_ text: String) -> (outputs: [String], sources: [String]) {
+        func paths(_ text: Substring) -> [String] {
+            var result: [String] = []
+            var current = ""
+            var escaped = false
+            for character in text {
+                if escaped {
+                    current.append(character)
+                    escaped = false
+                } else if character == "\\" {
+                    escaped = true
+                } else if character == " " {
+                    if !current.isEmpty { result.append(current) }
+                    current = ""
+                } else {
+                    current.append(character)
+                }
+            }
+            if !current.isEmpty { result.append(current) }
+            return result
+        }
+        var outputs: [String] = []
+        var sources: [String] = []
+        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
+            guard let separator = line.range(of: ": ") else { continue }
+            let inputs = paths(line[separator.upperBound...])
+            guard !inputs.isEmpty, let output = paths(line[..<separator.lowerBound]).first else { continue }
+            outputs.append(output)
+            if sources.isEmpty { sources = inputs }
+        }
+        return (outputs, sources)
+    }
+
+    static func isRepository(_ path: String, root: String, cargoHome: String) -> Bool {
+        let path = canonical(path)
+        let root = canonical(root)
+        return (path == root || path.hasPrefix(root + "/")) && !path.hasPrefix(canonical(cargoHome) + "/")
+    }
+
+    /// Symlinks resolved, and macOS's `/private` links spelled the same way whether or not the path exists.
+    private static func canonical(_ path: String) -> String {
+        CargoRelocation.canonical(URL(fileURLWithPath: path).resolvingSymlinksInPath().path)
+    }
+
+    private static func cargoHome(_ environment: [String: String]) -> String {
+        environment["CARGO_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cargo").path
+    }
+
+    private static func triple(_ arguments: [String], environment: [String: String], directory: AbsolutePath) -> String? {
+        target(arguments) ?? environment["CARGO_BUILD_TARGET"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? CargoConfiguration.buildTarget(directory: URL(fileURLWithPath: directory.pathString), environment: environment)
+    }
+
+    /// The profile directory's name for a command's options, nextest's `--cargo-profile` included.
+    private static func profileName(_ arguments: [String]) -> String {
+        let options = Array(arguments.prefix { $0 != "--" })
+        let kind = CargoInvocation(arguments).command == "bench" ? "bench" : "test"
+        if let profile = CargoCacheInputs.values("--cargo-profile", in: options).last {
+            return CargoUnitCache.profileDirectory(options: ["--profile", profile], kind: kind)
+        }
+        return CargoUnitCache.profileDirectory(options: options, kind: kind)
+    }
+
+    /// A stable file name for a path (FNV-1a), since the registry outlives the process.
+    private static func fingerprint(_ text: String) -> String {
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        for byte in text.utf8 {
+            hash = (hash ^ UInt64(byte)) &* 0x100_0000_01B3
+        }
+        return String(hash, radix: 16)
     }
 }

@@ -227,7 +227,7 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                 (coverage, environment) = await CargoCoverage.prepare(
                     invocation: CargoInvocation(context.arguments), environment: environment, directory: context.directory,
                     root: root, cacheDirectory: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) },
-                    process: CargoProcess(runner: runner)
+                    hooked: innerWrapper == nil, process: CargoProcess(runner: runner)
                 )
             }
             let started = Date()
@@ -279,6 +279,22 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
             let prefetch = Task { await units?.prefetch(manifest) }
             let restored = await unitCache?.restore(manifest) ?? CargoUnitCache.Restored()
             await identities?.value
+            // The repository's crates Cargo sees as fresh may be the other coverage variant, which only Tuist knows.
+            if innerWrapper == nil {
+                var profile: URL?
+                if environment[CargoCoverage.rootVariable] != nil {
+                    profile = await CargoCoverage.profile(
+                        executable: context.executable, arguments: context.arguments, environment: environment,
+                        directory: context.directory, targetDirectory: unitCache?.targetDirectory,
+                        process: CargoProcess(runner: runner)
+                    )
+                }
+                CargoCoverage.reconcile(
+                    arguments: context.arguments, environment: environment, profile: profile,
+                    cacheDirectory: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) },
+                    directory: context.directory
+                )
+            }
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,

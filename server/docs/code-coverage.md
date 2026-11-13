@@ -214,16 +214,16 @@ A run is marked partial when it leaves tests out: its own arguments (`--only`, `
 
 `tuist cargo test` and `tuist cargo nextest run` measure coverage when the project's `tuist.toml` sets `upload = true` under `[test_insights.coverage]`. `TUIST_COVERAGE_UPLOAD` overrides it for one run (`1` or `0`). The client (`cli/Sources/TuistCargoCommand/CargoCoverage.swift`):
 
-- builds the tests with `-C instrument-coverage`;
+- builds the repository's crates with `-C instrument-coverage`, and its dependencies as a plain build does;
 - starts every test process through a target runner that records the process's arguments and gives it a profile of its own;
-- reads the profiles with `llvm-profdata` and `llvm-cov`, from the toolchain's `llvm-tools` component;
+- reads the profiles with `llvm-profdata` and `llvm-cov`, from the toolchain's `llvm-tools` component, which it installs on a rustup toolchain that lacks it;
 - sends the `coverage` block (`tool` `llvm-cov`, the target triple as `platform`) inline, or uploaded first above the server's threshold, together with `coverage_evidence`.
 
 A Cargo package is a target. Its integration tests, benchmarks and examples are test code: the files under `tests/`, `benches/` and `examples/`, and a target of one of those kinds. Each executable line belongs to the function that starts closest above it. A generic function's instantiations, and a function compiled into several test binaries, count once, under the function's demangled path without its generic arguments.
 
 | Scope | Source | Requirements |
 | --- | --- | --- |
-| `run` | `llvm-cov export` of the run's profiles over the test binaries it executed. | Coverage on, and `rustup component add llvm-tools`. |
+| `run` | `llvm-cov export` of the run's profiles over the test binaries it executed. | Coverage on, and the toolchain's `llvm-tools` (installed for rustup toolchains). |
 | `target` | A test binary's processes. The module is the one the run reports the binary's tests under: `<package>`, `<package>::<target>` or `<package>::bin/<target>`, nextest's binary IDs. | The recording runner. A Cargo configuration file that sets `target.<triple>.runner` replaces it, so such a project gets only the `run` scope. A runner set in the environment is chained. |
 | `test` | Nextest only: the process that ran the test alone (`<binary> --exact <name>`). A retried test gets the union of its attempts. | `cargo nextest run`. Plain `cargo test` runs a binary's tests in one process, so its tests are reported as overlapped (`overlapped_tests`) and get no evidence of their own. |
 | `suite` | Not collected. Libtest has no setup that runs around a suite's tests. | |
@@ -243,8 +243,11 @@ Tuist's own selections never make a run partial: a shard's share, and tests quar
 
 Every Cargo test run reports `coverage_enabled`, which is `false` when coverage is off. A run with coverage on also publishes the commit's Git history and file listing (`GitHistoryService`, as `tuist test` does) and each file's Git blob.
 
-Cargo has no binary cache and no selective-testing hashes, so `uninstrumented_code` and hash-carried targets (`coverage_target_sources`) never apply. The compilation cache doesn't take instrumented compilations, so a coverage run compiles every crate locally. The unit cache keys coverage builds separately, by their flags. Limitations:
+Cargo has no binary cache and no selective-testing hashes, so `uninstrumented_code` and hash-carried targets (`coverage_target_sources`) never apply.
 
-- Target-specific `rustflags` in a Cargo configuration file replace the flag Tuist adds to `build.rustflags`. Such a project adds `-C instrument-coverage` to them itself. A run whose tests wrote no profiles says so.
+**Instrumenting only the repository.** Like Xcode, which instruments only the targets whose coverage it gathers, and Bazel's `--instrumentation_filter`, Tuist's compiler hook adds `-C instrument-coverage` only to the libraries, binaries and test harnesses of crates inside the repository. Dependencies compile exactly as in a plain build, so they keep one set of outputs, unit-cache entries and compilation-cache entries for both kinds of run. Cargo can't see a flag the hook adds, so each instrumented crate's outputs carry a marker. Before Cargo starts, a run sets the repository's crates built as the other variant aside in the profile's `.tuist-coverage` directory, together with their Cargo fingerprints, and moves back the variant it wants when one was set aside (`CargoCoverage.reconcile`). Cargo then judges the restored variant with its own fingerprints, so a source edited or a dependency rebuilt in the meantime still rebuilds it, and switching between plain and coverage runs rebuilds nothing otherwise. When a custom `rustc-wrapper` keeps the hook out, the flag goes to `build.rustflags` for every crate instead. Limitations:
+
+- With a custom `rustc-wrapper`, target-specific `rustflags` in a Cargo configuration file replace the flag Tuist adds to `build.rustflags`. Such a project adds `-C instrument-coverage` to them itself. A run whose tests wrote no profiles says so.
+- Plain `cargo` commands run outside Tuist after a coverage run reuse the instrumented crates until `tuist cargo` switches them back.
 - Unit tests in a source file's `#[cfg(test)]` module are part of that file, so their lines count as the file's code, as `llvm-cov` and `cargo llvm-cov` count them.
 - Tests that start other processes, such as the tool binary through `CARGO_BIN_EXE_*`, count their children in the `run` scope only when the children are instrumented, and in no evidence scope.

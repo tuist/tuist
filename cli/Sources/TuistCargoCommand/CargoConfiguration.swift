@@ -66,6 +66,22 @@ struct CargoConfiguration: Decodable {
         return false
     }
 
+    private struct Target: Decodable {
+        struct Build: Decodable { let target: String? }
+        let build: Build?
+    }
+
+    /// `build.target` of the nearest configuration file that sets one to a single triple, which places a build's
+    /// profiles under `target/<triple>`.
+    static func buildTarget(directory: URL, environment: [String: String]) -> String? {
+        configurationDirectories(directory: directory, environment: environment).reversed().lazy.compactMap { path in
+            let legacy = path.appendingPathComponent("config")
+            let file = FileManager.default.fileExists(atPath: legacy.path) ? legacy : path.appendingPathComponent("config.toml")
+            return (try? String(contentsOf: file, encoding: .utf8))
+                .flatMap { try? TOMLDecoder().decode(Target.self, from: $0) }?.build?.target
+        }.first
+    }
+
     /// Resolve the compiler wrapper before installing an invocation-local observer.
     /// Cargo's configuration paths are relative to the directory containing .cargo.
     static func compilerWrapper(directory: URL, arguments: [String], environment: [String: String]) throws -> String? {

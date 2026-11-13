@@ -121,7 +121,9 @@ struct CargoUnitCache {
         let profileName = profileDirectory(options: options, kind: kind)
         let flags = environment.filter { key, _ in
             ["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS", "CARGO_INCREMENTAL", "RUSTC_BOOTSTRAP"]
-                .contains(key) || key.hasPrefix("CARGO_PROFILE_") || key.hasPrefix("CARGO_TARGET_")
+                .contains(key) || key.hasPrefix("CARGO_PROFILE_")
+                // Not target runners, which start test binaries and build nothing; coverage sets one.
+                || (key.hasPrefix("CARGO_TARGET_") && !key.hasSuffix("_RUNNER"))
         }.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
         let cargoHome = URL(fileURLWithPath: environment["CARGO_HOME"] ?? FileManager.default
             .homeDirectoryForCurrentUser.appendingPathComponent(".cargo").path).standardizedFileURL

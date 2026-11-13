@@ -13,7 +13,7 @@ Code coverage tells you which lines of your code your tests executed. Tuist meas
 > **Requirements**
 >
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link>
-> - The LLVM tools of your Rust toolchain: `rustup component add llvm-tools`
+> - The LLVM tools of your Rust toolchain (`llvm-tools`). Tuist installs them on a toolchain rustup manages.
 > - Your project in a Git repository
 
 ## Setup {#setup}
@@ -33,7 +33,7 @@ Then run your tests as usual:
 tuist cargo test --workspace
 ```
 
-Tuist builds the tests with `-C instrument-coverage`, runs them, and uploads their coverage along with the run's test results. Your tests' output and exit code don't change. To override the setting for a single run, set `TUIST_COVERAGE_UPLOAD=1` or `TUIST_COVERAGE_UPLOAD=0`.
+Tuist builds your repository's crates with `-C instrument-coverage`, runs the tests, and uploads their coverage along with the run's test results. Your tests' output and exit code don't change. To override the setting for a single run, set `TUIST_COVERAGE_UPLOAD=1` or `TUIST_COVERAGE_UPLOAD=0`.
 
 Coverage relies on the Git history Tuist uploads with each run that collects it, which places the commit on its branch. A run outside a Git repository uploads its test results but no coverage.
 
@@ -87,11 +87,11 @@ A branch's trend only includes complete commits.
 
 ## Performance impact {#performance-impact}
 
-Instrumented code runs a bit slower, and Cargo compiles it separately from your regular builds, so the first run with coverage rebuilds your crates. The Rust compilation cache doesn't reuse instrumented compilations, so runs with coverage compile every crate locally.
+Instrumented code runs a bit slower. Tuist instruments only your repository's crates: dependencies build exactly as in your regular builds and keep coming from the cache. Tuist keeps both variants of your own crates in the target directory, so switching between runs with and without coverage doesn't rebuild them unless their code changed.
 
 ## Limitations {#limitations}
 
-- **Target-specific `rustflags`.** Tuist adds `-C instrument-coverage` to Cargo's `build.rustflags`. A `target.<triple>.rustflags` entry in a Cargo configuration file replaces them, so add the flag there yourself. A run whose tests wrote no coverage says so.
+- **Custom `rustc-wrapper` with target-specific `rustflags`.** When your project sets its own `rustc-wrapper`, Tuist adds `-C instrument-coverage` to Cargo's `build.rustflags` instead. A `target.<triple>.rustflags` entry in a Cargo configuration file replaces them, so add the flag there yourself. A run whose tests wrote no coverage says so.
 - **Configured target runners.** Tuist starts the test binaries through a runner of its own. A `target.<triple>.runner` in a Cargo configuration file takes its place: the run's coverage is still uploaded, but Tuist can't tell which test binary executed what. A runner set through the `CARGO_TARGET_<TRIPLE>_RUNNER` environment variable keeps working.
 - **No coverage from pull requests from forks.** Coverage is uploaded only by runs that authenticate with Tuist, and CI usually withholds secrets and identity tokens from pull requests opened from forks.
 

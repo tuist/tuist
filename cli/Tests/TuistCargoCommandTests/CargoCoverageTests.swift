@@ -65,6 +65,141 @@ struct CargoCoverageTests {
         )
     }
 
+    @Test(.inTemporaryDirectory) func hookInstrumentsOnlyTheRepositorysCrates() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory).pathString
+        let deps = "\(directory)/repo/target/debug/deps"
+        try FileManager.default.createDirectory(atPath: deps, withIntermediateDirectories: true)
+        // Cargo's home inside the repository, as CI caches often put it: its registry crates are still dependencies.
+        let environment = [
+            CargoCoverage.rootVariable: "\(directory)/repo", "CARGO_HOME": "\(directory)/repo/.cargo",
+            "CARGO_MANIFEST_DIR": "\(directory)/repo/crates/core",
+        ]
+        func compile(_ name: String, _ options: [String]) -> [String] {
+            ["rustc", "--crate-name", name, "--edition=2021", "src/lib.rs", "--emit=dep-info,metadata,link"] + options
+                + ["-C", "extra-filename=-0123456789abcdef", "--out-dir", deps]
+        }
+        let library = compile("core", ["--crate-type", "lib"])
+        #expect(CargoCoverage.instruments(library, environment: environment))
+        #expect(!CargoCoverage.instruments(library, environment: environment.filter { $0.key != CargoCoverage.rootVariable }))
+        #expect(!CargoCoverage.instruments(library + ["--print", "cfg"], environment: environment))
+        #expect(!CargoCoverage.instruments(
+            ["rustc", "--crate-name", "core", "--crate-type", "lib", "--emit=dep-info,metadata", "--out-dir", deps],
+            environment: environment
+        ))
+        #expect(CargoCoverage.instruments(compile("core", ["--test"]), environment: environment))
+        #expect(CargoCoverage.instruments(compile("tool", ["--crate-type", "bin"]), environment: environment))
+        var registry = environment
+        registry["CARGO_MANIFEST_DIR"] = "\(directory)/repo/.cargo/registry/src/index-0/serde-1.0.0"
+        #expect(!CargoCoverage.instruments(library, environment: registry))
+        var outside = environment
+        outside["CARGO_MANIFEST_DIR"] = "\(directory)/elsewhere/core"
+        #expect(!CargoCoverage.instruments(library, environment: outside))
+
+        // Build scripts and proc macros run during the build, not in the tests.
+        #expect(!CargoCoverage.instruments(compile("build_script_build", ["--crate-type", "bin"]), environment: environment))
+        #expect(!CargoCoverage.instruments(compile("macros", ["--crate-type", "proc-macro"]), environment: environment))
+        #expect(CargoCoverage.marker(library)?.path == "\(deps)/core-0123456789abcdef.tuist-coverage")
+    }
+
+    @Test(.inTemporaryDirectory) func switchingVariantsSwapsOnlyTheRepositorysLinkedCrates() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let repository = directory.appending(component: "repo")
+        let profile = URL(fileURLWithPath: repository.pathString).appendingPathComponent("target/debug").path
+        let cache = URL(fileURLWithPath: directory.pathString).appendingPathComponent("cache")
+        let home = "\(directory.pathString)/home"
+        let plain = ["CARGO_HOME": home]
+        var coverage = plain
+        coverage[CargoCoverage.rootVariable] = repository.pathString
+        let fileManager = FileManager.default
+        func write(_ path: String, _ text: String = "") {
+            try? fileManager.createDirectory(
+                atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+            )
+            fileManager.createFile(atPath: path, contents: Data(text.utf8))
+        }
+        func read(_ path: String) -> String? { (try? String(contentsOfFile: "\(profile)/\(path)", encoding: .utf8)) }
+        // A unit's dep-info, outputs and Cargo fingerprint, whose content says which variant built it.
+        func unit(_ stem: String, outputs: [String], source: String, variant: String?, in directory: String = "deps") {
+            let fingerprint = directory == "deps" ? "\(profile)/.fingerprint/pkg-\(stem.split(separator: "-").last!)/lib"
+                : "\(profile)/\(directory)/../fingerprint/lib"
+            // rustc names outputs as Cargo spelled the target directory, which may differ from the profile's spelling
+            // (`/private/var` and `/var` on macOS).
+            let spelled = profile.hasPrefix("/private/") ? String(profile.dropFirst("/private".count)) : "/private" + profile
+            var text = ""
+            for output in outputs + ["\(stem).d"] {
+                let path = fileManager.fileExists(atPath: spelled) ? spelled : profile
+                text += "\(path)/\(directory)/\(output.replacingOccurrences(of: " ", with: "\\ ")): \(source)\n"
+                write("\(profile)/\(directory)/\(output)", variant ?? "")
+            }
+            write("\(profile)/\(directory)/\(stem).d", text + "\n\(source):\n")
+            if let variant {
+                write(fingerprint, variant)
+                if variant == "coverage" { write("\(profile)/\(directory)/\(stem).tuist-coverage") }
+            }
+        }
+        func repositoryUnits(_ variant: String) {
+            unit("core-0a", outputs: ["libcore-0a.rlib", "libcore-0a.rmeta"], source: "crates/core/src/lib.rs", variant: variant)
+            unit("core-0b", outputs: ["core-0b"], source: "crates/core/src/lib.rs", variant: variant)
+            // Cargo 1.100's build-directory layout: each unit in `build/<package>/<hash>`.
+            unit(
+                "grep-0c", outputs: ["libgrep-0c.rlib"], source: "crates/grep/src/lib.rs", variant: variant,
+                in: "build/grep/0c/out"
+            )
+        }
+        func reconcile(_ arguments: [String], _ environment: [String: String]) {
+            CargoCoverage.reconcile(
+                arguments: arguments, environment: environment,
+                profile: environment == coverage ? URL(fileURLWithPath: profile) : nil, cacheDirectory: cache,
+                directory: repository
+            )
+        }
+        func registered() -> Bool {
+            !((try? fileManager.contentsOfDirectory(atPath: cache.appendingPathComponent("coverage-profiles").path)) ?? [])
+                .isEmpty
+        }
+        repositoryUnits("plain")
+        unit("macros-0d", outputs: ["libmacros-0d.dylib"], source: "crates/macros/src/lib.rs", variant: "plain")
+        unit("serde-0e", outputs: ["libserde-0e.rlib"], source: "\(home)/registry/src/i/serde-1/src/lib.rs", variant: "plain")
+        unit("core-0f", outputs: ["libcore-0f.rmeta"], source: "crates/core/src/lib.rs", variant: "plain")
+        unit(
+            "build_script_build-10",
+            outputs: ["build_script_build-10"],
+            source: "crates/grep/build.rs",
+            variant: "plain",
+            in: "build/grep/10/out"
+        )
+        // A source file a build script generated in its `OUT_DIR`, and a unit without a fingerprint.
+        unit("tables", outputs: ["tables"], source: "crates/grep/data.txt", variant: nil, in: "build/grep/11/out")
+        unit("my tool-12", outputs: ["my tool-12"], source: "\(repository.pathString)/tools/src/main.rs", variant: nil)
+
+        // With coverage, the repository's plain libraries, binaries and harnesses go aside with their fingerprints;
+        // dependencies, proc macros, metadata and build scripts stay. A unit without a fingerprint is deleted.
+        reconcile(["test"], coverage)
+        #expect(read("deps/libcore-0a.rlib") == nil && read(".fingerprint/pkg-0a/lib") == nil && read("deps/core-0b") == nil)
+        #expect(read("build/grep/0c/out/libgrep-0c.rlib") == nil && read("deps/my tool-12") == nil)
+        #expect(read("deps/core-0a.d") == nil && read("deps/libmacros-0d.dylib") == "plain")
+        #expect(read("deps/libserde-0e.rlib") == "plain" && read("deps/libcore-0f.rmeta") == "plain")
+        #expect(read("build/grep/10/out/build_script_build-10") == "plain" && read("build/grep/11/out/tables") == "")
+        #expect(registered())
+
+        // Cargo builds the instrumented variant; without coverage, the plain one comes back, fingerprint included.
+        repositoryUnits("coverage")
+        reconcile(["check"], plain)
+        reconcile(["test", "--release"], plain)
+        #expect(read("deps/libcore-0a.rlib") == "coverage")
+        reconcile(["build"], plain)
+        #expect(read("deps/libcore-0a.rlib") == "plain" && read(".fingerprint/pkg-0a/lib") == "plain")
+        #expect(read("deps/core-0b") == "plain" && read("deps/core-0a.tuist-coverage") == nil)
+        #expect(read("build/grep/0c/out/libgrep-0c.rlib") == "plain" && read("build/grep/0c/fingerprint/lib") == "plain")
+        #expect(read("deps/libserde-0e.rlib") == "plain" && read("deps/libmacros-0d.dylib") == "plain")
+        // Nothing instrumented is left in the profile, so later builds stop looking.
+        #expect(!registered())
+
+        reconcile(["test"], coverage)
+        #expect(read("deps/libcore-0a.rlib") == "coverage" && read(".fingerprint/pkg-0a/lib") == "coverage")
+        #expect(read("deps/core-0a.tuist-coverage") == "" && read("build/grep/0c/fingerprint/lib") == "coverage")
+    }
+
     @Test func requestedByConfigurationUnlessTheEnvironmentSaysOtherwise() {
         #expect(!CargoCoverage.requested(upload: false, environment: [:]))
         #expect(CargoCoverage.requested(upload: true, environment: [:]))
@@ -314,7 +449,7 @@ struct CargoCoverageTests {
         let session = root.appendingPathComponent("session")
         let prepared = await CargoCoverage.prepare(
             invocation: CargoInvocation(["test"]), environment: environment, directory: directory, root: session,
-            cacheDirectory: session, process: process
+            cacheDirectory: session, hooked: false, process: process
         )
         let coverage = try #require(prepared.coverage)
         #expect(coverage.attributes)
@@ -378,7 +513,7 @@ struct CargoCoverageTests {
         let nextestSession = root.appendingPathComponent("nextest-session")
         let nextestPrepared = await CargoCoverage.prepare(
             invocation: CargoInvocation(["nextest", "run"]), environment: environment, directory: directory,
-            root: nextestSession, cacheDirectory: nextestSession, process: process
+            root: nextestSession, cacheDirectory: nextestSession, hooked: false, process: process
         )
         let nextestCoverage = try #require(nextestPrepared.coverage)
         let context = CargoExecutionContext(
