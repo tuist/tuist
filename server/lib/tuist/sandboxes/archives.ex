@@ -521,13 +521,25 @@ defmodule Tuist.Sandboxes.Archives do
     {part_size, div(max_bytes + part_size - 1, part_size)}
   end
 
+  # A node that restores lazy disks also writes them: the rootfs and the
+  # workspace chunked after the memory, so a restore reads them by range.
   defp transfer(%{sandbox: sandbox} = upload) do
     Nodes.call(
       sandbox.node_name,
       "archive",
-      %{sandbox_id: sandbox.id, part_size: upload.part_size, part_urls: upload.urls, memory: true},
+      %{
+        sandbox_id: sandbox.id,
+        part_size: upload.part_size,
+        part_urls: upload.urls,
+        memory: true,
+        lazy_disks: lazy_disks_node?(sandbox.node_name)
+      },
       timeout: @archive_timeout
     )
+  end
+
+  defp lazy_disks_node?(node_name) do
+    match?({:ok, _pid, %{lazy_disks: true}}, Nodes.lookup(node_name))
   end
 
   defp finish({:ok, %{"parts" => [_ | _] = parts, "bytes" => bytes, "sha256" => sha256} = data}, upload)
@@ -629,9 +641,12 @@ defmodule Tuist.Sandboxes.Archives do
   # A node that archived the memory image ahead of the disks says where the
   # disks start; older nodes archive the disks alone.
   # `node` is the node it was archived from, which a warm restore avoids.
-  defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat}, node)
+  # `lazy_disks`: the disks are chunked ahead of the disk stream too, which
+  # only a node whose hello sets `lazy_disks` can restore.
+  defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat} = data, node)
        when is_integer(offset) and offset > 0 and is_binary(sha256) and is_binary(compat) do
-    %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat, "node" => node}
+    memory = %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat, "node" => node}
+    if data["lazy_disks"] == true, do: Map.put(memory, "lazy_disks", true), else: memory
   end
 
   defp archive_memory(_data, _node), do: nil
@@ -921,8 +936,9 @@ defmodule Tuist.Sandboxes.Archives do
       url = Storage.generate_download_url(key, actor, expires_in: @url_ttl_seconds)
 
       case Map.get(subject, :archive_memory) do
-        %{"tail_offset" => offset, "tail_sha256" => tail_sha256} ->
-          {:ok, %{url: url, bytes: bytes, sha256: sha256, tail_offset: offset, tail_sha256: tail_sha256}}
+        %{"tail_offset" => offset, "tail_sha256" => tail_sha256} = memory ->
+          source = %{url: url, bytes: bytes, sha256: sha256, tail_offset: offset, tail_sha256: tail_sha256}
+          {:ok, if(memory["lazy_disks"], do: Map.put(source, :lazy_disks, true), else: source)}
 
         _ ->
           {:ok, %{url: url, bytes: bytes, sha256: sha256}}
@@ -947,6 +963,13 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def origin_nodes(%Sandbox{archive_memory: %{"node" => node}}) when is_binary(node), do: [node]
   def origin_nodes(_subject), do: []
+
+  @doc """
+  Whether an archive holds its disks chunked (lazy disks), which only nodes
+  whose hello sets `lazy_disks` can restore.
+  """
+  def lazy_disks?(%Sandbox{archive_memory: %{"lazy_disks" => true}}), do: true
+  def lazy_disks?(_subject), do: false
 
   @doc """
   Deletes the archive object of a sandbox or a disk snapshot. Answers `:ok`

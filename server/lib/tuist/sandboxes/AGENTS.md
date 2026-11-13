@@ -338,7 +338,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   downloads only the disk stream, loads the VM state with a Uffd memory
   backend and serves memory chunks by ranged GETs as the guest touches
   them while a fill fetches the rest (sandboxd `internal/uffd`). It cold
-  boots elsewhere only when no such node is connected. The
+  boots elsewhere only when no such node is connected. A node whose hello
+  sets `lazy_disks` is asked to archive with `lazy_disks` too: the disks
+  are chunked like the memory and served by range on restore, so the guest
+  runs before they arrive; such an archive (`archive_memory.lazy_disks`)
+  is placed, warm or cold, only on nodes that set `lazy_disks`. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   after a warm restore only once its node reports `memory_loaded` (or two
   hours later), with the sandbox, or with the account. `archived` rows are outside every
