@@ -96,6 +96,14 @@ grants without a concurrent grant update terminating the host service.
 Idle warm CI runners can yield to a pending sandbox reservation; active CI jobs
 are never selected for this preemption.
 
+A session's saved state is encrypted for the Mac that wrote it, so it resumes
+only there. The kubelet labels its Node `tuist.dev/macos-sandbox-sessions=true`
+while it holds a running or paused session, and CI keeps off those hosts while
+others are free: runner Pods prefer Nodes without the label (weight 50, between
+the golden image's 100 and a cache volume's 20), and a host reservation picks a
+host without it among hosts that converge equally soon and hold the image. Warm
+sandbox Pods do not carry the preference.
+
 Every native VM also owns a resource-requesting execution Pod. The host serializes
 final native and CI launches under one gate and rereads bound Pending, Running
 and Terminating Pods, enforcing CPU, RAM and Apple's two-VM limit. A resident

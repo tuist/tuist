@@ -74,8 +74,8 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 		t.Fatal("macOS pod is missing golden node affinity")
 	}
 	terms := aff.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-	if len(terms) != 1 {
-		t.Fatalf("preferred terms = %d, want 1", len(terms))
+	if len(terms) != 2 {
+		t.Fatalf("preferred terms = %d, want the golden and session-free ones", len(terms))
 	}
 	exprs := terms[0].Preference.MatchExpressions
 	if len(exprs) != 1 {
@@ -86,6 +86,10 @@ func TestBuild_MacOSGoldenAffinity(t *testing.T) {
 	}
 	if exprs[0].Operator != corev1.NodeSelectorOpExists {
 		t.Fatalf("affinity operator = %q, want Exists", exprs[0].Operator)
+	}
+	// A CI job avoids hosts whose sandbox sessions can resume only there.
+	if exprs := terms[1].Preference.MatchExpressions; len(exprs) != 1 || exprs[0].Key != MacosSandboxSessionsLabel || exprs[0].Operator != corev1.NodeSelectorOpDoesNotExist {
+		t.Fatalf("second preference = %+v, want %s DoesNotExist", terms[1].Preference, MacosSandboxSessionsLabel)
 	}
 	// Soft, not required: a Pod must still schedule onto a cold host when
 	// no warm one is free.
@@ -1424,20 +1428,21 @@ func TestPreferCacheVolumeNode(t *testing.T) {
 	PreferCacheVolumeNode(pod, "b03")
 
 	terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
-	if len(terms) != 2 {
-		t.Fatalf("terms = %+v, want the golden and one volume preference", terms)
+	if len(terms) != 3 {
+		t.Fatalf("terms = %+v, want the golden, session-free and one volume preference", terms)
 	}
 	if terms[0].Preference.MatchExpressions[0].Key != GoldenNodeAffinityKey(p.Spec.Image) {
 		t.Fatal("the golden preference must stay first")
 	}
-	field := terms[1].Preference.MatchFields[0]
+	field := terms[2].Preference.MatchFields[0]
 	if field.Key != "metadata.name" || field.Operator != corev1.NodeSelectorOpIn || strings.Join(field.Values, ",") != "b03" {
 		t.Fatalf("volume preference = %+v, want metadata.name In [b03]", field)
 	}
-	// A host without the golden pulls the image for minutes; one without a
-	// volume only starts that volume cold.
-	if terms[1].Weight >= terms[0].Weight {
-		t.Fatalf("volume preference weighs %d, want less than the golden %d", terms[1].Weight, terms[0].Weight)
+	// A host without the golden pulls the image for minutes; a session on a
+	// full host waits or moves cold; a host without a volume only starts that
+	// volume cold.
+	if !(terms[0].Weight > terms[1].Weight && terms[1].Weight > terms[2].Weight) {
+		t.Fatalf("weights golden %d, session-free %d, volume %d, want strictly decreasing", terms[0].Weight, terms[1].Weight, terms[2].Weight)
 	}
 }
 
@@ -1544,6 +1549,11 @@ func TestBuild_MacOSSandboxWarmPoolHoldsNoCredentialAndNeedsAWarmHost(t *testing
 	}
 	if len(pod.Spec.Containers[0].Env) != 0 || len(pod.Spec.Volumes) != 0 {
 		t.Fatalf("warm Pod carries dispatch env or volumes: %v %v", pod.Spec.Containers[0].Env, pod.Spec.Volumes)
+	}
+
+	// A warm VM becomes a session itself, so it need not avoid hosts holding one.
+	if terms := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution; len(terms) != 1 || terms[0].Preference.MatchExpressions[0].Key == MacosSandboxSessionsLabel {
+		t.Fatalf("warm Pod preferences = %+v, want only the golden one", terms)
 	}
 
 	ci := build(t, basePool("darwin"))

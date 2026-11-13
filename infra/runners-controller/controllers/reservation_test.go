@@ -421,6 +421,30 @@ func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
 	}
 }
 
+// Between hosts that converge equally soon and hold the image, the one with
+// no macOS sandbox session wins: a session resumes only on its own Mac.
+func TestReservation_PrefersAHostHoldingNoSandboxSession(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	held := m4Node("m4-a")
+	held.Labels[podtemplate.MacosSandboxSessionsLabel] = "true"
+
+	r := reservationReconciler(pool, smallPool(), held, m4Node("m4-b"), starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host holding no sandbox session")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host whose session can resume only there")
+	}
+}
+
 // Holding the image never outranks convergence: waiting on a customer job
 // can take longer than a pull.
 func TestReservation_PrefersConvergenceOverTheImage(t *testing.T) {

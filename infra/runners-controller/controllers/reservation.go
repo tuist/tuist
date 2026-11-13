@@ -471,7 +471,9 @@ func shapeSeatableOnFleet(nodes []corev1.Node, shape podShape) bool {
 // hosts that converge equally soon, one already holding the pool's golden
 // image wins, so the starved job clones it instead of pulling it. Holding
 // the image never outranks convergence, since a customer job can run longer
-// than a pull. Remaining ties break on name so a reservation does not
+// than a pull. Then a host holding no macOS sandbox session wins, since a
+// session resumes only on its own Mac and waits out the reservation. Remaining
+// ties break on name so a reservation does not
 // wander between reconciles. The second result reports whether the chosen
 // host clears at once: it holds no such Pods, or, on Linux, the shape fits
 // beside them once its idle Pods are retired.
@@ -610,6 +612,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		_, warmB := candidates[b].Labels[golden]
 		if warmA != warmB {
 			return warmA
+		}
+		_, sessionsA := candidates[a].Labels[podtemplate.MacosSandboxSessionsLabel]
+		_, sessionsB := candidates[b].Labels[podtemplate.MacosSandboxSessionsLabel]
+		if sessionsA != sessionsB {
+			return sessionsB
 		}
 		return candidates[a].Name < candidates[b].Name
 	})

@@ -540,6 +540,8 @@ func main() {
 			{Name: "golden-images", Labels: goldenLabelProvider},
 			// Warm sandbox Pods select hosts that can boot one now.
 			{Name: "macos-sandbox-warm-host", Labels: sandboxService.WarmHostLabels},
+			// CI prefers hosts holding no session that can resume only here.
+			{Name: "macos-sandbox-sessions", Labels: sandboxService.SessionHostLabels},
 			// The custom volume lineages this host holds a master of, so dispatch
 			// can prefer it for jobs that attach them.
 			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {

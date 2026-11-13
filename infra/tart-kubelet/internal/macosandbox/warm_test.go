@@ -253,3 +253,24 @@ func TestWarmHostLabelFollowsReadinessAndDiskRoom(t *testing.T) {
 		t.Fatalf("a host without disk room advertised warm Pods: %v %v", labels, err)
 	}
 }
+
+func TestSessionHostLabelFollowsSessionsThatResumeOnlyHere(t *testing.T) {
+	s := &Service{}
+	if labels, err := s.SessionHostLabels(t.Context()); err != nil || len(labels) != 0 {
+		t.Fatalf("a host without a sandbox store advertised sessions: %v %v", labels, err)
+	}
+	m := &Manager{records: map[string]*Record{}}
+	s.manager = m
+	for _, state := range []string{"", "error", "paused", "running"} {
+		m.records = map[string]*Record{}
+		if state != "" {
+			m.records["a"] = &Record{CreateArgs: protocol.CreateArgs{SandboxID: "a"}, State: state}
+		}
+		m.publish()
+		labels, err := s.SessionHostLabels(t.Context())
+		want := state == "paused" || state == "running"
+		if err != nil || (labels[SessionHostLabel] == "true") != want {
+			t.Fatalf("state %q: labels %v %v, want advertised %v", state, labels, err, want)
+		}
+	}
+}

@@ -56,6 +56,31 @@ func (s *Service) WarmHostLabels(ctx context.Context) (map[string]string, error)
 	return map[string]string{WarmHostLabel: "v1"}, nil
 }
 
+// SessionHostLabel is advertised while this host holds a sandbox session,
+// running or paused. Its saved state is encrypted for this Mac, so the
+// session resumes only here, and CI placement prefers hosts without it
+// (runners-controller podtemplate).
+const SessionHostLabel = "tuist.dev/macos-sandbox-sessions"
+
+// SessionHostLabels advertises SessionHostLabel. A running session counts
+// too: it pauses after its next idle grace, and CI placed beside it in the
+// meantime can still fill the host by then. A host that runs no sandbox
+// service, or has not loaded its store yet, advertises nothing.
+func (s *Service) SessionHostLabels(context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	m := s.manager
+	s.mu.Unlock()
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	for _, info := range m.Snapshot() {
+		if info.State == "running" || info.State == "paused" {
+			return map[string]string{SessionHostLabel: "true"}, nil
+		}
+	}
+	return map[string]string{}, nil
+}
+
 type warmVM struct {
 	pod       types.UID
 	namespace string
