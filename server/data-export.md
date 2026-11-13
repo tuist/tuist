@@ -95,7 +95,8 @@ customer provisioning is introduced by this import. Before exporting, establish
 the verified tenant and select records belonging to the requesting subject;
 an operational tenant can contain telemetry from multiple accounts.
 
-Management metrics in the independent `tuist-pulse-management` bucket and, if
+Management metrics in the independent `tuist-pulse-management` bucket (its
+Elixir Pulse release is uninstalled) and, if
 the legacy pentest cluster wrote any, telemetry in `tuist-pulse-pentest` are
 retained, but no collector writes to either any more. External NixOS cache
 hosts copy metrics/logs/traces into the matching workload environment's existing
@@ -139,7 +140,7 @@ prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
 production) for database-managed data and indexes, and disposable
 `pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
 release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
-those objects and its PVC, and their data expires under its 7-day TTL. Staging and canary use a retained 10 GiB Kubernetes PVC for local
+those objects and its PVC until a `purge_greptimedb` dispatch deletes both. Staging and canary use a retained 10 GiB Kubernetes PVC for local
 WAL and standalone state. Production's cluster topology stores data under
 `pulse/distributed/`; its WAL lives on replicated Kafka volumes until
 flushed, and its metadata in a dedicated etcd. Staging and canary

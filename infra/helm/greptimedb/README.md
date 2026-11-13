@@ -26,20 +26,17 @@ These are desired configuration, **not a record of provisioned resources**:
 - Preserve `tuist-pulso-{staging,canary,production}` and their bucket-scoped
   credentials. The historical bucket names are intentional; Greptime writes under
   its own `pulse/` prefix and never rewrites legacy Pulse objects (under
-  `tenants/`, `auth/` and `.pulse/`) or the interim release's `greptimedb/` data.
+  `tenants/`, `auth/` and `.pulse/`). Only `purge_greptimedb` deletes the interim
+  release's `greptimedb/` objects.
 - In each environment's `onepassword` ClusterSecretStore vault, provide
   `PULSE_TOKEN/password`, `PULSE_SECRET_KEY_BASE/password` and
   `PULSE_S3_CREDENTIALS` fields `access_key_id` and `secret_access_key`. Keep the
   existing values: collectors authenticate with the same token.
 - Confirm the ESO store is ready, the CI environment has its usual
   `OP_SERVICE_ACCOUNT_TOKEN`, and the general pool has the requested capacity.
-- The management cluster is separate: it still runs the last Elixir Pulse
-  chart (1.39.0) through `infra/flux/pulse-management`, with its own private
-  `tuist-pulse-management` bucket and the `PULSE_SECRET_KEY_BASE`, `PULSE_TOKEN`
-  and `PULSE_S3_CREDENTIALS` items in the **`tuist-k8s-mgmt`** vault. Its
-  collectors no longer write to it, and its source is gone, so it can be
-  reconciled from the published chart but not changed. Removing it is a
-  separate decision; its bucket history is kept either way.
+- The management cluster runs no Pulse. Its last Elixir Pulse release was
+  removed with its Flux child; the private `tuist-pulse-management` bucket and
+  its **`tuist-k8s-mgmt`** vault items are kept as history.
 
 ## Topologies
 
@@ -205,8 +202,16 @@ config, Grafana Cloud included, when a referenced Secret is missing. It then
 runs `helm uninstall greptimedb --keep-history`, checks that its
 `data-greptimedb-*` PVCs survived, and finishes with the routine readiness gate.
 The PVCs, the CI-created `greptimedb-auth` Secret and the bucket's `greptimedb/`
-objects stay until someone deletes them deliberately; the staging reader loses
-the interim data, which only had a 7-day TTL.
+objects stay; the staging reader loses the interim data, which only had a 7-day
+TTL.
+
+Dispatch with `purge_greptimedb=true` (staging and canary only) to delete them
+deliberately. It runs the uninstall above first, refuses while any pod mounts a
+`data-greptimedb-*` claim, switches each claim's Retain PV to Delete so the
+Hetzner volume goes with it, deletes the claims and `greptimedb-auth`, then runs
+a pod with the `pulse-credentials` storage key that removes only
+`s3://tuist-pulso-<env>/greptimedb/` and fails unless the prefix ends empty.
+Pulse's `pulse/` data and legacy Pulse objects in the same bucket are untouched.
 
 The backend deploy's storage probe does not depend on any release's Secret: it
 creates a run-scoped ExternalSecret from the rendered chart's

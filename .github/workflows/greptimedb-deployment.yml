@@ -53,6 +53,10 @@ on:
         description: Only uninstall the old greptimedb release that Pulse replaces (keeps its PVCs and bucket objects)
         type: boolean
         default: false
+      purge_greptimedb:
+        description: Staging/canary only. Uninstall the old greptimedb release and delete its PVCs, pilot Secret and greptimedb/ bucket objects
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -100,7 +104,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && !inputs.uninstall_greptimedb
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && !inputs.uninstall_greptimedb && !inputs.purge_greptimedb
     needs: validate
     runs-on: tuist-linux
     timeout-minutes: 60
@@ -413,10 +417,11 @@ jobs:
           fi
 
   uninstall-greptimedb:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && inputs.uninstall_greptimedb
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist' && (inputs.uninstall_greptimedb || inputs.purge_greptimedb)
     needs: validate
     runs-on: tuist-linux
-    timeout-minutes: 15
+    # The purge waits up to 20 minutes for its bucket pod.
+    timeout-minutes: 40
     environment: server-k8s-${{ inputs.environment }}
     concurrency:
       group: server-deploy-${{ inputs.environment }}-observability
@@ -490,6 +495,61 @@ jobs:
           done
           # The same gate the next routine server deploy runs before collectors.
           bash .github/scripts/pulse-readiness.sh
+      - name: Delete the old release's volumes, pilot Secret and bucket objects
+        if: inputs.purge_greptimedb
+        env:
+          PURGE_POD: greptimedb-purge-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          # Production never ran the greptimedb release; its bucket is not touched.
+          case "$DEPLOY_ENV" in staging|canary) ;; *) echo '::error::purge_greptimedb is staging/canary only.'; exit 1 ;; esac
+          if kubectl get pods -A -o json | jq -e '
+            any(.items[]; any(.spec.volumes[]?; (.persistentVolumeClaim.claimName // "") | startswith("data-greptimedb-")))' > /dev/null; then
+            echo '::error::A pod still mounts a data-greptimedb volume.'
+            exit 1
+          fi
+          # The hcloud PVs are Retain: switch each to Delete first, or the
+          # backing volume is stranded with nothing pointing at it.
+          for claim in $(kubectl -n observability get pvc -o name | { grep '/data-greptimedb-' || true; }); do
+            pv=$(kubectl -n observability get "$claim" -o jsonpath='{.spec.volumeName}')
+            kubectl patch pv "$pv" -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}'
+            kubectl -n observability delete "$claim" --wait=true --timeout=2m
+            kubectl wait --for=delete "pv/$pv" --timeout=5m
+            echo "Deleted $claim and its volume $pv" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          kubectl -n observability delete secret greptimedb-auth --ignore-not-found
+          # Only the greptimedb/ prefix: Pulse's pulse/ data and legacy Pulse
+          # history (tenants/, auth/, .pulse/) share this bucket.
+          jq -n --arg name "$PURGE_POD" --arg bucket "tuist-pulso-$DEPLOY_ENV" '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:1200,automountServiceAccountToken:false,
+              nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
+              securityContext:{runAsNonRoot:true,runAsUser:65532,fsGroup:65532,seccompProfile:{type:"RuntimeDefault"}},
+              volumes:[{name:"tmp",emptyDir:{sizeLimit:"64Mi"}}],
+              containers:[{name:"purge",image:"docker.io/amazon/aws-cli:2.40.2@sha256:acc32af784911165a8e78b63950625d174ba79b800a66a436c974689c87cd755",
+                command:["sh","-ec",("p=s3://" + $bucket + "/greptimedb/\n" +
+                  "count() { aws s3 ls \"$p\" --recursive || true; }\n" +
+                  "echo \"greptimedb/ objects before: $(count | wc -l)\"\n" +
+                  "aws s3 rm \"$p\" --recursive --only-show-errors\n" +
+                  "left=$(count | wc -l); echo \"greptimedb/ objects after: $left\"; [ \"$left\" = 0 ]")],
+                securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
+                volumeMounts:[{name:"tmp",mountPath:"/tmp"}],
+                resources:{requests:{cpu:"50m",memory:"128Mi"},limits:{memory:"256Mi"}},
+                env:[{name:"HOME",value:"/tmp"},{name:"AWS_ENDPOINT_URL",value:"https://t3.storage.dev"},
+                  {name:"AWS_DEFAULT_REGION",value:"auto"},{name:"AWS_REQUEST_CHECKSUM_CALCULATION",value:"when_required"},
+                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"GREPTIMEDB_STANDALONE__STORAGE__ACCESS_KEY_ID"}}},
+                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY"}}}]
+              }]}}' > "$RUNNER_TEMP/purge.json"
+          kubectl create -f "$RUNNER_TEMP/purge.json" > /dev/null
+          deadline=$((SECONDS + 1200)); phase=Pending
+          while ((SECONDS < deadline)); do
+            phase=$(kubectl --request-timeout=10s -n observability get pod "$PURGE_POD" -o jsonpath='{.status.phase}')
+            case "$phase" in Succeeded|Failed) break ;; esac
+            sleep 5
+          done
+          kubectl -n observability logs "$PURGE_POD" | tee -a "$GITHUB_STEP_SUMMARY" || true
+          kubectl -n observability delete pod "$PURGE_POD" --wait=true --timeout=30s > /dev/null
+          [[ "$phase" == Succeeded ]]
       - name: Remove CI-local identity
         if: always()
         run: rm -f "$KUBECONFIG"
