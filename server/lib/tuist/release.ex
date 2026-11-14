@@ -9,6 +9,7 @@ defmodule Tuist.Release do
   alias Tuist.IngestRepo
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
 
@@ -202,6 +203,53 @@ defmodule Tuist.Release do
   def backfill_runner_workflow_jobs do
     %{inserted: inserted, archive_markers: archive_markers} = BackfillWorkflowJobsWorker.backfill(1_000)
     Logger.info("Backfilled #{inserted} runner lifecycle rows and #{archive_markers} archive markers")
+  end
+
+  @doc """
+  The sandbox drain check before a Linux runner box's Machine is deleted:
+  lists the sandboxes the box still holds and queues the next archive, on a
+  live node:
+
+      bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
+
+  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/1`).
+  Raises, so the command exits nonzero, until no sandbox but errored ones is
+  left; rerun it until it passes.
+  """
+  def sandbox_node_drain(node_name) when is_binary(node_name) do
+    drain = Archives.node_drain(node_name)
+
+    if !drain.reclaiming,
+      do: IO.puts("#{node_name} is not reclaimed by CI: cordon the Node; nothing is archived until it is.")
+
+    if !drain.archive_tier,
+      do: IO.puts("The archive tier is off (TUIST_SANDBOX_ARCHIVE_AFTER_HOURS): paused sandboxes cannot leave the node.")
+
+    Enum.each(drain.sandboxes, fn sandbox ->
+      IO.puts(
+        Enum.join(
+          [
+            sandbox.state,
+            sandbox.id,
+            "account=#{sandbox.account}",
+            "orb=#{sandbox.amp_orb_id || "-"}",
+            "in_turn=#{not is_nil(sandbox.residency_work_id)}",
+            "paused_at=#{sandbox.paused_at || "-"}",
+            "uploading=#{sandbox.uploading}",
+            "last_archive_attempt=#{sandbox.archive_attempted_at || "-"}"
+          ],
+          " "
+        )
+      )
+    end)
+
+    left = Enum.count(drain.sandboxes, &(&1.state != :error))
+
+    if drain.drained do
+      IO.puts("DRAINED: #{node_name} holds no sandbox to archive; its Machine can be deleted.")
+    else
+      raise "#{node_name} still holds #{left} sandbox(es) to archive; rerun the check."
+    end
   end
 
   @doc """

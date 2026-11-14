@@ -611,7 +611,7 @@ defmodule Tuist.GitHistory.FileChangesTest do
     list(repository, "f1", %{"A.swift" => "a2", "B.swift" => "b1"})
 
     Repo.update_all(from(l in CommitListing, where: l.repository_id == ^repository and l.sha == "f1"),
-      set: [inserted_at: DateTime.add(DateTime.utc_now(), -90, :day)]
+      set: [inserted_at: DateTime.add(DateTime.utc_now(), -2, :day)]
     )
 
     head(repository, "main", "f1")

@@ -181,6 +181,14 @@ instance=tuist, component=pdc-agent). Namespace and Pod selectors are ANDed:
 `tuist-staging`, `tuist-canary`, **`tuist` for production**. No backend public
 Ingress exists. Parent manages server/PDC endpoint configuration.
 
+The `pulse-host-ingress` CiliumNetworkPolicy also admits Cilium's `host` and
+`remote-node` identities to TCP 4000 on the API pods (the frontends in the
+cluster topology). k8s-monitoring's control-plane collector scrapes the local
+kube-apiserver and etcd on the host network, so its writes carry a node
+identity that Kubernetes `podSelector`/`ipBlock` rules never match; without
+this policy Hubble shows them as `POLICY_DENIED` and Pulse has no
+`tuist-kube-apiserver` or `tuist-etcd` series. Pulse still authenticates them.
+
 ## Rollback boundaries
 
 Rolling back a collector change means pointing `k8s-monitoring` back at

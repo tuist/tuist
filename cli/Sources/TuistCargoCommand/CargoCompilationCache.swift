@@ -227,7 +227,9 @@ struct CargoCompilationCache {
     }
 
     /// Whether a stream holds only rustc's JSON messages (artifact notifications, diagnostics, future-incompatibility
-    /// reports, and this cache's width marker), and whether any are diagnostics; `nil` for anything else.
+    /// reports, unused-extern reports, and this cache's width marker), and whether any are diagnostics; `nil` for
+    /// anything else. Cargo 1.100 asks for unused-extern reports (`--json=unused-externs-silent`) for its
+    /// `unused_dependencies` lint; a hit replays them like diagnostics, so the lint still sees cached crates.
     static func messages(_ data: Data) -> (diagnostics: Bool, width: String?)? {
         var diagnostics = false
         var width: String?
@@ -235,7 +237,7 @@ struct CargoCompilationCache {
             guard let message = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
                   let type = message["$message_type"] as? String else { return nil }
             switch type {
-            case "artifact", "future_incompat": continue
+            case "artifact", "future_incompat", "unused_extern": continue
             case "diagnostic": diagnostics = true
             case widthMessage:
                 guard width == nil, let value = message["width"] as? String else { return nil }

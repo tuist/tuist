@@ -223,8 +223,8 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   last 6 hours (`CacheVolumes.recent_sandbox_checkout_nodes/4`
   into `Capacity.place/3`'s `prefer:`): they hold its master and, for
   sandboxd's `CHECKOUT_WORKSPACES_TTL`, the workspace prepared from that seed.
-  Only the plain reservation prefers them; a full one is passed over, never
-  reclaimed or grown for.
+  The plain reservation and a carve-out growth prefer them; pausing idle
+  sandboxes for room does not, since a pause costs about what they save.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
@@ -372,6 +372,11 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   completes, after which it restores on any node and cold boots (files kept,
   processes and memory lost). Off with the tier. Archived non-Orb rows keep
   the 14-day retention of their pause.
+  Before a cordoned box's Machine is deleted, operators run
+  `Tuist.Release.sandbox_node_drain/1` (`Archives.node_drain/1`): it lists
+  the agent sandboxes still on the node, queues the next archive, and
+  raises until only errored rows are left (the runbook is
+  `infra/runners-controller/AGENTS.md`, "Replacing a runner box").
 - Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
   sandboxes (creating, running or resuming) charge the CPU and memory quota
   (`:sandbox_concurrency_limit`, checked on create, restore and resume,
@@ -481,6 +486,13 @@ socket, the poller and the caller share a replica:
   has been stuck for 150 s: a `resuming` row takes the state the node
   reports, a `creating` row the node does not list becomes `error`. A
   node reporting a sandbox in `error` errors the row with its reason.
+- A node that left the cluster never reports again. Every minute
+  `ReleaseRemovedNodesWorker` (`Sandboxes.release_removed_nodes/0`) errors
+  the Linux agent rows of a node that is not connected and whose Kubernetes
+  Node answers 404, with `node_name` nil, so spawns and routers start them
+  afresh; an interrupted restore reverts to `archived`. Any other answer
+  leaves them alone. macOS rows are left to recovery: tart hosts are virtual
+  Nodes that can deregister and return with their VMs.
 - `environment_key` is `Tuist.Vault.Binary` encrypted and never
   serialized by the API. It travels only inside `start_worker` args.
 - `anthropic_api_key` is `Tuist.Vault.Binary` encrypted, never

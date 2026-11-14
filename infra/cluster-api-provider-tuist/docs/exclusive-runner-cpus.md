@@ -147,10 +147,29 @@ API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
 1. Set `ovhFleets.runners-linux.kubernetesVersion` to the control plane's
    version in the env's values. The MachineDeployment is `OnDelete`, so no box
    changes.
-2. Per box: cordon it, wait until no runner Pod runs on it, then delete its
-   Machine. The provider reinstalls the box, and the replacement Machine joins
-   with the v1.36 kubelet, the static CPU manager and the pod-level managers.
-   Canary and production need `/elevate`.
+2. Per box: cordon it, wait until no runner Pod runs on it, **drain its
+   sandboxes**, then delete its Machine. The provider reinstalls the box, and
+   the replacement Machine joins with the v1.36 kubelet, the static CPU
+   manager and the pod-level managers. Canary and production need `/elevate`.
+
+   The box also hosts agent sandboxes (Amp Orbs, Claude Code sessions), and
+   the release deletes them with the box. The cordon starts their drain: the
+   server pauses idle ones and archives paused ones to object storage, one
+   at a time, from where their next turn restores on another node. Before
+   deleting the Machine, run the **sandbox drain check** until it prints
+   `DRAINED` and exits 0:
+
+   ```bash
+   kubectl -n tuist exec deploy/tuist-tuist-server -- \
+     bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
+   ```
+
+   Each run lists the sandboxes still on the node and queues the next
+   archive. A paused one usually leaves within a few minutes. A `running`
+   one with `in_turn=true` waits for its turn to end (Amp pauses it, or the
+   server does after ten quiet minutes); if it never does, ask its creator
+   to stop the thread, or accept losing what it has not pushed. Errored rows
+   are listed but do not block: they cannot be archived.
 3. Check the Node reports the new kubelet version, 30 allocatable CPUs on a
    32-thread box, and the `tuist.dev/pod-level-resource-managers` label.
 

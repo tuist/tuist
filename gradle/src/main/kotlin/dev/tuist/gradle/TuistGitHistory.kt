@@ -28,7 +28,9 @@ data class GitHistorySettings(
     val windowDays: Int = 365,
     val windowCommits: Int = 5000,
     val deepenBudgetSeconds: Int = 60,
-    val uploadBatchSize: Int = 500
+    val uploadBatchSize: Int = 500,
+    /** How many files of a commit's listing the server keeps. */
+    val commitFileLimit: Int = 50_000
 )
 
 /** A run's Git history as collected from the checkout, with what is needed to upload it once the run exists. */
@@ -254,6 +256,55 @@ class GitHistoryService(
         }
     }
 
+    /**
+     * Uploads the head commit's file listing (`git ls-tree -r`) once per commit, when the server
+     * lacks it: coverage measures the files no run compiled against it, and reads the tracked files
+     * from it. Only coverage runs on a clean checkout send it, after the run. Best effort.
+     */
+    fun uploadListing(collected: CollectedGitHistory?, workingDirectory: File): Boolean {
+        val history = collected?.history ?: return true
+        val repositoryUrl = collected.repositoryUrl?.takeIf { it.isNotBlank() } ?: return true
+        return try {
+            val missing = request("listings/missing", MissingCommitsRequest(repositoryUrl, listOf(history.headSha))) { connection ->
+                InputStreamReader(connection.inputStream, Charsets.UTF_8).use {
+                    gson.fromJson(it, MissingCommitsResponse::class.java)?.missing.orEmpty()
+                }
+            }
+            if (history.headSha !in missing) return true
+            val limit = collected.settings.commitFileLimit
+            val files = ProcessGitRunner(workingDirectory)
+                .capture(listOf("ls-tree", "-r", "-z", "--full-tree", history.headSha))
+                .split('\u0000')
+                .mapNotNull { entry ->
+                    val meta = entry.substringBefore('\t', "").split(' ').filter { it.isNotEmpty() }
+                    val path = entry.substringAfter('\t', "")
+                    if (meta.size == 3 && meta[1] == "blob" && path.isNotEmpty()) {
+                        ListingFilePayload(path, meta[2], meta[0].toIntOrNull(8))
+                    } else null
+                }
+            val kept = files.take(limit.coerceAtLeast(0))
+            val batches = kept.chunked(LISTING_BATCH_SIZE).ifEmpty { listOf(emptyList()) }
+            batches.forEachIndexed { index, batch ->
+                val last = index == batches.lastIndex
+                request(
+                    "listings",
+                    UploadListingRequest(
+                        repositoryUrl = repositoryUrl,
+                        sha = history.headSha,
+                        files = batch,
+                        complete = last,
+                        truncated = files.size > kept.size,
+                        filesCount = if (last) kept.size else null
+                    )
+                ) {}
+            }
+            true
+        } catch (e: Exception) {
+            logger.info("Tuist: The commit's file listing could not be uploaded: ${e.message}")
+            false
+        }
+    }
+
     private fun settings(): GitHistorySettings {
         val defaults = GitHistorySettings()
         return try {
@@ -266,7 +317,8 @@ class GitHistoryService(
                 windowDays = response?.windowDays ?: defaults.windowDays,
                 windowCommits = response?.windowCommits ?: defaults.windowCommits,
                 deepenBudgetSeconds = response?.deepenBudgetSeconds ?: defaults.deepenBudgetSeconds,
-                uploadBatchSize = response?.uploadBatchSize ?: defaults.uploadBatchSize
+                uploadBatchSize = response?.uploadBatchSize ?: defaults.uploadBatchSize,
+                commitFileLimit = response?.commitFileLimit ?: defaults.commitFileLimit
             )
         } catch (e: Exception) {
             logger.debug("Tuist: Using the default Git history settings: ${e.message}")
@@ -308,7 +360,8 @@ class GitHistoryService(
         @SerializedName("window_days") val windowDays: Int?,
         @SerializedName("window_commits") val windowCommits: Int?,
         @SerializedName("deepen_budget_seconds") val deepenBudgetSeconds: Int?,
-        @SerializedName("upload_batch_size") val uploadBatchSize: Int?
+        @SerializedName("upload_batch_size") val uploadBatchSize: Int?,
+        @SerializedName("commit_file_limit") val commitFileLimit: Int?
     )
 
     private data class MissingCommitsRequest(
@@ -323,6 +376,21 @@ class GitHistoryService(
         @SerializedName("object_format") val objectFormat: String,
         val commits: List<CommitPayload>,
         @SerializedName("branch_heads") val branchHeads: List<BranchHeadPayload>
+    )
+
+    private data class ListingFilePayload(
+        val path: String,
+        @SerializedName("git_blob_id") val gitBlobId: String,
+        val mode: Int?
+    )
+
+    private data class UploadListingRequest(
+        @SerializedName("repository_url") val repositoryUrl: String,
+        val sha: String,
+        val files: List<ListingFilePayload>,
+        val complete: Boolean,
+        val truncated: Boolean,
+        @SerializedName("files_count") val filesCount: Int?
     )
 
     private data class CommitPayload(
@@ -343,6 +411,9 @@ class GitHistoryService(
 
         /** Commits per upload request the server accepts. */
         private const val MAX_UPLOAD_BATCH_SIZE = 10_000
+
+        /** Files per listing request; the server accepts up to 20,000. */
+        private const val LISTING_BATCH_SIZE = 10_000
     }
 }
 

@@ -6,15 +6,23 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
+import org.gradle.api.configuration.BuildFeatures
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
+import org.gradle.build.event.BuildEventsListenerRegistry
+import org.gradle.tooling.events.FinishEvent
+import org.gradle.tooling.events.OperationCompletionListener
+import org.gradle.tooling.events.task.TaskFinishEvent
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestListener
 import org.gradle.api.tasks.testing.TestResult
 import java.io.BufferedReader
+import java.io.File
 import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -47,6 +55,12 @@ data class TestReport(
     @SerializedName("git_object_format") val gitObjectFormat: String? = null,
     @SerializedName("history_source") val historySource: String? = null,
     @SerializedName("history_fallback_reason") val historyFallbackReason: String? = null,
+    @SerializedName("coverage_enabled") val coverageEnabled: Boolean? = null,
+    @SerializedName("git_dirty") val gitDirty: Boolean? = null,
+    val coverage: CoveragePayload? = null,
+    @SerializedName("coverage_evidence") val coverageEvidence: CoverageEvidencePayload? = null,
+    @SerializedName("only_test_identifiers") val onlyTestIdentifiers: List<String>? = null,
+    @SerializedName("skip_test_identifiers") val skipTestIdentifiers: List<String>? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -383,6 +397,7 @@ internal class TestReportCollector {
 
 abstract class TuistTestInsightsService :
     BuildService<TuistTestInsightsService.Params>,
+    OperationCompletionListener,
     AutoCloseable {
 
     interface Params : BuildServiceParameters {
@@ -398,6 +413,14 @@ abstract class TuistTestInsightsService :
         val gitRemoteUrlOrigin: Property<String>
         val uploadInBackground: Property<Boolean>
         val buildInsights: Property<TuistBuildInsightsService>
+        val coverageEnabled: Property<Boolean>
+        /** Every test task of the build and its module, when the build can know them. */
+        val coverageTestTasks: MapProperty<String, String>
+        /** Each module's directory relative to the root project's. */
+        val coverageModuleDirectories: MapProperty<String, String>
+        val excludedTaskNames: ListProperty<String>
+        val shardPlanId: Property<String>
+        val shardIndex: Property<Int>
     }
 
     private val logger = Logging.getLogger(TuistTestInsightsService::class.java)
@@ -416,6 +439,8 @@ abstract class TuistTestInsightsService :
     internal var stressRepetitionOutput: java.io.File? = null
 
     private val testTaskPathsByModule = mutableMapOf<String, MutableSet<String>>()
+    private val coverageRecords = linkedMapOf<String, CoverageTaskRecord>()
+    private val coverageOutcomes = mutableMapOf<String, CoverageTaskOutcome>()
 
     private val collector = TestReportCollector()
     private var gradleBuildId: String? = null
@@ -447,6 +472,52 @@ abstract class TuistTestInsightsService :
 
     @Synchronized
     internal fun executedTestCases(): List<ExecutedTestCase> = collector.executedTestCases()
+
+    @Synchronized
+    internal fun registerCoverageTask(record: CoverageTaskRecord) {
+        coverageRecords[record.taskPath] = record
+    }
+
+    private val coverageTestTaskPaths: Set<String> by lazy { parameters.coverageTestTasks.orNull?.keys.orEmpty() }
+
+    // Every listed test task's outcome, beside the recorded ones': a task the build's own
+    // configuration skipped (disabled, or an earlier `onlyIf` that said no) never reaches the
+    // `onlyIf` that records it, yet it was part of the run.
+    @Synchronized
+    override fun onFinish(event: FinishEvent) {
+        if (event !is TaskFinishEvent) return
+        val path = event.descriptor.taskPath
+        if (path in coverageRecords || path in coverageTestTaskPaths) coverageOutcomes[path] = CoverageTaskOutcome.of(event)
+    }
+
+    // A test task restored from the build cache, or up to date, runs no test, yet its execution
+    // data is the coverage of its tests: a build whose tests all came that way still reports it.
+    // A credential-free report carries no coverage, so such a build has nothing to send.
+    private fun hasRestoredCoverage(): Boolean {
+        val restored = synchronized(this) {
+            coverageEnabled() && coverageRecords.keys.any { coverageOutcomes[it] == CoverageTaskOutcome.RESTORED }
+        }
+        return restored && try {
+            configurationProvider.getConfiguration().token.isNotBlank()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun coverageEnabled(): Boolean = parameters.coverageEnabled.getOrElse(false)
+
+    /**
+     * Records that this checkout reported a shard of a plan. A retry of that shard whose test
+     * tasks all come back up to date or from the cache runs nothing new, and reporting it again
+     * would add an empty report to the shard. The same shard of another plan, such as at a new
+     * commit whose assigned suites are unchanged, still reports its restored coverage.
+     */
+    private fun shardReportMarker(): File? {
+        val planId = shardPlanId ?: parameters.shardPlanId.orNull ?: return null
+        val index = shardIndex ?: parameters.shardIndex.orNull ?: return null
+        if (!planId.all { it.isLetterOrDigit() || it == '-' }) return null
+        return File(parameters.projectDir.asFile.get(), ".gradle/tuist/shard-reports/$planId-$index")
+    }
 
     @Synchronized
     internal fun onTestFinished(
@@ -481,8 +552,13 @@ abstract class TuistTestInsightsService :
             return
         }
 
-        if (!hasTests) {
+        if (!hasTests && !hasRestoredCoverage()) {
             logger.debug("Tuist: No test results collected, skipping test insights upload.")
+            return
+        }
+
+        if (!hasTests && shardReportMarker()?.isFile == true) {
+            logger.lifecycle("Tuist: This shard already reported from this checkout and ran no tests now, so it reports nothing.")
             return
         }
 
@@ -554,12 +630,15 @@ abstract class TuistTestInsightsService :
         }
 
     private fun sendReport() {
-        val totalDurationMs = latestEndTime - earliestStartTime
+        val totalDurationMs = if (hasTests) latestEndTime - earliestStartTime else 0
         val reportGitInfoProvider = reportGitInfoProvider()
         val isCi = ciDetector.isCi()
         val gitHistory = publishGitHistory()
+        val coverage = if (coverageEnabled()) measureCoverage() else null
+        val reportShardPlanId = shardPlanId ?: parameters.shardPlanId.orNull
+        val reportShardIndex = shardIndex ?: parameters.shardIndex.orNull
 
-        val report = collector.buildReport(
+        val baseReport = collector.buildReport(
             totalDurationMs = totalDurationMs,
             isCi = isCi,
             scheme = parameters.rootProjectName.orNull,
@@ -568,15 +647,32 @@ abstract class TuistTestInsightsService :
             gitRef = reportGitInfoProvider.ref(),
             gitRemoteUrlOrigin = reportGitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId,
-            shardPlanId = shardPlanId,
-            shardIndex = shardIndex,
+            shardPlanId = reportShardPlanId,
+            shardIndex = reportShardIndex,
             stressNewTests = stressNewTestsReport,
             gitHistory = gitHistory?.payload
+        )
+        val report = baseReport.copy(
+            coverageEnabled = coverageEnabled(),
+            gitDirty = coverage?.dirty,
+            coverage = coverage?.result?.coverage,
+            coverageEvidence = coverage?.result?.evidence,
+            onlyTestIdentifiers = coverage?.result?.onlyTestIdentifiers,
+            skipTestIdentifiers = coverage?.result?.skipTestIdentifiers
         )
 
         val response = httpClient.execute { config ->
             val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
+            // Credential-free reports carry no coverage: earlier servers refuse fields they don't know from them.
+            val outgoingReport = if (config.token.isBlank()) report.copy(
+                gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                historySource = null, historyFallbackReason = null,
+                coverageEnabled = null, gitDirty = null, coverage = null, coverageEvidence = null,
+                onlyTestIdentifiers = null, skipTestIdentifiers = null
+            ) else report.copy(coverage = report.coverage?.let { attachCoverage(it, report.id, config) })
             // Every attempt sends the same report id, and the server stores a replayed id only once
             // (a server that does not deduplicate by id stores the replay as another run).
             httpClient.retrying("Test insights request", replaySafe = true) {
@@ -590,12 +686,6 @@ abstract class TuistTestInsightsService :
                     }
 
                     OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                        val outgoingReport = if (config.token.isBlank()) report.copy(
-                            gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
-                            gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
-                            isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
-                            historySource = null, historyFallbackReason = null
-                        ) else report
                         Gson().toJson(outgoingReport, writer)
                     }
 
@@ -631,8 +721,77 @@ abstract class TuistTestInsightsService :
 
         if (response != null) {
             logger.lifecycle("Tuist: Test insights reported successfully (test run ${response.id})")
+            shardReportMarker()?.let { marker ->
+                runCatching { marker.parentFile.mkdirs(); marker.writeText(response.id) }
+                    .onFailure { logger.debug("Tuist: Could not record the shard's report: ${it.message}") }
+            }
+            // After the run, as the server reads the listing only for commits it has coverage of.
+            if (coverage != null && !coverage.dirty) uploadCommitListing(gitHistory)
         } else {
             logger.warn("Tuist: Failed to report test insights.")
+        }
+    }
+
+    private class MeasuredCoverage(val result: CoverageResult?, val dirty: Boolean)
+
+    /** Best effort: a coverage problem is logged and never fails or loses the run. */
+    private fun measureCoverage(): MeasuredCoverage? =
+        try {
+            val projectDir = parameters.projectDir.asFile.get()
+            val repository = CoverageRepository.load(projectDir)
+            if (repository == null) {
+                logger.warn("Tuist: Coverage is only reported from a Git checkout; ${projectDir.path} is not one.")
+                null
+            } else {
+                val dirty = try {
+                    ProcessGitRunner(repository.root).capture(listOf("status", "--porcelain")).isNotBlank()
+                } catch (_: Exception) {
+                    false
+                }
+                val (records, outcomes) = synchronized(this) { coverageRecords.values.toList() to coverageOutcomes.toMap() }
+                val executed = executedTestCases()
+                val rootDirectory = repository.relative(projectDir).orEmpty()
+                val moduleDirectories = parameters.coverageModuleDirectories.getOrElse(emptyMap()).mapValues { (_, directory) ->
+                    listOf(rootDirectory, directory).filter { it.isNotEmpty() }.joinToString("/")
+                }
+                val result = GradleCoverage(
+                    repository = repository,
+                    moduleDirectories = moduleDirectories,
+                    records = records,
+                    outcomes = outcomes,
+                    testTasks = parameters.coverageTestTasks.orNull,
+                    excludedTaskNames = parameters.excludedTaskNames.getOrElse(emptyList()),
+                    executedTests = executed
+                        .filter { it.resultType != TestResult.ResultType.SKIPPED }
+                        .map { CoverageExecutedTest(it.moduleName, it.className, it.testName) },
+                    modulesWithFailures = executed
+                        .filter { it.resultType == TestResult.ResultType.FAILURE }
+                        .map { it.moduleName }
+                        .toSet(),
+                    sharded = (shardIndex ?: parameters.shardIndex.orNull) != null
+                ).build()
+                MeasuredCoverage(result, dirty)
+            }
+        } catch (e: Exception) {
+            logger.warn("Tuist: The run's coverage could not be measured: ${e.message}")
+            MeasuredCoverage(null, false)
+        }
+
+    private fun attachCoverage(coverage: CoveragePayload, testRunId: String, config: CacheConfiguration): CoveragePayload? =
+        try {
+            CoverageUploader(httpClient, httpClients, parameters.url.get(), parameters.projectDir.asFile.get())
+                .attach(coverage, testRunId, config)
+        } catch (e: Exception) {
+            logger.warn("Tuist: The run's coverage could not be uploaded: ${e.message}")
+            null
+        }
+
+    private fun uploadCommitListing(gitHistory: CollectedGitHistory?) {
+        try {
+            GitHistoryService(httpClient = httpClient, baseUrl = parameters.url.get())
+                .uploadListing(gitHistory, parameters.projectDir.asFile.get())
+        } catch (e: Exception) {
+            logger.info("Tuist: The commit's file listing could not be uploaded: ${e.message}")
         }
     }
 
@@ -647,7 +806,10 @@ abstract class TuistTestInsightsService :
 
 // --- Plugin ---
 
-internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<Project> {
+internal abstract class TuistTestInsightsPlugin @Inject constructor(
+    private val eventsListenerRegistry: BuildEventsListenerRegistry,
+    private val buildFeatures: BuildFeatures
+) : Plugin<Project> {
 
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
 
@@ -657,6 +819,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         val buildServiceProvider = project.gradle.sharedServices.registrations
             .findByName("tuistBuildInsights")?.service as? Provider<TuistBuildInsightsService>
 
+        val coverageTestTasks = CoverageTestTasks()
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistTestInsights",
             TuistTestInsightsService::class.java
@@ -674,10 +837,35 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
             config.uploadInBackground?.let { parameters.uploadInBackground.set(it) }
             buildServiceProvider?.let { parameters.buildInsights.set(it) }
+            parameters.coverageEnabled.set(config.coverageEnabled && config.stressRepetition == null)
+            parameters.coverageModuleDirectories.set(config.moduleDirectories)
+            parameters.excludedTaskNames.set(project.gradle.startParameter.excludedTaskNames.toList())
+            config.shard?.let { parameters.shardPlanId.set(it.shardPlanId.toString()) }
+            config.shardIndex?.let { parameters.shardIndex.set(it) }
+            parameters.coverageTestTasks.set(project.provider { coverageTestTasks.tasks })
         }
 
         val repetition = config.stressRepetition
         val quarantineEnabled = repetition == null && (config.testQuarantineEnabled ?: ciDetector.isCi())
+        val coverageEnabled = config.coverageEnabled && repetition == null
+        if (repetition == null && project.path == ":") {
+            project.tasks.register("tuistCoverageComplete", TuistCoverageCompleteTask::class.java) {
+                group = "tuist"
+                description = "Tells Tuist that every run of the commit that measures coverage has reported."
+                serverUrl.set(config.url)
+                config.project?.let { tuistProject.set(it) }
+                useEnvironmentProxy.set(config.network.proxy)
+                rootDirectory.set(project.layout.projectDirectory)
+                commitSha.set(
+                    project.providers.gradleProperty("tuist.coverage.commit")
+                        .orElse(project.providers.of(GitInfoValueSource::class.java) {}.map { it.commitSha() ?: "" })
+                )
+            }
+        }
+        if (coverageEnabled) {
+            TestTaskCoverage.applyJacoco(project)
+            if (project.path == ":") configureCoverageBuild(project, serviceProvider, coverageTestTasks)
+        }
 
         val stressEnabled = config.stressNewTestsMode != null && repetition == null
         if (stressEnabled && project.path == ":") {
@@ -714,6 +902,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             usesService(serviceProvider)
             buildServiceProvider?.let { usesService(it) }
             addTestListener(TuistTestListener(serviceProvider, moduleName))
+            if (coverageEnabled) TestTaskCoverage.configure(this, project, moduleName, serviceProvider)
             val taskPath = path
             doFirst {
                 serviceProvider.get().registerTestTask(moduleName, taskPath)
@@ -765,6 +954,37 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             }
         }
     }
+
+    /**
+     * Subscribes the service to task completions, which say which test tasks executed and which
+     * were restored, and lists the build's test tasks, which say which modules a run left out.
+     * Listing them reads every project, so a build with Isolated Projects or configuration on
+     * demand, where not every project is configured, lists none.
+     */
+    private fun configureCoverageBuild(
+        project: Project,
+        serviceProvider: Provider<TuistTestInsightsService>,
+        testTasks: CoverageTestTasks
+    ) {
+        try {
+            eventsListenerRegistry.onTaskCompletion(serviceProvider)
+        } catch (error: Exception) {
+            Logging.getLogger(TuistTestInsightsPlugin::class.java)
+                .warn("Tuist: Coverage cannot tell restored test tasks apart on this Gradle version: ${error.message}")
+        }
+        if (buildFeatures.isolatedProjects.active.get() || project.gradle.startParameter.isConfigureOnDemand) return
+        project.gradle.projectsEvaluated {
+            testTasks.tasks = project.allprojects.flatMap { candidate ->
+                val module = testModuleName(candidate)
+                candidate.tasks.withType(Test::class.java).names.map { candidate.absoluteProjectPath(it) to module }
+            }.toMap()
+        }
+    }
+}
+
+/** Filled once every project is configured; read when configuration ends or the service starts. */
+private class CoverageTestTasks {
+    @Volatile var tasks: Map<String, String>? = null
 }
 
 private class TuistTestListener(

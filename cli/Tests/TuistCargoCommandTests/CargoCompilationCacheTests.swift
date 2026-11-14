@@ -17,6 +17,25 @@ struct CargoCompilationCacheTests {
         }
     }
 
+    @Test func remappingFlagsAreTheSameWhereverTheCheckoutIs() {
+        let sysroot = URL(fileURLWithPath: "/toolchains/1.99-aarch64-apple-darwin")
+        func relocation(_ workspace: String) -> CargoRelocation {
+            CargoRelocation(
+                environment: [
+                    "CARGO_HOME": "/home/cargo",
+                    "TUIST_CARGO_WORKSPACE_ROOT": workspace,
+                    "TUIST_CARGO_TARGET_DIR": workspace + "/target",
+                ],
+                sysroot: sysroot
+            )
+        }
+        // One target directory is shorter than the sysroot, the other longer.
+        let short = relocation("/tmp/w")
+        let long = relocation("/tmp/a-checkout-whose-path-is-long")
+        #expect(short.remapArguments.map { short.relative($0) } == long.remapArguments.map { long.relative($0) })
+        #expect(short.relative("/private/tmp/w/target/debug/x /tmp/w/src") == "@@TUIST_TARGET@@/debug/x @@TUIST_WORKSPACE@@/src")
+    }
+
     @Test func preservesStandardREAPICompilerStreamsAndSymlinkFields() throws {
         let result = REAPI.ActionResult.with {
             $0.stdoutRaw = Data("compiler output".utf8)
@@ -358,6 +377,18 @@ struct CargoCompilationCacheTests {
         try fixture.removeOutputs()
         #expect(try await fixture.cache().restoreLocally() == false)
         #expect(try await fixture.cache(invocation: narrow).restoreLocally())
+    }
+
+    @Test(.inTemporaryDirectory) func cachesAndReplaysUnusedExternReports() async throws {
+        let fixture = try await fixture()
+        let report = #"{"$message_type":"unused_extern","lint_level":"force-warn","unused_extern_names":["itoa"]}"#
+        try await fixture.cache().store(stdout: Data(), stderr: Data(report.utf8))
+        try fixture.removeOutputs()
+        var cache = try fixture.cache()
+        var replayed = Data()
+        cache.replay = { _, stderr in replayed = stderr }
+        #expect(try await cache.restoreLocally())
+        #expect(String(decoding: replayed, as: UTF8.self) == report)
     }
 
     @Test(.inTemporaryDirectory) func neverReplaysTerminalSpecificRemoteCompilerStreams() async throws {

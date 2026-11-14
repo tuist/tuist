@@ -1,4 +1,5 @@
 #if os(macOS)
+    import Foundation
     import TuistCore
     import TuistLoader
     import XcodeGraph
@@ -57,12 +58,12 @@
                         return true
                     }
                 }
-            var observedTargetImports: [Target: Set<String>] = [:]
-
             let allTargetNames = Set(allTargets.map(\.target.productName))
             let allModuleNames = allTargetNames.union(precompiledModuleNames(graphTraverser: graphTraverser))
 
-            for target in allInternalTargets {
+            let observedTargetImports = try await Array(allInternalTargets).concurrentMap(
+                maxConcurrentTasks: ProcessInfo.processInfo.activeProcessorCount
+            ) { target -> (Target, Set<String>)? in
                 let reachableModules = reachableModules(
                     for: target,
                     graphTraverser: graphTraverser,
@@ -87,11 +88,9 @@
                     sourceDependencies.subtracting(explicitDependencyModules)
                         .intersection(allModuleNames)
                 }
-                if !observedImports.isEmpty {
-                    observedTargetImports[target.target] = observedImports
-                }
+                return observedImports.isEmpty ? nil : (target.target, observedImports)
             }
-            return observedTargetImports
+            return Dictionary(observedTargetImports.compactMap { $0 }, uniquingKeysWith: { _, last in last })
         }
 
         private func explicitDependencyModules(

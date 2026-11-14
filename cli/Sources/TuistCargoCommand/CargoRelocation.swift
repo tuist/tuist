@@ -11,7 +11,9 @@ struct CargoRelocation: Equatable {
         let remapped: String
     }
 
-    /// Most specific first, so a target directory inside the workspace is matched before the workspace.
+    /// A root whose path contains another's comes first, so a target directory inside the workspace, or a `/private`
+    /// spelling, is matched before the path inside it. Not by length: the order of `remapArguments` is part of keys,
+    /// and a target directory shorter than the sysroot in one checkout can be longer in another.
     let roots: [Root]
 
     init(environment: [String: String], sysroot: URL) {
@@ -40,7 +42,12 @@ struct CargoRelocation: Equatable {
         // macOS's `/var`, `/tmp` and `/etc` are links into `/private`; tools name a checkout under `$TMPDIR` either way.
         roots += roots.filter { Self.canonical("/private" + $0.path) == $0.path }
             .map { Root(path: "/private" + $0.path, placeholder: $0.placeholder, remapped: $0.remapped) }
-        self.roots = roots.sorted { $0.path.count > $1.path.count }
+        let contained = roots.map { root in roots.filter { $0.path != root.path && root.path.contains($0.path) }.count }
+        self.roots = zip(roots, contained).sorted { first, second in
+            if first.1 != second.1 { return first.1 > second.1 }
+            if first.0.placeholder != second.0.placeholder { return first.0.placeholder < second.0.placeholder }
+            return first.0.path.hasPrefix("/private/") && !second.0.path.hasPrefix("/private/")
+        }.map(\.0)
     }
 
     /// A lexically standardized path that spells macOS's `/private` links like `standardizedFileURL` does for

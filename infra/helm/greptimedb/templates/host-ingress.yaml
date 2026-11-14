@@ -1,0 +1,23 @@
+{{- include "greptimedb.validate" . }}
+# k8s-monitoring's control-plane collector runs on the host network to scrape
+# the local kube-apiserver and etcd. Cilium gives its traffic the node's
+# identity, which Kubernetes podSelector/ipBlock rules never match, so its
+# writes time out. Admit host and remote-node identities to the HTTP API only;
+# Pulse still authenticates every request.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: pulse-host-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: pulse
+      {{- if eq .Values.topology "cluster" }}
+      app.kubernetes.io/component: frontend
+      {{- end }}
+  ingress:
+    - fromEntities: [host, remote-node]
+      toPorts:
+        - ports:
+            - port: "4000"
+              protocol: TCP

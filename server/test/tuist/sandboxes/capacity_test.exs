@@ -496,6 +496,23 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
     end
 
+    test "grows a preferred node's carve-out over a freer node's", %{template: template} do
+      free = connect_elastic(template)
+      holder = connect_elastic(template)
+      set_grant(holder, allocation_free_bytes: 20 * @gib)
+      resident(template, free)
+      resident(template, holder)
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn "tuist-sandboxes", "sandboxd-" <> node, bytes ->
+        :ok = Nodes.update(node, %{capacity: %{memory_bytes: bytes, cpus: 16}})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, ^holder} = Capacity.place(new_sandbox(template), fn _node -> true end, prefer: [holder])
+      assert Repo.get(SandboxNode, holder).memory_limit_bytes == 9 * @gib
+      assert Repo.get(SandboxNode, free).memory_limit_bytes == 8 * @gib
+    end
+
     test "pauses idle sandboxes before it grows", %{template: template} do
       node = connect_elastic(template)
       idle = sandbox_fixture(template: template, state: :running, node_name: node, memory_mb: 4096)

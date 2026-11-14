@@ -45,13 +45,16 @@ defmodule TuistWeb.Helpers.TestLabels do
   def scheme_label(_), do: dgettext("dashboard_tests", "Scheme")
 
   # What a covered file's coverage is grouped by: the target that compiled it,
-  # for Mix the OTP application and for Cargo the package whose source it is.
+  # for Mix the OTP application and for Cargo the package whose source it is,
+  # and for Gradle the project (module) whose classes it compiled to.
   def coverage_target_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Application")
   def coverage_target_label(%Project{build_system: :cargo}), do: dgettext("dashboard_tests", "Package")
+  def coverage_target_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Module")
   def coverage_target_label(_), do: dgettext("dashboard_tests", "Target")
 
   def coverage_targets_label(%Project{build_system: :mix}), do: dgettext("dashboard_tests", "Applications")
   def coverage_targets_label(%Project{build_system: :cargo}), do: dgettext("dashboard_tests", "Packages")
+  def coverage_targets_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Modules")
   def coverage_targets_label(_), do: dgettext("dashboard_tests", "Targets")
 
   def test_run_label(%Project{build_system: :bazel}, scheme) when scheme not in [nil, ""], do: "bazel test #{scheme}"

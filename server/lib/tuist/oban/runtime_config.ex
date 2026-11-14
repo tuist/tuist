@@ -46,6 +46,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},
     {"* * * * *", Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker},
+    {"* * * * *", Tuist.Sandboxes.Workers.ReleaseRemovedNodesWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},

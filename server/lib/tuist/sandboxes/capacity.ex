@@ -730,8 +730,10 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  # Only the plain reservation tries preferred nodes first: pausing idle
-  # sandboxes or growing a carve-out still goes where it frees the most.
+  # The plain reservation and growing a carve-out try preferred nodes first;
+  # growing one costs no more than growing another. Pausing idle sandboxes
+  # still goes where it frees the most: a pause takes seconds, about what a
+  # preferred node saves.
   defp place_on(candidates, sandbox, prefer \\ []) do
     charge = charge_bytes(sandbox)
     ranked = rank(candidates)
@@ -748,7 +750,7 @@ defmodule Tuist.Sandboxes.Capacity do
       nil ->
         case place_by_reclaiming(ranked, charge, reserve) do
           {:ok, node_name} -> {:ok, node_name}
-          {:error, :no_capacity} -> place_by_growing(ranked, charge, reserve)
+          {:error, :no_capacity} -> place_by_growing(ranked, charge, reserve, prefer)
         end
     end
   end
@@ -763,8 +765,8 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp place_by_growing(ranked, charge, reserve) do
-    with {:ok, grown} <- grow_somewhere(ranked, charge, wait_ms(:grow_wait_ms), :reported),
+  defp place_by_growing(ranked, charge, reserve, prefer) do
+    with {:ok, grown} <- grow_somewhere(ranked, charge, wait_ms(:grow_wait_ms), :reported, prefer),
          :ok <- reserve.(grown) do
       {:ok, grown.name}
     else
@@ -903,14 +905,16 @@ defmodule Tuist.Sandboxes.Capacity do
       match?({:ok, _node}, grow(node, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied))
   end
 
-  # Tries the elastic nodes that could hold the charge, most observed free
-  # memory first, and moves on from one whose growth the kubelet defers
-  # (the node has no memory no Pod requests), releasing that growth. The
+  # Tries the elastic nodes that could hold the charge, those in `prefer`
+  # first and then the most observed free memory first, and moves on from
+  # one whose growth the kubelet defers (the node has no memory no Pod
+  # requests), releasing that growth. The
   # last node's deferred growth stays asked for, so the runners controller
   # frees room there and the next attempt fits.
-  defp grow_somewhere(nodes, charge, wait_ms, until) do
+  defp grow_somewhere(nodes, charge, wait_ms, until, prefer \\ []) do
     deadline = System.monotonic_time(:millisecond) + wait_ms
-    nodes |> growable(charge) |> try_growing(charge, deadline, until)
+    {preferred, others} = nodes |> growable(charge) |> Enum.split_with(&(&1.name in prefer))
+    try_growing(preferred ++ others, charge, deadline, until)
   end
 
   defp try_growing([], _charge, _deadline, _until), do: {:error, :no_capacity}

@@ -53,8 +53,9 @@ build_units "$b" snapshot
 expect snapshot tuist-cargo-cache-smoke "$COMPILED"
 logged snapshot "from a snapshot" || fail "snapshot: not restored from the snapshot"
 
-copies=("$ROOT"/xdg/tuist/Cargo/*/snapshots/*/deps/libitoa-*.rlib)
-[ -f "${copies[0]}" ] || fail "tampered: no snapshot was saved"
+# Cargo keeps rlibs in `deps`, or in `build/<package>/<hash>/out` since 1.100.
+copies=($(find "$ROOT"/xdg/tuist/Cargo/*/snapshots -name 'libitoa-*.rlib'))
+[ -f "${copies[0]-}" ] || fail "tampered: no snapshot was saved"
 corrupt "${copies[0]}"
 build_units "$b" tampered
 expect tampered tuist-cargo-cache-smoke "$COMPILED"
@@ -63,13 +64,14 @@ logged tampered discarding || fail "tampered: the changed snapshot was not disca
 
 # A file the snapshot's record does not vouch for, such as the output of a Cargo that built in the profile while it
 # was taken, must never reach a restored target.
-snapshots=("$ROOT"/xdg/tuist/Cargo/*/snapshots/*/deps)
-[ -d "${snapshots[0]}" ] || fail "foreign: no snapshot was saved again"
+snapshots=($(find "$ROOT"/xdg/tuist/Cargo/*/snapshots -name 'libitoa-*.rlib' -exec dirname {} \;))
+[ -d "${snapshots[0]-}" ] || fail "foreign: no snapshot was saved again"
 printf 'stale\n' > "${snapshots[0]}/foreign-0123456789abcdef.d"
+foreign=${snapshots[0]#"$ROOT"/xdg/tuist/Cargo/*/snapshots/*/}
 build_units "$b" foreign
 expect foreign tuist-cargo-cache-smoke "$COMPILED"
 logged foreign discarding || fail "foreign: the snapshot holding a foreign file was not discarded"
-[ ! -e "$b/target/debug/deps/foreign-0123456789abcdef.d" ] || fail "foreign: the foreign file was restored"
+[ ! -e "$b/target/debug/$foreign/foreign-0123456789abcdef.d" ] || fail "foreign: the foreign file was restored"
 
 lock=$(checkout lock "$shared")
 mkdir -p "$lock/extra/src"
@@ -108,7 +110,7 @@ expect native-moved native "$(compiled native-moved)"
 
 # Without a snapshot, so restoration reads the corrupted blob itself.
 rm -rf "$ROOT"/xdg/tuist/Cargo/*/snapshots
-rlibs=("$b"/target/debug/deps/libitoa-*.rlib)
+rlibs=($(find "$b/target/debug" -name 'libitoa-*.rlib'))
 digest=$(shasum -a 256 "${rlibs[0]}" | cut -d' ' -f1)
 blobs=("$ROOT"/xdg/tuist/Cargo/*/blobs)
 corrupt "${blobs[0]}/$digest"

@@ -251,6 +251,53 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
+  What releasing `node_name` would lose: the agent sandboxes the node still
+  holds (creating, resuming, running, paused or errored), with the account,
+  whether an upload is in flight and when the last attempt was. Once the node
+  is cordoned, CI reclaims it (`Capacity.ci_reclaim?/1`), idle running
+  sandboxes are paused and paused ones are archived one at a time; this also
+  queues the next archive, so a check keeps the drain moving. A running Orb
+  in a turn pauses when Amp pauses it or the guest goes idle for ten minutes.
+
+  `drained` is true once only errored rows are left: they hold a jail that
+  cannot be archived and are lost with the box, like the release would lose
+  them anyway. Remote-execution rows belong to their scheduler and are not
+  listed.
+  """
+  def node_drain(node_name) when is_binary(node_name) do
+    reclaiming = Capacity.ci_reclaim?(node_name)
+    if reclaiming, do: move_off_node(node_name)
+
+    sandboxes =
+      Repo.all(
+        from s in Sandbox,
+          join: a in assoc(s, :account),
+          where:
+            s.node_name == ^node_name and s.purpose == :agent and
+              s.state in [:creating, :resuming, :running, :paused, :error],
+          order_by: [asc: s.state, asc: s.paused_at],
+          select: %{
+            id: s.id,
+            account: a.name,
+            state: s.state,
+            amp_orb_id: s.amp_orb_id,
+            residency_work_id: s.residency_work_id,
+            paused_at: s.paused_at,
+            uploading: not is_nil(s.archive_upload_id),
+            archive_attempted_at: s.archive_attempted_at
+          }
+      )
+
+    %{
+      node: node_name,
+      reclaiming: reclaiming,
+      archive_tier: not is_nil(Environment.sandbox_archive_after_hours()),
+      sandboxes: sandboxes,
+      drained: Enum.all?(sandboxes, &(&1.state == :error))
+    }
+  end
+
+  @doc """
   Queues the archive of a paused sandbox whose own node refused its resume
   for room, so a later resume restores it on any node instead of waiting
   for that one. A resume the node admits meanwhile cancels the upload.

@@ -24,6 +24,7 @@ dependencies {
     implementation("org.tomlj:tomlj:1.1.1")
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("org.apache.commons:commons-compress:1.26.1")
+    implementation("org.jacoco:org.jacoco.core:0.8.16")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
@@ -32,6 +33,28 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
+    // The JaCoCo agent the coverage fixtures run their tests with, without a repository.
+    testImplementation("org.jacoco:org.jacoco.agent:0.8.16")
+}
+
+// The JUnit Platform listener that records test-scoped coverage evidence inside test JVMs. It
+// runs on the tests' own JVM, which can be Java 8, and is shipped inside the plugin as a jar the
+// test tasks load as a Java agent (see `TuistCoverage.kt`).
+val coverageListener by sourceSets.creating
+dependencies {
+    "coverageListenerCompileOnly"("org.junit.platform:junit-platform-launcher:1.10.5")
+}
+tasks.named<JavaCompile>("compileCoverageListenerJava") {
+    options.release.set(8)
+    options.compilerArgs.add("-Xlint:-options")
+}
+val coverageListenerJar = tasks.register<Jar>("coverageListenerJar") {
+    from(coverageListener.output)
+    archiveFileName.set("tuist-coverage-listener.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("coverage-listener"))
+    manifest {
+        attributes("Premain-Class" to "dev.tuist.gradle.coverage.TuistCoverageAgent")
+    }
 }
 
 tasks.shadowJar {
@@ -50,6 +73,8 @@ tasks.shadowJar {
     relocate("org.apache.commons.compress", "dev.tuist.shadow.compress")
     relocate("org.apache.commons.io", "dev.tuist.shadow.commons.io")
     relocate("org.apache.commons.lang3", "dev.tuist.shadow.commons.lang3")
+    relocate("org.jacoco", "dev.tuist.shadow.jacoco")
+    relocate("org.objectweb.asm", "dev.tuist.shadow.asm")
     minimize {
         exclude(dependency("net.java.dev.jna:.*"))
     }
@@ -64,6 +89,9 @@ tasks.processResources {
     inputs.property("version", pluginVersion)
     filesMatching("dev/tuist/gradle/plugin.properties") {
         expand("version" to pluginVersion)
+    }
+    from(coverageListenerJar) {
+        into("dev/tuist/gradle")
     }
 }
 

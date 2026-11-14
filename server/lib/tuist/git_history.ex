@@ -106,6 +106,23 @@ defmodule Tuist.GitHistory do
       "**/.tool-versions",
       "**/mise.toml",
       "**/.mise.toml"
+    ],
+    # Build scripts and their logic, version catalogs, properties, dependency
+    # locks, the wrapper's Gradle version and the JDK pins.
+    gradle: [
+      "**/*.gradle",
+      "**/*.gradle.kts",
+      "**/gradle.properties",
+      "**/*.versions.toml",
+      "**/gradle.lockfile",
+      "**/gradle-wrapper.properties",
+      "**/buildSrc/**",
+      "**/build-logic/**",
+      "**/.java-version",
+      "**/.sdkmanrc",
+      "**/.tool-versions",
+      "**/mise.toml",
+      "**/.mise.toml"
     ]
   }
 
@@ -122,6 +139,12 @@ defmodule Tuist.GitHistory do
   FROM git_commits c
   LEFT JOIN git_refs r ON r.id = c.ref_id AND NOT r.detached
   """
+
+  # A listing is only where the commit's file changes are written from.
+  @listing_retention_days 2
+
+  @doc "How many days a commit's uploaded listing (`Tuist.GitHistory.CommitFile`) is kept."
+  def listing_retention_days, do: @listing_retention_days
 
   @doc """
   The history settings in effect for a project: the server defaults (from
@@ -1300,22 +1323,24 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
-  Of the given SHAs, the ones whose file listing the repository lacks,
-  counting a listing whose files expired as missing, unless the commit's
-  file changes are current (`Tuist.GitHistory.FileChanges.current/2`): a
-  commit written from a selection diff has no staged files. A truncated
-  listing is not missing: uploading it again would stop at the same limit.
+  Of the given SHAs, the ones whose file listing the repository lacks: it
+  has none, or one whose files expired before the commit's file changes
+  were written from it, or whose file changes expired since. A commit whose
+  file changes are current (`Tuist.GitHistory.FileChanges.current/2`) is
+  not missing either way: one written from a selection diff has no staged
+  files. A truncated listing is not missing while the coverage file detail
+  is kept: uploading it again would stop at the same limit.
   """
   def missing_listings(_repository_id, []), do: []
 
   def missing_listings(repository_id, shas) do
     shas = Enum.uniq(shas)
-    cutoff = listing_cutoff()
 
     stored =
       Repo.all(
         from(l in CommitListing,
-          where: l.repository_id == ^repository_id and l.sha in ^shas and l.staged and l.inserted_at >= ^cutoff,
+          where: l.repository_id == ^repository_id and l.sha in ^shas,
+          where: ^stored_listing(),
           select: l.sha
         )
       )
@@ -1324,14 +1349,25 @@ defmodule Tuist.GitHistory do
     missing -- FileChanges.current_among(repository_id, missing)
   end
 
+  defp stored_listing do
+    now = DateTime.utc_now()
+    truncated_cutoff = DateTime.add(now, -(Environment.coverage_retention_days().files - 1), :day)
+
+    dynamic(
+      [l],
+      l.staged and
+        (l.inserted_at >= ^listing_cutoff() or (not is_nil(l.changes_expires_at) and l.changes_expires_at > ^now) or
+           (l.truncated and l.inserted_at >= ^truncated_cutoff))
+    )
+  end
+
   @doc """
   Whether the commit's whole file listing is known, so a path missing from
   it is not in the commit: its file changes are written where it sits
   (`Tuist.GitHistory.FileChanges`), or its listing is stored. Not when the
   client stopped at the file limit (`truncated`), nor, without its file
-  changes, once the listing's files expired with the coverage file detail
-  (`Tuist.Environment.coverage_retention_days/1`), after which the next
-  upload stores it again.
+  changes, once the listing's files expired (`listing_retention_days/0`),
+  after which the next upload stores it again.
   """
   def listing_complete?(repository_id, sha), do: complete_listings(repository_id, [sha]) != []
 
@@ -1353,10 +1389,7 @@ defmodule Tuist.GitHistory do
 
   # A day early: a listing's parts are inserted before the row that marks it
   # stored, and each part expires on its own.
-  defp listing_cutoff do
-    days = Environment.coverage_retention_days().files
-    DateTime.add(DateTime.utc_now(), -(days - 1) * 86_400, :second)
-  end
+  defp listing_cutoff, do: DateTime.add(DateTime.utc_now(), -(@listing_retention_days - 1), :day)
 
   @doc """
   Stores part of a commit's file listing: `files` are maps with `path`,
@@ -1364,8 +1397,9 @@ defmodule Tuist.GitHistory do
   requests and marks the last with `complete: true`, which records the
   listing as stored (`truncated:` when the client stopped at the limit).
   Repeating a request changes nothing: rows replace their equals and the
-  listing row is written once, and again only once its files expired or
-  when it was written from a selection diff, without staged files.
+  listing row is written once, and again only once it is no longer stored
+  (`missing_listings/2`) or when it was written from a selection diff,
+  without staged files.
   """
   def record_listing(repository_id, sha, files, opts \\ []) do
     now = NaiveDateTime.utc_now()
@@ -1400,7 +1434,7 @@ defmodule Tuist.GitHistory do
         ],
         on_conflict:
           from(l in CommitListing,
-            where: l.inserted_at < ^listing_cutoff() or not l.staged,
+            where: ^dynamic(not (^stored_listing())),
             update: [
               set: [
                 files_count: fragment("EXCLUDED.files_count"),
