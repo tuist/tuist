@@ -25,7 +25,7 @@
         private let sourceCodeReader: (AbsolutePath) async throws -> String?
         /// Scanned imports of every file read so far. Checks for implicit and redundant dependencies, and
         /// targets sharing sources, resolve the same files with different reachable modules.
-        private let scannedImportsCache = ScannedImportsCache()
+        private let scannedImportsCache: ScannedImportsCache
 
         init(
             importSourceCodeScanner: ImportSourceCodeScanner = ImportSourceCodeScanner(),
@@ -49,6 +49,7 @@
             self.importSourceCodeScanner = importSourceCodeScanner
             self.maxConcurrentFileScans = max(1, maxConcurrentFileScans)
             self.sourceCodeReader = sourceCodeReader
+            scannedImportsCache = ScannedImportsCache(maxConcurrentScans: self.maxConcurrentFileScans)
         }
 
         func imports(
@@ -73,10 +74,6 @@
         }
 
         private func scannedImports(at path: AbsolutePath) async throws -> [ScannedImport] {
-            if let scannedImports = await scannedImportsCache.scannedImports(at: path) {
-                return scannedImports
-            }
-
             let language: ProgrammingLanguage
             switch path.extension {
             case "swift":
@@ -87,25 +84,52 @@
                 return []
             }
 
-            let scannedImports = if let sourceCode = try await sourceCodeReader(path) {
-                importSourceCodeScanner.scanImports(from: sourceCode, language: language)
-            } else {
-                [ScannedImport]()
+            return try await scannedImportsCache.scannedImports(at: path) { [importSourceCodeScanner, sourceCodeReader] in
+                guard let sourceCode = try await sourceCodeReader(path) else { return [] }
+                return importSourceCodeScanner.scanImports(from: sourceCode, language: language)
             }
-            await scannedImportsCache.store(scannedImports, at: path)
-            return scannedImports
         }
     }
 
+    /// Scans every file once, however many targets ask for it at the same time, and runs at most
+    /// `maxConcurrentScans` scans at once across all targets so concurrent targets can't exhaust file descriptors.
     private actor ScannedImportsCache {
-        private var scannedImportsByPath: [AbsolutePath: [ScannedImport]] = [:]
+        private let maxConcurrentScans: Int
+        private var activeScans = 0
+        private var waitingScans: [CheckedContinuation<Void, Never>] = []
+        private var scansByPath: [AbsolutePath: Task<[ScannedImport], Error>] = [:]
 
-        func scannedImports(at path: AbsolutePath) -> [ScannedImport]? {
-            scannedImportsByPath[path]
+        init(maxConcurrentScans: Int) {
+            self.maxConcurrentScans = maxConcurrentScans
         }
 
-        func store(_ scannedImports: [ScannedImport], at path: AbsolutePath) {
-            scannedImportsByPath[path] = scannedImports
+        func scannedImports(
+            at path: AbsolutePath,
+            scan: @escaping @Sendable () async throws -> [ScannedImport]
+        ) async throws -> [ScannedImport] {
+            if let task = scansByPath[path] {
+                return try await task.value
+            }
+            let task = Task { try await withScanSlot(scan) }
+            scansByPath[path] = task
+            return try await task.value
+        }
+
+        private func withScanSlot(_ scan: () async throws -> [ScannedImport]) async throws -> [ScannedImport] {
+            if activeScans < maxConcurrentScans {
+                activeScans += 1
+            } else {
+                await withCheckedContinuation { waitingScans.append($0) }
+            }
+            // A finished scan hands its slot to the next waiting scan, if any.
+            defer {
+                if waitingScans.isEmpty {
+                    activeScans -= 1
+                } else {
+                    waitingScans.removeFirst().resume()
+                }
+            }
+            return try await scan()
         }
     }
 #endif
