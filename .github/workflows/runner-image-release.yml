@@ -478,6 +478,8 @@ jobs:
         id: announce
         env:
           VERSION: ${{ needs.plan.outputs.version }}
+          MATRIX: ${{ needs.plan.outputs.matrix }}
+          STACKED_MATRIX: ${{ needs.plan.outputs.stacked-matrix }}
           STAGING: ${{ inputs.skip_staging && 'skip' || 'wait' }}
           GH_TOKEN: ${{ github.token }}
         # Keys are `<xcode>.<variant>`, as tart-kubelet looks them up from a
@@ -487,6 +489,13 @@ jobs:
         # images published so far and moves `announced-at` to its own time; a
         # failed or cancelled build fails this step, so re-running the failed
         # jobs announces again.
+        #
+        # A tag is read only once the job of this run attempt that publishes
+        # it (the Xcode's build, or the re-tag of a carried image) has
+        # succeeded. An earlier attempt at the same version leaves its tags
+        # behind, and on 2026-11-06 0.55.1 announced six of those within
+        # seconds, before its builds replaced them: every host pulled images
+        # no pool ever ran and kept them as the release's next images.
         run: |
           set -euo pipefail
           namespace="$(kubectl get runnerpools.tuist.dev -A -l tuist.dev/runner-image-variant \
@@ -496,21 +505,40 @@ jobs:
             exit 0
           fi
           profiles="$(jq -r '.[]' infra/runner-image/profiles.json)"
+          # publisher <matrix> <build job prefix> <xcode>: the job that
+          # publishes the Xcode's tag in this run.
+          publisher() {
+            if jq -e --arg xcode "$3" 'any(.include[]?; .xcode == $xcode)' <<< "$1" >/dev/null; then
+              echo "$2 (Xcode $3)"
+            else
+              echo "Re-tag unchanged runner images"
+            fi
+          }
+          published() {
+            jq -e --arg name "$1" 'any(.[]; .name == $name and .conclusion == "success")' <<< "$jobs" >/dev/null
+          }
           digests='{}'
           stacked_digests='{}'
           announced=''
           while :; do
+            jobs="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
+              --jq '.jobs[] | {name, conclusion}' | jq -s .)"
             pending=0
             for xcode in $profiles; do
               tag="macos-${xcode//./-}-${VERSION}"
-              if [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$digests")" = "" ]; then
+              if ! published "$(publisher "$MATRIX" "Build runner image" "$xcode")"; then
+                pending=$((pending + 1))
+              elif [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$digests")" = "" ]; then
                 if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag" 2>/dev/null)"; then
                   digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$digests")"
                 else
                   pending=$((pending + 1))
                 fi
               fi
-              if [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$stacked_digests")" = "" ]; then
+              if ! published "$(publisher "$STACKED_MATRIX" "Build stacked runner image" "$xcode")"; then
+                pending=$((pending + 1))
+              elif [ "$(jq -r --arg xcode "$xcode" '.[$xcode] // ""' <<< "$stacked_digests")" = "" ]; then
                 if digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked" 2>/dev/null)"; then
                   stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$digest" '. + {($xcode): $digest}' <<< "$stacked_digests")"
                 else
@@ -540,10 +568,8 @@ jobs:
             fi
             [ "$pending" -eq 0 ] && break
 
-            failed="$(gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" \
-              --jq '.jobs[] | select(.name | test("^(Build (stacked )?runner image|Re-tag unchanged runner images)"))
-                | select(.conclusion == "failure" or .conclusion == "cancelled") | .name')"
+            failed="$(jq -r '.[] | select(.name | test("^(Build (stacked )?runner image|Re-tag unchanged runner images)"))
+              | select(.conclusion == "failure" or .conclusion == "cancelled") | .name' <<< "$jobs")"
             if [ -n "$failed" ]; then
               echo "::error::This release will not publish every image; failed builds: ${failed//$'\n'/, }"
               exit 1
