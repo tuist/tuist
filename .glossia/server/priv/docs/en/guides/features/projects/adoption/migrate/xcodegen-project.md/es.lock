@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "20b4f360286a3721b954a44adf007ff3a620033ad0e67634e4bb04625cb1dcd4",
+  "hash": "d33fe0adcda283d64afe46f113cc5856a1d9754fb7c468e47c810199665100bf",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Migrate an XcodeGen project {#migrate-an-xcodegen-project}": {
-                  "content_hash": "b5a556044a0a85ae61cca3124938480d2420905080f35d5912526b25773652f0"
+                  "content_hash": "696ce819e7905a11300a6fda418bbf6c15a1b38148c5b61633e8fca2d87c3bc8"
                 },
                 "## Project generation {#project-generation}": {
                   "content_hash": "24c6ef43e811a61be54983ebc1db39b0302590f6f75435391494e8f2e6e0a6c8"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "7367d1449d3c18b46df83f4f55fc51296920080c3974635a7a480542760a5ff4",
+          "hash": "b1381bdc0767ea396e3617808e551627cbdff0048f00ffc6f71091b36b6f06c0",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/adoption/migrate/xcodegen-project.md",
           "metadata": {
-            "content_hash": "38084a99c8ec3d3cd21594816a3ad78d6957af65a02a422ef69e4c58fc41b9f5"
+            "content_hash": "e02cd9a86cdd1a0213d3b7d4dffd0095cd507623b55e2993f8a384771e6cac8c"
           }
         },
         {
@@ -204,19 +204,25 @@
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
                         "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
                         "translation_hash": "1c84c8fd7892baf8d2db0da4729e3804f9867a3bf1dd1a114a5005c615e0b198"
+                      },
+                      "entry:c71ca69e915f3716d54a75da8332aaa33d9d0400b6680891f1452e11b8997c33": {
+                        "case_sensitive": false,
+                        "definition_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+                        "term_hash": "f4dcff63e51377e31f5a1f5369b2731c0477a29a4a8bd11bed8600b2acb0b319",
+                        "translation_hash": "1fbe76bbcf64fd5a7f1684276457d6cb778bb445a8fb765305c7b012a6946a84"
                       }
                     }
                   },
-                  "hash": "812b374bf863ce5876900055bf1a77faf3ace91a4f0a06c685bc76702a74074a",
+                  "hash": "99805f29f18b6db3b275817fb2b8be00da251cd7f1fb046a2581f30720c21e5b",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "4ca2a458fa2241cea0c532f2fe929e011d30ab76b0ada963d21d23c3c38b3e90"
+                    "content_hash": "e9a1ef87b78f5fe616f5f86228cbcc4851d07f903c05c1128d9874244e704e39"
                   }
                 }
               ],
               "details": {},
-              "hash": "e45654774f6a58a90192bef1f9d2ecbf62362f3d4400eac0d738f52570c5d1c5",
+              "hash": "bce040f9835acd600e4795fc90ab5e927b6725010c1cacf69f74797db2dead89",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -226,21 +232,21 @@
             }
           ],
           "details": {},
-          "hash": "6633c4189c9b5e82c0172795b9d19de509c24da4003a716bcbac53309d78b20c",
+          "hash": "3740ee859172b23b3742e70e055a2edc6bc7a7ea07dcb9bbb04853c4e3955f45",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "20b4f360286a3721b954a44adf007ff3a620033ad0e67634e4bb04625cb1dcd4",
+      "hash": "d33fe0adcda283d64afe46f113cc5856a1d9754fb7c468e47c810199665100bf",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/adoption/migrate/xcodegen-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "5c4048cbe51862116df53a88ab8fb067bbdb92344aed574c05f583e3b3206694",
+  "output_hash": "d2620cf11fb79a8a044a4152791ca9dbb4f58a72a8643dd0a301d2efc47a5b7e",
   "output_path": "server/priv/docs/es/guides/features/projects/adoption/migrate/xcodegen-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,9 +254,10 @@
     "compiler_version": 3,
     "glossary": {
       "applied": [
+        "repo:build-insights",
         "repo:features"
       ],
-      "content_hash": "4ca2a458fa2241cea0c532f2fe929e011d30ab76b0ada963d21d23c3c38b3e90",
+      "content_hash": "e9a1ef87b78f5fe616f5f86228cbcc4851d07f903c05c1128d9874244e704e39",
       "shadowed": [],
       "version": null
     },
@@ -260,8 +267,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "14465c1a9f3a7dabec6b6fe48d0f5ffc0f8bfe99",
   "source_path": "server/priv/docs/en/guides/features/projects/adoption/migrate/xcodegen-project.md",
-  "translated_at": "2026-11-06T18:38:51.567665Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-13T16:27:24.368797Z",
+  "translation_session_id": "01a1d5ba-5f82-7922-807e-0ca1e2c420e5"
 }

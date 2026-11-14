@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "67792494dbf0e1b4903d90475fbc20bdc9b0487d2e517af75df01ac17896152e",
+  "hash": "af5fead0616c95adb41ce63eeed5f1062d280028762a3650a1981fd2836b3671",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Test Sharding {#test-sharding}": {
-                  "content_hash": "180c4cea9d083f7f55c9c61ddc0e1be4c1a6a15d6eeea30b09707bf21830e442"
+                  "content_hash": "6aa5331fb34766b56c65d861a98f39d3f388081894740d7c0d402a7039568bce"
                 },
                 "Preamble": {
                   "content_hash": "e3ff0c1317f99f1432da579f379146ffd913fa0477c1c1e7818e2f0d62fa20cc"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "52e1757ccd958cee83e519822e5c413ee172d14bb28d8472a40a0eb9d9c0990b",
+          "hash": "c7831e1edcd900de395388c07fa4f85e57fd58f476dd61a94e608651fc2855e1",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-sharding.md",
           "metadata": {
-            "content_hash": "54ed11b3d5a021bad43a346f9f913b60984f4c335beab1103792f9632126c980"
+            "content_hash": "1fcf6d784b1953b717ba8f197c798dd620fd2ff0074f67ed37833a8bb76ecd18"
           }
         },
         {
@@ -227,14 +227,14 @@
         }
       ],
       "details": {},
-      "hash": "67792494dbf0e1b4903d90475fbc20bdc9b0487d2e517af75df01ac17896152e",
+      "hash": "af5fead0616c95adb41ce63eeed5f1062d280028762a3650a1981fd2836b3671",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-sharding.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d780c0026fe257c2dbba429a9797aeb20f845c191708a1b88608fd675f5be091",
+  "output_hash": "1823b58c77ea48a3d36dd53b9c57b45f2ba50a37e11d5fd92f06f70e858e7b1f",
   "output_path": "server/priv/docs/ja/guides/features/test-sharding.md",
   "protection_state": "recorded",
   "provider": "",
@@ -255,8 +255,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/features/test-sharding.md",
-  "translated_at": "2026-11-06T21:25:56.597115Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-13T16:38:14.412758Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

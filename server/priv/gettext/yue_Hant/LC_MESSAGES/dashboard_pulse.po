@@ -16,22 +16,22 @@ msgstr "Language: yue_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset
 msgid "Additional data"
 msgstr "額外資料"
 
-#: lib/tuist_web/live/pulse_live.ex:963
+#: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Affected services"
 msgstr "受影響的服務"
 
-#: lib/tuist_web/live/pulse_live.ex:878
+#: lib/tuist_web/live/pulse_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
 msgstr "所選期間內所有包含服務名稱的日誌條目，不受表格搜尋影響。圖表顯示每個時間間隔的條目數。"
 
-#: lib/tuist_web/live/pulse_live.ex:912
+#: lib/tuist_web/live/pulse_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
 msgstr "所選期間內所有記錄的跨度（spans），而非獨立追蹤（traces）。圖表顯示每個時間間隔的跨度數。"
 
-#: lib/tuist_web/live/pulse_live.ex:932
+#: lib/tuist_web/live/pulse_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
 msgstr "整個所選期間內跨度持續時間的大約第 95 百分位數，單位為毫秒。圖表顯示每個時間間隔的百分位數。"
@@ -41,7 +41,7 @@ msgstr "整個所選期間內跨度持續時間的大約第 95 百分位數，�
 msgid "Back to issue"
 msgstr "返回問題"
 
-#: lib/tuist_web/live/pulse_live.ex:977
+#: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "Check your query and time range, then try again."
 msgstr "請檢查你的查詢條件和時間範圍，然後重試。"
@@ -51,17 +51,17 @@ msgstr "請檢查你的查詢條件和時間範圍，然後重試。"
 msgid "Contexts"
 msgstr "上下文"
 
-#: lib/tuist_web/live/pulse_live.ex:966
+#: lib/tuist_web/live/pulse_live.ex:981
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
 msgstr "在選定期間內有 Sentry 事件的獨立命名服務。圖表顯示每個時間區間受影響的服務。"
 
-#: lib/tuist_web/live/pulse_live.ex:718
+#: lib/tuist_web/live/pulse_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Duration (ms)"
 msgstr "持續時間（毫秒）"
 
-#: lib/tuist_web/live/pulse_live.ex:300
+#: lib/tuist_web/live/pulse_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
 msgstr "每個點代表一個時間區間的 p95 span 持續時間，而非單一 span。"
@@ -69,7 +69,7 @@ msgstr "每個點代表一個時間區間的 p95 span 持續時間，而非單�
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:271
 #: lib/tuist_web/live/pulse_error_live.ex:378
-#: lib/tuist_web/live/pulse_live.ex:752
+#: lib/tuist_web/live/pulse_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "環境"
@@ -86,23 +86,23 @@ msgstr "錯誤詳情"
 msgid "Error details unavailable"
 msgstr "無法提供錯誤詳情"
 
-#: lib/tuist_web/live/pulse_live.ex:943
+#: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "Error events"
 msgstr "錯誤事件"
 
-#: lib/tuist_web/live/pulse_live.ex:885
+#: lib/tuist_web/live/pulse_live.ex:900
 #, elixir-autogen, elixir-format
 msgid "Error logs"
 msgstr "錯誤日誌"
 
-#: lib/tuist_web/live/pulse_live.ex:919
+#: lib/tuist_web/live/pulse_live.ex:934
 #, elixir-autogen, elixir-format
 msgid "Error spans"
 msgstr "錯誤區間"
 
 #: lib/tuist_web/live/pulse_error_live.ex:87
-#: lib/tuist_web/live/pulse_live.ex:828
+#: lib/tuist_web/live/pulse_live.ex:838
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "錯誤"
@@ -119,8 +119,8 @@ msgid "Event details"
 msgstr "事件詳情"
 
 #: lib/tuist_web/live/pulse_error_live.ex:224
-#: lib/tuist_web/live/pulse_live.ex:506
-#: lib/tuist_web/live/pulse_live.ex:726
+#: lib/tuist_web/live/pulse_live.ex:516
+#: lib/tuist_web/live/pulse_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "事件"
@@ -130,7 +130,7 @@ msgstr "事件"
 msgid "Events in this period"
 msgstr "此期間的事件"
 
-#: lib/tuist_web/live/pulse_live.ex:482
+#: lib/tuist_web/live/pulse_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Events over the selected period"
 msgstr "所選期間內的事件"
@@ -145,7 +145,7 @@ msgstr "異常"
 msgid "External"
 msgstr "外部"
 
-#: lib/tuist_web/live/pulse_live.ex:953
+#: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Fatal events"
 msgstr "嚴重事件"
@@ -155,8 +155,8 @@ msgstr "嚴重事件"
 msgid "File"
 msgstr "檔案"
 
-#: lib/tuist_web/live/pulse_live.ex:678
-#: lib/tuist_web/live/pulse_live.ex:727
+#: lib/tuist_web/live/pulse_live.ex:688
+#: lib/tuist_web/live/pulse_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "First seen"
 msgstr "首次出現"
@@ -171,7 +171,7 @@ msgstr "本期首次出現"
 msgid "Function"
 msgstr "函數"
 
-#: lib/tuist_web/live/pulse_live.ex:855
+#: lib/tuist_web/live/pulse_live.ex:870
 #, elixir-autogen, elixir-format
 msgid "Healthy targets"
 msgstr "健康目標"
@@ -181,40 +181,40 @@ msgstr "健康目標"
 msgid "In app"
 msgstr "應用程式內"
 
-#: lib/tuist_web/live/pulse_live.ex:441
-#: lib/tuist_web/live/pulse_live.ex:724
+#: lib/tuist_web/live/pulse_live.ex:451
+#: lib/tuist_web/live/pulse_live.ex:734
 #, elixir-autogen, elixir-format
 msgid "Issue"
 msgstr "問題"
 
-#: lib/tuist_web/live/pulse_live.ex:709
+#: lib/tuist_web/live/pulse_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Labels"
 msgstr "標籤"
 
-#: lib/tuist_web/live/pulse_live.ex:836
+#: lib/tuist_web/live/pulse_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Last 15 minutes"
 msgstr "過去 15 分鐘"
 
-#: lib/tuist_web/live/pulse_live.ex:838
+#: lib/tuist_web/live/pulse_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "過去 24 小時"
 
-#: lib/tuist_web/live/pulse_live.ex:837
+#: lib/tuist_web/live/pulse_live.ex:852
 #, elixir-autogen, elixir-format
 msgid "Last 6 hours"
 msgstr "過去 6 小時"
 
-#: lib/tuist_web/live/pulse_live.ex:839
+#: lib/tuist_web/live/pulse_live.ex:854
 #, elixir-autogen, elixir-format
 msgid "Last hour"
 msgstr "過去 1 小時"
 
 #: lib/tuist_web/live/pulse_error_live.ex:206
-#: lib/tuist_web/live/pulse_live.ex:677
-#: lib/tuist_web/live/pulse_live.ex:728
+#: lib/tuist_web/live/pulse_live.ex:687
+#: lib/tuist_web/live/pulse_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Last seen"
 msgstr "最後出現時間"
@@ -224,50 +224,50 @@ msgstr "最後出現時間"
 msgid "Latest event"
 msgstr "最新事件"
 
-#: lib/tuist_web/live/pulse_live.ex:710
+#: lib/tuist_web/live/pulse_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Latest value"
 msgstr "最新數值"
 
 #: lib/tuist_web/live/pulse_error_live.ex:177
 #: lib/tuist_web/live/pulse_error_live.ex:265
-#: lib/tuist_web/live/pulse_live.ex:735
-#: lib/tuist_web/live/pulse_live.ex:750
+#: lib/tuist_web/live/pulse_live.ex:745
+#: lib/tuist_web/live/pulse_live.ex:760
 #, elixir-autogen, elixir-format
 msgid "Level"
 msgstr "級別"
 
-#: lib/tuist_web/live/pulse_live.ex:875
+#: lib/tuist_web/live/pulse_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Log entries"
 msgstr "日誌條目"
 
-#: lib/tuist_web/live/pulse_live.ex:888
+#: lib/tuist_web/live/pulse_live.ex:903
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
 msgstr "所選期間內標記為 error 或 fatal 的日誌條目。圖表顯示每個間隔的條目數量。"
 
-#: lib/tuist_web/live/pulse_live.ex:898
+#: lib/tuist_web/live/pulse_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
 msgstr "所選期間內標記為 warn 或 warning 的日誌條目。圖表顯示每個間隔的條目數量。"
 
-#: lib/tuist_web/live/pulse_live.ex:826
+#: lib/tuist_web/live/pulse_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "日誌"
 
-#: lib/tuist_web/live/pulse_live.ex:736
+#: lib/tuist_web/live/pulse_live.ex:746
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr "訊息"
 
-#: lib/tuist_web/live/pulse_live.ex:708
+#: lib/tuist_web/live/pulse_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr "指標"
 
-#: lib/tuist_web/live/pulse_live.ex:825
+#: lib/tuist_web/live/pulse_live.ex:835
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "指標"
@@ -287,7 +287,7 @@ msgstr "模組"
 msgid "No exception recorded"
 msgstr "無記錄到例外情況"
 
-#: lib/tuist_web/live/pulse_live.ex:315
+#: lib/tuist_web/live/pulse_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "No measurements in this period"
 msgstr "此期間無測量數據"
@@ -302,13 +302,13 @@ msgstr "此期間無出現次數"
 msgid "No stack frames recorded"
 msgstr "無記錄到堆疊幀"
 
-#: lib/tuist_web/live/pulse_live.ex:427
+#: lib/tuist_web/live/pulse_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
 msgstr "無遙測數據符合此查詢和時間範圍。"
 
 #: lib/tuist_web/live/pulse_error_live.ex:186
-#: lib/tuist_web/live/pulse_live.ex:665
+#: lib/tuist_web/live/pulse_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "未記錄"
@@ -330,7 +330,7 @@ msgstr "出現次數"
 msgid "Origin"
 msgstr "來源"
 
-#: lib/tuist_web/live/pulse_live.ex:234
+#: lib/tuist_web/live/pulse_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Period:"
 msgstr "期間："
@@ -341,17 +341,17 @@ msgid "Platform"
 msgstr "平台"
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
-#: lib/tuist_web/live/pulse_live.ex:751
+#: lib/tuist_web/live/pulse_live.ex:761
 #, elixir-autogen, elixir-format
 msgid "Project"
 msgstr "項目"
 
-#: lib/tuist_web/live/pulse_live.ex:990
+#: lib/tuist_web/live/pulse_live.ex:1005
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
 msgstr "Pulse 無法完成此查詢。請調整查詢或重新整理再試一次。"
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "Pulse 無法載入這些詳細資料。返回「錯誤」並重試。"
@@ -359,55 +359,55 @@ msgstr "Pulse 無法載入這些詳細資料。返回「錯誤」並重試。"
 #: lib/tuist_web/live/pulse_error_live.ex:127
 #: lib/tuist_web/live/pulse_error_live.ex:274
 #: lib/tuist_web/live/pulse_error_live.ex:382
-#: lib/tuist_web/live/pulse_live.ex:753
+#: lib/tuist_web/live/pulse_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "版本"
 
-#: lib/tuist_web/live/pulse_live.ex:845
+#: lib/tuist_web/live/pulse_live.ex:860
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
 msgstr "報告目標"
 
-#: lib/tuist_web/live/pulse_live.ex:228
+#: lib/tuist_web/live/pulse_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "Resume live"
 msgstr "恢復即時模式"
 
-#: lib/tuist_web/live/pulse_live.ex:717
+#: lib/tuist_web/live/pulse_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Root span"
 msgstr "根跨度"
 
-#: lib/tuist_web/live/pulse_live.ex:404
+#: lib/tuist_web/live/pulse_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "Run query"
 msgstr "執行查詢"
 
-#: lib/tuist_web/live/pulse_live.ex:350
+#: lib/tuist_web/live/pulse_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
 msgstr "搜尋遙測數據"
 
-#: lib/tuist_web/live/pulse_live.ex:349
+#: lib/tuist_web/live/pulse_live.ex:359
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "搜尋..."
 
-#: lib/tuist_web/live/pulse_live.ex:946
+#: lib/tuist_web/live/pulse_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
 msgstr "選定期間內的 Sentry 事件，而非歸類後的問題。圖表顯示每個區間的事件數量。"
 
-#: lib/tuist_web/live/pulse_live.ex:956
+#: lib/tuist_web/live/pulse_live.ex:971
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
 msgstr "選定期間內標記為致命的 Sentry 事件。圖表顯示每個區間的事件數量。"
 
-#: lib/tuist_web/live/pulse_live.ex:716
-#: lib/tuist_web/live/pulse_live.ex:725
-#: lib/tuist_web/live/pulse_live.ex:734
-#: lib/tuist_web/live/pulse_live.ex:749
+#: lib/tuist_web/live/pulse_live.ex:726
+#: lib/tuist_web/live/pulse_live.ex:735
+#: lib/tuist_web/live/pulse_live.ex:744
+#: lib/tuist_web/live/pulse_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Service"
 msgstr "服務"
@@ -417,12 +417,12 @@ msgstr "服務"
 msgid "Span ID"
 msgstr "Span ID"
 
-#: lib/tuist_web/live/pulse_live.ex:909
+#: lib/tuist_web/live/pulse_live.ex:924
 #, elixir-autogen, elixir-format
 msgid "Spans"
 msgstr "Spans"
 
-#: lib/tuist_web/live/pulse_live.ex:922
+#: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
 msgstr "選定期間內狀態為錯誤的 Spans。圖表顯示每個區間的 Spans 數量。"
@@ -432,7 +432,7 @@ msgstr "選定期間內狀態為錯誤的 Spans。圖表顯示每個區間的 Sp
 msgid "Stack trace"
 msgstr "堆疊追蹤"
 
-#: lib/tuist_web/live/pulse_live.ex:715
+#: lib/tuist_web/live/pulse_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
 msgstr "開始時間（UTC）"
@@ -442,76 +442,76 @@ msgstr "開始時間（UTC）"
 msgid "Tags"
 msgstr "標籤"
 
-#: lib/tuist_web/live/pulse_live.ex:864
+#: lib/tuist_web/live/pulse_live.ex:879
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
 msgstr "週期結束時回報 up = 0 的目標。缺失樣本不會計入不健康狀態。"
 
-#: lib/tuist_web/live/pulse_live.ex:857
+#: lib/tuist_web/live/pulse_live.ex:872
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
 msgstr "週期結束時回報 up = 1 的目標。"
 
-#: lib/tuist_web/live/pulse_live.ex:848
+#: lib/tuist_web/live/pulse_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
 msgstr "在週期結束時有 up 樣本的目標。圖表顯示目標數量隨時間的變化。"
 
-#: lib/tuist_web/live/pulse_live.ex:536
+#: lib/tuist_web/live/pulse_live.ex:546
 #, elixir-autogen, elixir-format
 msgid "Telemetry pages"
 msgstr "遙測頁面"
 
-#: lib/tuist_web/live/pulse_live.ex:411
+#: lib/tuist_web/live/pulse_live.ex:421
 #, elixir-autogen, elixir-format
 msgid "Telemetry unavailable"
 msgstr "遙測不可用"
 
-#: lib/tuist_web/live/pulse_live.ex:974
+#: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
 msgstr "Pulse 連線尚未設定。請聯絡你的管理員。"
 
-#: lib/tuist_web/live/pulse_live.ex:987
+#: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "The results changed while loading. Resume live or retry the query."
 msgstr "載入期間結果已變更。繼續即時更新或重試查詢。"
 
-#: lib/tuist_web/live/pulse_error_live.ex:586
+#: lib/tuist_web/live/pulse_error_live.ex:590
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "喺所選期間內搵唔到呢個問題或事件。"
 
-#: lib/tuist_web/live/pulse_live.ex:981
+#: lib/tuist_web/live/pulse_live.ex:996
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
 msgstr "此查詢超出結果上限。請縮窄時間範圍或原生查詢，然後再試一次。"
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:262
-#: lib/tuist_web/live/pulse_live.ex:733
+#: lib/tuist_web/live/pulse_live.ex:743
 #, elixir-autogen, elixir-format
 msgid "Time (UTC)"
 msgstr "時間（UTC）"
 
 #: lib/tuist_web/live/pulse_error_live.ex:136
-#: lib/tuist_web/live/pulse_live.ex:719
-#: lib/tuist_web/live/pulse_live.ex:737
+#: lib/tuist_web/live/pulse_live.ex:729
+#: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Trace ID"
 msgstr "追蹤 ID"
 
-#: lib/tuist_web/live/pulse_live.ex:827
+#: lib/tuist_web/live/pulse_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Traces"
 msgstr "追蹤記錄"
 
-#: lib/tuist_web/live/pulse_live.ex:479
+#: lib/tuist_web/live/pulse_live.ex:489
 #, elixir-autogen, elixir-format
 msgid "Trend"
 msgstr "趨勢"
 
-#: lib/tuist_web/live/pulse_live.ex:861
+#: lib/tuist_web/live/pulse_live.ex:876
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
 msgstr "不健康目標"
@@ -526,32 +526,38 @@ msgstr "版本"
 msgid "View event"
 msgstr "查看事件"
 
-#: lib/tuist_web/live/pulse_live.ex:895
+#: lib/tuist_web/live/pulse_live.ex:910
 #, elixir-autogen, elixir-format
 msgid "Warning logs"
 msgstr "警告日誌"
 
-#: lib/tuist_web/live/pulse_live.ex:929
+#: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
 msgstr "p95 跨度持續時間"
 
-#: lib/tuist_web/live/pulse_live.ex:587
+#: lib/tuist_web/live/pulse_live.ex:597
 #, elixir-autogen, elixir-format
 msgid "vs previous 15 minutes"
 msgstr "與過去 15 分鐘比較"
 
-#: lib/tuist_web/live/pulse_live.ex:589
+#: lib/tuist_web/live/pulse_live.ex:599
 #, elixir-autogen, elixir-format
 msgid "vs previous 24 hours"
 msgstr "與過去 24 小時比較"
 
-#: lib/tuist_web/live/pulse_live.ex:588
+#: lib/tuist_web/live/pulse_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "vs previous 6 hours"
 msgstr "與過去 6 小時比較"
 
-#: lib/tuist_web/live/pulse_live.ex:590
+#: lib/tuist_web/live/pulse_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "vs previous hour"
 msgstr "與過去 1 小時比較"
+
+#: lib/tuist_web/live/pulse_live.ex:842
+#: lib/tuist_web/live/pulse_live.ex:845
+#, elixir-autogen, elixir-format
+msgid "Text search (* for all)"
+msgstr "文字搜尋（* 代表全部）"

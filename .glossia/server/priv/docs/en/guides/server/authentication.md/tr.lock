@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "e9e4f977db2c7eded2cabac7c86e7000efc28183459a923983c198cd10d0f702",
+  "hash": "4d498e8108569cc18ea16d51576a1068e134aa474feab83b92317c060c1573b2",
   "hash_tree": {
     "root": {
       "children": [
@@ -25,8 +25,14 @@
                 "## OIDC tokens {#oidc-tokens}": {
                   "content_hash": "b1c077bade147435ccce756eda243e9c6a01d8817c48e33c4fe0fba55aab566a"
                 },
+                "### Amp orbs {#amp-orbs}": {
+                  "content_hash": "5d6d0da97f0a3e5bd0f8d9b22518406590ee52e8bab1834bed29d14cd8732221"
+                },
                 "### Available scopes {#available-scopes}": {
-                  "content_hash": "7711d1ba7323a69d5558b2824de8d119fd8a2fa7465e74fb97654561dfea4ecd"
+                  "content_hash": "146ba2d33a5d2fe32ce188e8cf57dde5c2d0dd6397d9b19c5b2defa0690d4bb7"
+                },
+                "### Claude Code sessions {#claude-code-sessions}": {
+                  "content_hash": "8016681fc2afaf3556eff7109a989c1300bc6853e95f2977890748a3fdd9c5e8"
                 },
                 "### Continuous Integration {#continuous-integration}": {
                   "content_hash": "4fa151154c0eff8b9c52c723e83c4f4305c47b0fd421f0612a0bc9b5994c7584"
@@ -41,16 +47,16 @@
                   "content_hash": "f186d778088a628199c937579423e9cc3a7fbd49e01652b7ec6c61f80e246f3c"
                 },
                 "### OIDC token scopes {#oidc-token-scopes}": {
-                  "content_hash": "fe26bcc7c058273bc5edc9639abc404cfb71c13a8ab0199dfe0645af3caaf66e"
+                  "content_hash": "77ec05f94fdea512c3933e2e8318f312319907c0ff953339d76455d7502b0cc6"
                 },
                 "### Scope groups {#scope-groups}": {
                   "content_hash": "6118e79ed7ace9a4ee5075957ab20331909e6ffa2ef49efb33756f8880502861"
                 },
                 "### Setting up OIDC authentication {#setting-up-oidc-authentication}": {
-                  "content_hash": "fa2b03f353b06d257d8d823128af59299aaa3551943271125e00d8d8255444b0"
+                  "content_hash": "4ebc70a736d5dc271775257e121380902b509bf8d615c11e06716253d3aad38f"
                 },
                 "### Supported providers {#supported-ci-providers}": {
-                  "content_hash": "da77d1bcebde7fcf56d342f86e67304e8ae0e83f391ccd424f4bb93ac40e554a"
+                  "content_hash": "bd52f8a4c902fe5ec9816abb867c7218994ca56becf0a02508bf0d10f5250cdd"
                 },
                 "### Using account tokens {#using-account-tokens}": {
                   "content_hash": "56edb04d344ab4745bf9b51d580aa7507bc1ab88da0b3c1d3610c7db1cd1229c"
@@ -59,7 +65,7 @@
                   "content_hash": "33603d44eee7057d5ea114db53133c117ec1fbf948b694aad91007bd65401709"
                 },
                 "#### Authenticate a workload {#authenticate-a-workload}": {
-                  "content_hash": "3d6913b041d72832aa97c3e79461a77df0f37ddf317cf602bb4726c52cab51cf"
+                  "content_hash": "002591a2ad1434a986162782d682581b9a8d0d1203023f9ddc9f1a3a1b239c47"
                 },
                 "#### Create a policy {#create-a-trust-policy}": {
                   "content_hash": "6c6f4d7a3c1cc849441f5a1a68a89740b4567fe31fe59c36ad3fb91ffe015c4c"
@@ -71,11 +77,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "5b81fcd19f156b7c78c6658e43b70651c1979a3e0516292c53be60dead057e62",
+          "hash": "a9ddad376d7f771a709e8973d47181dae5abce2cb0971eeebe2bcd5181913ebf",
           "kind": "source",
           "label": "server/priv/docs/en/guides/server/authentication.md",
           "metadata": {
-            "content_hash": "251558a496be8adf89b96c18c3eb614fa2dc93f3b541a9d9ab1942f5ead082f3"
+            "content_hash": "58aa6c542cb3be62b20b85df9058abe9b4fb21f7d00bd04342af49d08ac3f2b0"
           }
         },
         {
@@ -243,19 +249,25 @@
                         "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
                         "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
                         "translation_hash": "0146d4c895a38c1d0230221d1f167c76ad2b438932c395bcd400d5b010fd30df"
+                      },
+                      "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
+                        "case_sensitive": false,
+                        "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
+                        "term_hash": "d19048bc03682d2d7cfd0ba2a1527ca1942160f7e94d927a075d1fa1b34446c5",
+                        "translation_hash": "ed0c85f2d26a853a8f22f93e2f7919cac0533dba8b5db598ce2479cb1a05b2d5"
                       }
                     }
                   },
-                  "hash": "1197f5d4983319f8094969fd26c9f769f34f7f0fee379822a08b557d6dfd19aa",
+                  "hash": "7bb69f19c99d32f9800faae4935e47795330284d491c6745b65cabb3c8e6fc94",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "67127941d3199ed4d2a399a8b16992d99013e56cc9859a0dbb1fe12b6702b764"
+                    "content_hash": "8cdf0a871fe9c2ce6020d32eec3aca27a627088311b7f3be13cae5fd4ab952d7"
                   }
                 }
               ],
               "details": {},
-              "hash": "2b6fdeb872f8e388da8e28f1b04483353e308b7f812ef2f6ea89e366bb32a33d",
+              "hash": "88e09dce20e41ebe57bbbc9d42981db1c0fa91c8a593457b5e38c5e7805fbe58",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -265,21 +277,21 @@
             }
           ],
           "details": {},
-          "hash": "b4e8718eb5726f5f4574c298780388083b34ba288161a83bfaa3443b9dcd2d16",
+          "hash": "7773347f4b78d78db8380ae51c58a583992d2c18efe495971b91b45121bdca88",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "e9e4f977db2c7eded2cabac7c86e7000efc28183459a923983c198cd10d0f702",
+      "hash": "4d498e8108569cc18ea16d51576a1068e134aa474feab83b92317c060c1573b2",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/server/authentication.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "ad8e7f556708e12916a882d1a43e4c234c236ddf3836c06624a8a3f12587c9d9",
+  "output_hash": "7ed302b9f3feb4166506010653b187fe27dc4f21f5a7fba9685a3c9afbe70774",
   "output_path": "server/priv/docs/tr/guides/server/authentication.md",
   "protection_state": "recorded",
   "provider": "",
@@ -287,9 +299,10 @@
     "compiler_version": 3,
     "glossary": {
       "applied": [
+        "repo:features",
         "repo:tests"
       ],
-      "content_hash": "67127941d3199ed4d2a399a8b16992d99013e56cc9859a0dbb1fe12b6702b764",
+      "content_hash": "8cdf0a871fe9c2ce6020d32eec3aca27a627088311b7f3be13cae5fd4ab952d7",
       "shadowed": [],
       "version": null
     },
@@ -299,8 +312,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "b901922abaa7d248eb4524d4c077845dd3661c22",
   "source_path": "server/priv/docs/en/guides/server/authentication.md",
-  "translated_at": "2026-11-06T22:41:02.070074Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-13T18:25:32.524033Z",
+  "translation_session_id": "01a1d620-8341-720f-b454-7f43812948e3"
 }

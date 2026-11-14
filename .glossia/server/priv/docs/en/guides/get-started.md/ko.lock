@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3e5d58b0dc28dad89d6a688cb328f485d3afc5f6e386df6b2e5799934ed298c0",
+  "hash": "451b5f588fcf9071c4e01add27996e73d48d772dad7df5b4c9607ac6f9aff912",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,17 +35,17 @@
                   "content_hash": "17a9d8a19df965a505b3904866ec33219c3afa08f015edc3dfd8566098d6ab59"
                 },
                 "Preamble": {
-                  "content_hash": "44ce158d4227e46bc2234f4fb8784161c6a5ded1ed2a352176b9b4715c2d85a7"
+                  "content_hash": "80539e66ab3f077c065e14bb26c9093c91a4c2c20551954be1beeb9ec9f03dea"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "1cf8c811ee709b016b9b59469706dc482dcf7e5f7813b29da9ba1569027a54b9",
+          "hash": "f317186b910ea8364acf5d7603190b1663b4f4fc3b6f9ceb3d88ae0bff35c36d",
           "kind": "source",
           "label": "server/priv/docs/en/guides/get-started.md",
           "metadata": {
-            "content_hash": "0b588ae91317683f0cb11daf5493ea5d62e4600fa491dbf1ba0b9bdb84a07b82"
+            "content_hash": "eb2bc4a0cf2a0b8e4b9c93a6efc7eaa8f689c2fb418d42c4b6b9b11e1048cd1c"
           }
         },
         {
@@ -260,14 +260,14 @@
         }
       ],
       "details": {},
-      "hash": "3e5d58b0dc28dad89d6a688cb328f485d3afc5f6e386df6b2e5799934ed298c0",
+      "hash": "451b5f588fcf9071c4e01add27996e73d48d772dad7df5b4c9607ac6f9aff912",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/get-started.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d9a8f49e9674393f368dda1aef71d8b5127a3933ab5a2e14ee3ae86625c34306",
+  "output_hash": "032a6222c0f30aa6b13c64b009b945cbff862363dbaacfc025af7062f9b4834b",
   "output_path": "server/priv/docs/ko/guides/get-started.md",
   "protection_state": "recorded",
   "provider": "",
@@ -289,8 +289,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/get-started.md",
-  "translated_at": "2026-11-06T21:25:58.431661Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-13T16:38:14.593026Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

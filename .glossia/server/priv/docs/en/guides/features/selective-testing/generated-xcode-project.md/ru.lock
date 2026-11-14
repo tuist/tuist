@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "34eaef12f23dc599bdd2f449e844f68fe6028e45f9a593adc92aa61e16ce6d61",
+  "hash": "cd0579fdd6f55eb5eee8b78ce3ee771def07128b238b2dcd1a731b83530b3864",
   "hash_tree": {
     "root": {
       "children": [
@@ -26,19 +26,28 @@
                   "content_hash": "ce9538072b794e7eb627d1cadc13d4ec298c7ab3f5fa2a325beef91aa7d02bd7"
                 },
                 "## Coverage-based test selection {#coverage-based-test-selection}": {
-                  "content_hash": "7794e36fc81a2ac46d36a27883441cd32d1199eb886821c3c1c84585f6256305"
+                  "content_hash": "88faec7d828e01ecdcedad5e020e90c5d3d03661c2a01c9448d71365dd68928f"
                 },
                 "## Investigating misses on the dashboard {#investigating-misses-on-the-dashboard}": {
                   "content_hash": "28e66b10aff1d4c38287b03bc614ecf9c9aefb52fe14030d85461694ca8eb32a"
                 },
                 "## Pull/merge request comments {#pullmerge-request-comments}": {
-                  "content_hash": "936b5be10c71ea113f3967ee69e459c0fe405e8d192cc10257b3fb9d17200dce"
+                  "content_hash": "ecc0209e61a33334265b7dba6dec2c7a8e984c92c1e358b6e05071c491627200"
                 },
                 "## Separate build and test jobs {#separate-build-and-test-jobs}": {
                   "content_hash": "bbe1d6d69865a7d24456c2bd09cb07ac98b10b4a04a92b624d00b7a388e72644"
                 },
+                "### Linking TestCoverageAttribution {#linking-testcoverageattribution}": {
+                  "content_hash": "7a8940ee8e62dcc5f9d0d12dcc38c44910300b72252b4636874df6a692e15d8c"
+                },
+                "### Swift Testing {#swift-testing}": {
+                  "content_hash": "8015b97707cb640c2d67b56ff8e1b76210a44f41b4ae509d0e1ab00c85869f59"
+                },
+                "### Tests that always run {#tests-that-always-run}": {
+                  "content_hash": "25ef6b88e21777e11cc8452169c1dc94b06ff06cd31224006758dae93831cc52"
+                },
                 "### Which flag should I use? {#which-flag-should-i-use}": {
-                  "content_hash": "1e16fde94b9d1f4f98586cb856e65678ba245dbdaa51d76731e064cd3147bbe3"
+                  "content_hash": "c732a3ece8ea3eebfa3a51a2fc7937499c2c5f38135aeba3a73ec1bb6e49d24e"
                 },
                 "Preamble": {
                   "content_hash": "2ba9571cbb32820978b1d69d624361efd578acdf18a89dbfc227fcb75b565f86"
@@ -47,11 +56,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "c23a289c117dfca6bcd1ac52437e7e34e702e8725e70be4ff295b8e29b1f779a",
+          "hash": "810f06d529de80698d99f4e2d5a3fa9cd9643d4e95c621daf64fddfbd263f060",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/selective-testing/generated-xcode-project.md",
           "metadata": {
-            "content_hash": "ea88e0f82930eb1a8d890ad4c1818c3247bc98e7734ad2689c77cfde56be2124"
+            "content_hash": "0c63c94efc5078970599610cd73f22e64f07524c5896b29134049281938d0b0f"
           }
         },
         {
@@ -266,14 +275,14 @@
         }
       ],
       "details": {},
-      "hash": "34eaef12f23dc599bdd2f449e844f68fe6028e45f9a593adc92aa61e16ce6d61",
+      "hash": "cd0579fdd6f55eb5eee8b78ce3ee771def07128b238b2dcd1a731b83530b3864",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/selective-testing/generated-xcode-project.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "6accd7ae05d26f5a4454159a6e0cd87fab16293fe89f5e9cd561304e0bbcc55d",
+  "output_hash": "bbfc46fd90c08b1678e943fe051d88bb005fc63a7d955d0fc14680b44e01b268",
   "output_path": "server/priv/docs/ru/guides/features/selective-testing/generated-xcode-project.md",
   "protection_state": "recorded",
   "provider": "",
@@ -296,8 +305,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "0e7dcc1365cc4068adf5e6bc696524b0482db847",
+  "source_commit_sha": "dbf39aca1be3c3fe3629c66ebb48e390bc00668d",
   "source_path": "server/priv/docs/en/guides/features/selective-testing/generated-xcode-project.md",
-  "translated_at": "2026-11-07T02:23:13.250501Z",
-  "translation_session_id": "01a1b3cd-737b-73c7-b467-2d9bcd6e704e"
+  "translated_at": "2026-11-13T19:03:18.472760Z",
+  "translation_session_id": "01a1d646-7503-79da-bd6b-e38fb43b8d53"
 }

@@ -2,22 +2,22 @@
 {
   "title": "Hata Ayıklama",
   "titleTemplate": ":title · CLI · Tuist",
-  "description": "Günlük kayıtları ve ağ kayıtlarını kullanarak Tuist ile ilgili sorunları nasıl hata ayıklayacağınızı öğrenin."
+  "description": "Tuist ile ilgili sorunları günlükler ve ağ kayıtlarını kullanarak nasıl hata ayıklayacağınızı öğrenin."
 }
 ---
 # Hata Ayıklama {#debugging}
 
-Tuist, komutların beklendiği gibi davranmadığı durumlarda sorunları teşhis etmenize yardımcı olacak birkaç araç sunar.
+Tuist, komutların beklendiği gibi davranmadığı durumlarda sorunları teşhis etmenize yardımcı olacak birkaç araç sağlar.
 
 > [!WARNING]
-> Oturum verileri; dosya yolları, proje adları ve istek/yanıt gövdeleri gibi hassas bilgiler içerebilir. Hassas başlıklar (örneğin Authorization) gizlense de oturum verilerini başkalarıyla paylaşırken dikkatli olun.
+> Oturum verileri; dosya yolları, proje adları ve istek/yanıt gövdeleri gibi hassas bilgiler içerebilir. Hassas başlıklar (örneğin Authorization) gizlense de, oturum verilerini başkalarıyla paylaşırken dikkatli olun.
 
 
 ## Oturum verileri {#session-data}
 
-Bir komut çağrısı beklenen sonuçları vermezse, oturum verilerini inceleyerek sorunu teşhis edebilirsiniz. CLI günlükleri [OSLog](https://developer.apple.com/documentation/os/oslog) ve dosya sistemine iletir.
+Bir komut çağrısı beklenen sonuçları vermezse, oturum verilerini inceleyerek sorunu teşhis edebilirsiniz. CLI, günlükleri [OSLog](https://developer.apple.com/documentation/os/oslog) ve dosya sistemine iletir.
 
-Her çalıştırmada, `$XDG_STATE_HOME` ortam değişkeni ayarlanmamışsa `~/.local/state` değerini alan `$XDG_STATE_HOME/tuist/sessions/{uuid}/` konumunda bir oturum dizini oluşturur. Tuist’e özel bir durum dizini ayarlamak için `$TUIST_XDG_STATE_HOME` kullanabilirsiniz; bu değişken `$XDG_STATE_HOME` üzerinde önceliklidir.
+Her çalıştırmada, `$XDG_STATE_HOME/tuist/sessions/{uuid}/` konumunda bir oturum dizini oluşturur; burada ortam değişkeni ayarlanmamışsa `$XDG_STATE_HOME` değeri `~/.local/state` olur. Ayrıca, `$XDG_STATE_HOME` yerine geçen Tuist’e özel bir durum dizini ayarlamak için `$TUIST_XDG_STATE_HOME` kullanabilirsiniz.
 
 Her oturum dizini şunları içerir:
 - **`logs.txt`** - CLI oturumundan metin günlükleri
@@ -25,19 +25,24 @@ Her oturum dizini şunları içerir:
 
 ### HAR dosyalarını görselleştirme {#visualizing-har-files}
 
-HAR dosyası, oturum sırasında yapılan tüm HTTP isteklerini ve yanıtlarını kaydeder; bu, sunucu iletişim sorunlarını hata ayıklamak için yararlıdır. HAR dosyalarını birkaç araçla açabilirsiniz:
+HAR dosyası, oturum sırasında yapılan tüm HTTP isteklerini ve yanıtlarını kaydeder; bu da sunucu iletişim sorunlarını hata ayıklamak için kullanışlıdır. HAR dosyalarını birkaç araçla açabilirsiniz:
 
 - **[Proxyman](https://proxyman.io/)**: HTTP trafiğini görüntülemek ve analiz etmek için yerel bir macOS uygulaması. HAR dosyasını Dosya > İçe Aktar yoluyla içe aktarın.
 - **Tarayıcı Geliştirici Araçları**: Chrome, Firefox ve Safari, Ağ sekmesinde HAR dosyalarını içe aktarmayı destekler.
 - **[HAR Viewer](http://www.softwareishard.com/har/viewer/)**: Web tabanlı bir HAR dosyası görüntüleyici.
 
 > [!TIP]
-> Tuist’in dizin düzeni ve özel dizinlerin nasıl yapılandırılacağı hakkında daha fazla bilgiyi <.localized_link href="/cli/directories">Dizinler belgelerinde</.localized_link> bulabilirsiniz.
+> Tuist’in dizin düzeni ve özel dizinlerin nasıl yapılandırılacağı hakkında daha fazla bilgiyi <.localized_link href="/cli/directories">Dizinler belgelerinde</.localized_link> öğrenin.
 
+
+> [!TIP]
+> **Ham xcodebuild çıktısı**
+>
+> `xcodebuild` çalıştıran komutlar, çıktısını xcbeautify ile biçimlendirir. Biçimlendirilmemiş çıktıyı görmek için `--verbose` parametresini geçirin. Bkz. <.localized_link href="/guides/integrations/continuous-integration#xcodebuild-output-formatting">xcodebuild çıktı biçimlendirme</.localized_link>.
 
 Varsayılan olarak, CLI yürütme beklenmedik şekilde sonlandığında oturum yolunu çıktılar. Çıktılamazsa, oturum verilerini yukarıda belirtilen yolda (yani en son oturum dizininde) bulabilirsiniz.
 
-5 günden eski oturum dizinleri otomatik olarak temizlenir. Tuist ayrıca varsayılan olarak en fazla 50 etkin olmayan oturum dizinini tutar ve şu anda çalışan Tuist süreçlerine ait oturumları korur. Aynı durum diziniyle çok sayıda Tuist komutu çalıştıran CI ortamlarında, etkin olmayan oturum sınırını `TUIST_SESSION_MAX_SESSIONS` ile artırabilirsiniz; örneğin `TUIST_SESSION_MAX_SESSIONS=200`. Geçersiz değerler, sıfır ve negatif değerler yoksayılır ve Tuist varsayılan 50 değerine geri döner.
+5 günden eski oturum dizinleri otomatik olarak temizlenir. Tuist ayrıca varsayılan olarak en fazla 50 etkin olmayan oturum dizinini tutar ve şu anda çalışan Tuist süreçlerine ait oturumları korur. Aynı durum diziniyle birçok Tuist komutu çalıştıran CI ortamlarında, `TUIST_SESSION_MAX_SESSIONS` ile etkin olmayan oturum sınırını artırabilirsiniz; örneğin `TUIST_SESSION_MAX_SESSIONS=200`. Geçersiz değerler, sıfır ve negatif değerler yok sayılır ve Tuist varsayılan 50 değerine geri döner.
 
 ### Sürekli entegrasyon {#diagnose-issues-using-logs-ci}
 
@@ -82,7 +87,7 @@ CI’da Tuist, herhangi bir yapılandırma olmadan bu günlüğü `~/.local/stat
 
 ## Ağ zaman aşımlarını ve yeniden denemeleri ayarlama {#tuning-network-timeouts}
 
-Sunucu çağrıları, kayıt defteri, önizlemeler ve önbellek yapıtı aktarımları dahil olmak üzere Tuist’in tüm [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) trafiği, makul varsayılanlara sahip paylaşılan bir `URLSession` üzerinden geçer. Yavaş veya tıkanık ağ yollarında (örneğin, kurumsal bir proxy üzerinden nesne depolamaya ulaşan kendi kendine barındırılan bir kurulum), tek bir istek kaynak yetersizliği yaşayabilir ve tamamlanmadan önce kaynak zaman aşımına uğrayabilir. Özellikle önbellek indirmelerinde, zaman aşımına uğramak Tuist’in modülü kaynaktan derlemeye geri dönmesine neden olur; bu da önbelleğe alınmış ikili dosya için biraz daha uzun beklemekten çok daha maliyetlidir. Altta yatan ayarları ortam değişkenleri aracılığıyla ayarlayabilirsiniz; değişkenler ayarlanmamışsa veya geçersiz bir değere ayarlanmışsa varsayılanlar uygulanır:
+Tuist’in [Hipert Metin Aktarım Protokolü (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) trafiğinin tamamı, sunucu çağrıları, kayıt defteri, önizlemeler ve önbellek yapıtı aktarımları dahil, makul varsayılanlara sahip paylaşılan bir `URLSession` üzerinden geçer. Yavaş veya tıkalı ağ yollarında (örneğin, kurumsal bir proxy üzerinden nesne depolamaya ulaşan kendi kendine barındırılan bir kurulum), tek bir istek tamamlanmadan önce kaynak zaman aşımına uğrayabilir. Özellikle önbellek indirmelerinde, zaman aşımına uğramak Tuist’in modülü kaynaktan derlemeye geri dönmesine neden olur; bu da önbelleğe alınmış ikili dosya için biraz daha uzun beklemekten çok daha maliyetlidir. Altta yatan ayarları ortam değişkenleri aracılığıyla ayarlayabilirsiniz; ayarlanmamış veya geçersiz bir değere ayarlandıklarında varsayılanlar uygulanır:
 
 ```bash
 # Maximum time (in seconds) a single resource transfer can take before it's cancelled
@@ -102,11 +107,11 @@ export TUIST_HTTP_MAXIMUM_RETRY_COUNT=1
 export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
 ```
 
-Kaynak zaman aşımı, tüm aktarım için duvar saati tabanlı bir üst sınırdır, takılma koruması değildir; bu nedenle taşındığınız en büyük yapıt için yeterince büyük olmalıdır. Bir parçanın indirdiği test ürünleri gibi tüm dosya aktarımları bu nedenle 90 saniye yerine varsayılan olarak 10 dakikadır ve yeni veri gelmediğinde takılan bir aktarım yine de `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` sonrasında başarısız olur. Bu aktarımlar, üst sınırı yalnızca yükseltmek için `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` değerini okur; bunu asla 10 dakikanın altına düşürmez. Böylece önbellek isteklerinin hızlı başarısız olması için seçilen bir değer, bir parçanın test ürünlerini indirmesini de iptal etmez. `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` değerini yükseltmek, kurtarılabilir ancak yavaş bir indirmenin zaman aşımına uğramak yerine tamamlanmasını sağlar. Önbellek indirmeleri için bu, kaynaktan derlemeye geri dönmek yerine bir önbellek isabeti elde etmek anlamına gelir; bu nedenle değeri bilinçli olarak yükseltin: yavaş bir önbellek indirmesini canlı tutan aynı değer, kaynaktan derlemeye geri dönüşü de geciktirir. `TUIST_HTTP_MAXIMUM_RETRY_COUNT` değerini düşürmek, daha uzun bir zaman aşımının en kötü durum bekleme süresini birkaç deneme boyunca çarpmasını engelleyebilir. Yeniden deneme gecikmeleri her başarısızlıktan sonra iki katına çıkar, en fazla bir temel gecikme kadar rastgele titreme içerir ve asla 30 saniyeyi aşmaz.
+Kaynak zaman aşımı, tüm aktarım için duvar saati tabanlı bir üst sınırdır, takılma koruması değildir; bu nedenle taşındığınız en büyük yapıt için yeterince büyük olmalıdır. Bir parçanın indirdiği test ürünleri gibi tüm dosya aktarımları bu nedenle 90 saniye yerine 10 dakikaya varsayılan olarak ayarlanır ve yeni veri gelmediğinde `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` sonrasında takılan bir aktarım yine de başarısız olur. Bu aktarımlar, `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` değerini yalnızca üst sınırı yükseltmek için okur, asla 10 dakikanın altına düşürmez; böylece önbellek isteklerinin hızlı başarısız olması için seçilen bir değer, bir parçanın test ürünlerini indirmesini de iptal etmez. `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` değerini yükseltmek, kurtarılabilir ancak yavaş bir indirmenin zaman aşımına uğraması yerine tamamlanmasını sağlar. Önbellek indirmeleri için bu, kaynaktan derlemeye geri dönmek yerine bir önbellek isabeti elde etmek anlamına gelir; bu nedenle bilinçli olarak yükseltin: yavaş bir önbellek indirmesini canlı tutan aynı değer, kaynaktan derlemeye geri dönüşü de geciktirir. `TUIST_HTTP_MAXIMUM_RETRY_COUNT` değerini düşürmek, daha uzun bir zaman aşımının birkaç deneme boyunca en kötü durum bekleme süresini katlamasını engelleyebilir. Yeniden deneme gecikmeleri her başarısızlıktan sonra iki katına çıkar, en fazla bir temel gecikme kadar rastgele sapma içerir ve asla 30 saniyeyi aşmaz.
 
 ## Özel bir CA sertifikasına güvenme {#trusting-a-custom-ca-certificate}
 
-Varsayılan olarak Tuist, TLS sertifikalarını işletim sisteminin kök deposuna göre doğrular. Özel bir sertifika yetkilisi kullanan kendi kendine barındırılan bir Tuist veya Kura sunucusu çalıştırdığınızda, Tuist’in bu CA’ya da güvenmesi gerekir. Kökü Sistem anahtar zincirine yüklemek (ve SSL için güvenilir olarak işaretlemek) standart yaklaşımdır; ancak GUI oturumu veya güven bitini ayarlayacak mobil cihaz yönetimi (MDM) bulunmayan headless CI ana bilgisayarlarında bu genellikle pratik değildir.
+Varsayılan olarak Tuist, TLS sertifikalarını işletim sisteminin kök deposuna karşı doğrular. Özel bir sertifika yetkilisi kullanan kendi kendine barındırılan bir Tuist veya Kura sunucusu çalıştırdığınızda, Tuist’in bu CA’ya da güvenmesi gerekir. Kökü Sistem anahtar zincirine yüklemek (ve SSL için güvenilir olarak işaretlemek) standart yaklaşımdır, ancak GUI oturumu veya güven bitini ayarlamak için mobil cihaz yönetimi (MDM) bulunmayan headless CI ana bilgisayarlarında bu genellikle pratik değildir.
 
 Bu durumlarda Tuist’i doğrudan bir CA sertifika paketine yönlendirebilirsiniz. Paket PEM (bir veya daha fazla bitişik `-----BEGIN CERTIFICATE-----` bloğu) veya tek bir DER dosyası olabilir. Sistem kök deposu bunun yanında güvenilir kalır, böylece genel sertifikalar normal şekilde doğrulanmaya devam eder ve sertifika değerlendirmesi asla atlanmaz.
 
@@ -115,7 +120,7 @@ Bu durumlarda Tuist’i doğrudan bir CA sertifika paketine yönlendirebilirsini
 export TUIST_CA_CERTIFICATE=/etc/ssl/certs/self-hosted-ca.pem
 ```
 
-Bunu <.localized_link href="/references/tuist-toml">yapılandırma dosyanızda</.localized_link> da belirtebilirsiniz:
+Bunu <.localized_link href="/references/tuist-toml">yapılandırma dosyanızda</.localized_link> da bildirebilirsiniz:
 
 ```toml
 [network]

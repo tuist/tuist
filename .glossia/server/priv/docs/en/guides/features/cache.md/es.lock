@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "356594f6ebedf9b840b76c3c2529e54d85fa20cc95dc6ab46876be4e98122cb5",
+  "hash": "8a7fb5ca6d43f4bcde48537cda8d881df17811f5cf5c5379db535e5daf3df0bf",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Cache {#cache}": {
-                  "content_hash": "0f482481a8d06ca978e3d691cc2511c9f188c6ab778ef909f320289d700f79fa"
+                  "content_hash": "6fbb7c11283cebaea7e2772e7448e8c822ce6a57c61fb2d53389c4d395d4331b"
                 },
                 "## Restrict uploads to CI {#restrict-uploads-to-ci}": {
                   "content_hash": "2187a587cdb9f18a12c8b2e077e9ccdb050e3ca56b618c231d175b54d134001a"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "640422dd9f876e34315800fc5e93e17f28d26f14ae9b8c640e6b93734cb1d657",
+          "hash": "a5b576cd7211b6d10e7444ac845eeaf6c57e66a0d1e10214a39aeeac9acb3288",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache.md",
           "metadata": {
-            "content_hash": "12052bc5639002b40b682b875b60c74f4436d152f334b8d8da9c82b99989d785"
+            "content_hash": "b14dbfefc2313b897b11eebf8e7ca053eba22dd3307c074b66d1c13cee350c38"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "356594f6ebedf9b840b76c3c2529e54d85fa20cc95dc6ab46876be4e98122cb5",
+      "hash": "8a7fb5ca6d43f4bcde48537cda8d881df17811f5cf5c5379db535e5daf3df0bf",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "fea15efc79947e7c350fa2007b614c0038008f03c3480a0f2a9e69a24113de91",
+  "output_hash": "5f9c51d9aac658e1c06f5ea917cbd59389127f930ba585144db06a066dc8b552",
   "output_path": "server/priv/docs/es/guides/features/cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -261,8 +261,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
+  "source_commit_sha": "4f898204f78a918142651ad3d36e1bc912cb6c1f",
   "source_path": "server/priv/docs/en/guides/features/cache.md",
-  "translated_at": "2026-11-06T16:47:00.003291Z",
-  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
+  "translated_at": "2026-11-13T14:44:39.682560Z",
+  "translation_session_id": "01a1d55c-6b9e-78c1-b839-7703cf151f90"
 }

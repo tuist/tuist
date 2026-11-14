@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "9bfa7e48415f7e92b48467f575a9f78740dd88c1cb809cd454e70a8e11bf4e10",
+  "hash": "67b8c6d2ff9593bf9708037fb5fa34c61fe47e2742501562d922ce9ea1f1e52e",
   "hash_tree": {
     "root": {
       "children": [
@@ -24,6 +24,9 @@
                 },
                 "## Local dependencies {#local-dependencies}": {
                   "content_hash": "64d06bf22e98a315590ef4c7e4d1135c3f0a98b04bcc612b92d7a1572c16d4c0"
+                },
+                "## Related {#related}": {
+                  "content_hash": "52fd5c0a4e602513bee5bfd4c2684677b003c39f87c5973c454af3b9b71c63e7"
                 },
                 "## Static or dynamic {#static-or-dynamic}": {
                   "content_hash": "8ad8485aaedfde96e7bd28a41ae9b49f0a4d1e1d6f1c132b8f3ec66067600954"
@@ -65,7 +68,7 @@
                   "content_hash": "b75882c723d8259bc50c5d79fdaa89944d83614eb107c9f1c9a3157a1d1c4270"
                 },
                 "### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}": {
-                  "content_hash": "6803e37940936f3313014ff13adec2a3a2de413eca220a2bcfd3f07352393ae4"
+                  "content_hash": "3e0ded644904858b7a63ace5d2ad61f8fa3b7626eea9cff034663043093cc5a4"
                 },
                 "#### Ensure `-ObjC` is added to `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}": {
                   "content_hash": "c1f2165df1e12d5641cb1ce02ea46bc58eceb5d70c9f214eadae03c1418da28f"
@@ -86,11 +89,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "000a93674fb8ce29f003800057dd1f3c09e89501de79dab5ec60acaca71a067f",
+          "hash": "1d2d94cc45fa8fab28dad81cafef91d5de6052463aee9577f2ac56160c0fe6d6",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/dependencies.md",
           "metadata": {
-            "content_hash": "2649573dbe2925209cdd011810fa4546b51d638f773e006ba7e33bd719d80b87"
+            "content_hash": "a63a518d2f8cbe4862ead76e57747bce802af3db9aa0bfe14156b7e581be05c8"
           }
         },
         {
@@ -293,14 +296,14 @@
         }
       ],
       "details": {},
-      "hash": "9bfa7e48415f7e92b48467f575a9f78740dd88c1cb809cd454e70a8e11bf4e10",
+      "hash": "67b8c6d2ff9593bf9708037fb5fa34c61fe47e2742501562d922ce9ea1f1e52e",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/dependencies.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "150ff6db62e41df839da810837895e4e8dd5e86c57967647a9d2456fe2a2dbc6",
+  "output_hash": "92571bf5966cc5c9015ce5382a33661cc371e4919a108793d869750073431cdc",
   "output_path": "server/priv/docs/tr/guides/features/projects/dependencies.md",
   "protection_state": "recorded",
   "provider": "",
@@ -321,8 +324,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/features/projects/dependencies.md",
-  "translated_at": "2026-11-06T18:46:19.869490Z",
-  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
+  "translated_at": "2026-11-13T16:38:12.078417Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

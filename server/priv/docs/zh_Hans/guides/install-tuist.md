@@ -1,13 +1,13 @@
 ---
 {
   "title": "安装 Tuist",
-  "titleTemplate": ":title · 指南 · Tuist",
-  "description": "在 macOS 或 Linux 上使用 mise 或 Homebrew 安装 Tuist 命令行界面，并为团队和持续集成固定版本。"
+  "titleTemplate": ":title · Guides · Tuist",
+  "description": "在 macOS 或 Linux 上通过 mise 或 Homebrew 安装 Tuist 命令行界面，并为团队和持续集成固定版本。"
 }
 ---
 # 安装 Tuist {#install-tuist}
 
-Tuist 命令行界面可在 **macOS** 和 **Linux** 上运行，并将你的 Xcode、生成项目、Gradle、Bazel 和 Rust 项目连接到 Tuist 的缓存、洞察和 Runner 基础设施。虽然你可以从[源代码](https://github.com/tuist/tuist)构建 Tuist，但我们建议使用以下安装方法之一，以确保安装有效且可验证。Elixir 项目则使用 `tuist_ex` Hex 包，无需 CLI。
+Tuist 命令行界面可在 **macOS** 和 **Linux** 上运行，并将你的 Xcode、生成式、Gradle、Bazel 和 Rust 项目连接到 Tuist 的缓存、洞察和 Runner 基础设施。虽然你可以从[源代码](https://github.com/tuist/tuist)构建 Tuist，但我们建议使用以下安装方法之一，以确保安装有效且可验证。Elixir 项目改用 `tuist_ex` Hex 包，不需要 CLI。
 
 ## Mise {#recommended-mise}
 
@@ -15,7 +15,7 @@ Tuist 命令行界面可在 **macOS** 和 **Linux** 上运行，并将你的 Xco
 > 如果你尚未安装 Mise，请先参阅[入门指南](https://mise.jdx.dev/getting-started.html)。如果你的团队或组织需要确保不同环境中工具版本的确定性，Mise 是 [Homebrew](https://brew.sh) 的推荐替代方案。
 
 
-与 Homebrew 等在全局安装并激活单一版本工具的方式不同，**Mise 会锁定版本**，可以是全局锁定，也可以限定在项目范围内。运行 `mise use` 来安装并激活 Tuist：
+与 Homebrew 等在全局范围内安装并激活单一版本工具的工具不同，**Mise 会锁定版本**，可以是全局锁定，也可以限定在项目范围内。运行 `mise use` 以安装并激活 Tuist：
 
 ```bash
 mise use tuist@x.y.z          # Install and pin tuist-x.y.z in the current project
@@ -27,7 +27,7 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 如果你克隆的项目已在 `mise.toml` 中锁定了 Tuist 版本，请运行 `mise install` 进行安装。
 
 > [!TIP]
-> `tuist@latest` 会解析为最新的**稳定**版本。Tuist 还会发布预发布的 Canary 版和候选发布版构建；这些版本需要手动选择启用，绝不会由 `latest` 解析。请参阅<.localized_link href="/cli/release/channels">发布渠道</.localized_link>，了解如何锁定你可信赖的稳定版本线，以及如何启用预发布版本。
+> `tuist@latest` 解析为最新的**稳定**版本。Tuist 还会发布预发布的 Canary 和候选发布（RC）构建；这些版本仅在选择加入时使用，永远不会被 `latest` 解析。请参阅<.localized_link href="/cli/release/channels">发布渠道</.localized_link>，了解如何锁定你可信赖的稳定分支，以及如何加入预发布。
 
 <details>
 <summary>Linux 支持</summary>
@@ -39,7 +39,7 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 
 ## Homebrew（仅限 macOS）{#recommended-homebrew}
 
-你可以使用 [Homebrew](https://brew.sh) 和[我们的 Formula](https://github.com/tuist/homebrew-tuist)安装 Tuist：
+你可以使用 [Homebrew](https://brew.sh) 和 [我们的 Formula](https://github.com/tuist/homebrew-tuist) 安装 Tuist：
 
 ```bash
 brew tap tuist/tuist
@@ -50,7 +50,7 @@ brew install --formula tuist@x.y.z
 > [!TIP]
 > **验证二进制文件的真实性**
 >
-> 你可以运行以下命令来验证安装的二进制文件是否由我们构建，该命令会检查证书的团队 ID 是否为 `U6LC622NKF`：
+> 你可以运行以下命令来验证安装的二进制文件是否由我们构建，该命令会检查证书的 Team ID 是否为 `U6LC622NKF`：
 >
 > ```bash
 > curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
@@ -59,3 +59,8 @@ brew install --formula tuist@x.y.z
 ## HTTP 代理 {#http-proxy}
 
 如果你的网络通过 HTTP 代理路由出站流量，请参阅<.localized_link href="/guides/integrations/http-proxy">HTTP 代理指南</.localized_link>。
+
+## 后续步骤 {#next-steps}
+
+- 按照<.localized_link href="/guides/get-started">入门指南</.localized_link>将你的项目连接到 Tuist。
+- 探索[Tuist 面向工程团队和编码代理的构建基础设施](https://tuist.dev)，以更全面地了解产品。

@@ -11,38 +11,39 @@
 msgid ""
 msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/usage_live.ex:465
-#: lib/tuist_web/live/usage_live.html.heex:231
-#: lib/tuist_web/live/usage_live.html.heex:285
-#: lib/tuist_web/live/usage_live.html.heex:336
+#: lib/tuist_web/live/usage_live.ex:469
+#: lib/tuist_web/live/usage_live.html.heex:350
+#: lib/tuist_web/live/usage_live.html.heex:404
+#: lib/tuist_web/live/usage_live.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr "მოთხოვნები"
 
-#: lib/tuist_web/live/usage_live.ex:25
+#: lib/tuist_web/live/usage_live.ex:26
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "გვერდი, რომელსაც ეძებთ, არ არსებობს ან გადატანილია."
 
-#: lib/tuist_web/live/usage_live.ex:43
+#: lib/tuist_web/live/usage_live.ex:44
 #: lib/tuist_web/live/usage_live.html.heex:4
-#: lib/tuist_web/live/usage_live.html.heex:246
-#: lib/tuist_web/live/usage_live.html.heex:277
-#: lib/tuist_web/live/usage_live.html.heex:416
+#: lib/tuist_web/live/usage_live.html.heex:241
+#: lib/tuist_web/live/usage_live.html.heex:365
+#: lib/tuist_web/live/usage_live.html.heex:396
+#: lib/tuist_web/live/usage_live.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "გამოყენება"
 
-#: lib/tuist_web/live/usage_live.ex:458
-#: lib/tuist_web/live/usage_live.html.heex:216
-#: lib/tuist_web/live/usage_live.html.heex:281
-#: lib/tuist_web/live/usage_live.html.heex:296
+#: lib/tuist_web/live/usage_live.ex:462
+#: lib/tuist_web/live/usage_live.html.heex:335
+#: lib/tuist_web/live/usage_live.html.heex:400
+#: lib/tuist_web/live/usage_live.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr "ეგრესი"
 
-#: lib/tuist_web/live/usage_live.ex:260
-#: lib/tuist_web/live/usage_live.ex:261
+#: lib/tuist_web/live/usage_live.ex:264
+#: lib/tuist_web/live/usage_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "უცნობია"
@@ -53,7 +54,7 @@ msgid "At the standard rate, before the free tier"
 msgstr "სტანდარტული ტარიფით, უფასო ლიმიტის ამოწურვამდე"
 
 #: lib/tuist_web/live/usage_live.html.heex:90
-#: lib/tuist_web/live/usage_live.html.heex:555
+#: lib/tuist_web/live/usage_live.html.heex:674
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "დაბეგრილია"
@@ -63,28 +64,23 @@ msgstr "დაბეგრილია"
 msgid "Runner minutes"
 msgstr "მომუშავე წუთები"
 
-#: lib/tuist_web/live/usage_live.html.heex:6
-#, elixir-autogen, elixir-format
-msgid "Runner time and cache traffic billed to this account."
-msgstr "ამ ანგარიშზე რიცხული დრო და ქეშის ტრაფიკი."
-
 #: lib/tuist_web/live/usage_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Runner usage"
 msgstr "გაშვების გამოყენება"
 
 #: lib/tuist_web/live/usage_live.html.heex:84
-#: lib/tuist_web/live/usage_live.html.heex:545
+#: lib/tuist_web/live/usage_live.html.heex:664
 #, elixir-autogen, elixir-format
 msgid "Usage value"
 msgstr "გამოყენების მნიშვნელობა"
 
-#: lib/tuist_web/live/usage_live.ex:373
+#: lib/tuist_web/live/usage_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "Linux"
 
-#: lib/tuist_web/live/usage_live.ex:372
+#: lib/tuist_web/live/usage_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "macOS"
@@ -99,9 +95,9 @@ msgstr "ჩართულია %{count} წუთი"
 msgid "%{count} minutes run"
 msgstr "გაშვებულია %{count} წუთი"
 
-#: lib/tuist_web/live/usage_live.ex:621
+#: lib/tuist_web/live/usage_live.ex:667
 #: lib/tuist_web/live/usage_live.html.heex:151
-#: lib/tuist_web/live/usage_live.html.heex:602
+#: lib/tuist_web/live/usage_live.html.heex:721
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
 msgstr "დაურიცხავი ამ პერიოდში"
@@ -136,159 +132,160 @@ msgstr "წინასწარ გადახდილი კრედიტ�
 msgid "Billing period:"
 msgstr "გადახდის პერიოდი:"
 
-#: lib/tuist_web/live/usage_live.ex:348
+#: lib/tuist_web/live/usage_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr "წინა პერიოდმა შეადგინა %{count} წუთი."
 
-#: lib/tuist_web/live/usage_live.ex:368
-#: lib/tuist_web/live/usage_live.ex:565
+#: lib/tuist_web/live/usage_live.ex:372
+#: lib/tuist_web/live/usage_live.ex:611
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr "წინა პერიოდმა შეადგინა %{count}."
 
-#: lib/tuist_web/live/usage_live.ex:360
+#: lib/tuist_web/live/usage_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr "ბოლო პერიოდში არაფერი გაშვებულა."
 
-#: lib/tuist_web/live/usage_live.ex:354
+#: lib/tuist_web/live/usage_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr "ამ პერიოდში დაახლოებით %{count} წუთი იქნება."
 
-#: lib/tuist_web/live/usage_live.ex:229
-#: lib/tuist_web/live/usage_live.ex:510
+#: lib/tuist_web/live/usage_live.ex:233
+#: lib/tuist_web/live/usage_live.ex:514
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr "პროგნოზირებული"
 
-#: lib/tuist_web/live/usage_live.ex:381
+#: lib/tuist_web/live/usage_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr "მიმდინარე პერიოდი %{from} – %{to}"
 
 #: lib/tuist_web/live/usage_live.html.heex:139
+#: lib/tuist_web/live/usage_live.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Covered by your trial"
 msgstr "ფარავს თქვენი საცდელი ვერსია"
 
-#: lib/tuist_web/live/usage_live.ex:618
+#: lib/tuist_web/live/usage_live.ex:664
 #: lib/tuist_web/live/usage_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
 msgstr "რა უნდა გადაიხადოთ ამ პერიოდისთვის"
 
-#: lib/tuist_web/live/usage_live.html.heex:479
+#: lib/tuist_web/live/usage_live.html.heex:598
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgstr "%{count} ჩავარდა"
 
-#: lib/tuist_web/live/usage_live.html.heex:408
+#: lib/tuist_web/live/usage_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "%{count} free each period"
 msgstr "%{count} უფასო ყოველ პერიოდში"
 
-#: lib/tuist_web/live/usage_live.html.heex:358
-#: lib/tuist_web/live/usage_live.html.heex:458
+#: lib/tuist_web/live/usage_live.html.heex:477
+#: lib/tuist_web/live/usage_live.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "%{count} included"
 msgstr "%{count} შედის"
 
-#: lib/tuist_web/live/usage_live.html.heex:450
+#: lib/tuist_web/live/usage_live.html.heex:569
 #, elixir-autogen, elixir-format
 msgid "%{count} passing"
 msgstr "%{count} წარმატებული"
 
-#: lib/tuist_web/live/usage_live.html.heex:342
+#: lib/tuist_web/live/usage_live.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "%{count} requests"
 msgstr "%{count} მოთხოვნა"
 
-#: lib/tuist_web/live/usage_live.html.heex:495
+#: lib/tuist_web/live/usage_live.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "%{count} run on Tuist Runners"
 msgstr "%{count} გაშვებული Tuist Runners-ზე"
 
-#: lib/tuist_web/live/usage_live.html.heex:487
+#: lib/tuist_web/live/usage_live.html.heex:606
 #, elixir-autogen, elixir-format
 msgid "%{count} skipped"
 msgstr "%{count} გამოტოვებული"
 
-#: lib/tuist_web/live/usage_live.html.heex:318
+#: lib/tuist_web/live/usage_live.html.heex:437
 #, elixir-autogen, elixir-format
 msgid "%{size} included"
 msgstr "%{size} შედის"
 
-#: lib/tuist_web/live/usage_live.html.heex:396
+#: lib/tuist_web/live/usage_live.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
 msgstr "გადახდის პერიოდი %{from}-დან %{to}-მდე. ირიცხება მხოლოდ წარმატებული ტესტები. ბილდები, ჩავარდნილი და გამოტოვებული ტესტები, ასევე Tuist Runners-ზე გაშვებული ტესტები უფასოა."
 
-#: lib/tuist_web/live/usage_live.html.heex:194
+#: lib/tuist_web/live/usage_live.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Cache usage"
 msgstr "ქეშის გამოყენება"
 
-#: lib/tuist_web/live/usage_live.ex:620
+#: lib/tuist_web/live/usage_live.ex:666
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr "შეფასება ამ პერიოდისთვის"
 
-#: lib/tuist_web/live/usage_live.html.heex:483
-#: lib/tuist_web/live/usage_live.html.heex:491
-#: lib/tuist_web/live/usage_live.html.heex:499
+#: lib/tuist_web/live/usage_live.html.heex:602
+#: lib/tuist_web/live/usage_live.html.heex:610
+#: lib/tuist_web/live/usage_live.html.heex:618
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "უფასო"
 
-#: lib/tuist_web/live/usage_live.html.heex:474
+#: lib/tuist_web/live/usage_live.html.heex:593
 #, elixir-autogen, elixir-format
 msgid "Not billed"
 msgstr "არ იბეგრა"
 
-#: lib/tuist_web/live/usage_live.ex:643
+#: lib/tuist_web/live/usage_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr "ამ პერიოდში წარმატებით დასრულდება დაახლოებით %{count} ტესტ-ქეისი."
 
-#: lib/tuist_web/live/usage_live.ex:635
+#: lib/tuist_web/live/usage_live.ex:681
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr "ამ პერიოდში შესრულდება დაახლოებით %{count} მოთხოვნა."
 
-#: lib/tuist_web/live/usage_live.ex:629
+#: lib/tuist_web/live/usage_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr "ამ პერიოდში მოხმარება იქნება დაახლოებით %{size}."
 
-#: lib/tuist_web/live/usage_live.html.heex:406
-#: lib/tuist_web/live/usage_live.html.heex:444
+#: lib/tuist_web/live/usage_live.html.heex:525
+#: lib/tuist_web/live/usage_live.html.heex:563
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
 msgstr "წარმატებული ტესტ-ქეისები"
 
-#: lib/tuist_web/live/usage_live.html.heex:384
+#: lib/tuist_web/live/usage_live.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Test insights usage"
 msgstr "ტესტების ანალიტიკის გამოყენება"
 
-#: lib/tuist_web/live/usage_live.ex:616
+#: lib/tuist_web/live/usage_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr "რა ჯამური თანხა გამოვიდა ამ პერიოდში. არ არსებობს გადასახდელი გამოწერა."
 
-#: lib/tuist_web/live/usage_live.ex:608
+#: lib/tuist_web/live/usage_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr "%{count}-ზე"
 
-#: lib/tuist_web/live/usage_live.ex:605
+#: lib/tuist_web/live/usage_live.ex:651
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr "GB-ზე"
 
-#: lib/tuist_web/live/usage_live.ex:610
+#: lib/tuist_web/live/usage_live.ex:656
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr "მილიონზე"
@@ -298,43 +295,43 @@ msgstr "მილიონზე"
 msgid "No runner usage in this period"
 msgstr "გამშვების გამოყენება არ ყოფილა ამ პერიოდში"
 
-#: lib/tuist_web/live/usage_live.html.heex:508
+#: lib/tuist_web/live/usage_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "No test runs in this period"
 msgstr "ტესტების გაშვება არ ყოფილა ამ პერიოდში"
 
-#: lib/tuist_web/live/usage_live.html.heex:302
+#: lib/tuist_web/live/usage_live.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "%{size} of egress"
 msgstr "ეგრესი: %{size}"
 
-#: lib/tuist_web/live/usage_live.html.heex:206
+#: lib/tuist_web/live/usage_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
 msgstr "გადახდის პერიოდი: %{from}-დან %{to}-მდე. ეგრესი და მოთხოვნები ყველა ქეშიდან ერთ საერთო ლიმიტს იზიარებენ, ხოლო Tuist Runners-ის ტრაფიკი ნახევრად ითვლება. ატვირთვა და შენახვა უფასოა."
 
-#: lib/tuist_web/live/usage_live.html.heex:218
+#: lib/tuist_web/live/usage_live.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
 msgstr "თქვენი ქეშებიდან ჩამოტვირთული მონაცემები. %{size} უფასო თითოეულ პერიოდში."
 
-#: lib/tuist_web/live/usage_live.html.heex:233
+#: lib/tuist_web/live/usage_live.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
 msgstr "თქვენი ქეშებიდან მოწოდებული ჩამოტვირთვები. %{count} უფასო თითოეულ პერიოდში."
 
-#: lib/tuist_web/live/usage_live.html.heex:377
+#: lib/tuist_web/live/usage_live.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "No cache usage in this period"
 msgstr "ამ პერიოდში ქეშის გამოყენება არ ყოფილა"
 
-#: lib/tuist_web/live/usage_live.html.heex:313
-#: lib/tuist_web/live/usage_live.html.heex:353
+#: lib/tuist_web/live/usage_live.html.heex:432
+#: lib/tuist_web/live/usage_live.html.heex:472
 #, elixir-autogen, elixir-format
 msgid "Tuist Runners discount"
 msgstr "Tuist Runners-ის ფასდაკლება"
 
-#: lib/tuist_web/live/usage_live.ex:612
+#: lib/tuist_web/live/usage_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr "უცნობი პროექტი"
@@ -349,12 +346,12 @@ msgstr "გადახდის პერიოდი %{from}-დან %{to}-�
 msgid "%{macos} free macOS and %{linux} free Linux minutes each month"
 msgstr "%{macos} უფასო macOS და %{linux} უფასო Linux წუთი თვეში"
 
-#: lib/tuist_web/live/usage_live.ex:245
+#: lib/tuist_web/live/usage_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr "პლატფორმა"
 
-#: lib/tuist_web/live/usage_live.ex:244
+#: lib/tuist_web/live/usage_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Repository"
 msgstr "რეპოზიტორია"
@@ -364,68 +361,139 @@ msgstr "რეპოზიტორია"
 msgid "Group by:"
 msgstr "დაჯგუფება:"
 
-#: lib/tuist_web/live/usage_live.html.heex:614
+#: lib/tuist_web/live/usage_live.html.heex:733
 #, elixir-autogen, elixir-format
 msgid "No sandboxes ran in this period"
 msgstr "ამ პერიოდში არ გაშვებულა სენდბოქსები"
 
-#: lib/tuist_web/live/usage_live.html.heex:515
+#: lib/tuist_web/live/usage_live.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "Sandbox usage"
 msgstr "სენდბოქსების გამოყენება"
 
-#: lib/tuist_web/live/usage_live.html.heex:537
+#: lib/tuist_web/live/usage_live.html.heex:656
 #, elixir-autogen, elixir-format
 msgid "vCPU-hours"
 msgstr "vCPU-საათი"
 
-#: lib/tuist_web/live/usage_live.html.heex:539
+#: lib/tuist_web/live/usage_live.html.heex:658
 #, elixir-autogen, elixir-format
 msgid "vCPUs times the hours sandboxes ran this period."
 msgstr "vCPU-ების რაოდენობა გამრავლებული სენდბოქსების მუშაობის საათებზე ამ პერიოდში."
 
-#: lib/tuist_web/live/usage_live.html.heex:591
+#: lib/tuist_web/live/usage_live.html.heex:710
 #, elixir-autogen, elixir-format
 msgid "%{count} vCPU-hours run"
 msgstr "%{count} vCPU-საათი"
 
-#: lib/tuist_web/live/usage_live.html.heex:547
+#: lib/tuist_web/live/usage_live.html.heex:666
 #, elixir-autogen, elixir-format
 msgid "At %{rate}"
 msgstr "%{rate}-ზე"
 
-#: lib/tuist_web/live/usage_live.html.heex:527
+#: lib/tuist_web/live/usage_live.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs, memory and disk included; paused and archived sandboxes use none."
 msgstr "ბილინგის პერიოდი %{from}-დან %{to}-მდე. გაშვებული სენდბოქსი იყენებს თავის vCPU-ებს ყოველ საათში, რაც მოიცავს მეხსიერებასა და დისკს; შეჩერებული და არქივირებული სენდბოქსები არაფერს იყენებენ."
 
-#: lib/tuist_web/live/usage_live.html.heex:598
+#: lib/tuist_web/live/usage_live.html.heex:717
 #, elixir-autogen, elixir-format
 msgid "Covered during early access"
 msgstr "დაფარულია ადრეული წვდომის პერიოდში"
 
-#: lib/tuist_web/live/usage_live.ex:554
+#: lib/tuist_web/live/usage_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} vCPU-hours."
 msgstr "წინა პერიოდმა შეადგინა %{count} vCPU-საათი."
 
-#: lib/tuist_web/live/usage_live.ex:560
+#: lib/tuist_web/live/usage_live.ex:606
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} vCPU-hours this period."
 msgstr "ამ პერიოდისთვის დაგეგმილია დაახლოებით %{count} vCPU-საათი."
 
-#: lib/tuist_web/live/usage_live.ex:544
-#: lib/tuist_web/live/usage_live.html.heex:585
+#: lib/tuist_web/live/usage_live.ex:590
+#: lib/tuist_web/live/usage_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Sandboxes"
 msgstr "Sandboxes"
 
-#: lib/tuist_web/live/usage_live.html.heex:557
+#: lib/tuist_web/live/usage_live.html.heex:676
 #, elixir-autogen, elixir-format
 msgid "Sandboxes are not billed while they are in early access"
 msgstr "ადრეული წვდომის ფაზაში Sandboxes არ იბეგრება"
 
-#: lib/tuist_web/live/usage_live.ex:551
+#: lib/tuist_web/live/usage_live.ex:597
 #, elixir-autogen, elixir-format
 msgid "per vCPU-hour"
 msgstr "vCPU-საათზე"
+
+#: lib/tuist_web/live/usage_live.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "%{amount} free each period"
+msgstr "%{amount} უფასო თითოეულ პერიოდში"
+
+#: lib/tuist_web/live/usage_live.html.heex:287
+#, elixir-autogen, elixir-format
+msgid "%{amount} included"
+msgstr "%{amount} შედის"
+
+#: lib/tuist_web/live/usage_live.html.heex:275
+#, elixir-autogen, elixir-format
+msgid "%{amount} stored"
+msgstr "%{amount} შენახულია"
+
+#: lib/tuist_web/live/usage_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "%{count} GB-months"
+msgstr "%{count} GB-თვე"
+
+#: lib/tuist_web/live/usage_live.html.heex:226
+#, elixir-autogen, elixir-format
+msgid "Across every billed cache volume"
+msgstr "ყველა გადასახადი ქეშის ტომზე"
+
+#: lib/tuist_web/live/usage_live.ex:576
+#, elixir-autogen, elixir-format
+msgid "At what is saved now, this period comes to about %{amount}."
+msgstr "ამჟამინდელი დაზოგვის გათვალისწინებით, ამ პერიოდის ღირებულება დაახლოებით %{amount}-ია."
+
+#: lib/tuist_web/live/usage_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Billing period %{from} to %{to}. What each cache volume keeps saved between jobs, counted once however many machines hold a copy, for as long as it is kept. Docker and checkout caches are free."
+msgstr "გადახდის პერიოდი %{from}-დან %{to}-მდე. რასაც თითოეული ქეშის ტომი ინახავს ამოცანებს შორის, ითვლება ერთხელ, მიუხედავად იმისა, თუ რამდენ მანქანაზე არის კოპია, სანამ ის შენახულია. Docker-ისა და checkout-ის ქეშები უფასოა."
+
+#: lib/tuist_web/live/usage_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Cache volume storage"
+msgstr "ქეშის ტომის საცავი"
+
+#: lib/tuist_web/live/usage_live.html.heex:207
+#, elixir-autogen, elixir-format
+msgid "Cache volume storage is kept for the last 90 days. Pick a more recent billing period to see it."
+msgstr "ქეშის ტომის საცავი ინახება ბოლო 90 დღის განმავლობაში. მის სანახავად აირჩიეთ უფრო ახალი გადახდის პერიოდი."
+
+#: lib/tuist_web/live/usage_live.html.heex:306
+#, elixir-autogen, elixir-format
+msgid "No cache volume storage in this period"
+msgstr "ამ პერიოდში ქეშის ტომის საცავი არ არის"
+
+#: lib/tuist_web/live/usage_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Runner time, cache volume storage, and cache traffic billed to this account."
+msgstr "გაშვების დრო, ქეშის ტომის საცავი და ქეშის ტრაფიკი, რომლებიც ამ ანგარიშზე ირიცხება."
+
+#: lib/tuist_web/live/usage_live.html.heex:225
+#, elixir-autogen, elixir-format
+msgid "Saved now"
+msgstr "დაზოგილია ახლა"
+
+#: lib/tuist_web/live/usage_live.html.heex:231
+#: lib/tuist_web/live/usage_live.html.heex:269
+#, elixir-autogen, elixir-format
+msgid "Storage"
+msgstr "საცავი"
+
+#: lib/tuist_web/live/usage_live.ex:564
+#, elixir-autogen, elixir-format
+msgid "per GB-month"
+msgstr "GB-თვეზე"

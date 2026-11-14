@@ -7,7 +7,7 @@
 ---
 # Bazel 캐시 {#bazel-cache}
 
-Tuist는 Bazel이 원격 캐시로 연결하는 [Remote Execution API](https://github.com/bazelbuild/remote-apis) 캐시를 노출합니다. 액션의 출력이 이미 캐시에 있으면 Bazel은 해당 액션을 건너뛰고 Tuist의 캐시에서 결과를 가져와 팀과 CI 환경 전체의 컴파일 시간을 절약합니다.
+Tuist는 Bazel이 원격 캐시로 연결하는 [Remote Execution API](https://github.com/bazelbuild/remote-apis) 캐시를 제공합니다. 액션의 출력이 이미 캐시에 있으면 Bazel은 해당 액션을 건너뛰고 Tuist의 캐시에서 결과를 가져와 팀과 CI 환경 전체의 컴파일 시간을 절약합니다.
 
 ## 설정 {#setup}
 
@@ -17,17 +17,17 @@ Bazel 워크스페이스 루트에서 다음을 실행하세요:
 tuist bazel setup
 ```
 
-이 명령은 `.bazelrc.tuist` 파일을 `.bazelrc` 옆에 생성하며, 가장 가까운 Tuist 캐시 리전에 연결되고 워크스페이스별 자격 증명 헬퍼를 통해 인증됩니다. 또한 저장소의 `.bazelrc`에 `try-import` 줄을 추가합니다:
+이 명령은 가장 가까운 Tuist 캐시 리전에 연결되고 워크스페이스별 자격 증명 헬퍼를 통해 인증되는 `.bazelrc.tuist` 파일을 `.bazelrc` 옆에 생성합니다. 또한 저장소의 `.bazelrc`에 `try-import` 줄을 추가합니다:
 
 ```text
 try-import %workspace%/.bazelrc.tuist
 ```
 
-가져오기를 직접 관리하려면 `--no-add-bazelrc-import` 옵션을 전달하세요.
+가져오기를 직접 관리하려면 `--no-add-bazelrc-import`를 전달하세요.
 
-`.bazelrc.tuist`을 `.gitignore`에 추가하고 커밋하는 대신 각 머신에서 설정을 실행하세요. 생성된 파일은 현재 사용자의 Tuist 구성 디렉터리 아래에 있는 절대 자격 증명 헬퍼 경로와 해당 파일을 생성한 머신과 가장 가까운 캐시 리전을 가리키므로, 두 값 모두 동료나 지속적 통합 러너로 전달되지 않습니다. 모든 머신에서 동일한 `.bazelrc`의 `try-import` 줄을 커밋하세요.
+`.bazelrc.tuist`를 `.gitignore`에 추가하고 커밋하는 대신 각 머신에서 설정을 실행하세요. 생성된 파일은 현재 사용자의 Tuist 구성 디렉터리 아래에 있는 절대 자격 증명 헬퍼 경로와 파일을 생성한 머신에서 가장 가까운 캐시 리전을 가리키므로, 두 값 모두 동료나 CI 러너로 전달되지 않습니다. 모든 머신에서 동일한 `.bazelrc`의 `try-import` 줄을 커밋하세요.
 
-Bazel 워크스페이스 마커를 찾을 수 없거나, 파일이 심볼릭 링크이거나, 이미 원격 캐시 또는 Build Event Service가 구성된 경우 설정은 기존 `.bazelrc`을 그대로 둡니다. 따라서 다시 실행해도 멱등성이 유지됩니다.
+설정은 Bazel 워크스페이스 마커를 찾을 수 없거나, 파일이 심볼릭 링크이거나, 이미 원격 캐시 또는 Build Event Service를 구성한 경우 기존 `.bazelrc`를 그대로 둡니다. 따라서 다시 실행해도 멱등성이 유지됩니다.
 
 통합을 확인하려면 일반 Bazel 명령을 실행하세요:
 
@@ -35,15 +35,29 @@ Bazel 워크스페이스 마커를 찾을 수 없거나, 파일이 심볼릭 링
 bazel build //...
 ```
 
-캐시 활동은 Tuist 대시보드의 프로젝트 **Bazel Cache** 페이지에 표시되며, 캐시 전송, 다운로드 및 업로드, 읽기 및 쓰기 지연 시간, 처리량, 액션 캐시 히트율을 보여줍니다. 프로젝트 **Overview**에는 빌드 지속 시간과 함께 동일한 액션 캐시 히트율 요약이 제공됩니다.
+캐시 활동은 Tuist 대시보드의 프로젝트 **Bazel Cache** 페이지에 표시되며, 여기에는 캐시 전송, 다운로드 및 업로드, 읽기 및 쓰기 지연 시간, 처리량, 액션 캐시 히트율이 나타납니다. 프로젝트 **Overview**에는 빌드 지속 시간과 함께 동일한 액션 캐시 히트율 요약이 포함됩니다.
 
-명령 하나가 캐시를 어떻게 사용했는지 확인하려면 **Invocations**에서 열어보세요. 호출 페이지는 액션 캐시 조회와 콘텐츠 객체 요청을 분리하므로, 콜드 액션 캐시와 느린 아티팩트 다운로드를 구분할 수 있습니다.
+명령어가 캐시를 어떻게 사용했는지 확인하려면 **Invocations**에서 열어보세요. 호출 페이지는 액션 캐시 조회와 콘텐츠 객체 요청을 분리하므로, 콜드 액션 캐시와 느린 아티팩트 다운로드를 구분할 수 있습니다.
+
+## 원격 실행 {#remote-execution}
+
+Tuist는 Linux 실행기에서 Bazel 액션을 실행할 수도 있으므로, 캐시 미스가 로컬 머신이나 CI 러너 대신 원격으로 실행됩니다. 설정 시 `--remote-execution`를 전달하세요:
+
+```bash
+tuist bazel setup --remote-execution
+```
+
+설정은 원격 캐시 옆의 `.bazelrc.tuist`에서 Bazel을 Tuist의 실행기로 지정합니다. 실행할 때마다 현재 실행기와 이미지를 조회하므로, 생성된 값을 복사하는 대신 설정을 다시 실행하세요. 액션은 머신에 설치된 도구가 아닌 실행기의 Linux 툴체인으로 실행되므로, 워크스페이스에서 액션에 필요한 툴체인을 선언하세요.
+
+설정은 또한 `--jobs`를 계정이 동시에 실행할 수 있는 원격 액션 수의 두 배로 설정하여, 각 액션이 다음 액션을 대기하도록 합니다. 그렇지 않으면 Bazel은 머신의 코어 수만큼 병렬로 액션을 실행하며, 2코어 CI 러너는 최대 두 개의 원격 액션만 실행 중 상태로 유지합니다.
+
+다른 값을 사용하려면 명령줄에서 `--jobs`를 전달하거나 `try-import` 줄 이후의 `.bazelrc`에 설정하세요. Bazel은 마지막으로 읽은 값을 사용하므로, 해당 줄 이전의 `--jobs`는 생성된 값으로 대체됩니다.
 
 ## 빌드 인사이트 {#build-insights}
 
-기본적으로 `tuist bazel setup`는 Bazel의 Build Event Service도 구성하여 완료된 명령이 **Invocations** 대시보드에 나타나도록 합니다. 대시보드에 표시되는 내용과 사용자 정의 메타데이터를 첨부하는 방법은 <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link>를 참조하세요.
+기본적으로 `tuist bazel setup`는 Bazel의 Build Event Service도 구성하여 완료된 명령어가 **Invocations** 대시보드에 나타나도록 합니다. 대시보드에 표시되는 내용과 사용자 정의 메타데이터를 첨부하는 방법은 <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link>를 참조하세요.
 
-원격 캐시만 사용하고 빌드 이벤트 스트림을 보내지 않으려면 다음 옵션으로 제외하세요:
+원격 캐시만 사용하고 빌드 이벤트 스트림을 전송하지 않으려면 다음 옵션을 사용하세요:
 
 ```bash
 tuist bazel setup --no-build-insights
@@ -51,8 +65,8 @@ tuist bazel setup --no-build-insights
 
 ## 지속적 통합 {#continuous-integration}
 
-<.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link>의 방법 중 하나로 CI를 인증한 후, 체크아웃 단계의 일부로 `tuist bazel setup`를 한 번 실행하여 `.bazelrc.tuist`가 러너에 적합한 리전을 반영하도록 하세요. 공급자별 예시는 <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link>를 참조하세요.
+<.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link>의 방법 중 하나로 CI를 인증한 후, 체크아웃 단계의 일부로 `tuist bazel setup`를 한 번 실행하여 `.bazelrc.tuist`가 러너에 적합한 리전을 반영하도록 하세요. 제공업체별 예시는 <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link>를 참조하세요.
 
-## 데이터 보존 {#data-retention}
+## 데이터 보관 {#data-retention}
 
 Tuist는 원격 캐시 관찰 데이터를 90일 동안 보관합니다. 전체 정책은 <.localized_link href="/guides/server/data-retention">data retention</.localized_link>을 참조하세요.

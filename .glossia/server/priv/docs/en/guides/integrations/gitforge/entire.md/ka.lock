@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ddef6446fc9b5d802d3b627ef05e68857bf2b7298e204dcaa00688e2e870898d",
+  "hash": "26d393a0d2237819acc815d94c35c6864a690cf988599db822f18a4af8d09b08",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,16 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Entire integration {#entire}": {
-                  "content_hash": "f1b09c9dc90701d136ea3526a27e42caaa4401ab3f3069e22822b452cbb9be55"
+                  "content_hash": "f10b360e155766ec6df1ddb3d2f5230b07244d29b833e246c4106a35f893f584"
                 },
-                "## Server configuration {#server-configuration}": {
-                  "content_hash": "dbb1a75b7b2288fe40741169bd763de66f68d48e8c95ad74a0c9253580110790"
+                "## Reports and permissions {#reports-and-permissions}": {
+                  "content_hash": "0663c5d6e0069bfd9396bdc46bd8ff04ffca156e804cf273b174db9e1513b721"
+                },
+                "## Self-hosted servers {#server-configuration}": {
+                  "content_hash": "222a160ddaab5c4c0d9355b0ece0e67558cd8b477d1d5657f4744e6b793ac665"
                 },
                 "## Setup {#setup}": {
-                  "content_hash": "712fa8758d8090c681d1135fcb44ab1dfd28cde339aaeb15bdbcbc477cb6eb60"
+                  "content_hash": "da6f853d69c611e9e7ce1f1db4c09a8c4eee2c33e5f385a3ec6b2e560ccdb4a1"
                 },
                 "Preamble": {
                   "content_hash": "1eed76b8dc816e8b41cec12d631c922c5ee271f2ef539cc6b1edf3f858938393"
@@ -26,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "d8c15a2e7c23c690ad61141fb6ed1ab94ced3963026b858f9b2c7397fb3f3f98",
+          "hash": "6de4b3458e3bcf240b76bad782e62a717c23825b14b8827f0d617d5f8de20072",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/gitforge/entire.md",
           "metadata": {
-            "content_hash": "c64b83617dfb7ed77cc23db2c248273b3093ac248ec38360114b3e803debfa2b"
+            "content_hash": "0104cb7840513ceb913de82fca971057a21d1416656f8648b53ac10d9fe8cd32"
           }
         },
         {
@@ -193,6 +196,12 @@
                   "children": [],
                   "details": {
                     "content_hash": {
+                      "entry:3a2da093921d236b394ec82ea1bb3d2ac8661d0f1f72a4a43b9294c2b8385a86": {
+                        "case_sensitive": false,
+                        "definition_hash": "40c4252d4ac1a3d1b49524e801a84ad398fbf4ccac84e04a8b42a82ab8a023e9",
+                        "term_hash": "68f05093bc600659c0aecd265fad80c71a658cc857e91cdfeeee782eb670c200",
+                        "translation_hash": "2e5839a591c704a971659974f2f4079886d0a082511a4c40d5b16b324e183834"
+                      },
                       "entry:3b51d63ccbd9cb0f30f7122a3b6e4e2de542eb64f8c66c336eeb30a2a5e68ee6": {
                         "case_sensitive": false,
                         "definition_hash": "5bfbcbe7115309c7054f4ae731dc8cd026280eceb239c69c75cadc7aa2512479",
@@ -201,16 +210,16 @@
                       }
                     }
                   },
-                  "hash": "9802f2bdff62e2d9293aac8a272983965ba70ea507df1f21f65ee2e4ddeec1f0",
+                  "hash": "10b8c2678a0eddbece3573523768a2d0a54cb00b6e8fd21353bb3d8168d9b0cf",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "d9a6b3e8b13aabb22a4591f42fd002d6e4cf282bc2bfcbd9529cd1b9d9f47bd6"
+                    "content_hash": "22896320bb5b555a17843eaa6fc052a76fb6994a8d640c23ad008f64a817bae1"
                   }
                 }
               ],
               "details": {},
-              "hash": "0bc3db48ea6c89d814d9110e08589e5cc8623ed26f802fa1eaad135922677015",
+              "hash": "21dff77ab289aa9515a02f1ba713d210a8e810adb70bc4a1d242e973f6942d68",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -220,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "e166bc2d63c367eb7825d78dc3920a8432eee32facf320851c3006510094113c",
+          "hash": "e53ce927735c976bdd279e38a85c99568c9ce6e66198ea06342e4e18cdbfdfcf",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ddef6446fc9b5d802d3b627ef05e68857bf2b7298e204dcaa00688e2e870898d",
+      "hash": "26d393a0d2237819acc815d94c35c6864a690cf988599db822f18a4af8d09b08",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/gitforge/entire.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "00c956c03fcd5b334e77beaf9866ae31b988ae0e07d3278ea072c239d52d33cb",
+  "output_hash": "1b88ea242ec3c49e8dda030d178e1b67d9e1e0735cb7bcf5f523d3e949e6e5d7",
   "output_path": "server/priv/docs/ka/guides/integrations/gitforge/entire.md",
   "protection_state": "recorded",
   "provider": "",
@@ -242,9 +251,10 @@
     "compiler_version": 3,
     "glossary": {
       "applied": [
-        "repo:flaky-tests"
+        "repo:flaky-tests",
+        "repo:tests"
       ],
-      "content_hash": "d9a6b3e8b13aabb22a4591f42fd002d6e4cf282bc2bfcbd9529cd1b9d9f47bd6",
+      "content_hash": "22896320bb5b555a17843eaa6fc052a76fb6994a8d640c23ad008f64a817bae1",
       "shadowed": [],
       "version": null
     },
@@ -254,8 +264,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "606033c1e8d3d4d9fa2d8b92c6c02298c6b1d5d0",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/integrations/gitforge/entire.md",
-  "translated_at": "2026-11-06T22:16:42.452050Z",
-  "translation_session_id": "01a1b2e5-d3f4-749c-a663-ceb585260d4a"
+  "translated_at": "2026-11-13T16:38:15.179477Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

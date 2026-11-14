@@ -2,12 +2,12 @@
 {
   "title": "Kararsız Testler",
   "titleTemplate": ":title · Test İçgörüleri · Özellikler · Kılavuzlar · Tuist",
-  "description": "CI boru hatlarınızda kararsız testleri otomatik olarak tespit edin ve izleyin."
+  "description": "CI işlem hatlarınızda kararsız testleri otomatik olarak tespit edin ve izleyin."
 }
 ---
 # Kararsız Testler {#flaky-tests}
 
-Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni zedeler ve geliştiricilerin yanlış hataları araştırması için zaman kaybına neden olur. Tuist, kararsız testleri otomatik olarak algılar ve bunları zaman içinde takip etmenize yardımcı olur.
+Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farklı sonuçlar (başarılı veya başarısız) üreten testlerdir. Test paketinize olan güveni azaltır ve geliştiricilerin yanlış hataları incelemek için zaman kaybetmesine neden olur. Tuist, kararsız testleri otomatik olarak algılar ve bunları zaman içinde takip etmenize yardımcı olur. Bir ekip olarak bunları nasıl araştıracağınız ve kontrol altına alacağınız hakkında bilgi için [Kararsız testler](https://tuist.dev/solutions/flaky-tests) sayfasına bakın.
 
 <.home_cards>
   <.home_card
@@ -32,17 +32,17 @@ Kararsız testler, aynı kodla birden fazla kez çalıştırıldığında farkl�
 />
   <.home_card
     title="Elixir"
-    details="Test yeniden denemeleri ile Elixir projelerindeki kararsız testleri algılayın ve yönetin."
+    details="Test yeniden denemeleriyle Elixir projelerindeki kararsız testleri algılayın ve yönetin."
     link="/guides/features/test-insights/flaky-tests/elixir"
 />
   <.home_card
     title="Rust"
-    details="CI çalıştırmaları genelindeki sonuçları kullanarak kararsız Cargo testlerini algılayın ve inceleyin."
+    details="CI çalıştırmaları arasındaki sonuçları kullanarak kararsız Cargo testlerini algılayın ve araştırın."
     link="/guides/features/test-insights/flaky-tests/rust"
 />
   <.home_card
     title="Once"
-    details="Raporlanan yeniden deneme girişimleri ve CI geçmişi aracılığıyla tutarsız test sonuçlarını inceleyin."
+    details="Bildirilen yeniden deneme girişimleri ve CI geçmişi aracılığıyla tutarsız test sonuçlarını araştırın."
     link="/guides/features/test-insights/flaky-tests/once"
 />
 </.home_cards>

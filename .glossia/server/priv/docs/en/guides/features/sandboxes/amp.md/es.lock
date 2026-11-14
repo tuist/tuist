@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "7f8885f7ed2c7fdd45fba1d7f9100ebd4422b0dc4a3b7519a7d9048529e8034f",
+  "hash": "404a8e97249f5d6e89232f1e862d3ee0cc6ecedbc5217a66a9bc9efc6354569a",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,29 +11,38 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Amp {#amp}": {
-                  "content_hash": "10708babd23ca5432f53e7f8778119f06d5ff24a678b60f5e354c4ef9003e382"
+                  "content_hash": "bbb14cfac86918e87d51181c9de7fcc18e80ef65c459ab457c85f897ecba66ef"
                 },
                 "## Connect Amp {#connect}": {
-                  "content_hash": "972894d0c9b81e776256332325612bd5819a62bb2c2af648e896a32ea3e610d9"
+                  "content_hash": "33bb5d80f34d784430261e950a089638d0b93f880817e177c67e5405865dd7b9"
                 },
                 "## Pausing and retention {#retention}": {
-                  "content_hash": "9f44b5025262634cea89dccc8fbb44a8f90140ffb4e26607d4fea3c5fbfd4bfd"
+                  "content_hash": "112ff088a0fe019c510829062ffa469d865a454e90337716be13ea51a94c43c8"
                 },
                 "## Start a thread {#start-a-thread}": {
-                  "content_hash": "c028648ccad832eb74d47626415dec8ea2b8797156a07a3709ee2ea8bcff9d0b"
+                  "content_hash": "818f240103f51c7361571934d7e3015228ffe80b8bd9f7b288bf9820f6996a29"
+                },
+                "## Use a Mac from any Amp thread {#remote-mac}": {
+                  "content_hash": "6b3df3dcc98ea23142f2a78f4b2401562ab3b2c49c010aac02448b0bfb9f5398"
+                },
+                "### Set it up {#remote-mac-setup}": {
+                  "content_hash": "3309586796064ac506cbb309b8b460841fe67cf0f258cce12cb2889ae5c9031c"
+                },
+                "### Use Tuist Macs instead of Amp's macOS Satellites {#remote-mac-satellites}": {
+                  "content_hash": "9bce5a2c35751cf35f469f9483f46324ab0a75e142f50e93a8430f2a6be73a24"
                 },
                 "Preamble": {
-                  "content_hash": "2996b17a31da1432832d632b226643881236649c098b2b5a4cd4c432491b597d"
+                  "content_hash": "0162acb0ee070843ecf6f51fc7879f9696e0955a7ead29521e3f87675a624a84"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "cbdf7258d0824088efc90626149063bbc78c5708b8eccdac89c3eef4564ee92a",
+          "hash": "b1879ccf5785671c450bb3f94ce554222b12dd9ac330956c488f2bdef6ec5a6d",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
           "metadata": {
-            "content_hash": "085411627be45f0c2beb711a9410f005d8f345aabc6e2e8852db91c0c773bee0"
+            "content_hash": "1db5e26bd8fb8f18f9c67780d836fb6aeb0e9595b301ea8b2047d02ef4893c7a"
           }
         },
         {
@@ -233,14 +242,14 @@
         }
       ],
       "details": {},
-      "hash": "7f8885f7ed2c7fdd45fba1d7f9100ebd4422b0dc4a3b7519a7d9048529e8034f",
+      "hash": "404a8e97249f5d6e89232f1e862d3ee0cc6ecedbc5217a66a9bc9efc6354569a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "64c50fe9c6870e3fbd1c00b2f09003c18c891527d9789b97b901e5f89aadca89",
+  "output_hash": "91dea447b46b96a0137904cb51bdad2cb860de51bb608f95407aa6db0ac3dabd",
   "output_path": "server/priv/docs/es/guides/features/sandboxes/amp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -260,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
+  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/amp.md",
-  "translated_at": "2026-11-06T21:23:41.719121Z",
-  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
+  "translated_at": "2026-11-13T16:38:12.335083Z",
+  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
 }

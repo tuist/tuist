@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b3424551673b5e3386567f88ca36ada10a2f65e3e3eef4713141de633c0f6379",
+  "hash": "4e03347aabac9d4b0adfb01f0e4f74340684965b741caee4fc73f8258632b735",
   "hash_tree": {
     "root": {
       "children": [
@@ -12,6 +12,9 @@
               "sections": {
                 "# Xcode cache {#xcode-cache}": {
                   "content_hash": "c64333a3e647e86066125b7cd175649d8efe0faf0ee4b3490afce5965ff37ac3"
+                },
+                "## Related {#related}": {
+                  "content_hash": "6549046fa9874d10d3efca3fafe5b8cb02880f8c961929ebf10cc9b2699c0e2f"
                 },
                 "## Setup {#setup}": {
                   "content_hash": "4c73764b977610661f41765820e6125fa95d4029c229a4b79b7bfdda099b61b5"
@@ -50,13 +53,13 @@
                   "content_hash": "90088017b3aa1b18f0c64e0603cd100bcd9ce1639d9e1ed5c384586bdbfb9bbf"
                 },
                 "### Store size limit {#store-size-limit}": {
-                  "content_hash": "6ef3f8aeb863f2cdab351212aa6419d20cf63e4f53b6283907fd394bfb9a2a03"
+                  "content_hash": "e3cec901460259ae7b5656f87b536dc15dd069f2d96f680a6b4e40bcd6101939"
                 },
                 "### Updating the cache components {#updating-the-cache-components}": {
                   "content_hash": "87fd9f8f5cff540292ba4b6d86c8a6589144b94d0363d51500cd7d6282e0ff50"
                 },
                 "### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}": {
-                  "content_hash": "fe40442337c4f91709be8040cf901caab9af2065afcb4554a5ee799f88c3a347"
+                  "content_hash": "52afffe77b0ba18726b227e6d0d3c769407db761e1d7523ca9d7a0ff979580f1"
                 },
                 "#### Stateful store {#stateful-store}": {
                   "content_hash": "b33bb4f403a255f079113580560611d385e5ce78bac15c810678979f52f3f349"
@@ -68,11 +71,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2af81ec2e791dbcf51b4a520d9b63dc4cb1e08fcca90c569a503764ac9992c35",
+          "hash": "63cfadfbfec4c4b73f5fdd89e129204d175a5d84539d056744d9aafd0c6ef085",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
           "metadata": {
-            "content_hash": "de36cfcca0a006d84bd4b92d8ace735863796468c56a98c8250593ab5943d2e2"
+            "content_hash": "24771c51a25342387caea88516b65b244564fe2ea944e16afa00721462b6bc13"
           }
         },
         {
@@ -275,14 +278,14 @@
         }
       ],
       "details": {},
-      "hash": "b3424551673b5e3386567f88ca36ada10a2f65e3e3eef4713141de633c0f6379",
+      "hash": "4e03347aabac9d4b0adfb01f0e4f74340684965b741caee4fc73f8258632b735",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "b8eb5a93bff17bce159dddf3db0668c3307fc5d26e10ae6fc6f75d3aad0ef2fb",
+  "output_hash": "3a619e8b537b14e135a36ac331c0037f536581331840e005555edd01c2756b9e",
   "output_path": "server/priv/docs/yue_Hant/guides/features/cache/xcode-cache.md",
   "protection_state": "recorded",
   "provider": "",
@@ -303,8 +306,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "744d65dfb3825963232908275fa0210323b8c66b",
+  "source_commit_sha": "dcb02e10972686faa1931ae79ce7c5d67ec2ace7",
   "source_path": "server/priv/docs/en/guides/features/cache/xcode-cache.md",
-  "translated_at": "2026-11-06T17:45:01.790756Z",
-  "translation_session_id": "01a1b1ec-616e-7908-8b79-1e5087f3e863"
+  "translated_at": "2026-11-13T15:06:48.805160Z",
+  "translation_session_id": "01a1d570-b6b3-785a-85d5-7847a337c4c0"
 }

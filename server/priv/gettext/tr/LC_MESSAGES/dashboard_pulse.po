@@ -16,22 +16,22 @@ msgstr "Language: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "Additional data"
 msgstr "Ek veriler"
 
-#: lib/tuist_web/live/pulse_live.ex:963
+#: lib/tuist_web/live/pulse_live.ex:978
 #, elixir-autogen, elixir-format
 msgid "Affected services"
 msgstr "Etkilenen hizmetler"
 
-#: lib/tuist_web/live/pulse_live.ex:878
+#: lib/tuist_web/live/pulse_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
 msgstr "Seçilen dönemdeki hizmet adına sahip tüm günlük girdileri, tablo aramasından bağımsız olarak. Grafik, aralık başına girdi sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:912
+#: lib/tuist_web/live/pulse_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
 msgstr "Seçilen dönemdeki kaydedilmiş tüm span'ler, benzersiz izlemeler değil. Grafik, aralık başına span sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:932
+#: lib/tuist_web/live/pulse_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
 msgstr "Seçilen dönemin tamamı için span sürelerinin yaklaşık 95. yüzdelik değeri, milisaniye cinsinden. Grafik, aralık başına yüzdelik değeri gösterir."
@@ -41,7 +41,7 @@ msgstr "Seçilen dönemin tamamı için span sürelerinin yaklaşık 95. yüzdel
 msgid "Back to issue"
 msgstr "Soruna geri dön"
 
-#: lib/tuist_web/live/pulse_live.ex:977
+#: lib/tuist_web/live/pulse_live.ex:992
 #, elixir-autogen, elixir-format
 msgid "Check your query and time range, then try again."
 msgstr "Sorgunuzu ve zaman aralığını kontrol edip yeniden deneyin."
@@ -51,17 +51,17 @@ msgstr "Sorgunuzu ve zaman aralığını kontrol edip yeniden deneyin."
 msgid "Contexts"
 msgstr "Bağlamlar"
 
-#: lib/tuist_web/live/pulse_live.ex:966
+#: lib/tuist_web/live/pulse_live.ex:981
 #, elixir-autogen, elixir-format
 msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
 msgstr "Seçilen dönemde Sentry olayları içeren farklı adlandırılmış hizmetler. Grafik, aralığa göre etkilenen hizmetleri gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:718
+#: lib/tuist_web/live/pulse_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Duration (ms)"
 msgstr "Süre (ms)"
 
-#: lib/tuist_web/live/pulse_live.ex:300
+#: lib/tuist_web/live/pulse_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Each point is the p95 span duration for one interval, not an individual span."
 msgstr "Her nokta, tek bir aralık için p95 span süresini temsil eder; tek bir span'ı değil."
@@ -69,7 +69,7 @@ msgstr "Her nokta, tek bir aralık için p95 span süresini temsil eder; tek bir
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:271
 #: lib/tuist_web/live/pulse_error_live.ex:378
-#: lib/tuist_web/live/pulse_live.ex:752
+#: lib/tuist_web/live/pulse_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "Ortam"
@@ -86,23 +86,23 @@ msgstr "Hata ayrıntıları"
 msgid "Error details unavailable"
 msgstr "Hata ayrıntıları mevcut değil"
 
-#: lib/tuist_web/live/pulse_live.ex:943
+#: lib/tuist_web/live/pulse_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "Error events"
 msgstr "Hata olayları"
 
-#: lib/tuist_web/live/pulse_live.ex:885
+#: lib/tuist_web/live/pulse_live.ex:900
 #, elixir-autogen, elixir-format
 msgid "Error logs"
 msgstr "Hata günlükleri"
 
-#: lib/tuist_web/live/pulse_live.ex:919
+#: lib/tuist_web/live/pulse_live.ex:934
 #, elixir-autogen, elixir-format
 msgid "Error spans"
 msgstr "Hata aralıkları"
 
 #: lib/tuist_web/live/pulse_error_live.ex:87
-#: lib/tuist_web/live/pulse_live.ex:828
+#: lib/tuist_web/live/pulse_live.ex:838
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "Hatalar"
@@ -119,8 +119,8 @@ msgid "Event details"
 msgstr "Olay ayrıntıları"
 
 #: lib/tuist_web/live/pulse_error_live.ex:224
-#: lib/tuist_web/live/pulse_live.ex:506
-#: lib/tuist_web/live/pulse_live.ex:726
+#: lib/tuist_web/live/pulse_live.ex:516
+#: lib/tuist_web/live/pulse_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "Olaylar"
@@ -130,7 +130,7 @@ msgstr "Olaylar"
 msgid "Events in this period"
 msgstr "Bu dönemdeki olaylar"
 
-#: lib/tuist_web/live/pulse_live.ex:482
+#: lib/tuist_web/live/pulse_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Events over the selected period"
 msgstr "Seçilen dönemdeki olaylar"
@@ -145,7 +145,7 @@ msgstr "İstisna"
 msgid "External"
 msgstr "Harici"
 
-#: lib/tuist_web/live/pulse_live.ex:953
+#: lib/tuist_web/live/pulse_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Fatal events"
 msgstr "Kritik olaylar"
@@ -155,8 +155,8 @@ msgstr "Kritik olaylar"
 msgid "File"
 msgstr "Dosya"
 
-#: lib/tuist_web/live/pulse_live.ex:678
-#: lib/tuist_web/live/pulse_live.ex:727
+#: lib/tuist_web/live/pulse_live.ex:688
+#: lib/tuist_web/live/pulse_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "First seen"
 msgstr "İlk görüldüğü tarih"
@@ -171,7 +171,7 @@ msgstr "Bu dönemde ilk görülme"
 msgid "Function"
 msgstr "Fonksiyon"
 
-#: lib/tuist_web/live/pulse_live.ex:855
+#: lib/tuist_web/live/pulse_live.ex:870
 #, elixir-autogen, elixir-format
 msgid "Healthy targets"
 msgstr "Sağlıklı hedefler"
@@ -181,40 +181,40 @@ msgstr "Sağlıklı hedefler"
 msgid "In app"
 msgstr "Uygulama içinde"
 
-#: lib/tuist_web/live/pulse_live.ex:441
-#: lib/tuist_web/live/pulse_live.ex:724
+#: lib/tuist_web/live/pulse_live.ex:451
+#: lib/tuist_web/live/pulse_live.ex:734
 #, elixir-autogen, elixir-format
 msgid "Issue"
 msgstr "Sorun"
 
-#: lib/tuist_web/live/pulse_live.ex:709
+#: lib/tuist_web/live/pulse_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Labels"
 msgstr "Etiketler"
 
-#: lib/tuist_web/live/pulse_live.ex:836
+#: lib/tuist_web/live/pulse_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Last 15 minutes"
 msgstr "Son 15 dakika"
 
-#: lib/tuist_web/live/pulse_live.ex:838
+#: lib/tuist_web/live/pulse_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr "Son 24 saat"
 
-#: lib/tuist_web/live/pulse_live.ex:837
+#: lib/tuist_web/live/pulse_live.ex:852
 #, elixir-autogen, elixir-format
 msgid "Last 6 hours"
 msgstr "Son 6 saat"
 
-#: lib/tuist_web/live/pulse_live.ex:839
+#: lib/tuist_web/live/pulse_live.ex:854
 #, elixir-autogen, elixir-format
 msgid "Last hour"
 msgstr "Son saat"
 
 #: lib/tuist_web/live/pulse_error_live.ex:206
-#: lib/tuist_web/live/pulse_live.ex:677
-#: lib/tuist_web/live/pulse_live.ex:728
+#: lib/tuist_web/live/pulse_live.ex:687
+#: lib/tuist_web/live/pulse_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Last seen"
 msgstr "Son görülme"
@@ -224,50 +224,50 @@ msgstr "Son görülme"
 msgid "Latest event"
 msgstr "En son olay"
 
-#: lib/tuist_web/live/pulse_live.ex:710
+#: lib/tuist_web/live/pulse_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Latest value"
 msgstr "Son değer"
 
 #: lib/tuist_web/live/pulse_error_live.ex:177
 #: lib/tuist_web/live/pulse_error_live.ex:265
-#: lib/tuist_web/live/pulse_live.ex:735
-#: lib/tuist_web/live/pulse_live.ex:750
+#: lib/tuist_web/live/pulse_live.ex:745
+#: lib/tuist_web/live/pulse_live.ex:760
 #, elixir-autogen, elixir-format
 msgid "Level"
 msgstr "Seviye"
 
-#: lib/tuist_web/live/pulse_live.ex:875
+#: lib/tuist_web/live/pulse_live.ex:890
 #, elixir-autogen, elixir-format
 msgid "Log entries"
 msgstr "Günlük kayıtları"
 
-#: lib/tuist_web/live/pulse_live.ex:888
+#: lib/tuist_web/live/pulse_live.ex:903
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
 msgstr "Seçilen dönemde hata veya kritik olarak etiketlenmiş günlük kayıtları. Grafik, aralık başına düşen kayıt sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:898
+#: lib/tuist_web/live/pulse_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
 msgstr "Seçilen dönemde uyarı olarak etiketlenmiş günlük kayıtları. Grafik, aralık başına düşen kayıt sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:826
+#: lib/tuist_web/live/pulse_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr "Günlükler"
 
-#: lib/tuist_web/live/pulse_live.ex:736
+#: lib/tuist_web/live/pulse_live.ex:746
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr "Mesaj"
 
-#: lib/tuist_web/live/pulse_live.ex:708
+#: lib/tuist_web/live/pulse_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr "Metrik"
 
-#: lib/tuist_web/live/pulse_live.ex:825
+#: lib/tuist_web/live/pulse_live.ex:835
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr "Metrikler"
@@ -287,7 +287,7 @@ msgstr "Modüller"
 msgid "No exception recorded"
 msgstr "Kaydedilmiş istisna yok"
 
-#: lib/tuist_web/live/pulse_live.ex:315
+#: lib/tuist_web/live/pulse_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "No measurements in this period"
 msgstr "Bu dönemde ölçüm bulunmuyor"
@@ -302,13 +302,13 @@ msgstr "Bu dönemde olay gerçekleşmedi"
 msgid "No stack frames recorded"
 msgstr "Yığın çerçevesi kaydedilmedi"
 
-#: lib/tuist_web/live/pulse_live.ex:427
+#: lib/tuist_web/live/pulse_live.ex:437
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
 msgstr "Bu sorgu ve zaman aralığıyla eşleşen telemetri verisi yok."
 
 #: lib/tuist_web/live/pulse_error_live.ex:186
-#: lib/tuist_web/live/pulse_live.ex:665
+#: lib/tuist_web/live/pulse_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "Not recorded"
 msgstr "Kaydedilmedi"
@@ -330,7 +330,7 @@ msgstr "Oluşumlar"
 msgid "Origin"
 msgstr "Kaynak"
 
-#: lib/tuist_web/live/pulse_live.ex:234
+#: lib/tuist_web/live/pulse_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Period:"
 msgstr "Dönem:"
@@ -341,17 +341,17 @@ msgid "Platform"
 msgstr "Platform"
 
 #: lib/tuist_web/live/pulse_error_live.ex:115
-#: lib/tuist_web/live/pulse_live.ex:751
+#: lib/tuist_web/live/pulse_live.ex:761
 #, elixir-autogen, elixir-format
 msgid "Project"
 msgstr "Proje"
 
-#: lib/tuist_web/live/pulse_live.ex:990
+#: lib/tuist_web/live/pulse_live.ex:1005
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
 msgstr "Pulse bu sorguyu tamamlayamadı. Sorguyu ayarlayın veya tekrar denemek için yenileyin."
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "Pulse bu ayrıntıları yükleyemedi. Hatalar bölümüne dönüp tekrar deneyin."
@@ -359,55 +359,55 @@ msgstr "Pulse bu ayrıntıları yükleyemedi. Hatalar bölümüne dönüp tekrar
 #: lib/tuist_web/live/pulse_error_live.ex:127
 #: lib/tuist_web/live/pulse_error_live.ex:274
 #: lib/tuist_web/live/pulse_error_live.ex:382
-#: lib/tuist_web/live/pulse_live.ex:753
+#: lib/tuist_web/live/pulse_live.ex:763
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "Sürüm"
 
-#: lib/tuist_web/live/pulse_live.ex:845
+#: lib/tuist_web/live/pulse_live.ex:860
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
 msgstr "Raporlama hedefleri"
 
-#: lib/tuist_web/live/pulse_live.ex:228
+#: lib/tuist_web/live/pulse_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "Resume live"
 msgstr "Canlıyı devam ettir"
 
-#: lib/tuist_web/live/pulse_live.ex:717
+#: lib/tuist_web/live/pulse_live.ex:727
 #, elixir-autogen, elixir-format
 msgid "Root span"
 msgstr "Kök span"
 
-#: lib/tuist_web/live/pulse_live.ex:404
+#: lib/tuist_web/live/pulse_live.ex:414
 #, elixir-autogen, elixir-format
 msgid "Run query"
 msgstr "Sorguyu çalıştır"
 
-#: lib/tuist_web/live/pulse_live.ex:350
+#: lib/tuist_web/live/pulse_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Search telemetry"
 msgstr "Telemetri ara"
 
-#: lib/tuist_web/live/pulse_live.ex:349
+#: lib/tuist_web/live/pulse_live.ex:359
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr "Ara..."
 
-#: lib/tuist_web/live/pulse_live.ex:946
+#: lib/tuist_web/live/pulse_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
 msgstr "Seçilen dönemdeki Sentry olayları, gruplandırılmış sorunlar değil. Grafik, aralık başına olay sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:956
+#: lib/tuist_web/live/pulse_live.ex:971
 #, elixir-autogen, elixir-format
 msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
 msgstr "Seçilen dönemde fatal olarak etiketlenen Sentry olayları. Grafik, aralık başına olay sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:716
-#: lib/tuist_web/live/pulse_live.ex:725
-#: lib/tuist_web/live/pulse_live.ex:734
-#: lib/tuist_web/live/pulse_live.ex:749
+#: lib/tuist_web/live/pulse_live.ex:726
+#: lib/tuist_web/live/pulse_live.ex:735
+#: lib/tuist_web/live/pulse_live.ex:744
+#: lib/tuist_web/live/pulse_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Service"
 msgstr "Hizmet"
@@ -417,12 +417,12 @@ msgstr "Hizmet"
 msgid "Span ID"
 msgstr "Span ID"
 
-#: lib/tuist_web/live/pulse_live.ex:909
+#: lib/tuist_web/live/pulse_live.ex:924
 #, elixir-autogen, elixir-format
 msgid "Spans"
 msgstr "Span'ler"
 
-#: lib/tuist_web/live/pulse_live.ex:922
+#: lib/tuist_web/live/pulse_live.ex:937
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
 msgstr "Seçilen dönemde hata durumuna sahip span'ler. Grafik, aralık başına span sayısını gösterir."
@@ -432,7 +432,7 @@ msgstr "Seçilen dönemde hata durumuna sahip span'ler. Grafik, aralık başına
 msgid "Stack trace"
 msgstr "Yığın izleme"
 
-#: lib/tuist_web/live/pulse_live.ex:715
+#: lib/tuist_web/live/pulse_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
 msgstr "Başlangıç (UTC)"
@@ -442,76 +442,76 @@ msgstr "Başlangıç (UTC)"
 msgid "Tags"
 msgstr "Etiketler"
 
-#: lib/tuist_web/live/pulse_live.ex:864
+#: lib/tuist_web/live/pulse_live.ex:879
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
 msgstr "Dönem sonunda up = 0 raporlayan hedefler. Eksik örnekler sağlıksız olarak sayılmaz."
 
-#: lib/tuist_web/live/pulse_live.ex:857
+#: lib/tuist_web/live/pulse_live.ex:872
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
 msgstr "Dönem sonunda up = 1 raporlayan hedefler."
 
-#: lib/tuist_web/live/pulse_live.ex:848
+#: lib/tuist_web/live/pulse_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
 msgstr "Dönem sonunda up örneği olan hedefler. Grafik, zaman içindeki hedef sayısını gösterir."
 
-#: lib/tuist_web/live/pulse_live.ex:536
+#: lib/tuist_web/live/pulse_live.ex:546
 #, elixir-autogen, elixir-format
 msgid "Telemetry pages"
 msgstr "Telemetri sayfaları"
 
-#: lib/tuist_web/live/pulse_live.ex:411
+#: lib/tuist_web/live/pulse_live.ex:421
 #, elixir-autogen, elixir-format
 msgid "Telemetry unavailable"
 msgstr "Telemetri kullanılamıyor"
 
-#: lib/tuist_web/live/pulse_live.ex:974
+#: lib/tuist_web/live/pulse_live.ex:989
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
 msgstr "Pulse bağlantısı yapılandırılmamış. Yöneticinizle iletişime geçin."
 
-#: lib/tuist_web/live/pulse_live.ex:987
+#: lib/tuist_web/live/pulse_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "The results changed while loading. Resume live or retry the query."
 msgstr "Yükleme sırasında sonuçlar değişti. Canlı akışı sürdürün veya sorguyu yeniden deneyin."
 
-#: lib/tuist_web/live/pulse_error_live.ex:586
+#: lib/tuist_web/live/pulse_error_live.ex:590
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "Seçilen dönemde bu sorun veya olay bulunamadı."
 
-#: lib/tuist_web/live/pulse_live.ex:981
+#: lib/tuist_web/live/pulse_live.ex:996
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
 msgstr "Bu sorgu sonuç sınırını aşıyor. Zaman aralığını veya yerel sorguyu daraltıp tekrar deneyin."
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:262
-#: lib/tuist_web/live/pulse_live.ex:733
+#: lib/tuist_web/live/pulse_live.ex:743
 #, elixir-autogen, elixir-format
 msgid "Time (UTC)"
 msgstr "Zaman (UTC)"
 
 #: lib/tuist_web/live/pulse_error_live.ex:136
-#: lib/tuist_web/live/pulse_live.ex:719
-#: lib/tuist_web/live/pulse_live.ex:737
+#: lib/tuist_web/live/pulse_live.ex:729
+#: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Trace ID"
 msgstr "İzleme Kimliği"
 
-#: lib/tuist_web/live/pulse_live.ex:827
+#: lib/tuist_web/live/pulse_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Traces"
 msgstr "İzlemeler"
 
-#: lib/tuist_web/live/pulse_live.ex:479
+#: lib/tuist_web/live/pulse_live.ex:489
 #, elixir-autogen, elixir-format
 msgid "Trend"
 msgstr "Trend"
 
-#: lib/tuist_web/live/pulse_live.ex:861
+#: lib/tuist_web/live/pulse_live.ex:876
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
 msgstr "Sağlıksız hedefler"
@@ -526,32 +526,38 @@ msgstr "Sürüm"
 msgid "View event"
 msgstr "Olayı görüntüle"
 
-#: lib/tuist_web/live/pulse_live.ex:895
+#: lib/tuist_web/live/pulse_live.ex:910
 #, elixir-autogen, elixir-format
 msgid "Warning logs"
 msgstr "Uyarı günlükleri"
 
-#: lib/tuist_web/live/pulse_live.ex:929
+#: lib/tuist_web/live/pulse_live.ex:944
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
 msgstr "p95 span süresi"
 
-#: lib/tuist_web/live/pulse_live.ex:587
+#: lib/tuist_web/live/pulse_live.ex:597
 #, elixir-autogen, elixir-format
 msgid "vs previous 15 minutes"
 msgstr "önceki 15 dakikaya kıyasla"
 
-#: lib/tuist_web/live/pulse_live.ex:589
+#: lib/tuist_web/live/pulse_live.ex:599
 #, elixir-autogen, elixir-format
 msgid "vs previous 24 hours"
 msgstr "önceki 24 saate kıyasla"
 
-#: lib/tuist_web/live/pulse_live.ex:588
+#: lib/tuist_web/live/pulse_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "vs previous 6 hours"
 msgstr "önceki 6 saate kıyasla"
 
-#: lib/tuist_web/live/pulse_live.ex:590
+#: lib/tuist_web/live/pulse_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "vs previous hour"
 msgstr "önceki saate kıyasla"
+
+#: lib/tuist_web/live/pulse_live.ex:842
+#: lib/tuist_web/live/pulse_live.ex:845
+#, elixir-autogen, elixir-format
+msgid "Text search (* for all)"
+msgstr "Metin arama (* tümü için)"
