@@ -22,7 +22,6 @@
 [case]
 name = "promql_long_range_rate"
 description = "PromQL long-window rate latency regression for #9070 over six hours of 15-second samples"
-issue = "https://github.com/GreptimeTeam/greptimedb/issues/9070"
 
 [scenario]
 kind = "direct_readable_sst"

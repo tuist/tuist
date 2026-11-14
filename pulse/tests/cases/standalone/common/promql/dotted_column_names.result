@@ -1,4 +1,3 @@
--- https://github.com/GreptimeTeam/greptimedb/issues/9390
 -- Tag, field and time index names containing dots or upper case letters must
 -- be resolved as plain column names, not as `relation.column`. `Host` and `host`
 -- hold different values, so reading one for the other changes the output.

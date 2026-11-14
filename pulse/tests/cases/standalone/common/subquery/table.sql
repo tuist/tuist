@@ -58,12 +58,11 @@ SELECT * FROM (SELECT 42 a), (SELECT 43 b), (SELECT 44 c), (SELECT 45 d);
 
 SELECT * FROM (SELECT * FROM (SELECT 42 a), (SELECT 43 b)) JOIN (SELECT 44 c) ON (true) JOIN (SELECT 45 d) ON (true);
 
--- skipped, unsupported feature: unnamed_subquery, see also:
--- https://github.com/GreptimeTeam/greptimedb/issues/5012
+-- skipped, unsupported feature: unnamed_subquery
 -- SELECT * FROM (SELECT unnamed_subquery.a FROM (SELECT 42 a)), (SELECT unnamed_subquery.b FROM (SELECT 43 b));
 -- SELECT unnamed_subquery.a, unnamed_subquery2.b FROM (SELECT 42 a), (SELECT 43 b);
 
--- Regression test for https://github.com/GreptimeTeam/greptimedb/issues/9260:
+-- Regression test:
 -- nested scalar subqueries in the projection must not hit
 -- "Unsupported operation: get stream from a distributed table".
 CREATE TABLE nested_scalar (k INT, v BIGINT, ts TIMESTAMP TIME INDEX);

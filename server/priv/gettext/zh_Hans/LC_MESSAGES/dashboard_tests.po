@@ -2180,7 +2180,7 @@ msgstr "此目标的运行器未生成 test.xml，因此无法提供每个测试
 #: lib/tuist_web/live/coverage_detail_live.ex:47
 #: lib/tuist_web/live/coverage_detail_live.ex:127
 #: lib/tuist_web/live/coverage_detail_live.html.heex:107
-#: lib/tuist_web/live/coverage_file_live.ex:243
+#: lib/tuist_web/live/coverage_file_live.ex:242
 #: lib/tuist_web/live/coverage_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
@@ -2190,7 +2190,7 @@ msgstr "代码覆盖率"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
-#: lib/tuist_web/live/coverage_file_live.ex:205
+#: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:180
 #: lib/tuist_web/live/coverage_live.html.heex:79
 #: lib/tuist_web/live/coverage_live.html.heex:137
@@ -2202,7 +2202,7 @@ msgstr "覆盖率"
 #: lib/tuist_web/live/coverage/components.ex:782
 #: lib/tuist_web/live/coverage/components.ex:932
 #: lib/tuist_web/live/coverage_detail_live.html.heex:119
-#: lib/tuist_web/live/coverage_file_live.ex:203
+#: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Covered lines"
@@ -2220,7 +2220,7 @@ msgstr "可执行行"
 msgid "Executable lines the tests ran at least once."
 msgstr "测试至少运行过一次的可执行行。"
 
-#: lib/tuist_web/live/coverage_file_live.ex:204
+#: lib/tuist_web/live/coverage_file_live.ex:203
 #: lib/tuist_web/live/coverage_file_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Executions"
@@ -2236,7 +2236,7 @@ msgstr "执行次数"
 msgid "Files"
 msgstr "文件"
 
-#: lib/tuist_web/live/coverage_file_live.ex:201
+#: lib/tuist_web/live/coverage_file_live.ex:200
 #: lib/tuist_web/live/coverage_file_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Function"
@@ -2253,7 +2253,7 @@ msgstr "函数"
 msgid "Functions the compiler instrumented in the file."
 msgstr "编译器在该文件中插桩的函数。"
 
-#: lib/tuist_web/live/coverage_file_live.ex:202
+#: lib/tuist_web/live/coverage_file_live.ex:201
 #: lib/tuist_web/live/coverage_file_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Line"
@@ -2392,16 +2392,9 @@ msgstr "分支："
 msgid "Change"
 msgstr "变更"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:42
-#: lib/tuist_web/live/coverage_file_live.ex:34
-#: lib/tuist_web/live/coverage_live.ex:47
-#, elixir-autogen, elixir-format
-msgid "Code coverage is not enabled for this account."
-msgstr "此账户未启用代码覆盖率。"
-
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:573
-#: lib/tuist_web/live/coverage_file_live.ex:236
+#: lib/tuist_web/live/coverage_file_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
 msgstr "提交 %{name}"
@@ -3283,3 +3276,10 @@ msgstr "软件包"
 #, elixir-autogen, elixir-format
 msgid "Module name"
 msgstr "模块名称"
+
+#: lib/tuist_web/live/coverage_detail_live.ex:42
+#: lib/tuist_web/live/coverage_file_live.ex:33
+#: lib/tuist_web/live/coverage_live.ex:47
+#, elixir-autogen, elixir-format
+msgid "Code coverage isn't available for this project's build system."
+msgstr "该项目的构建系统不支持代码覆盖率。"

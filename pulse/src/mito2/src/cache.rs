@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Cache for the engine.
 
 pub(crate) mod cache_size;
@@ -178,7 +180,7 @@ impl RangeResultMemoryLimiter {
 
 /// Cached SST metadata combines the parquet footer with the decoded region metadata.
 ///
-/// The cached parquet footer strips the `greptime:metadata` JSON payload and stores the decoded
+/// The cached parquet footer strips the `pulse:metadata` JSON payload and stores the decoded
 /// [RegionMetadata] separately so readers can skip repeated deserialization work.
 #[derive(Debug)]
 pub(crate) struct CachedSstMeta {

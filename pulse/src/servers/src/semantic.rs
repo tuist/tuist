@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Per-table semantic metadata accumulated during one ingest pass (OTLP
 //! metrics, Prometheus remote write v2).
 //!
 //! Each written table collects the scalar semantic keys its wire metadata
 //! declares (an OTLP histogram fans out into `_bucket`/`_sum`/`_count`
 //! companions; a remote write series names one metric family). The resulting
-//! index is serialized onto the `greptime.internal.semantic.per_table_index`
+//! index is serialized onto the `pulse.internal.semantic.per_table_index`
 //! context extension as `{schema -> {table -> {key -> value}}}` and folded into
 //! each table's options at auto-create time.
 //!
@@ -30,7 +32,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use table::requests::{SEMANTIC_VALUE_MIXED, SEMANTIC_VALUE_UNKNOWN, validate_semantic_option};
 
-// `greptime.semantic.metric.type` values stamped per emitted table. Must stay
+// `pulse.semantic.metric.type` values stamped per emitted table. Must stay
 // within the domain accepted by `validate_semantic_option`; the drift-guard test
 // asserts this.
 pub const METRIC_TYPE_COUNTER: &str = "counter";
@@ -43,7 +45,7 @@ pub const METRIC_TYPE_INFO: &str = "info";
 pub const METRIC_TYPE_STATESET: &str = "stateset";
 
 /// Maps an OpenMetrics unit name (open vocabulary full words: `seconds`,
-/// `bytes`) to the UCUM code the `greptime.semantic.metric.unit` option is
+/// `bytes`) to the UCUM code the `pulse.semantic.metric.unit` option is
 /// defined in. Only the OpenMetrics base units are mapped; anything else is
 /// dropped — a missing unit beats a corrupted cross-protocol vocabulary.
 pub fn openmetrics_unit_to_ucum(unit: &str) -> Option<&'static str> {

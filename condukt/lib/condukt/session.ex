@@ -223,6 +223,10 @@ defmodule Condukt.Session do
   @doc """
   Runs a prompt synchronously, returning the final response.
 
+  Returns `{:error, :already_streaming}` while another caller's turn runs. A
+  turn started from queued input, such as a follow-up or a background
+  sub-agent's report, has no caller, so the prompt waits for it instead.
+
   Returns `{:error, {:session_exit, reason}}` when the session process cannot
   complete the call because it exits, is missing, or exceeds the call timeout.
   """
@@ -283,8 +287,7 @@ defmodule Condukt.Session do
     Stream.resource(
       fn ->
         ref = make_ref()
-        :ok = GenServer.call(agent, {:subscribe, self(), ref})
-        :ok = GenServer.cast(agent, {:stream, prompt, opts, ref})
+        :ok = stream_to(agent, prompt, opts, ref)
         ref
       end,
       fn ref ->
@@ -303,6 +306,57 @@ defmodule Condukt.Session do
         GenServer.cast(agent, {:unsubscribe, self(), ref})
       end
     )
+  end
+
+  @doc false
+  # Subscribes the caller under `ref` and starts a streaming turn, for callers
+  # that consume the events themselves, such as a foreground sub-agent call.
+  def stream_to(agent, prompt, opts, ref) do
+    :ok = GenServer.call(agent, {:subscribe, self(), ref})
+    GenServer.cast(agent, {:stream, prompt, opts, ref})
+  end
+
+  @doc false
+  # Records work a tool call started as owned by the turn that made the call,
+  # so aborting the turn aborts it first. Returns `{:error, :aborted}` when that
+  # turn is already over; the caller then stops the work itself.
+  def own(%{agent: session, turn_ref: turn_ref}, owned) when is_pid(session) and is_reference(turn_ref) do
+    GenServer.call(session, {:own, turn_ref, owned}, :infinity)
+  end
+
+  def own(_tool_context, _owned), do: :ok
+
+  @doc false
+  # Publishes an event from a sub-agent where the session's own events go: the
+  # streaming turn `turn_ref` names, or with `nil` the notifier only, for
+  # background sub-agents that outlive the turn that started them.
+  def forward_event(session, turn_ref, event) do
+    GenServer.cast(session, {:subagent_event, turn_ref, event})
+  end
+
+  @doc false
+  # Whether a turn runs or input other than reports waits to start one.
+  def busy?(agent) do
+    GenServer.call(agent, :busy?)
+  end
+
+  @doc false
+  # Whether queued input starts turns here, which only native loops do.
+  def native_runtime?(agent) do
+    GenServer.call(agent, :native_runtime?)
+  end
+
+  @doc false
+  # Queues a background sub-agent's report as input under `tag`. It starts a
+  # turn when the session is idle, or follows the current one, and an abort
+  # keeps it. `withdraw_report/2` removes it while it still waits.
+  def report(session, tag, text) do
+    GenServer.cast(session, {:report, tag, text})
+  end
+
+  @doc false
+  def withdraw_report(session, tag) do
+    GenServer.cast(session, {:withdraw_report, tag})
   end
 
   @doc """
@@ -357,6 +411,9 @@ defmodule Condukt.Session do
 
   @doc """
   Injects a steering message.
+
+  A running native turn takes it before its next model request, after the
+  current tool round. An idle session starts a turn with it.
   """
   def steer(agent, message) do
     GenServer.call(agent, {:steer, message})
@@ -364,6 +421,10 @@ defmodule Condukt.Session do
 
   @doc """
   Queues a follow-up message.
+
+  It starts a turn once the running turn finishes, or at once when the session
+  is idle. Turns started this way stream their events to the notifier and
+  `handle_event/2`. Aborting withdraws queued messages.
   """
   def follow_up(agent, message) do
     GenServer.call(agent, {:follow_up, message})
@@ -419,7 +480,7 @@ defmodule Condukt.Session do
               },
               configured_system_prompt: configured_system_prompt,
               system_prompt: Context.compose_system_prompt(configured_system_prompt, project_context.prompt),
-              tools: maybe_inject_subagent_tool(tools, subagents),
+              tools: tools ++ Subagent.tools(subagents, subagent_supervisor),
               subagents: subagents,
               subagent_supervisor: subagent_supervisor,
               cwd: cwd,
@@ -533,29 +594,17 @@ defmodule Condukt.Session do
     DynamicSupervisor.start_link(strategy: :one_for_one)
   end
 
-  defp maybe_inject_subagent_tool(tools, []), do: tools
-
-  defp maybe_inject_subagent_tool(tools, subagents) do
-    tools ++ [{Subagent, subagents: subagents}]
-  end
-
   @impl true
   def handle_call({:run, prompt, opts}, from, state) do
-    if state.turn.streaming or not is_nil(state.compaction.waiter) do
-      {:reply, {:error, :already_streaming}, state}
-    else
-      state = %{state | turn: Turn.start(state.turn, {:run, from}, length(state.messages))}
-      parent = self()
-      trace_context = TraceContext.capture(opts)
+    cond do
+      state.turn.streaming and state.turn.queued ->
+        {:noreply, %{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:run, from}})}}
 
-      {:ok, worker} =
-        Task.start(fn ->
-          TraceContext.attach(trace_context)
-          result = do_run(state, prompt, opts)
-          GenServer.cast(parent, {:run_complete, state.turn.abort_ref, from, result})
-        end)
+      state.turn.streaming or not is_nil(state.compaction.waiter) ->
+        {:reply, {:error, :already_streaming}, state}
 
-      {:noreply, %{state | turn: %{state.turn | worker: worker}}}
+      true ->
+        {:noreply, start_run(state, prompt, opts, from)}
     end
   end
 
@@ -581,11 +630,36 @@ defmodule Condukt.Session do
     compaction = %{Compaction.cancel(state.compaction) | attempted: nil, usage: nil}
     state = %{state | messages: [], compaction: compaction}
     persist_or_clear_snapshot(state, :clear)
-    {:reply, :ok, state}
+    {:reply, :ok, maybe_start_queued_turn(state)}
   end
 
   def handle_call(:abort, _from, state) do
-    {:reply, :ok, abort_turn(state)}
+    {:reply, :ok, state |> abort_turn() |> maybe_start_queued_turn()}
+  end
+
+  def handle_call({:own, ref, owned}, _from, state) do
+    if state.turn.streaming and ref == state.turn.abort_ref do
+      {:reply, :ok, %{state | turn: Turn.own(state.turn, owned)}}
+    else
+      {:reply, {:error, :aborted}, state}
+    end
+  end
+
+  def handle_call({:take_steering, ref}, _from, state) do
+    if state.turn.streaming and ref == state.turn.abort_ref do
+      {steering, turn} = Turn.take_steering(state.turn)
+      {:reply, {:ok, steering}, %{state | turn: turn}}
+    else
+      {:reply, {:error, :aborted}, state}
+    end
+  end
+
+  def handle_call(:busy?, _from, state) do
+    {:reply, state.turn.streaming or Turn.input_waiting?(state.turn), state}
+  end
+
+  def handle_call(:native_runtime?, _from, state) do
+    {:reply, match?({Native, _}, state.runtime), state}
   end
 
   def handle_call({:check_turn, ref}, _from, state) do
@@ -622,15 +696,19 @@ defmodule Condukt.Session do
 
   def handle_call({:steer, message}, _from, state) do
     msg = Message.user(message)
-    {:reply, :ok, %{state | turn: Turn.steer(state.turn, msg)}}
+    {:reply, :ok, maybe_start_queued_turn(%{state | turn: Turn.steer(state.turn, msg)})}
   end
 
   def handle_call({:follow_up, message}, _from, state) do
     msg = Message.user(message)
-    {:reply, :ok, %{state | turn: Turn.follow_up(state.turn, msg)}}
+    {:reply, :ok, maybe_start_queued_turn(%{state | turn: Turn.follow_up(state.turn, msg)})}
   end
 
   @impl true
+  def handle_cast({:stream, prompt, opts, subscriber_ref}, state) when state.turn.streaming and state.turn.queued do
+    {:noreply, %{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:stream, subscriber_ref}})}}
+  end
+
   def handle_cast({:stream, _prompt, _opts, subscriber_ref}, state)
       when state.turn.streaming or not is_nil(state.compaction.waiter) do
     broadcast_subscribers(state, subscriber_ref, {:error, :already_streaming})
@@ -639,9 +717,15 @@ defmodule Condukt.Session do
   end
 
   def handle_cast({:stream, prompt, opts, subscriber_ref}, state) do
-    state = %{state | turn: Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))}
-    {:ok, worker} = start_stream_task(state, prompt, opts, subscriber_ref)
-    {:noreply, %{state | turn: %{state.turn | worker: worker}}}
+    {:noreply, start_stream(state, prompt, opts, subscriber_ref)}
+  end
+
+  def handle_cast({:report, tag, text}, state) do
+    {:noreply, maybe_start_queued_turn(%{state | turn: Turn.report(state.turn, tag, Message.user(text))})}
+  end
+
+  def handle_cast({:withdraw_report, tag}, state) do
+    {:noreply, %{state | turn: Turn.withdraw_report(state.turn, tag)}}
   end
 
   def handle_cast({:unsubscribe, pid, ref}, state) do
@@ -657,6 +741,20 @@ defmodule Condukt.Session do
     else
       {:noreply, state}
     end
+  end
+
+  def handle_cast({:subagent_event, nil, event}, state) do
+    Notifier.publish(state.notifier, state.id, event)
+    {:noreply, state}
+  end
+
+  def handle_cast({:subagent_event, turn_ref, event}, state) do
+    case state.turn.recipient do
+      {:stream, ref} when turn_ref == state.turn.abort_ref -> broadcast(state, ref, event)
+      _other -> :ok
+    end
+
+    {:noreply, state}
   end
 
   def handle_cast({:compaction_usage, ref, response, messages}, state) do
@@ -688,7 +786,7 @@ defmodule Condukt.Session do
       if match?({:ok, _}, result) or not Compaction.enabled?(state.compaction), do: maybe_compact(state), else: state
 
     persist_snapshot(state)
-    {:noreply, state}
+    {:noreply, maybe_start_queued_turn(state)}
   end
 
   def handle_cast({:stream_complete, turn_ref, ref, result}, state) do
@@ -703,12 +801,12 @@ defmodule Condukt.Session do
     broadcast(state, ref, :done)
     state = %{state | turn: Turn.finish(state.turn), messages: messages, assigns: assigns} |> maybe_compact()
     persist_snapshot(state)
-    {:noreply, state}
+    {:noreply, maybe_start_queued_turn(state)}
   end
 
   def handle_cast({:stream_complete, ref, _result}, state) do
     broadcast(state, ref, :done)
-    {:noreply, %{state | turn: Turn.finish(state.turn)}}
+    {:noreply, maybe_start_queued_turn(%{state | turn: Turn.finish(state.turn)})}
   end
 
   @impl true
@@ -859,7 +957,8 @@ defmodule Condukt.Session do
   end
 
   defp agent_loop(state, messages, max_turns, turn) do
-    with {:ok, messages} <- compaction_checkpoint(state, messages) do
+    with {:ok, messages} <- take_steering(state, messages),
+         {:ok, messages} <- compaction_checkpoint(state, messages) do
       agent_turn(state, messages, max_turns, turn)
     end
   end
@@ -913,18 +1012,38 @@ defmodule Condukt.Session do
   end
 
   defp streaming_loop(%{turn: %{abort_ref: abort_ref}} = state, messages, max_turns, turn, emit, abort_ref) do
-    case compaction_checkpoint(state, messages) do
-      {:ok, messages} ->
-        emit.(:turn_start)
-        stream_turn(state, messages, max_turns, turn, emit, abort_ref)
-
-      {:error, reason} ->
-        emit_stream_error(emit, reason)
+    with {:ok, messages} <- take_steering(state, messages),
+         {:ok, messages} <- compaction_checkpoint(state, messages) do
+      emit.(:turn_start)
+      stream_turn(state, messages, max_turns, turn, emit, abort_ref)
+    else
+      {:error, reason} -> emit_stream_error(emit, reason)
     end
   end
 
   defp streaming_loop(_state, _messages, _max_turns, _turn, _emit, _abort_ref) do
     {:error, :aborted}
+  end
+
+  defp start_run(state, prompt, opts, from) do
+    state = %{state | turn: Turn.start(state.turn, {:run, from}, length(state.messages))}
+    parent = self()
+    trace_context = TraceContext.capture(opts)
+
+    {:ok, worker} =
+      Task.start(fn ->
+        TraceContext.attach(trace_context)
+        result = do_run(state, prompt, opts)
+        GenServer.cast(parent, {:run_complete, state.turn.abort_ref, from, result})
+      end)
+
+    %{state | turn: %{state.turn | worker: worker}}
+  end
+
+  defp start_stream(state, prompt, opts, subscriber_ref) do
+    state = %{state | turn: Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))}
+    {:ok, worker} = start_stream_task(state, prompt, opts, subscriber_ref)
+    %{state | turn: %{state.turn | worker: worker}}
   end
 
   defp start_stream_task(state, prompt, opts, subscriber_ref) do
@@ -1230,16 +1349,21 @@ defmodule Condukt.Session do
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp execute_known_tool({module, opts}, args, state, id) do
-    execute_tool_spec({module, opts}, args, tool_context(state, opts), id)
+    execute_tool_spec({module, opts}, args, tool_context(state, opts, id), id)
   end
 
   defp execute_known_tool(tool_spec, args, state, id) do
-    execute_tool_spec(tool_spec, args, tool_context(state, []), id)
+    execute_tool_spec(tool_spec, args, tool_context(state, [], id), id)
   end
 
-  defp tool_context(state, opts) do
+  defp tool_context(state, opts, tool_call_id \\ nil) do
     %{
       session_id: state.id,
+      tool_call_id: tool_call_id,
+      # Identify the turn making the call, for work it starts that must not
+      # outlive it, and whether that turn streams events.
+      turn_ref: state.turn.abort_ref,
+      stream?: match?({:stream, _}, state.turn.recipient),
       agent: state.pid,
       agent_module: state.agent_module,
       sandbox: state.sandbox,
@@ -1308,7 +1432,7 @@ defmodule Condukt.Session do
         %{state | user_state: user_state}
 
       {:stop, _reason, user_state} ->
-        abort_turn(%{state | user_state: user_state})
+        %{state | user_state: user_state} |> abort_turn() |> maybe_start_queued_turn()
     end
   end
 
@@ -1477,7 +1601,7 @@ defmodule Condukt.Session do
     case compaction_checkpoint_reply(state, from, overhead, metadata, phase) do
       {:reply, result, state} ->
         GenServer.reply(from, result)
-        {:noreply, state}
+        {:noreply, maybe_start_queued_turn(state)}
 
       {:noreply, state} ->
         {:noreply, state}
@@ -1514,6 +1638,8 @@ defmodule Condukt.Session do
   defp abort_turn(state) do
     state = release_compaction_waiter(state, {:error, :aborted})
     if state.turn.worker, do: send(state.turn.worker, {:abort, state.turn.abort_ref})
+    # Bottom-up: what the turn owns is aborted before its own caller hears.
+    Enum.each(state.turn.owned, &abort_owned(&1, state.turn.abort_ref))
 
     case state.turn.recipient do
       {:run, from} ->
@@ -1527,7 +1653,56 @@ defmodule Condukt.Session do
         :ok
     end
 
+    # Pending callers never started, so only they hear, not the notifier.
+    Enum.each(state.turn.pending, fn
+      {_prompt, _opts, {:run, from}} ->
+        GenServer.reply(from, {:error, :aborted})
+
+      {_prompt, _opts, {:stream, ref}} ->
+        broadcast_subscribers(state, ref, {:error, :aborted})
+        broadcast_subscribers(state, ref, :done)
+    end)
+
     %{state | turn: Turn.abort(state.turn)}
+  end
+
+  defp abort_owned({:session, pid}, _turn_ref) do
+    GenServer.call(pid, :abort)
+  catch
+    :exit, _reason -> :ok
+  end
+
+  defp abort_owned({:process, pid}, turn_ref), do: send(pid, {:abort, turn_ref})
+
+  # Starts the next queued input when the session is idle. A pending caller
+  # gets the turn it asked for. Nobody waits on a turn started from a queued
+  # message, so it streams to the notifier and the agent's `handle_event/2`
+  # only. Other runtimes cannot stream, so input queued for them keeps
+  # waiting, as before.
+  defp maybe_start_queued_turn(%{runtime: {Native, _}} = state)
+       when not state.turn.streaming and is_nil(state.compaction.waiter) do
+    case Turn.next_input(state.turn) do
+      {nil, _turn} ->
+        state
+
+      {{prompt, opts, {:run, from}}, turn} ->
+        start_run(%{state | turn: turn}, prompt, opts, from)
+
+      {{prompt, opts, {:stream, ref}}, turn} ->
+        start_stream(%{state | turn: turn}, prompt, opts, ref)
+
+      {%Message{} = message, turn} ->
+        state = start_stream(%{state | turn: turn}, message.content, [images: message.images], make_ref())
+        %{state | turn: %{state.turn | queued: true}}
+    end
+  end
+
+  defp maybe_start_queued_turn(state), do: state
+
+  defp take_steering(state, messages) do
+    with {:ok, steering} <- GenServer.call(state.pid, {:take_steering, state.turn.abort_ref}, :infinity) do
+      {:ok, messages ++ steering}
+    end
   end
 
   defp wait_for_retry(state, delay) do

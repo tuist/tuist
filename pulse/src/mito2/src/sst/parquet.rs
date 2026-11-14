@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! SST in parquet format.
 
 use std::collections::BTreeMap;
@@ -51,7 +53,7 @@ pub(crate) mod stats;
 pub mod writer;
 
 /// Key of metadata in parquet SST.
-pub const PARQUET_METADATA_KEY: &str = "greptime:metadata";
+pub const PARQUET_METADATA_KEY: &str = "pulse:metadata";
 
 /// Default batch size to read parquet files.
 ///

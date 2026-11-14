@@ -55,6 +55,10 @@ on:
         description: Staging only. Also report non-secret account enrollment and serving images during backend qualification
         type: boolean
         default: false
+      reset:
+        description: Delete this environment's Pulse release, volumes and S3 data, then install it from empty. Loses all Pulse history.
+        type: boolean
+        default: false
   # pulse-production-deployment.yml's continuous deploy legs.
   workflow_call:
     inputs:
@@ -354,6 +358,59 @@ jobs:
           [[ "$phase" == Succeeded ]]
           kubectl -n observability delete pod "$STORAGE_POD" --wait=true --timeout=30s > /dev/null
           kubectl -n observability delete externalsecret "$STORAGE_POD" --wait=true --timeout=30s > /dev/null
+      # Dispatch only. Pulse fixes each region's WAL topic and on-disk names at
+      # creation, so moving them means starting from empty. Collectors buffer
+      # and retry while the release is gone; the identities (pulse-auth and the
+      # ExternalSecrets' 1Password items) survive and are reused.
+      - name: Reset the backend to empty
+        if: inputs.reset
+        env:
+          AWS_CLI_IMAGE: amazon/aws-cli:2.40.3@sha256:33a16c53ea442e918b58df67301ad76a8fb57082c39f7e78753b898c3f3e87c2
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/pulse-deploy"
+          if [[ -n "$(kubectl -n observability get statefulset pulse --ignore-not-found -o name)" ]]; then
+            echo '::error::Reset only replaces the cluster topology, not a standalone backend.'
+            exit 1
+          fi
+          helm uninstall pulse -n observability --ignore-not-found --wait --timeout 10m
+          kubectl -n observability delete pvc -l app.kubernetes.io/instance=pulse --wait=true --timeout=5m
+          name="$STORAGE_POD-reset"
+          jq --arg name "$name" '.metadata.name = $name | .spec.target.name = $name' \
+            "$dir/storage-credentials.json" | kubectl create -f - > /dev/null
+          kubectl -n observability wait --for=condition=Ready "externalsecret/$name" --timeout=60s
+          # Only this environment's root: management shares production's
+          # bucket under management/.
+          jq -n --arg name "$name" --arg image "$AWS_CLI_IMAGE" --arg bucket "tuist-pulso-$DEPLOY_ENV" '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:1800,automountServiceAccountToken:false,
+              nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
+              securityContext:{runAsNonRoot:true,runAsUser:65532,fsGroup:65532,seccompProfile:{type:"RuntimeDefault"}},
+              volumes:[{name:"scratch",emptyDir:{sizeLimit:"64Mi"}}],
+              containers:[{name:"reset",image:$image,command:["sh","-ec",
+                ("aws s3 rm s3://" + $bucket + "/pulse/ --recursive --only-show-errors\n" +
+                 "left=$(aws s3 ls s3://" + $bucket + "/pulse/ --recursive | head -n 1)\n" +
+                 "test -z \"$left\"\n" +
+                 "echo PASS: emptied s3://" + $bucket + "/pulse/")],
+                securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
+                volumeMounts:[{name:"scratch",mountPath:"/tmp"}],
+                resources:{requests:{cpu:"100m",memory:"128Mi"},limits:{memory:"256Mi"}},
+                envFrom:[{secretRef:{name:$name}}],
+                env:[{name:"HOME",value:"/tmp"},{name:"AWS_REGION",value:"auto"},
+                  {name:"AWS_ENDPOINT_URL",value:"https://t3.storage.dev"}]
+              }]}}' | kubectl create -f - > /dev/null
+          deadline=$((SECONDS + 1800))
+          phase=Pending
+          while ((SECONDS < deadline)); do
+            phase=$(kubectl --request-timeout=10s -n observability get pod "$name" -o jsonpath='{.status.phase}')
+            case "$phase" in Succeeded|Failed) break ;; esac
+            sleep 10
+          done
+          kubectl -n observability logs "$name" | tail -n 20 || true
+          kubectl -n observability delete pod "$name" --wait=true --timeout=30s > /dev/null
+          kubectl -n observability delete externalsecret "$name" --wait=true --timeout=30s > /dev/null
+          [[ "$phase" == Succeeded ]]
+          echo "Reset Pulse in $DEPLOY_ENV: release, volumes and s3://tuist-pulso-$DEPLOY_ENV/pulse/ removed." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Bootstrap pilot authentication without rotating an existing identity
         run: |
           set -euo pipefail
@@ -531,6 +588,7 @@ jobs:
           trap 'rm -rf "$RUNNER_TEMP/pulse-deploy"; rm -f "$KUBECONFIG"' EXIT
           if [[ -f "$KUBECONFIG" ]]; then
             kubectl -n observability delete pod "$SMOKE_POD" "$SMOKE_POD-cluster" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
-            kubectl -n observability delete externalsecret "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
+            kubectl -n observability delete pod "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
+            kubectl -n observability delete externalsecret "$STORAGE_POD" "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
           fi
 

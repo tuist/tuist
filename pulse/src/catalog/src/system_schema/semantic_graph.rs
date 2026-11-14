@@ -69,7 +69,7 @@ pub type EntityGraphProviderRef = Arc<dyn EntityGraphProvider>;
 
 /// Where a table's entity declaration came from.
 pub enum DeclarationOrigin {
-    /// A `greptime.semantic.entity.<type>.*` table option.
+    /// A `pulse.semantic.entity.<type>.*` table option.
     Declared,
     /// The built-in derivation conventions shipped with the binary.
     Convention,

@@ -462,7 +462,6 @@ impl StatementExecutor {
 
             // Same as "bytea_output", we just ignore it here.
             // Not harmful since it only relates to how date is viewed in client app's output.
-            // The tracked issue is https://github.com/GreptimeTeam/greptimedb/issues/3442.
             "DATESTYLE" => set_datestyle(set_var.value, query_ctx)?,
             "INTERVALSTYLE" => set_intervalstyle(set_var.value, query_ctx)?,
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
@@ -47,7 +49,7 @@ macro_rules! return_none_if_utf8 {
     ($lit: ident) => {
         if is_string_timestamp_literal($lit) {
             warn!(
-                "Unexpected ScalarValue::Utf8 in time range predicate: {:?}. Maybe it's an implicit bug, please report it to https://github.com/GreptimeTeam/greptimedb/issues",
+                "Unexpected ScalarValue::Utf8 in time range predicate: {:?}. Maybe it's an implicit bug, please report it to https://github.com/tuist/tuist/issues",
                 $lit
             );
 

@@ -1674,7 +1674,7 @@ mod tests {
                 },
                 SubmitDdlTaskRequest::new(DdlTask::new_alter_table(set_options_expr(
                     "logical",
-                    &[("greptime.semantic.signal_type", "metric")],
+                    &[("pulse.semantic.signal_type", "metric")],
                 ))),
             )
             .await
@@ -1694,7 +1694,7 @@ mod tests {
                 .meta
                 .options
                 .extra_options
-                .get("greptime.semantic.signal_type"),
+                .get("pulse.semantic.signal_type"),
             Some(&"metric".to_string())
         );
 
@@ -1707,7 +1707,7 @@ mod tests {
                 },
                 SubmitDdlTaskRequest::new(DdlTask::new_alter_table(set_options_expr(
                     "logical",
-                    &[("greptime.semantic.source", "prometheus"), ("ttl", "7d")],
+                    &[("pulse.semantic.source", "prometheus"), ("ttl", "7d")],
                 ))),
             )
             .await

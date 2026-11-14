@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::assert_matches;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -380,8 +382,8 @@ fn test_validate_flow_options_rejects_schedule_and_internal_keys_as_unknown() {
 #[test]
 fn test_validate_flow_options_rejects_internal_transport_keys() {
     for key in [
-        "__greptime_internal_eval_schedule",
-        "__greptime_internal_eval_offset_secs",
+        "__pulse_internal_eval_schedule",
+        "__pulse_internal_eval_offset_secs",
     ] {
         let mut task = test_create_flow_task(
             "my_flow",
@@ -553,7 +555,7 @@ fn test_resolved_schedule_defaults_in_create_request() {
     assert!(
         request
             .flow_options
-            .contains_key("__greptime_internal_eval_schedule"),
+            .contains_key("__pulse_internal_eval_schedule"),
         "CreateRequest must contain internal eval schedule key"
     );
 
@@ -625,7 +627,7 @@ fn test_resolve_schedule_with_eval_offset_uses_epoch_phase() {
     assert!(
         !request
             .flow_options
-            .contains_key("__greptime_internal_eval_offset_secs"),
+            .contains_key("__pulse_internal_eval_offset_secs"),
         "CreateRequest must not contain internal eval offset key"
     );
     let (flow_info, _) = <(FlowInfoValue, Vec<(_, _)>)>::from(&data);
@@ -633,7 +635,7 @@ fn test_resolve_schedule_with_eval_offset_uses_epoch_phase() {
     assert!(
         !flow_info
             .options
-            .contains_key("__greptime_internal_eval_offset_secs"),
+            .contains_key("__pulse_internal_eval_offset_secs"),
         "FlowInfoValue.options must not contain internal eval offset key"
     );
 }
@@ -746,7 +748,7 @@ fn test_create_flow_task_proto_roundtrip_preserves_offset_key() {
     );
     task.eval_interval_secs = Some(3600);
     task.flow_options.insert(
-        "__greptime_internal_eval_offset_secs".to_string(),
+        "__pulse_internal_eval_offset_secs".to_string(),
         "120".to_string(),
     );
 
@@ -756,7 +758,7 @@ fn test_create_flow_task_proto_roundtrip_preserves_offset_key() {
             .as_ref()
             .unwrap()
             .flow_options
-            .get("__greptime_internal_eval_offset_secs"),
+            .get("__pulse_internal_eval_offset_secs"),
         Some(&"120".to_string())
     );
 
@@ -765,7 +767,7 @@ fn test_create_flow_task_proto_roundtrip_preserves_offset_key() {
     assert!(
         !parsed
             .flow_options
-            .contains_key("__greptime_internal_eval_offset_secs")
+            .contains_key("__pulse_internal_eval_offset_secs")
     );
     assert_eq!(parsed.eval_interval_secs, Some(3600));
 
@@ -785,7 +787,7 @@ fn test_create_flow_task_proto_roundtrip_preserves_offset_key() {
             .as_ref()
             .unwrap()
             .flow_options
-            .get("__greptime_internal_eval_offset_secs"),
+            .get("__pulse_internal_eval_offset_secs"),
         Some(&"120".to_string())
     );
     let reparsed = CreateFlowTask::try_from(pb).unwrap();

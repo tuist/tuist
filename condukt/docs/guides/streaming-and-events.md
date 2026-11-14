@@ -17,6 +17,7 @@ right shape for chat UIs, LiveView, Phoenix Channels, and CLI output.
 | `:turn_end` | The current LLM turn finished. |
 | `:agent_end` | The agent stopped its loop. |
 | `{:error, reason}` | An error occurred during the run. |
+| `{:subagent, tool_call_id, event}` | An event from a sub-agent the tool call started. See [Sub-agents](subagents.md#streaming-child-events). |
 | `:done` | The stream is complete. Always the last event. |
 
 ## Streaming to stdout
@@ -90,10 +91,18 @@ synchronous compactors can delay the session's handling of cancellation.
 
 While a stream is in flight you can:
 
-* `Condukt.steer/2` to inject a message that takes effect after the current
-  tool call finishes. Remaining queued tool calls in that turn are skipped.
-* `Condukt.follow_up/2` to queue a message that the agent will pick up once
-  it finishes the current run.
+* `Condukt.steer/2` to inject a message that joins the running turn after the
+  current tool round, before the next model request.
+* `Condukt.follow_up/2` to queue a message that starts the next turn once the
+  current one finishes.
+
+On an idle session either one starts a turn at once. Turns started from queued
+input have no caller, so their events go to the notifier and `handle_event/2`.
+A `Condukt.run/3` or `Condukt.stream/3` that arrives during such a turn waits
+for it and runs next, instead of failing with `:already_streaming`. Aborting
+the turn withdraws queued messages and answers waiting callers with
+`{:error, :aborted}`; reports from background sub-agents stay queued. Only the
+native runtime takes queued input.
 
 Both are useful for interactive UIs where users can interrupt or guide the
 agent without aborting it.

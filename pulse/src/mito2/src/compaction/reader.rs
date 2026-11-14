@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -140,8 +142,7 @@ impl CompactionSstReaderBuilder<'_> {
             .with_ignore_file_not_found(true)
             .with_merge_mode(self.merge_mode);
 
-        // This serves as a workaround of https://github.com/GreptimeTeam/greptimedb/issues/3944
-        // by converting time ranges into predicate.
+        // Filters by the time range by converting it into a predicate.
         if let Some(time_range) = self.time_range {
             scan_input =
                 scan_input.with_predicate(time_range_to_predicate(time_range, &self.metadata)?);

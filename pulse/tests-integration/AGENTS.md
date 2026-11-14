@@ -8,9 +8,8 @@ read their settings from `.env`; copy `.env.example` at the `pulse/` root.
 ## Import/export portability
 
 Import/export and COPY tests must work on Windows as well as Linux/macOS.
-[#9227](https://github.com/GreptimeTeam/greptimedb/issues/9227) records export
-tests failing because native Windows paths were compared with `/`-separated
-COPY locations.
+Export tests have failed on Windows because native Windows paths were compared
+with `/`-separated COPY locations.
 
 - Keep native filesystem paths (`Path`/`PathBuf`), file URIs, and `/`-separated
   object-store keys distinct. Compare filesystem paths as paths; for COPY

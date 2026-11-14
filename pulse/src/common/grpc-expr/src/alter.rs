@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::helper::ColumnDataTypeWrapper;
 use api::v1::add_column_location::LocationType;
 use api::v1::alter_table_expr::Kind;
@@ -835,11 +837,11 @@ mod tests {
             kind: Some(Kind::SetTableOptions(SetTableOptions {
                 table_options: vec![
                     PbOption {
-                        key: "greptime.semantic.signal_type".to_string(),
+                        key: "pulse.semantic.signal_type".to_string(),
                         value: "trace".to_string(),
                     },
                     PbOption {
-                        key: "greptime.semantic.entity.host.id".to_string(),
+                        key: "pulse.semantic.entity.host.id".to_string(),
                         value: "host".to_string(),
                     },
                 ],
@@ -861,7 +863,7 @@ mod tests {
             schema_name: "test_schema".to_string(),
             table_name: "monitor".to_string(),
             kind: Some(Kind::UnsetTableOptions(UnsetTableOptions {
-                keys: vec!["greptime.semantic.signal_type".to_string()],
+                keys: vec!["pulse.semantic.signal_type".to_string()],
             })),
         };
         let alter_request = alter_expr_to_request(1, expr, None).unwrap();
@@ -883,7 +885,7 @@ mod tests {
             kind: Some(Kind::SetTableOptions(SetTableOptions {
                 table_options: vec![
                     PbOption {
-                        key: "greptime.semantic.signal_type".to_string(),
+                        key: "pulse.semantic.signal_type".to_string(),
                         value: "trace".to_string(),
                     },
                     PbOption {
@@ -901,10 +903,7 @@ mod tests {
             schema_name: "test_schema".to_string(),
             table_name: "monitor".to_string(),
             kind: Some(Kind::UnsetTableOptions(UnsetTableOptions {
-                keys: vec![
-                    "ttl".to_string(),
-                    "greptime.semantic.signal_type".to_string(),
-                ],
+                keys: vec!["ttl".to_string(), "pulse.semantic.signal_type".to_string()],
             })),
         };
         let err = alter_expr_to_request(1, mixed_unset, None).unwrap_err();
@@ -916,7 +915,7 @@ mod tests {
         let mixed = Kind::SetTableOptions(SetTableOptions {
             table_options: vec![
                 PbOption {
-                    key: "greptime.semantic.signal_type".to_string(),
+                    key: "pulse.semantic.signal_type".to_string(),
                     value: "trace".to_string(),
                 },
                 PbOption {
@@ -935,7 +934,7 @@ mod tests {
         let cross = Kind::SetTableOptions(SetTableOptions {
             table_options: vec![
                 PbOption {
-                    key: "greptime.semantic.signal_type".to_string(),
+                    key: "pulse.semantic.signal_type".to_string(),
                     value: "trace".to_string(),
                 },
                 PbOption {

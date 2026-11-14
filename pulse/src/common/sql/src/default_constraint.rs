@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_time::timezone::Timezone;
 use datatypes::prelude::ConcreteDataType;
 use datatypes::schema::constraint::{CURRENT_TIMESTAMP, CURRENT_TIMESTAMP_FN};
@@ -65,8 +67,7 @@ pub fn parse_column_default_constraint(
 
             ColumnOption::Default(Expr::UnaryOp { op, expr }) => {
                 // Specialized process for handling numerical inputs to prevent
-                // overflow errors during the parsing of negative numbers,
-                // See https://github.com/GreptimeTeam/greptimedb/issues/4351
+                // overflow errors during the parsing of negative numbers.
                 if let (
                     UnaryOperator::Minus,
                     Expr::Value(ValueWithSpan {

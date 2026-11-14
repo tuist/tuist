@@ -5,4 +5,4 @@ topologies = ["standalone"]
 from_range = ["*"]
 to_range = ["*"]
 features = ["copy", "parquet"]
-owner = "GreptimeTeam"
+owner = "storage"

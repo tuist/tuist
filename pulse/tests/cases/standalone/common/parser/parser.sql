@@ -27,8 +27,7 @@ SELECT (1+(1+(1+(1+(1+(1+(1+1)))))));
 -- skipped, unsupported feature: dollar quotes
 -- SELECT $$$$ = '';
 
--- skipped, unsupported feature: from_first, see also:
--- https://github.com/GreptimeTeam/greptimedb/issues/5012
+-- skipped, unsupported feature: from_first
 -- FROM integers;
 
 -- skipped, unsupported feature: function chaining

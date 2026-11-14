@@ -168,7 +168,7 @@ mod tests {
         .await;
     }
 
-    /// Regression test for <https://github.com/GreptimeTeam/greptimedb/issues/9231>:
+    /// Regression test:
     /// prometheus remote write/read against a physical metric table
     /// pre-created with a non-millisecond time index. Millisecond samples are
     /// converted to the physical table's unit on write (lossless widening,

@@ -239,10 +239,10 @@ pub fn trace_operations_table_name(trace_table_name: &str) -> String {
 
 // ---- Entity relationship graph tables (live in `pulse_private`) ----
 // The `semantic_` prefix ties them to the semantic layer they derive from
-// (`greptime.semantic.entity.*` declarations, `information_schema.table_semantics`);
+// (`pulse.semantic.entity.*` declarations, `information_schema.table_semantics`);
 // no `__` prefix is needed since `pulse_private` already scopes them.
 /// Computed entity registry: the node set of the observability graph, derived at
-/// read time from tables that declared `greptime.semantic.entity.*` identities.
+/// read time from tables that declared `pulse.semantic.entity.*` identities.
 pub const SEMANTIC_ENTITIES_TABLE_NAME: &str = "semantic_entities";
 /// Computed relationship set: the edge set of the observability graph, derived at
 /// read time (`calls`/`runs_on`/... ) and unioned with the declared-edge table.

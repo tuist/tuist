@@ -4,7 +4,6 @@
 [case]
 name = "mergescan_shuffle_9456"
 description = "Opt-in multi-region Partitioned PromQL shuffle cost measurement"
-issue = "https://github.com/GreptimeTeam/greptimedb/issues/9456"
 
 [scenario]
 kind = "prom_remote_write_then_query"

@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 """Coverage for PR comment admission of query-regression."""
 
 import importlib.util
@@ -56,7 +58,7 @@ def pull_payload(**overrides: object) -> dict:
         "merge_commit_sha": MERGE,
         "base": {
             "sha": BASE,
-            "repo": {"full_name": "GreptimeTeam/greptimedb"},
+            "repo": {"full_name": "tuist/tuist"},
         },
         "head": {
             "sha": HEAD,
@@ -75,7 +77,7 @@ def admit(*, body: str = "/query-regression", actor: str = "maintainer", **pull_
         allowlist=slash.parse_allowlist("maintainer, other-admin"),
         permission="admin",
         command=slash.parse_command(body),
-        expected_repo="GreptimeTeam/greptimedb",
+        expected_repo="tuist/tuist",
         pr_number=str(payload.get("number") or ""),
     )
 
@@ -131,7 +133,7 @@ class CommentIdentityTest(unittest.TestCase):
         payload = {
             "user": {"login": "maintainer"},
             "body": "/query-regression heavy",
-            "issue_url": "https://api.github.com/repos/GreptimeTeam/greptimedb/issues/42",
+            "issue_url": "https://api.github.com/repos/tuist/tuist/issues/42",
         }
         payload.update(overrides)
         return payload
@@ -139,7 +141,7 @@ class CommentIdentityTest(unittest.TestCase):
     def test_reads_actor_pr_and_case_from_comment(self) -> None:
         identity = slash.identity_from_comment(
             self.comment(),
-            "GreptimeTeam/greptimedb",
+            "tuist/tuist",
         )
         self.assertEqual(identity.error, "")
         self.assertEqual(identity.actor, "maintainer")
@@ -154,14 +156,14 @@ class CommentIdentityTest(unittest.TestCase):
         self.assertIn("not other/repo", other_repo.error)
         not_command = slash.identity_from_comment(
             self.comment(body="please run this"),
-            "GreptimeTeam/greptimedb",
+            "tuist/tuist",
         )
         self.assertIn("not a query-regression command", not_command.error)
 
     def test_payload_mismatch_is_rejected(self) -> None:
         identity = slash.identity_from_comment(
             self.comment(),
-            "GreptimeTeam/greptimedb",
+            "tuist/tuist",
         )
         self.assertEqual(
             slash.payload_matches_comment(
@@ -348,7 +350,7 @@ class AdmitPullTest(unittest.TestCase):
             allowlist=slash.parse_allowlist("maintainer"),
             permission="write",
             command=slash.parse_command("/query-regression"),
-            expected_repo="GreptimeTeam/greptimedb",
+            expected_repo="tuist/tuist",
             pr_number="42",
         )
         self.assertTrue(decision.skip)
@@ -362,7 +364,7 @@ class AdmitPullTest(unittest.TestCase):
             allowlist=frozenset(),
             permission="admin",
             command=slash.parse_command("/query-regression"),
-            expected_repo="GreptimeTeam/greptimedb",
+            expected_repo="tuist/tuist",
             pr_number="42",
         )
         self.assertTrue(decision.skip)
@@ -394,7 +396,7 @@ class AdmissionMarkerTest(unittest.TestCase):
             "pr_number": 42,
             "head_sha": HEAD,
             "head_repo": "alice/pulse",
-            "base_repo": "GreptimeTeam/greptimedb",
+            "base_repo": "tuist/tuist",
             "candidate_sha": MERGE,
             "base_sha": BASE,
         }
@@ -420,7 +422,7 @@ class AdmissionMarkerTest(unittest.TestCase):
                 admit(),
                 token="t",
                 api_url="https://api.github.com",
-                repo="GreptimeTeam/greptimedb",
+                repo="tuist/tuist",
                 secret="",
             ),
             "QUERY_REGRESSION_ADMISSION_HMAC is unset",
@@ -453,14 +455,14 @@ class AdmissionMarkerTest(unittest.TestCase):
                             decision,
                             token="t",
                             api_url="https://api.github.com",
-                            repo="GreptimeTeam/greptimedb",
+                            repo="tuist/tuist",
                             secret="secret",
                         )
                 self.assertEqual(error, "")
                 self.assertEqual(posted["method"], "POST")
                 self.assertEqual(
                     posted["path"],
-                    "/repos/GreptimeTeam/greptimedb/issues/42/comments",
+                    "/repos/tuist/tuist/issues/42/comments",
                 )
                 body = (posted["payload"] or {})["body"]  # type: ignore[index]
                 parsed = slash.parse_admission_marker(str(body))

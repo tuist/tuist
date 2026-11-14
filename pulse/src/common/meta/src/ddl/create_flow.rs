@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod metadata;
 
 use std::collections::{BTreeMap, HashMap};
@@ -472,7 +474,7 @@ pub const DEFER_ON_MISSING_SOURCE_KEY: &str = "defer_on_missing_source";
 /// `CreateFlowTask::try_from`. Must never be accepted as a user-provided option
 /// and must never be persisted into `FlowInfoValue.options` or be visible in
 /// user runtime options / SHOW CREATE.
-pub const INTERNAL_EVAL_OFFSET_KEY: &str = "__greptime_internal_eval_offset_secs";
+pub const INTERNAL_EVAL_OFFSET_KEY: &str = "__pulse_internal_eval_offset_secs";
 
 /// Internal transient key used to pass the serialized `FlowScheduleConfig` from
 /// meta to flownode through `CreateRequest.flow_options`. This key must never
@@ -480,7 +482,7 @@ pub const INTERNAL_EVAL_OFFSET_KEY: &str = "__greptime_internal_eval_offset_secs
 /// `FlowInfoValue.options`.
 /// TODO(discord9): Replace this transient flow_options transport with a typed
 /// field in the flow create request.
-pub const INTERNAL_EVAL_SCHEDULE_KEY: &str = "__greptime_internal_eval_schedule";
+pub const INTERNAL_EVAL_SCHEDULE_KEY: &str = "__pulse_internal_eval_schedule";
 
 const FLOW_SCHEDULED_TIME_MILLIS_EXTENSION_KEY: &str = "flow.scheduled_time_millis";
 
@@ -787,7 +789,7 @@ pub const FLOW_EXPERIMENTAL_ENABLE_INCREMENTAL_READ_KEY: &str =
     "experimental_enable_incremental_read";
 /// Reserved internal value for flows requiring exact sequence ranges.
 pub const FLOW_EXPERIMENTAL_ENABLE_INCREMENTAL_READ_SEQUENCE_RANGE: &str =
-    "__greptime_internal_exact_sequence_range";
+    "__pulse_internal_exact_sequence_range";
 
 impl FlowType {
     pub const BATCHING: &str = "batching";

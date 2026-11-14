@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -42,7 +44,7 @@ const DEFAULT_REGION: RegionNumber = 0;
 
 type PhysicalExprCache = Option<(Vec<Arc<dyn PhysicalExpr>>, Arc<Schema>)>;
 
-/// Multi-Dimiension partition rule. RFC [here](https://github.com/GreptimeTeam/greptimedb/blob/main/docs/rfcs/2024-02-21-multi-dimension-partition-rule/rfc.md)
+/// Multi-Dimiension partition rule.
 ///
 /// This partition rule is defined by a set of simple expressions on the partition
 /// key columns. Compare to RANGE partition, which can be considered as
@@ -860,7 +862,6 @@ mod test_split_record_batch {
 
     #[test]
     fn test_split_record_batch_widened_time_index_unit() {
-        // https://github.com/GreptimeTeam/greptimedb/issues/9747
         // The partition bounds keep the unit they were created with (millisecond)
         // after the time index column is widened to nanosecond, so the batch
         // schema and the bound values mix timestamp units.

@@ -6,7 +6,6 @@
 [case]
 name = "promql_pushdown_7913"
 description = "PromQL/TQL small-window selectors should stay fast on high-cardinality metric-like fixtures"
-issue = "https://github.com/GreptimeTeam/greptimedb/issues/7913"
 
 [scenario]
 kind = "direct_readable_sst"

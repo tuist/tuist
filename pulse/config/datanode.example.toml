@@ -312,7 +312,7 @@ overwrite_entry_start_id = false
 # root = "data"
 # account_name = "test"
 # account_key = "123456"
-# endpoint = "https://greptimedb.blob.core.windows.net"
+# endpoint = "https://pulse.blob.core.windows.net"
 # sas_token = ""
 
 # Example of using Gcs as the storage.

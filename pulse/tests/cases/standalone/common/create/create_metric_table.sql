@@ -52,7 +52,7 @@ DESC TABLE phy2;
 
 DROP TABLE phy2;
 
--- fuzz test case https://github.com/GreptimeTeam/greptimedb/issues/3612
+-- fuzz test case
 CREATE TABLE `auT`(
   incidunt TIMESTAMP(3) TIME INDEX,
   `REPREHenDERIt` double DEFAULT 0.70978713,

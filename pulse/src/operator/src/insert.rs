@@ -3137,17 +3137,17 @@ mod tests {
             r#"{{
             "{DEFAULT_SCHEMA_NAME}": {{
                 "http_requests_total": {{
-                    "greptime.semantic.metric.type": "counter",
-                    "greptime.semantic.metric.unit": "By",
-                    "greptime.semantic.metric.type_BOGUS": "x"
+                    "pulse.semantic.metric.type": "counter",
+                    "pulse.semantic.metric.unit": "By",
+                    "pulse.semantic.metric.type_BOGUS": "x"
                 }},
                 "other_table": {{
-                    "greptime.semantic.metric.type": "gauge"
+                    "pulse.semantic.metric.type": "gauge"
                 }}
             }},
             "other_schema": {{
                 "http_requests_total": {{
-                    "greptime.semantic.metric.type": "gauge"
+                    "pulse.semantic.metric.type": "gauge"
                 }}
             }}
         }}"#
@@ -3178,7 +3178,7 @@ mod tests {
         );
         // The unknown key is rejected by the vocabulary check; other tables' keys
         // never appear.
-        assert!(!table_options.contains_key("greptime.semantic.metric.type_BOGUS"));
+        assert!(!table_options.contains_key("pulse.semantic.metric.type_BOGUS"));
         assert_eq!(table_options.len(), 2);
 
         let mut empty = std::collections::HashMap::new();

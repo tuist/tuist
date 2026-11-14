@@ -1,24 +1,25 @@
-# Pulse: Tuist's fork of GreptimeDB
+# Pulse: Tuist's fork
 
-Pulse is the observability backend in Tuist's clusters. Since November 2026 it is
-a fork of [GreptimeDB](https://github.com/GreptimeTeam/greptimedb); before that it
-was a separate Elixir application, which is in this directory's history before
-the import commit. Tuist renamed the code to Pulse (see [Tuist changes](#tuist-changes)),
-publishes it as `ghcr.io/tuist/pulse`, and clusters deploy it as the `pulse`
-release.
+Pulse was forked from [GreptimeDB](https://github.com/GreptimeTeam/greptimedb) under Apache-2.0.
+
+Pulse is the observability backend in Tuist's clusters. Since November 2026 it
+is this fork; before that it was a separate Elixir application, which is in
+this directory's history before the import commit. Tuist renamed the code to
+Pulse (see [Tuist changes](#tuist-changes)), publishes it as
+`ghcr.io/tuist/pulse`, and clusters deploy it as the `pulse` release.
 
 ## Upstream base
 
 | | |
 | --- | --- |
-| Repository | https://github.com/GreptimeTeam/greptimedb |
+| Repository | The upstream project linked above |
 | Tag | `v1.3.0` |
 | Commit | `badceec12a0e98fd69e83e9b9b9b06d9358b78dd` (2026-10-28) |
 | License | Apache-2.0, in [`LICENSE`](LICENSE). Upstream has no NOTICE file. |
 
 The import is the upstream tree at that commit, except:
 
-- **Enterprise sources.** GreptimeDB is open core. The files under the GreptimeDB
+- **Enterprise sources.** Upstream is open core. The files under its
   Enterprise License are not Apache-2.0, and that license forbids copying or
   distributing them, so they are not in this repository: `LICENSE-ENTERPRISE`,
   `licenserc-enterprise.toml`, `licenses/enterprise-header.txt`, and the sources
@@ -36,38 +37,35 @@ line under its license header, or a `Tuist:` comment at the change. Files
 without a license header, such as test expectations and configuration, are
 covered by this list.
 
-- **Renamed to Pulse.** Every GreptimeDB name in the code is now a Pulse name:
+- **Renamed to Pulse.** Every upstream name in the code is now a Pulse name:
   crates (`common-pulse-telemetry`), types, modules and files, the `pulse`
   binary and the image's entrypoint, comments, and the names Pulse stores or
   speaks on the wire: the default catalog `pulse` and its `pulse_private`
   schema (and so the object-store paths under them), the `pulse_timestamp`,
   `pulse_value` and `pulse_native_histogram` columns, the `pulse_identity` and
-  `pulse_trace_v*` pipelines, the `x-pulse-*` HTTP headers, the `PULSE_*`
+  `pulse_trace_v*` pipelines, the `x-pulse-*` HTTP headers and the
+  `x-pulse-*` gRPC metadata nodes send each other, the `PULSE_*`
   configuration environment prefix, the `pulse_v1` response format, the
-  `pulse_*` self-metrics, and the `pulse_data`, `pulse_wal_topic` and
-  `pulse_metakv` defaults. Data written under the old catalog is not migrated
-  (see [Rolling out the rename](#rolling-out-the-rename)).
-  These keep Greptime names:
-  - On-disk format identifiers, so a renamed release opens the metadata, SSTs
-    and indexes earlier releases wrote and stays readable by upstream tools:
-    `greptime:` column and parquet metadata keys, the `greptime.json`,
-    `greptime.json2` and `greptime.histogram` extension types,
-    `greptime.series_index`, `greptime.semantic.*` table options, puffin index
-    blob types, the fulltext index's field names, and the `__greptime_*` flow
-    and DDL options.
-  - Headers only Pulse's own nodes send each other (`x-greptime-snapshot-seqs`,
-    `x-greptime-flow-extensions`, `x-greptime-internal-create-database-creator-bin`),
-    so nodes on either side of a rolling upgrade still understand each other.
-  - The `Copyright … Greptime Team` license headers and `LICENSE`, which
+  `pulse_*` self-metrics, the `pulse_data`, `pulse_wal_topic` and
+  `pulse_metakv` defaults, the `pulse:` column and parquet metadata keys, the
+  `pulse.json`, `pulse.json2` and `pulse.histogram` extension types,
+  `pulse.series_index`, the `pulse.semantic.*` table options, the `pulse-*`
+  puffin index blob types, the fulltext index's `pulse_fulltext_*` field
+  names, and the `__pulse_*` flow and DDL options. Releases before the rename
+  wrote other names, which a renamed release does not read (see
+  [Rolling out the rename](#rolling-out-the-rename)). Comments no longer link
+  to upstream issues or documentation, tests start the Bitnami images
+  upstream mirrored, and usage telemetry, which reported to upstream's
+  collector, has no URL to report to. `tests/compatibility` and `tests/perf` compare against
+  released binaries and images that Pulse does not publish; Tuist's CI runs
+  neither.
+  These keep upstream names:
+  - The upstream copyright lines in the license headers and `LICENSE`, which
     Apache-2.0 requires us to keep.
-  - Dependencies: `greptime-proto` and what it generates (`GreptimeRequest`,
-    `GreptimeDatabase` and the other gRPC types, and the `greptime.v1`
-    packages on the wire), and the other GreptimeTeam crates `Cargo.toml`
-    fetches from GitHub.
-  - Links to upstream issues and documentation, and the Greptime container
-    images some tests and harnesses start. `tests/compatibility` and
-    `tests/perf` still compare against upstream GreptimeDB releases, so they no
-    longer match Pulse's names; Tuist's CI runs neither.
+  - Dependencies: the protobuf crate and what it generates (the request and
+    response types, the gRPC services, and their packages on the wire), and
+    the other upstream crates `Cargo.toml` fetches from GitHub, until Tuist
+    forks them.
 - **No enterprise feature.** The `enterprise` Cargo feature and every code path
   it gated are gone, as is the license tooling for enterprise files. Undrop and
   purge of dropped tables, and `gc.experimental_soft_drop`, which needs them,
@@ -81,7 +79,7 @@ covered by this list.
   kept for agents working in those crates.
 
 - **Query nesting limits** ([`src/sql/src/nesting.rs`](src/sql/src/nesting.rs)).
-  GreptimeDB v1.3.0 aborts the whole process with a stack overflow on short,
+  Upstream v1.3.0 aborts the whole process with a stack overflow on short,
   deeply nested queries, and any reader can send them: a PromQL chain of about
   80 binary operators (`vector(1)+vector(1)+…`, around 800 bytes), 48 nested
   subqueries, a SQL chain of about 4,000 operators (`SELECT 1+1+…`) or 256
@@ -117,7 +115,7 @@ covered by this list.
   previous week's `releases/pulse-X.Y.x` line to stable `X.Y.0`, and
   [`pulse-rc.yml`](../.github/workflows/pulse-rc.yml) cuts the next line as
   `X.Y.0-rc.1`. Versions continue the Elixir Pulse's line (`1.43.6`), so the
-  first canary is `1.44.0-canary.1`; the upstream GreptimeDB version stays in
+  first canary is `1.44.0-canary.1`; the upstream version stays in
   `Cargo.toml`'s `[workspace.package]` and the [table above](#upstream-base).
   The earlier `pulse@1.3.0-1` and `pulse@1.3.0-2` tags used the retired
   `<upstream>-<n>` scheme.
@@ -146,20 +144,20 @@ covered by this list.
 
 ## Rolling out the rename
 
-Every environment runs a renamed release, and the infrastructure around it
-uses Pulse's names: the chart ([`infra/helm/pulse`](../infra/helm/pulse)), its
-deployment workflow (`pulse-deployment.yml`) and smoke scripts, the storage
-credentials (`PULSE_STANDALONE__*`, `PULSE_DATANODE__*`), and the `X-Pulse-*`
-headers and `pulse_trace_v1` pipeline the collectors in
-`infra/helm/k8s-monitoring` and the server's `Tuist.Pulse` send. Two names
-from before the rename remain because they name live data:
+The infrastructure around Pulse uses Pulse's names: the chart
+([`infra/helm/pulse`](../infra/helm/pulse)), its deployment workflow
+(`pulse-deployment.yml`) and smoke scripts, the storage credentials
+(`PULSE_STANDALONE__*`, `PULSE_DATANODE__*`), and the `X-Pulse-*` headers and
+`pulse_trace_v1` pipeline the collectors in `infra/helm/k8s-monitoring` and the
+server's `Tuist.Pulse` send.
 
-- The Kafka WAL topic prefix (`pulse.walTopicPrefix` in the chart): the topics
-  hold unflushed writes.
-- Storage: the upgrade to the first renamed release was in place, without a
-  migration, because the on-disk formats are unchanged. It created the `pulse`
-  catalog next to the old `greptime` one; tables in the `greptime` catalog stay
-  in metadata and under `data/greptime/` in the bucket, unread.
+The rename changed the names Pulse writes to disk and sends between its own
+nodes (metadata keys, extension types, index blob types, table options and
+internal gRPC metadata), and Pulse reads only the new ones. A renamed release
+therefore neither opens data an earlier release wrote nor talks to its nodes,
+so every cluster (staging, canary, production and management) is reinstalled
+from empty (storage, metadata and WAL) when it moves to a renamed release, and
+nothing is migrated.
 
 ## Moving to a newer upstream version
 

@@ -1,5 +1,4 @@
--- Regression test for issue #8074
--- https://github.com/GreptimeTeam/greptimedb/issues/8074
+-- Regression test: change the type of a column that has an inverted index
 CREATE TABLE monitoring_data (
     host STRING INVERTED INDEX,
     `region` STRING,

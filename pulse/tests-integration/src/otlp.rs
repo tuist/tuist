@@ -193,11 +193,11 @@ ENGINE=mito
 WITH(
   'comment' = 'Created on insertion',
   append_mode = 'true',
-  'greptime.semantic.entity.service.id' = 'service_name',
-  'greptime.semantic.pipeline' = 'pulse_trace_v2',
-  'greptime.semantic.signal_type' = 'trace',
-  'greptime.semantic.source' = 'opentelemetry',
-  'greptime.semantic.trace.conventions' = 'unknown',
+  'pulse.semantic.entity.service.id' = 'service_name',
+  'pulse.semantic.pipeline' = 'pulse_trace_v2',
+  'pulse.semantic.signal_type' = 'trace',
+  'pulse.semantic.source' = 'opentelemetry',
+  'pulse.semantic.trace.conventions' = 'unknown',
   table_data_model = 'pulse_trace_v2'
 )"#;
         let batches = batches.take();
@@ -519,8 +519,7 @@ WITH(
     async fn test_otlp_logical_batcher_non_millisecond_physical_table() {
         // Microsecond and nanosecond physical tables must both use the
         // logical batcher: requests are converted to the physical table's
-        // unit during batch alignment
-        // (<https://github.com/GreptimeTeam/greptimedb/issues/9342>).
+        // unit during batch alignment.
         run_otlp_logical_batcher_non_millisecond_physical_table(
             "us",
             "TIMESTAMP(6)",
@@ -1497,7 +1496,7 @@ WITH(
         .await;
     }
 
-    /// Regression test for <https://github.com/GreptimeTeam/greptimedb/issues/9231>:
+    /// Regression test:
     /// a physical metric table pre-created with a non-millisecond time index
     /// accepts OTLP ingestion; the nanosecond samples are converted to the
     /// physical table's unit (kept verbatim for a nanosecond table,

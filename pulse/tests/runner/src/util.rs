@@ -122,9 +122,7 @@ pub async fn pull_binary(version: &str) {
     let triple = format!("pulse-{}-{}-{}", os, arch, version);
     let filename = format!("{triple}.tar.gz");
 
-    let url = format!(
-        "https://github.com/GreptimeTeam/greptimedb/releases/download/{version}/{filename}"
-    );
+    let url = format!("https://github.com/tuist/tuist/releases/download/{version}/{filename}");
     println!("Downloading {version} binary from {}", url);
 
     // mkdir {version}
@@ -137,9 +135,8 @@ pub async fn pull_binary(version: &str) {
     download_files(&url, &archive.to_string_lossy()).await;
 
     let checksum_file = format!("{triple}.sha256sum");
-    let checksum_url = format!(
-        "https://github.com/GreptimeTeam/greptimedb/releases/download/{version}/{checksum_file}"
-    );
+    let checksum_url =
+        format!("https://github.com/tuist/tuist/releases/download/{version}/{checksum_file}");
     download_files(
         &checksum_url,
         &PathBuf::from_iter([version, &checksum_file]).to_string_lossy(),
@@ -396,9 +393,9 @@ pub fn setup_mysql(mysql_port: u16, mysql_version: Option<&str>) {
     }
 
     let mysql_image = if let Some(mysql_version) = mysql_version {
-        format!("greptime/mysql:{mysql_version}")
+        format!("bitnamilegacy/mysql:{mysql_version}")
     } else {
-        "greptime/mysql:5.7".to_string()
+        "bitnamilegacy/mysql:5.7".to_string()
     };
     let mysql_password = "admin";
     let mysql_user = "pulse";

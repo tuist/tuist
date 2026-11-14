@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 """Coverage for the pure parts of the Aliyun ECS runner provision/teardown scripts."""
 
 import base64
@@ -223,7 +225,7 @@ class ProvisionUserDataTest(unittest.TestCase):
             runner_name="qreg-ecs-12345",
             runner_label="query-regression-ecs-12345",
             runner_token="TOKEN",
-            repo="GreptimeTeam/greptimedb",
+            repo="tuist/tuist",
         )
 
     def test_user_data_creates_cache_paths_on_the_system_disk(self) -> None:
@@ -239,7 +241,7 @@ class ProvisionUserDataTest(unittest.TestCase):
         self.assertIn("RUNNER_NAME=qreg-ecs-12345", script)
         self.assertIn("RUNNER_LABELS=query-regression-ecs-12345", script)
         self.assertIn("RUNNER_TOKEN=TOKEN", script)
-        self.assertIn("REPO_URL=https://github.com/GreptimeTeam/greptimedb", script)
+        self.assertIn("REPO_URL=https://github.com/tuist/tuist", script)
         self.assertIn("PATH=/opt/cargo/bin:", script)
         self.assertIn("systemctl restart --no-block ephemeral-github-runner.service", script)
 

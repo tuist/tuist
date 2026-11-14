@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
@@ -270,7 +272,7 @@ impl DistPlannerAnalyzer {
     }
 
     fn inspect_plan_with_subquery(plan: LogicalPlan) -> DfResult<Transformed<LogicalPlan>> {
-        // Workaround for https://github.com/GreptimeTeam/greptimedb/issues/5469 and https://github.com/GreptimeTeam/greptimedb/issues/5799
+        // Workaround for a DataFusion issue: leave `Limit` and `Distinct` plans as they are.
         // FIXME(yingwen): Remove the `Limit` plan once we update DataFusion.
         if let LogicalPlan::Limit(_) | LogicalPlan::Distinct(_) = &plan {
             return Ok(Transformed::no(plan));

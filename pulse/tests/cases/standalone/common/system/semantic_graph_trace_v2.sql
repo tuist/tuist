@@ -24,13 +24,13 @@ create table graph_trace_v2 (
 ) with (
   'table_data_model' = 'pulse_trace_v2',
   'append_mode' = 'true',
-  'greptime.semantic.entity.gen_ai.agent.id' = 'span_attributes.gen_ai.agent.id',
-  'greptime.semantic.entity.gen_ai.agent.scope' = 'scope_attributes.environment',
-  'greptime.semantic.entity.gen_ai.model.id' = 'span_attributes.gen_ai.request.model',
-  'greptime.semantic.entity.literal_peer.id' = 'span_attributes.db.namespace',
-  'greptime.semantic.entity.literal_resource.id' = 'resource_attributes.host.name',
-  'greptime.semantic.entity.literal_span.id' = 'span_attributes.gen_ai.agent.id',
-  'greptime.semantic.entity.literal_scope.id' = 'scope_attributes.deployment.region.name'
+  'pulse.semantic.entity.gen_ai.agent.id' = 'span_attributes.gen_ai.agent.id',
+  'pulse.semantic.entity.gen_ai.agent.scope' = 'scope_attributes.environment',
+  'pulse.semantic.entity.gen_ai.model.id' = 'span_attributes.gen_ai.request.model',
+  'pulse.semantic.entity.literal_peer.id' = 'span_attributes.db.namespace',
+  'pulse.semantic.entity.literal_resource.id' = 'resource_attributes.host.name',
+  'pulse.semantic.entity.literal_span.id' = 'span_attributes.gen_ai.agent.id',
+  'pulse.semantic.entity.literal_scope.id' = 'scope_attributes.deployment.region.name'
 );
 
 insert into graph_trace_v2
@@ -65,7 +65,7 @@ create table graph_trace_v1_peer (
   "resource_attributes.host.name" string,
   primary key (service_name)
 ) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true',
-        'greptime.semantic.entity.literal_resource.id' = 'resource_attributes.host.name');
+        'pulse.semantic.entity.literal_resource.id' = 'resource_attributes.host.name');
 
 insert into graph_trace_v1_peer values
   ('2026-01-01 00:00:01', 'paired', 'server', 'client', 'SPAN_KIND_SERVER', 'STATUS_CODE_UNSET', 50000000, 'backend', 'shop', 'node-v1');
@@ -81,14 +81,14 @@ where observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:0
 order by rel_type, src_type, src_id, dst_id;
 
 -- Empty components in the V1-compatible comma-separated list remain invalid.
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes.host.id,';
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes.host.id,,service_name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes.host.id,';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes.host.id,,service_name';
 
 -- ALTER accepts JSON2 references; a missing key simply yields no entity.
-alter table graph_trace_v2 set 'greptime.semantic.entity.custom.id' = 'scope_attributes.missing';
-alter table graph_trace_v2 set 'greptime.semantic.entity.host.descriptive' = 'resource_attributes.host.name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.custom.id' = 'scope_attributes.missing';
+alter table graph_trace_v2 set 'pulse.semantic.entity.host.descriptive' = 'resource_attributes.host.name';
 -- Preserve implicit host identity by explicitly declaring it as well.
-alter table graph_trace_v2 set 'greptime.semantic.entity.host.id' = 'resource_attributes.host.id';
+alter table graph_trace_v2 set 'pulse.semantic.entity.host.id' = 'resource_attributes.host.id';
 
 admin flush_table('graph_trace_v2');
 admin flush_table('graph_trace_v1_peer');
@@ -105,7 +105,7 @@ where observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:0
 order by rel_type, src_type, src_id, dst_id;
 
 -- Quotes, backslashes and dots remain a literal key; numbers render as strings.
-alter table graph_trace_v2 set 'greptime.semantic.entity.custom.id' = 'scope_attributes.a"b\c.d';
+alter table graph_trace_v2 set 'pulse.semantic.entity.custom.id' = 'scope_attributes.a"b\c.d';
 select entity_type, entity_id
 from pulse_private.semantic_entities
 where entity_type = 'custom'
@@ -113,33 +113,33 @@ where entity_type = 'custom'
 
 -- Path-looking suffixes are literal keys, not nested traversal or array access.
 -- These missing keys are valid declarations and produce no entities.
-alter table graph_trace_v2 set 'greptime.semantic.entity.literal_missing.id' = 'resource_attributes.host..name';
-alter table graph_trace_v2 set 'greptime.semantic.entity.literal_index.id' = 'resource_attributes.host[0]';
+alter table graph_trace_v2 set 'pulse.semantic.entity.literal_missing.id' = 'resource_attributes.host..name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.literal_index.id' = 'resource_attributes.host[0]';
 
 -- The root must exist and be one of the three JSON2 attribute columns.
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'span_events.name';
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes.';
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'missing.key';
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'span_events.name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes.';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'missing.key';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes';
 
 create table graph_bad_v2 (
   ts timestamp time index, resource_attributes string
 ) with ('table_data_model' = 'pulse_trace_v2',
-        'greptime.semantic.entity.host.id' = 'resource_attributes.host.id');
+        'pulse.semantic.entity.host.id' = 'resource_attributes.host.id');
 
 -- Ordinary JSON2 tables do not acquire Trace V2 attribute-reference semantics.
 create table graph_not_trace (
   ts timestamp time index, resource_attributes json2
 ) with ('append_mode' = 'true',
-        'greptime.semantic.entity.host.id' = 'resource_attributes.host.id');
+        'pulse.semantic.entity.host.id' = 'resource_attributes.host.id');
 
 -- Physical convention columns win over conflicting JSON2 keys.
 alter table graph_trace_v2 add column "resource_attributes.host.id" string;
 alter table graph_trace_v2 add column "resource_attributes.service.namespace" string;
 alter table graph_trace_v2 add column "span_attributes.db.namespace" string;
 -- Restore the implicit host declaration for the physical-column check.
-alter table graph_trace_v2 unset 'greptime.semantic.entity.host.id';
-alter table graph_trace_v2 unset 'greptime.semantic.entity.host.descriptive';
+alter table graph_trace_v2 unset 'pulse.semantic.entity.host.id';
+alter table graph_trace_v2 unset 'pulse.semantic.entity.host.descriptive';
 insert into graph_trace_v2
   ("timestamp", duration_nano, trace_id, span_id, span_kind, span_status_code,
    service_name, resource_attributes, span_attributes,

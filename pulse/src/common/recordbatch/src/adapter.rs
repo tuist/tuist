@@ -158,7 +158,7 @@ where
                 let mut columns = Vec::with_capacity(projected_schema.fields.len());
                 for (idx,field) in projected_schema.fields.iter().enumerate() {
                     let column = projected_column.column(idx);
-                    let extype = field.metadata().get("greptime:type").and_then(|s| ColumnExtType::from_str(s).ok());
+                    let extype = field.metadata().get("pulse:type").and_then(|s| ColumnExtType::from_str(s).ok());
                     let output = custom_cast(&column, field.data_type(), extype)?;
                     columns.push(output)
                 }

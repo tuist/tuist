@@ -226,7 +226,7 @@ async fn execute_insert_exprs<R: Rng + 'static>(
                 let translator = InsertIntoExprTranslator;
                 let sql = translator.translate(&insert_expr)?;
                 let result = pulse
-                    // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
+                    // unprepared query
                     .execute(sqlx::AssertSqlSafe(sql.as_str()))
                     .await
                     .context(error::ExecuteQuerySnafu { sql: &sql })?;

@@ -2186,7 +2186,7 @@ msgstr "Запускающий агент для этой цели не созд
 #: lib/tuist_web/live/coverage_detail_live.ex:47
 #: lib/tuist_web/live/coverage_detail_live.ex:127
 #: lib/tuist_web/live/coverage_detail_live.html.heex:107
-#: lib/tuist_web/live/coverage_file_live.ex:243
+#: lib/tuist_web/live/coverage_file_live.ex:242
 #: lib/tuist_web/live/coverage_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
@@ -2196,7 +2196,7 @@ msgstr "Покрытие кода"
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
-#: lib/tuist_web/live/coverage_file_live.ex:205
+#: lib/tuist_web/live/coverage_file_live.ex:204
 #: lib/tuist_web/live/coverage_file_live.html.heex:180
 #: lib/tuist_web/live/coverage_live.html.heex:79
 #: lib/tuist_web/live/coverage_live.html.heex:137
@@ -2208,7 +2208,7 @@ msgstr "Покрытие"
 #: lib/tuist_web/live/coverage/components.ex:782
 #: lib/tuist_web/live/coverage/components.ex:932
 #: lib/tuist_web/live/coverage_detail_live.html.heex:119
-#: lib/tuist_web/live/coverage_file_live.ex:203
+#: lib/tuist_web/live/coverage_file_live.ex:202
 #: lib/tuist_web/live/coverage_file_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Covered lines"
@@ -2226,7 +2226,7 @@ msgstr "Исполняемые строки"
 msgid "Executable lines the tests ran at least once."
 msgstr "Исполняемые строки, которые были выполнены хотя бы раз во время прогона тестов."
 
-#: lib/tuist_web/live/coverage_file_live.ex:204
+#: lib/tuist_web/live/coverage_file_live.ex:203
 #: lib/tuist_web/live/coverage_file_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Executions"
@@ -2242,7 +2242,7 @@ msgstr "Выполнения"
 msgid "Files"
 msgstr "Файлы"
 
-#: lib/tuist_web/live/coverage_file_live.ex:201
+#: lib/tuist_web/live/coverage_file_live.ex:200
 #: lib/tuist_web/live/coverage_file_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Function"
@@ -2259,7 +2259,7 @@ msgstr "Функции"
 msgid "Functions the compiler instrumented in the file."
 msgstr "Функции, которые компилятор инструментировал в файле."
 
-#: lib/tuist_web/live/coverage_file_live.ex:202
+#: lib/tuist_web/live/coverage_file_live.ex:201
 #: lib/tuist_web/live/coverage_file_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Line"
@@ -2400,16 +2400,9 @@ msgstr "Ветка:"
 msgid "Change"
 msgstr "Изменить"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:42
-#: lib/tuist_web/live/coverage_file_live.ex:34
-#: lib/tuist_web/live/coverage_live.ex:47
-#, elixir-autogen, elixir-format
-msgid "Code coverage is not enabled for this account."
-msgstr "Покрытие кода не включено для этого аккаунта."
-
 #: lib/tuist_web/live/coverage/components.ex:341
 #: lib/tuist_web/live/coverage_detail_live.ex:573
-#: lib/tuist_web/live/coverage_file_live.ex:236
+#: lib/tuist_web/live/coverage_file_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
 msgstr "Коммит %{name}"
@@ -3295,3 +3288,10 @@ msgstr "Пакеты"
 #, elixir-autogen, elixir-format
 msgid "Module name"
 msgstr "Название модуля"
+
+#: lib/tuist_web/live/coverage_detail_live.ex:42
+#: lib/tuist_web/live/coverage_file_live.ex:33
+#: lib/tuist_web/live/coverage_live.ex:47
+#, elixir-autogen, elixir-format
+msgid "Code coverage isn't available for this project's build system."
+msgstr "Покрытие кода недоступно для системы сборки этого проекта."

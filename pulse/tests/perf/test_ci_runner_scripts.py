@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 """Offline regression coverage for CI runner selection and lifecycle."""
 
 import importlib.util
@@ -549,9 +551,9 @@ class BenchmarkImagePullTest(unittest.TestCase):
         self.tool('docker', '''
             echo "$*" >> "$PULL_TEST_ROOT/docker.log"
             if [[ $1 == pull && $2 == ${PULL_FAIL_IMAGE:-} ]]; then exit 1; fi
-            if [[ $1 == image ]]; then printf '[{"RepoDigests":["greptime/greptimedb@sha256:%s"]}]\\n' "$(printf 'a%.0s' {1..64})"; fi
+            if [[ $1 == image ]]; then printf '[{"RepoDigests":["ghcr.io/tuist/pulse@sha256:%s"]}]\\n' "$(printf 'a%.0s' {1..64})"; fi
         ''')
-        images[0] = 'greptime/greptimedb:v1.3.0-beta.1'
+        images[0] = 'ghcr.io/tuist/pulse:v1.3.0-beta.1'
         self.env.update(METADATA_ROOT=str(self.root), PULSE_TAG='v1.3.0-beta.1',
                         GITHUB_ENV=str(self.root / 'env'), BASELINE_PULSE_TAG='v1.2.1')
         for selected, compare in ((('pulse',), False), (('tempo',), False),
@@ -568,13 +570,13 @@ class BenchmarkImagePullTest(unittest.TestCase):
                 selected_images = [image for target, image in zip(('pulse', 'victoriatraces', 'tempo'), images)
                                    if target in selected]
                 if compare:
-                    selected_images.append('greptime/greptimedb:v1.2.1')
+                    selected_images.append('ghcr.io/tuist/pulse:v1.2.1')
                 self.assertEqual(self.lines('docker'),
                                  [call for image in selected_images for call in (f'pull {image}', f'image inspect {image}')])
-                expected_env = 'PULSE_IMAGE=greptime/greptimedb@sha256:' + 'a' * 64 + '\n'
+                expected_env = 'PULSE_IMAGE=ghcr.io/tuist/pulse@sha256:' + 'a' * 64 + '\n'
                 expected_env = expected_env if 'pulse' in selected else ''
                 if compare:
-                    expected_env += 'BASELINE_PULSE_IMAGE=greptime/greptimedb@sha256:' + 'a' * 64 + '\n'
+                    expected_env += 'BASELINE_PULSE_IMAGE=ghcr.io/tuist/pulse@sha256:' + 'a' * 64 + '\n'
                 self.assertEqual((self.root / 'env').read_text(), expected_env)
         (self.root / 'docker.log').unlink()
         self.env['PULL_FAIL_IMAGE'] = images[1]

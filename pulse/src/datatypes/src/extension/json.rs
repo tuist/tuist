@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -195,7 +197,7 @@ impl Default for JsonMetadata {
 pub struct JsonExtensionType;
 
 impl ExtensionType for JsonExtensionType {
-    const NAME: &'static str = "greptime.json";
+    const NAME: &'static str = "pulse.json";
     type Metadata = ();
 
     fn metadata(&self) -> &Self::Metadata {
@@ -236,7 +238,7 @@ impl Json2ExtensionType {
 }
 
 impl ExtensionType for Json2ExtensionType {
-    const NAME: &'static str = "greptime.json2";
+    const NAME: &'static str = "pulse.json2";
     type Metadata = Arc<JsonMetadata>;
 
     fn metadata(&self) -> &Self::Metadata {
@@ -328,7 +330,7 @@ pub fn is_any_json_extension_type<T: AsRef<Field>>(field: T) -> bool {
     name == Some(JsonExtensionType::NAME) || name == Some(Json2ExtensionType::NAME)
 }
 
-/// Parses JSON2 settings stored by the historical `greptime.json` extension.
+/// Parses JSON2 settings stored by the historical `pulse.json` extension.
 pub fn parse_legacy_json2_settings(
     metadata: &HashMap<String, String>,
 ) -> crate::error::Result<Option<JsonSettings>> {
@@ -355,7 +357,7 @@ pub fn parse_legacy_json2_settings(
 
 /// Checks whether this field uses the JSON2 extension layout from before type hints.
 ///
-/// That layout used the same `greptime.json` extension name and
+/// That layout used the same `pulse.json` extension name and
 /// `json_structure_settings` metadata as legacy JSONB. Its structured Arrow data type is
 /// therefore required to distinguish JSON2 from Binary JSONB.
 pub fn is_legacy_json2_extension_type<T: AsRef<Field>>(field: T) -> bool {

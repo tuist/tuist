@@ -145,7 +145,7 @@ WHERE table_id = (
 +------------+
 | index_size |
 +------------+
-| 321        |
+| 318        |
 +------------+
 
 -- SQLNESS ARG restart=true

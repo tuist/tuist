@@ -56,7 +56,6 @@ meta_election_lock_id = 1
 ## - `round_robin` (default value)
 ## - `lease_based`
 ## - `load_based`
-## For details, please see "https://docs.greptime.com/developer-guide/metasrv/selector".
 selector = "round_robin"
 
 ## Whether to enable region failover.

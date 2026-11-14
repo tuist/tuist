@@ -138,8 +138,7 @@ impl PulseRequestHandler {
                 Some(runtime) => {
                     // Executes requests in another runtime to
                     // 1. prevent the execution from being cancelled unexpected by Tonic runtime;
-                    //   - Refer to our blog for the rational behind it:
-                    //     https://www.greptime.com/blogs/2023-01-12-hidden-control-flow.html
+                    //   - Tonic drops the request future when the client goes away, which would stop the execution at any `.await`;
                     //   - Obtaining a `JoinHandle` to get the panic message (if there's any).
                     //     From its docs, `JoinHandle` is cancel safe. The task keeps running even it's handle been dropped.
                     // 2. avoid the handler blocks the gRPC runtime incidentally.
