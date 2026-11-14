@@ -18,11 +18,14 @@ the bucket but is no longer queried. A renamed release reads only `X-Pulse-*`
 headers, so the deployment refuses to run while live collectors that write to
 Pulse lack them: deploy the server to that environment first.
 
-The chart pins the fork release in `values.yaml`, which must already be
-published: push `pulse/` to main and let `pulse-release.yml` finish before
-dispatching a deployment. Pushes and pull requests only validate; deploying
-needs a `Pulse Deployment` dispatch from main, and canary/production
-dispatches need their protected-environment approval.
+Pulse deploys continuously, like Kura. Every push to main that changes
+`pulse/`, this chart or its deployment runs `Pulse Production Deployment`: it
+publishes a canary when `pulse/` changed, then deploys staging, canary and
+production in turn, each only after the previous environment qualified. Each
+leg runs the newest `pulse@*-canary.*` the commit contains; `values.yaml` pins
+the image used only for a commit without one. Pull requests only validate. A
+`Pulse Deployment` dispatch from main redeploys or rolls back one
+environment.
 
 ## Bootstrap prerequisites
 

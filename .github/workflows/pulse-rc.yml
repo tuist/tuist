@@ -40,8 +40,9 @@ permissions:
   id-token: write
 
 concurrency:
-  # Shared with pulse-promote.yml and pulse-release.yml so version resolution and
-  # tag creation never race.
+  # Shared with pulse-promote.yml so version resolution and tag creation never race.
+  # Canaries publish in pulse-canary-publish (pulse-release.yml); their
+  # -canary.N tags cannot collide with RC or stable tags.
   group: pulse-publish
   cancel-in-progress: false
 

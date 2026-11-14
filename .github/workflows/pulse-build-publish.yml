@@ -6,9 +6,9 @@ name: Pulse Build & Publish
 # smoke-tests and publishes ghcr.io/tuist/pulse:<version>, tags the commit
 # pulse@<version> and creates its GitHub release.
 #
-# Publishing deploys nothing: the clusters run the image pinned in
-# infra/helm/pulse/values.yaml, and pulse-deployment.yml rolls it
-# out on dispatch.
+# Canaries reach the clusters through pulse-production-deployment.yml, which
+# deploys the newest canary in the pushed commit; RCs and stable releases
+# deploy nothing.
 on:
   workflow_call:
     inputs:
