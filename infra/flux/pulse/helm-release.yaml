@@ -1,0 +1,35 @@
+# The same chart the workload clusters install with greptimedb-deployment.yml,
+# read from this repository at Flux's revision; values-management.yaml pins
+# it to one node's /var (management has no volume provisioner) and the
+# private tuist-pulse-management bucket. Vault items in tuist-k8s-mgmt:
+# PULSE_TOKEN/password and PULSE_S3_CREDENTIALS; mgmt-cluster-apply.yml
+# creates the in-cluster pulse-auth Secret.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pulse
+  namespace: flux-system
+spec:
+  interval: 10m
+  releaseName: pulse
+  targetNamespace: observability
+  storageNamespace: observability
+  chart:
+    spec:
+      chart: ./infra/helm/greptimedb
+      reconcileStrategy: Revision
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      # Flux drops the chart's values.yaml once valuesFiles is set.
+      valuesFiles:
+        - ./infra/helm/greptimedb/values.yaml
+        - ./infra/helm/greptimedb/values-management.yaml
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    remediation:
+      retries: 3
+      strategy: rollback

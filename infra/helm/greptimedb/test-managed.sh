@@ -134,4 +134,30 @@ jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$tmp/edited"
   ($before["pulse-frontend"] == $after["pulse-frontend"])' > /dev/null
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$chart" --set cluster.frontend.replicas=3)" \
   '$before == $after' > /dev/null
-echo 'PASS: per-environment private backend, scoped auth, isolated S3 prefix, retained WAL volume and HA production topology'
+# Management: standalone on one node's hostPath, its own bucket, no Cilium
+# policy, readers limited to its own PDC agent, and no unsafe overrides.
+# Render it the way Flux does: valuesFiles are merged into the chart's own
+# defaults (where a null would survive as a value), not passed as user values.
+cp -R "$chart" "$tmp/flux-chart"
+yq ea '. as $item ireduce ({}; . * $item)' "$chart/values.yaml" "$chart/values-management.yaml" > "$tmp/flux-chart/values.yaml"
+helm template pulse "$tmp/flux-chart" -n observability > "$tmp/mgmt.yaml"
+yq ea -o=json -I=0 '.' "$tmp/mgmt.yaml" | jq -s '
+  map(select(. != null)) |
+  all(.[]; .kind != "CiliumNetworkPolicy") and
+  any(.[]; .kind == "StatefulSet" and (.spec | has("volumeClaimTemplates") | not) and
+    .spec.template.spec.nodeSelector == {"kubernetes.io/hostname":"tuist-mgmt"} and
+    any(.spec.template.spec.volumes[]; .name == "data" and .hostPath.path == "/var/lib/tuist-pulse") and
+    ([.spec.template.spec.initContainers[].name] == ["own-data","combine-auth"])) and
+  any(.[]; .kind == "ConfigMap" and (.data["config.toml"] | contains("bucket = \"tuist-pulse-management\"", "root = \"pulse/\""))) and
+  any(.[]; .kind == "NetworkPolicy" and (.spec.ingress | length) == 2 and
+    .spec.ingress[1].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"observability"}},
+      podSelector:{matchLabels:{"app.kubernetes.io/name":"pdc-agent","app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"pdc-agent"}}}])
+' | grep -qx true
+for refused in topology=cluster persistence.hostPath= nodeSelector=null storage.bucket=tuist-pulso-production; do
+  if helm template pulse "$chart" -n observability -f "$chart/values-management.yaml" --set "$refused" > /dev/null 2>&1; then
+    echo "FAIL: unsafe management setting accepted: $refused" >&2
+    exit 1
+  fi
+done
+if helm template pulse "$chart" -n observability --set environment=management,storage.bucket=tuist-pulso-management > /dev/null 2>&1; then exit 1; fi
+echo 'PASS: per-environment private backend, scoped auth, isolated S3 prefix, retained WAL volume, HA production topology and hostPath management backend'

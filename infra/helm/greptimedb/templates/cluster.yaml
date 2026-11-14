@@ -434,7 +434,10 @@ spec:
       {{- include "greptimedb.placement" "frontend" | nindent 6 }}
       securityContext:
         {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+      {{- if .Values.dashboard.enabled }}
+      initContainers:
       {{- include "greptimedb.authInit" . | nindent 6 }}
+      {{- end }}
       containers:
         - name: frontend
           image: {{ .Values.image | quote }}

@@ -96,10 +96,36 @@ spec:
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
+      # Workload clusters run Pulse on the general pool; management has no
+      # pools and pins the node that holds persistence.hostPath.
       nodeSelector:
-        node.cluster.x-k8s.io/pool: general
+        {{- toYaml (.Values.nodeSelector | default (dict "node.cluster.x-k8s.io/pool" "general")) | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+      {{- if or .Values.dashboard.enabled .Values.persistence.hostPath }}
+      initContainers:
+      {{- end }}
+      {{- if .Values.persistence.hostPath }}
+        # fsGroup does not apply to hostPath, which kubelet creates root-owned.
+        - name: own-data
+          image: busybox:1.37.0
+          command: [chown, "1000:1000", /data/greptimedb]
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL], add: [CHOWN]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          volumeMounts:
+            - {name: data, mountPath: /data/greptimedb}
+      {{- end }}
       {{- include "greptimedb.authInit" . | nindent 6 }}
       containers:
         - name: pulse
@@ -133,6 +159,13 @@ spec:
         {{- include "greptimedb.authVolumes" . | nindent 8 }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
+        {{- with .Values.persistence.hostPath }}
+        # Standalone keeps its WAL and catalog on local disk; a cluster without
+        # a volume provisioner pins the pod to the node that holds this path.
+        - name: data
+          hostPath: {path: {{ . | quote }}, type: DirectoryOrCreate}
+        {{- end }}
+  {{- if not .Values.persistence.hostPath }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -142,6 +175,7 @@ spec:
         resources:
           requests:
             storage: {{ .Values.persistence.size | quote }}
+  {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

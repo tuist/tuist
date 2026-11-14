@@ -1,0 +1,20 @@
+# Grafana Cloud's tunnel to management's Pulse. Separate from `pulse` and not
+# waited on, so a missing PDC_AGENT token never holds the backend back.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: pulse-pdc
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: pulse
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infra/flux/pulse-pdc
+  prune: true
+  wait: false
+  force: false

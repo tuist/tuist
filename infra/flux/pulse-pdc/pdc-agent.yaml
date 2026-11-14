@@ -1,0 +1,95 @@
+# Grafana Cloud Private Data source Connect agent for management's Pulse,
+# like the tuist chart's pdc-agent in the workload clusters. Management has
+# its own PDC network (Grafana Cloud > Connections > Private data source
+# connections); its signing token is PDC_AGENT/password in tuist-k8s-mgmt.
+# The agent may open only Pulse's HTTP API.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pulse-pdc-agent
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: pulse-pdc-agent
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        token: "{{ .token | trim }}"
+  data:
+    - secretKey: token
+      remoteRef:
+        key: PDC_AGENT/password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulse-pdc-agent
+  labels: &labels
+    app.kubernetes.io/name: pdc-agent
+    app.kubernetes.io/instance: pulse
+    app.kubernetes.io/component: pdc-agent
+spec:
+  # Grafana fails over between agents; two survive a node drain.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels: *labels
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 30000
+        runAsGroup: 30000
+        fsGroup: 30000
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: *labels
+      containers:
+        - name: pdc-agent
+          # No `v` prefix: Docker Hub tags differ from GitHub releases.
+          image: grafana/pdc-agent:0.0.61
+          args:
+            - -cluster
+            - prod-eu-west-2
+            - -token
+            - $(TOKEN)
+            - -gcloud-hosted-grafana-id
+            - "1028740"
+            # One argument: the agent splits the flag on its first space.
+            - "-ssh-flag=-o PermitRemoteOpen=pulse.observability.svc.cluster.local:4000"
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pulse-pdc-agent
+                  key: token
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi

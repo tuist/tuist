@@ -80,7 +80,6 @@ Prerequisites:
    | `LOKI_TOKEN` | Password | `password` |
    | `TEMPO_TOKEN` | Password | `password` |
    | `PULSE_TOKEN` | Password | `password` (random, e.g. `openssl rand -hex 32`) |
-   | `PULSE_SECRET_KEY_BASE` | Password | `password` (`openssl rand -base64 48`) |
    | `PULSE_S3_CREDENTIALS` | Login | `access_key_id`, `secret_access_key` |
 
 3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. See the [Pulse bootstrap prerequisites](../greptimedb/README.md#bootstrap-prerequisites).
@@ -140,7 +139,7 @@ The rack's switches report through the Omada controller rather than a scrape of 
 
 ## Pulse (GreptimeDB)
 
-Pulse is Tuist's GreptimeDB fork, installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/greptimedb`](../greptimedb/README.md). The legacy Elixir Pulse is gone, and management and pentest send their metrics only to Grafana Cloud.
+Pulse is Tuist's GreptimeDB fork, installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/greptimedb`](../greptimedb/README.md). The management cluster runs its own `pulse` release through Flux ([`infra/flux/pulse`](../../flux/pulse)); pentest sends its metrics only to Grafana Cloud.
 
 Staging, canary and production collectors send metrics, logs and traces to Grafana Cloud and, through separate write queues, directly to Pulse (`pulse.observability.svc.cluster.local:4000`), with no gateway in between:
 
