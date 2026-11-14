@@ -511,8 +511,6 @@ jobs:
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/pulse-deploy"
-          # One-time: the release's pre-rename name. Remove after staging's next deploy.
-          helm uninstall greptime-grafana-staging -n observability --ignore-not-found --wait --timeout 5m
           helm template pulse-grafana-staging infra/helm/pulse-grafana -n observability > "$dir/grafana.yaml"
           yq ea -o=json -I=0 '.' "$dir/grafana.yaml" | jq -s 'map(select(. != null))' > "$dir/grafana.json"
           kubectl get nodes -l node.cluster.x-k8s.io/pool=general -o json > "$dir/nodes.json"
