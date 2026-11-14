@@ -876,9 +876,12 @@ struct RestoreTests {
                 localOneManifest, packageDir: localOne,
                 cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
             )
+            // `../LocalTwo` resolves against LocalOne's real directory, as SwiftPM does, so under a `/var` temporary
+            // directory SwifterPM looks LocalTwo's manifest up at its `/private/var` spelling.
+            let resolvedLocalTwo = PathCanonicalizer.realpath(package).appendingPathComponent("LocalTwo")
             try await writeCachedManifest(
-                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
-                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+                emptyManifest(name: "LocalTwo"), packageDir: resolvedLocalTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: resolvedLocalTwo)
             )
 
             try await WorkspaceRestorer.writeWorkspaceState(
