@@ -1039,4 +1039,25 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
     }
+
+    struct CacheAutomationDebuggingTests {
+        private let subject = CacheGraphMapperFactory(contentHasher: ContentHasher())
+
+        @Test(arguments: [false, true])
+        func automation_doesNotAddCachedModulesDebuggingPreActions(enableCaching: Bool) {
+            let got = subject.automation(
+                config: .test(project: .generated(.test(generationOptions: .test(enableCaching: enableCaching)))),
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: true,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: MockCacheStoring(),
+                destination: nil
+            )
+
+            #expect(!got.contains { $0 is CachedModulesDebuggingGraphMapper })
+        }
+    }
 #endif

@@ -214,7 +214,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
-            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
+            // No CachedModulesDebuggingGraphMapper: xcodebuild never attaches LLDB to these test runs, yet the
+            // pre-action it adds runs dsymutil serially over every test bundle before each test launch.
             mappers.append(CachedMacroPrefixMappingGraphMapper(config: config))
             if sdkSelection == .simulators || sdkSelection == .devices {
                 mappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
