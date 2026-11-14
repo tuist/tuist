@@ -746,7 +746,7 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     assert view |> element("#widget-cargo-cache-hits [data-part=value]") |> render() =~ ">1<"
     assert view |> element("#widget-cargo-cache-misses [data-part=value]") |> render() =~ ">3<"
     assert has_element?(view, "#widget-cargo-cache-hit-rate [data-part=value]", "25.0%")
-    assert has_element?(view, "#cargo-tasks-2-status-tooltip", "learn the task inputs")
+    assert has_element?(view, "#cargo-tasks-2-status-tooltip", "could not be cached")
     assert has_element?(view, "#cargo-tasks-3-status-tooltip", "verify cache correctness")
     refute html =~ "Cache not checked"
     refute html =~ "Verification rebuild"

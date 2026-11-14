@@ -72,7 +72,7 @@ defmodule TuistWeb.Helpers.CargoCache do
     do: dgettext("dashboard_builds", "Checked the cache but could not reuse cached outputs.")
 
   def status_description("unconsulted"),
-    do: dgettext("dashboard_builds", "Compiled to learn the task inputs for future cache reuse.")
+    do: dgettext("dashboard_builds", "Compiled without consulting the cache because it could not be cached.")
 
   def status_description("verification"),
     do: dgettext("dashboard_builds", "Rebuilt to compare fresh outputs with cached outputs and verify cache correctness.")
