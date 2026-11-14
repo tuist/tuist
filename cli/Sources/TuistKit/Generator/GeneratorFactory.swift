@@ -25,6 +25,8 @@ public protocol GeneratorFactorying {
     /// - Parameter ignoreBinaryCache: True to not include binaries from the cache.
     /// - Parameter ignoreSelectiveTesting: True to run all tests
     /// - Parameter cacheStorage: The cache storage instance.
+    /// - Parameter debuggable: Whether the project is for opening in Xcode rather than only for xcodebuild to run, so
+    /// it needs the cached modules' debugger settings.
     /// - Returns: A Generator instance.
     func testing(
         config: Tuist,
@@ -40,7 +42,8 @@ public protocol GeneratorFactorying {
         destination: SimulatorDeviceAndRuntime?,
         schemeName: String?,
         coverage: BinaryCacheCoverage,
-        sdkSelection: BinaryCacheSDKSelection
+        sdkSelection: BinaryCacheSDKSelection,
+        debuggable: Bool
     ) -> Generating
 
     /// Returns the generator for focused projects.
@@ -107,7 +110,8 @@ public struct GeneratorFactory: GeneratorFactorying {
         destination _: SimulatorDeviceAndRuntime?,
         schemeName: String? = nil,
         coverage: BinaryCacheCoverage,
-        sdkSelection: BinaryCacheSDKSelection = .all
+        sdkSelection: BinaryCacheSDKSelection = .all,
+        debuggable: Bool = false
     ) -> Generating {
         let config = config.resolvingCoverage(coverage)
         let contentHasher = ContentHasher()
@@ -130,6 +134,9 @@ public struct GeneratorFactory: GeneratorFactorying {
             includedProducts: [.unitTests, .uiTests],
             schemeName: schemeName
         )
+        if !debuggable {
+            graphMappers.removeAll { $0 is CachedModulesDebuggingGraphMapper }
+        }
         if sdkSelection == .simulators || sdkSelection == .devices {
             graphMappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))
         }
@@ -272,7 +279,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             destination: SimulatorDeviceAndRuntime?,
             schemeName: String?,
             coverage: BinaryCacheCoverage,
-            sdkSelection: BinaryCacheSDKSelection
+            sdkSelection: BinaryCacheSDKSelection,
+            debuggable: Bool
         ) -> Generating
 
         /// Returns the generator for focused projects.
@@ -395,7 +403,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             destination: SimulatorDeviceAndRuntime?,
             schemeName: String? = nil,
             coverage: BinaryCacheCoverage,
-            sdkSelection: BinaryCacheSDKSelection = .all
+            sdkSelection: BinaryCacheSDKSelection = .all,
+            debuggable: Bool = false
         ) -> Generating {
             let config = config.resolvingCoverage(coverage)
             let contentHasher = ContentHasher()
@@ -421,7 +430,8 @@ public struct GeneratorFactory: GeneratorFactorying {
                 cacheStorage: cacheStorage,
                 destination: destination,
                 schemeName: schemeName,
-                sdkSelection: sdkSelection
+                sdkSelection: sdkSelection,
+                debuggable: debuggable
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
             return Generator(

@@ -553,6 +553,43 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_generates_a_debuggable_project_when_only_generating() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])), MapperEnvironment())
+            }
+
+        // When
+        try await testRun(schemeName: "TestScheme", path: try temporaryPath(), generateOnly: true)
+
+        // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any,
+                coverage: .any,
+                sdkSelection: .any,
+                debuggable: .value(true)
+            )
+            .called(1)
+    }
+
     func test_run_tests_with_passthrough_destination() async throws {
         // Given
         givenGenerator()
@@ -611,7 +648,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .value(.test(device: .test(name: "Test iPhone"))),
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .value(false)
             )
             .called(1)
         verify(xcodebuildController)
@@ -2761,7 +2799,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -2853,7 +2892,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(1)
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
@@ -2890,7 +2930,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2995,7 +3036,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
         given(generator)
@@ -3074,7 +3116,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
 
@@ -3192,7 +3235,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
         given(generator)
@@ -5412,7 +5456,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(testingGenerator ?? generator)
     }
@@ -5468,7 +5513,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(0)
 
@@ -5531,7 +5577,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(0)
 
@@ -5590,7 +5637,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(1)
     }
@@ -6425,7 +6473,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(1)
     }
@@ -6675,7 +6724,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(0)
 
@@ -7997,7 +8047,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(0)
         verify(cacheStorage)
@@ -8069,7 +8120,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(1)
     }
@@ -9733,7 +9785,8 @@ struct TestServiceBinaryCacheCoverageTests {
                 skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
                 cacheStorage: .any, destination: .any, schemeName: .any,
                 coverage: .value(expected),
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .called(1)
     }
@@ -9772,7 +9825,8 @@ struct TestServiceCacheDestinationTests {
                 config: .any, testPlan: .any, includedTargets: .any, excludedTargets: .any, skipUITests: .any,
                 skipUnitTests: .any, configuration: .any, ignoreBinaryCache: .any, ignoreSelectiveTesting: .any,
                 cacheStorage: .any, destination: .any, schemeName: .any, coverage: .any,
-                sdkSelection: .value(expected)
+                sdkSelection: .value(expected),
+                debuggable: .any
             )
             .called(1)
     }
@@ -9923,7 +9977,8 @@ private struct TestServiceSchemePlanningFixture {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
         given(generator)
@@ -10242,7 +10297,8 @@ private struct TestServiceStressNewTestsFixture {
                 destination: .any,
                 schemeName: .any,
                 coverage: .any,
-                sdkSelection: .any
+                sdkSelection: .any,
+                debuggable: .any
             )
             .willReturn(generator)
         given(generator)
@@ -10688,7 +10744,8 @@ struct TestServiceTargetQueryTests {
             destination: .any,
             schemeName: .any,
             coverage: .any,
-            sdkSelection: .any
+            sdkSelection: .any,
+            debuggable: .any
         ).willReturn(generator)
         let inspector = MockBuildGraphInspecting()
         given(inspector).testableSchemes(graphTraverser: .any).willReturn([])
