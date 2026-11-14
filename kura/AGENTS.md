@@ -127,10 +127,41 @@ does not repair embedded/native verification or qualify running processes.
   records. When it reached the end of the index and nothing counted was evicted
   since it began, the frozen repair fetches only those records plus the record
   rows the source's feed added after that cursor, read once without waiting.
+  The destination reads that cursor before its first descriptor page and
+  sends it; the source pins its feed there (a pinned `handover:<id>` consumer,
+  outside the drain gate) until the receipt or the stale-consumer window, so
+  the sibling link's trim cannot remove the rows the delta needs.
+  The destination also records the record rows its own forward link applies
+  after that cursor (contiguous pages only, same 100,000 bound) and uses them
+  before the source's feed, so an older source that never pins or has trimmed
+  its feed keeps the delta. A gap, re-bootstrap or overflow drops that list.
   A different incarnation, a trimmed floor or too many rows runs the full walk.
-  The delta repair skips the revisit on uncounted evictions; the full-corpus
-  metadata verification still checks every retained record before a receipt,
-  so anything the delta missed fails the attempt rather than the transfer.
+  The delta repair skips the revisit on uncounted evictions.
+  After the walk, while the intent still serves, the destination confirms
+  each applied record against the source's content through
+  `/_internal/handover/describe` (named destination of the current Serving
+  intent only) and adds it to the verified set; begin drops verified records
+  from the delta. This is the content walk's check, never a receipt, and a
+  failed round only leaves records to the barrier.
+  A public request the authority refuses while this holder's handover is in
+  Quiescing or Revoking waits (20 s at most) instead of answering 503: admitted
+  here after an abort, or, once the destination is observed Serving, forwarded
+  for 60 s over peer mTLS to `/_internal/handover/forward/...`, where the new
+  holder's own public router authorizes and admits it. The former holder
+  retires its connections and commits nothing. gRPC waits the same way but is
+  answered UNAVAILABLE after the switch rather than forwarded.
+  The delta also replaces the frozen full-corpus verification when the walk
+  could hash every row it listed and the source's count of retained records
+  committed without a feed row (sibling pulls, unfed tombstones), read before
+  the walk's first page, is unchanged at begin: begin then answers
+  `barrier_delta_records`, the frozen source pages that list from
+  `/_internal/handover/barrier-delta` (bounded pages, held corpus and current
+  intent only) and verifies in full only those records. Keep the list out of
+  begin's answer: other verification answers stay within 16 KiB.
+  Staging and commit both move that count, so a record staged before the walk
+  and committed after it falls back. The source rejects its barrier if the
+  count moves while frozen. Any other case, or an older peer, keeps the
+  full-corpus metadata verification.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
 - `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.

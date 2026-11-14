@@ -137,7 +137,7 @@ pub struct LinkStatusCell {
 }
 
 impl LinkStatusCell {
-    fn new(status: LinkStatus) -> Arc<Self> {
+    pub(crate) fn new(status: LinkStatus) -> Arc<Self> {
         Arc::new(Self {
             status: Mutex::new(status),
         })

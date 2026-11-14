@@ -13,7 +13,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version, request::Parts},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, head, post, put},
+    routing::{any, delete, get, head, post, put},
 };
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
@@ -335,6 +335,18 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             "/_internal/handover/verify-descriptors",
             post(crate::handover::verify_descriptors),
+        )
+        .route(
+            "/_internal/handover/barrier-delta",
+            post(crate::handover::barrier_delta),
+        )
+        .route(
+            "/_internal/handover/describe",
+            post(crate::handover::describe),
+        )
+        .route(
+            "/_internal/handover/forward/{*path}",
+            any(crate::handover::forwarded_public_request),
         )
         .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
@@ -1330,19 +1342,23 @@ async fn reject_draining_public_requests(
         return draining_response(version);
     }
 
+    let mutation = is_write_method(req.method());
     let permit = if is_probe_route(&route) {
         None
     } else {
-        match state
-            .runtime
-            .authority
-            .admit_request(is_write_method(req.method()))
-        {
+        match state.runtime.authority.admit_request(mutation) {
             Ok(permit) => permit,
-            Err(_) => return draining_response(version),
+            // A planned handover in flight: wait for the switch instead of
+            // refusing, then serve here (abort) or forward to the new holder.
+            Err(_) => match crate::handover::await_switch(&state, mutation).await {
+                crate::handover::Switch::Local(permit) => permit,
+                crate::handover::Switch::Forward(url) => {
+                    return forward_to_new_holder(&state, &url, req).await;
+                }
+                crate::handover::Switch::Refuse => return draining_response(version),
+            },
         }
     };
-    let mutation = is_write_method(req.method());
     let mut response = crate::serving_authority::scope(permit.clone(), next.run(req)).await;
     if mutation
         && response.status().is_success()
@@ -1361,6 +1377,68 @@ async fn reject_draining_public_requests(
         );
     }
     response
+}
+
+const HOP_BY_HOP: [&str; 7] = [
+    "connection",
+    "keep-alive",
+    "proxy-connection",
+    "transfer-encoding",
+    "te",
+    "upgrade",
+    "host",
+];
+
+/// Forwards a public request the former holder can no longer admit to the new
+/// holder over the peer mTLS link, streaming both bodies. The new holder
+/// authorizes and admits it under its own grant; this node commits nothing.
+/// Retiring connections moves clients onto the new route as they finish.
+async fn forward_to_new_holder(state: &SharedState, url: &str, req: Request) -> Response {
+    let version = req.version();
+    state.runtime.retire_public_connections();
+    let (parts, body) = req.into_parts();
+    let path_and_query = parts
+        .uri
+        .path_and_query()
+        .map_or("/", |value| value.as_str());
+    let target = format!("{url}{}{path_and_query}", crate::handover::FORWARD_PREFIX);
+    let mut request = match state.peer_request(parts.method.clone(), url, &target) {
+        Ok(request) => request,
+        Err(_) => return draining_response(version),
+    };
+    for (name, value) in &parts.headers {
+        if !HOP_BY_HOP.contains(&name.as_str()) {
+            request = request.header(name, value);
+        }
+    }
+    let response = match request
+        .body(reqwest::Body::wrap_stream(body.into_data_stream()))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::warn!(event.name = "kura.handover.forward_failed", %error,
+                "Forwarding a public request to the new holder failed");
+            return draining_response(version);
+        }
+    };
+    let status = response.status();
+    let headers = response.headers().clone();
+    let mut forwarded = Response::new(Body::from_stream(response.bytes_stream()));
+    *forwarded.status_mut() = status;
+    for (name, value) in &headers {
+        if !HOP_BY_HOP.contains(&name.as_str()) {
+            forwarded.headers_mut().append(name, value.clone());
+        }
+    }
+    if is_http1(version) {
+        forwarded.headers_mut().insert(
+            axum::http::header::CONNECTION,
+            HeaderValue::from_static("close"),
+        );
+    }
+    forwarded
 }
 
 /// Turns away public writes at the door when the node is already known to be
