@@ -29,11 +29,84 @@ defmodule Tuist.Tests.LegacySuiteIdentity do
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.CoverageTestSource
+  alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
 
   # One query parameter is capped at 128 KiB, about 3,000 UUIDs, so a module
   # with thousands of new nested tests is read in chunks.
   @lookup_batch_size 2_000
+
+  # Test names are free text, so successor lookups bind fewer of them per query
+  # than UUIDs. The test cases endpoint returns at most 500 per page, so a
+  # page's candidates are still read in one pass over their modules: smaller
+  # batches would read the same granules once per batch.
+  @successor_batch_size 500
+
+  @doc """
+  Adapts muted Xcode `test_cases` (with `:id`, `:name`, `:module_name`,
+  `:suite_name` and `:state`) for a CLI that parses results itself and names a
+  nested suite by its innermost name, as every CLI before the whole path was
+  recorded does. Such a CLI tolerates a muted test's failure only when the
+  suite it gets back is the one it parsed, `Inner`, while skipping works with
+  the whole `Outer/Inner` path it passes to `-skip-testing`.
+
+  So a muted test in a nested suite is named by its innermost suite, and a
+  muted legacy test case is left out once its test has a test case under the
+  whole path: that one's state is the test's now, and unmuting it has to stop
+  the CLI tolerating the failure. Two nested suites with the same innermost
+  name and test look the same to these CLIs, as they always did. Test cases in
+  any other state are returned as they are.
+  """
+  def for_innermost_suite_clients(project_id, test_cases) do
+    superseded = superseded_legacy_ids(project_id, Enum.filter(test_cases, &legacy_candidate?/1))
+
+    test_cases
+    |> Enum.reject(&MapSet.member?(superseded, &1.id))
+    |> Enum.map(fn
+      %{state: "muted", suite_name: suite_name} = test_case when is_binary(suite_name) ->
+        %{test_case | suite_name: suite_name |> String.split("/") |> List.last()}
+
+      test_case ->
+        test_case
+    end)
+  end
+
+  defp legacy_candidate?(%{state: "muted", suite_name: suite_name}) when is_binary(suite_name),
+    do: suite_name != "" and not String.contains?(suite_name, "/")
+
+  defp legacy_candidate?(_test_case), do: false
+
+  # The test cases under a whole path whose innermost suite, module and name
+  # are a candidate's. The sorting key leads with the module, so only the
+  # candidates' modules are read.
+  defp superseded_legacy_ids(_project_id, []), do: MapSet.new()
+
+  defp superseded_legacy_ids(project_id, candidates) do
+    candidate_ids = MapSet.new(candidates, & &1.id)
+
+    candidates
+    |> Enum.chunk_every(@successor_batch_size)
+    |> Enum.flat_map(fn chunk ->
+      modules = chunk |> Enum.map(& &1.module_name) |> Enum.uniq()
+      names = chunk |> Enum.map(& &1.name) |> Enum.uniq()
+
+      ClickHouseRepo.all(
+        from(test_case in TestCase,
+          where: test_case.project_id == ^project_id,
+          where: test_case.module_name in ^modules,
+          where: test_case.name in ^names,
+          where: fragment("position(?, '/') > 0", test_case.suite_name),
+          distinct: true,
+          select: {test_case.name, test_case.module_name, test_case.suite_name}
+        ),
+        multipart: true
+      )
+    end)
+    |> MapSet.new(fn {name, module_name, suite_name} ->
+      legacy_test_case_id(project_id, "xcode", name, module_name, suite_name)
+    end)
+    |> MapSet.intersection(candidate_ids)
+  end
 
   @doc """
   The ID a test case had before nested suites were recorded whole, or `nil` when

@@ -293,9 +293,19 @@ defmodule Tuist.Processor.XCResultProcessor do
 
   defp matches_quarantine?(test_case, module_name, quarantined) do
     quarantined["target"] == module_name &&
-      (is_nil(quarantined["class"]) || quarantined["class"] == test_case["test_suite_name"]) &&
-      (is_nil(quarantined["method"]) || quarantined["method"] == test_case["name"])
+      (is_nil(quarantined["method"]) || quarantined["method"] == test_case["name"]) &&
+      (is_nil(quarantined["class"]) || suite_matches?(test_case["test_suite_name"], quarantined["class"]))
   end
+
+  # CLIs that name a nested Swift Testing suite by its innermost name are sent
+  # muted tests that way (`LegacySuiteIdentity.for_innermost_suite_clients/2`)
+  # and write `Inner` here, while this parser names the suite `Outer/Inner`.
+  defp suite_matches?(suite, suite), do: true
+
+  defp suite_matches?(suite, class) when is_binary(suite) and is_binary(class),
+    do: not String.contains?(class, "/") and String.ends_with?(suite, "/" <> class)
+
+  defp suite_matches?(_suite, _class), do: false
 
   defp upload_attachments(parsed_data, bucket, opts) do
     account_handle = Keyword.get(opts, :account_handle)
