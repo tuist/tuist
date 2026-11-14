@@ -599,7 +599,7 @@ struct TargetContentHasherTests {
             inputs: [],
             output: .xcframework(path: try AbsolutePath(validating: "/tmp/Library.xcframework"), linking: .static)
         )))
-        given(foreignBuildHasher).hash(inputs: .any, hashedPaths: .any)
+        given(foreignBuildHasher).hash(inputs: .any, hashedPaths: .any, sourceRootPath: .any)
             .willReturn((hash: "foreign-inputs", hashedPaths: [:]))
 
         let result = try await subject.contentHash(for: target, hashedTargets: [:], hashedPaths: [:], destination: nil)

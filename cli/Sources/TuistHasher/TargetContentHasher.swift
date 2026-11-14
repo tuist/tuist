@@ -342,7 +342,8 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         if let foreignBuild = graphTarget.target.foreignBuild {
             let inputsResult = try await foreignBuildHasher.hash(
                 inputs: foreignBuild.inputs,
-                hashedPaths: hashedPaths
+                hashedPaths: hashedPaths,
+                sourceRootPath: graphTarget.project.sourceRootPath
             )
             hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
             foreignBuildHash = try contentHasher.hash(

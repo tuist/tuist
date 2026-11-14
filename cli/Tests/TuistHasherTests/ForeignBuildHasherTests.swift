@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -12,8 +14,11 @@ struct ForeignBuildHasherTests {
     private let subject: ForeignBuildHasher
     private let contentHasher = MockContentHashing()
     private let commandRunner = MockCommandRunner()
+    private let sourceRootPath: AbsolutePath
 
-    init() {
+    init() throws {
+        sourceRootPath = try AbsolutePath(validating: "/project")
+
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willProduce { $0 + "-hash" }
@@ -35,7 +40,8 @@ struct ForeignBuildHasherTests {
         // When
         let result = try await subject.hash(
             inputs: [.file(filePath)],
-            hashedPaths: [:]
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
         )
 
         // Then
@@ -52,7 +58,8 @@ struct ForeignBuildHasherTests {
         // When
         let result = try await subject.hash(
             inputs: [.file(filePath)],
-            hashedPaths: existingHashedPaths
+            hashedPaths: existingHashedPaths,
+            sourceRootPath: sourceRootPath
         )
 
         // Then
@@ -73,7 +80,8 @@ struct ForeignBuildHasherTests {
         // When
         let result = try await subject.hash(
             inputs: [.folder(folderPath)],
-            hashedPaths: [:]
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
         )
 
         // Then
@@ -90,11 +98,30 @@ struct ForeignBuildHasherTests {
         // When
         let result = try await subject.hash(
             inputs: [.script(script)],
-            hashedPaths: [:]
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
         )
 
         // Then
         #expect(result.hash == "abc123-hash-hash")
+    }
+
+    @Test(.inTemporaryDirectory)
+    func hash_scriptInput_runsFromSourceRootPath() async throws {
+        // Given
+        let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
+        try await FileSystem().writeText("1.0.0", at: sourceRootPath.appending(component: "VERSION"))
+        let subject = ForeignBuildHasher(contentHasher: contentHasher)
+
+        // When
+        let result = try await subject.hash(
+            inputs: [.script("cat VERSION")],
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
+        )
+
+        // Then
+        #expect(result.hash == "1.0.0-hash-hash")
     }
 
     @Test
@@ -112,7 +139,8 @@ struct ForeignBuildHasherTests {
         // When
         let result = try await subject.hash(
             inputs: [.file(filePath), .folder(folderPath)],
-            hashedPaths: [:]
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
         )
 
         // Then
@@ -126,7 +154,8 @@ struct ForeignBuildHasherTests {
         // When
         let result = try await subject.hash(
             inputs: [],
-            hashedPaths: [:]
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
         )
 
         // Then
