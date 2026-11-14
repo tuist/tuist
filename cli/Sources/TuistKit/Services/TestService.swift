@@ -1229,9 +1229,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try? await fileSystem.remove(path)
     }
 
-    /// Runs `test-without-building` the way `testScheme` runs its test action: the coverage evidence
-    /// is recorded and the run's coverage exported as soon as it ends, failed or not, before a
-    /// stress pass replaces the profile both read. The profile is under the arguments'
+    /// Runs `test-without-building` the way `testScheme` runs its test action: the run's coverage is
+    /// exported and the coverage evidence recorded, with the export's `llvm-cov` reports, as soon as
+    /// it ends, failed or not, before a stress pass replaces the profile both read. The profile is under the arguments'
     /// `-derivedDataPath`, whether it came from `--derived-data-path` or after `--`.
     private func runCollectingCoverage(
         arguments: [String],
@@ -1264,19 +1264,21 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } catch {
             runError = error
         }
+        let export = await coverageExportService.export(
+            resultBundlePath: resultBundlePath,
+            derivedDataDirectory: derivedDataPath,
+            config: config,
+            runStartedAt: runStartedAt,
+            keepingReports: session != nil
+        )
         if let session {
             _ = await testCoverageEvidenceService.record(
                 session: session,
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: derivedDataPath
+                derivedDataDirectory: derivedDataPath,
+                reports: export?.reports
             )
         }
-        _ = await coverageExportService.export(
-            resultBundlePath: resultBundlePath,
-            derivedDataDirectory: derivedDataPath,
-            config: config,
-            runStartedAt: runStartedAt
-        )
         if let runError { throw runError }
     }
 
@@ -2851,28 +2853,31 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        // What TestCoverageAttribution recorded is reduced, and the run's coverage exported, as
+        // The run's coverage is exported, and what TestCoverageAttribution recorded reduced, as
         // soon as the run ends, before a stress pass runs tests over the same derived data and
-        // replaces the profile both read.
+        // replaces the profile both read. The reduction reads the export's `llvm-cov` reports of
+        // the same images instead of exporting them again.
         await RunMetadataStorage.current.update(testPlatform: testPlatform)
         let evidenceSession = action == .build ? nil : await testCoverageEvidenceService
             .prepare(platform: evidencePlatform, config: config)
         let runStartedAt = Date()
         let recordCoverageEvidence = {
+            guard action != .build else { return }
+            let export = await coverageExportService.export(
+                resultBundlePath: resultBundlePath,
+                derivedDataDirectory: projectDerivedDataDirectory,
+                config: config,
+                runStartedAt: runStartedAt,
+                keepingReports: evidenceSession != nil
+            )
             if let evidenceSession {
                 _ = await testCoverageEvidenceService.record(
                     session: evidenceSession,
                     resultBundlePath: resultBundlePath,
-                    derivedDataDirectory: projectDerivedDataDirectory
+                    derivedDataDirectory: projectDerivedDataDirectory,
+                    reports: export?.reports
                 )
             }
-            guard action != .build else { return }
-            _ = await coverageExportService.export(
-                resultBundlePath: resultBundlePath,
-                derivedDataDirectory: projectDerivedDataDirectory,
-                config: config,
-                runStartedAt: runStartedAt
-            )
         }
 
         do {

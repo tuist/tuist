@@ -245,6 +245,47 @@ extension CoverageMapping {
         return Self.lines(segments: Self.segments(regions))
     }
 
+    /// The lines of a file that ran, given the counter values of the functions that moved: the
+    /// covered lines of ``lines(file:counts:)``, from only those functions and the ones sharing a
+    /// line with them (a closure nested in one, a function on the same line). Any other function
+    /// counts zero and its regions sit on lines of their own, so it cannot make a line run or stop
+    /// one from running; leaving it out spares re-reading the whole file for each test.
+    func coveredLines(file: Int, counts: [Int: [UInt64]]) -> IndexSet {
+        let candidates = functionsByFile[file] ?? []
+        var moved: [ClosedRange<Int>] = []
+        var spans: [Int: ClosedRange<Int>] = [:]
+        for functionIndex in candidates {
+            var low = Int.max, high = Int.min
+            for entry in functions[functionIndex].regions where entry.file == file && entry.region.kind != .branch {
+                low = min(low, entry.region.lineStart)
+                high = max(high, entry.region.lineEnd)
+            }
+            guard low <= high else { continue }
+            spans[functionIndex] = low ... high
+            if counts[functionIndex] != nil { moved.append(low ... high) }
+        }
+        guard !moved.isEmpty else { return IndexSet() }
+        var regions: [CountedRegion] = []
+        for functionIndex in candidates {
+            guard let span = spans[functionIndex],
+                  counts[functionIndex] != nil || moved.contains(where: { $0.overlaps(span) })
+            else { continue }
+            let function = functions[functionIndex]
+            let values = counts[functionIndex] ?? []
+            for entry in function.regions where entry.file == file && entry.region.kind != .branch {
+                regions.append(CountedRegion(
+                    region: entry.region,
+                    count: values.isEmpty ? 0 : Self.evaluate(entry.region.counter, values, function.expressions)
+                ))
+            }
+        }
+        var covered = IndexSet()
+        for (line, count) in Self.lines(segments: Self.segments(regions)) where count > 0 {
+            covered.insert(line)
+        }
+        return covered
+    }
+
     /// Counter arithmetic wraps as `llvm-cov`'s does, so an inconsistent profile reads the same
     /// here as in its report.
     static func evaluate(_ counter: Counter, _ values: [UInt64], _ expressions: [(Counter, Counter)], depth: Int = 0) -> UInt64 {
@@ -686,9 +727,9 @@ extension CoverageObserverOutput {
                 counts[function]?[Int(counter) - owner.first] = delta
             }
             for file in files where verified.verifiedFiles.contains(file) {
-                let covered = mapping.lines(file: file, counts: counts).filter { $0.value > 0 }.keys
+                let covered = mapping.coveredLines(file: file, counts: counts)
                 guard !covered.isEmpty else { continue }
-                result[mapping.files[file], default: IndexSet()].formUnion(IndexSet(covered))
+                result[mapping.files[file], default: IndexSet()].formUnion(covered)
             }
         }
         return result
