@@ -148,12 +148,12 @@ yq ea -o=json -I=0 '.' "$tmp/mgmt.yaml" | jq -s '
     .spec.template.spec.nodeSelector == {"kubernetes.io/hostname":"tuist-mgmt"} and
     any(.spec.template.spec.volumes[]; .name == "data" and .hostPath.path == "/var/lib/tuist-pulse") and
     ([.spec.template.spec.initContainers[].name] == ["own-data","combine-auth"])) and
-  any(.[]; .kind == "ConfigMap" and (.data["config.toml"] | contains("bucket = \"tuist-pulse-management\"", "root = \"pulse/\""))) and
+  any(.[]; .kind == "ConfigMap" and (.data["config.toml"] | contains("bucket = \"tuist-pulso-production\"", "root = \"management/\""))) and
   any(.[]; .kind == "NetworkPolicy" and (.spec.ingress | length) == 2 and
     .spec.ingress[1].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"observability"}},
       podSelector:{matchLabels:{"app.kubernetes.io/name":"pdc-agent","app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"pdc-agent"}}}])
 ' | grep -qx true
-for refused in topology=cluster persistence.hostPath= nodeSelector=null storage.bucket=tuist-pulso-production; do
+for refused in topology=cluster persistence.hostPath= nodeSelector=null storage.prefix=pulse/ storage.bucket=tuist-pulso-staging; do
   if helm template pulse "$chart" -n observability -f "$chart/values-management.yaml" --set "$refused" > /dev/null 2>&1; then
     echo "FAIL: unsafe management setting accepted: $refused" >&2
     exit 1

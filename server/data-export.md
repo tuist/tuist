@@ -110,8 +110,8 @@ the GreptimeDB storage below.
 
 Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
 prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
-production), and in `tuist-pulse-management` for the management cluster's own
-Pulse, for database-managed data and indexes, and disposable
+production), and under `management/` in `tuist-pulso-production` for the
+management cluster's own Pulse, for database-managed data and indexes, and disposable
 `pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
 release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
 those objects and its PVC until a `purge_greptimedb` dispatch deletes both. Staging and canary use a retained 10 GiB Kubernetes PVC for local
@@ -1269,7 +1269,7 @@ in Tigris and on its standalone WAL/state PVC. The deployment verifies a seven-d
 database TTL before enabling ingestion; physical object reclamation can lag
 logical expiry. Canary uses the same layout in its own bucket; production
 stores data under `pulse/distributed/` and management under
-`tuist-pulse-management/pulse/`, both without a TTL. Switching an ingestion route
+`tuist-pulso-production/management/`, both without a TTL. Switching an ingestion route
 stops new writes to the old backend but erases neither store.
 
 Loki stream labels are retained in log `resource_attributes`, with `service_name`
