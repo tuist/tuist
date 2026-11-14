@@ -10,11 +10,17 @@ trap 'rm -rf "$work"' EXIT
 fleets="$(jq -r '[.[] | select(.kind == "RunnerPool" and .spec.os == "linux" and .spec.nestedVirtualization == true) | .spec.fleetSelector] | unique[]' "$render")"
 [[ -n "$fleets" ]] || exit 0
 
-# A fresh cluster has no running pools to preserve; its normal install creates
-# the provider and plugin, and node selectors protect the first runner Pods.
-nodes="$(kubectl --request-timeout=30s get nodes -o json)"
-if ! jq -e --arg fleets "$fleets" 'any(.items[]; .metadata.labels["node.cluster.x-k8s.io/pool"] as $pool | ($fleets | split("\n") | index($pool)) != null)' <<< "$nodes" >/dev/null; then
-  echo 'No existing Linux runner hosts; normal installation will prepare them.'
+ready_jq="$(dirname "$0")/runner-kvm-ready.jq"
+
+# A fleet without eligible hosts (fresh, or only cordoned, NotReady or deleting
+# hosts) has no running pools to preserve; the normal install creates the
+# provider and plugin, and node selectors and device requests protect the
+# runner Pods those hosts take later.
+report="$(kubectl --request-timeout=30s get nodes -o json | jq --arg fleets "$fleets" -f "$ready_jq")"
+jq -r '.skippedFleets[] | select(.hosts != []) |
+  "::warning::Linux runner fleet \(.fleet) has no eligible host (\(.hosts | map("\(.name): \(.skipped | join(", "))") | join("; "))); KVM preparation does not wait for it."' <<< "$report"
+if jq -e 'all(.nodes[]; .skipped != [])' <<< "$report" >/dev/null; then
+  echo 'No eligible Linux runner hosts; normal installation will prepare them.'
   exit 0
 fi
 
@@ -57,14 +63,15 @@ fi
 # preparation, and enough healthy device allocations for their whole Pod limit.
 deadline=$((SECONDS + ${KVM_PREPARE_TIMEOUT_SECONDS:-600}))
 while true; do
-  kubectl --request-timeout=30s get nodes -o json > "$work/nodes.json"
-  if jq -e --arg fleets "$fleets" -f "$(dirname "$0")/runner-kvm-ready.jq" "$work/nodes.json" >/dev/null; then
-    echo 'Linux runner hosts have current-boot KVM preparation and allocations for every Pod slot.'
+  report="$(kubectl --request-timeout=30s get nodes -o json | jq --arg fleets "$fleets" -f "$ready_jq")"
+  if jq -e '.ready' <<< "$report" >/dev/null; then
+    echo 'Eligible Linux runner hosts have current-boot KVM preparation and allocations for every Pod slot.'
     break
   fi
   if (( SECONDS >= deadline )); then
     echo '::error::KVM preparation timed out; runner pools have not been switched.' >&2
-    jq '[.items[] | {name:.metadata.name, kvm:.metadata.labels["tuist.dev/kata-kvm"], boot:.status.nodeInfo.bootID, proof:.metadata.annotations["tuist.dev/kata-kvm-config"], pods:.status.allocatable.pods, devices:.status.allocatable["devices.tuist.dev/kvm"]}]' "$work/nodes.json" >&2
+    jq -r '.nodes[] | select(.failed != []) | "\(.fleet)/\(.name): \(.failed | join("; "))"' <<< "$report" >&2
+    jq '.nodes' <<< "$report" >&2
     exit 1
   fi
   sleep 10
