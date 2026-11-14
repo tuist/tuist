@@ -194,6 +194,20 @@ spec:
             limits: {memory: 512Mi}
           readinessProbe:
             tcpSocket: {port: 8090}
+          # containerd replaces its socket when it restarts, and this file mount
+          # keeps the deleted one: every CRI call is refused, so no writer fence
+          # passes and no data root publishes. A deleted socket has no links;
+          # restarting the container mounts the live one. Mounting the whole
+          # /run/containerd instead would copy every container's mounts into
+          # the agent and pin runner cache volumes.
+          livenessProbe:
+            exec:
+              command: [/bin/sh, -c, 'test "$(stat -c %h /run/host-containerd.sock)" != 0']
+            periodSeconds: 30
+            # Busy runner hosts time out 1 s exec probes; a false restart cuts
+            # the agent's in-flight transfers.
+            timeoutSeconds: 10
+            failureThreshold: 2
           volumeMounts:
             - name: cache
               mountPath: /cache
