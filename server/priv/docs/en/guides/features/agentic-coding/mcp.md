@@ -264,6 +264,18 @@ Every tool publishes a human-readable description together with explicit input a
 
 Tools that take the identifier of a single record, such as `build_run_id`, `test_run_id`, `test_case_id`, `bundle_id`, `run_id`, `generation_id`, or `cache_run_id`, also accept the Tuist dashboard URL of that record. Paste the URL straight from the browser instead of extracting the identifier from it.
 
+`get_xcode_build`, `get_test_run`, `get_gradle_build`, and `get_project` can include `side_quests`: Tuist capabilities the project isn't using that the record shows would help. Each has an `id`, a `tip` stating the evidence it is based on, and a `docs` link. Agents are asked to finish the user's request first, mention the side quests that apply, and act on one only when the user agrees. They are only returned to members of the project's account, whether they connect with a user session, an MCP token, or an agent identity:
+
+| ID | Tool | Suggested when |
+|----|------|----------------|
+| `xcode_compilation_cache` | `get_xcode_build` | A processed clean build with Xcode 26 or later ran no cacheable compilation tasks. |
+| `gradle_build_cache` | `get_gradle_build` | A build executed cacheable tasks without Gradle's build cache computing a key for any of them, meaning the build cache was off. |
+| `flaky_test_quarantine` | `get_test_run` | A run had flaky tests and no enabled automation in the project mutes or skips them. Not suggested for Once projects. |
+| `test_sharding` | `get_test_run` | An unsharded CI run took 10 minutes or more, in a build system Tuist can shard. The tip says how many tests selective testing already skipped, when it did. |
+| `tuist_runners` | `get_xcode_build`, `get_test_run` | A CI run used GitHub Actions, Bitrise, GitLab CI, or Buildkite machines and the account has never run a job on Tuist Runners. Only on tuist.dev. |
+| `pull_request_comments` | `get_xcode_build`, `get_test_run` | A GitHub Actions run belongs to a project that isn't connected to its GitHub repository. |
+| `other_build_systems` | `get_project` | The account doesn't use Tuist with every supported build system. The tip lists the files that identify the others, so the agent can check the repository. |
+
 #### Documentation and community search
 
 This read-only tool searches Tuist's documentation, [application programming interface](https://en.wikipedia.org/wiki/API) reference, GitHub releases, community forum, and GitHub issues through the same search engine that powers the docs website. Release results include the product, version, publication date, and prerelease status. Stable releases are searched by default, and prereleases can be included with `include_prereleases`. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.

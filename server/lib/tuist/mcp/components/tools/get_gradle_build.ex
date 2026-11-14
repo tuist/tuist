@@ -55,7 +55,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "cache_download_bytes" => %{"type" => "integer"},
         "cache_upload_bytes" => %{"type" => "integer"},
         "failures" => Tuist.MCP.GradleSchemas.failures(),
-        "inserted_at" => %{"type" => "string"}
+        "inserted_at" => %{"type" => "string"},
+        "side_quests" => Tuist.MCP.SideQuests.schema()
       },
       "required" => [
         "id",
@@ -90,6 +91,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
 
   alias Tuist.Gradle
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.SideQuests
   alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
@@ -100,7 +102,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
-    with {:ok, build, _project} <-
+    with {:ok, build, project} <-
            MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
@@ -111,36 +113,42 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
       cache_aggregates = Gradle.task_cache_aggregates(build.id, build.project_id)
 
       {:ok,
-       %{
-         id: build.id,
-         actor: Tuist.ReportActor.actor(build),
-         tasks_cache_hit_count: build.tasks_cache_hit_count,
-         duration_ms: build.duration_ms,
-         status: to_string(build.status),
-         tuist_version: if(build.tuist_version != "", do: build.tuist_version),
-         gradle_version: build.gradle_version,
-         java_version: build.java_version,
-         is_ci: build.is_ci,
-         git_branch: build.git_branch,
-         git_commit_sha: build.git_commit_sha,
-         git_ref: build.git_ref,
-         root_project_name: build.root_project_name,
-         requested_tasks: build.requested_tasks,
-         custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
-         tasks_local_hit_count: build.tasks_local_hit_count,
-         tasks_remote_hit_count: build.tasks_remote_hit_count,
-         tasks_up_to_date_count: build.tasks_up_to_date_count,
-         tasks_executed_count: build.tasks_executed_count,
-         tasks_failed_count: build.tasks_failed_count,
-         tasks_skipped_count: build.tasks_skipped_count,
-         tasks_no_source_count: build.tasks_no_source_count,
-         cacheable_tasks_count: build.cacheable_tasks_count,
-         cache_hit_rate: Gradle.cache_hit_rate(build),
-         cache_download_bytes: cache_aggregates.cache_download_bytes,
-         cache_upload_bytes: cache_aggregates.cache_upload_bytes,
-         failures: Gradle.list_failures(build),
-         inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
-       }}
+       SideQuests.put_for_gradle_build(
+         %{
+           id: build.id,
+           actor: Tuist.ReportActor.actor(build),
+           tasks_cache_hit_count: build.tasks_cache_hit_count,
+           duration_ms: build.duration_ms,
+           status: to_string(build.status),
+           tuist_version: if(build.tuist_version != "", do: build.tuist_version),
+           gradle_version: build.gradle_version,
+           java_version: build.java_version,
+           is_ci: build.is_ci,
+           git_branch: build.git_branch,
+           git_commit_sha: build.git_commit_sha,
+           git_ref: build.git_ref,
+           root_project_name: build.root_project_name,
+           requested_tasks: build.requested_tasks,
+           custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
+           tasks_local_hit_count: build.tasks_local_hit_count,
+           tasks_remote_hit_count: build.tasks_remote_hit_count,
+           tasks_up_to_date_count: build.tasks_up_to_date_count,
+           tasks_executed_count: build.tasks_executed_count,
+           tasks_failed_count: build.tasks_failed_count,
+           tasks_skipped_count: build.tasks_skipped_count,
+           tasks_no_source_count: build.tasks_no_source_count,
+           cacheable_tasks_count: build.cacheable_tasks_count,
+           cache_hit_rate: Gradle.cache_hit_rate(build),
+           cache_download_bytes: cache_aggregates.cache_download_bytes,
+           cache_upload_bytes: cache_aggregates.cache_upload_bytes,
+           failures: Gradle.list_failures(build),
+           inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
+         },
+         conn.assigns,
+         project,
+         build,
+         cache_aggregates
+       )}
     end
   end
 

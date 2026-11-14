@@ -13,6 +13,10 @@
 - Operator reads: for calls proxied by Atlas (`x-tuist-atlas-identity`, verified by `TuistWeb.OperatorGrant.accept_atlas_identity_header/2`), `Tuist.MCP.Authorization.authorize_request/4` falls back to a grant-free read for the resource's account. It goes through the `:ops_access` policies and never applies to writes. There is no MCP operator-grant header; grants from ops.tuist.dev only apply to the browser session.
 - Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
+## Side quests
+
+- `Tuist.MCP.SideQuests` attaches optional `side_quests` (`id`, `tip`, `docs`) to `get_xcode_build`, `get_test_run`, `get_gradle_build` and `get_project`. Fire a quest only on evidence in the fetched record plus at most one indexed lookup per quest, and state that evidence in the tip so the agent can judge it. Account-level quests belong on `get_project`, not on every build and test run. Tips describe the account (build systems, runner use), so keep the `:projects` read check on the project's account (its account-token clause requires `:accounts_match`) and the Atlas operator exclusion: readers from outside the account get none. Tips suggest; they never tell the agent to act without the user. List new quests in the MCP guide.
+
 ## Prompt/Skill Sync
 
 - Keep `server/lib/tuist/mcp/components/prompts/fix_flaky_test.ex` prompt text aligned with the canonical `fix-flaky-tests` skill at `skills/skills/fix-flaky-tests/SKILL.md` in this repository.

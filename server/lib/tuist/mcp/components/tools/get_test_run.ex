@@ -35,7 +35,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         "flaky_test_count" => %{"type" => "integer"},
         "avg_test_duration" => %{"type" => "number"},
         "result_bundle_url" => %{"type" => "string"},
-        "session_url" => %{"type" => "string"}
+        "session_url" => %{"type" => "string"},
+        "side_quests" => Tuist.MCP.SideQuests.schema()
       },
       "required" => [
         "id",
@@ -59,6 +60,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
 
   alias Tuist.CommandEvents
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.SideQuests
   alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Storage
   alias Tuist.Tests
@@ -89,24 +91,30 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       metrics = Analytics.get_test_run_metrics(run)
 
       {:ok,
-       %{
-         id: run.id,
-         actor: Tuist.ReportActor.actor(run),
-         status: to_string(run.status),
-         duration: run.duration,
-         is_ci: run.is_ci,
-         is_flaky: run.is_flaky,
-         scheme: run.scheme,
-         git_branch: run.git_branch,
-         git_commit_sha: run.git_commit_sha,
-         ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
-         total_test_count: metrics.total_count,
-         failed_test_count: metrics.failed_count,
-         flaky_test_count: metrics.flaky_count,
-         avg_test_duration: metrics.avg_duration,
-         result_bundle_url: artifact_url(CommandEvents.get_result_bundle_key(run.id, project), project.account),
-         session_url: artifact_url(CommandEvents.get_session_key(run.id, project), project.account)
-       }}
+       SideQuests.put_for_test_run(
+         %{
+           id: run.id,
+           actor: Tuist.ReportActor.actor(run),
+           status: to_string(run.status),
+           duration: run.duration,
+           is_ci: run.is_ci,
+           is_flaky: run.is_flaky,
+           scheme: run.scheme,
+           git_branch: run.git_branch,
+           git_commit_sha: run.git_commit_sha,
+           ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
+           total_test_count: metrics.total_count,
+           failed_test_count: metrics.failed_count,
+           flaky_test_count: metrics.flaky_count,
+           avg_test_duration: metrics.avg_duration,
+           result_bundle_url: artifact_url(CommandEvents.get_result_bundle_key(run.id, project), project.account),
+           session_url: artifact_url(CommandEvents.get_session_key(run.id, project), project.account)
+         },
+         conn.assigns,
+         project,
+         run,
+         metrics.flaky_count
+       )}
     end
   end
 

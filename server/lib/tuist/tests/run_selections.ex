@@ -826,6 +826,22 @@ defmodule Tuist.Tests.RunSelections do
   end
 
   @doc """
+  One test run's `%{scope_tests, avoided_tests}`, or nil while its row is not
+  recorded yet. The row carries the run's `ran_at`, which bounds the read to
+  its partition.
+  """
+  def get_run(project_id, test_run_id, %NaiveDateTime{} = ran_at) do
+    ClickHouseRepo.one(
+      from(s in RunSelection,
+        where: s.project_id == ^project_id and s.test_run_id == ^test_run_id and s.ran_at == ^usec(ran_at),
+        order_by: [desc: s.inserted_at],
+        limit: 1,
+        select: %{scope_tests: s.scope_tests, avoided_tests: s.avoided_tests}
+      )
+    )
+  end
+
+  @doc """
   The newest runs' effectiveness, as `[%{ran_at, is_ci, hit_rate}]` with the
   rate a percentage, at most `limit` of them.
   """
