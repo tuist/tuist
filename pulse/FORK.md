@@ -130,14 +130,19 @@ covered by this list.
   `:latest`), the `pulse@<version>` tag and a GitHub prerelease or release
   with git-cliff notes ([`cliff.toml`](cliff.toml)). Pulse releases never take
   the repository's GitHub "Latest" release, which the CLI, server and Kura use.
-- Publishing deploys nothing. In each cluster's `observability` namespace the
-  `pulse` release ([`infra/helm/pulse`](../infra/helm/pulse), Service
-  `pulse`) runs the fork release pinned in its `values.yaml`, and collectors
-  write to it directly. `pulse-deployment.yml` rolls it out when
-  dispatched. Moving to a new release means changing that pin and the one in
-  `infra/helm/pulse/test-managed.sh`, then dispatching the deployment.
-  `.github/scripts/pulse-readiness.sh`, the gate every server deploy runs,
-  accepts any published `ghcr.io/tuist/pulse` version.
+- Canaries deploy continuously, as Kura's do.
+  [`pulse-production-deployment.yml`](../.github/workflows/pulse-production-deployment.yml)
+  runs on every push to main that changes `pulse/`, the chart or its
+  deployment: it publishes a canary when `pulse/` changed, then deploys
+  staging, canary and production in turn through `pulse-deployment.yml`,
+  each leg only after the previous one qualified. In each cluster's
+  `observability` namespace the `pulse` release
+  ([`infra/helm/pulse`](../infra/helm/pulse), Service `pulse`) runs the newest
+  `pulse@*-canary.*` the deployed commit contains, or the image pinned in its
+  `values.yaml` for a commit without one. RCs and stable releases deploy
+  nothing. Dispatch `pulse-deployment.yml` to redeploy or roll back one
+  environment. `.github/scripts/pulse-readiness.sh`, the gate every server
+  deploy runs, accepts any published `ghcr.io/tuist/pulse` version.
 
 ## Rolling out the rename
 

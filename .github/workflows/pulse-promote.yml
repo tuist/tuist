@@ -11,7 +11,7 @@ name: Pulse Promote to Stable
 #
 # The cron is aligned with cli-promote.yml, server-promote.yml and
 # kura-promote.yml so the release trains fire in lockstep. Promoting deploys
-# nothing: the clusters run the image pinned in infra/helm/pulse/values.yaml.
+# nothing: the clusters run the newest canary (pulse-production-deployment.yml).
 on:
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC
@@ -30,8 +30,9 @@ permissions:
   id-token: write
 
 concurrency:
-  # Shared with pulse-rc.yml and pulse-release.yml so version resolution and
-  # tag creation never race.
+  # Shared with pulse-rc.yml so version resolution and tag creation never race.
+  # Canaries publish in pulse-canary-publish (pulse-release.yml); their
+  # -canary.N tags cannot collide with RC or stable tags.
   group: pulse-publish
   cancel-in-progress: false
 

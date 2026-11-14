@@ -15,7 +15,8 @@ migration:
   standalone: ""
 dashboard:
   enabled: false
-# Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md).
+# Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md). Deploys use
+# the newest canary in the commit; this pin covers commits without one.
 image: ghcr.io/tuist/pulse:1.44.0-canary.1
 storage:
   bucket: tuist-pulso-staging
