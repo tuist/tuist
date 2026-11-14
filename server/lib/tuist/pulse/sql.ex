@@ -1,4 +1,4 @@
-defmodule Tuist.Pulse.Greptime do
+defmodule Tuist.Pulse.SQL do
   @moduledoc false
 
   # SQL is authored here, never supplied by a dashboard user. The database
@@ -99,12 +99,13 @@ defmodule Tuist.Pulse.Greptime do
   defp aggregate_expression("traces", "duration_p95"),
     do: {"opentelemetry_traces", "approx_percentile_cont(duration_nano, 0.95) / 1000000000.0", ""}
 
-  defp bounds(start, finish),
+  def bounds(start, finish),
     do: "timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"
 
-  defp literal(value), do: "'" <> String.replace(value, "'", "''") <> "'"
+  # Pulse's SQL treats backslashes literally; doubling quotes is the only escape.
+  def literal(value), do: "'" <> String.replace(value, "'", "''") <> "'"
 
-  defp sql(request, query) do
+  def sql(request, query) do
     with {:ok, %{"output" => [%{"records" => %{"schema" => %{"column_schemas" => columns}, "rows" => rows}}]}} <-
            request.(sql: query),
          true <- is_list(columns) and is_list(rows),

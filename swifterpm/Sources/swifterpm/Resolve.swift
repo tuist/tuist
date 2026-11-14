@@ -760,6 +760,80 @@ enum PackageResolver {
         }
     }
 
+    /// The restoration path cannot fetch prebuilts (`WorkspacePrebuilts`), so without this a warm install into a scratch
+    /// directory that has none recorded, such as a fresh checkout, builds swift-syntax from source although SwiftPM would
+    /// have downloaded its prebuilt `MacroSupport`. SwiftPM records prebuilts whenever it resolves, and the forced-lockfile
+    /// validation resolves against the restored workspace without fetching sources, so run it when a source-control
+    /// swift-syntax pin has no recorded prebuilt. It only runs again for the same inputs when it recorded some, since a
+    /// validation that left the prebuilts unchanged is reused. Prebuilts are an optimization, so failures only warn, and only
+    /// when SwiftPM recorded none. Preparing the workspace detaches links into legacy shared Git checkouts for SwiftPM to
+    /// fetch again, which it can't do without the fetch credentials, so after a failure the restored links are put back.
+    static func recordMissingPrebuilts(
+        resolved: ResolvedPins,
+        packageDir: URL,
+        scratchDir: URL,
+        cacheDir: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation
+    ) async throws {
+        let prebuiltIdentity = "swift-syntax"
+        func recordsPrebuilts() async throws -> Bool {
+            try await WorkspaceRestorer.existingWorkspacePrebuilts(scratchDir: scratchDir).contains {
+                ($0["identity"] as? String)?.lowercased() == prebuiltIdentity
+            }
+        }
+        guard resolved.pins.contains(where: {
+            PinKind.isSourceControl($0.kind) && $0.identity.lowercased() == prebuiltIdentity
+        }),
+            !(try await recordsPrebuilts())
+        else { return }
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        func checkoutNames() async throws -> Set<String> {
+            guard try await fileSystem.exists(checkouts.absolutePath) else { return [] }
+            return Set(try await fileSystem.contentsOfDirectory(at: checkouts).map(\.lastPathComponent))
+        }
+        let restoredLinks = try await fileSystem.exists(checkouts.absolutePath)
+            ? try await fileSystem.contentsOfDirectory(at: checkouts).filter { fileSystem.isSymlink($0) }
+            .map { ($0.lastPathComponent, $0.resolvingSymlinksInPath()) }
+            : []
+        do {
+            try await assertResolvedFileUpToDate(
+                packageDir: packageDir,
+                scratchDir: scratchDir,
+                cacheDir: cacheDir,
+                registryConfigurationPath: registryConfigurationPath,
+                defaultRegistryURL: defaultRegistryURL,
+                disableSandbox: disableSandbox,
+                scmToRegistryTransformation: scmToRegistryTransformation
+            )
+        } catch {
+            try Task.checkCancellation()
+            let remainingCheckouts = try await checkoutNames()
+            for (name, destination) in restoredLinks where !remainingCheckouts.contains(name) {
+                if !(try await fileSystem.exists(checkouts.absolutePath)) {
+                    try await fileSystem.makeDirectory(at: checkouts.absolutePath, options: [.createTargetParentDirectories])
+                }
+                try await fileSystem.createSymbolicLink(
+                    from: checkouts.appendingPathComponent(name).absolutePath,
+                    to: destination.absolutePath
+                )
+            }
+            // SwiftPM records prebuilts while it resolves, before the forced-lockfile check that can fail, for example on
+            // a lockfile another Xcode wrote. This path doesn't force the lockfile, so only the prebuilts matter.
+            if try await recordsPrebuilts() {
+                Environment.debugHandler?(
+                    "SwiftPM recorded swift-syntax's prebuilts, then failed to validate Package.resolved: \(error)"
+                )
+            } else {
+                Environment.warningHandler?(
+                    "could not record SwiftPM's prebuilts, so swift-syntax builds from source: \(error)"
+                )
+            }
+        }
+    }
+
     private static func normalizeLoadedResolvedFile(
         _ resolved: ResolvedPins,
         packageDir: URL,
@@ -803,7 +877,7 @@ enum PackageResolver {
         guard try await fileSystem.exists(url.appendingPathComponent("Package.swift").absolutePath) else {
             return nil
         }
-        return url.standardizedFileURL
+        return url.syntacticallyStandardizedFileURL
     }
 
     static func sourceControlKind(location: String) async throws -> String {

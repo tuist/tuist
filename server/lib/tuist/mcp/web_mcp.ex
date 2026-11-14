@@ -200,7 +200,16 @@ defmodule Tuist.MCP.WebMCP do
 
   defp page_tools("projects", _build_system), do: [Tools.ListAccounts]
 
-  defp page_tools("pulse", _build_system), do: [Tools.QueryPulse, Tools.GetPulseAnalytics]
+  defp page_tools("pulse", _build_system),
+    do: [
+      Tools.QueryPulse,
+      Tools.GetPulseAnalytics,
+      Tools.QueryPulseMetrics,
+      Tools.ListPulseLabels,
+      Tools.SearchPulseLogs,
+      Tools.SearchPulseTraces,
+      Tools.GetPulseTrace
+    ]
 
   defp page_tools("runners", _build_system), do: @runner_tools
   defp page_tools("webhooks", _build_system), do: @webhook_tools

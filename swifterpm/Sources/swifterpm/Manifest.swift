@@ -57,11 +57,11 @@ enum ManifestLoader {
     static func cacheFilePath(packageDir: URL) -> URL {
         if let scratch = ManifestCache.scratchDirectory {
             let root = scratch.appendingPathComponent("swifterpm/manifests")
-            if packageDir.standardizedFileURL == ManifestCache.rootPackageDirectory {
+            if packageDir.syntacticallyStandardizedFileURL == ManifestCache.rootPackageDirectory {
                 return root.appendingPathComponent(cacheFile)
             }
             return root.appendingPathComponent("packages")
-                .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
+                .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.syntacticallyStandardizedFileURL.path.utf8)))
                 .appendingPathComponent(cacheFile)
         }
         return legacyCacheFilePath(packageDir: packageDir)
@@ -220,12 +220,12 @@ enum ManifestLoader {
     }
 
     static func localCacheFilePath(rootPackageDir: URL, packageDir: URL) -> URL {
-        if rootPackageDir.standardizedFileURL == ManifestCache.rootPackageDirectory {
+        if rootPackageDir.syntacticallyStandardizedFileURL == ManifestCache.rootPackageDirectory {
             return cacheFilePath(packageDir: packageDir)
         }
         let rootCache = cacheFilePath(packageDir: rootPackageDir).deletingLastPathComponent()
         return rootCache.appendingPathComponent("local")
-            .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.standardizedFileURL.path.utf8)))
+            .appendingPathComponent(Hashing.sha256Hex(Data(packageDir.syntacticallyStandardizedFileURL.path.utf8)))
             .appendingPathComponent(cacheFile)
     }
 }
@@ -320,11 +320,11 @@ enum ManifestFileSystemDependencyGraph {
         dependency: ManifestFileSystemDependency
     ) -> URL {
         if dependency.path.hasPrefix("/") {
-            return URL(fileURLWithPath: dependency.path).standardizedFileURL
+            return URL(fileURLWithPath: dependency.path).syntacticallyStandardizedFileURL
         }
         return parentPackageDir
             .appendingPathComponent(dependency.path)
-            .standardizedFileURL
+            .syntacticallyStandardizedFileURL
     }
 }
 

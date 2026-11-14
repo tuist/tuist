@@ -36,9 +36,11 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/cache", organization, nil) == nil
   end
 
-  test "all Pulse pages offer the same two read tools" do
+  test "all Pulse pages offer the same read tools" do
     organization = %{organization_id: 1}
-    pulse_tools = ~w(query_pulse get_pulse_analytics)
+
+    pulse_tools =
+      ~w(query_pulse get_pulse_analytics query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
 
     for path <- ~w(metrics logs traces) do
       assert WebMCP.dashboard_page("/acme/~/pulse/#{path}", organization, nil) == "pulse"

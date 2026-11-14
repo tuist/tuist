@@ -664,7 +664,7 @@ enum SafePathComponent {
 enum PathCanonicalizer {
     static func realpath(_ url: URL) -> URL {
         #if os(Windows)
-            url.standardizedFileURL
+            url.syntacticallyStandardizedFileURL
         #else
             // The pointer `realpath` returns is only guaranteed for as long as the buffer is
             // borrowed, so the string has to be built inside the borrow rather than from the
@@ -685,7 +685,7 @@ enum PathCanonicalizer {
             if let resolved {
                 return URL(fileURLWithPath: resolved)
             }
-            return url.standardizedFileURL
+            return url.syntacticallyStandardizedFileURL
         #endif
     }
 }

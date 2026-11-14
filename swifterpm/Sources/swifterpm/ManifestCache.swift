@@ -39,10 +39,10 @@ enum ManifestCache {
         operation: () async throws -> T
     ) async throws -> T {
         return try await $toolchain.withValue(toolchain) {
-            try await $rootPackageDirectory.withValue(packageDirectory.standardizedFileURL) {
+            try await $rootPackageDirectory.withValue(packageDirectory.syntacticallyStandardizedFileURL) {
                 try await $scratchDirectory.withValue(scratchDirectory ?? packageDirectory.appendingPathComponent(".build")) {
                     try await $sharedCacheDirectory.withValue(
-                        (try? Cache.resolvedRoot(sharedCacheDirectory))?.standardizedFileURL
+                        (try? Cache.resolvedRoot(sharedCacheDirectory))?.syntacticallyStandardizedFileURL
                     ) {
                         try await operation()
                     }
@@ -86,7 +86,7 @@ enum ManifestCache {
             "schema": "1",
             "environment": await ManifestEnvironmentFingerprint.current(packageDir: packageDir),
             "toolchain": identity,
-            "packagePath": packageDir.standardizedFileURL.path,
+            "packagePath": packageDir.syntacticallyStandardizedFileURL.path,
             "realPackagePath": PathCanonicalizer.realpath(packageDir).path,
             "disableSandbox": String(disableSandbox),
         ]
@@ -161,7 +161,7 @@ enum ManifestCache {
     static func prune(scratchDirectory: URL, keeping packageDirectories: [URL]) async throws {
         let directory = scratchDirectory.appendingPathComponent("swifterpm/manifests/packages")
         guard try await fileSystem.exists(directory.absolutePath) else { return }
-        let retained = Set(packageDirectories.map { Hashing.sha256Hex(Data($0.standardizedFileURL.path.utf8)) })
+        let retained = Set(packageDirectories.map { Hashing.sha256Hex(Data($0.syntacticallyStandardizedFileURL.path.utf8)) })
         for entry in try await fileSystem.contentsOfDirectory(at: directory) {
             let name = entry.lastPathComponent
             if name.count == 64, name.allSatisfy(\.isHexDigit), !retained.contains(name) {

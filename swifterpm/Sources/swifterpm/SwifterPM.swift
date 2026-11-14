@@ -219,7 +219,7 @@ public struct SwifterPM: Sendable {
     }
 
     private func runRestore(_ request: SwifterPMRestoreRequest) async throws {
-        let package = request.packageDirectory.standardizedFileURL
+        let package = request.packageDirectory.syntacticallyStandardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         let cache = try await Cache(root: request.cacheDirectory)
         let registryConfig = try await RegistryConfig.load(
@@ -267,7 +267,7 @@ public struct SwifterPM: Sendable {
         request: SwifterPMResolutionRequest,
         preferResolvedFile: Bool
     ) async throws -> SwifterPMResolutionResult {
-        let package = request.packageDirectory.standardizedFileURL
+        let package = request.packageDirectory.syntacticallyStandardizedFileURL
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         try await WorkspaceRestorer.assertNoEditedDependencies(scratchDir: scratch)
         let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
@@ -425,6 +425,17 @@ public struct SwifterPM: Sendable {
         // precomputation rather than a fresh resolve.
         if request.forceResolvedVersions, request.restorePackage {
             try await PackageResolver.assertResolvedFileUpToDate(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cache.root,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation
+            )
+        } else if request.restorePackage, request.writeResolvedFile {
+            try await PackageResolver.recordMissingPrebuilts(
+                resolved: resolved,
                 packageDir: package,
                 scratchDir: scratch,
                 cacheDir: cache.root,
