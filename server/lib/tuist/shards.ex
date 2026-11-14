@@ -124,8 +124,7 @@ defmodule Tuist.Shards do
   defp plan_inputs(project, params) do
     with run_id when is_binary(run_id) <- Map.get(params, :test_impact_run_id),
          {:ok, selection} <- TestImpactAnalysis.Runs.shard_units(project.id, run_id) do
-      skipped = MapSet.new(Map.get(params, :skipped_test_suites) || [])
-      units = selection.durations |> Map.keys() |> Enum.sort() |> Enum.reject(&MapSet.member?(skipped, &1))
+      units = selection.durations |> Map.keys() |> Enum.sort() |> reject_skipped_suites(project, params)
       {"suite", units, nil, selection.durations, run_id}
     else
       _ ->
@@ -605,14 +604,38 @@ defmodule Tuist.Shards do
   # resolved from history either: the products limit it to suites that no longer run, and history
   # would answer with ones outside that limit.
   defp resolve_units(project, params, "suite") do
-    skipped = MapSet.new(Map.get(params, :skipped_test_suites) || [])
     selected = Map.get(params, :test_suites) || []
     selected_modules = MapSet.new(selected, &suite_module/1)
     unselected_modules = Enum.reject(params_modules(params), &MapSet.member?(selected_modules, &1))
 
-    units = selected ++ latest_branch_suite_units(project, params, unselected_modules)
+    reject_skipped_suites(selected ++ latest_branch_suite_units(project, params, unselected_modules), project, params)
+  end
 
-    Enum.reject(units, &MapSet.member?(skipped, &1))
+  # The Xcode CLI names a suite the products skip by its innermost name
+  # (`Module/Inner`), while runs record a nested Swift Testing suite by its whole
+  # path (`Module/Outer/Inner`), so a skip also takes out the nested suites with
+  # that innermost name. One of them that wasn't skipped is left out of the plan
+  # and runs in the catch-all shard.
+  defp reject_skipped_suites(units, project, params) do
+    case Map.get(params, :skipped_test_suites) || [] do
+      [] ->
+        units
+
+      skipped ->
+        skipped = MapSet.new(skipped)
+        innermost? = project.build_system == :xcode
+
+        Enum.reject(units, fn unit ->
+          MapSet.member?(skipped, unit) or (innermost? and MapSet.member?(skipped, innermost_suite_unit(unit)))
+        end)
+    end
+  end
+
+  defp innermost_suite_unit(unit) do
+    case String.split(unit, "/") do
+      [module, _outer, _ | _] = parts -> "#{module}/#{List.last(parts)}"
+      _ -> unit
+    end
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []

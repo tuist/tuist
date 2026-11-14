@@ -430,6 +430,43 @@ defmodule Tuist.ShardsTest do
       assert planned_targets(result) == MapSet.new(["AppUITests/CheckoutFlowTests"])
     end
 
+    test "does not plan a nested suite the built products skip by its innermost name" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppUITests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "Onboarding/FlowTests", status: "success", duration: 6_000},
+              %{name: "FlowTests/Checkout", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "skipped-nested-history-1",
+        modules: ["AppUITests"],
+        skipped_test_suites: ["AppUITests/FlowTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      # The CLI sends the xctestrun's `Onboarding/FlowTests` skip as `FlowTests`; runs record the whole path.
+      assert planned_targets(result) == MapSet.new(["AppUITests/FlowTests/Checkout"])
+    end
+
     test "does not plan a suite the built products both select and skip" do
       project = ProjectsFixtures.project_fixture()
 
