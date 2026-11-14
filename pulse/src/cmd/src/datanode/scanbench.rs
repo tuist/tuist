@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
@@ -95,7 +97,7 @@ pub struct ScanbenchCommand {
     #[clap(long)]
     region_id: String,
 
-    /// Table directory relative to data home (e.g. "data/greptime/public/1024/")
+    /// Table directory relative to data home (e.g. "data/pulse/public/1024/")
     #[clap(long)]
     table_dir: String,
 
@@ -1567,7 +1569,7 @@ mod tests {
                 scanner: "seq".to_string(),
                 region_id: "1024:0".to_string(),
                 region_id_u64: RegionId::new(1024, 0).as_u64(),
-                table_dir: "greptime/public/1024".to_string(),
+                table_dir: "pulse/public/1024".to_string(),
                 path_type: "bare".to_string(),
                 parallelism: 8,
                 enable_wal: false,

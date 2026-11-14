@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "enterprise")]
-pub mod trigger;
+// Modified by Tuist; see pulse/FORK.md.
 
 use std::fmt::Display;
 
@@ -62,31 +61,6 @@ impl Display for DropTable {
             write!(f, " {}", table_name)?;
         }
         Ok(())
-    }
-}
-
-/// `UNDROP TABLE` statement.
-#[cfg(feature = "enterprise")]
-#[derive(Debug, Clone, PartialEq, Eq, Visit, VisitMut, Serialize)]
-pub struct UndropTable {
-    table_name: ObjectName,
-}
-
-#[cfg(feature = "enterprise")]
-impl UndropTable {
-    pub fn new(table_name: ObjectName) -> Self {
-        Self { table_name }
-    }
-
-    pub fn table_name(&self) -> &ObjectName {
-        &self.table_name
-    }
-}
-
-#[cfg(feature = "enterprise")]
-impl Display for UndropTable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UNDROP TABLE {}", self.table_name)
     }
 }
 
@@ -194,7 +168,7 @@ impl Display for DropView {
 mod tests {
     use std::assert_matches;
 
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
@@ -202,7 +176,7 @@ mod tests {
     fn test_display_drop_database() {
         let sql = r"drop database test;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropDatabase { .. });
@@ -223,7 +197,7 @@ DROP DATABASE test"#,
 
         let sql = r"drop database if exists test;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropDatabase { .. });
@@ -247,7 +221,7 @@ DROP DATABASE IF EXISTS test"#,
     fn test_display_drop_table() {
         let sql = r"drop table test;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropTable { .. });
@@ -268,7 +242,7 @@ DROP TABLE test"#,
 
         let sql = r"drop table test1, test2;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropTable { .. });
@@ -289,7 +263,7 @@ DROP TABLE test1, test2"#,
 
         let sql = r"drop table if exists test;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropTable { .. });
@@ -313,7 +287,7 @@ DROP TABLE IF EXISTS test"#,
     fn test_display_drop_flow() {
         let sql = r"drop flow test;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropFlow { .. });
@@ -334,7 +308,7 @@ DROP FLOW test"#,
 
         let sql = r"drop flow if exists test;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DropFlow { .. });

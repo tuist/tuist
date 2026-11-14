@@ -3,9 +3,9 @@ SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
 | information_schema |
 | public             |
+| pulse_private      |
 +--------------------+
 
 SHOW FULL DATABASES;
@@ -13,9 +13,9 @@ SHOW FULL DATABASES;
 +--------------------+---------+
 | Database           | Options |
 +--------------------+---------+
-| greptime_private   |         |
 | information_schema |         |
 | public             |         |
+| pulse_private      |         |
 +--------------------+---------+
 
 USE information_schema;

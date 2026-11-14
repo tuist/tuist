@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 import copy
 import importlib.util
 import json
@@ -33,14 +35,14 @@ def write(path, value):
 class VersionComparison(unittest.TestCase):
     def test_opt_in_validation(self):
         comparison.validate({})
-        comparison.validate({'COMPARE_GREPTIMEDB': 'false', 'GREPTIMEDB_TAG': 'invalid\n'})
-        good = dict(COMPARE_GREPTIMEDB='true', RUN_GREPTIMEDB='true',
-                    BASELINE_GREPTIMEDB_TAG='v1.2.1', GREPTIMEDB_TAG='v1.3.0-beta.1')
+        comparison.validate({'COMPARE_PULSE': 'false', 'PULSE_TAG': 'invalid\n'})
+        good = dict(COMPARE_PULSE='true', RUN_PULSE='true',
+                    BASELINE_PULSE_TAG='v1.2.1', PULSE_TAG='v1.3.0-beta.1')
         comparison.validate(good)
-        for key, value in [('RUN_GREPTIMEDB', 'false'), ('BASELINE_GREPTIMEDB_TAG', ''),
-                           ('BASELINE_GREPTIMEDB_TAG', 'v1.3.0-beta.1'),
-                           ('BASELINE_GREPTIMEDB_TAG', 'a,image=other'), ('GREPTIMEDB_TAG', 'x\ny'),
-                           ('COMPARE_GREPTIMEDB', 'yes')]:
+        for key, value in [('RUN_PULSE', 'false'), ('BASELINE_PULSE_TAG', ''),
+                           ('BASELINE_PULSE_TAG', 'v1.3.0-beta.1'),
+                           ('BASELINE_PULSE_TAG', 'a,image=other'), ('PULSE_TAG', 'x\ny'),
+                           ('COMPARE_PULSE', 'yes')]:
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 comparison.validate(good | {key: value})
 
@@ -57,11 +59,11 @@ class VersionComparison(unittest.TestCase):
                        success=5, errors=0, timeouts=0, p50_ms=100, p95_ms=100, p99_ms=100)])
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            base = root / 'baseline/greptimedb-1/greptimedb-1/measured-summary.json'
-            candidate = root / 'greptimedb-1/greptimedb-1/measured-summary.json'
+            base = root / 'baseline/pulse-1/pulse-1/measured-summary.json'
+            candidate = root / 'pulse-1/pulse-1/measured-summary.json'
             for r in (root / 'baseline', root):
-                (r / 'greptimedb-1').mkdir(parents=True, exist_ok=True)
-                (r / 'greptimedb-1/exit-code.txt').write_text('0\n')
+                (r / 'pulse-1').mkdir(parents=True, exist_ok=True)
+                (r / 'pulse-1/exit-code.txt').write_text('0\n')
             write(base, summary)
             changed = copy.deepcopy(summary); changed['per_query'][0]['p50_ms'] = 80
             write(candidate, changed)
@@ -70,10 +72,10 @@ class VersionComparison(unittest.TestCase):
                 broken = copy.deepcopy(changed); broken['per_query'][0][key] = value
                 write(candidate, broken)
                 self.assertTrue(all(r['improvement_percent'] is None for r in comparison.agent(root)))
-            (root / 'greptimedb-1/exit-code.txt').write_text('1\n')
+            (root / 'pulse-1/exit-code.txt').write_text('1\n')
             write(candidate, changed)
             self.assertTrue(all(r['improvement_percent'] is None for r in comparison.agent(root)))
-            (root / 'greptimedb-1/exit-code.txt').write_text('0\n')
+            (root / 'pulse-1/exit-code.txt').write_text('0\n')
             changed['query_window'] = [2, 3]; write(candidate, changed)
             self.assertTrue(all(r['improvement_percent'] is None for r in comparison.agent(root)))
             candidate.unlink()
@@ -87,7 +89,7 @@ class VersionComparison(unittest.TestCase):
                       execution=dict(db_cpus='8', db_memory='16g', load_workers_requested=4, max_in_flight=8),
                       correctness=[answer], samples=[dict(sample, phase='warmup', elapsed_ms=99999), sample, sample])
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp);base = root / 'baseline/runs/greptimedb/run.json'; candidate = root / 'runs/greptimedb/run.json'
+            root = Path(tmp);base = root / 'baseline/runs/pulse/run.json'; candidate = root / 'runs/pulse/run.json'
             write(base, record); changed = copy.deepcopy(record)
             for s in changed['samples']:
                 if s['phase'] == 'measured': s['elapsed_ms'] = 80
@@ -105,10 +107,10 @@ class VersionComparison(unittest.TestCase):
                        errors=0, timeouts=0, per_query=[dict(query_index=1, query='up', series=1, points=2,
                        success=5, errors=0, timeouts=0, p50_ms=100)])
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); base = root/'greptimedb-baseline/results-vmbench-long-range/serial-summary.json'
-            candidate = root/'greptimedb/results-vmbench-long-range/serial-summary.json'
+            root = Path(tmp); base = root/'pulse-baseline/results-vmbench-long-range/serial-summary.json'
+            candidate = root/'pulse/results-vmbench-long-range/serial-summary.json'
             health = {phase: {target: {'state': 'Running=true ExitCode=0 OOMKilled=false'}
-                               for target in ('greptimedb-baseline', 'greptimedb')}
+                               for target in ('pulse-baseline', 'pulse')}
                       for phase in ('post_load_results', 'post_query_results')}
             health['post_load_results'] = {k: {'docker': v} for k, v in health['post_load_results'].items()}
             write(root / 'run-manifest.json', health)
@@ -118,7 +120,7 @@ class VersionComparison(unittest.TestCase):
                 write(candidate, summary | {key:value})
                 self.assertIsNone(comparison.long_range(root)[0]['improvement_percent'])
             write(candidate, summary)
-            broken=copy.deepcopy(health);broken['post_query_results']['greptimedb']['state']='Running=false ExitCode=137 OOMKilled=true'
+            broken=copy.deepcopy(health);broken['post_query_results']['pulse']['state']='Running=false ExitCode=137 OOMKilled=true'
             write(root / 'run-manifest.json', broken)
             self.assertIsNone(comparison.long_range(root)[0]['improvement_percent'])
             write(root / 'run-manifest.json', health)

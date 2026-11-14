@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -61,7 +63,7 @@ pub struct ParquetbenchCommand {
     #[clap(long)]
     region_id: Option<String>,
 
-    /// Table directory relative to data home (e.g. "data/greptime/public/1024/")
+    /// Table directory relative to data home (e.g. "data/pulse/public/1024/")
     #[clap(long)]
     table_dir: Option<String>,
 
@@ -1196,8 +1198,8 @@ mod tests {
         let file_id = FileId::parse_str("00020380-009c-426d-953e-b4e34c15af34").unwrap();
         let region_file_id = RegionFileId::new(RegionId::new(1024, 0), file_id);
         assert_eq!(
-            sst_file_path("data/greptime/public/1024", region_file_id, PathType::Bare),
-            "data/greptime/public/1024/1024_0000000000/00020380-009c-426d-953e-b4e34c15af34.parquet"
+            sst_file_path("data/pulse/public/1024", region_file_id, PathType::Bare),
+            "data/pulse/public/1024/1024_0000000000/00020380-009c-426d-953e-b4e34c15af34.parquet"
         );
     }
 }

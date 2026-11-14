@@ -43,8 +43,8 @@ drop table demo;
 
 CREATE TABLE test_time_filter(
     host STRING,
-    greptime_timestamp TIMESTAMP,
-    TIME INDEX(greptime_timestamp)
+    pulse_timestamp TIMESTAMP,
+    TIME INDEX(pulse_timestamp)
 )
 WITH
 (
@@ -52,16 +52,16 @@ WITH
     'sst_format' = 'flat'
 );
 
-INSERT INTO test_time_filter(host, greptime_timestamp) VALUES ('hello', '2026-01-07T00:00:00'), ('world', '2026-01-07T00:00:01'), ('test', '2026-01-07T00:00:00'), ('go', '2026-01-07T00:00:01');
+INSERT INTO test_time_filter(host, pulse_timestamp) VALUES ('hello', '2026-01-07T00:00:00'), ('world', '2026-01-07T00:00:01'), ('test', '2026-01-07T00:00:00'), ('go', '2026-01-07T00:00:01');
 
-SELECT host FROM test_time_filter WHERE greptime_timestamp > '2026-01-07 00:00:00';
+SELECT host FROM test_time_filter WHERE pulse_timestamp > '2026-01-07 00:00:00';
 
-SELECT host, greptime_timestamp FROM test_time_filter WHERE greptime_timestamp > '2026-01-07 00:00:00';
+SELECT host, pulse_timestamp FROM test_time_filter WHERE pulse_timestamp > '2026-01-07 00:00:00';
 
 ADMIN flush_table('test_time_filter');
 
-SELECT host FROM test_time_filter WHERE greptime_timestamp > '2026-01-07 00:00:00';
+SELECT host FROM test_time_filter WHERE pulse_timestamp > '2026-01-07 00:00:00';
 
-SELECT host, greptime_timestamp FROM test_time_filter WHERE greptime_timestamp > '2026-01-07 00:00:00';
+SELECT host, pulse_timestamp FROM test_time_filter WHERE pulse_timestamp > '2026-01-07 00:00:00';
 
 DROP TABLE test_time_filter;

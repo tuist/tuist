@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Per-series scan implementation.
 
 use std::fmt;
@@ -181,10 +183,6 @@ impl SeriesScan {
 
     fn supports_two_phase(input: &ScanInput) -> bool {
         if !is_sparse_metric_metadata(input.region_metadata()) {
-            return false;
-        }
-        #[cfg(feature = "enterprise")]
-        if !input.extension_ranges().is_empty() {
             return false;
         }
         true

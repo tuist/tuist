@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use core::str;
 
 use ahash::HashSet;
@@ -19,23 +21,23 @@ use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use http::HeaderMap;
-use pipeline::{GreptimePipelineParams, SelectInfo, truthy};
+use pipeline::{PulsePipelineParams, SelectInfo, truthy};
 use session::protocol_ctx::OtlpMetricTranslationStrategy;
 
 use crate::http::header::constants::{
-    GREPTIME_LOG_EXTRACT_KEYS_HEADER_NAME, GREPTIME_LOG_PIPELINE_NAME_HEADER_NAME,
-    GREPTIME_LOG_PIPELINE_VERSION_HEADER_NAME, GREPTIME_LOG_TABLE_NAME_HEADER_NAME,
-    GREPTIME_OTLP_METRIC_IGNORE_RESOURCE_ATTRS_HEADER_NAME,
-    GREPTIME_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER_NAME,
-    GREPTIME_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER_NAME,
-    GREPTIME_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER_NAME,
-    GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME, GREPTIME_PIPELINE_NAME_HEADER_NAME,
-    GREPTIME_PIPELINE_PARAMS_HEADER, GREPTIME_PIPELINE_VERSION_HEADER_NAME,
-    GREPTIME_TRACE_TABLE_NAME_HEADER_NAME,
+    PULSE_LOG_EXTRACT_KEYS_HEADER_NAME, PULSE_LOG_PIPELINE_NAME_HEADER_NAME,
+    PULSE_LOG_PIPELINE_VERSION_HEADER_NAME, PULSE_LOG_TABLE_NAME_HEADER_NAME,
+    PULSE_OTLP_METRIC_IGNORE_RESOURCE_ATTRS_HEADER_NAME,
+    PULSE_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER_NAME,
+    PULSE_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER_NAME,
+    PULSE_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER_NAME,
+    PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME, PULSE_PIPELINE_NAME_HEADER_NAME,
+    PULSE_PIPELINE_PARAMS_HEADER, PULSE_PIPELINE_VERSION_HEADER_NAME,
+    PULSE_TRACE_TABLE_NAME_HEADER_NAME,
 };
 
 /// Axum extractor for optional target log table name from HTTP header
-/// using [`GREPTIME_LOG_TABLE_NAME_HEADER_NAME`] as key.
+/// using [`PULSE_LOG_TABLE_NAME_HEADER_NAME`] as key.
 pub struct LogTableName(pub Option<String>);
 
 impl<S> FromRequestParts<S> for LogTableName
@@ -46,12 +48,12 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let headers = &parts.headers;
-        string_value_from_header(headers, &[GREPTIME_LOG_TABLE_NAME_HEADER_NAME]).map(LogTableName)
+        string_value_from_header(headers, &[PULSE_LOG_TABLE_NAME_HEADER_NAME]).map(LogTableName)
     }
 }
 
 /// Axum extractor for optional target trace table name from HTTP header
-/// using [`GREPTIME_TRACE_TABLE_NAME_HEADER_NAME`] as key.
+/// using [`PULSE_TRACE_TABLE_NAME_HEADER_NAME`] as key.
 pub struct TraceTableName(pub Option<String>);
 
 impl<S> FromRequestParts<S> for TraceTableName
@@ -62,8 +64,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let headers = &parts.headers;
-        string_value_from_header(headers, &[GREPTIME_TRACE_TABLE_NAME_HEADER_NAME])
-            .map(TraceTableName)
+        string_value_from_header(headers, &[PULSE_TRACE_TABLE_NAME_HEADER_NAME]).map(TraceTableName)
     }
 }
 
@@ -80,7 +81,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let select =
-            string_value_from_header(&parts.headers, &[GREPTIME_LOG_EXTRACT_KEYS_HEADER_NAME])?;
+            string_value_from_header(&parts.headers, &[PULSE_LOG_EXTRACT_KEYS_HEADER_NAME])?;
 
         match select {
             Some(name) => {
@@ -100,7 +101,7 @@ where
 pub struct PipelineInfo {
     pub pipeline_name: Option<String>,
     pub pipeline_version: Option<String>,
-    pub pipeline_params: GreptimePipelineParams,
+    pub pipeline_params: PulsePipelineParams,
 }
 
 impl<S> FromRequestParts<S> for PipelineInfo
@@ -114,24 +115,24 @@ where
         let pipeline_name = string_value_from_header(
             headers,
             &[
-                GREPTIME_LOG_PIPELINE_NAME_HEADER_NAME,
-                GREPTIME_PIPELINE_NAME_HEADER_NAME,
+                PULSE_LOG_PIPELINE_NAME_HEADER_NAME,
+                PULSE_PIPELINE_NAME_HEADER_NAME,
             ],
         )?;
         let pipeline_version = string_value_from_header(
             headers,
             &[
-                GREPTIME_LOG_PIPELINE_VERSION_HEADER_NAME,
-                GREPTIME_PIPELINE_VERSION_HEADER_NAME,
+                PULSE_LOG_PIPELINE_VERSION_HEADER_NAME,
+                PULSE_PIPELINE_VERSION_HEADER_NAME,
             ],
         )?;
         let pipeline_parameters =
-            string_value_from_header(headers, &[GREPTIME_PIPELINE_PARAMS_HEADER])?;
+            string_value_from_header(headers, &[PULSE_PIPELINE_PARAMS_HEADER])?;
 
         Ok(PipelineInfo {
             pipeline_name,
             pipeline_version,
-            pipeline_params: GreptimePipelineParams::from_params(pipeline_parameters.as_deref()),
+            pipeline_params: PulsePipelineParams::from_params(pipeline_parameters.as_deref()),
         })
     }
 }
@@ -164,15 +165,15 @@ where
         let headers = &parts.headers;
         let promote_all_resource_attrs = string_value_from_header(
             headers,
-            &[GREPTIME_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER_NAME],
+            &[PULSE_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER_NAME],
         )?
         .map(truthy)
         .unwrap_or(false);
 
         let attr_header = if promote_all_resource_attrs {
-            [GREPTIME_OTLP_METRIC_IGNORE_RESOURCE_ATTRS_HEADER_NAME]
+            [PULSE_OTLP_METRIC_IGNORE_RESOURCE_ATTRS_HEADER_NAME]
         } else {
-            [GREPTIME_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER_NAME]
+            [PULSE_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER_NAME]
         };
 
         let resource_attrs = string_value_from_header(headers, &attr_header)?
@@ -181,14 +182,14 @@ where
 
         let promote_scope_attrs = string_value_from_header(
             headers,
-            &[GREPTIME_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER_NAME],
+            &[PULSE_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER_NAME],
         )?
         .map(truthy)
         .unwrap_or(false);
 
         let metric_translation_strategy = string_value_from_header(
             headers,
-            &[GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME],
+            &[PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME],
         )?
         .map(|value| parse_otlp_metric_translation_strategy(&value))
         .transpose()?
@@ -211,7 +212,7 @@ fn parse_otlp_metric_translation_strategy(
             StatusCode::BAD_REQUEST,
             format!(
                 "`{}` header value `{}` is invalid. Expected one of: {}.",
-                GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME,
+                PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME,
                 value,
                 OtlpMetricTranslationStrategy::VALUES.join(", ")
             ),
@@ -281,7 +282,7 @@ mod tests {
         assert_eq!(err.0, StatusCode::BAD_REQUEST);
         assert!(
             err.1
-                .contains(GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME)
+                .contains(PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME)
         );
         assert!(err.1.contains("no_translation"));
         assert!(err.1.contains("NoTranslation"));
@@ -291,7 +292,7 @@ mod tests {
     async fn test_otlp_metric_options_extracts_translation_strategy() {
         let (mut parts, _) = Request::builder()
             .header(
-                GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME,
+                PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME,
                 "NoTranslation",
             )
             .body(())
@@ -311,7 +312,7 @@ mod tests {
     async fn test_otlp_metric_options_rejects_invalid_translation_strategy() {
         let (mut parts, _) = Request::builder()
             .header(
-                GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME,
+                PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME,
                 "no_translation",
             )
             .body(())
@@ -325,7 +326,7 @@ mod tests {
         assert_eq!(err.0, StatusCode::BAD_REQUEST);
         assert!(
             err.1
-                .contains(GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME)
+                .contains(PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME)
         );
         assert!(err.1.contains("no_translation"));
     }

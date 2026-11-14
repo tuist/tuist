@@ -526,13 +526,14 @@ gh workflow run server-deployment.yml -f environment=<env>
 
 ### Pulse instance
 
-Pulse (Tuist's GreptimeDB fork) deploys independently into each cluster's
+Pulse deploys independently into each cluster's
 `observability` namespace, not as part of the server or monitoring chart. It
 runs as the private `pulse` release (Service `pulse`), which collectors write to
-directly, and deploys only through a `greptimedb-deployment.yml` dispatch from
-main, after `pulse-release.yml` has published the image the chart pins. Before the first deployment,
+directly. `pulse-production-deployment.yml` deploys it continuously from main
+through staging, canary and production; a `pulse-deployment.yml` dispatch
+deploys one environment. Before the first deployment,
 verify the bucket and environment-vault prerequisites in the
-[Pulse on GreptimeDB guide](../helm/greptimedb/README.md#bootstrap-prerequisites).
+[Pulse guide](../helm/pulse/README.md#bootstrap-prerequisites).
 Production mutations still require the approval described in the infrastructure
 access policy.
 

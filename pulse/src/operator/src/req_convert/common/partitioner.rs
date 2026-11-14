@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -788,7 +790,7 @@ mod tests {
     fn build_request(body: Body) -> RegionRequest {
         RegionRequest {
             header: Some(RegionRequestHeader {
-                dbname: "greptime.public".to_string(),
+                dbname: "pulse.public".to_string(),
                 ..Default::default()
             }),
             body: Some(body),

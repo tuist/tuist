@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -65,8 +67,8 @@ pub struct BareCommand {
     #[clap(short, long)]
     kafka_wal_broker_endpoints: Option<String>,
 
-    /// The path to the directory where GreptimeDB's binaries resides.
-    /// If not set, sqlness will build GreptimeDB on the fly.
+    /// The path to the directory where Pulse's binaries resides.
+    /// If not set, sqlness will build Pulse on the fly.
     #[clap(long)]
     bins_dir: Option<PathBuf>,
 
@@ -75,7 +77,7 @@ pub struct BareCommand {
     #[clap(long)]
     preserve_state: bool,
 
-    /// Pull Different versions of GreptimeDB on need.
+    /// Pull Different versions of Pulse on need.
     #[clap(long, default_value = "true")]
     pull_version_on_need: bool,
 
@@ -99,7 +101,7 @@ pub struct BareCommand {
     #[clap(short, long, default_value = "0")]
     jobs: usize,
 
-    /// Extra command line arguments when starting GreptimeDB binaries.
+    /// Extra command line arguments when starting Pulse binaries.
     #[clap(long)]
     extra_args: Vec<String>,
 

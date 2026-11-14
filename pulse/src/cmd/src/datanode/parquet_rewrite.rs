@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -191,7 +193,7 @@ impl ParquetRewriteCommand {
 }
 
 fn infer_rewrite_properties(metadata: &ParquetMetaData) -> RewriteProperties {
-    let is_greptime_sst = metadata
+    let is_pulse_sst = metadata
         .file_metadata()
         .key_value_metadata()
         .is_some_and(|key_values| {
@@ -199,7 +201,7 @@ fn infer_rewrite_properties(metadata: &ParquetMetaData) -> RewriteProperties {
                 .iter()
                 .any(|key_value| key_value.key == mito2::sst::parquet::PARQUET_METADATA_KEY)
         });
-    let truncate_length = is_greptime_sst.then_some(0);
+    let truncate_length = is_pulse_sst.then_some(0);
     let first_column = metadata
         .row_groups()
         .first()
@@ -552,18 +554,18 @@ mod tests {
     }
 
     #[test]
-    fn test_infer_truncation_settings_for_greptime_sst() {
+    fn test_infer_truncation_settings_for_pulse_sst() {
         let dir = tempdir().unwrap();
-        let greptime_sst = dir.path().join("greptime.parquet");
+        let pulse_sst = dir.path().join("pulse.parquet");
         let generic_parquet = dir.path().join("generic.parquet");
         write_test_parquet(
-            &greptime_sst,
+            &pulse_sst,
             true,
             Some(mito2::sst::parquet::PARQUET_METADATA_KEY),
         );
         write_test_parquet(&generic_parquet, true, None);
 
-        let metadata = load_local_parquet_metadata(&greptime_sst).unwrap();
+        let metadata = load_local_parquet_metadata(&pulse_sst).unwrap();
         let config = infer_rewrite_properties(&metadata);
         assert_eq!(Some(0), config.writer.column_index_truncate_length);
         assert_eq!(Some(0), config.writer.statistics_truncate_length);

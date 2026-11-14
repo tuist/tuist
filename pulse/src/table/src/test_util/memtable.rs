@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -213,7 +215,7 @@ mod test {
             .downcast_ref::<StringVector>()
             .unwrap();
         let string_column = string_column.iter_data().flatten().collect::<Vec<&str>>();
-        assert_eq!(vec!["hello", "greptime"], string_column);
+        assert_eq!(vec!["hello", "pulse"], string_column);
     }
 
     #[tokio::test]
@@ -262,7 +264,7 @@ mod test {
             Arc::new(StringVector::from(vec![
                 Some("hello"),
                 None,
-                Some("greptime"),
+                Some("pulse"),
                 None,
             ])),
         ];

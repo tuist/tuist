@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Ensure current function is invokded under `greptime` catalog.
+// Modified by Tuist; see pulse/FORK.md.
+
+/// Ensure current function is invokded under `pulse` catalog.
 #[macro_export]
-macro_rules! ensure_greptime {
+macro_rules! ensure_pulse {
     ($func_ctx: expr) => {{
         use common_catalog::consts::DEFAULT_CATALOG_NAME;
         snafu::ensure!(

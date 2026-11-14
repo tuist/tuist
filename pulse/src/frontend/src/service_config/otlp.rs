@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_TRACE_INGEST_CHUNK_SIZE: usize = 512;
@@ -22,7 +24,7 @@ pub struct OtlpOptions {
     pub enable: bool,
     /// Maximum spans per trace ingest chunk. Set to 0 to disable splitting.
     pub trace_ingest_chunk_size: usize,
-    /// Whether to synthesize the `greptime_otel_resource_info` descriptor
+    /// Whether to synthesize the `pulse_otel_resource_info` descriptor
     /// table from the resource attributes of OTLP metrics, so metrics-only
     /// services reach the semantic graph. Off by default: it creates and
     /// writes a table the user did not send.

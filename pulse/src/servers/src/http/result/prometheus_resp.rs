@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! prom supply the prometheus HTTP API Server compliance
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
@@ -56,7 +58,7 @@ use crate::error::{
     ArrowSnafu, CollectRecordbatchSnafu, DataFusionSnafu, Result, UnexpectedResultSnafu,
     status_code_to_http_status,
 };
-use crate::http::header::{GREPTIME_DB_HEADER_METRICS, collect_plan_metrics};
+use crate::http::header::{PULSE_DB_HEADER_METRICS, collect_plan_metrics};
 use crate::http::prometheus::{
     PromData, PromNativeHistogram, PromQueryResult, PromSeriesMatrix, PromSeriesVector,
     PrometheusResponse,
@@ -169,7 +171,7 @@ impl IntoResponse for PrometheusJsonResponse {
         }
 
         if let Some(m) = metrics.and_then(|m| HeaderValue::from_str(&m).ok()) {
-            resp.headers_mut().insert(&GREPTIME_DB_HEADER_METRICS, m);
+            resp.headers_mut().insert(&PULSE_DB_HEADER_METRICS, m);
         }
 
         resp

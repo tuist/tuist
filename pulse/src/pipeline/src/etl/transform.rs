@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod index;
 pub mod transformer;
 
@@ -56,7 +58,7 @@ const JSON2_TYPE: &str = "json2";
 const JSON2_TYPE_HINT: &str = "type.json2[]";
 const JSON2_TYPE_HINT_PATH: &str = "path";
 
-pub use transformer::greptime::GreptimeTransformer;
+pub use transformer::pulse::PulseTransformer;
 
 /// On Failure behavior when transform fails
 #[derive(Debug, Clone, Default, Copy)]

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::fmt::{Debug, Formatter};
 use std::io::ErrorKind;
@@ -252,9 +254,9 @@ impl<T: StackError> StackError for Box<T> {
     }
 }
 
-/// A simple [Result] of which the error is convertible from [ErrorExt] (which every GreptimeDB
+/// A simple [Result] of which the error is convertible from [ErrorExt] (which every Pulse
 /// error implements). Use this if you are tired of writing `unwrap`s in test codes, that you can
-/// use the `?` on all GreptimeDB errors.
+/// use the `?` on all Pulse errors.
 pub type WhateverResult<T> = Result<T, Whatever>;
 
 #[derive(Snafu)]

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![allow(clippy::print_stdout)]
 
 use std::fmt::Display;
@@ -99,7 +101,7 @@ pub const fn build_info() -> BuildInfo {
         clean: build::GIT_CLEAN,
         rustc: build::RUST_VERSION,
         target: build::BUILD_TARGET,
-        version: env!("GREPTIME_PRODUCT_VERSION"),
+        version: env!("PULSE_PRODUCT_VERSION"),
     }
 }
 
@@ -110,7 +112,7 @@ pub const fn version() -> &'static str {
 }
 
 pub const fn product_name() -> &'static str {
-    env!("GREPTIME_PRODUCT_NAME")
+    env!("PULSE_PRODUCT_NAME")
 }
 
 pub const fn verbose_version() -> &'static str {

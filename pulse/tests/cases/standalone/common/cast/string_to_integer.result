@@ -1,6 +1,6 @@
 -- Migrated from DuckDB test: test/sql/cast/string_to_integer_decimal_cast.test
 -- Description: String to number casts
--- Note: GreptimeDB doesn't support decimal string to integer conversion
+-- Note: Pulse doesn't support decimal string to integer conversion
 -- Valid integer string conversions
 SELECT '0'::INT;
 

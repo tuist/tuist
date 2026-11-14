@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::HashMap;
@@ -45,17 +47,17 @@ use tests_fuzz::translator::mysql::alter_expr::AlterTableExprTranslator;
 use tests_fuzz::translator::mysql::create_expr::CreateTableExprTranslator;
 use tests_fuzz::utils::{
     Connections, get_fuzz_override, get_gt_fuzz_input_max_alter_actions,
-    init_greptime_connections_via_env,
+    init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -124,7 +126,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&create_physical_table_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create physical table: {sql}, result: {result:?}");
@@ -155,7 +157,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         generate_create_logical_table_expr(physical_table_ctx, &mut rng).unwrap();
     let sql = translator.translate(&create_logical_table_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create logical table: {sql}, result: {result:?}");
@@ -179,7 +181,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         let translator = AlterTableExprTranslator;
         let sql = translator.translate(&expr)?;
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Alter table: {sql}, result: {result:?}");
@@ -188,7 +190,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
         // Validate columns in logical table
         let mut column_entries = validator::column::fetch_columns(
-            &ctx.greptime,
+            &ctx.pulse,
             "public".into(),
             logical_table_ctx.name.clone(),
         )
@@ -200,7 +202,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
         // Validate columns in physical table
         let mut column_entries = validator::column::fetch_columns(
-            &ctx.greptime,
+            &ctx.pulse,
             "public".into(),
             create_physical_table_expr.table_name.clone(),
         )
@@ -214,7 +216,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     // Clean up logical table
     let sql = format!("DROP TABLE {}", create_logical_table_expr.table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!(
@@ -225,7 +227,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     // Clean up physical table
     let sql = format!("DROP TABLE {}", create_physical_table_expr.table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!(
@@ -240,9 +242,9 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_alter_table(ctx, input)
             .await

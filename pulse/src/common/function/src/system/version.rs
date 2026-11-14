@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use datafusion::arrow::datatypes::DataType;
 use datafusion_common::ScalarValue;
 use datafusion_expr::{ColumnarValue, ScalarFunctionArgs, Signature, Volatility};
@@ -44,7 +46,7 @@ impl Function for VersionFunction {
             Channel::Mysql => {
                 format!(
                     "{}-{}-{}",
-                    std::env::var("GREPTIMEDB_MYSQL_SERVER_VERSION")
+                    std::env::var("PULSE_MYSQL_SERVER_VERSION")
                         .unwrap_or_else(|_| "8.4.2".to_string()),
                     common_version::product_name(),
                     common_version::version()

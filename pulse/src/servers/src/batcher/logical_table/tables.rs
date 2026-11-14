@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -454,7 +456,7 @@ mod tests {
         Value,
     };
     use arrow::datatypes::{DataType as ArrowDataType, Field, Schema as ArrowSchema};
-    use common_query::prelude::greptime_timestamp;
+    use common_query::prelude::pulse_timestamp;
 
     use crate::batcher::logical_table::LogicalTablePendingRowsBatcher;
     use crate::batcher::logical_table::batch_convert::TableBatch;
@@ -466,7 +468,7 @@ mod tests {
         let rows = Rows {
             schema: vec![
                 ColumnSchema {
-                    column_name: greptime_timestamp().to_string(),
+                    column_name: pulse_timestamp().to_string(),
                     datatype: ColumnDataType::TimestampMillisecond as i32,
                     semantic_type: SemanticType::Timestamp as i32,
                     ..Default::default()
@@ -478,7 +480,7 @@ mod tests {
                     ..Default::default()
                 },
                 ColumnSchema {
-                    column_name: "greptime_value".to_string(),
+                    column_name: "pulse_value".to_string(),
                     datatype: ColumnDataType::Float64 as i32,
                     semantic_type: SemanticType::Field as i32,
                     ..Default::default()
@@ -520,7 +522,7 @@ mod tests {
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
         ]);
         let batch = rows_to_aligned_record_batch(&rows, &target_schema).unwrap();
         assert_eq!(1, batch.timestamp_index);

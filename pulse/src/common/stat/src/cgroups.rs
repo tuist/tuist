@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![allow(dead_code)]
 
 use std::fs::read_to_string;
@@ -222,14 +224,14 @@ impl Default for CgroupsMetricsCollector {
     fn default() -> Self {
         let mut descs = vec![];
         let cpu_usage = IntGauge::with_opts(Opts::new(
-            "greptime_cgroups_cpu_usage_microseconds",
+            "pulse_cgroups_cpu_usage_microseconds",
             "the current cpu usage in microseconds that collected from cgroups filesystem",
         ))
         .unwrap();
         descs.extend(cpu_usage.desc().into_iter().cloned());
 
         let memory_usage = IntGauge::with_opts(Opts::new(
-            "greptime_cgroups_memory_usage_bytes",
+            "pulse_cgroups_memory_usage_bytes",
             "the current memory usage that collected from cgroups filesystem",
         ))
         .unwrap();

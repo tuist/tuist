@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::HashMap;
@@ -38,16 +40,16 @@ use tests_fuzz::generator::create_expr::{
 use tests_fuzz::ir::{Column, primary_key_and_not_null_column_options_generator};
 use tests_fuzz::translator::DslTranslator;
 use tests_fuzz::translator::mysql::create_expr::CreateTableExprTranslator;
-use tests_fuzz::utils::{Connections, get_fuzz_override, init_greptime_connections_via_env};
+use tests_fuzz::utils::{Connections, get_fuzz_override, init_pulse_connections_via_env};
 use tests_fuzz::validator;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -86,7 +88,7 @@ async fn execute_create_logic_table(ctx: FuzzContext, input: FuzzInput) -> Resul
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&create_physical_table_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create physical table: {sql}, result: {result:?}");
@@ -129,14 +131,14 @@ async fn execute_create_logic_table(ctx: FuzzContext, input: FuzzInput) -> Resul
         .generate(&mut rng)?;
     let sql = translator.translate(&create_logical_table_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create logical table: {sql}, result: {result:?}");
 
     // Validate columns in logical table
     let mut column_entries = validator::column::fetch_columns(
-        &ctx.greptime,
+        &ctx.pulse,
         "public".into(),
         create_logical_table_expr.table_name.clone(),
     )
@@ -152,7 +154,7 @@ async fn execute_create_logic_table(ctx: FuzzContext, input: FuzzInput) -> Resul
     physical_table_columns.sort_by(|a, b| a.name.value.cmp(&b.name.value));
 
     let mut column_entries = validator::column::fetch_columns(
-        &ctx.greptime,
+        &ctx.pulse,
         "public".into(),
         create_physical_table_expr.table_name.clone(),
     )
@@ -163,7 +165,7 @@ async fn execute_create_logic_table(ctx: FuzzContext, input: FuzzInput) -> Resul
     // Clean up logical table
     let sql = format!("DROP TABLE {}", create_logical_table_expr.table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!(
@@ -174,7 +176,7 @@ async fn execute_create_logic_table(ctx: FuzzContext, input: FuzzInput) -> Resul
     // Clean up physical table
     let sql = format!("DROP TABLE {}", create_physical_table_expr.table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!(
@@ -190,9 +192,9 @@ async fn execute_create_logic_table(ctx: FuzzContext, input: FuzzInput) -> Resul
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_create_logic_table(ctx, input)
             .await

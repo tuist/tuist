@@ -14,7 +14,7 @@ kind = "prom_remote_write_then_query"
 [scenario.remote_write]
 database = "public"
 metric = "promql_simple_range_allocation"
-physical_table = "greptime_physical_table"
+physical_table = "pulse_physical_table"
 series_count = 128
 samples_per_series = 780
 sample_chunk_size = 195

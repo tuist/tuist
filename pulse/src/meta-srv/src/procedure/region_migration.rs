@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub(crate) mod close_downgraded_region;
 pub(crate) mod downgrade_leader_region;
 pub(crate) mod flush_leader_region;
@@ -1059,7 +1061,7 @@ mod tests {
         let procedure = RegionMigrationProcedure::new(persistent_context, context, vec![]);
 
         let serialized = procedure.dump().unwrap();
-        let expected = r#"{"persistent_ctx":{"catalog_and_schema":[["greptime","public"]],"from_peer":{"id":1,"addr":""},"to_peer":{"id":2,"addr":""},"region_ids":[4398046511105],"timeout":"10s","trigger_reason":"Unknown"},"state":{"region_migration_state":"RegionMigrationStart"}}"#;
+        let expected = r#"{"persistent_ctx":{"catalog_and_schema":[["pulse","public"]],"from_peer":{"id":1,"addr":""},"to_peer":{"id":2,"addr":""},"region_ids":[4398046511105],"timeout":"10s","trigger_reason":"Unknown"},"state":{"region_migration_state":"RegionMigrationStart"}}"#;
         assert_eq!(expected, serialized);
     }
 
@@ -1100,7 +1102,7 @@ mod tests {
     fn test_backward_compatibility() {
         let persistent_ctx = PersistentContext {
             #[allow(deprecated)]
-            catalog: Some("greptime".into()),
+            catalog: Some("pulse".into()),
             #[allow(deprecated)]
             schema: Some("public".into()),
             catalog_and_schema: vec![],
@@ -1111,7 +1113,7 @@ mod tests {
             trigger_reason: RegionMigrationTriggerReason::Unknown,
         };
         // NOTES: Changes it will break backward compatibility.
-        let serialized = r#"{"catalog":"greptime","schema":"public","from_peer":{"id":1,"addr":""},"to_peer":{"id":2,"addr":""},"region_id":4398046511105}"#;
+        let serialized = r#"{"catalog":"pulse","schema":"public","from_peer":{"id":1,"addr":""},"to_peer":{"id":2,"addr":""},"region_id":4398046511105}"#;
         let deserialized: PersistentContext = serde_json::from_str(serialized).unwrap();
 
         assert_eq!(persistent_ctx, deserialized);
@@ -1119,7 +1121,7 @@ mod tests {
 
     #[test]
     fn test_legacy_trigger_reason_survives_recovery_and_repersistence() {
-        let serialized = r#"{"persistent_ctx":{"catalog":"greptime","schema":"public","from_peer":{"id":1,"addr":""},"to_peer":{"id":2,"addr":""},"region_id":4398046511105,"trigger_reason":"Failover"},"state":{"region_migration_state":"RegionMigrationStart"}}"#;
+        let serialized = r#"{"persistent_ctx":{"catalog":"pulse","schema":"public","from_peer":{"id":1,"addr":""},"to_peer":{"id":2,"addr":""},"region_id":4398046511105,"trigger_reason":"Failover"},"state":{"region_migration_state":"RegionMigrationStart"}}"#;
         let env = TestingEnv::new();
         let procedure = RegionMigrationProcedure::from_json(
             serialized,

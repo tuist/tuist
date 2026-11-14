@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::greptime_proto::io::prometheus::write::v2::Metadata;
 use api::greptime_proto::io::prometheus::write::v2::histogram::{Count, ZeroCount};
 use api::v1::value::ValueData;
@@ -21,7 +23,7 @@ use common_query::native_histogram::{
     COUNT_I64_FIELD, NATIVE_HISTOGRAM_FIELD_NAMES, POSITIVE_BUCKETS_F64_FIELD,
     POSITIVE_BUCKETS_I64_FIELD, POSITIVE_SPAN_OFFSETS_FIELD, SCHEMA_FIELD,
 };
-use common_query::prelude::greptime_native_histogram;
+use common_query::prelude::pulse_native_histogram;
 use servers::prom_remote_write::v2::test_util as remote_write_v2;
 
 #[test]
@@ -92,7 +94,7 @@ fn test_decode_remote_write_v2_native_histogram_dump() {
     assert_eq!(rows.rows.len(), 1);
     let row = &rows.rows[0];
     assert_eq!(
-        row.values[column_index(&rows.schema, "greptime_timestamp")].value_data,
+        row.values[column_index(&rows.schema, "pulse_timestamp")].value_data,
         Some(ValueData::TimestampMillisecondValue(1782358160412))
     );
     assert_eq!(
@@ -126,7 +128,7 @@ fn column_index(schema: &[ColumnSchema], column_name: &str) -> usize {
 }
 
 fn histogram_field_value(rows: &Rows, row_idx: usize, field_name: &str) -> Option<ValueData> {
-    let histogram_idx = column_index(&rows.schema, greptime_native_histogram());
+    let histogram_idx = column_index(&rows.schema, pulse_native_histogram());
     let Some(ValueData::StructValue(histogram)) =
         &rows.rows[row_idx].values[histogram_idx].value_data
     else {

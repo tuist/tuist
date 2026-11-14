@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 #[cfg(test)]
 use std::collections::HashMap;
@@ -61,7 +63,7 @@ use object_store::test_util::TempFolder;
 use object_store::{AzblobConnection, GcsConnection, ObjectStore, OssConnection, S3Connection};
 use servers::batcher::logical_table::LogicalTablePendingRowsBatcher;
 use servers::grpc::builder::GrpcServerBuilder;
-use servers::grpc::greptime_handler::GreptimeRequestHandler;
+use servers::grpc::pulse_handler::PulseRequestHandler;
 use servers::grpc::{FlightCompression, GrpcOptions, GrpcServer, GrpcServerConfig};
 use servers::http::{HttpOptions, HttpServerBuilder};
 use servers::metrics_handler::MetricsHandler;
@@ -79,8 +81,8 @@ use store_api::region_engine::RegionEngine;
 use store_api::region_request::{RegionFlushRequest, RegionRequest};
 use store_api::storage::RegionId;
 
-use crate::cluster::{GreptimeDbCluster, GreptimeDbClusterBuilder};
-use crate::standalone::{GreptimeDbStandalone, GreptimeDbStandaloneBuilder};
+use crate::cluster::{PulseCluster, PulseClusterBuilder};
+use crate::standalone::{PulseStandalone, PulseStandaloneBuilder};
 
 /// Maps `(node_id, region_id)` to `(flushed_sequence, flushed_entry_id)`.
 pub type WalSnapshot = BTreeMap<(u64, RegionId), (u64, u64)>;
@@ -143,8 +145,8 @@ pub fn assert_wal_delta(before: &WalSnapshot, after: &WalSnapshot, skip_wal: boo
 
 /// A test instance backed by embedded storage or a distributed cluster.
 pub enum MockInstanceImpl {
-    Standalone(GreptimeDbStandalone),
-    Distributed(GreptimeDbCluster),
+    Standalone(PulseStandalone),
+    Distributed(PulseCluster),
 }
 
 impl MockInstanceImpl {
@@ -186,14 +188,14 @@ impl MockInstanceImpl {
             // The repository cluster harness uses real tonic/protobuf services
             // over duplex transports between FE and datanodes, not direct calls.
             Self::Distributed(
-                GreptimeDbClusterBuilder::new(&name)
+                PulseClusterBuilder::new(&name)
                     .await
                     .with_datanodes(3)
                     .build(false)
                     .await,
             )
         } else {
-            Self::Standalone(GreptimeDbStandaloneBuilder::new(&name).build().await)
+            Self::Standalone(PulseStandaloneBuilder::new(&name).build().await)
         }
     }
 
@@ -606,11 +608,8 @@ CREATE TABLE IF NOT EXISTS {table_name} (
     let _ = result.first().unwrap().as_ref().unwrap();
 }
 
-async fn setup_standalone_instance(
-    test_name: &str,
-    store_type: StorageType,
-) -> GreptimeDbStandalone {
-    GreptimeDbStandaloneBuilder::new(test_name)
+async fn setup_standalone_instance(test_name: &str, store_type: StorageType) -> PulseStandalone {
+    PulseStandaloneBuilder::new(test_name)
         .with_default_store_type(store_type)
         .build()
         .await
@@ -620,8 +619,8 @@ async fn setup_standalone_instance_with_slow_query_threshold(
     test_name: &str,
     store_type: StorageType,
     slow_query_threshold: std::time::Duration,
-) -> GreptimeDbStandalone {
-    GreptimeDbStandaloneBuilder::new(test_name)
+) -> PulseStandalone {
+    PulseStandaloneBuilder::new(test_name)
         .with_default_store_type(store_type)
         .with_slow_query_threshold(slow_query_threshold)
         .build()
@@ -632,8 +631,8 @@ async fn setup_standalone_instance_with_plugins(
     test_name: &str,
     store_type: StorageType,
     plugins: Plugins,
-) -> GreptimeDbStandalone {
-    GreptimeDbStandaloneBuilder::new(test_name)
+) -> PulseStandalone {
+    PulseStandaloneBuilder::new(test_name)
         .with_default_store_type(store_type)
         .with_plugin(plugins)
         .build()
@@ -645,8 +644,8 @@ async fn setup_standalone_instance_with_plugins_and_slow_query_threshold(
     store_type: StorageType,
     plugins: Plugins,
     slow_query_threshold: std::time::Duration,
-) -> GreptimeDbStandalone {
-    GreptimeDbStandaloneBuilder::new(test_name)
+) -> PulseStandalone {
+    PulseStandaloneBuilder::new(test_name)
         .with_default_store_type(store_type)
         .with_plugin(plugins)
         .with_slow_query_threshold(slow_query_threshold)
@@ -665,7 +664,7 @@ pub async fn setup_test_http_app(store_type: StorageType, name: &str) -> (Router
         .with_sql_handler(instance.fe_instance().clone())
         .with_logs_handler(instance.fe_instance().clone())
         .with_metrics_handler(MetricsHandler)
-        .with_greptime_config_options(instance.opts.datanode_options().to_toml().unwrap())
+        .with_pulse_config_options(instance.opts.datanode_options().to_toml().unwrap())
         .build();
     (
         http_server.build(http_server.make_app()).unwrap(),
@@ -703,7 +702,7 @@ pub async fn setup_test_http_app_with_frontend_and_slow_query_threshold(
         .with_influxdb_handler(instance.fe_instance().clone())
         .with_otlp_handler(instance.fe_instance().clone(), true)
         .with_jaeger_handler(instance.fe_instance().clone())
-        .with_greptime_config_options(instance.opts.to_toml().unwrap())
+        .with_pulse_config_options(instance.opts.to_toml().unwrap())
         .build();
 
     let app = http_server.build(http_server.make_app()).unwrap();
@@ -762,7 +761,7 @@ pub async fn setup_test_http_app_with_frontend_and_custom_options(
         .with_prometheus_handler(instance.fe_instance().clone())
         .with_jaeger_handler(instance.fe_instance().clone())
         .with_dashboard_handler(instance.fe_instance().clone())
-        .with_greptime_config_options(instance.opts.to_toml().unwrap());
+        .with_pulse_config_options(instance.opts.to_toml().unwrap());
 
     if let Some(user_provider) = user_provider {
         http_server = http_server.with_user_provider(user_provider);
@@ -774,7 +773,7 @@ pub async fn setup_test_http_app_with_frontend_and_custom_options(
     (app, instance.guard)
 }
 
-async fn run_sql(sql: &str, instance: &GreptimeDbStandalone) {
+async fn run_sql(sql: &str, instance: &PulseStandalone) {
     let result = instance
         .fe_instance()
         .do_query(sql, QueryContext::arc())
@@ -868,7 +867,7 @@ async fn setup_test_prom_app_with_frontend_inner(
         enable_batcher,
         memory_limiter,
     )
-    .with_greptime_config_options(instance.opts.datanode_options().to_toml().unwrap())
+    .with_pulse_config_options(instance.opts.datanode_options().to_toml().unwrap())
     .build();
     let app = http_server.build(http_server.make_app()).unwrap();
     (app, instance.guard)
@@ -928,7 +927,7 @@ pub fn build_test_prom_server(
 pub async fn setup_grpc_server(
     store_type: StorageType,
     name: &str,
-) -> (GreptimeDbStandalone, Arc<GrpcServer>) {
+) -> (PulseStandalone, Arc<GrpcServer>) {
     setup_grpc_server_with(store_type, name, None, None, None).await
 }
 
@@ -936,7 +935,7 @@ pub async fn setup_grpc_server_with_user_provider(
     store_type: StorageType,
     name: &str,
     user_provider: Option<UserProviderRef>,
-) -> (GreptimeDbStandalone, Arc<GrpcServer>) {
+) -> (PulseStandalone, Arc<GrpcServer>) {
     setup_grpc_server_with(store_type, name, user_provider, None, None).await
 }
 
@@ -945,8 +944,8 @@ pub async fn setup_grpc_server_with_user_provider(
 pub async fn setup_grpc_server_with_auto_create_table_disabled(
     store_type: StorageType,
     name: &str,
-) -> (GreptimeDbStandalone, Arc<GrpcServer>) {
-    let instance = GreptimeDbStandaloneBuilder::new(name)
+) -> (PulseStandalone, Arc<GrpcServer>) {
+    let instance = PulseStandaloneBuilder::new(name)
         .with_default_store_type(store_type)
         .with_auto_create_table(false)
         .build()
@@ -960,7 +959,7 @@ pub async fn setup_grpc_server_with(
     user_provider: Option<UserProviderRef>,
     grpc_config: Option<GrpcServerConfig>,
     memory_limiter: Option<servers::request_memory_limiter::ServerMemoryLimiter>,
-) -> (GreptimeDbStandalone, Arc<GrpcServer>) {
+) -> (PulseStandalone, Arc<GrpcServer>) {
     let instance = setup_standalone_instance(name, store_type).await;
     setup_grpc_server_for_instance(instance, user_provider, grpc_config, memory_limiter).await
 }
@@ -968,11 +967,11 @@ pub async fn setup_grpc_server_with(
 /// Builds and starts a gRPC server on top of an already-constructed standalone
 /// instance. This is the shared core behind the `setup_grpc_server_*` helpers.
 async fn setup_grpc_server_for_instance(
-    instance: GreptimeDbStandalone,
+    instance: PulseStandalone,
     user_provider: Option<UserProviderRef>,
     grpc_config: Option<GrpcServerConfig>,
     memory_limiter: Option<servers::request_memory_limiter::ServerMemoryLimiter>,
-) -> (GreptimeDbStandalone, Arc<GrpcServer>) {
+) -> (PulseStandalone, Arc<GrpcServer>) {
     let grpc_server = setup_grpc_server_for_frontend_instance_with(
         instance.fe_instance().clone(),
         user_provider,
@@ -1004,7 +1003,7 @@ pub async fn setup_authenticated_grpc_database(
     let grpc_server = setup_grpc_server_for_frontend_instance(instance, Some(user_provider)).await;
     let grpc_addr = grpc_server.bind_addr().unwrap().to_string();
     let mut database = Database::new_with_dbname(
-        "greptime-public",
+        "pulse-public",
         Client::with_query_and_control_managers(
             Default::default(),
             Default::default(),
@@ -1030,14 +1029,14 @@ async fn setup_grpc_server_for_frontend_instance_with(
         .build()
         .unwrap();
 
-    let greptime_request_handler = GreptimeRequestHandler::new(
+    let pulse_request_handler = PulseRequestHandler::new(
         fe_instance_ref.clone(),
         user_provider.clone(),
         Some(runtime.clone()),
         FlightCompression::default(),
     );
 
-    let flight_handler = Arc::new(greptime_request_handler.clone());
+    let flight_handler = Arc::new(pulse_request_handler.clone());
 
     let grpc_config = grpc_config.unwrap_or_default();
     let mut grpc_builder = GrpcServerBuilder::new(grpc_config.clone(), runtime);
@@ -1047,7 +1046,7 @@ async fn setup_grpc_server_for_frontend_instance_with(
     }
 
     let grpc_builder = grpc_builder
-        .database_handler(greptime_request_handler)
+        .database_handler(pulse_request_handler)
         .flight_handler(flight_handler)
         .prometheus_handler(fe_instance_ref.clone(), user_provider.clone())
         .otel_arrow_handler(OtelArrowServiceHandler::new(fe_instance_ref, user_provider))
@@ -1281,7 +1280,7 @@ pub async fn setup_pg_server_with_prom_native_histogram(
 
     // Prometheus remote-write HTTP app with native histograms enabled.
     let http_server = build_test_prom_server(instance.fe_instance().clone(), false, None)
-        .with_greptime_config_options(instance.opts.datanode_options().to_toml().unwrap())
+        .with_pulse_config_options(instance.opts.datanode_options().to_toml().unwrap())
         .build();
     let app = http_server.build(http_server.make_app()).unwrap();
 

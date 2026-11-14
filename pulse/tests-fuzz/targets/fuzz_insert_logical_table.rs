@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::HashMap;
@@ -45,16 +47,16 @@ use tests_fuzz::translator::mysql::create_expr::CreateTableExprTranslator;
 use tests_fuzz::translator::mysql::insert_expr::InsertIntoExprTranslator;
 use tests_fuzz::utils::{
     Connections, compact_table, flush_memtable, get_fuzz_override, get_gt_fuzz_input_max_rows,
-    get_gt_fuzz_input_max_tables, init_greptime_connections_via_env,
+    get_gt_fuzz_input_max_tables, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -142,7 +144,7 @@ async fn create_physical_table<R: Rng + 'static>(
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&create_physical_table_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create physical table: {sql}, result: {result:?}");
@@ -190,7 +192,7 @@ async fn validate_values(
         column_list, logical_table_ctx.name, primary_keys_column_list
     );
     info!("Select SQL: {select_sql}");
-    let fetched_rows = validator::row::fetch_values(&ctx.greptime, select_sql.as_str()).await?;
+    let fetched_rows = validator::row::fetch_values(&ctx.pulse, select_sql.as_str()).await?;
     let mut expected_rows =
         replace_default(&insert_expr.values_list, &logical_table_ctx, insert_expr);
     sort_by_primary_keys(&mut expected_rows, primary_keys_idxs_in_insert_expr);
@@ -209,7 +211,7 @@ async fn insert_values<R: Rng + 'static>(
     let translator = InsertIntoExprTranslator;
     let sql = translator.translate(&insert_expr)?;
     let result = ctx
-        .greptime
+        .pulse
         // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
         .execute(sqlx::AssertSqlSafe(sql.as_str()))
         .await
@@ -249,7 +251,7 @@ async fn execute_insert(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         }
         let sql = translator.translate(&create_logical_table_expr)?;
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Create logical table: {sql}, result: {result:?}");
@@ -260,11 +262,11 @@ async fn execute_insert(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         validate_values(&ctx, logical_table_ctx.clone(), &insert_expr).await?;
         tables.insert(logical_table_ctx.name.clone(), logical_table_ctx.clone());
         if rng.random_bool(0.1) {
-            flush_memtable(&ctx.greptime, &physical_table_ctx.name).await?;
+            flush_memtable(&ctx.pulse, &physical_table_ctx.name).await?;
             validate_values(&ctx, logical_table_ctx.clone(), &insert_expr).await?;
         }
         if rng.random_bool(0.1) {
-            compact_table(&ctx.greptime, &physical_table_ctx.name).await?;
+            compact_table(&ctx.pulse, &physical_table_ctx.name).await?;
             validate_values(&ctx, logical_table_ctx.clone(), &insert_expr).await?;
         }
     }
@@ -273,7 +275,7 @@ async fn execute_insert(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     for (table_name, _) in tables {
         let sql = format!("DROP TABLE {}", table_name);
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Drop table: {}, result: {result:?}", table_name);
@@ -282,7 +284,7 @@ async fn execute_insert(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     // Clean up physical table
     let sql = format!("DROP TABLE {}", physical_table_ctx.name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!(
@@ -297,9 +299,9 @@ async fn execute_insert(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_insert(ctx, input)
             .await

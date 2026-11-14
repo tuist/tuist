@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::{fs, path};
 
 use common_telemetry::info;
@@ -80,7 +82,7 @@ pub async fn new_mysql_object_store(mysql_config: &MysqlConfig) -> Result<Object
     let root = util::normalize_dir(&mysql_config.root);
     info!(
         "The mysql object storage table is: {}, root is: {}",
-        mysql_config.table.as_deref().unwrap_or("greptime"),
+        mysql_config.table.as_deref().unwrap_or("pulse"),
         root
     );
 
@@ -187,7 +189,7 @@ mod tests {
     async fn test_new_hdfs_object_store() {
         let config = HdfsConfig {
             connection: HdfsConnection {
-                root: "/greptimedb".to_string(),
+                root: "/pulse".to_string(),
                 name_node: "hdfs://127.0.0.1:9000".to_string(),
                 ..Default::default()
             },
@@ -196,7 +198,7 @@ mod tests {
 
         let store = new_hdfs_object_store(&config).await.unwrap();
         assert_eq!(HDFS_NATIVE_SCHEME, store.info().scheme());
-        assert_eq!("/greptimedb/", store.info().root());
+        assert_eq!("/pulse/", store.info().root());
     }
 
     #[tokio::test]

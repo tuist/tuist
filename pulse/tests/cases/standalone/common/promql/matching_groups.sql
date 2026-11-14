@@ -2,14 +2,14 @@ CREATE TABLE matching_groups_left (
   host STRING NULL,
   "zone" STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, "zone")
 );
 CREATE TABLE matching_groups_right (
   host STRING NULL,
   "zone" STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, "zone")
 );
 INSERT INTO matching_groups_left VALUES

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod config;
 pub mod error;
 pub mod file_watcher;
@@ -27,7 +29,7 @@ pub fn metadata_store_dir(store_dir: &str) -> String {
 }
 
 /// The default data home directory.
-pub const DEFAULT_DATA_HOME: &str = "./greptimedb_data";
+pub const DEFAULT_DATA_HOME: &str = "./pulse_data";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]

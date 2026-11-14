@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -155,7 +157,7 @@ impl Instance {
             catalog_name: catalog.to_string(),
             schema_name: DEFAULT_PRIVATE_SCHEMA_NAME.to_string(),
             table_name: DASHBOARD_TABLE_NAME.to_string(),
-            desc: "GreptimeDB dashboard table".to_string(),
+            desc: "Pulse dashboard table".to_string(),
             column_defs,
             time_index,
             primary_keys,
@@ -313,14 +315,14 @@ impl Instance {
             let name = name_column
                 .as_string_opt::<i32>()
                 .context(NotSupportedSnafu {
-                    feat: "Invalid data type for greptime_private.dashboard.name",
+                    feat: "Invalid data type for pulse_private.dashboard.name",
                 })?;
 
             let definition =
                 definition_column
                     .as_string_opt::<i32>()
                     .context(NotSupportedSnafu {
-                        feat: "Invalid data type for greptime_private.dashboard.definition",
+                        feat: "Invalid data type for pulse_private.dashboard.definition",
                     })?;
 
             for i in 0..name.len() {

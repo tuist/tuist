@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned;
@@ -308,8 +310,8 @@ fn build_struct(
                     .collect::<common_query::error::Result<Vec<_>>>()
                     .map_err(|e| datafusion_common::DataFusionError::Execution(format!("Column conversion error: {}", e.output_msg())))?;
 
-                // Safety check: Ensure under the `greptime` catalog for security
-                #user_path::ensure_greptime!(self.func_ctx);
+                // Safety check: Ensure under the `pulse` catalog for security
+                #user_path::ensure_pulse!(self.func_ctx);
 
                 let columns_num = columns.len();
                 let rows_num = if columns.is_empty() {

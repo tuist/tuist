@@ -127,27 +127,27 @@ SELECT table_schema,
        seq_in_index,
        column_name,
        index_type,
-       greptime_index_type
+       pulse_index_type
 FROM information_schema.statistics
 WHERE table_schema = 'public'
   AND table_name IN ('system_metrics', 'test')
 ORDER BY table_name, index_name, seq_in_index, column_name;
 
-+--------------+----------------+------------+----------------------+--------------+-------------+------------+---------------------+
-| table_schema | table_name     | non_unique | index_name           | seq_in_index | column_name | index_type | greptime_index_type |
-+--------------+----------------+------------+----------------------+--------------+-------------+------------+---------------------+
-| public       | system_metrics | 1          | FULLTEXT_INDEX_desc2 | 1            | desc2       | FULLTEXT   | fulltext_bloom      |
-| public       | system_metrics | 1          | FULLTEXT_INDEX_desc3 | 1            | desc3       | FULLTEXT   | fulltext_bloom      |
-| public       | system_metrics | 1          | FULLTEXT_INDEX_idc   | 1            | idc         | FULLTEXT   | fulltext_bloom      |
-| public       | system_metrics | 1          | INVERTED_INDEX_idc   | 1            | idc         | INVERTED   | inverted            |
-| public       | system_metrics | 0          | PRIMARY              | 1            | host        | PRIMARY    | dense               |
-| public       | system_metrics | 0          | PRIMARY              | 2            | idc         | PRIMARY    | dense               |
-| public       | system_metrics | 1          | TIME INDEX           | 1            | ts          | TIME       |                     |
-| public       | test           | 0          | PRIMARY              | 1            | a           | PRIMARY    | dense               |
-| public       | test           | 0          | PRIMARY              | 2            | b           | PRIMARY    | dense               |
-| public       | test           | 1          | SKIPPING_INDEX_b     | 1            | b           | SKIPPING   | bloom_filter        |
-| public       | test           | 1          | TIME INDEX           | 1            | ts          | TIME       |                     |
-+--------------+----------------+------------+----------------------+--------------+-------------+------------+---------------------+
++--------------+----------------+------------+----------------------+--------------+-------------+------------+------------------+
+| table_schema | table_name     | non_unique | index_name           | seq_in_index | column_name | index_type | pulse_index_type |
++--------------+----------------+------------+----------------------+--------------+-------------+------------+------------------+
+| public       | system_metrics | 1          | FULLTEXT_INDEX_desc2 | 1            | desc2       | FULLTEXT   | fulltext_bloom   |
+| public       | system_metrics | 1          | FULLTEXT_INDEX_desc3 | 1            | desc3       | FULLTEXT   | fulltext_bloom   |
+| public       | system_metrics | 1          | FULLTEXT_INDEX_idc   | 1            | idc         | FULLTEXT   | fulltext_bloom   |
+| public       | system_metrics | 1          | INVERTED_INDEX_idc   | 1            | idc         | INVERTED   | inverted         |
+| public       | system_metrics | 0          | PRIMARY              | 1            | host        | PRIMARY    | dense            |
+| public       | system_metrics | 0          | PRIMARY              | 2            | idc         | PRIMARY    | dense            |
+| public       | system_metrics | 1          | TIME INDEX           | 1            | ts          | TIME       |                  |
+| public       | test           | 0          | PRIMARY              | 1            | a           | PRIMARY    | dense            |
+| public       | test           | 0          | PRIMARY              | 2            | b           | PRIMARY    | dense            |
+| public       | test           | 1          | SKIPPING_INDEX_b     | 1            | b           | SKIPPING   | bloom_filter     |
+| public       | test           | 1          | TIME INDEX           | 1            | ts          | TIME       |                  |
++--------------+----------------+------------+----------------------+--------------+-------------+------------+------------------+
 
 DROP TABLE system_metrics;
 

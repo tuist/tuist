@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod at_modifier;
 mod function_plans;
 mod island;
@@ -31,8 +33,8 @@ use common_function::aggrs::extremum::Extremum;
 use common_function::function::FunctionContext;
 use common_query::native_histogram::native_histogram_value_type;
 use common_query::prelude::{
-    GREPTIME_TEMPORALITY_DELTA, OTLP_AGGREGATION_TEMPORALITY_LABEL, greptime_native_histogram,
-    greptime_value,
+    OTLP_AGGREGATION_TEMPORALITY_LABEL, PULSE_TEMPORALITY_DELTA, pulse_native_histogram,
+    pulse_value,
 };
 use common_query::promql_annotations::PromqlAnnotationCollector;
 use datafusion::common::DFSchemaRef;
@@ -61,7 +63,7 @@ use datafusion_expr::utils::{conjunction, disjunction};
 use datafusion_expr::{ExprSchemable, Literal, SortExpr, TableSource, ident, lit};
 use datafusion_functions::core::coalesce;
 use datatypes::arrow::datatypes::{DataType as ArrowDataType, TimeUnit as ArrowTimeUnit};
-use datatypes::data_type::{ConcreteDataType, DataType as GreptimeDataType};
+use datatypes::data_type::{ConcreteDataType, DataType as PulseDataType};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use promql::extension_plan::{
@@ -1149,7 +1151,7 @@ impl PromPlanner {
         query_engine_state: &QueryEngineState,
         binary_expr: &PromBinaryExpr,
     ) -> Result<LogicalPlan> {
-        // promql-parser accepts fill modifiers, but Greptime does not implement the
+        // promql-parser accepts fill modifiers, but Pulse does not implement the
         // required outer joins and missing-value substitution. Reject them before the
         // binary-island fast path so they cannot silently behave like normal inner joins.
         if let Some(modifier) = &binary_expr.modifier {
@@ -1491,7 +1493,7 @@ impl PromPlanner {
                     .map(|(output, _)| output.clone())
                     .collect();
                 let mut field_groups = field_groups.into_iter();
-                // `vector()` uses EmptyMetric and keeps GreptimeDB's timestamp broadcast.
+                // `vector()` uses EmptyMetric and keeps Pulse's timestamp broadcast.
                 let has_empty_metric_operand = left_is_empty_metric || right_is_empty_metric;
 
                 let only_join_time_index = lhs.value_type() == ValueType::Scalar
@@ -3281,7 +3283,7 @@ impl PromPlanner {
             plan: &LogicalPlan,
             out: &mut BTreeSet<String>,
         ) -> Result<()> {
-            // Derived PromQL plans may contain non-Greptime scans without row-key metadata.
+            // Derived PromQL plans may contain non-Pulse scans without row-key metadata.
             if let LogicalPlan::TableScan(scan) = plan
                 && let Ok(table) = planner.table_from_source(&scan.source)
             {
@@ -4201,7 +4203,7 @@ impl PromPlanner {
                 .filter(|data_type| Self::string_value_data_type(data_type).is_some())
                 .map(|_| {
                     DfExpr::Column(Column::from_name(OTLP_AGGREGATION_TEMPORALITY_LABEL))
-                        .eq(lit(GREPTIME_TEMPORALITY_DELTA))
+                        .eq(lit(PULSE_TEMPORALITY_DELTA))
                 })
         } else {
             None
@@ -5535,12 +5537,12 @@ impl PromPlanner {
         }
 
         let canonical_float = field_columns.iter().find(|field| {
-            field.as_str() == greptime_value()
+            field.as_str() == pulse_value()
                 && (Self::field_column_type(schema, field) == Some(&ArrowDataType::Float64)
                     || Self::field_column_is_float_range(schema, field))
         });
         let canonical_histogram = field_columns.iter().find(|field| {
-            field.as_str() == greptime_native_histogram()
+            field.as_str() == pulse_native_histogram()
                 && (Self::field_column_is_native_histogram(schema, field)
                     || Self::field_column_is_native_histogram_range(schema, field))
         });

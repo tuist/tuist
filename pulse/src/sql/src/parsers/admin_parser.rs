@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::ResultExt;
 
 use crate::ast::Expr;
@@ -50,7 +52,7 @@ mod tests {
 
     use super::*;
     use crate::ast::{Expr, Function, FunctionArg, FunctionArgExpr, Value};
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     #[test]
@@ -58,7 +60,7 @@ mod tests {
         let sql = "ADMIN flush_table('test')";
 
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let stmt = result.remove(0);
@@ -85,7 +87,7 @@ mod tests {
         let sql = "ADMIN test()";
 
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let stmt = result.remove(0);
@@ -107,19 +109,19 @@ mod tests {
     fn test_invalid_admin_statement() {
         let sql = "ADMIN";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
 
         let sql = "ADMIN test";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
 
         let sql = "ADMIN test test";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
     }

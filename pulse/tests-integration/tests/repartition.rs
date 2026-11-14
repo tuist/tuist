@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -35,7 +37,7 @@ use servers::query_handler::sql::SqlQueryHandler;
 use session::context::{QueryContext, QueryContextRef};
 use store_api::codec::PrimaryKeyEncoding;
 use store_api::storage::{RegionId, TableId};
-use tests_integration::cluster::{GreptimeDbCluster, GreptimeDbClusterBuilder};
+use tests_integration::cluster::{PulseCluster, PulseClusterBuilder};
 use tests_integration::test_util::{StorageType, get_test_store_config};
 use tokio::sync::oneshot;
 
@@ -155,7 +157,7 @@ async fn test_repartition_physical_metric_without_logical_table() {
     let (store_config, _guard) = get_test_store_config(&StorageType::File);
     let home_dir = create_temp_dir("repartition_physical_metric_without_logical_table");
     let cluster =
-        GreptimeDbClusterBuilder::new("test_repartition_physical_metric_without_logical_table")
+        PulseClusterBuilder::new("test_repartition_physical_metric_without_logical_table")
             .await
             .with_datanodes(3)
             .with_store_config(store_config)
@@ -235,11 +237,11 @@ async fn test_repartition_physical_metric_without_logical_table() {
     .await
     .unwrap();
     let expected = r#"+---------------+--------------+---------------------------------+----------------+----------------------+------------------------+-----------------------+----------------------------+
-| table_catalog | table_schema | table_name                      | partition_name | partition_expression | partition_description  | greptime_partition_id | partition_ordinal_position |
+| table_catalog | table_schema | table_name                      | partition_name | partition_expression | partition_description  | pulse_partition_id | partition_ordinal_position |
 +---------------+--------------+---------------------------------+----------------+----------------------+------------------------+-----------------------+----------------------------+
-| greptime      | public       | physical_metric_without_logical | p0             | host                 | host < g               | 4398046511104         | 1                          |
-| greptime      | public       | physical_metric_without_logical | p1             | host                 | host >= m              | 4398046511105         | 2                          |
-| greptime      | public       | physical_metric_without_logical | p2             | host                 | host >= g AND host < m | 4398046511106         | 3                          |
+| pulse         | public       | physical_metric_without_logical | p0             | host                 | host < g               | 4398046511104         | 1                          |
+| pulse         | public       | physical_metric_without_logical | p1             | host                 | host >= m              | 4398046511105         | 2                          |
+| pulse         | public       | physical_metric_without_logical | p2             | host                 | host >= g AND host < m | 4398046511106         | 3                          |
 +---------------+--------------+---------------------------------+----------------+----------------------+------------------------+-----------------------+----------------------------+"#;
     check_output_stream(result.data, expected).await;
 }
@@ -305,11 +307,11 @@ async fn test_repartition_append_count_memtable_file() {
     assert!(home_guard.path().is_dir());
 }
 
-async fn append_count_cluster(name: &str) -> (GreptimeDbCluster, Arc<TempDir>) {
+async fn append_count_cluster(name: &str) -> (PulseCluster, Arc<TempDir>) {
     common_telemetry::init_default_ut_logging();
     let (store_config, _guard) = get_test_store_config(&StorageType::File);
     let home_dir = Arc::new(create_temp_dir(name));
-    let cluster = GreptimeDbClusterBuilder::new(name)
+    let cluster = PulseClusterBuilder::new(name)
         .await
         .with_shared_home_dir(Arc::clone(&home_dir))
         .with_datanodes(3)
@@ -443,7 +445,7 @@ async fn test_repartition_multi_hop_fulltext_index_gc() {
     let datanodes = 3u64;
     let home_dir = create_temp_dir("test_repartition_multi_hop_fulltext_index_gc_data_home");
 
-    let cluster = GreptimeDbClusterBuilder::new(cluster_name)
+    let cluster = PulseClusterBuilder::new(cluster_name)
         .await
         .with_shared_home_dir(Arc::new(home_dir))
         .with_datanodes(datanodes as u32)
@@ -646,7 +648,7 @@ pub async fn test_partition_unpartitioned_mito(store_type: StorageType) {
     let cluster_name = "test_partition_unpartitioned_mito";
     let (store_config, _guard) = get_test_store_config(&store_type);
     let datanodes = 3u64;
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_partition_unpartitioned_mito_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));
@@ -784,7 +786,7 @@ pub async fn test_repartition_on_columns_metadata_mito(store_type: StorageType) 
     let cluster_name = "test_repartition_on_columns_metadata_mito";
     let (store_config, _guard) = get_test_store_config(&store_type);
     let datanodes = 3u64;
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_repartition_on_columns_metadata_mito_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));
@@ -879,7 +881,7 @@ pub async fn test_repartition_on_columns_data_correctness_mito(store_type: Stora
     let cluster_name = "test_repartition_on_columns_data_correctness_mito";
     let (store_config, _guard) = get_test_store_config(&store_type);
     let datanodes = 3u64;
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir =
             create_temp_dir("test_repartition_on_columns_data_correctness_mito_data_home");
@@ -946,7 +948,7 @@ pub async fn test_partition_unpartitioned_metric(store_type: StorageType) {
     let cluster_name = "test_partition_unpartitioned_metric";
     let (store_config, _guard) = get_test_store_config(&store_type);
     let datanodes = 3u64;
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_partition_unpartitioned_metric_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));
@@ -1140,7 +1142,7 @@ async fn trigger_table_gc(metasrv: &Arc<Metasrv>, table_name: &str) {
     watcher::wait(&mut watcher).await.unwrap();
 }
 
-async fn assert_table_sst_files_match_manifests(cluster: &GreptimeDbCluster, table_name: &str) {
+async fn assert_table_sst_files_match_manifests(cluster: &PulseCluster, table_name: &str) {
     // Other tables may retain compacted SSTs until their own GC runs.
     let table_id = get_table_id(&cluster.metasrv, table_name).await;
     let table_dir = format!("/{table_id}/");
@@ -1176,7 +1178,7 @@ async fn trigger_full_gc(ticker: &GcTickerRef) {
 }
 
 async fn cluster_manifest_index_entries(
-    cluster: &GreptimeDbCluster,
+    cluster: &PulseCluster,
 ) -> Vec<(String, RegionId, RegionId)> {
     let mut entries = Vec::new();
     for datanode in cluster.datanode_instances.values() {
@@ -1196,7 +1198,7 @@ async fn cluster_manifest_index_entries(
     entries
 }
 
-async fn cluster_manifest_index_paths(cluster: &GreptimeDbCluster) -> BTreeSet<String> {
+async fn cluster_manifest_index_paths(cluster: &PulseCluster) -> BTreeSet<String> {
     cluster_manifest_index_entries(cluster)
         .await
         .into_iter()
@@ -1210,7 +1212,7 @@ fn query_partitions_sql(table_name: &str) -> String {
     format!(
         "\
 SELECT table_catalog, table_schema, table_name, partition_name, partition_expression, \
-partition_description, greptime_partition_id, partition_ordinal_position \
+partition_description, pulse_partition_id, partition_ordinal_position \
 FROM information_schema.partitions \
 WHERE table_name = '{}' \
 ORDER BY partition_ordinal_position;",
@@ -1226,7 +1228,7 @@ pub async fn test_repartition_mito(store_type: StorageType, flat_format: bool) {
     let cluster_name = "test_repartition_mito";
     let (store_config, _guard) = get_test_store_config(&store_type);
     let datanodes = 3u64;
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_repartition_mito_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));
@@ -1403,12 +1405,12 @@ pub async fn test_repartition_mito(store_type: StorageType, flat_format: bool) {
     .await
     .unwrap();
     let expected_create_table_after_split = r#"+---------------+--------------+------------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+
-| table_catalog | table_schema | table_name             | partition_name | partition_expression | partition_description | greptime_partition_id | partition_ordinal_position |
+| table_catalog | table_schema | table_name             | partition_name | partition_expression | partition_description | pulse_partition_id | partition_ordinal_position |
 +---------------+--------------+------------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+
-| greptime      | public       | repartition_mito_table | p0             | id                   | id < 5                | 4398046511104         | 1                          |
-| greptime      | public       | repartition_mito_table | p1             | id                   | id >= 10 AND id < 20  | 4398046511105         | 2                          |
-| greptime      | public       | repartition_mito_table | p2             | id                   | id >= 20              | 4398046511106         | 3                          |
-| greptime      | public       | repartition_mito_table | p3             | id                   | id >= 5 AND id < 10   | 4398046511107         | 4                          |
+| pulse         | public       | repartition_mito_table | p0             | id                   | id < 5                | 4398046511104         | 1                          |
+| pulse         | public       | repartition_mito_table | p1             | id                   | id >= 10 AND id < 20  | 4398046511105         | 2                          |
+| pulse         | public       | repartition_mito_table | p2             | id                   | id >= 20              | 4398046511106         | 3                          |
+| pulse         | public       | repartition_mito_table | p3             | id                   | id >= 5 AND id < 10   | 4398046511107         | 4                          |
 +---------------+--------------+------------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+"#;
     check_output_stream(result.data, expected_create_table_after_split).await;
 
@@ -1522,11 +1524,11 @@ pub async fn test_repartition_mito(store_type: StorageType, flat_format: bool) {
     .await
     .unwrap();
     let expected_create_table_after_merge = r#"+---------------+--------------+------------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+
-| table_catalog | table_schema | table_name             | partition_name | partition_expression | partition_description | greptime_partition_id | partition_ordinal_position |
+| table_catalog | table_schema | table_name             | partition_name | partition_expression | partition_description | pulse_partition_id | partition_ordinal_position |
 +---------------+--------------+------------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+
-| greptime      | public       | repartition_mito_table | p0             | id                   | id < 5                | 4398046511104         | 1                          |
-| greptime      | public       | repartition_mito_table | p1             | id                   | id >= 10              | 4398046511105         | 2                          |
-| greptime      | public       | repartition_mito_table | p2             | id                   | id >= 5 AND id < 10   | 4398046511107         | 3                          |
+| pulse         | public       | repartition_mito_table | p0             | id                   | id < 5                | 4398046511104         | 1                          |
+| pulse         | public       | repartition_mito_table | p1             | id                   | id >= 10              | 4398046511105         | 2                          |
+| pulse         | public       | repartition_mito_table | p2             | id                   | id >= 5 AND id < 10   | 4398046511107         | 3                          |
 +---------------+--------------+------------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+"#;
     check_output_stream(result.data, expected_create_table_after_merge).await;
 
@@ -1575,7 +1577,7 @@ pub async fn test_repartition_metric(
     let cluster_name = "test_repartition_metric";
     let (store_config, _guard) = get_test_store_config(&store_type);
     let datanodes = 3u64;
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_repartition_metric_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));
@@ -1695,11 +1697,11 @@ pub async fn test_repartition_metric(
     .unwrap();
     // Partition ids and order are expected to be stable within a single test run.
     let expected_create_table_after_split = r#"+---------------+--------------+-------------------+----------------+----------------------+------------------------+-----------------------+----------------------------+
-| table_catalog | table_schema | table_name        | partition_name | partition_expression | partition_description  | greptime_partition_id | partition_ordinal_position |
+| table_catalog | table_schema | table_name        | partition_name | partition_expression | partition_description  | pulse_partition_id | partition_ordinal_position |
 +---------------+--------------+-------------------+----------------+----------------------+------------------------+-----------------------+----------------------------+
-| greptime      | public       | repart_phy_metric | p0             | host                 | host < g               | 4398046511104         | 1                          |
-| greptime      | public       | repart_phy_metric | p1             | host                 | host >= m              | 4398046511105         | 2                          |
-| greptime      | public       | repart_phy_metric | p2             | host                 | host >= g AND host < m | 4398046511106         | 3                          |
+| pulse         | public       | repart_phy_metric | p0             | host                 | host < g               | 4398046511104         | 1                          |
+| pulse         | public       | repart_phy_metric | p1             | host                 | host >= m              | 4398046511105         | 2                          |
+| pulse         | public       | repart_phy_metric | p2             | host                 | host >= g AND host < m | 4398046511106         | 3                          |
 +---------------+--------------+-------------------+----------------+----------------------+------------------------+-----------------------+----------------------------+"#;
     check_output_stream(result.data, expected_create_table_after_split).await;
     let regions = cluster.list_all_regions().await;
@@ -1820,10 +1822,10 @@ pub async fn test_repartition_metric(
     .await
     .unwrap();
     let expected_create_table_after_merge = r#"+---------------+--------------+-------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+
-| table_catalog | table_schema | table_name        | partition_name | partition_expression | partition_description | greptime_partition_id | partition_ordinal_position |
+| table_catalog | table_schema | table_name        | partition_name | partition_expression | partition_description | pulse_partition_id | partition_ordinal_position |
 +---------------+--------------+-------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+
-| greptime      | public       | repart_phy_metric | p0             | host                 | host < m              | 4398046511104         | 1                          |
-| greptime      | public       | repart_phy_metric | p1             | host                 | host >= m             | 4398046511105         | 2                          |
+| pulse         | public       | repart_phy_metric | p0             | host                 | host < m              | 4398046511104         | 1                          |
+| pulse         | public       | repart_phy_metric | p1             | host                 | host >= m             | 4398046511105         | 2                          |
 +---------------+--------------+-------------------+----------------+----------------------+-----------------------+-----------------------+----------------------------+"#;
     check_output_stream(result.data, expected_create_table_after_merge).await;
 

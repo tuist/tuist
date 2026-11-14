@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::net::SocketAddr;
 use std::string::FromUtf8Error;
@@ -714,7 +716,7 @@ pub enum Error {
     },
 
     #[snafu(transparent)]
-    GreptimeProto {
+    PulseProto {
         source: api::error::Error,
         #[snafu(implicit)]
         location: Location,
@@ -878,7 +880,7 @@ impl ErrorExt for Error {
 
             MemoryLimitExceeded { .. } | WriteRejected { .. } => StatusCode::RateLimited,
 
-            GreptimeProto { source, .. } => source.status_code(),
+            PulseProto { source, .. } => source.status_code(),
             Partition { source, .. } => source.status_code(),
             MetricEngine { source, .. } => source.status_code(),
             Operator { source, .. } => source.status_code(),
@@ -913,7 +915,7 @@ impl ErrorExt for Error {
 
             ConvertScalarValue { source, .. } => source.retry_hint(),
             ConvertSqlValue { source, .. } => source.retry_hint(),
-            GreptimeProto { source, .. } => source.retry_hint(),
+            PulseProto { source, .. } => source.retry_hint(),
             Partition { source, .. } => source.retry_hint(),
             MetricEngine { source, .. } => source.retry_hint(),
             Operator { source, .. } => source.retry_hint(),
@@ -1020,7 +1022,7 @@ pub fn status_code_to_http_status(status_code: &StatusCode) -> HttpStatusCode {
 
 #[cfg(test)]
 mod tests {
-    use common_error::GREPTIME_DB_HEADER_ERROR_CODE;
+    use common_error::PULSE_DB_HEADER_ERROR_CODE;
     use common_error::ext::PlainError;
 
     use super::*;
@@ -1043,7 +1045,7 @@ mod tests {
         assert_eq!(
             status
                 .metadata()
-                .get(GREPTIME_DB_HEADER_ERROR_CODE)
+                .get(PULSE_DB_HEADER_ERROR_CODE)
                 .unwrap()
                 .to_str()
                 .unwrap(),

@@ -29,7 +29,7 @@ WHERE table_id = (
 
 -- No physical fulltext index metadata yet.
 -- ssts_index_meta.index_type uses physical backend names (fulltext_bloom/fulltext_tantivy),
--- unlike SHOW INDEX's greptime-fulltext-index-* display value.
+-- unlike SHOW INDEX's pulse-fulltext-index-* display value.
 -- One flushed SST with one fulltext column should produce exactly one fulltext metadata entry.
 SELECT COUNT(*) AS fulltext_index_meta_count
 FROM information_schema.ssts_index_meta

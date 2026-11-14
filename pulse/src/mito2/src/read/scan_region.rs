@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Scans a region according to the scan request.
 
 use std::collections::{BTreeMap, HashSet};
@@ -61,8 +63,6 @@ use crate::error::{
     EvalPartitionFilterSnafu, InvalidPartitionExprSnafu, InvalidRequestSnafu,
     RegionSequenceDomainBrokenSnafu, Result, SequenceRangeUnsupportedSnafu,
 };
-#[cfg(feature = "enterprise")]
-use crate::extension::{BoxedExtensionRange, BoxedExtensionRangeProvider};
 use crate::memtable::{MemtableRange, RangesOptions};
 use crate::metrics::READ_SST_COUNT;
 use crate::read::compat::{self, FlatCompatBatch};
@@ -263,8 +263,6 @@ pub(crate) struct ScanRegion {
     exact_selection: Option<(Vec<FileHandle>, Option<SequenceRange>)>,
     /// Counters that should receive query-load metrics.
     query_stat_counters: Option<RegionQueryStatCounters>,
-    #[cfg(feature = "enterprise")]
-    extension_range_provider: Option<BoxedExtensionRangeProvider>,
 }
 
 impl ScanRegion {
@@ -292,8 +290,6 @@ impl ScanRegion {
             filter_deleted: true,
             exact_selection: None,
             query_stat_counters: None,
-            #[cfg(feature = "enterprise")]
-            extension_range_provider: None,
         }
     }
 
@@ -380,14 +376,6 @@ impl ScanRegion {
     ) -> Self {
         self.exact_selection = Some(exact_selection);
         self
-    }
-
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn set_extension_range_provider(
-        &mut self,
-        extension_range_provider: BoxedExtensionRangeProvider,
-    ) {
-        self.extension_range_provider = Some(extension_range_provider);
     }
 
     /// Returns a [Scanner] to scan the region.
@@ -597,34 +585,6 @@ impl ScanRegion {
             )
             .with_sequence_range(sequence_range)
             .with_query_stat_counters(self.query_stat_counters);
-        #[cfg(feature = "enterprise")]
-        let input = if !self.request.skip_sst_files
-            && let Some(provider) = self.extension_range_provider
-        {
-            if sequence_range.is_some() {
-                // Defense in depth: the engine already rejects exact
-                // sequence-range reads on follower regions with an extension
-                // provider, but if one ever reaches the reader, fail closed
-                // here rather than letting unfiltered extension streams bypass
-                // the row-level sequence filter and emit out-of-range rows.
-                return SequenceRangeUnsupportedSnafu {
-                    region_id,
-                    min_seq: self.request.memtable_min_sequence.unwrap_or_default(),
-                    max_seq: self.request.memtable_max_sequence.unwrap_or_default(),
-                    reason:
-                        "exact sequence-range reads are unsupported when an extension range provider is present"
-                            .to_string(),
-                }
-                .fail();
-            }
-            let ranges = provider
-                .find_extension_ranges(self.version.flushed_sequence, time_range, &self.request)
-                .await?;
-            debug!("Find extension ranges: {ranges:?}");
-            input.with_extension_ranges(ranges)
-        } else {
-            input
-        };
         Ok(input.build())
     }
 
@@ -975,8 +935,6 @@ pub struct ScanInput {
     json2_rewrite_targets: Json2RewriteTargets,
     /// Counters that should receive query-load metrics.
     pub(crate) query_stat_counters: Option<RegionQueryStatCounters>,
-    #[cfg(feature = "enterprise")]
-    extension_ranges: Vec<BoxedExtensionRange>,
 }
 
 /// Cached output of scan request analysis: the optional range-cache fingerprint
@@ -1038,8 +996,6 @@ impl ScanInput {
                 compaction: false,
                 json2_rewrite_targets: Arc::default(),
                 query_stat_counters: None,
-                #[cfg(feature = "enterprise")]
-                extension_ranges: Vec::new(),
             },
         }
     }
@@ -1399,16 +1355,6 @@ impl ScanInputBuilder {
         self.input.json2_rewrite_targets = targets;
         self
     }
-
-    #[cfg(feature = "enterprise")]
-    #[must_use]
-    pub(crate) fn with_extension_ranges(
-        mut self,
-        extension_ranges: Vec<BoxedExtensionRange>,
-    ) -> Self {
-        self.input.extension_ranges = extension_ranges;
-        self
-    }
 }
 
 impl ScanInput {
@@ -1417,8 +1363,6 @@ impl ScanInput {
             .scan_memory_tracker
             .as_ref()
             .is_some_and(|tracker| tracker.limit() > 0);
-        #[cfg(feature = "enterprise")]
-        let covered = covered && self.extension_ranges.is_empty();
         covered
     }
 
@@ -1716,10 +1660,6 @@ impl ScanInput {
         }
 
         // Extension ranges do not expose their partition expressions.
-        #[cfg(feature = "enterprise")]
-        if !self.extension_ranges.is_empty() {
-            return false;
-        }
 
         // Repartition flushes existing memtables before entering staging. New
         // writes are routed under the target partition rules, whereas historical
@@ -1734,13 +1674,6 @@ impl ScanInput {
         let rows_in_memtables: usize = self.memtables.iter().map(|m| m.stats().num_rows()).sum();
 
         let rows = rows_in_files + rows_in_memtables;
-        #[cfg(feature = "enterprise")]
-        let rows = rows
-            + self
-                .extension_ranges
-                .iter()
-                .map(|x| x.num_rows())
-                .sum::<u64>() as usize;
         rows
     }
 
@@ -1778,20 +1711,6 @@ impl ScanInput {
         }
 
         pre_filter_mode(self.append_mode, self.merge_mode)
-    }
-}
-
-#[cfg(feature = "enterprise")]
-impl ScanInput {
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn extension_ranges(&self) -> &[BoxedExtensionRange] {
-        &self.extension_ranges
-    }
-
-    /// Get a boxed [ExtensionRange] by the index in all ranges.
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn extension_range(&self, i: usize) -> &BoxedExtensionRange {
-        &self.extension_ranges[i - self.num_memtables() - self.num_files()]
     }
 }
 
@@ -2227,24 +2146,6 @@ impl StreamContext {
             input: &'a ScanInput,
         }
 
-        #[cfg(feature = "enterprise")]
-        impl InputWrapper<'_> {
-            fn format_extension_ranges(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                if self.input.extension_ranges.is_empty() {
-                    return Ok(());
-                }
-
-                let mut delimiter = "";
-                write!(f, ", extension_ranges: [")?;
-                for range in self.input.extension_ranges() {
-                    write!(f, "{}{:?}", delimiter, range)?;
-                    delimiter = ", ";
-                }
-                write!(f, "]")?;
-                Ok(())
-            }
-        }
-
         impl fmt::Debug for InputWrapper<'_> {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 if !self.input.files.is_empty() {
@@ -2254,8 +2155,6 @@ impl StreamContext {
                         .finish()?;
                 }
                 write!(f, ", \"flat_format\": {}", self.input.explain_flat_format)?;
-                #[cfg(feature = "enterprise")]
-                self.format_extension_ranges(f)?;
 
                 Ok(())
             }

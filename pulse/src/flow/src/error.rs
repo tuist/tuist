@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Error definition for flow module
 
 use std::any::Any;
@@ -20,7 +22,7 @@ use api::v1::CreateTableExpr;
 use arrow_schema::ArrowError;
 use common_error::ext::{BoxedError, RetryHint};
 use common_error::{
-    GREPTIME_DB_HEADER_ERROR_RETRY_HINT, define_into_tonic_status, from_err_code_msg_to_header,
+    PULSE_DB_HEADER_ERROR_RETRY_HINT, define_into_tonic_status, from_err_code_msg_to_header,
 };
 use common_macro::stack_trace_debug;
 use common_telemetry::common_error::ext::ErrorExt;
@@ -290,7 +292,7 @@ pub fn to_status_with_last_err(err: impl ErrorExt) -> tonic::Status {
     let code = err.status_code() as u32;
     let mut header = from_err_code_msg_to_header(code, &last_err_msg);
     header.insert(
-        GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+        PULSE_DB_HEADER_ERROR_RETRY_HINT,
         HeaderValue::from_static(err.retry_hint().as_str()),
     );
 

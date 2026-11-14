@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Duration;
 
 use lazy_static::lazy_static;
@@ -40,20 +42,20 @@ pub const RECYCLE_TYPE: &str = "recycle_bin";
 lazy_static! {
     /// Global write buffer size in bytes.
     pub static ref WRITE_BUFFER_BYTES: IntGauge =
-        register_int_gauge!("greptime_mito_write_buffer_bytes", "mito write buffer bytes").unwrap();
+        register_int_gauge!("pulse_mito_write_buffer_bytes", "mito write buffer bytes").unwrap();
     /// Global memtable dictionary size in bytes.
     pub static ref MEMTABLE_DICT_BYTES: IntGauge =
-        register_int_gauge!("greptime_mito_memtable_dict_bytes", "mito memtable dictionary size in bytes").unwrap();
+        register_int_gauge!("pulse_mito_memtable_dict_bytes", "mito memtable dictionary size in bytes").unwrap();
     /// Gauge for open regions in each worker.
     pub static ref REGION_COUNT: IntGaugeVec =
         register_int_gauge_vec!(
-            "greptime_mito_region_count",
+            "pulse_mito_region_count",
             "mito region count in each worker",
             &[WORKER_LABEL],
         ).unwrap();
     /// Elapsed time to handle requests.
     pub static ref HANDLE_REQUEST_ELAPSED: HistogramVec = register_histogram_vec!(
-            "greptime_mito_handle_request_elapsed",
+            "pulse_mito_handle_request_elapsed",
             "mito handle request elapsed",
             &[TYPE_LABEL],
             // 0.01 ~ 10000
@@ -65,17 +67,17 @@ lazy_static! {
     /// Counter of scheduled flush requests.
     /// Note that the flush scheduler may merge some flush requests.
     pub static ref FLUSH_REQUESTS_TOTAL: IntCounterVec = register_int_counter_vec!(
-            "greptime_mito_flush_requests_total",
+            "pulse_mito_flush_requests_total",
             "mito flush requests total",
             &[FLUSH_REASON]
         )
         .unwrap();
     /// Counter of scheduled failed flush jobs.
     pub static ref FLUSH_FAILURE_TOTAL: IntCounter =
-        register_int_counter!("greptime_mito_flush_failure_total", "mito flush failure total").unwrap();
+        register_int_counter!("pulse_mito_flush_failure_total", "mito flush failure total").unwrap();
     /// Elapsed time of a flush job.
     pub static ref FLUSH_ELAPSED: HistogramVec = register_histogram_vec!(
-            "greptime_mito_flush_elapsed",
+            "pulse_mito_flush_elapsed",
             "mito flush elapsed",
             &[TYPE_LABEL],
             // 1 ~ 625
@@ -84,11 +86,11 @@ lazy_static! {
         .unwrap();
     /// Histogram of flushed bytes.
     pub static ref FLUSH_BYTES_TOTAL: IntCounter =
-        register_int_counter!("greptime_mito_flush_bytes_total", "mito flush bytes total").unwrap();
+        register_int_counter!("pulse_mito_flush_bytes_total", "mito flush bytes total").unwrap();
     /// Gauge for inflight flush tasks.
     pub static ref INFLIGHT_FLUSH_COUNT: IntGauge =
         register_int_gauge!(
-            "greptime_mito_inflight_flush_count",
+            "pulse_mito_inflight_flush_count",
             "inflight flush count",
         ).unwrap();
     // ------ End of flush related metrics
@@ -98,10 +100,10 @@ lazy_static! {
     //
     /// Counter of rejected write requests.
     pub static ref WRITE_REJECT_TOTAL: IntCounter =
-        register_int_counter!("greptime_mito_write_reject_total", "mito write reject total").unwrap();
+        register_int_counter!("pulse_mito_write_reject_total", "mito write reject total").unwrap();
     /// Elapsed time of each write stage.
     pub static ref WRITE_STAGE_ELAPSED: HistogramVec = register_histogram_vec!(
-            "greptime_mito_write_stage_elapsed",
+            "pulse_mito_write_stage_elapsed",
             "mito write stage elapsed",
             &[STAGE_LABEL],
             // 0.01 ~ 1000
@@ -110,7 +112,7 @@ lazy_static! {
         .unwrap();
     /// Counter of rows to write.
     pub static ref WRITE_ROWS_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_write_rows_total",
+        "pulse_mito_write_rows_total",
         "mito write rows total",
         &[TYPE_LABEL]
     )
@@ -129,7 +131,7 @@ lazy_static! {
     ///   - upload puffin
     /// - write_manifest
     pub static ref COMPACTION_STAGE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_mito_compaction_stage_elapsed",
+        "pulse_mito_compaction_stage_elapsed",
         "mito compaction stage elapsed",
         &[STAGE_LABEL],
         // 1 ~ 100000
@@ -139,42 +141,42 @@ lazy_static! {
     /// Timer of whole compaction task.
     pub static ref COMPACTION_ELAPSED_TOTAL: Histogram =
         register_histogram!(
-        "greptime_mito_compaction_total_elapsed",
+        "pulse_mito_compaction_total_elapsed",
         "mito compaction total elapsed",
         // 1 ~ 100000
         exponential_buckets(1.0, 10.0, 6).unwrap(),
     ).unwrap();
     /// Counter of all requested compaction task.
     pub static ref COMPACTION_REQUEST_COUNT: IntCounter =
-        register_int_counter!("greptime_mito_compaction_requests_total", "mito compaction requests total").unwrap();
+        register_int_counter!("pulse_mito_compaction_requests_total", "mito compaction requests total").unwrap();
     /// Counter of failed compaction task.
     pub static ref COMPACTION_FAILURE_COUNT: IntCounter =
-        register_int_counter!("greptime_mito_compaction_failure_total", "mito compaction failure total").unwrap();
+        register_int_counter!("pulse_mito_compaction_failure_total", "mito compaction failure total").unwrap();
 
     /// Gauge for inflight compaction tasks.
     pub static ref INFLIGHT_COMPACTION_COUNT: IntGauge =
         register_int_gauge!(
-            "greptime_mito_inflight_compaction_count",
+            "pulse_mito_inflight_compaction_count",
             "inflight compaction count",
         ).unwrap();
 
     /// Bytes reserved by compaction memory manager.
     pub static ref COMPACTION_MEMORY_IN_USE: IntGauge =
         register_int_gauge!(
-            "greptime_mito_compaction_memory_in_use_bytes",
+            "pulse_mito_compaction_memory_in_use_bytes",
             "bytes currently reserved for compaction tasks",
         )
         .unwrap();
     /// Configured compaction memory limit.
     pub static ref COMPACTION_MEMORY_LIMIT: IntGauge =
         register_int_gauge!(
-            "greptime_mito_compaction_memory_limit_bytes",
+            "pulse_mito_compaction_memory_limit_bytes",
             "maximum bytes allowed for compaction tasks",
         )
         .unwrap();
     /// Wait time to obtain compaction memory.
     pub static ref COMPACTION_MEMORY_WAIT: Histogram = register_histogram!(
-        "greptime_mito_compaction_memory_wait_seconds",
+        "pulse_mito_compaction_memory_wait_seconds",
         "time waiting for compaction memory",
         // 0.01s ~ ~10s
         exponential_buckets(0.01, 2.0, 10).unwrap(),
@@ -182,7 +184,7 @@ lazy_static! {
     /// Counter of rejected compaction memory allocations.
     pub static ref COMPACTION_MEMORY_REJECTED: IntCounterVec =
         register_int_counter_vec!(
-            "greptime_mito_compaction_memory_rejected_total",
+            "pulse_mito_compaction_memory_rejected_total",
             "number of compaction tasks rejected due to memory limit",
             &[TYPE_LABEL]
         ).unwrap();
@@ -192,7 +194,7 @@ lazy_static! {
 lazy_static! {
     /// Timer of different stages in query.
     pub static ref READ_STAGE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_mito_read_stage_elapsed",
+        "pulse_mito_read_stage_elapsed",
         "mito read stage elapsed",
         &[STAGE_LABEL],
         // 0.01 ~ 10000
@@ -202,69 +204,69 @@ lazy_static! {
     pub static ref READ_STAGE_FETCH_PAGES: Histogram = READ_STAGE_ELAPSED.with_label_values(&["fetch_pages"]);
     /// Number of in-progress scan per partition.
     pub static ref IN_PROGRESS_SCAN: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_mito_in_progress_scan",
+        "pulse_mito_in_progress_scan",
         "mito in progress scan per partition",
         &[TYPE_LABEL, PARTITION_LABEL]
     )
     .unwrap();
     /// Counter of rows read from different source.
     pub static ref READ_ROWS_TOTAL: IntCounterVec =
-        register_int_counter_vec!("greptime_mito_read_rows_total", "mito read rows total", &[TYPE_LABEL]).unwrap();
+        register_int_counter_vec!("pulse_mito_read_rows_total", "mito read rows total", &[TYPE_LABEL]).unwrap();
     /// Counter of filtered rows during merge.
     pub static ref MERGE_FILTER_ROWS_TOTAL: IntCounterVec =
-        register_int_counter_vec!("greptime_mito_merge_filter_rows_total", "mito merge filter rows total", &[TYPE_LABEL]).unwrap();
+        register_int_counter_vec!("pulse_mito_merge_filter_rows_total", "mito merge filter rows total", &[TYPE_LABEL]).unwrap();
     /// Counter of row groups read.
     pub static ref READ_ROW_GROUPS_TOTAL: IntCounterVec =
-        register_int_counter_vec!("greptime_mito_read_row_groups_total", "mito read row groups total", &[TYPE_LABEL]).unwrap();
+        register_int_counter_vec!("pulse_mito_read_row_groups_total", "mito read row groups total", &[TYPE_LABEL]).unwrap();
     /// Counter of filtered rows by precise filter.
     pub static ref PRECISE_FILTER_ROWS_TOTAL: IntCounterVec =
-        register_int_counter_vec!("greptime_mito_precise_filter_rows_total", "mito precise filter rows total", &[TYPE_LABEL]).unwrap();
+        register_int_counter_vec!("pulse_mito_precise_filter_rows_total", "mito precise filter rows total", &[TYPE_LABEL]).unwrap();
     pub static ref READ_ROWS_IN_ROW_GROUP_TOTAL: IntCounterVec =
-        register_int_counter_vec!("greptime_mito_read_rows_in_row_group_total", "mito read rows in row group total", &[TYPE_LABEL]).unwrap();
+        register_int_counter_vec!("pulse_mito_read_rows_in_row_group_total", "mito read rows in row group total", &[TYPE_LABEL]).unwrap();
     /// Histogram for the number of SSTs to scan per query.
     pub static ref READ_SST_COUNT: Histogram = register_histogram!(
-        "greptime_mito_read_sst_count",
+        "pulse_mito_read_sst_count",
         "Number of SSTs to scan in a scan task",
         vec![1.0, 4.0, 8.0, 16.0, 32.0, 64.0, 256.0, 1024.0],
     ).unwrap();
     /// Planned maximum concurrent sources per query scan limit evaluation or compaction reader.
     /// Includes memtables counted by the file limit, rejected scans, and memory-budgeted scans.
     pub static ref SCAN_MAX_CONCURRENT_FILES: HistogramVec = register_histogram_vec!(
-        "greptime_mito_scan_max_concurrent_files",
+        "pulse_mito_scan_max_concurrent_files",
         "Estimated maximum concurrent files (including memtable sources) per query scan limit evaluation or compaction reader",
         &[TYPE_LABEL],
         vec![0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 384.0, 512.0, 1024.0, 2048.0, 4096.0, 8192.0],
     ).unwrap();
     /// Histogram for the number of rows returned per query.
     pub static ref READ_ROWS_RETURN: Histogram = register_histogram!(
-        "greptime_mito_read_rows_return",
+        "pulse_mito_read_rows_return",
         "Number of rows returned in a scan task",
         exponential_buckets(100.0, 10.0, 8).unwrap(),
     ).unwrap();
     /// Histogram for the number of batches returned per query.
     pub static ref READ_BATCHES_RETURN: Histogram = register_histogram!(
-        "greptime_mito_read_batches_return",
+        "pulse_mito_read_batches_return",
         "Number of rows returned in a scan task",
         exponential_buckets(100.0, 10.0, 7).unwrap(),
     ).unwrap();
     /// Gauge for scan memory usage in bytes.
     pub static ref SCAN_MEMORY_USAGE_BYTES: IntGauge = register_int_gauge!(
-        "greptime_mito_scan_memory_usage_bytes",
+        "pulse_mito_scan_memory_usage_bytes",
         "current scan memory usage in bytes"
     ).unwrap();
     /// Counter of scan allocation attempts that could not acquire memory immediately.
     pub static ref SCAN_MEMORY_EXHAUSTED_TOTAL: IntCounter = register_int_counter!(
-        "greptime_mito_scan_memory_exhausted_total",
+        "pulse_mito_scan_memory_exhausted_total",
         "total number of times scan memory was unavailable for immediate acquisition"
     ).unwrap();
     /// Counter of scan requests that ultimately failed due to memory pressure.
     pub static ref SCAN_REQUESTS_REJECTED_TOTAL: IntCounter = register_int_counter!(
-        "greptime_mito_scan_requests_rejected_total",
+        "pulse_mito_scan_requests_rejected_total",
         "total number of scan requests that ultimately failed due to memory limit"
     ).unwrap();
     /// Gauge for active file range builders in the pruner.
     pub static ref PRUNER_ACTIVE_BUILDERS: IntGauge = register_int_gauge!(
-        "greptime_mito_pruner_active_builders",
+        "pulse_mito_pruner_active_builders",
         "number of active file range builders in the pruner"
     ).unwrap();
 }
@@ -273,21 +275,21 @@ lazy_static! {
 lazy_static! {
     /// Cache hit counter.
     pub static ref CACHE_HIT: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_cache_hit",
+        "pulse_mito_cache_hit",
         "mito cache hit",
         &[TYPE_LABEL]
     )
     .unwrap();
     /// Cache miss counter.
     pub static ref CACHE_MISS: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_cache_miss",
+        "pulse_mito_cache_miss",
         "mito cache miss",
         &[TYPE_LABEL]
     )
     .unwrap();
     /// Cache size in bytes.
     pub static ref CACHE_BYTES: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_mito_cache_bytes",
+        "pulse_mito_cache_bytes",
         "mito cache bytes",
         &[TYPE_LABEL]
     )
@@ -318,7 +320,7 @@ lazy_static! {
     .unwrap();
     /// Cache eviction counter, labeled with cache type and eviction reason.
     pub static ref CACHE_EVICTION: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_cache_eviction",
+        "pulse_mito_cache_eviction",
         "mito cache eviction",
         &[TYPE_LABEL, CACHE_EVICTION_CAUSE]
     ).unwrap();
@@ -328,48 +330,48 @@ lazy_static! {
 lazy_static! {
     /// Approximate published index bytes in open regions, refreshed by maintenance.
     pub static ref SERIES_INDEX_DISK_BYTES: IntGauge = register_int_gauge!(
-        "greptime_mito_series_index_disk_bytes", "estimated series and range index bytes in open regions"
+        "pulse_mito_series_index_disk_bytes", "estimated series and range index bytes in open regions"
     ).unwrap();
     /// Maintenance passes deferred by the estimated disk usage.
     pub static ref SERIES_INDEX_CAPACITY_DEFERRED: IntCounter = register_int_counter!(
-        "greptime_mito_series_index_capacity_deferred_total", "series-index capacity deferrals"
+        "pulse_mito_series_index_capacity_deferred_total", "series-index capacity deferrals"
     ).unwrap();
     // Index metrics.
     /// Outcomes of series-index reconciliation passes.
     pub static ref SERIES_INDEX_RECONCILE_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_series_index_reconcile_total",
+        "pulse_mito_series_index_reconcile_total",
         "series-index reconciliation passes",
         &["result"],
     ).unwrap();
     /// Elapsed time of series-index reconciliation phases.
     pub static ref SERIES_INDEX_RECONCILE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_mito_series_index_reconcile_elapsed",
+        "pulse_mito_series_index_reconcile_elapsed",
         "series-index reconciliation elapsed time",
         &["phase"],
         exponential_buckets(0.01, 10.0, 7).unwrap(),
     ).unwrap();
     /// Series and range index file operations.
     pub static ref SERIES_INDEX_FILE_OPERATION_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_series_index_file_operation_total",
+        "pulse_mito_series_index_file_operation_total",
         "series-index file operations",
         &["index_type", "operation", "result"],
     ).unwrap();
     /// Number of stale index publications rejected at each publication stage.
     pub static ref INDEX_PUBLICATION_STALE_TOTAL: IntCounterVec =
         register_int_counter_vec!(
-            "greptime_mito_index_publication_stale_total",
+            "pulse_mito_index_publication_stale_total",
             "stale index publications rejected",
             &[STAGE_LABEL],
         ).unwrap();
     /// Number of failures while cleaning local state for stale index artifacts.
     pub static ref INDEX_ARTIFACT_CLEANUP_FAILURE_TOTAL: IntCounter =
         register_int_counter!(
-            "greptime_mito_index_artifact_cleanup_failure_total",
+            "pulse_mito_index_artifact_cleanup_failure_total",
             "failures while cleaning local state for stale index artifacts",
         ).unwrap();
     /// Timer of index application.
     pub static ref INDEX_APPLY_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_index_apply_elapsed",
+        "pulse_index_apply_elapsed",
         "index apply elapsed",
         &[TYPE_LABEL],
         // 0.01 ~ 1000
@@ -378,13 +380,13 @@ lazy_static! {
     .unwrap();
     /// Gauge of index apply memory usage.
     pub static ref INDEX_APPLY_MEMORY_USAGE: IntGauge = register_int_gauge!(
-        "greptime_index_apply_memory_usage",
+        "pulse_index_apply_memory_usage",
         "index apply memory usage",
     )
     .unwrap();
     /// Timer of index creation.
     pub static ref INDEX_CREATE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_index_create_elapsed",
+        "pulse_index_create_elapsed",
         "index create elapsed",
         &[STAGE_LABEL, TYPE_LABEL],
         // 0.1 ~ 10000
@@ -393,27 +395,27 @@ lazy_static! {
     .unwrap();
     /// Counter of rows indexed.
     pub static ref INDEX_CREATE_ROWS_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_index_create_rows_total",
+        "pulse_index_create_rows_total",
         "index create rows total",
         &[TYPE_LABEL],
     )
     .unwrap();
     /// Counter of created index bytes.
     pub static ref INDEX_CREATE_BYTES_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_index_create_bytes_total",
+        "pulse_index_create_bytes_total",
         "index create bytes total",
         &[TYPE_LABEL],
     )
     .unwrap();
     /// Gauge of index create memory usage.
     pub static ref INDEX_CREATE_MEMORY_USAGE: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_index_create_memory_usage",
+        "pulse_index_create_memory_usage",
         "index create memory usage",
         &[TYPE_LABEL],
     ).unwrap();
     /// Counter of r/w bytes on index related IO operations.
     pub static ref INDEX_IO_BYTES_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_index_io_bytes_total",
+        "pulse_index_io_bytes_total",
         "index io bytes total",
         &[TYPE_LABEL, FILE_TYPE_LABEL]
     )
@@ -433,7 +435,7 @@ lazy_static! {
 
     /// Counter of r/w operations on index related IO operations, e.g. read, write, seek and flush.
     pub static ref INDEX_IO_OP_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_index_io_op_total",
+        "pulse_index_io_op_total",
         "index io op total",
         &[TYPE_LABEL, FILE_TYPE_LABEL]
     )
@@ -469,7 +471,7 @@ lazy_static! {
 
     /// Elapsed time of manifest operation. Labeled with "op".
     pub static ref MANIFEST_OP_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_manifest_op_elapsed",
+        "pulse_manifest_op_elapsed",
         "mito manifest operation elapsed",
         &["op"],
         // 0.01 ~ 1000
@@ -478,7 +480,7 @@ lazy_static! {
 
 
     pub static ref REGION_WORKER_HANDLE_WRITE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_region_worker_handle_write",
+        "pulse_region_worker_handle_write",
         "elapsed time for handling writes in region worker loop",
         &["stage"],
         exponential_buckets(0.001, 10.0, 5).unwrap()
@@ -489,47 +491,47 @@ lazy_static! {
 lazy_static! {
     /// Counter for compaction input file size.
     pub static ref COMPACTION_INPUT_BYTES: Counter = register_counter!(
-        "greptime_mito_compaction_input_bytes",
+        "pulse_mito_compaction_input_bytes",
         "mito compaction input file size",
         ).unwrap();
 
     /// Counter for compaction output file size.
     pub static ref COMPACTION_OUTPUT_BYTES: Counter = register_counter!(
-        "greptime_mito_compaction_output_bytes",
+        "pulse_mito_compaction_output_bytes",
         "mito compaction output file size",
         ).unwrap();
 
     /// Active series count in TimeSeriesMemtable
     pub static ref MEMTABLE_ACTIVE_SERIES_COUNT: IntGauge = register_int_gauge!(
-        "greptime_mito_memtable_active_series_count",
+        "pulse_mito_memtable_active_series_count",
         "active time series count in TimeSeriesMemtable",
         ).unwrap();
 
     /// Active field builder count in TimeSeriesMemtable
     pub static ref MEMTABLE_ACTIVE_FIELD_BUILDER_COUNT: IntGauge = register_int_gauge!(
-        "greptime_mito_memtable_field_builder_count",
+        "pulse_mito_memtable_field_builder_count",
         "active field builder count in TimeSeriesMemtable",
         ).unwrap();
 
     /// Number of stalling write requests in each worker.
     pub static ref WRITE_STALLING: IntGaugeVec = register_int_gauge_vec!(
-            "greptime_mito_write_stalling_count",
+            "pulse_mito_write_stalling_count",
             "mito stalled write request in each worker",
             &[WORKER_LABEL]
         ).unwrap();
     /// Number of ref files
     pub static ref GC_REF_FILE_CNT: IntGauge = register_int_gauge!(
-            "greptime_gc_ref_file_count",
+            "pulse_gc_ref_file_count",
             "gc ref file count",
         ).unwrap();
     /// Total number of stalled write requests.
     pub static ref WRITE_STALL_TOTAL: IntCounter = register_int_counter!(
-        "greptime_mito_write_stall_total",
+        "pulse_mito_write_stall_total",
         "Total number of stalled write requests"
     ).unwrap();
     /// Time waiting for requests to be handled by the region worker.
     pub static ref REQUEST_WAIT_TIME: HistogramVec = register_histogram_vec!(
-            "greptime_mito_request_wait_time",
+            "pulse_mito_request_wait_time",
             "mito request wait time before being handled by region worker",
             &[WORKER_LABEL],
             // 0.001 ~ 10000
@@ -540,27 +542,27 @@ lazy_static! {
     /// Counter for the number of files deleted by the GC worker.
     pub static ref GC_DELETE_FILE_CNT: IntCounter =
         register_int_counter!(
-            "greptime_mito_gc_delete_file_count",
+            "pulse_mito_gc_delete_file_count",
             "mito gc deleted file count",
         ).unwrap();
 
     /// Counter for the number of unparsable files skipped by GC.
     pub static ref GC_SKIPPED_UNPARSABLE_FILES: IntCounter =
         register_int_counter!(
-            "greptime_mito_gc_skipped_unparsable_files",
+            "pulse_mito_gc_skipped_unparsable_files",
             "mito gc skipped unparsable files count",
         ).unwrap();
 
     /// Counter for the number of orphaned index files found by GC.
     pub static ref GC_ORPHANED_INDEX_FILES: IntCounter =
         register_int_counter!(
-            "greptime_mito_gc_orphaned_index_files",
+            "pulse_mito_gc_orphaned_index_files",
             "mito gc orphaned index files count",
         ).unwrap();
 
     /// Histogram for GC operation duration by stage.
     pub static ref GC_DURATION_SECONDS: HistogramVec = register_histogram_vec!(
-        "greptime_mito_gc_duration_seconds",
+        "pulse_mito_gc_duration_seconds",
         "GC operation duration by stage",
         &[STAGE_LABEL],
         exponential_buckets(0.01, 10.0, 6).unwrap(),
@@ -568,21 +570,21 @@ lazy_static! {
 
     /// Counter for GC runs by mode.
     pub static ref GC_RUNS_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_gc_runs_total",
+        "pulse_mito_gc_runs_total",
         "Total GC runs by mode",
         &["mode"],
     ).unwrap();
 
     /// Counter for GC errors by type.
     pub static ref GC_ERRORS_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_gc_errors_total",
+        "pulse_mito_gc_errors_total",
         "Total GC errors by type",
         &["error_type"],
     ).unwrap();
 
     /// Counter for total files deleted by GC, labeled by file type.
     pub static ref GC_FILES_DELETED_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_gc_files_deleted_total",
+        "pulse_mito_gc_files_deleted_total",
         "Total files deleted by GC",
         &[FILE_TYPE_LABEL],
     ).unwrap();
@@ -601,7 +603,7 @@ lazy_static! {
 
     /// Counter of flush files.
     pub static ref FLUSH_FILE_TOTAL: IntCounter =
-        register_int_counter!("greptime_mito_flush_file_total", "mito flushed file count").unwrap();
+        register_int_counter!("pulse_mito_flush_file_total", "mito flushed file count").unwrap();
 }
 
 /// Stager notifier to collect metrics.

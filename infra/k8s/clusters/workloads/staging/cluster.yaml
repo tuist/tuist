@@ -77,10 +77,12 @@ spec:
         # General-purpose pool: Phoenix server, system DaemonSets.
         # Stays on Hetzner Cloud (cpx32) since these workloads don't
         # benefit from bare metal and the elastic scaling matters
-        # more than per-host cost.
+        # more than per-host cost. Four nodes, because Pulse's cluster
+        # topology places one etcd, Kafka, metasrv and datanode replica per
+        # node and must keep all three of each scheduled after losing a node.
         - class: hcloud-worker
           name: md-0
-          replicas: 3
+          replicas: 4
           failureDomain: fsn1
           rollout:
             strategy:

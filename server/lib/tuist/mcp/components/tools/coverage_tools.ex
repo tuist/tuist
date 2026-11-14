@@ -1,13 +1,14 @@
 defmodule Tuist.MCP.Components.Tools.CoverageTools do
   @moduledoc """
-  What the code coverage tools share: their arguments, and the flag check
-  that follows the project's authorization. The reads and their shapes are
+  What the code coverage tools share: their arguments, and the build-system
+  check (`Tuist.Tests.Coverage.supported?/1`) that follows the project's
+  authorization. The reads and their shapes are
   the API's (`Tuist.Tests.Coverage.Query`).
   """
 
-  alias Tuist.FeatureFlags
+  alias Tuist.Tests.Coverage
 
-  @not_enabled "Code coverage is in early access and is not enabled for this account."
+  @not_enabled "Code coverage isn't available for this project's build system."
 
   def project_properties do
     %{
@@ -33,7 +34,7 @@ defmodule Tuist.MCP.Components.Tools.CoverageTools do
   def commit_options(args), do: [git_commit_sha: Map.get(args, "git_commit_sha"), branch: Map.get(args, "branch")]
 
   def with_coverage(project, fun) do
-    if FeatureFlags.coverage_enabled?(project.account, project), do: fun.(), else: {:error, @not_enabled}
+    if Coverage.supported?(project), do: fun.(), else: {:error, @not_enabled}
   end
 end
 

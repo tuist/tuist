@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use common_query::AddColumnLocation;
@@ -35,7 +37,7 @@ pub struct TableContext {
     pub name: Ident,
     pub columns: Vec<Column>,
 
-    // GreptimeDB specific options
+    // Pulse specific options
     pub partition: Option<PartitionDef>,
     pub primary_keys: Vec<usize>,
     pub table_options: Vec<AlterTableOption>,

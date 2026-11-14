@@ -8,7 +8,7 @@ WITH (
   'greptime.semantic.signal_type' = 'metric',
   'greptime.semantic.source' = 'opentelemetry',
   'greptime.semantic.source_version' = '2.0',
-  'greptime.semantic.pipeline' = 'greptime_metric_v1',
+  'greptime.semantic.pipeline' = 'pulse_metric_v1',
   'greptime.semantic.metric.metadata_quality' = 'declared',
   'greptime.semantic.metric.type' = 'counter',
   'greptime.semantic.metric.unit' = 'By'
@@ -120,9 +120,9 @@ DROP TABLE phy_sem;
 -- including the declarations the built-in conventions derive. A whitelisted
 -- OTel descriptor table declares its entities without any entity option, and
 -- the generic container records the identity it yields to.
-CREATE TABLE greptime_otel_resource_info (
-  greptime_timestamp TIMESTAMP TIME INDEX,
-  greptime_value DOUBLE,
+CREATE TABLE pulse_otel_resource_info (
+  pulse_timestamp TIMESTAMP TIME INDEX,
+  pulse_value DOUBLE,
   "job" STRING,
   "instance" STRING,
   "service.name" STRING,
@@ -142,13 +142,13 @@ WITH (
 
 SELECT table_name, entity_declarations
 FROM information_schema.table_semantics
-WHERE table_name = 'greptime_otel_resource_info';
+WHERE table_name = 'pulse_otel_resource_info';
 
 -- The same table under the wrong source stamp derives nothing: the column is
 -- empty and `source` names the reason.
 CREATE TABLE kube_pod_info (
-  greptime_timestamp TIMESTAMP TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_timestamp TIMESTAMP TIME INDEX,
+  pulse_value DOUBLE,
   "namespace" STRING,
   "pod" STRING,
   "uid" STRING,
@@ -170,15 +170,15 @@ SELECT table_name, source, entity_declarations
 FROM information_schema.table_semantics
 WHERE table_name = 'kube_pod_info';
 
-DROP TABLE greptime_otel_resource_info;
+DROP TABLE pulse_otel_resource_info;
 
 DROP TABLE kube_pod_info;
 
 -- A missing id column drops that entity alone: without `uid` there is no
 -- k8s.pod, and the k8s.node next to it still lands.
 CREATE TABLE kube_pod_info (
-  greptime_timestamp TIMESTAMP TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_timestamp TIMESTAMP TIME INDEX,
+  pulse_value DOUBLE,
   "namespace" STRING,
   "pod" STRING,
   "node" STRING,
@@ -205,7 +205,7 @@ CREATE TABLE traces_untagged (
   service_name STRING,
   "resource_attributes.host.id" STRING,
   PRIMARY KEY (service_name)
-) WITH ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true');
+) WITH ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true');
 
 SELECT table_name, signal_type, semantic_options, entity_declarations
 FROM information_schema.table_semantics

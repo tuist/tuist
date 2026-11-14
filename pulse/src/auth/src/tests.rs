@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_base::secrets::ExposeSecret;
 use common_error::ext::BoxedError;
 use snafu::{OptionExt, ResultExt};
@@ -38,9 +40,9 @@ pub struct MockUserProvider {
 impl Default for MockUserProvider {
     fn default() -> Self {
         MockUserProvider {
-            catalog: "greptime".to_owned(),
+            catalog: "pulse".to_owned(),
             schema: "public".to_owned(),
-            username: "greptime".to_owned(),
+            username: "pulse".to_owned(),
         }
     }
 }
@@ -76,9 +78,9 @@ impl UserProvider for MockUserProvider {
         match id {
             Identity::UserId(username, _host) => match password {
                 Password::PlainText(password) => {
-                    if username == "greptime" {
-                        if password.expose_secret() == "greptime" {
-                            Ok(DefaultUserInfo::with_name("greptime"))
+                    if username == "pulse" {
+                        if password.expose_secret() == "pulse" {
+                            Ok(DefaultUserInfo::with_name("pulse"))
                         } else {
                             UserPasswordMismatchSnafu {
                                 username: username.to_string(),
@@ -93,7 +95,7 @@ impl UserProvider for MockUserProvider {
                     }
                 }
                 Password::MysqlNativePassword(auth_data, salt) => {
-                    auth_mysql(auth_data, salt, username, "greptime".as_bytes())
+                    auth_mysql(auth_data, salt, username, "pulse".as_bytes())
                         .map(|_| DefaultUserInfo::with_name(username))
                 }
                 _ => UnsupportedPasswordTypeSnafu {
@@ -129,17 +131,17 @@ async fn test_auth_by_plain_text() {
     // auth success
     let auth_result = user_provider
         .authenticate(
-            Identity::UserId("greptime", None),
-            Password::PlainText("greptime".to_string().into()),
+            Identity::UserId("pulse", None),
+            Password::PlainText("pulse".to_string().into()),
         )
         .await
         .unwrap();
-    assert_eq!("greptime", auth_result.username());
+    assert_eq!("pulse", auth_result.username());
 
     // auth failed, unsupported password type
     let auth_result = user_provider
         .authenticate(
-            Identity::UserId("greptime", None),
+            Identity::UserId("pulse", None),
             Password::PgMD5(b"hashed_value", b"salt"),
         )
         .await;
@@ -153,7 +155,7 @@ async fn test_auth_by_plain_text() {
     let auth_result = user_provider
         .authenticate(
             Identity::UserId("not_exist_username", None),
-            Password::PlainText("greptime".to_string().into()),
+            Password::PlainText("pulse".to_string().into()),
         )
         .await;
     assert!(auth_result.is_err());
@@ -165,7 +167,7 @@ async fn test_auth_by_plain_text() {
     // auth failed, err: wrong password
     let auth_result = user_provider
         .authenticate(
-            Identity::UserId("greptime", None),
+            Identity::UserId("pulse", None),
             Password::PlainText("wrong_password".to_string().into()),
         )
         .await;
@@ -180,30 +182,30 @@ async fn test_auth_by_plain_text() {
 async fn test_schema_validate() {
     let mut validator = MockUserProvider::default();
     validator.set_authorization_info(DatabaseAuthInfo {
-        catalog: "greptime",
+        catalog: "pulse",
         schema: "public",
         username: "test_user",
     });
 
     let right_user = DefaultUserInfo::with_name("test_user");
-    let wrong_user = DefaultUserInfo::with_name("greptime");
+    let wrong_user = DefaultUserInfo::with_name("pulse");
 
     // check catalog
     let re = validator
-        .authorize("greptime_wrong", "public", &right_user)
+        .authorize("pulse_wrong", "public", &right_user)
         .await;
     assert!(re.is_err());
     // check schema
     let re = validator
-        .authorize("greptime", "public_wrong", &right_user)
+        .authorize("pulse", "public_wrong", &right_user)
         .await;
     assert!(re.is_err());
     // check username
-    let re = validator.authorize("greptime", "public", &wrong_user).await;
+    let re = validator.authorize("pulse", "public", &wrong_user).await;
     assert!(re.is_err());
     // check ok
     validator
-        .authorize("greptime", "public", &right_user)
+        .authorize("pulse", "public", &right_user)
         .await
         .unwrap();
 }

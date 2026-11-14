@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::io::Write;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::time::Duration;
 
-use cmd::options::GreptimeOptions;
+use cmd::options::PulseOptions;
 use common_base::memory_limit::MemoryLimit;
 use common_base::readable_size::ReadableSize;
 use common_config::{Configurable, DEFAULT_DATA_HOME, ENV_VAR_SEP};
@@ -60,7 +62,7 @@ fn test_load_datanode_runtime_options_from_runtime_section() {
         sample_every_polls = 32
     "#;
 
-    let options: GreptimeOptions<DatanodeOptions> = toml::from_str(toml).unwrap();
+    let options: PulseOptions<DatanodeOptions> = toml::from_str(toml).unwrap();
 
     assert_eq!(8, options.runtime.global_rt_size);
     assert_eq!(4, options.runtime.compact_rt_size);
@@ -92,7 +94,7 @@ fn test_load_runtime_options_rejects_zero_scheduler_sampling() {
         sample_every_polls = 0
     "#;
 
-    let result = toml::from_str::<GreptimeOptions<DatanodeOptions>>(toml);
+    let result = toml::from_str::<PulseOptions<DatanodeOptions>>(toml);
     assert!(result.is_err());
 }
 
@@ -103,7 +105,7 @@ fn test_load_runtime_options_rejects_zero_scheduler_weight() {
         query_weight = 0
     "#;
 
-    let result = toml::from_str::<GreptimeOptions<DatanodeOptions>>(toml);
+    let result = toml::from_str::<PulseOptions<DatanodeOptions>>(toml);
     assert!(result.is_err());
 }
 
@@ -117,7 +119,7 @@ fn test_load_runtime_options_without_max_blocking_threads() {
         query_rt_size = 7
     "#;
 
-    let options: GreptimeOptions<DatanodeOptions> = toml::from_str(toml).unwrap();
+    let options: PulseOptions<DatanodeOptions> = toml::from_str(toml).unwrap();
 
     assert_eq!(
         RuntimeOptions::default().compact_rt_max_blocking_threads,
@@ -135,7 +137,7 @@ fn test_load_datanode_hdfs_config() {
             [storage]
             type = "Hdfs"
             name = "local-hdfs"
-            root = "/greptimedb"
+            root = "/pulse"
             name_node = "hdfs://127.0.0.1:9000"
             enable_read_cache = false
             options = { "dfs.client.block.write.replace-datanode-on-failure.enable" = "true" }
@@ -144,15 +146,14 @@ fn test_load_datanode_hdfs_config() {
     .unwrap();
 
     let options =
-        GreptimeOptions::<DatanodeOptions>::load_layered_options(config.path().to_str(), "")
-            .unwrap();
+        PulseOptions::<DatanodeOptions>::load_layered_options(config.path().to_str(), "").unwrap();
     let object_store::config::ObjectStoreConfig::Hdfs(hdfs) = options.component.storage.store
     else {
         unreachable!()
     };
 
     assert_eq!("local-hdfs", hdfs.name);
-    assert_eq!("/greptimedb", hdfs.connection.root);
+    assert_eq!("/pulse", hdfs.connection.root);
     assert_eq!("hdfs://127.0.0.1:9000", hdfs.connection.name_node);
     assert_eq!(
         Some(&"true".to_string()),
@@ -168,13 +169,12 @@ fn test_load_datanode_hdfs_config() {
 fn test_load_datanode_example_config() {
     let example_config = common_test_util::find_workspace_path("config/datanode.example.toml");
     let options =
-        GreptimeOptions::<DatanodeOptions>::load_layered_options(example_config.to_str(), "")
-            .unwrap();
+        PulseOptions::<DatanodeOptions>::load_layered_options(example_config.to_str(), "").unwrap();
 
-    let expected = GreptimeOptions::<DatanodeOptions> {
+    let expected = PulseOptions::<DatanodeOptions> {
         component: DatanodeOptions {
             node_id: Some(42),
-            default_column_prefix: Some("greptime".to_string()),
+            default_column_prefix: Some("pulse".to_string()),
             meta_client: Some(MetaClientOptions {
                 metasrv_addrs: vec!["127.0.0.1:3002".to_string()],
                 timeout: Duration::from_secs(3),
@@ -237,16 +237,15 @@ fn test_load_datanode_example_config() {
 fn test_load_frontend_example_config() {
     let example_config = common_test_util::find_workspace_path("config/frontend.example.toml");
     let options =
-        GreptimeOptions::<FrontendOptions>::load_layered_options(example_config.to_str(), "")
-            .unwrap();
-    let expected = GreptimeOptions::<FrontendOptions> {
+        PulseOptions::<FrontendOptions>::load_layered_options(example_config.to_str(), "").unwrap();
+    let expected = PulseOptions::<FrontendOptions> {
         component: FrontendOptions {
             pending_rows_batcher: PendingRowsBatcherOptions {
                 logical_table: Some(Default::default()),
                 ..Default::default()
             },
             default_timezone: Some("UTC".to_string()),
-            default_column_prefix: Some("greptime".to_string()),
+            default_column_prefix: Some("pulse".to_string()),
             auto_create_table: true,
             meta_client: Some(MetaClientOptions {
                 metasrv_addrs: vec!["127.0.0.1:3002".to_string()],
@@ -298,9 +297,8 @@ fn test_load_frontend_example_config() {
 fn test_load_metasrv_example_config() {
     let example_config = common_test_util::find_workspace_path("config/metasrv.example.toml");
     let options =
-        GreptimeOptions::<MetasrvOptions>::load_layered_options(example_config.to_str(), "")
-            .unwrap();
-    let expected = GreptimeOptions::<MetasrvOptions> {
+        PulseOptions::<MetasrvOptions>::load_layered_options(example_config.to_str(), "").unwrap();
+    let expected = PulseOptions::<MetasrvOptions> {
         component: MetasrvOptions {
             selector: SelectorType::default(),
             data_home: DEFAULT_DATA_HOME.to_string(),
@@ -332,7 +330,7 @@ fn test_load_metasrv_example_config() {
                 ca_cert_path: String::new(),
                 watch: false,
             }),
-            meta_schema_name: Some("greptime_schema".to_string()),
+            meta_schema_name: Some("pulse_schema".to_string()),
             ..Default::default()
         },
         ..Default::default()
@@ -350,8 +348,7 @@ fn test_load_metasrv_soft_drop_config() {
     .unwrap();
 
     let options =
-        GreptimeOptions::<MetasrvOptions>::load_layered_options(config.path().to_str(), "")
-            .unwrap();
+        PulseOptions::<MetasrvOptions>::load_layered_options(config.path().to_str(), "").unwrap();
     assert!(options.component.gc.experimental_soft_drop.enable);
     assert_eq!(
         Duration::from_secs(24 * 60 * 60),
@@ -363,9 +360,8 @@ fn test_load_metasrv_soft_drop_config() {
 fn test_load_flownode_example_config() {
     let example_config = common_test_util::find_workspace_path("config/flownode.example.toml");
     let options =
-        GreptimeOptions::<FlownodeOptions>::load_layered_options(example_config.to_str(), "")
-            .unwrap();
-    let expected = GreptimeOptions::<FlownodeOptions> {
+        PulseOptions::<FlownodeOptions>::load_layered_options(example_config.to_str(), "").unwrap();
+    let expected = PulseOptions::<FlownodeOptions> {
         component: FlownodeOptions {
             node_id: Some(14),
             flow: Default::default(),
@@ -418,16 +414,16 @@ fn test_load_flownode_example_config() {
 fn test_load_standalone_example_config() {
     let example_config = common_test_util::find_workspace_path("config/standalone.example.toml");
     let options =
-        GreptimeOptions::<StandaloneOptions>::load_layered_options(example_config.to_str(), "")
+        PulseOptions::<StandaloneOptions>::load_layered_options(example_config.to_str(), "")
             .unwrap();
-    let expected = GreptimeOptions::<StandaloneOptions> {
+    let expected = PulseOptions::<StandaloneOptions> {
         component: StandaloneOptions {
             pending_rows_batcher: PendingRowsBatcherOptions {
                 logical_table: Some(Default::default()),
                 ..Default::default()
             },
             default_timezone: Some("UTC".to_string()),
-            default_column_prefix: Some("greptime".to_string()),
+            default_column_prefix: Some("pulse".to_string()),
             auto_create_table: true,
             wal: DatanodeWalConfig::RaftEngine(RaftEngineConfig {
                 dir: Some(format!("{}/{}", DEFAULT_DATA_HOME, WAL_DIR)),
@@ -551,7 +547,7 @@ where
         file.write_all(config.as_bytes()).unwrap();
         file
     });
-    let options = GreptimeOptions::<T>::load_layered_options(
+    let options = PulseOptions::<T>::load_layered_options(
         file.as_ref().map(|file| file.path().to_str().unwrap()),
         "",
     )?;
@@ -747,10 +743,10 @@ fn test_load_removed_histogram_options() {
         .unwrap();
 
         let frontend =
-            GreptimeOptions::<FrontendOptions>::load_layered_options(config.path().to_str(), "")
+            PulseOptions::<FrontendOptions>::load_layered_options(config.path().to_str(), "")
                 .unwrap();
         let standalone =
-            GreptimeOptions::<StandaloneOptions>::load_layered_options(config.path().to_str(), "")
+            PulseOptions::<StandaloneOptions>::load_layered_options(config.path().to_str(), "")
                 .unwrap();
         let defaults = FrontendOptions::default();
         for options in [frontend.component, standalone.component.frontend_options()] {
@@ -766,7 +762,7 @@ fn test_load_removed_histogram_options() {
 #[test]
 fn test_load_standalone_user_provider_from_config() {
     let config = tempfile::NamedTempFile::new().unwrap();
-    let user_provider = "static_user_provider:file:/tmp/greptimedb-users";
+    let user_provider = "static_user_provider:file:/tmp/pulse-users";
     std::fs::write(
         config.path(),
         format!("user_provider = \"{user_provider}\"\n"),
@@ -774,7 +770,7 @@ fn test_load_standalone_user_provider_from_config() {
     .unwrap();
 
     let options =
-        GreptimeOptions::<StandaloneOptions>::load_layered_options(config.path().to_str(), "")
+        PulseOptions::<StandaloneOptions>::load_layered_options(config.path().to_str(), "")
             .unwrap();
 
     assert_eq!(
@@ -798,15 +794,15 @@ fn test_load_heartbeat_env_vars_from_env() {
         let expected = vec!["AZ".to_string(), "REGION".to_string()];
 
         let datanode =
-            GreptimeOptions::<DatanodeOptions>::load_layered_options(None, env_prefix).unwrap();
+            PulseOptions::<DatanodeOptions>::load_layered_options(None, env_prefix).unwrap();
         similar_asserts::assert_eq!(datanode.component.heartbeat_env_vars, expected);
 
         let frontend =
-            GreptimeOptions::<FrontendOptions>::load_layered_options(None, env_prefix).unwrap();
+            PulseOptions::<FrontendOptions>::load_layered_options(None, env_prefix).unwrap();
         similar_asserts::assert_eq!(frontend.component.heartbeat_env_vars, expected);
 
         let standalone =
-            GreptimeOptions::<StandaloneOptions>::load_layered_options(None, env_prefix).unwrap();
+            PulseOptions::<StandaloneOptions>::load_layered_options(None, env_prefix).unwrap();
         similar_asserts::assert_eq!(standalone.component.heartbeat_env_vars, expected);
     });
 }
@@ -818,17 +814,17 @@ fn test_load_event_types_from_env() {
 
     temp_env::with_var(env_key, Some("region_migration"), || {
         for event_types in [
-            GreptimeOptions::<MetasrvOptions>::load_layered_options(None, env_prefix)
+            PulseOptions::<MetasrvOptions>::load_layered_options(None, env_prefix)
                 .unwrap()
                 .component
                 .event_recorder
                 .event_types,
-            GreptimeOptions::<StandaloneOptions>::load_layered_options(None, env_prefix)
+            PulseOptions::<StandaloneOptions>::load_layered_options(None, env_prefix)
                 .unwrap()
                 .component
                 .event_recorder
                 .event_types,
-            GreptimeOptions::<FrontendOptions>::load_layered_options(None, env_prefix)
+            PulseOptions::<FrontendOptions>::load_layered_options(None, env_prefix)
                 .unwrap()
                 .component
                 .event_recorder
@@ -859,9 +855,8 @@ fn test_load_metric_config_with_removed_sparse_primary_key_encoding() {
     "#;
     write!(file, "{}", toml_str).unwrap();
 
-    let options =
-        GreptimeOptions::<DatanodeOptions>::load_layered_options(file.path().to_str(), "")
-            .expect("config with removed 'sparse_primary_key_encoding' should load without error");
+    let options = PulseOptions::<DatanodeOptions>::load_layered_options(file.path().to_str(), "")
+        .expect("config with removed 'sparse_primary_key_encoding' should load without error");
 
     // The unknown option is ignored; known metric engine options are still parsed/applied.
     let metric = options

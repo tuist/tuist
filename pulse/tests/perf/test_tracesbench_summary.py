@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 import importlib.util
 import sys
 import tempfile
@@ -39,7 +41,7 @@ class LifecycleTest(unittest.TestCase):
             ('tempo', {'transport': {}}, ['—', '—', '—']),
         ] + [(target, {}, ['—', '—', '—']) for target in summary.TARGETS] + [
             (target, {'transport': {'ingest': metrics}}, ['—', '—', '—'])
-            for target in ('greptimedb', 'victoriatraces')
+            for target in ('pulse', 'victoriatraces')
         ]
         with tempfile.TemporaryDirectory() as tmp:
             for target, load, expected in cases:

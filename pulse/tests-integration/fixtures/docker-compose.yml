@@ -78,7 +78,7 @@ services:
     environment:
       - MINIO_ROOT_USER=superpower_ci_user
       - MINIO_ROOT_PASSWORD=superpower_password
-      - MINIO_DEFAULT_BUCKETS=greptime
+      - MINIO_DEFAULT_BUCKETS=pulse
       - BITNAMI_DEBUG=true
     volumes:
       - 'minio_data:/bitnami/minio/data'
@@ -92,7 +92,7 @@ services:
       - ./certs:/tmp/certs:ro
       - ./postgres/tls/pg_hba.conf:/var/lib/postgresql/pg_hba.conf
     environment:
-      - POSTGRES_USER=greptimedb
+      - POSTGRES_USER=pulse
       - POSTGRES_DB=postgres
       - POSTGRES_PASSWORD=admin
     # Hack: Ensures certs are owned by database user with 600 permissions.
@@ -118,7 +118,7 @@ services:
         - ~/apps/postgres15:/var/lib/postgresql/data
         - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     environment:
-        - POSTGRES_USER=greptimedb
+        - POSTGRES_USER=pulse
         - POSTGRES_DB=postgres
         - POSTGRES_PASSWORD=admin
 
@@ -131,7 +131,7 @@ services:
       - ./mysql/my.cnf:/opt/bitnami/mysql/conf/my_custom.cnf:ro
     environment:
       - MYSQL_DATABASE=mysql
-      - MYSQL_USER=greptimedb
+      - MYSQL_USER=pulse
       - MYSQL_PASSWORD=admin
       - MYSQL_ROOT_PASSWORD=admin
     # Wait for authenticated TCP queries, not just the container or initialization socket.

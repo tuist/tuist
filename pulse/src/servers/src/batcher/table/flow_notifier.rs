@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::num::NonZeroUsize;
 
 use arrow::record_batch::RecordBatch;
@@ -30,7 +32,7 @@ use crate::batcher::flow_sender::FlowNotification;
 
 lazy_static! {
     static ref FLOW_NOTIFICATION_DROPPED: IntCounterVec = register_int_counter_vec!(
-        "greptime_table_batcher_flow_notification_dropped_total",
+        "pulse_table_batcher_flow_notification_dropped_total",
         "Ordinary batch flow notifications dropped before delivery",
         &["reason"]
     )

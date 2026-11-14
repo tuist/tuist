@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -28,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 
 use crate::error::{self, Error};
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 use crate::http::result::error_result::ErrorResponse;
 use crate::http::{HttpResponse, ResponseFormat};
 
@@ -146,11 +148,11 @@ impl IntoResponse for ArrowResponse {
                     HeaderValue::from_static("application/arrow"),
                 ),
                 (
-                    &GREPTIME_DB_HEADER_FORMAT,
+                    &PULSE_DB_HEADER_FORMAT,
                     HeaderValue::from_static(ResponseFormat::Arrow.as_str()),
                 ),
                 (
-                    &GREPTIME_DB_HEADER_EXECUTION_TIME,
+                    &PULSE_DB_HEADER_EXECUTION_TIME,
                     HeaderValue::from(execution_time),
                 ),
             ],
@@ -185,7 +187,7 @@ mod test {
             Arc::new(StringVector::from(vec![
                 None,
                 Some("hello"),
-                Some("greptime"),
+                Some("pulse"),
                 None,
             ])),
         ];

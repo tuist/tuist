@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::assert_matches;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -35,12 +37,12 @@ use crate::test_util::{MockDatanodeManager, new_ddl_context};
 pub(crate) fn test_table_names() -> HashSet<table::table_name::TableName> {
     let mut set = HashSet::new();
     set.insert(table::table_name::TableName {
-        catalog_name: "greptime".to_string(),
+        catalog_name: "pulse".to_string(),
         schema_name: "public".to_string(),
         table_name: "a_table".to_string(),
     });
     set.insert(table::table_name::TableName {
-        catalog_name: "greptime".to_string(),
+        catalog_name: "pulse".to_string(),
         schema_name: "public".to_string(),
         table_name: "b_table".to_string(),
     });
@@ -50,19 +52,19 @@ pub(crate) fn test_table_names() -> HashSet<table::table_name::TableName> {
 pub(crate) fn test_create_view_task(name: &str) -> CreateViewTask {
     let table_names = vec![
         TableName {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             table_name: "a_table".to_string(),
         },
         TableName {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             table_name: "b_table".to_string(),
         },
     ];
 
     let expr = CreateViewExpr {
-        catalog_name: "greptime".to_string(),
+        catalog_name: "pulse".to_string(),
         schema_name: "public".to_string(),
         view_name: name.to_string(),
         or_replace: false,

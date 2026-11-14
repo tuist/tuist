@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -333,7 +335,7 @@ mod tests {
                 tp,
                 ns: NamespaceImpl {
                     region_id,
-                    topic: "greptimedb_wal_topic".to_string(),
+                    topic: "pulse_wal_topic".to_string(),
                 },
                 entry_id,
             },
@@ -567,7 +569,7 @@ mod tests {
             entry_id: u64::MAX,
             ns: NamespaceImpl {
                 region_id: RegionId::new(u32::MAX, u32::MAX).as_u64(),
-                topic: format!("greptime_kafka_cluster/1024/2048/{}", uuid::Uuid::new_v4()),
+                topic: format!("pulse_kafka_cluster/1024/2048/{}", uuid::Uuid::new_v4()),
             },
         };
         let serialized = serde_json::to_vec(&meta).unwrap();

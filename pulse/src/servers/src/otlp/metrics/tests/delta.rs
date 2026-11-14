@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use otel_arrow_rust::proto::opentelemetry::common::v1::InstrumentationScope;
 
 use super::*;
@@ -79,7 +81,7 @@ fn test_raw_delta_sum_identity_and_stale_marker() {
     assert_eq!(3, conversion.outcome.accepted_data_points);
     assert_eq!(0, conversion.outcome.rejected_data_points);
     let rows = table_rows(&conversion.requests, "requests_total");
-    let value = column_index(rows, greptime_value());
+    let value = column_index(rows, pulse_value());
     let temporality = column_index(rows, OTLP_AGGREGATION_TEMPORALITY_LABEL);
     let host = column_index(rows, "host");
     let values = rows
@@ -95,9 +97,7 @@ fn test_raw_delta_sum_identity_and_stale_marker() {
     assert_eq!(PROMETHEUS_STALE_NAN_BITS, stale.to_bits());
     for row in &rows.rows {
         assert_eq!(
-            Some(&ValueData::StringValue(
-                GREPTIME_TEMPORALITY_DELTA.to_string()
-            )),
+            Some(&ValueData::StringValue(PULSE_TEMPORALITY_DELTA.to_string())),
             row.values[temporality].value_data.as_ref()
         );
         assert_eq!(
@@ -183,7 +183,7 @@ fn test_delta_histogram_partial_rejection_and_inline_tombstone() {
     );
     let buckets = table_rows(&conversion.requests, "latency_bucket");
     assert_eq!(6, buckets.rows.len());
-    let value = column_index(buckets, greptime_value());
+    let value = column_index(buckets, pulse_value());
     let le = column_index(buckets, HISTOGRAM_LE_COLUMN);
     let temporality = column_index(buckets, OTLP_AGGREGATION_TEMPORALITY_LABEL);
     let ordinary = buckets.rows[..3]
@@ -212,9 +212,7 @@ fn test_delta_histogram_partial_rejection_and_inline_tombstone() {
     );
     for row in &buckets.rows {
         assert_eq!(
-            Some(&ValueData::StringValue(
-                GREPTIME_TEMPORALITY_DELTA.to_string()
-            )),
+            Some(&ValueData::StringValue(PULSE_TEMPORALITY_DELTA.to_string())),
             row.values[temporality].value_data.as_ref()
         );
     }
@@ -227,7 +225,7 @@ fn test_delta_histogram_partial_rejection_and_inline_tombstone() {
     for table in ["latency_sum", "latency_count"] {
         let rows = table_rows(&conversion.requests, table);
         assert_eq!(2, rows.rows.len());
-        let value = column_index(rows, greptime_value());
+        let value = column_index(rows, pulse_value());
         let Some(ValueData::F64Value(stale)) = rows.rows[1].values[value].value_data else {
             panic!("expected stale float")
         };
@@ -294,7 +292,7 @@ fn test_histogram_validation_preserves_supported_siblings() {
             .unwrap();
         assert_eq!(1, buckets.rows.len());
         let le = column_index(buckets, HISTOGRAM_LE_COLUMN);
-        let value = column_index(buckets, greptime_value());
+        let value = column_index(buckets, pulse_value());
         assert_eq!(
             Some(&ValueData::StringValue("inf".to_string())),
             buckets.rows[0].values[le].value_data.as_ref()

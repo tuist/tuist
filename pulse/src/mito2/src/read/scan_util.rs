@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Utilities for scanners.
 
 use std::collections::{BinaryHeap, HashMap, VecDeque};
@@ -1598,38 +1600,12 @@ pub fn build_flat_file_range_scan_stream(
     }
 }
 
-/// Build the stream of scanning the extension range in flat format denoted by the [`RowGroupIndex`].
-#[cfg(feature = "enterprise")]
-pub(crate) async fn scan_flat_extension_range(
-    context: Arc<StreamContext>,
-    index: RowGroupIndex,
-    partition_metrics: PartitionMetrics,
-    options: crate::extension::ExtensionRangeReadOptions,
-) -> Result<BoxedRecordBatchStream> {
-    use snafu::ResultExt;
-
-    let range = context.input.extension_range(index.index);
-    let reader = range.flat_reader(context.as_ref(), options);
-    let stream = reader
-        .read(context, partition_metrics, index)
-        .await
-        .context(crate::error::ScanExternalRangeSnafu)?;
-    Ok(stream)
-}
-
 pub(crate) async fn maybe_scan_flat_other_ranges(
     context: &Arc<StreamContext>,
     index: RowGroupIndex,
     metrics: &PartitionMetrics,
     pre_filter_mode: PreFilterMode,
 ) -> Result<BoxedRecordBatchStream> {
-    #[cfg(feature = "enterprise")]
-    {
-        let options = crate::extension::ExtensionRangeReadOptions { pre_filter_mode };
-        scan_flat_extension_range(context.clone(), index, metrics.clone(), options).await
-    }
-
-    #[cfg(not(feature = "enterprise"))]
     {
         let _ = context;
         let _ = index;

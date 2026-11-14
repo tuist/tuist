@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Table-scoped RecordBatch accumulation before bulk routing and encoding.
 
 mod batch;
@@ -519,7 +521,7 @@ mod tests {
         )
         .unwrap();
         let context = |channel| {
-            let mut ctx = QueryContext::with_channel("greptime", &table.schema_name, channel);
+            let mut ctx = QueryContext::with_channel("pulse", &table.schema_name, channel);
             ctx.set_batching_enabled(true);
             Arc::new(ctx)
         };
@@ -669,7 +671,7 @@ mod tests {
         let key = batch_key_from_ctx(&table.name, &ctx);
         assert_eq!(key, batch_key_from_ctx(&replacement.name, &ctx));
         assert_ne!(key, batch_key_from_ctx("table_2", &ctx));
-        for (catalog, schema) in [("other", "public"), ("greptime", "other")] {
+        for (catalog, schema) in [("other", "public"), ("pulse", "other")] {
             let other = Arc::new(QueryContext::with_channel(catalog, schema, Channel::Influx));
             assert_ne!(key, batch_key_from_ctx(&table.name, &other));
         }

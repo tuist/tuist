@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,10 +26,6 @@ use api::v1::{
     AlterDatabaseExpr, AlterTableExpr, CreateFlowExpr, CreateTableExpr, CreateViewExpr,
     PartitionedSource, Repartition, TargetPartitionColumns, UnpartitionedSource, column_def,
 };
-#[cfg(feature = "enterprise")]
-use api::v1::{
-    CreateTriggerExpr as PbCreateTriggerExpr, meta::CreateTriggerTask as PbCreateTriggerTask,
-};
 use catalog::CatalogManagerRef;
 use chrono::Utc;
 use common_base::regex_pattern::NAME_PATTERN_REG;
@@ -37,23 +35,13 @@ use common_catalog::consts::{
 };
 use common_catalog::{format_full_flow_name, format_full_table_name};
 use common_error::ext::BoxedError;
-#[cfg(feature = "enterprise")]
-use common_meta::cache_invalidator::CacheInvalidatorRef;
 use common_meta::cache_invalidator::Context;
 use common_meta::ddl::create_flow::{
     DEFER_ON_MISSING_SOURCE_KEY, FLOW_EXPERIMENTAL_ENABLE_INCREMENTAL_READ_KEY, FlowType,
     INTERNAL_EVAL_OFFSET_KEY, INTERNAL_EVAL_SCHEDULE_KEY,
 };
 use common_meta::instruction::CacheIdent;
-#[cfg(feature = "enterprise")]
-use common_meta::key::TableMetadataManagerRef;
 use common_meta::key::schema_name::{SchemaName, SchemaNameKey};
-#[cfg(feature = "enterprise")]
-use common_meta::procedure_executor::ProcedureExecutorRef;
-#[cfg(feature = "enterprise")]
-use common_meta::rpc::ddl::trigger::CreateTriggerTask;
-#[cfg(feature = "enterprise")]
-use common_meta::rpc::ddl::trigger::DropTriggerTask;
 use common_meta::rpc::ddl::{
     CreateFlowTask, CreatorGrantIntent, DdlTask, DropFlowTask, DropViewTask, SubmitDdlTaskRequest,
     SubmitDdlTaskResponse, TriggerReason,
@@ -83,11 +71,7 @@ use snafu::{OptionExt, ResultExt, ensure};
 use sql::parser::{ParseOptions, ParserContext};
 use sql::parsers::utils::is_tql;
 use sql::statements::OptionMap;
-#[cfg(feature = "enterprise")]
-use sql::statements::alter::trigger::AlterTrigger;
 use sql::statements::alter::{AlterDatabase, AlterTable, AlterTableOperation};
-#[cfg(feature = "enterprise")]
-use sql::statements::create::trigger::CreateTrigger;
 use sql::statements::create::{
     CreateExternalTable, CreateFlow, CreateTable, CreateTableLike, CreateView, Partitions,
 };
@@ -128,7 +112,6 @@ struct DdlSubmitOptions {
     timeout: Duration,
 }
 
-#[cfg(not(feature = "enterprise"))]
 const ALLOWED_FLOW_OPTIONS: [&str; 2] = [
     DEFER_ON_MISSING_SOURCE_KEY,
     FLOW_EXPERIMENTAL_ENABLE_INCREMENTAL_READ_KEY,
@@ -173,7 +156,6 @@ fn parse_ddl_options(options: &OptionMap) -> Result<DdlSubmitOptions> {
     Ok(DdlSubmitOptions { wait, timeout })
 }
 
-#[cfg(not(feature = "enterprise"))]
 fn supported_flow_options() -> String {
     ALLOWED_FLOW_OPTIONS.join(", ")
 }
@@ -223,9 +205,6 @@ fn validate_and_normalize_flow_options(
                 DEFER_ON_MISSING_SOURCE_KEY | FLOW_EXPERIMENTAL_ENABLE_INCREMENTAL_READ_KEY => {
                     normalize_flow_bool_option(&key, &value)?
                 }
-                #[cfg(feature = "enterprise")]
-                _ => value,
-                #[cfg(not(feature = "enterprise"))]
                 _ => {
                     return InvalidSqlSnafu {
                         err_msg: format!(
@@ -759,47 +738,6 @@ impl StatementExecutor {
         );
 
         Ok(())
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tracing::instrument(skip_all)]
-    pub async fn create_trigger(
-        &self,
-        stmt: CreateTrigger,
-        query_context: QueryContextRef,
-    ) -> Result<Output> {
-        let expr = expr_helper::to_create_trigger_task_expr(stmt, &query_context)?;
-        self.create_trigger_inner(expr, query_context).await
-    }
-
-    #[cfg(feature = "enterprise")]
-    pub async fn create_trigger_inner(
-        &self,
-        expr: PbCreateTriggerExpr,
-        query_context: QueryContextRef,
-    ) -> Result<Output> {
-        self.create_trigger_procedure(expr, query_context).await?;
-        Ok(Output::new_with_affected_rows(0))
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn create_trigger_procedure(
-        &self,
-        expr: PbCreateTriggerExpr,
-        query_context: QueryContextRef,
-    ) -> Result<SubmitDdlTaskResponse> {
-        let task = CreateTriggerTask::try_from(PbCreateTriggerTask {
-            create_trigger: Some(expr),
-        })
-        .context(error::InvalidExprSnafu)?;
-
-        let executor_context = to_executor_context(query_context, TriggerReason::Manual);
-        let request = SubmitDdlTaskRequest::new(DdlTask::new_create_trigger(task));
-
-        self.procedure_executor
-            .submit_ddl_task(executor_context, request)
-            .await
-            .context(error::ExecuteDdlSnafu)
     }
 
     #[tracing::instrument(skip_all)]
@@ -1348,39 +1286,6 @@ impl StatementExecutor {
             .context(error::ExecuteDdlSnafu)
     }
 
-    #[cfg(feature = "enterprise")]
-    #[tracing::instrument(skip_all)]
-    pub(super) async fn drop_trigger(
-        &self,
-        catalog_name: String,
-        trigger_name: String,
-        drop_if_exists: bool,
-        query_context: QueryContextRef,
-    ) -> Result<Output> {
-        let task = DropTriggerTask {
-            catalog_name,
-            trigger_name,
-            drop_if_exists,
-        };
-        self.drop_trigger_procedure(task, query_context).await?;
-        Ok(Output::new_with_affected_rows(0))
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn drop_trigger_procedure(
-        &self,
-        expr: DropTriggerTask,
-        query_context: QueryContextRef,
-    ) -> Result<SubmitDdlTaskResponse> {
-        let executor_context = to_executor_context(query_context, TriggerReason::Manual);
-        let request = SubmitDdlTaskRequest::new(DdlTask::new_drop_trigger(expr));
-
-        self.procedure_executor
-            .submit_ddl_task(executor_context, request)
-            .await
-            .context(error::ExecuteDdlSnafu)
-    }
-
     /// Drop a view
     #[tracing::instrument(skip_all)]
     pub async fn drop_view(
@@ -1583,23 +1488,6 @@ impl StatementExecutor {
                 .context(error::InvalidateTableCacheSnafu)?;
         }
         Ok(Output::new_with_affected_rows(0))
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tracing::instrument(skip_all)]
-    pub async fn undrop_table(
-        &self,
-        table_name: TableName,
-        query_context: QueryContextRef,
-    ) -> Result<Output> {
-        execute_undrop_table(
-            &self.table_metadata_manager,
-            &self.procedure_executor,
-            &self.cache_invalidator,
-            table_name,
-            query_context,
-        )
-        .await
     }
 
     #[tracing::instrument(skip_all)]
@@ -2089,19 +1977,6 @@ impl StatementExecutor {
         Ok(Output::new_with_affected_rows(0))
     }
 
-    #[cfg(feature = "enterprise")]
-    #[tracing::instrument(skip_all)]
-    pub async fn alter_trigger(
-        &self,
-        _alter_expr: AlterTrigger,
-        _query_context: QueryContextRef,
-    ) -> Result<Output> {
-        crate::error::NotSupportedSnafu {
-            feat: "alter trigger",
-        }
-        .fail()
-    }
-
     #[tracing::instrument(skip_all)]
     pub async fn alter_database(
         &self,
@@ -2316,12 +2191,6 @@ impl StatementExecutor {
             }
         );
 
-        #[cfg(feature = "enterprise")]
-        let creator = match &self.create_database_handler {
-            Some(handler) => handler.creator(&query_context).context(ExternalSnafu)?,
-            None => None,
-        };
-        #[cfg(not(feature = "enterprise"))]
         let creator = None;
 
         let output = if !self
@@ -2347,14 +2216,6 @@ impl StatementExecutor {
         } else {
             return error::SchemaExistsSnafu { name: database }.fail();
         };
-
-        #[cfg(feature = "enterprise")]
-        if let Some(handler) = &self.create_database_handler {
-            handler
-                .refresh_current_user(&query_context)
-                .await
-                .context(ExternalSnafu)?;
-        }
 
         Ok(output)
     }
@@ -2890,88 +2751,16 @@ fn convert_value(
     .context(error::SqlCommonSnafu)
 }
 
-#[cfg(feature = "enterprise")]
-async fn execute_undrop_table(
-    table_metadata_manager: &TableMetadataManagerRef,
-    procedure_executor: &ProcedureExecutorRef,
-    cache_invalidator: &CacheInvalidatorRef,
-    table_name: TableName,
-    query_context: QueryContextRef,
-) -> Result<Output> {
-    // Undropping restores a table definition and could resurrect a
-    // pre-canonical shape of a DDL-reserved table; rejected like CREATE.
-    ensure_table_definition_writable(&table_name.schema_name, &table_name.table_name)?;
-
-    let dropped = table_metadata_manager
-        .get_dropped_table(&table_name)
-        .await
-        .context(TableMetadataManagerSnafu)?
-        .with_context(|| TableNotFoundSnafu {
-            table_name: table_name.to_string(),
-        })?;
-
-    let executor_context = to_executor_context(query_context, TriggerReason::Manual);
-    let request = SubmitDdlTaskRequest::new(DdlTask::new_undrop_table(dropped.table_id));
-    procedure_executor
-        .submit_ddl_task(executor_context, request)
-        .await
-        .context(error::ExecuteDdlSnafu)?;
-
-    if let Err(err) = cache_invalidator
-        .invalidate(
-            &Context::default(),
-            &[
-                CacheIdent::TableId(dropped.table_id),
-                CacheIdent::TableName(table_name),
-            ],
-        )
-        .await
-    {
-        warn!(
-            "Failed to invalidate cache after restoring table '{}' (id={}): {}",
-            dropped.table_name, dropped.table_id, err
-        );
-    }
-
-    Ok(Output::new_with_affected_rows(0))
-}
-
 #[cfg(test)]
 mod test {
-    #[cfg(feature = "enterprise")]
-    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    #[cfg(feature = "enterprise")]
-    use api::v1::meta::{ProcedureDetailResponse, ReconcileRequest, ReconcileResponse};
     use arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
-    #[cfg(feature = "enterprise")]
-    use common_meta::cache_invalidator::{CacheInvalidator, CacheInvalidatorRef};
-    #[cfg(feature = "enterprise")]
-    use common_meta::instruction::CacheIdent;
-    #[cfg(feature = "enterprise")]
-    use common_meta::key::table_route::TableRouteValue;
-    #[cfg(feature = "enterprise")]
-    use common_meta::key::test_utils::new_test_table_info_with_name;
-    #[cfg(feature = "enterprise")]
-    use common_meta::key::{TableMetadataManager, TableMetadataManagerRef};
-    #[cfg(feature = "enterprise")]
-    use common_meta::kv_backend::memory::MemoryKvBackend;
-    #[cfg(feature = "enterprise")]
-    use common_meta::procedure_executor::{
-        ExecutorContext, ProcedureExecutor, ProcedureExecutorRef,
-    };
-    #[cfg(feature = "enterprise")]
-    use common_meta::rpc::ddl::{DdlTask, SubmitDdlTaskRequest, SubmitDdlTaskResponse};
-    #[cfg(feature = "enterprise")]
-    use common_meta::rpc::procedure::{
-        MigrateRegionRequest, MigrateRegionResponse, ProcedureStateResponse,
-    };
     use datafusion::functions_aggregate::expr_fn::count;
     use datafusion::logical_expr::builder::LogicalTableSource;
     use datafusion::logical_expr::{LogicalPlanBuilder, col};
     use session::context::QueryContext;
-    use sql::dialect::GreptimeDbDialect;
+    use sql::dialect::PulseDialect;
     use sql::parser::{ParseOptions, ParserContext};
     use sql::statements::statement::Statement;
     use sqlparser::parser::Parser;
@@ -2979,219 +2768,6 @@ mod test {
 
     use super::*;
     use crate::expr_helper;
-
-    #[cfg(feature = "enterprise")]
-    #[derive(Default)]
-    struct RecordingProcedureExecutor {
-        requests: Mutex<Vec<SubmitDdlTaskRequest>>,
-        contexts: Mutex<Vec<ExecutorContext>>,
-        fail: bool,
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[async_trait::async_trait]
-    impl ProcedureExecutor for RecordingProcedureExecutor {
-        async fn submit_ddl_task(
-            &self,
-            ctx: ExecutorContext,
-            request: SubmitDdlTaskRequest,
-        ) -> common_meta::error::Result<SubmitDdlTaskResponse> {
-            self.contexts.lock().unwrap().push(ctx);
-            self.requests.lock().unwrap().push(request);
-            if self.fail {
-                return common_meta::error::UnsupportedSnafu {
-                    operation: "test submit failure",
-                }
-                .fail();
-            }
-            Ok(SubmitDdlTaskResponse::default())
-        }
-
-        async fn migrate_region(
-            &self,
-            _: &ExecutorContext,
-            _: MigrateRegionRequest,
-        ) -> common_meta::error::Result<MigrateRegionResponse> {
-            unimplemented!()
-        }
-        async fn reconcile(
-            &self,
-            _: &ExecutorContext,
-            _: ReconcileRequest,
-        ) -> common_meta::error::Result<ReconcileResponse> {
-            unimplemented!()
-        }
-        async fn query_procedure_state(
-            &self,
-            _: &ExecutorContext,
-            _: &str,
-        ) -> common_meta::error::Result<ProcedureStateResponse> {
-            unimplemented!()
-        }
-        async fn list_procedures(
-            &self,
-            _: &ExecutorContext,
-        ) -> common_meta::error::Result<ProcedureDetailResponse> {
-            unimplemented!()
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[derive(Default)]
-    struct RecordingCacheInvalidator {
-        invalidations: Mutex<Vec<Vec<CacheIdent>>>,
-        fail: bool,
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[async_trait::async_trait]
-    impl CacheInvalidator for RecordingCacheInvalidator {
-        async fn invalidate(
-            &self,
-            _: &Context,
-            caches: &[CacheIdent],
-        ) -> common_meta::error::Result<()> {
-            self.invalidations.lock().unwrap().push(caches.to_vec());
-            if self.fail {
-                return common_meta::error::UnsupportedSnafu {
-                    operation: "test cache failure",
-                }
-                .fail();
-            }
-            Ok(())
-        }
-
-        fn invalidate_all(&self) -> common_meta::error::Result<()> {
-            Ok(())
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn dropped_table_manager(table_id: TableId, name: &TableName) -> TableMetadataManagerRef {
-        let backend = Arc::new(MemoryKvBackend::default());
-        let manager = Arc::new(TableMetadataManager::new(backend));
-        let mut info = new_test_table_info_with_name(table_id, &name.table_name);
-        info.catalog_name = name.catalog_name.clone();
-        info.schema_name = name.schema_name.clone();
-        let route = TableRouteValue::physical(vec![]);
-        manager
-            .create_table_metadata(info, route.clone(), HashMap::new())
-            .await
-            .unwrap();
-        manager
-            .delete_table_metadata(table_id, name, &route, &HashMap::new(), None)
-            .await
-            .unwrap();
-        manager
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_undrop_table_execution_path() {
-        let name = TableName::new("greptime", "public", "metrics");
-        let manager = dropped_table_manager(42, &name).await;
-        // A same-name live table must not redirect restoration to its ID.
-        let mut live = new_test_table_info_with_name(99, "metrics");
-        live.catalog_name = "greptime".to_string();
-        live.schema_name = "public".to_string();
-        manager
-            .create_table_metadata(live, TableRouteValue::physical(vec![]), HashMap::new())
-            .await
-            .unwrap();
-        let procedure = Arc::new(RecordingProcedureExecutor::default());
-        let cache = Arc::new(RecordingCacheInvalidator::default());
-
-        execute_undrop_table(
-            &manager,
-            &(procedure.clone() as ProcedureExecutorRef),
-            &(cache.clone() as CacheInvalidatorRef),
-            name.clone(),
-            QueryContext::arc(),
-        )
-        .await
-        .unwrap();
-
-        let requests = procedure.requests.lock().unwrap();
-        assert!(matches!(&requests[0].task, DdlTask::UndropTable(task) if task.table_id == 42));
-        let contexts = procedure.contexts.lock().unwrap();
-        assert_eq!(
-            contexts[0].event_input.as_ref().map(|input| input.reason),
-            Some(TriggerReason::Manual)
-        );
-        assert_eq!(
-            cache.invalidations.lock().unwrap()[0],
-            vec![CacheIdent::TableId(42), CacheIdent::TableName(name)]
-        );
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_undrop_table_missing_tombstone_submits_nothing() {
-        let manager = Arc::new(TableMetadataManager::new(Arc::new(
-            MemoryKvBackend::default(),
-        )));
-        let procedure = Arc::new(RecordingProcedureExecutor::default());
-        let cache = Arc::new(RecordingCacheInvalidator::default());
-        let err = execute_undrop_table(
-            &manager,
-            &(procedure.clone() as ProcedureExecutorRef),
-            &(cache as CacheInvalidatorRef),
-            TableName::new("greptime", "public", "missing"),
-            QueryContext::arc(),
-        )
-        .await
-        .unwrap_err();
-        assert!(matches!(err, crate::error::Error::TableNotFound { .. }));
-        assert!(procedure.requests.lock().unwrap().is_empty());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_undrop_table_submit_failure_does_not_invalidate() {
-        let name = TableName::new("greptime", "public", "metrics");
-        let manager = dropped_table_manager(42, &name).await;
-        let procedure = Arc::new(RecordingProcedureExecutor {
-            fail: true,
-            ..Default::default()
-        });
-        let cache = Arc::new(RecordingCacheInvalidator::default());
-        execute_undrop_table(
-            &manager,
-            &(procedure as ProcedureExecutorRef),
-            &(cache.clone() as CacheInvalidatorRef),
-            name,
-            QueryContext::arc(),
-        )
-        .await
-        .unwrap_err();
-        assert!(cache.invalidations.lock().unwrap().is_empty());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_undrop_table_cache_failure_returns_success_after_submit() {
-        let name = TableName::new("greptime", "public", "metrics");
-        let manager = dropped_table_manager(42, &name).await;
-        let procedure = Arc::new(RecordingProcedureExecutor::default());
-        let cache = Arc::new(RecordingCacheInvalidator {
-            fail: true,
-            ..Default::default()
-        });
-        execute_undrop_table(
-            &manager,
-            &(procedure.clone() as ProcedureExecutorRef),
-            &(cache.clone() as CacheInvalidatorRef),
-            name.clone(),
-            QueryContext::arc(),
-        )
-        .await
-        .unwrap();
-        assert_eq!(procedure.requests.lock().unwrap().len(), 1);
-        assert_eq!(
-            cache.invalidations.lock().unwrap()[0],
-            vec![CacheIdent::TableId(42), CacheIdent::TableName(name)]
-        );
-    }
 
     #[test]
     fn test_parse_ddl_options() {
@@ -3286,7 +2862,6 @@ mod test {
         );
     }
 
-    #[cfg(not(feature = "enterprise"))]
     #[test]
     fn test_validate_and_normalize_flow_options_unknown_option() {
         let err = validate_and_normalize_flow_options(
@@ -3344,7 +2919,7 @@ WITH (access_key_id = [true])
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -3355,7 +2930,6 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let expr =
             expr_helper::to_create_flow_task_expr(create_flow, &QueryContext::arc()).unwrap();
 
-        #[cfg(not(feature = "enterprise"))]
         {
             let err = validate_and_normalize_flow_options(expr.flow_options, None).unwrap_err();
             assert!(
@@ -3363,11 +2937,6 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
                     .contains("unknown flow option 'access_key_id'")
             );
         }
-        #[cfg(feature = "enterprise")]
-        assert_eq!(
-            validate_and_normalize_flow_options(expr.flow_options, None).unwrap(),
-            HashMap::from([("access_key_id".to_string(), "['true']".to_string())])
-        );
     }
 
     fn stateless_test_scan(name: &str) -> LogicalPlan {
@@ -3468,7 +3037,6 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         assert!(err.to_string().contains("reserved for internal use"));
     }
 
-    #[cfg(not(feature = "enterprise"))]
     #[test]
     fn test_schedule_keys_rejected_as_unknown_options() {
         for key in [
@@ -3488,31 +3056,6 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
                     .contains(&format!("unknown flow option '{key}'"))
             );
         }
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    fn test_schedule_keys_preserved() {
-        let options = HashMap::from([
-            ("eval_interval_anchor".to_string(), "anchor".to_string()),
-            ("eval_interval_start".to_string(), "start".to_string()),
-            (
-                "eval_interval_missed_tick_policy".to_string(),
-                "missed".to_string(),
-            ),
-            (
-                "eval_interval_catchup_max_runs".to_string(),
-                "runs".to_string(),
-            ),
-            (
-                "eval_interval_catchup_max_lag".to_string(),
-                "lag".to_string(),
-            ),
-        ]);
-        assert_eq!(
-            validate_and_normalize_flow_options(options.clone(), Some(300)).unwrap(),
-            options
-        );
     }
 
     #[test]
@@ -3608,7 +3151,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let column_name_and_type =
             HashMap::from([(&column_name, ConcreteDataType::int32_datatype())]);
         let timezone = Timezone::from_tz_string("UTC").unwrap();
-        let dialect = GreptimeDbDialect {};
+        let dialect = PulseDialect {};
 
         let mut parser = Parser::new(&dialect)
             .try_with_sql("device_id < 100")
@@ -3644,7 +3187,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let existing_column_name_and_type = column_name_and_type(&existing_partition_columns);
         let target_column_name_and_type = column_name_and_type(&target_partition_columns);
         let timezone = Timezone::from_tz_string("UTC").unwrap();
-        let dialect = GreptimeDbDialect {};
+        let dialect = PulseDialect {};
 
         let mut parser = Parser::new(&dialect)
             .try_with_sql("device_id < 100 AND area < 'South'")
@@ -3671,7 +3214,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
             (&device_id, ConcreteDataType::int32_datatype()),
             (&area, ConcreteDataType::string_datatype()),
         ]);
-        let dialect = GreptimeDbDialect {};
+        let dialect = PulseDialect {};
         let mut parser = Parser::new(&dialect)
             .try_with_sql("device_id >= 100")
             .unwrap();
@@ -3709,7 +3252,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
 
     fn create_expr_from_sql(sql: &str) -> CreateTableExpr {
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         match &result[0] {
@@ -3777,7 +3320,7 @@ WITH ('repartition.column.hint' = ' host ')",
     #[test]
     fn test_create_table_info_rejects_non_timestamp_time_index() {
         let expr = CreateTableExpr {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             table_name: "demo".to_string(),
             desc: String::new(),
@@ -3814,7 +3357,7 @@ WITH ('repartition.column.hint' = ' host ')",
         );
         let table_info = Arc::new(create_table_info(&expr, vec![]).unwrap());
         let alter = |kind| AlterTableExpr {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             table_name: "t".to_string(),
             kind: Some(kind),

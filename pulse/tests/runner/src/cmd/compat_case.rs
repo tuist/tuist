@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -84,7 +86,7 @@ pub struct CompatCase {
     pub namespace: String,
 }
 
-/// Sanitize a name into a valid GreptimeDB namespace: lowercase alphanumeric + underscores.
+/// Sanitize a name into a valid Pulse namespace: lowercase alphanumeric + underscores.
 fn sanitize_namespace(name: &str) -> String {
     let sanitized: String = name
         .to_lowercase()
@@ -445,10 +447,10 @@ pub(crate) fn version_matches_range(version: Option<&Version>, constraints: &[St
     false
 }
 
-/// Try to infer a version string by running `<bins_dir>/greptime --version`.
+/// Try to infer a version string by running `<bins_dir>/pulse --version`.
 /// Returns `None` if the binary cannot be executed or the output isn't parseable.
 pub(crate) fn try_infer_version(bins_dir: &Path) -> Option<Version> {
-    let binary = bins_dir.join("greptime");
+    let binary = bins_dir.join("pulse");
     if !binary.is_file() {
         return None;
     }
@@ -457,7 +459,7 @@ pub(crate) fn try_infer_version(bins_dir: &Path) -> Option<Version> {
         return None;
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // Typical output: "greptime 0.9.5-xxxxx" or just "greptime 0.9.5"
+    // Typical output: "pulse 0.9.5-xxxxx" or just "pulse 0.9.5"
     // Grab the first token that looks like a version.
     for token in stdout.split_whitespace() {
         // Strip leading 'v' if present and try to parse

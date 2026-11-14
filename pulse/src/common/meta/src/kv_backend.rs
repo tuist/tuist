@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::sync::Arc;
 
@@ -42,8 +44,8 @@ pub mod util;
 pub type KvBackendRef<E = Error> = Arc<dyn KvBackend<Error = E> + Send + Sync>;
 
 #[cfg(any(feature = "pg_kvbackend", feature = "mysql_kvbackend"))]
-// The default meta table name, default is "greptime_metakv".
-pub const DEFAULT_META_TABLE_NAME: &str = "greptime_metakv";
+// The default meta table name, default is "pulse_metakv".
+pub const DEFAULT_META_TABLE_NAME: &str = "pulse_metakv";
 
 #[cfg(any(feature = "pg_kvbackend", feature = "mysql_kvbackend"))]
 // The default lock id for election, default is 1.

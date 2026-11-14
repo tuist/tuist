@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Push decoder stream implementation for SST parquet files.
 
 use std::ops::Range;
@@ -36,11 +38,11 @@ use crate::sst::file::RegionFileId;
 use crate::sst::parquet::helper::fetch_byte_ranges;
 use crate::sst::parquet::row_group::{ParquetFetchMetrics, compute_total_range_size};
 
-/// Fetches parquet byte ranges through Greptime's cache hierarchy.
+/// Fetches parquet byte ranges through Pulse's cache hierarchy.
 ///
 /// The push decoder decides which ranges are required for decoding, while this
 /// fetcher keeps cache lookup, local write-cache reads, and remote I/O explicit
-/// in Greptime code.
+/// in Pulse code.
 pub struct SstParquetRangeFetcher {
     /// Region file ID for cache key.
     region_file_id: RegionFileId,

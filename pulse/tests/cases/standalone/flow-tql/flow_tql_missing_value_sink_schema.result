@@ -15,9 +15,9 @@ Affected Rows: 0
 CREATE TABLE metric_input (
   namespace STRING NULL,
   app STRING NULL,
-  greptime_timestamp TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
-  TIME INDEX (greptime_timestamp),
+  pulse_timestamp TIMESTAMP(3) NOT NULL,
+  pulse_value DOUBLE NULL,
+  TIME INDEX (pulse_timestamp),
   PRIMARY KEY (namespace, app)
 );
 
@@ -33,12 +33,12 @@ USE sink_schema;
 
 Affected Rows: 0
 
--- Intentionally omit greptime_value DOUBLE from the pre-created sink table.
+-- Intentionally omit pulse_value DOUBLE from the pre-created sink table.
 CREATE TABLE missing_value_sink (
   namespace STRING NULL,
   app STRING NULL,
-  greptime_timestamp TIMESTAMP(3) NOT NULL,
-  TIME INDEX (greptime_timestamp),
+  pulse_timestamp TIMESTAMP(3) NOT NULL,
+  TIME INDEX (pulse_timestamp),
   PRIMARY KEY (namespace, app)
 )
 ENGINE=mito;
@@ -58,7 +58,7 @@ AS TQL EVAL (
     avg_over_time(metric_input{__schema__="source_schema"}[1h])
   );
 
-Error: 3001(EngineExecuteQuery), Datafusion error: Plan("Flow output schema does not match sink table schema: found 4 flow output columns and 3 sink table columns. flow output columns: [\"namespace\", \"app\", \"greptime_timestamp\", \"avg(prom_avg_over_time(greptime_timestamp_range,greptime_value))\"], sink table columns: [\"namespace\", \"app\", \"greptime_timestamp\"], extra flow columns not in sink: [\"avg(prom_avg_over_time(greptime_timestamp_range,greptime_value))\"], missing sink columns from flow output: []") in context: Failed to rewrite plan
+Error: 3001(EngineExecuteQuery), Datafusion error: Plan("Flow output schema does not match sink table schema: found 4 flow output columns and 3 sink table columns. flow output columns: [\"namespace\", \"app\", \"pulse_timestamp\", \"avg(prom_avg_over_time(pulse_timestamp_range,pulse_value))\"], sink table columns: [\"namespace\", \"app\", \"pulse_timestamp\"], extra flow columns not in sink: [\"avg(prom_avg_over_time(pulse_timestamp_range,pulse_value))\"], missing sink columns from flow output: []") in context: Failed to rewrite plan
 
 DROP FLOW IF EXISTS missing_value_flow;
 

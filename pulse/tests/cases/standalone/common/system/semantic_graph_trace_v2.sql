@@ -22,7 +22,7 @@ create table graph_trace_v2 (
   span_links json,
   primary key (service_name)
 ) with (
-  'table_data_model' = 'greptime_trace_v2',
+  'table_data_model' = 'pulse_trace_v2',
   'append_mode' = 'true',
   'greptime.semantic.entity.gen_ai.agent.id' = 'span_attributes.gen_ai.agent.id',
   'greptime.semantic.entity.gen_ai.agent.scope' = 'scope_attributes.environment',
@@ -64,19 +64,19 @@ create table graph_trace_v1_peer (
   "resource_attributes.service.namespace" string,
   "resource_attributes.host.name" string,
   primary key (service_name)
-) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true',
+) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true',
         'greptime.semantic.entity.literal_resource.id' = 'resource_attributes.host.name');
 
 insert into graph_trace_v1_peer values
   ('2026-01-01 00:00:01', 'paired', 'server', 'client', 'SPAN_KIND_SERVER', 'STATUS_CODE_UNSET', 50000000, 'backend', 'shop', 'node-v1');
 
 select entity_type, entity_id, scope
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 where observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00'
 order by entity_type, entity_id;
 
 select src_type, src_id, dst_type, dst_id, rel_type, request_count, error_count
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 where observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00'
 order by rel_type, src_type, src_id, dst_id;
 
@@ -95,19 +95,19 @@ admin flush_table('graph_trace_v1_peer');
 
 -- SQLNESS PROTOCOL MYSQL
 select entity_type, entity_id, scope, entity_id_attrs, descriptive
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 where observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00'
 order by entity_type, entity_id;
 
 select src_type, src_id, dst_type, dst_id, rel_type, request_count, error_count
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 where observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00'
 order by rel_type, src_type, src_id, dst_id;
 
 -- Quotes, backslashes and dots remain a literal key; numbers render as strings.
 alter table graph_trace_v2 set 'greptime.semantic.entity.custom.id' = 'scope_attributes.a"b\c.d';
 select entity_type, entity_id
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 where entity_type = 'custom'
   and observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00';
 
@@ -124,7 +124,7 @@ alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource
 
 create table graph_bad_v2 (
   ts timestamp time index, resource_attributes string
-) with ('table_data_model' = 'greptime_trace_v2',
+) with ('table_data_model' = 'pulse_trace_v2',
         'greptime.semantic.entity.host.id' = 'resource_attributes.host.id');
 
 -- Ordinary JSON2 tables do not acquire Trace V2 attribute-reference semantics.
@@ -150,13 +150,13 @@ values ('2026-01-01 00:00:04', 100, 'physical', 'physical-client', 'SPAN_KIND_CL
         'physical-host', 'physical-namespace', 'physical-database');
 
 select entity_type, entity_id
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 where entity_type in ('host', 'service')
   and observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00'
 order by entity_type, entity_id;
 
 select src_id, dst_id, rel_type
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 where src_id = 'physical-namespace/physical-service'
   and observed_at >= '2026-01-01 00:00:00' and observed_at < '2026-01-01 00:01:00'
 order by rel_type, dst_id;

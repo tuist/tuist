@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use const_format::concatcp;
 
 pub const SYSTEM_CATALOG_NAME: &str = "system";
@@ -131,11 +133,11 @@ pub const INFORMATION_SCHEMA_PROCESSLIST_TABLE_ID: u32 = 49;
 
 // ----- End of information_schema tables -----
 
-// Computed system tables under `greptime_private` (same virtual-table id space
+// Computed system tables under `pulse_private` (same virtual-table id space
 // as the information_schema tables above).
-/// id for greptime_private.semantic_entities (computed entity registry)
+/// id for pulse_private.semantic_entities (computed entity registry)
 pub const SEMANTIC_ENTITIES_TABLE_ID: u32 = 45;
-/// id for greptime_private.semantic_relationships (computed edge set)
+/// id for pulse_private.semantic_relationships (computed edge set)
 pub const SEMANTIC_RELATIONSHIPS_TABLE_ID: u32 = 46;
 
 /// ----- Begin of pg_catalog tables -----
@@ -180,7 +182,7 @@ pub fn is_readonly_schema(schema: &str) -> bool {
 
 /// Returns true for tables that must reject DDL/DML: everything in a read-only
 /// schema, plus computed system tables overlaid on a writable schema (the
-/// entity-graph tables under `greptime_private`).
+/// entity-graph tables under `pulse_private`).
 pub fn is_readonly_table(schema: &str, table: &str) -> bool {
     is_readonly_schema(schema)
         || (schema == DEFAULT_PRIVATE_SCHEMA_NAME
@@ -210,7 +212,7 @@ pub const SCOPE_ATTRIBUTES_COLUMN: &str = "scope_attributes";
 pub const RESOURCE_ATTRIBUTES_COLUMN: &str = "resource_attributes";
 pub const SERVICE_NAME_COLUMN: &str = "service_name";
 pub const PARENT_SPAN_ID_COLUMN: &str = "parent_span_id";
-// More fixed columns/values of the `greptime_trace_v1` data model, shared by
+// More fixed columns/values of the `pulse_trace_v1` data model, shared by
 // the ingest side (`servers::otlp::trace` re-exports them) and the read-time
 // graph derivation so the two cannot silently drift.
 pub const TRACE_TIMESTAMP_COLUMN: &str = "timestamp";
@@ -235,10 +237,10 @@ pub fn trace_operations_table_name(trace_table_name: &str) -> String {
 }
 // ---- End of special table and fields ----
 
-// ---- Entity relationship graph tables (live in `greptime_private`) ----
+// ---- Entity relationship graph tables (live in `pulse_private`) ----
 // The `semantic_` prefix ties them to the semantic layer they derive from
 // (`greptime.semantic.entity.*` declarations, `information_schema.table_semantics`);
-// no `__` prefix is needed since `greptime_private` already scopes them.
+// no `__` prefix is needed since `pulse_private` already scopes them.
 /// Computed entity registry: the node set of the observability graph, derived at
 /// read time from tables that declared `greptime.semantic.entity.*` identities.
 pub const SEMANTIC_ENTITIES_TABLE_NAME: &str = "semantic_entities";

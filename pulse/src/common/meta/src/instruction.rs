@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
@@ -300,9 +302,6 @@ pub enum OpenRegionReason {
     RegionMigration,
     /// Open triggered by region failover.
     RegionFailover,
-    /// Open triggered when adding a follower region.
-    #[cfg(feature = "enterprise")]
-    RegionFollower,
 }
 
 #[serde_with::serde_as]

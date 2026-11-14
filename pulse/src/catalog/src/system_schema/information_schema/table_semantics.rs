@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! `information_schema.table_semantics`: the queryable view over the table
 //! semantic layer. One row per table that is part of it, so a consumer can
 //! discover the observability concept a table stands for with a single SQL
@@ -501,7 +503,7 @@ mod tests {
             (SEMANTIC_SIGNAL_TYPE, "metric"),
             (SEMANTIC_SOURCE, "opentelemetry"),
             (SEMANTIC_SOURCE_VERSION, "2.0"),
-            (SEMANTIC_PIPELINE, "greptime_metric_v1"),
+            (SEMANTIC_PIPELINE, "pulse_metric_v1"),
             (SEMANTIC_METRIC_METADATA_QUALITY, "declared"),
             (SEMANTIC_METRIC_TYPE, "counter"),
             (SEMANTIC_METRIC_UNIT, "By"),
@@ -513,7 +515,7 @@ mod tests {
         assert_eq!(row.signal_type, Some("metric"));
         assert_eq!(row.source, Some("opentelemetry"));
         assert_eq!(row.source_version, Some("2.0"));
-        assert_eq!(row.pipeline, Some("greptime_metric_v1"));
+        assert_eq!(row.pipeline, Some("pulse_metric_v1"));
         assert_eq!(row.metadata_quality, Some("declared"));
         // Promoted keys stay out of the JSON tail; remaining keys are sorted and
         // prefix-stripped.

@@ -10,7 +10,6 @@ workspace = true
 [features]
 default = ["ai_functions"]
 ai_functions = ["common-function/ai_functions"]
-enterprise = ["sql/enterprise"]
 
 [dependencies]
 ahash.workspace = true

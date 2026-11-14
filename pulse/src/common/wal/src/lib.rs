@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::net::SocketAddr;
 
 use error::{EndpointIPV4NotFoundSnafu, ResolveEndpointSnafu, Result};
@@ -27,7 +29,7 @@ pub mod options;
 pub mod test_util;
 
 pub const BROKER_ENDPOINT: &str = "127.0.0.1:9092";
-pub const TOPIC_NAME_PREFIX: &str = "greptimedb_wal_topic";
+pub const TOPIC_NAME_PREFIX: &str = "pulse_wal_topic";
 
 /// The type of the topic selector, i.e. with which strategy to select a topic.
 // The enum is defined here to work around cyclic dependency issues.

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,14 +43,14 @@ enum ImportTarget {
     All,
 }
 
-/// Command to import data from a directory into a GreptimeDB instance.
+/// Command to import data from a directory into a Pulse instance.
 #[derive(Debug, Default, Parser)]
 pub struct ImportCommand {
     /// Server address to connect
     #[clap(long)]
     addr: String,
 
-    /// Directory of the data. E.g.: /tmp/greptimedb-backup
+    /// Directory of the data. E.g.: /tmp/pulse-backup
     #[clap(long)]
     input_dir: String,
 
@@ -212,8 +214,8 @@ impl Import {
 
     // Get all database names in the input directory.
     // The directory structure should be like:
-    // /tmp/greptimedb-backup
-    // ├── greptime-1
+    // /tmp/pulse-backup
+    // ├── pulse-1
     // │   ├── db1
     // │   └── db2
     async fn all_db_names(&self) -> Result<Vec<String>> {

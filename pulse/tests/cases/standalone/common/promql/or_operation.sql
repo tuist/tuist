@@ -3,7 +3,7 @@ create table http_requests (
     job string,
     instance string,
     env string,
-    greptime_value double,
+    pulse_value double,
     primary key (job, instance, env)
 );
 

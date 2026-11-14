@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -151,11 +153,11 @@ pub const DASHBOARD_QUERY: PermissionAction = PermissionAction::read("dashboard.
 pub const DASHBOARD_SAVE: PermissionAction = PermissionAction::write("dashboard.save");
 pub const DASHBOARD_DELETE: PermissionAction = PermissionAction::write("dashboard.delete");
 /// Reading a telemetry table through the entity-graph derivation
-/// (`greptime_private.semantic_entities` / `semantic_relationships`); checked
+/// (`pulse_private.semantic_entities` / `semantic_relationships`); checked
 /// once per candidate source table with that table as the target.
 pub const SEMANTIC_GRAPH_QUERY: PermissionAction = PermissionAction::read("semantic_graph.query");
 
-/// All permission actions built into GreptimeDB.
+/// All permission actions built into Pulse.
 ///
 /// Downstream crates may define additional actions with [`PermissionAction::read`] and
 /// [`PermissionAction::write`].
@@ -413,9 +415,7 @@ mod tests {
     }
 
     fn resolved_targets(table: &str) -> PermissionTableTargets {
-        PermissionTableTargets::resolved(vec![PermissionTableTarget::new(
-            "greptime", "public", table,
-        )])
+        PermissionTableTargets::resolved(vec![PermissionTableTarget::new("pulse", "public", table)])
     }
 
     #[test]
@@ -427,14 +427,14 @@ mod tests {
         assert_eq!(
             resolved_targets("metrics"),
             PermissionTableTargets::Resolved(vec![PermissionTableTarget::new(
-                "greptime", "public", "metrics"
+                "pulse", "public", "metrics"
             )])
         );
 
         for target in [
             PermissionTableTarget::new("", "public", "metrics"),
-            PermissionTableTarget::new("greptime", "", "metrics"),
-            PermissionTableTarget::new("greptime", "public", ""),
+            PermissionTableTarget::new("pulse", "", "metrics"),
+            PermissionTableTarget::new("pulse", "public", ""),
         ] {
             assert_eq!(
                 PermissionTableTargets::Unresolved,
@@ -457,10 +457,10 @@ mod tests {
 
         assert_eq!(
             PermissionTableTargets::Resolved(vec![
-                PermissionTableTarget::new("greptime", "public", "cpu"),
-                PermissionTableTarget::new("greptime", "public", "mem"),
+                PermissionTableTarget::new("pulse", "public", "cpu"),
+                PermissionTableTarget::new("pulse", "public", "mem"),
             ]),
-            PermissionTableTargets::from_row_insert_requests("greptime", "public", &requests)
+            PermissionTableTargets::from_row_insert_requests("pulse", "public", &requests)
         );
         assert_eq!(
             PermissionTableTargets::Unresolved,
@@ -468,7 +468,7 @@ mod tests {
         );
         assert_eq!(
             PermissionTableTargets::Unresolved,
-            PermissionTableTargets::from_row_insert_requests("greptime", "", &requests)
+            PermissionTableTargets::from_row_insert_requests("pulse", "", &requests)
         );
 
         let unresolved = RowInsertRequests {
@@ -476,13 +476,13 @@ mod tests {
         };
         assert_eq!(
             PermissionTableTargets::Unresolved,
-            PermissionTableTargets::from_row_insert_requests("greptime", "public", &unresolved)
+            PermissionTableTargets::from_row_insert_requests("pulse", "public", &unresolved)
         );
 
         let empty = RowInsertRequests::default();
         assert_eq!(
             PermissionTableTargets::Resolved(Vec::new()),
-            PermissionTableTargets::from_row_insert_requests("greptime", "public", &empty)
+            PermissionTableTargets::from_row_insert_requests("pulse", "public", &empty)
         );
     }
 
@@ -553,7 +553,7 @@ mod tests {
     #[test]
     fn test_bulk_insert_is_write_request() {
         let req = PermissionReq::BulkInsert {
-            catalog: "greptime",
+            catalog: "pulse",
             schema: "public",
             table: "metrics",
         };
@@ -643,8 +643,8 @@ mod tests {
             crate::userinfo_by_name(None),
             PermissionReq::Action(PROM_STORE_READ),
             PermissionTableTargets::resolved(vec![
-                PermissionTableTarget::new("greptime", "public", "allowed"),
-                PermissionTableTarget::new("greptime", "public", "denied"),
+                PermissionTableTarget::new("pulse", "public", "allowed"),
+                PermissionTableTarget::new("pulse", "public", "denied"),
             ]),
         );
         assert!(matches!(mixed, Err(Error::PermissionDenied { .. })));

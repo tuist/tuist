@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 
 use api::v1::{ArrowIpc, SemanticType};
@@ -236,7 +238,7 @@ mod tests {
 
     use api::v1::ArrowIpc;
     use common_error::ext::ErrorExt;
-    use common_query::prelude::{greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_timestamp, pulse_value};
     use common_recordbatch::RecordBatches;
     use datafusion::parquet::basic::Encoding;
     use datatypes::arrow::array::{Float64Array, StringArray, TimestampMillisecondArray};
@@ -266,11 +268,11 @@ mod tests {
     fn build_logical_batch(start: usize, rows: usize) -> RecordBatch {
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new(greptime_value(), DataType::Float64, true),
+            Field::new(pulse_value(), DataType::Float64, true),
             Field::new("job", DataType::Utf8, true),
         ]));
 
@@ -617,11 +619,11 @@ mod tests {
 
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new(greptime_value(), DataType::Float64, true),
+            Field::new(pulse_value(), DataType::Float64, true),
             Field::new("nonexistent_column", DataType::Utf8, true),
         ]));
         let batch = RecordBatch::try_new(
@@ -665,11 +667,11 @@ mod tests {
 
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new(greptime_value(), DataType::Float64, true),
+            Field::new(pulse_value(), DataType::Float64, true),
             Field::new("host", DataType::Utf8, true),
             Field::new("region", DataType::Utf8, true),
         ]));
@@ -793,7 +795,7 @@ mod tests {
             .schema_descr()
             .columns()
             .iter()
-            .position(|column| column.name() == greptime_value())
+            .position(|column| column.name() == pulse_value())
             .unwrap();
         assert!(!footer.row_groups().is_empty());
         assert!(footer.row_groups().iter().all(|row_group| {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::slice;
 use std::sync::Arc;
@@ -287,7 +289,7 @@ impl RecordBatch {
 
     /// Iterate the values as strings in the column at index `i`.
     ///
-    /// Note that if the underlying array is not a valid GreptimeDB vector, an empty iterator is
+    /// Note that if the underlying array is not a valid Pulse vector, an empty iterator is
     /// returned.
     ///
     /// # Panics
@@ -447,7 +449,7 @@ mod tests {
             Arc::new(StringVector::from(vec![
                 None,
                 Some("hello"),
-                Some("greptime"),
+                Some("pulse"),
                 None,
             ])),
         ];
@@ -459,7 +461,7 @@ mod tests {
         let actual = array.as_primitive::<UInt32Type>();
         assert_eq!(expected, actual);
 
-        let expected = &StringArray::from(vec!["hello", "greptime"]);
+        let expected = &StringArray::from(vec!["hello", "pulse"]);
         let array = recordbatch.column(1);
         let actual = array.as_string::<i32>();
         assert_eq!(expected, actual);
@@ -570,7 +572,7 @@ mod tests {
             Arc::new(StringVector::from(vec![
                 None,
                 Some("hello"),
-                Some("greptime"),
+                Some("pulse"),
                 None,
             ])),
         ];
@@ -581,7 +583,7 @@ mod tests {
             Arc::new(StringVector::from(vec![
                 None,
                 Some("hello"),
-                Some("greptime"),
+                Some("pulse"),
                 None,
             ])),
         ];

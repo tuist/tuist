@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(feature = "hdfs-object-store")]
 use std::collections::HashMap;
 use std::time::Duration;
@@ -365,7 +367,7 @@ impl From<&MysqlConfig> for Mysql {
         if let Some(table) = &config.table {
             builder = builder.table(table);
         } else {
-            builder = builder.table("greptime");
+            builder = builder.table("pulse");
         }
 
         builder
@@ -521,7 +523,7 @@ mod tests {
             r#"
 type = "Hdfs"
 name = "hdfs-store"
-root = "/greptimedb"
+root = "/pulse"
 name_node = "hdfs://127.0.0.1:9000"
 
 [options]
@@ -535,7 +537,7 @@ name_node = "hdfs://127.0.0.1:9000"
         };
 
         assert_eq!("hdfs-store", hdfs_config.name);
-        assert_eq!("/greptimedb", hdfs_config.connection.root);
+        assert_eq!("/pulse", hdfs_config.connection.root);
         assert_eq!("hdfs://127.0.0.1:9000", hdfs_config.connection.name_node);
         assert_eq!(
             Some(&"true".to_string()),
@@ -561,8 +563,8 @@ name_node = "hdfs://127.0.0.1:9000"
             r#"
 type = "Mysql"
 name = "mysql-store"
-root = "/greptimedb"
-connection_string = "mysql://user:password@127.0.0.1:3306/greptime"
+root = "/pulse"
+connection_string = "mysql://user:password@127.0.0.1:3306/pulse"
 table = "object_store"
 "#,
         )
@@ -573,9 +575,9 @@ table = "object_store"
         };
 
         assert_eq!("mysql-store", mysql_config.name);
-        assert_eq!("/greptimedb", mysql_config.root);
+        assert_eq!("/pulse", mysql_config.root);
         assert_eq!(
-            "mysql://user:password@127.0.0.1:3306/greptime",
+            "mysql://user:password@127.0.0.1:3306/pulse",
             mysql_config.connection_string.expose_secret()
         );
         assert_eq!(Some("object_store"), mysql_config.table.as_deref());

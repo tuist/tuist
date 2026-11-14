@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::hash::Hasher;
 use std::hint::black_box;
 
@@ -92,7 +94,7 @@ fn compute_label_name_hash(labels: &[(&str, &str)]) -> u64 {
 }
 
 fn bench_tsid_generator_small(c: &mut Criterion) {
-    let labels = vec![("namespace", "greptimedb"), ("host", "127.0.0.1")];
+    let labels = vec![("namespace", "pulse"), ("host", "127.0.0.1")];
 
     let mut group = c.benchmark_group("tsid_generator_small_2_labels");
     group.bench_function("original_mur3", |b| {
@@ -122,7 +124,7 @@ fn bench_tsid_generator_small(c: &mut Criterion) {
 
 fn bench_tsid_generator_medium(c: &mut Criterion) {
     let labels = vec![
-        ("namespace", "greptimedb"),
+        ("namespace", "pulse"),
         ("host", "127.0.0.1"),
         ("region", "us-west-2"),
         ("env", "production"),
@@ -157,7 +159,7 @@ fn bench_tsid_generator_medium(c: &mut Criterion) {
 
 fn bench_tsid_generator_large(c: &mut Criterion) {
     let labels = vec![
-        ("namespace", "greptimedb"),
+        ("namespace", "pulse"),
         ("host", "127.0.0.1"),
         ("region", "us-west-2"),
         ("env", "production"),
@@ -198,14 +200,14 @@ fn bench_tsid_generator_large(c: &mut Criterion) {
 fn bench_tsid_generator_slow_path(c: &mut Criterion) {
     // Simulate slow path: some labels have null values (empty strings)
     let labels_with_nulls = vec![
-        ("namespace", "greptimedb"),
+        ("namespace", "pulse"),
         ("host", "127.0.0.1"),
         ("region", ""), // null
         ("env", "production"),
     ];
 
     let labels_all_non_null = vec![
-        ("namespace", "greptimedb"),
+        ("namespace", "pulse"),
         ("host", "127.0.0.1"),
         ("env", "production"),
     ];

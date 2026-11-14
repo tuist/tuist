@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::{ResultExt, ensure};
 use sqlx::MySqlPool;
 
@@ -22,7 +24,7 @@ use crate::ir::create_expr::PartitionDef;
 
 const PARTITIONS_INFO_SCHEMA_SQL: &str = "SELECT table_catalog, table_schema, table_name, \
 partition_name, COALESCE(partition_expression, '') AS partition_expression, \
-COALESCE(partition_description, '') AS partition_description, greptime_partition_id, \
+COALESCE(partition_description, '') AS partition_description, pulse_partition_id, \
 partition_ordinal_position FROM information_schema.partitions WHERE table_name = ? \
 ORDER BY partition_ordinal_position;";
 
@@ -34,7 +36,7 @@ pub struct PartitionInfo {
     pub partition_name: String,
     pub partition_expression: String,
     pub partition_description: String,
-    pub greptime_partition_id: u64,
+    pub pulse_partition_id: u64,
     pub partition_ordinal_position: i64,
 }
 

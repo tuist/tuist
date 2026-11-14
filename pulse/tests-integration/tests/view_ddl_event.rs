@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use common_test_util::temp_dir::create_temp_dir;
 use common_wal::config::DatanodeWalConfig;
-use tests_integration::cluster::GreptimeDbClusterBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
 use tests_integration::test_util::{
     StorageType, get_test_store_config, setup_authenticated_grpc_database,
     test_event_recorder_options,
@@ -42,7 +44,7 @@ async fn test_view_ddl_events() {
     common_telemetry::init_default_ut_logging();
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_view_ddl_events_data_home");
-    let cluster = GreptimeDbClusterBuilder::new("test_view_ddl_events")
+    let cluster = PulseClusterBuilder::new("test_view_ddl_events")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)
@@ -97,12 +99,12 @@ async fn assert_create_events(instance: &Arc<frontend::instance::Instance>, view
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{CREATE_VIEW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Running'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND schema_name = 'public'
   AND view_name = '{view}'
   AND view_id IS NULL
@@ -119,12 +121,12 @@ WHERE type = '{CREATE_VIEW_EVENT_TYPE}'
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{CREATE_VIEW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND schema_name = 'public'
   AND view_name = '{view}'
   AND view_id IS NOT NULL
@@ -142,7 +144,7 @@ async fn assert_event_context(
     let actual = find_eventually_string(
         instance,
         &format!(
-            "SELECT json_to_string(event_context) AS event_context FROM greptime_private.events WHERE type = '{event_type}' AND procedure_id = '{procedure_id}' AND json_path_match(procedure_trigger, '$.type == \"Submitted\"')"
+            "SELECT json_to_string(event_context) AS event_context FROM pulse_private.events WHERE type = '{event_type}' AND procedure_id = '{procedure_id}' AND json_path_match(procedure_trigger, '$.type == \"Submitted\"')"
         ),
         "event_context",
     )
@@ -157,12 +159,12 @@ async fn assert_drop_events(instance: &Arc<frontend::instance::Instance>, view: 
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{DROP_VIEW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Running'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND schema_name = 'public'
   AND view_name = '{view}'
   AND view_id IS NOT NULL
@@ -176,12 +178,12 @@ WHERE type = '{DROP_VIEW_EVENT_TYPE}'
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{DROP_VIEW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND schema_name = 'public'
   AND view_name = '{view}'
   AND view_id IS NOT NULL
@@ -200,7 +202,7 @@ async fn find_submitted_procedure_id(
         instance,
         &format!(
             r#"SELECT procedure_id
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{event_type}'
   AND view_name = '{view_name}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')

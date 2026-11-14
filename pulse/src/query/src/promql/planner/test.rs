@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -22,10 +24,10 @@ use common_catalog::consts::{DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME};
 use common_query::native_histogram::{
     CUSTOM_BUCKETS_SCHEMA, CounterResetHint, NativeHistogram, build_histogram_array,
 };
-use common_query::prelude::{greptime_native_histogram, greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_native_histogram, pulse_timestamp, pulse_value};
 use common_query::prometheus::PROMETHEUS_STALE_NAN_BITS;
 use common_query::test_util::DummyDecoder;
-use common_recordbatch::RecordBatch as GreptimeRecordBatch;
+use common_recordbatch::RecordBatch as PulseRecordBatch;
 use datafusion::arrow::array::{
     Array, ArrayRef, Float64Array, Int64Array, StringArray, TimestampMillisecondArray,
 };
@@ -46,7 +48,7 @@ use session::context::QueryContext;
 use substrait::{DFLogicalSubstraitConvertor, SubstraitPlan};
 use table::Table;
 use table::metadata::{FilterPushDownType, TableInfoBuilder, TableMetaBuilder};
-use table::test_util::{EmptyTable, MemTable as GreptimeMemTable};
+use table::test_util::{EmptyTable, MemTable as PulseMemTable};
 
 use super::*;
 use crate::QueryEngineContext;
@@ -267,9 +269,9 @@ fn operator_metric_table(
         value.array(),
     ]);
     let batch = RecordBatch::try_new(schema.arrow_schema().clone(), arrays).unwrap();
-    let backing = GreptimeMemTable::new_with_catalog(
+    let backing = PulseMemTable::new_with_catalog(
         name,
-        GreptimeRecordBatch::from_df_record_batch(schema.clone(), batch),
+        PulseRecordBatch::from_df_record_batch(schema.clone(), batch),
         table_id,
         DEFAULT_CATALOG_NAME.to_string(),
         DEFAULT_SCHEMA_NAME.to_string(),
@@ -776,14 +778,12 @@ fn assert_normal_metric_schema(plan: &LogicalPlan) {
         "{fields:?}"
     );
     assert!(
-        fields
-            .iter()
-            .any(|field| field.name() == greptime_timestamp()),
+        fields.iter().any(|field| field.name() == pulse_timestamp()),
         "{fields:?}"
     );
     assert!(
         fields.iter().any(|field| {
-            field.name() == greptime_value() && field.data_type() == &ArrowDataType::Float64
+            field.name() == pulse_value() && field.data_type() == &ArrowDataType::Float64
         }),
         "{fields:?}"
     );
@@ -806,14 +806,14 @@ async fn build_test_table_provider_with_distinct_tags(
             .collect::<Vec<_>>();
         columns.push(
             ColumnSchema::new(
-                greptime_timestamp().to_string(),
+                pulse_timestamp().to_string(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
             .with_time_index(true),
         );
         columns.push(ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ));
@@ -995,7 +995,7 @@ async fn build_test_native_histogram_table_provider_with_marker(
         )
         .with_time_index(true),
         ColumnSchema::new(
-            greptime_native_histogram().to_string(),
+            pulse_native_histogram().to_string(),
             native_histogram_value_type().clone(),
             true,
         ),
@@ -1051,7 +1051,7 @@ async fn build_test_multi_histogram_table_provider(table_name: &str) -> DfTableS
         )
         .with_time_index(true),
         ColumnSchema::new(
-            greptime_native_histogram().to_string(),
+            pulse_native_histogram().to_string(),
             native_histogram_value_type().clone(),
             true,
         ),
@@ -1129,12 +1129,12 @@ async fn build_test_mixed_native_histogram_table_provider_with_marker(
         )
         .with_time_index(true),
         ColumnSchema::new(
-            greptime_native_histogram().to_string(),
+            pulse_native_histogram().to_string(),
             native_histogram_value_type().clone(),
             true,
         ),
         ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ),
@@ -1158,8 +1158,8 @@ async fn build_test_mixed_native_histogram_table_provider_with_marker(
         vec![Arc::new(StringArray::from(vec!["float", "histogram"]))];
     if temporality_marker {
         arrays.push(Arc::new(StringArray::from(vec![
-            Some(GREPTIME_TEMPORALITY_DELTA),
-            Some(GREPTIME_TEMPORALITY_DELTA),
+            Some(PULSE_TEMPORALITY_DELTA),
+            Some(PULSE_TEMPORALITY_DELTA),
         ])));
     }
     arrays.extend([
@@ -1168,9 +1168,9 @@ async fn build_test_mixed_native_histogram_table_provider_with_marker(
         Arc::new(Float64Array::from(vec![Some(2.0), None])),
     ]);
     let batch = RecordBatch::try_new(schema.arrow_schema().clone(), arrays).unwrap();
-    let backing = GreptimeMemTable::new_with_catalog(
+    let backing = PulseMemTable::new_with_catalog(
         table_name,
-        GreptimeRecordBatch::from_df_record_batch(schema, batch),
+        PulseRecordBatch::from_df_record_batch(schema, batch),
         1024,
         DEFAULT_CATALOG_NAME.to_string(),
         DEFAULT_SCHEMA_NAME.to_string(),
@@ -1229,12 +1229,12 @@ fn classic_and_native_histogram_table_provider(
         )
         .with_time_index(true),
         ColumnSchema::new(
-            greptime_native_histogram().to_string(),
+            pulse_native_histogram().to_string(),
             native_histogram_value_type().clone(),
             true,
         ),
         ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ),
@@ -1289,9 +1289,9 @@ fn classic_and_native_histogram_table_provider(
         ],
     )
     .unwrap();
-    let backing = GreptimeMemTable::new_with_catalog(
+    let backing = PulseMemTable::new_with_catalog(
         table_name,
-        GreptimeRecordBatch::from_df_record_batch(schema, batch),
+        PulseRecordBatch::from_df_record_batch(schema, batch),
         2_200,
         DEFAULT_CATALOG_NAME.to_string(),
         DEFAULT_SCHEMA_NAME.to_string(),
@@ -1520,14 +1520,14 @@ async fn build_test_table_provider_with_fields(
         }
         columns.push(
             ColumnSchema::new(
-                greptime_timestamp().to_string(),
+                pulse_timestamp().to_string(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
             .with_time_index(true),
         );
         columns.push(ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ));
@@ -4062,10 +4062,7 @@ async fn indie_query_plan(query: &str) -> String {
     let table_provider = build_test_table_provider(
         &[
             (DEFAULT_SCHEMA_NAME.to_string(), "some_metric".to_string()),
-            (
-                "greptime_private".to_string(),
-                "some_alt_metric".to_string(),
-            ),
+            ("pulse_private".to_string(), "some_alt_metric".to_string()),
         ],
         1,
         1,
@@ -4286,11 +4283,11 @@ async fn timestamp_filters_stale_marker_from_mixed_sample_companion() {
             false,
         ),
         Field::new(
-            greptime_native_histogram(),
+            pulse_native_histogram(),
             histograms.data_type().clone(),
             true,
         ),
-        Field::new(greptime_value(), ArrowDataType::Float64, true),
+        Field::new(pulse_value(), ArrowDataType::Float64, true),
     ]));
     let batch = RecordBatch::try_new(
         schema.clone(),
@@ -4324,7 +4321,7 @@ async fn timestamp_filters_stale_marker_from_mixed_sample_companion() {
             0,
             "timestamp".to_string(),
             Vec::new(),
-            Some(greptime_native_histogram().to_string()),
+            Some(pulse_native_histogram().to_string()),
             input,
         )),
     });
@@ -4375,7 +4372,7 @@ async fn mixed_native_histogram_quantile_uses_histogram_field() {
     .to_string();
 
     assert!(
-        plan.contains("prom_native_histogram_quantile(greptime_native_histogram"),
+        plan.contains("prom_native_histogram_quantile(pulse_native_histogram"),
         "{plan}"
     );
     assert!(!plan.contains("EmptyRelation"), "{plan}");
@@ -4673,7 +4670,7 @@ async fn native_histogram_value_sort_is_empty_but_label_sort_preserves_samples()
 
         assert!(plan.contains("Float64(NULL) IS NOT NULL"), "{plan}");
         assert!(
-            !plan.contains(&format!("Sort: {}", greptime_native_histogram())),
+            !plan.contains(&format!("Sort: {}", pulse_native_histogram())),
             "{plan}"
         );
         assert!(!plan.contains("prom_native_histogram_drop"), "{plan}");
@@ -4683,7 +4680,7 @@ async fn native_histogram_value_sort_is_empty_but_label_sort_preserves_samples()
         let plan = native_histogram_plan(&format!("{function}(some_metric, \"tag_0\")")).await;
 
         assert!(plan.contains(&format!("tag_0 {direction}")), "{plan}");
-        assert!(plan.contains(greptime_native_histogram()), "{plan}");
+        assert!(plan.contains(pulse_native_histogram()), "{plan}");
         assert!(!plan.contains("Float64(NULL) IS NOT NULL"), "{plan}");
     }
 }
@@ -4874,19 +4871,19 @@ async fn mixed_native_histogram_ranges_use_coordinated_udfs() {
     .unwrap()
     .display_indent_schema()
     .to_string();
-    let expected = r#"Filter: greptime_value IS NOT NULL OR greptime_native_histogram IS NOT NULL [timestamp:Timestamp(ms), greptime_value:Float64;N, greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
-  Projection: some_metric.timestamp, prom_mixed_range_float(Utf8("sum_over_time"), timestamp_range, greptime_value, greptime_native_histogram) AS greptime_value, prom_mixed_range_histogram(Utf8("sum_over_time"), timestamp_range, greptime_value, greptime_native_histogram) AS greptime_native_histogram, some_metric.tag_0 [timestamp:Timestamp(ms), greptime_value:Float64;N, greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
-    PromRangeManipulate: req range=[0..100000000], interval=[5000], eval range=[600000], time index=[timestamp], values=["greptime_value", "greptime_native_histogram"] [timestamp:Timestamp(ms), greptime_value:Dictionary(Int64, Float64);N, greptime_native_histogram:Dictionary(Int64, Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64)));N, tag_0:Utf8, timestamp_range:Dictionary(Int64, Timestamp(ms))]
-      PromSeriesDivide: tags=["tag_0"] [timestamp:Timestamp(ms), greptime_value:Float64;N, greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
-        Sort: some_metric.tag_0 ASC NULLS FIRST, some_metric.timestamp ASC NULLS FIRST [timestamp:Timestamp(ms), greptime_value:Float64;N, greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
-          Filter: greptime_value IS NOT NULL OR greptime_native_histogram IS NOT NULL [timestamp:Timestamp(ms), greptime_value:Float64;N, greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
-            Projection: some_metric.timestamp, prom_mixed_range_float(Utf8("rate"), timestamp_range, greptime_value, greptime_native_histogram, some_metric.timestamp, Int64(300000)) AS greptime_value, prom_mixed_range_histogram(Utf8("rate"), timestamp_range, greptime_value, greptime_native_histogram, some_metric.timestamp, Int64(300000)) AS greptime_native_histogram, some_metric.tag_0 [timestamp:Timestamp(ms), greptime_value:Float64;N, greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
-              PromRangeManipulate: req range=[-540000..100000000], interval=[60000], eval range=[300000], time index=[timestamp], values=["greptime_native_histogram", "greptime_value"] [tag_0:Utf8, timestamp:Timestamp(ms), greptime_native_histogram:Dictionary(Int64, Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64)));N, greptime_value:Dictionary(Int64, Float64);N, timestamp_range:Dictionary(Int64, Timestamp(ms))]
-                PromSeriesNormalize: offset=[0], time index=[timestamp], filter NaN: [true] [tag_0:Utf8, timestamp:Timestamp(ms), greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, greptime_value:Float64;N]
-                  PromSeriesDivide: tags=["tag_0"] [tag_0:Utf8, timestamp:Timestamp(ms), greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, greptime_value:Float64;N]
-                    Sort: some_metric.tag_0 ASC NULLS FIRST, some_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, greptime_value:Float64;N]
-                      Filter: some_metric.timestamp >= TimestampMillisecond(-839999, None) AND some_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, greptime_value:Float64;N]
-                        TableScan: some_metric [tag_0:Utf8, timestamp:Timestamp(ms), greptime_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, greptime_value:Float64;N]"#;
+    let expected = r#"Filter: pulse_value IS NOT NULL OR pulse_native_histogram IS NOT NULL [timestamp:Timestamp(ms), pulse_value:Float64;N, pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
+  Projection: some_metric.timestamp, prom_mixed_range_float(Utf8("sum_over_time"), timestamp_range, pulse_value, pulse_native_histogram) AS pulse_value, prom_mixed_range_histogram(Utf8("sum_over_time"), timestamp_range, pulse_value, pulse_native_histogram) AS pulse_native_histogram, some_metric.tag_0 [timestamp:Timestamp(ms), pulse_value:Float64;N, pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
+    PromRangeManipulate: req range=[0..100000000], interval=[5000], eval range=[600000], time index=[timestamp], values=["pulse_value", "pulse_native_histogram"] [timestamp:Timestamp(ms), pulse_value:Dictionary(Int64, Float64);N, pulse_native_histogram:Dictionary(Int64, Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64)));N, tag_0:Utf8, timestamp_range:Dictionary(Int64, Timestamp(ms))]
+      PromSeriesDivide: tags=["tag_0"] [timestamp:Timestamp(ms), pulse_value:Float64;N, pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
+        Sort: some_metric.tag_0 ASC NULLS FIRST, some_metric.timestamp ASC NULLS FIRST [timestamp:Timestamp(ms), pulse_value:Float64;N, pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
+          Filter: pulse_value IS NOT NULL OR pulse_native_histogram IS NOT NULL [timestamp:Timestamp(ms), pulse_value:Float64;N, pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
+            Projection: some_metric.timestamp, prom_mixed_range_float(Utf8("rate"), timestamp_range, pulse_value, pulse_native_histogram, some_metric.timestamp, Int64(300000)) AS pulse_value, prom_mixed_range_histogram(Utf8("rate"), timestamp_range, pulse_value, pulse_native_histogram, some_metric.timestamp, Int64(300000)) AS pulse_native_histogram, some_metric.tag_0 [timestamp:Timestamp(ms), pulse_value:Float64;N, pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, tag_0:Utf8]
+              PromRangeManipulate: req range=[-540000..100000000], interval=[60000], eval range=[300000], time index=[timestamp], values=["pulse_native_histogram", "pulse_value"] [tag_0:Utf8, timestamp:Timestamp(ms), pulse_native_histogram:Dictionary(Int64, Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64)));N, pulse_value:Dictionary(Int64, Float64);N, timestamp_range:Dictionary(Int64, Timestamp(ms))]
+                PromSeriesNormalize: offset=[0], time index=[timestamp], filter NaN: [true] [tag_0:Utf8, timestamp:Timestamp(ms), pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, pulse_value:Float64;N]
+                  PromSeriesDivide: tags=["tag_0"] [tag_0:Utf8, timestamp:Timestamp(ms), pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, pulse_value:Float64;N]
+                    Sort: some_metric.tag_0 ASC NULLS FIRST, some_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, pulse_value:Float64;N]
+                      Filter: some_metric.timestamp >= TimestampMillisecond(-839999, None) AND some_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, pulse_value:Float64;N]
+                        TableScan: some_metric [tag_0:Utf8, timestamp:Timestamp(ms), pulse_native_histogram:Struct("schema": Int32, "zero_threshold": Float64, "sum": Float64, "reset_hint": Int32, "start_timestamp": Timestamp(ms), "custom_values": List(Float64), "positive_span_offsets": List(Int32), "positive_span_lengths": List(Int32), "negative_span_offsets": List(Int32), "negative_span_lengths": List(Int32), "count_i64": Int64, "zero_count_i64": Int64, "positive_buckets_i64": List(Int64), "negative_buckets_i64": List(Int64), "count_f64": Float64, "zero_count_f64": Float64, "positive_buckets_f64": List(Float64), "negative_buckets_f64": List(Float64));N, pulse_value:Float64;N]"#;
     assert_eq!(plan, expected);
 }
 
@@ -4905,7 +4902,7 @@ async fn mixed_native_histogram_predict_linear_forwards_the_eval_timestamp() {
 
     assert!(
         plan.contains(
-            "prom_mixed_range_float(Utf8(\"predict_linear\"), timestamp_range, greptime_value, greptime_native_histogram, CAST(Float64(60) AS Int64), CAST(CAST(some_metric.timestamp AS Int64) + Int64(0) AS Timestamp(ms)))"
+            "prom_mixed_range_float(Utf8(\"predict_linear\"), timestamp_range, pulse_value, pulse_native_histogram, CAST(Float64(60) AS Int64), CAST(CAST(some_metric.timestamp AS Int64) + Int64(0) AS Timestamp(ms)))"
         ),
         "{query}\n{plan}"
     );
@@ -4919,9 +4916,9 @@ async fn mixed_native_histogram_rate_executes_real_ranges() {
             ArrowDataType::Timestamp(ArrowTimeUnit::Millisecond, None),
             false,
         ),
-        Field::new(greptime_value(), ArrowDataType::Float64, true),
+        Field::new(pulse_value(), ArrowDataType::Float64, true),
         Field::new(
-            greptime_native_histogram(),
+            pulse_native_histogram(),
             native_histogram_value_type().as_arrow_type(),
             true,
         ),
@@ -4954,8 +4951,8 @@ async fn mixed_native_histogram_rate_executes_real_ranges() {
             range: Some(3000),
             time_index_column: Some("timestamp".to_string()),
             field_columns: vec![
-                greptime_native_histogram().to_string(),
-                greptime_value().to_string(),
+                pulse_native_histogram().to_string(),
+                pulse_value().to_string(),
             ],
             ..Default::default()
         },
@@ -5030,7 +5027,7 @@ async fn native_histogram_mixed_field_table_behaves() {
     );
     assert!(!plan_str.contains("Float64(NULL)"), "{plan_str}");
     assert!(
-        plan_str.contains("prom_native_histogram_count(greptime_native_histogram) IS NOT NULL"),
+        plan_str.contains("prom_native_histogram_count(pulse_native_histogram) IS NOT NULL"),
         "{plan_str}"
     );
 
@@ -5045,11 +5042,11 @@ async fn native_histogram_mixed_field_table_behaves() {
     .unwrap();
     let plan_str = plan.display_indent_schema().to_string();
     assert!(
-        plan_str.contains("greptime_value ASC NULLS FIRST"),
+        plan_str.contains("pulse_value ASC NULLS FIRST"),
         "{plan_str}"
     );
     assert!(
-        !plan_str.contains("greptime_native_histogram ASC"),
+        !plan_str.contains("pulse_native_histogram ASC"),
         "{plan_str}"
     );
 
@@ -5064,10 +5061,7 @@ async fn native_histogram_mixed_field_table_behaves() {
     .unwrap();
     let plan_str = plan.display_indent_schema().to_string();
     assert!(plan_str.contains("ScalarCalculate"), "{plan_str}");
-    assert!(
-        plan_str.contains("greptime_value IS NOT NULL"),
-        "{plan_str}"
-    );
+    assert!(plan_str.contains("pulse_value IS NOT NULL"), "{plan_str}");
 
     // Functions that preserve both alternative fields keep rows with either sample type.
     let table_provider = build_test_mixed_native_histogram_table_provider("some_metric").await;
@@ -5082,9 +5076,9 @@ async fn native_histogram_mixed_field_table_behaves() {
     let filter = plan_str.lines().next().unwrap();
     assert!(
         filter.starts_with("Filter: ")
-            && filter.contains("greptime_native_histogram IS NOT NULL")
+            && filter.contains("pulse_native_histogram IS NOT NULL")
             && filter.contains(" OR ")
-            && filter.contains("greptime_value IS NOT NULL"),
+            && filter.contains("pulse_value IS NOT NULL"),
         "{plan_str}"
     );
 }
@@ -5208,9 +5202,9 @@ async fn build_subquery_offset_probe_provider() -> DfTableSourceProvider {
             ],
         )
         .unwrap();
-        let backing = GreptimeMemTable::new_with_catalog(
+        let backing = PulseMemTable::new_with_catalog(
             name,
-            GreptimeRecordBatch::from_df_record_batch(schema.clone(), batch),
+            PulseRecordBatch::from_df_record_batch(schema.clone(), batch),
             table_id,
             DEFAULT_CATALOG_NAME.to_string(),
             DEFAULT_SCHEMA_NAME.to_string(),
@@ -5925,25 +5919,25 @@ async fn test_hash_join() {
     let plan = PromPlanner::stmt_to_plan(table_provider, &eval_stmt, &build_query_engine_state())
         .await
         .unwrap();
-    let expected = "Projection: http_server_requests_seconds_sum.uri, http_server_requests_seconds_count.greptime_timestamp, CAST(http_server_requests_seconds_sum.greptime_value AS Float64) / CAST(http_server_requests_seconds_count.greptime_value AS Float64) AS http_server_requests_seconds_sum.greptime_value / http_server_requests_seconds_count.greptime_value\
-            \n  Projection: http_server_requests_seconds_sum.uri, http_server_requests_seconds_sum.kubernetes_namespace, http_server_requests_seconds_sum.kubernetes_pod_name, http_server_requests_seconds_sum.greptime_timestamp, http_server_requests_seconds_sum.greptime_value, http_server_requests_seconds_count.uri, http_server_requests_seconds_count.kubernetes_namespace, http_server_requests_seconds_count.kubernetes_pod_name, http_server_requests_seconds_count.greptime_timestamp, http_server_requests_seconds_count.greptime_value\
+    let expected = "Projection: http_server_requests_seconds_sum.uri, http_server_requests_seconds_count.pulse_timestamp, CAST(http_server_requests_seconds_sum.pulse_value AS Float64) / CAST(http_server_requests_seconds_count.pulse_value AS Float64) AS http_server_requests_seconds_sum.pulse_value / http_server_requests_seconds_count.pulse_value\
+            \n  Projection: http_server_requests_seconds_sum.uri, http_server_requests_seconds_sum.kubernetes_namespace, http_server_requests_seconds_sum.kubernetes_pod_name, http_server_requests_seconds_sum.pulse_timestamp, http_server_requests_seconds_sum.pulse_value, http_server_requests_seconds_count.uri, http_server_requests_seconds_count.kubernetes_namespace, http_server_requests_seconds_count.kubernetes_pod_name, http_server_requests_seconds_count.pulse_timestamp, http_server_requests_seconds_count.pulse_value\
             \n    Filter: prom_assert_unique_match_group(__promql_match_group_count, http_server_requests_seconds_sum.uri)\
-            \n      WindowAggr: windowExpr=[[count(Int64(1)) PARTITION BY [http_server_requests_seconds_sum.uri, http_server_requests_seconds_sum.greptime_timestamp] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS __promql_match_group_count]]\
-            \n        Inner Join: http_server_requests_seconds_sum.greptime_timestamp = http_server_requests_seconds_count.greptime_timestamp, http_server_requests_seconds_sum.uri = http_server_requests_seconds_count.uri\
+            \n      WindowAggr: windowExpr=[[count(Int64(1)) PARTITION BY [http_server_requests_seconds_sum.uri, http_server_requests_seconds_sum.pulse_timestamp] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS __promql_match_group_count]]\
+            \n        Inner Join: http_server_requests_seconds_sum.pulse_timestamp = http_server_requests_seconds_count.pulse_timestamp, http_server_requests_seconds_sum.uri = http_server_requests_seconds_count.uri\
             \n          SubqueryAlias: http_server_requests_seconds_sum\
-            \n            PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[greptime_timestamp]\
+            \n            PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[pulse_timestamp]\
             \n              PromSeriesDivide: tags=[\"uri\", \"kubernetes_namespace\", \"kubernetes_pod_name\"]\
-            \n                Sort: http_server_requests_seconds_sum.uri ASC NULLS FIRST, http_server_requests_seconds_sum.kubernetes_namespace ASC NULLS FIRST, http_server_requests_seconds_sum.kubernetes_pod_name ASC NULLS FIRST, http_server_requests_seconds_sum.greptime_timestamp ASC NULLS FIRST\
-            \n                  Filter: http_server_requests_seconds_sum.uri = Utf8(\"/accounts/login\") AND http_server_requests_seconds_sum.greptime_timestamp >= TimestampMillisecond(-999, None) AND http_server_requests_seconds_sum.greptime_timestamp <= TimestampMillisecond(100000000, None)\
+            \n                Sort: http_server_requests_seconds_sum.uri ASC NULLS FIRST, http_server_requests_seconds_sum.kubernetes_namespace ASC NULLS FIRST, http_server_requests_seconds_sum.kubernetes_pod_name ASC NULLS FIRST, http_server_requests_seconds_sum.pulse_timestamp ASC NULLS FIRST\
+            \n                  Filter: http_server_requests_seconds_sum.uri = Utf8(\"/accounts/login\") AND http_server_requests_seconds_sum.pulse_timestamp >= TimestampMillisecond(-999, None) AND http_server_requests_seconds_sum.pulse_timestamp <= TimestampMillisecond(100000000, None)\
             \n                    TableScan: http_server_requests_seconds_sum\
             \n          SubqueryAlias: http_server_requests_seconds_count\
-            \n            Projection: http_server_requests_seconds_count.uri, http_server_requests_seconds_count.kubernetes_namespace, http_server_requests_seconds_count.kubernetes_pod_name, http_server_requests_seconds_count.greptime_timestamp, http_server_requests_seconds_count.greptime_value\
+            \n            Projection: http_server_requests_seconds_count.uri, http_server_requests_seconds_count.kubernetes_namespace, http_server_requests_seconds_count.kubernetes_pod_name, http_server_requests_seconds_count.pulse_timestamp, http_server_requests_seconds_count.pulse_value\
             \n              Filter: prom_assert_unique_match_group(__promql_match_group_count, http_server_requests_seconds_count.uri)\
-            \n                WindowAggr: windowExpr=[[count(Int64(1)) PARTITION BY [http_server_requests_seconds_count.uri, http_server_requests_seconds_count.greptime_timestamp] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS __promql_match_group_count]]\
-            \n                  PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[greptime_timestamp]\
+            \n                WindowAggr: windowExpr=[[count(Int64(1)) PARTITION BY [http_server_requests_seconds_count.uri, http_server_requests_seconds_count.pulse_timestamp] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS __promql_match_group_count]]\
+            \n                  PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[pulse_timestamp]\
             \n                    PromSeriesDivide: tags=[\"uri\", \"kubernetes_namespace\", \"kubernetes_pod_name\"]\
-            \n                      Sort: http_server_requests_seconds_count.uri ASC NULLS FIRST, http_server_requests_seconds_count.kubernetes_namespace ASC NULLS FIRST, http_server_requests_seconds_count.kubernetes_pod_name ASC NULLS FIRST, http_server_requests_seconds_count.greptime_timestamp ASC NULLS FIRST\
-            \n                        Filter: http_server_requests_seconds_count.uri = Utf8(\"/accounts/login\") AND http_server_requests_seconds_count.greptime_timestamp >= TimestampMillisecond(-999, None) AND http_server_requests_seconds_count.greptime_timestamp <= TimestampMillisecond(100000000, None)\
+            \n                      Sort: http_server_requests_seconds_count.uri ASC NULLS FIRST, http_server_requests_seconds_count.kubernetes_namespace ASC NULLS FIRST, http_server_requests_seconds_count.kubernetes_pod_name ASC NULLS FIRST, http_server_requests_seconds_count.pulse_timestamp ASC NULLS FIRST\
+            \n                        Filter: http_server_requests_seconds_count.uri = Utf8(\"/accounts/login\") AND http_server_requests_seconds_count.pulse_timestamp >= TimestampMillisecond(-999, None) AND http_server_requests_seconds_count.pulse_timestamp <= TimestampMillisecond(100000000, None)\
             \n                          TableScan: http_server_requests_seconds_count";
     assert_eq!(plan.to_string(), expected);
 }
@@ -5960,14 +5954,14 @@ async fn test_nested_histogram_quantile() {
         lookback_delta: Duration::from_secs(1),
     };
 
-    let case = r#"label_replace(histogram_quantile(0.99, sum by(pod, le, path, code) (rate(greptime_servers_grpc_requests_elapsed_bucket{container="frontend"}[1m0s]))), "pod_new", "$1", "pod", "greptimedb-frontend-[0-9a-z]*-(.*)")"#;
+    let case = r#"label_replace(histogram_quantile(0.99, sum by(pod, le, path, code) (rate(pulse_servers_grpc_requests_elapsed_bucket{container="frontend"}[1m0s]))), "pod_new", "$1", "pod", "pulse-frontend-[0-9a-z]*-(.*)")"#;
 
     let prom_expr = parser::parse(case).unwrap();
     eval_stmt.expr = prom_expr;
     let table_provider = build_test_table_provider_with_fields(
         &[(
             DEFAULT_SCHEMA_NAME.to_string(),
-            "greptime_servers_grpc_requests_elapsed_bucket".to_string(),
+            "pulse_servers_grpc_requests_elapsed_bucket".to_string(),
         )],
         &["pod", "le", "path", "code", "container"],
     )
@@ -6330,38 +6324,38 @@ async fn value_matcher() {
 
 #[tokio::test]
 async fn custom_schema() {
-    let query = "some_alt_metric{__schema__=\"greptime_private\"}";
+    let query = "some_alt_metric{__schema__=\"pulse_private\"}";
     let expected = String::from(
         "PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[timestamp] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n  PromSeriesDivide: tags=[\"tag_0\"] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n    Sort: greptime_private.some_alt_metric.tag_0 ASC NULLS FIRST, greptime_private.some_alt_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n      Filter: greptime_private.some_alt_metric.timestamp >= TimestampMillisecond(-999, None) AND greptime_private.some_alt_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n        TableScan: greptime_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]",
+            \n    Sort: pulse_private.some_alt_metric.tag_0 ASC NULLS FIRST, pulse_private.some_alt_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n      Filter: pulse_private.some_alt_metric.timestamp >= TimestampMillisecond(-999, None) AND pulse_private.some_alt_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n        TableScan: pulse_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]",
     );
 
     indie_query_plan_compare(query, expected).await;
 
-    let query = "some_alt_metric{__database__=\"greptime_private\"}";
+    let query = "some_alt_metric{__database__=\"pulse_private\"}";
     let expected = String::from(
         "PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[timestamp] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n  PromSeriesDivide: tags=[\"tag_0\"] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n    Sort: greptime_private.some_alt_metric.tag_0 ASC NULLS FIRST, greptime_private.some_alt_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n      Filter: greptime_private.some_alt_metric.timestamp >= TimestampMillisecond(-999, None) AND greptime_private.some_alt_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n        TableScan: greptime_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]",
+            \n    Sort: pulse_private.some_alt_metric.tag_0 ASC NULLS FIRST, pulse_private.some_alt_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n      Filter: pulse_private.some_alt_metric.timestamp >= TimestampMillisecond(-999, None) AND pulse_private.some_alt_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n        TableScan: pulse_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]",
     );
 
     indie_query_plan_compare(query, expected).await;
 
-    let query = "some_alt_metric{__schema__=\"greptime_private\"} / some_metric";
+    let query = "some_alt_metric{__schema__=\"pulse_private\"} / some_metric";
     let expected = String::from(
-        "Projection: some_metric.tag_0, some_metric.timestamp, CAST(greptime_private.some_alt_metric.field_0 AS Float64) / CAST(some_metric.field_0 AS Float64) AS greptime_private.some_alt_metric.field_0 / some_metric.field_0 [tag_0:Utf8, timestamp:Timestamp(ms), greptime_private.some_alt_metric.field_0 / some_metric.field_0:Float64;N]\
-            \n  Inner Join: greptime_private.some_alt_metric.tag_0 = some_metric.tag_0, greptime_private.some_alt_metric.timestamp = some_metric.timestamp [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N, tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n    SubqueryAlias: greptime_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+        "Projection: some_metric.tag_0, some_metric.timestamp, CAST(pulse_private.some_alt_metric.field_0 AS Float64) / CAST(some_metric.field_0 AS Float64) AS pulse_private.some_alt_metric.field_0 / some_metric.field_0 [tag_0:Utf8, timestamp:Timestamp(ms), pulse_private.some_alt_metric.field_0 / some_metric.field_0:Float64;N]\
+            \n  Inner Join: pulse_private.some_alt_metric.tag_0 = some_metric.tag_0, pulse_private.some_alt_metric.timestamp = some_metric.timestamp [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N, tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n    SubqueryAlias: pulse_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n      PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[timestamp] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n        PromSeriesDivide: tags=[\"tag_0\"] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n          Sort: greptime_private.some_alt_metric.tag_0 ASC NULLS FIRST, greptime_private.some_alt_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n            Filter: greptime_private.some_alt_metric.timestamp >= TimestampMillisecond(-999, None) AND greptime_private.some_alt_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
-            \n              TableScan: greptime_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n          Sort: pulse_private.some_alt_metric.tag_0 ASC NULLS FIRST, pulse_private.some_alt_metric.timestamp ASC NULLS FIRST [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n            Filter: pulse_private.some_alt_metric.timestamp >= TimestampMillisecond(-999, None) AND pulse_private.some_alt_metric.timestamp <= TimestampMillisecond(100000000, None) [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
+            \n              TableScan: pulse_private.some_alt_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n    SubqueryAlias: some_metric [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n      PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[timestamp] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
             \n        PromSeriesDivide: tags=[\"tag_0\"] [tag_0:Utf8, timestamp:Timestamp(ms), field_0:Float64;N]\
@@ -6376,9 +6370,9 @@ async fn custom_schema() {
 #[tokio::test]
 async fn only_equals_is_supported_for_special_matcher() {
     let queries = &[
-        "some_alt_metric{__schema__!=\"greptime_private\"}",
+        "some_alt_metric{__schema__!=\"pulse_private\"}",
         "some_alt_metric{__schema__=~\"lalala\"}",
-        "some_alt_metric{__database__!=\"greptime_private\"}",
+        "some_alt_metric{__database__!=\"pulse_private\"}",
         "some_alt_metric{__database__=~\"lalala\"}",
     ];
 
@@ -6397,10 +6391,7 @@ async fn only_equals_is_supported_for_special_matcher() {
         let table_provider = build_test_table_provider(
             &[
                 (DEFAULT_SCHEMA_NAME.to_string(), "some_metric".to_string()),
-                (
-                    "greptime_private".to_string(),
-                    "some_alt_metric".to_string(),
-                ),
+                ("pulse_private".to_string(), "some_alt_metric".to_string()),
             ],
             1,
             1,
@@ -6807,17 +6798,17 @@ async fn test_topk_expr() {
     let plan = PromPlanner::stmt_to_plan(table_provider, &eval_stmt, &build_query_engine_state())
         .await
         .unwrap();
-    let expected = "Projection: sum(prometheus_tsdb_head_series.greptime_value), prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp [sum(prometheus_tsdb_head_series.greptime_value):Float64;N, ip:Utf8, greptime_timestamp:Timestamp(ms)]\
-        \n  Sort: prometheus_tsdb_head_series.greptime_timestamp ASC NULLS LAST, row_number() PARTITION BY [prometheus_tsdb_head_series.greptime_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.greptime_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.greptime_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ASC NULLS LAST [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N, row_number() PARTITION BY [prometheus_tsdb_head_series.greptime_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.greptime_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.greptime_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64]\
-        \n    Filter: row_number() PARTITION BY [prometheus_tsdb_head_series.greptime_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.greptime_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.greptime_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Float64(10) [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N, row_number() PARTITION BY [prometheus_tsdb_head_series.greptime_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.greptime_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.greptime_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64]\
-        \n      WindowAggr: windowExpr=[[row_number() PARTITION BY [prometheus_tsdb_head_series.greptime_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.greptime_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.greptime_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N, row_number() PARTITION BY [prometheus_tsdb_head_series.greptime_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.greptime_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.greptime_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64]\
-        \n        Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS LAST [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N]\
-        \n          Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp]], aggr=[[sum(prometheus_tsdb_head_series.greptime_value)]] [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N]\
-        \n            PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[greptime_timestamp] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n              PromSeriesDivide: tags=[\"ip\"] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n                Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS FIRST [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n                  Filter: prometheus_tsdb_head_series.ip ~ Utf8(\"^(?:(10.0.160.237:8080|10.0.160.237:9090))$\") AND prometheus_tsdb_head_series.greptime_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.greptime_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n                    TableScan: prometheus_tsdb_head_series [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]";
+    let expected = "Projection: sum(prometheus_tsdb_head_series.pulse_value), prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp [sum(prometheus_tsdb_head_series.pulse_value):Float64;N, ip:Utf8, pulse_timestamp:Timestamp(ms)]\
+        \n  Sort: prometheus_tsdb_head_series.pulse_timestamp ASC NULLS LAST, row_number() PARTITION BY [prometheus_tsdb_head_series.pulse_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.pulse_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.pulse_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ASC NULLS LAST [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N, row_number() PARTITION BY [prometheus_tsdb_head_series.pulse_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.pulse_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.pulse_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64]\
+        \n    Filter: row_number() PARTITION BY [prometheus_tsdb_head_series.pulse_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.pulse_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.pulse_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Float64(10) [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N, row_number() PARTITION BY [prometheus_tsdb_head_series.pulse_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.pulse_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.pulse_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64]\
+        \n      WindowAggr: windowExpr=[[row_number() PARTITION BY [prometheus_tsdb_head_series.pulse_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.pulse_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.pulse_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N, row_number() PARTITION BY [prometheus_tsdb_head_series.pulse_timestamp] ORDER BY [isnan(sum(prometheus_tsdb_head_series.pulse_value)) ASC NULLS FIRST, sum(prometheus_tsdb_head_series.pulse_value) DESC NULLS FIRST, prometheus_tsdb_head_series.ip DESC NULLS FIRST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64]\
+        \n        Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS LAST [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N]\
+        \n          Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp]], aggr=[[sum(prometheus_tsdb_head_series.pulse_value)]] [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N]\
+        \n            PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[pulse_timestamp] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n              PromSeriesDivide: tags=[\"ip\"] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n                Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS FIRST [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n                  Filter: prometheus_tsdb_head_series.ip ~ Utf8(\"^(?:(10.0.160.237:8080|10.0.160.237:9090))$\") AND prometheus_tsdb_head_series.pulse_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.pulse_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n                    TableScan: prometheus_tsdb_head_series [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]";
 
     assert_eq!(plan.display_indent_schema().to_string(), expected);
 }
@@ -6855,14 +6846,14 @@ async fn test_count_values_expr() {
     let plan = PromPlanner::stmt_to_plan(table_provider, &eval_stmt, &build_query_engine_state())
         .await
         .unwrap();
-    let expected = "Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS LAST, prometheus_tsdb_head_series.series ASC NULLS LAST [count(prometheus_tsdb_head_series.greptime_value):Int64, ip:Utf8, greptime_timestamp:Timestamp(ms), series:Utf8;N]\
-        \n  Projection: count(prometheus_tsdb_head_series.greptime_value), prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp, prom_float_to_string(prometheus_tsdb_head_series.greptime_value) AS series [count(prometheus_tsdb_head_series.greptime_value):Int64, ip:Utf8, greptime_timestamp:Timestamp(ms), series:Utf8;N]\
-        \n    Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp, prom_float_to_string(prometheus_tsdb_head_series.greptime_value)]], aggr=[[count(prometheus_tsdb_head_series.greptime_value)]] [ip:Utf8, greptime_timestamp:Timestamp(ms), prom_float_to_string(prometheus_tsdb_head_series.greptime_value):Utf8;N, count(prometheus_tsdb_head_series.greptime_value):Int64]\
-        \n      PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[greptime_timestamp] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n        PromSeriesDivide: tags=[\"ip\"] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n          Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS FIRST [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n            Filter: prometheus_tsdb_head_series.ip ~ Utf8(\"^(?:(10.0.160.237:8080|10.0.160.237:9090))$\") AND prometheus_tsdb_head_series.greptime_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.greptime_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n              TableScan: prometheus_tsdb_head_series [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]";
+    let expected = "Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS LAST, prometheus_tsdb_head_series.series ASC NULLS LAST [count(prometheus_tsdb_head_series.pulse_value):Int64, ip:Utf8, pulse_timestamp:Timestamp(ms), series:Utf8;N]\
+        \n  Projection: count(prometheus_tsdb_head_series.pulse_value), prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp, prom_float_to_string(prometheus_tsdb_head_series.pulse_value) AS series [count(prometheus_tsdb_head_series.pulse_value):Int64, ip:Utf8, pulse_timestamp:Timestamp(ms), series:Utf8;N]\
+        \n    Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp, prom_float_to_string(prometheus_tsdb_head_series.pulse_value)]], aggr=[[count(prometheus_tsdb_head_series.pulse_value)]] [ip:Utf8, pulse_timestamp:Timestamp(ms), prom_float_to_string(prometheus_tsdb_head_series.pulse_value):Utf8;N, count(prometheus_tsdb_head_series.pulse_value):Int64]\
+        \n      PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[pulse_timestamp] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n        PromSeriesDivide: tags=[\"ip\"] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n          Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS FIRST [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n            Filter: prometheus_tsdb_head_series.ip ~ Utf8(\"^(?:(10.0.160.237:8080|10.0.160.237:9090))$\") AND prometheus_tsdb_head_series.pulse_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.pulse_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n              TableScan: prometheus_tsdb_head_series [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]";
 
     assert_eq!(plan.display_indent_schema().to_string(), expected);
 }
@@ -6902,15 +6893,15 @@ async fn test_value_alias() {
         .await
         .unwrap();
     let expected = r#"
-Projection: count(prometheus_tsdb_head_series.greptime_value) AS my_series, prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.series, prometheus_tsdb_head_series.greptime_timestamp [my_series:Int64, ip:Utf8, series:Utf8;N, greptime_timestamp:Timestamp(ms)]
-  Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS LAST, prometheus_tsdb_head_series.series ASC NULLS LAST [count(prometheus_tsdb_head_series.greptime_value):Int64, ip:Utf8, greptime_timestamp:Timestamp(ms), series:Utf8;N]
-    Projection: count(prometheus_tsdb_head_series.greptime_value), prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp, prom_float_to_string(prometheus_tsdb_head_series.greptime_value) AS series [count(prometheus_tsdb_head_series.greptime_value):Int64, ip:Utf8, greptime_timestamp:Timestamp(ms), series:Utf8;N]
-      Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp, prom_float_to_string(prometheus_tsdb_head_series.greptime_value)]], aggr=[[count(prometheus_tsdb_head_series.greptime_value)]] [ip:Utf8, greptime_timestamp:Timestamp(ms), prom_float_to_string(prometheus_tsdb_head_series.greptime_value):Utf8;N, count(prometheus_tsdb_head_series.greptime_value):Int64]
-        PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[greptime_timestamp] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]
-          PromSeriesDivide: tags=["ip"] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]
-            Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS FIRST [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]
-              Filter: prometheus_tsdb_head_series.ip ~ Utf8("^(?:(10.0.160.237:8080|10.0.160.237:9090))$") AND prometheus_tsdb_head_series.greptime_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.greptime_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]
-                TableScan: prometheus_tsdb_head_series [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]"#;
+Projection: count(prometheus_tsdb_head_series.pulse_value) AS my_series, prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.series, prometheus_tsdb_head_series.pulse_timestamp [my_series:Int64, ip:Utf8, series:Utf8;N, pulse_timestamp:Timestamp(ms)]
+  Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS LAST, prometheus_tsdb_head_series.series ASC NULLS LAST [count(prometheus_tsdb_head_series.pulse_value):Int64, ip:Utf8, pulse_timestamp:Timestamp(ms), series:Utf8;N]
+    Projection: count(prometheus_tsdb_head_series.pulse_value), prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp, prom_float_to_string(prometheus_tsdb_head_series.pulse_value) AS series [count(prometheus_tsdb_head_series.pulse_value):Int64, ip:Utf8, pulse_timestamp:Timestamp(ms), series:Utf8;N]
+      Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp, prom_float_to_string(prometheus_tsdb_head_series.pulse_value)]], aggr=[[count(prometheus_tsdb_head_series.pulse_value)]] [ip:Utf8, pulse_timestamp:Timestamp(ms), prom_float_to_string(prometheus_tsdb_head_series.pulse_value):Utf8;N, count(prometheus_tsdb_head_series.pulse_value):Int64]
+        PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[pulse_timestamp] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]
+          PromSeriesDivide: tags=["ip"] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]
+            Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS FIRST [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]
+              Filter: prometheus_tsdb_head_series.ip ~ Utf8("^(?:(10.0.160.237:8080|10.0.160.237:9090))$") AND prometheus_tsdb_head_series.pulse_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.pulse_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]
+                TableScan: prometheus_tsdb_head_series [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]"#;
     assert_eq!(format!("\n{}", plan.display_indent_schema()), expected);
 }
 
@@ -6947,15 +6938,15 @@ async fn test_quantile_expr() {
     let plan = PromPlanner::stmt_to_plan(table_provider, &eval_stmt, &build_query_engine_state())
         .await
         .unwrap();
-    let expected = "Sort: prometheus_tsdb_head_series.greptime_timestamp ASC NULLS LAST [greptime_timestamp:Timestamp(ms), quantile(Float64(0.3),sum(prometheus_tsdb_head_series.greptime_value)):Float64;N]\
-        \n  Aggregate: groupBy=[[prometheus_tsdb_head_series.greptime_timestamp]], aggr=[[quantile(Float64(0.3), sum(prometheus_tsdb_head_series.greptime_value))]] [greptime_timestamp:Timestamp(ms), quantile(Float64(0.3),sum(prometheus_tsdb_head_series.greptime_value)):Float64;N]\
-        \n    Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS LAST [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N]\
-        \n      Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.greptime_timestamp]], aggr=[[sum(prometheus_tsdb_head_series.greptime_value)]] [ip:Utf8, greptime_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.greptime_value):Float64;N]\
-        \n        PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[greptime_timestamp] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n          PromSeriesDivide: tags=[\"ip\"] [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n            Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.greptime_timestamp ASC NULLS FIRST [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n              Filter: prometheus_tsdb_head_series.ip ~ Utf8(\"^(?:(10.0.160.237:8080|10.0.160.237:9090))$\") AND prometheus_tsdb_head_series.greptime_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.greptime_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]\
-        \n                TableScan: prometheus_tsdb_head_series [ip:Utf8, greptime_timestamp:Timestamp(ms), greptime_value:Float64;N]";
+    let expected = "Sort: prometheus_tsdb_head_series.pulse_timestamp ASC NULLS LAST [pulse_timestamp:Timestamp(ms), quantile(Float64(0.3),sum(prometheus_tsdb_head_series.pulse_value)):Float64;N]\
+        \n  Aggregate: groupBy=[[prometheus_tsdb_head_series.pulse_timestamp]], aggr=[[quantile(Float64(0.3), sum(prometheus_tsdb_head_series.pulse_value))]] [pulse_timestamp:Timestamp(ms), quantile(Float64(0.3),sum(prometheus_tsdb_head_series.pulse_value)):Float64;N]\
+        \n    Sort: prometheus_tsdb_head_series.ip ASC NULLS LAST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS LAST [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N]\
+        \n      Aggregate: groupBy=[[prometheus_tsdb_head_series.ip, prometheus_tsdb_head_series.pulse_timestamp]], aggr=[[sum(prometheus_tsdb_head_series.pulse_value)]] [ip:Utf8, pulse_timestamp:Timestamp(ms), sum(prometheus_tsdb_head_series.pulse_value):Float64;N]\
+        \n        PromInstantManipulate: range=[0..100000000], lookback=[1000], interval=[5000], time index=[pulse_timestamp] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n          PromSeriesDivide: tags=[\"ip\"] [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n            Sort: prometheus_tsdb_head_series.ip ASC NULLS FIRST, prometheus_tsdb_head_series.pulse_timestamp ASC NULLS FIRST [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n              Filter: prometheus_tsdb_head_series.ip ~ Utf8(\"^(?:(10.0.160.237:8080|10.0.160.237:9090))$\") AND prometheus_tsdb_head_series.pulse_timestamp >= TimestampMillisecond(-999, None) AND prometheus_tsdb_head_series.pulse_timestamp <= TimestampMillisecond(100000000, None) [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]\
+        \n                TableScan: prometheus_tsdb_head_series [ip:Utf8, pulse_timestamp:Timestamp(ms), pulse_value:Float64;N]";
 
     assert_eq!(plan.display_indent_schema().to_string(), expected);
 }
@@ -7498,14 +7489,14 @@ async fn build_test_table_provider_with_string_field(
             .collect::<Vec<_>>();
         columns.push(
             ColumnSchema::new(
-                greptime_timestamp().to_string(),
+                pulse_timestamp().to_string(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
             .with_time_index(true),
         );
         columns.push(ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ));
@@ -7617,7 +7608,7 @@ async fn binary_matching_label_filter_skips_selecting_aggregations() {
 
 #[tokio::test]
 async fn binary_value_field_matcher_stays_on_its_own_operand() {
-    let value = greptime_value();
+    let value = pulse_value();
     for query in [
         format!(r#"metric_a / metric_b{{{value}="2"}}"#),
         format!(r#"metric_a / on(host, device, {value}) metric_b{{{value}="2"}}"#),
@@ -8079,14 +8070,14 @@ async fn test_mixed_fields_arithmetic_broadcasts_computed_scalar() {
     let schema = plan.schema();
     assert_eq!(
         schema
-            .field_with_unqualified_name(greptime_value())
+            .field_with_unqualified_name(pulse_value())
             .unwrap()
             .data_type(),
         &ArrowDataType::Float64
     );
     assert_eq!(
         schema
-            .field_with_unqualified_name(greptime_native_histogram())
+            .field_with_unqualified_name(pulse_native_histogram())
             .unwrap()
             .data_type(),
         &native_histogram_value_type().as_arrow_type()
@@ -8484,7 +8475,7 @@ async fn test_mixed_or_value_aliases_do_not_replace_labels() {
         vec![
             ("job", Some("job")),
             ("k", Some("histogram")),
-            (greptime_value(), Some("value-label")),
+            (pulse_value(), Some("value-label")),
         ],
         DirectOrValue::NativeHistogram(direct_or_histogram()),
     );
@@ -8503,13 +8494,13 @@ async fn test_mixed_or_value_aliases_do_not_replace_labels() {
             col("ts"),
             col("job"),
             col("k"),
-            col("v").alias(greptime_value()),
+            col("v").alias(pulse_value()),
         ])
         .unwrap()
         .build()
         .unwrap();
-    let left_context = direct_or_context("lhs", &["job", "k"], greptime_value());
-    let right_context = direct_or_context("rhs", &["job", "k", greptime_value()], "v");
+    let left_context = direct_or_context("lhs", &["job", "k"], pulse_value());
+    let right_context = direct_or_context("rhs", &["job", "k", pulse_value()], "v");
     let plan = planner
         .or_operator(
             left,
@@ -8524,7 +8515,7 @@ async fn test_mixed_or_value_aliases_do_not_replace_labels() {
 
     assert_eq!(
         plan.schema()
-            .field_with_name(None, greptime_value())
+            .field_with_name(None, pulse_value())
             .unwrap()
             .data_type(),
         &ArrowDataType::Utf8
@@ -8534,7 +8525,7 @@ async fn test_mixed_or_value_aliases_do_not_replace_labels() {
             .ctx
             .field_columns
             .iter()
-            .all(|field| { field != greptime_value() && field != greptime_native_histogram() })
+            .all(|field| { field != pulse_value() && field != pulse_native_histogram() })
     );
     assert!(PromPlanner::field_columns_are_alternative_samples(
         plan.schema(),
@@ -8546,7 +8537,7 @@ async fn test_mixed_or_value_aliases_do_not_replace_labels() {
         .iter()
         .flat_map(|batch| {
             batch
-                .column_by_name(greptime_value())
+                .column_by_name(pulse_value())
                 .unwrap()
                 .as_any()
                 .downcast_ref::<StringArray>()
@@ -8674,7 +8665,7 @@ async fn build_count_values_table_provider_with_value_array(
             false,
         )
         .with_time_index(true),
-        ColumnSchema::new(greptime_value().to_string(), value_data_type, true),
+        ColumnSchema::new(pulse_value().to_string(), value_data_type, true),
     ];
     let schema = Arc::new(Schema::new(columns));
     let table_meta = TableMetaBuilder::empty()
@@ -8705,9 +8696,9 @@ async fn build_count_values_table_provider_with_value_array(
         ],
     )
     .unwrap();
-    let backing = GreptimeMemTable::new_with_catalog(
+    let backing = PulseMemTable::new_with_catalog(
         "cv_metric",
-        GreptimeRecordBatch::from_df_record_batch(schema, batch),
+        PulseRecordBatch::from_df_record_batch(schema, batch),
         3_001,
         DEFAULT_CATALOG_NAME.to_string(),
         DEFAULT_SCHEMA_NAME.to_string(),

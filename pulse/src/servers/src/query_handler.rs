@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! All query handler traits for various request protocols, like SQL or GRPC.
 //!
 //! Instance that wishes to support certain request protocol, just implement the corresponding
@@ -40,7 +42,7 @@ use log_query::LogQuery;
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use otel_arrow_rust::proto::opentelemetry::collector::metrics::v1::ExportMetricsServiceRequest;
-use pipeline::{GreptimePipelineParams, Pipeline, PipelineInfo, PipelineVersion, PipelineWay};
+use pipeline::{Pipeline, PipelineInfo, PipelineVersion, PipelineWay, PulsePipelineParams};
 use serde_json::Value;
 use session::context::{QueryContext, QueryContextRef};
 
@@ -153,7 +155,7 @@ pub trait OpenTelemetryProtocolHandler: PipelineHandler {
         pipeline_handler: PipelineHandlerRef,
         request: ExportTraceServiceRequest,
         pipeline: PipelineWay,
-        pipeline_params: GreptimePipelineParams,
+        pipeline_params: PulsePipelineParams,
         table_name: String,
         ctx: QueryContextRef,
     ) -> Result<TraceIngestOutcome>;
@@ -163,7 +165,7 @@ pub trait OpenTelemetryProtocolHandler: PipelineHandler {
         pipeline_handler: PipelineHandlerRef,
         request: ExportLogsServiceRequest,
         pipeline: PipelineWay,
-        pipeline_params: GreptimePipelineParams,
+        pipeline_params: PulsePipelineParams,
         table_name: String,
         ctx: QueryContextRef,
     ) -> Result<Vec<Output>>;

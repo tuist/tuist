@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod stream;
 
 use std::collections::HashMap;
@@ -56,9 +58,7 @@ use crate::error::{InvalidParameterSnafu, InvalidQuerySnafu, Result, ToJsonSnafu
 pub use crate::grpc::flight::stream::{
     FlightRecordBatchSource, FlightRecordBatchStream, FlightRecordBatchStreamInput,
 };
-use crate::grpc::greptime_handler::{
-    GreptimeRequestHandler, create_query_context, get_request_type,
-};
+use crate::grpc::pulse_handler::{PulseRequestHandler, create_query_context, get_request_type};
 use crate::grpc::{FlightCompression, TonicResult, context_auth};
 use crate::request_memory_limiter::ServerMemoryLimiter;
 use crate::request_memory_metrics::RequestMemoryMetrics;
@@ -192,7 +192,7 @@ impl<T: FlightCraft> FlightService for FlightCraftWrapper<T> {
 }
 
 #[async_trait]
-impl FlightCraft for GreptimeRequestHandler {
+impl FlightCraft for PulseRequestHandler {
     async fn do_get(
         &self,
         request: Request<Ticket>,
@@ -222,7 +222,7 @@ impl FlightCraft for GreptimeRequestHandler {
 
         // The Grpc protocol pass query by Flight. It needs to be wrapped under a span, in order to record stream
         let span = info_span!(
-            "GreptimeRequestHandler::do_get",
+            "PulseRequestHandler::do_get",
             protocol = "grpc",
             request_type = get_request_type(&request)
         );

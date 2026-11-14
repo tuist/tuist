@@ -24,10 +24,10 @@ visibility_timeout_seconds = 300
 base_setup_sql = [
   """
 CREATE TABLE mergescan_shuffle_phys (
-    greptime_timestamp TIMESTAMP(3) TIME INDEX,
+    pulse_timestamp TIMESTAMP(3) TIME INDEX,
     host STRING,
     instance STRING,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     PRIMARY KEY (host, instance)
 )
 PARTITION ON COLUMNS (instance) (
@@ -67,10 +67,10 @@ PARTITION ON COLUMNS (instance) (
 """,
   """
 CREATE TABLE mergescan_shuffle_9456 (
-    greptime_timestamp TIMESTAMP(3) TIME INDEX,
+    pulse_timestamp TIMESTAMP(3) TIME INDEX,
     host STRING,
     instance STRING,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     PRIMARY KEY (host, instance)
 ) ENGINE=metric WITH ('on_physical_table'='mergescan_shuffle_phys')
 """,
@@ -78,10 +78,10 @@ CREATE TABLE mergescan_shuffle_9456 (
 candidate_setup_sql = [
   """
 CREATE TABLE mergescan_shuffle_phys (
-    greptime_timestamp TIMESTAMP(3) TIME INDEX,
+    pulse_timestamp TIMESTAMP(3) TIME INDEX,
     host STRING,
     instance STRING,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     PRIMARY KEY (host, instance)
 )
 PARTITION ON COLUMNS (instance) (
@@ -121,10 +121,10 @@ PARTITION ON COLUMNS (instance) (
 """,
   """
 CREATE TABLE mergescan_shuffle_9456 (
-    greptime_timestamp TIMESTAMP(3) TIME INDEX,
+    pulse_timestamp TIMESTAMP(3) TIME INDEX,
     host STRING,
     instance STRING,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     PRIMARY KEY (host, instance)
 ) ENGINE=metric WITH ('on_physical_table'='mergescan_shuffle_phys')
 """,

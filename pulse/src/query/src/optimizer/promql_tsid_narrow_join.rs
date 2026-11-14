@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use arrow_schema::{DataType, SchemaRef};
@@ -152,20 +154,20 @@ mod tests {
     #[test]
     fn chooses_collect_left_for_narrow_promql_build_side() {
         let left = Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
             Field::new(DATA_SCHEMA_TSID_COLUMN_NAME, DataType::UInt64, false),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
         ])))) as Arc<dyn ExecutionPlan>;
         let right = Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
             Field::new("host", DataType::Utf8, true),
             Field::new(DATA_SCHEMA_TSID_COLUMN_NAME, DataType::UInt64, false),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
@@ -176,8 +178,8 @@ mod tests {
                 Arc::new(Column::new(DATA_SCHEMA_TSID_COLUMN_NAME, 2)) as Arc<dyn PhysicalExpr>,
             ),
             (
-                Arc::new(Column::new("greptime_timestamp", 2)) as Arc<dyn PhysicalExpr>,
-                Arc::new(Column::new("greptime_timestamp", 3)) as Arc<dyn PhysicalExpr>,
+                Arc::new(Column::new("pulse_timestamp", 2)) as Arc<dyn PhysicalExpr>,
+                Arc::new(Column::new("pulse_timestamp", 3)) as Arc<dyn PhysicalExpr>,
             ),
         ];
         let join = Arc::new(
@@ -208,7 +210,7 @@ mod tests {
                 .one_line()
                 .to_string()
                 .contains(
-                    "projection=[greptime_value@0, greptime_value@3, host@4, __tsid@5, greptime_timestamp@6]"
+                    "projection=[pulse_value@0, pulse_value@3, host@4, __tsid@5, pulse_timestamp@6]"
                 )
         );
     }
@@ -216,20 +218,20 @@ mod tests {
     #[test]
     fn chooses_collect_left_for_computed_narrow_value_column() {
         let left = Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![
-            Field::new("prom_rate(greptime_value)", DataType::Float64, true),
+            Field::new("prom_rate(pulse_value)", DataType::Float64, true),
             Field::new(DATA_SCHEMA_TSID_COLUMN_NAME, DataType::UInt64, false),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
         ])))) as Arc<dyn ExecutionPlan>;
         let right = Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
             Field::new("host", DataType::Utf8, true),
             Field::new(DATA_SCHEMA_TSID_COLUMN_NAME, DataType::UInt64, false),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
@@ -240,8 +242,8 @@ mod tests {
                 Arc::new(Column::new(DATA_SCHEMA_TSID_COLUMN_NAME, 2)) as Arc<dyn PhysicalExpr>,
             ),
             (
-                Arc::new(Column::new("greptime_timestamp", 2)) as Arc<dyn PhysicalExpr>,
-                Arc::new(Column::new("greptime_timestamp", 3)) as Arc<dyn PhysicalExpr>,
+                Arc::new(Column::new("pulse_timestamp", 2)) as Arc<dyn PhysicalExpr>,
+                Arc::new(Column::new("pulse_timestamp", 3)) as Arc<dyn PhysicalExpr>,
             ),
         ];
         let join = Arc::new(
@@ -270,20 +272,20 @@ mod tests {
     #[test]
     fn keeps_partitioned_join_when_left_side_carries_labels() {
         let left = Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
             Field::new("host", DataType::Utf8, true),
             Field::new(DATA_SCHEMA_TSID_COLUMN_NAME, DataType::UInt64, false),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
         ])))) as Arc<dyn ExecutionPlan>;
         let right = Arc::new(EmptyExec::new(Arc::new(Schema::new(vec![
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
             Field::new(DATA_SCHEMA_TSID_COLUMN_NAME, DataType::UInt64, false),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
@@ -300,8 +302,8 @@ mod tests {
                             as Arc<dyn PhysicalExpr>,
                     ),
                     (
-                        Arc::new(Column::new("greptime_timestamp", 3)) as Arc<dyn PhysicalExpr>,
-                        Arc::new(Column::new("greptime_timestamp", 2)) as Arc<dyn PhysicalExpr>,
+                        Arc::new(Column::new("pulse_timestamp", 3)) as Arc<dyn PhysicalExpr>,
+                        Arc::new(Column::new("pulse_timestamp", 2)) as Arc<dyn PhysicalExpr>,
                     ),
                 ],
                 None,

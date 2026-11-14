@@ -34,7 +34,7 @@ test('capacity retains a server surge slot, counts init peaks and excludes unava
 test('capacity spreads anti-affine replicas over distinct hosts and can require a one-node failure reserve', () => {
   const work = mkdtempSync(join(tmpdir(), 'openobserve-spread-'));
   try {
-    const labels = { 'app.kubernetes.io/instance': 'greptimedb', 'app.kubernetes.io/component': 'kafka' };
+    const labels = { 'app.kubernetes.io/instance': 'pulse', 'app.kubernetes.io/component': 'kafka' };
     // Three 1-CPU replicas that must not share a host; every node has room for two.
     const workload = [{ kind: 'StatefulSet', metadata: { name: 'kafka' }, spec: { replicas: 3, template: {
       metadata: { labels },
@@ -65,8 +65,8 @@ test('capacity spreads anti-affine replicas over distinct hosts and can require 
 test('capacity counts an upgraded release once, not as both running pods and new demand', () => {
   const work = mkdtempSync(join(tmpdir(), 'openobserve-upgrade-'));
   try {
-    const labels = { 'app.kubernetes.io/instance': 'greptimedb', 'app.kubernetes.io/component': 'datanode' };
-    const workload = [{ kind: 'StatefulSet', metadata: { name: 'greptimedb-datanode' }, spec: { replicas: 1,
+    const labels = { 'app.kubernetes.io/instance': 'pulse', 'app.kubernetes.io/component': 'datanode' };
+    const workload = [{ kind: 'StatefulSet', metadata: { name: 'pulse-datanode' }, spec: { replicas: 1,
       selector: { matchLabels: labels }, template: { metadata: { labels },
         spec: { containers: [{ resources: { requests: { cpu: '2', memory: '1Gi' } } }] } } } }];
     // 4 CPUs: the 2-CPU release plus the 1-CPU surge reserve fit once, not twice.
@@ -87,7 +87,7 @@ test('capacity counts an upgraded release once, not as both running pods and new
   } finally { rmSync(work, { recursive: true, force: true }); }
 });
 
-for (const prefix of ['openobserve', 'greptimedb']) {
+for (const prefix of ['openobserve']) {
 for (const scenario of ['success', 'lifecycle rules', 'lifecycle unavailable', 'public bucket', 'corrupt read', 'failed delete']) {
   test(`storage ${prefix}: ${scenario}`, () => {
     const work = mkdtempSync(join(tmpdir(), 'openobserve-storage-'));

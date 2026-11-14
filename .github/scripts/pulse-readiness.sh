@@ -5,7 +5,7 @@ trap 'echo "::error::Pulse readiness failed at line $LINENO; collectors were not
 : "${DEPLOY_ENV:?managed environment required}"
 case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
 namespace=${OBSERVABILITY_NAMESPACE:-observability}
-# Pulse is the `pulse` release of infra/helm/greptimedb. Gate on it when it is
+# Pulse is the `pulse` release of infra/helm/pulse. Gate on it when it is
 # installed; a cluster without it still gets Grafana Cloud collection.
 if [[ -n "$(kubectl -n "$namespace" get statefulset pulse-datanode --ignore-not-found -o name)" ]]; then
   workloads='statefulset/pulse-etcd:3 statefulset/pulse-kafka:3 deployment/pulse-metasrv:3 statefulset/pulse-datanode:3 deployment/pulse-frontend:2'
@@ -19,7 +19,9 @@ fi
 for entry in ${workloads:-}; do
   workload=${entry%:*}
   # Any published Pulse release passes, so pinning a newer one in the chart
-  # does not block server deploys until the backend is redeployed.
+  # does not block server deploys until the backend is redeployed: a stable,
+  # canary or RC version, or a <upstream>-<n> fork release from before Pulse
+  # owned its versions (1.3.0-2).
   kubectl -n "$namespace" get "${workload%/*}" "${workload#*/}" -o json | jq -e --argjson minimum "${entry##*:}" --arg topology "$topology" '
     .metadata.annotations["meta.helm.sh/release-name"] == "pulse" and
     .metadata.annotations["meta.helm.sh/release-namespace"] == "observability" and
@@ -28,7 +30,7 @@ for entry in ${workloads:-}; do
     .status.updatedReplicas == .spec.replicas and .status.readyReplicas == .spec.replicas and
     ((.metadata.name | test("-(etcd|kafka)$")) or
       ([.spec.template.spec.containers[].image] | length == 1 and
-        all(test("^ghcr\\.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+$"))))
+        all(test("^ghcr\\.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+(-(canary|rc)\\.[0-9]+|-[0-9]+)?$"))))
   ' >/dev/null
 done
 if [[ -n "$topology" ]]; then

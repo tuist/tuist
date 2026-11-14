@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod cluster_info;
 pub mod columns;
 pub mod flow_statistics;
@@ -21,8 +23,6 @@ pub mod key_column_usage;
 mod partitions;
 mod procedure_info;
 pub mod process_list;
-#[cfg(feature = "enterprise")]
-mod recycle_bin;
 mod region_info;
 pub mod region_peers;
 mod region_statistics;
@@ -34,9 +34,6 @@ mod table_names;
 mod table_semantics;
 pub mod tables;
 mod views;
-
-#[cfg(all(test, feature = "enterprise"))]
-mod recycle_bin_test;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
@@ -79,8 +76,6 @@ use crate::system_schema::information_schema::flows::InformationSchemaFlows;
 use crate::system_schema::information_schema::information_memory_table::get_schema_columns;
 use crate::system_schema::information_schema::key_column_usage::InformationSchemaKeyColumnUsage;
 use crate::system_schema::information_schema::partitions::InformationSchemaPartitions;
-#[cfg(feature = "enterprise")]
-use crate::system_schema::information_schema::recycle_bin::InformationSchemaRecycleBin;
 use crate::system_schema::information_schema::region_peers::InformationSchemaRegionPeers;
 use crate::system_schema::information_schema::schemata::InformationSchemaSchemata;
 use crate::system_schema::information_schema::ssts::{
@@ -298,11 +293,6 @@ impl InformationSchemaProvider {
                     self.catalog_manager.clone(),
                 )) as _,
             ),
-            #[cfg(feature = "enterprise")]
-            RECYCLE_BIN => Some(Arc::new(InformationSchemaRecycleBin::new(
-                self.catalog_name.clone(),
-                self.catalog_manager.clone(),
-            )) as _),
             REGION_STATISTICS => Some(Arc::new(
                 region_statistics::InformationSchemaRegionStatistics::new(
                     self.catalog_manager.clone(),
@@ -371,7 +361,7 @@ impl InformationSchemaProvider {
         // SECURITY NOTE:
         // Carefully consider the tables that may expose sensitive cluster configurations,
         // authentication details, and other critical information.
-        // Only put these tables under `greptime` catalog to prevent info leak.
+        // Only put these tables under `pulse` catalog to prevent info leak.
         if self.catalog_name == DEFAULT_CATALOG_NAME {
             table_names.extend([
                 BUILD_INFO,
@@ -396,8 +386,6 @@ impl InformationSchemaProvider {
             STATISTICS,
             FLOWS,
             FLOW_STATISTICS,
-            #[cfg(feature = "enterprise")]
-            RECYCLE_BIN,
             TABLE_SEMANTICS,
             PARTITIONS,
         ]);
@@ -635,8 +623,6 @@ mod tests {
             TABLE_SEMANTICS,
             PARTITIONS,
             REGION_PEERS,
-            #[cfg(feature = "enterprise")]
-            RECYCLE_BIN,
             "future_catalog_table",
             ENGINES,
         ];
@@ -668,13 +654,12 @@ mod tests {
             );
             // An extension replacing a built-in supplies the replacement table's scope.
             let provider = provider.with_extra_table_factories(factories.clone());
-            let expected_count =
-                43 + usize::from(with_process_manager) + usize::from(cfg!(feature = "enterprise"))
-                    - if catalog == DEFAULT_CATALOG_NAME {
-                        0
-                    } else {
-                        9
-                    };
+            let expected_count = 43 + usize::from(with_process_manager)
+                - if catalog == DEFAULT_CATALOG_NAME {
+                    0
+                } else {
+                    9
+                };
             assert_eq!(provider.tables().len(), expected_count);
             for (name, table) in provider.tables() {
                 let scope = if catalog_tables.contains(&name.as_str()) {

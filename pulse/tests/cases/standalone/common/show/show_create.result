@@ -58,7 +58,7 @@ SHOW CREATE TABLE system_metrics FOR POSTGRES_FOREIGN_TABLE;
 |                |   "disk" FLOAT4,                         |
 |                |   "ts" TIMESTAMP                         |
 |                | )                                        |
-|                | SERVER greptimedb                        |
+|                | SERVER pulse                             |
 |                | OPTIONS (table_name 'system_metrics')    |
 +----------------+------------------------------------------+
 
@@ -561,7 +561,7 @@ SHOW CREATE TABLE t1 FOR POSTGRES_FOREIGN_TABLE;
 |       |   "ts" TIMESTAMP,            |
 |       |   "val" FLOAT8               |
 |       | )                            |
-|       | SERVER greptimedb            |
+|       | SERVER pulse                 |
 |       | OPTIONS (table_name 't1')    |
 +-------+------------------------------+
 
@@ -688,11 +688,11 @@ Affected Rows: 0
 
 show create table numbers;
 
-Error: 1001(Unsupported), Show create table only for base table. greptime.public.numbers is TEMPORARY
+Error: 1001(Unsupported), Show create table only for base table. pulse.public.numbers is TEMPORARY
 
 show create table information_schema.columns;
 
-Error: 1001(Unsupported), Show create table only for base table. greptime.information_schema.columns is TEMPORARY
+Error: 1001(Unsupported), Show create table only for base table. pulse.information_schema.columns is TEMPORARY
 
 CREATE TABLE "specify_invereted_index_cols" (
   "ts" TIMESTAMP(3) NOT NULL,

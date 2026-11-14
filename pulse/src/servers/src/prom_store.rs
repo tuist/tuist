@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! prometheus protocol supportings
 //! handles prometheus remote_write, remote_read logic
 use std::cmp::Ordering;
@@ -33,7 +35,7 @@ use arrow::datatypes::{
 };
 use common_grpc::precision::Precision;
 use common_memory_manager::MemoryGuard;
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use common_recordbatch::{RecordBatch, RecordBatches};
 use common_telemetry::{tracing, warn};
 use datafusion::dataframe::DataFrame;
@@ -53,8 +55,8 @@ pub const METRIC_NAME_LABEL: &str = "__name__";
 pub const METRIC_NAME_LABEL_BYTES: &[u8] = b"__name__";
 
 /// special label for selecting database name on remote write
-pub const DATABASE_LABEL: &str = "x_greptime_database";
-pub const DATABASE_LABEL_BYTES: &[u8] = b"x_greptime_database";
+pub const DATABASE_LABEL: &str = "x_pulse_database";
+pub const DATABASE_LABEL_BYTES: &[u8] = b"x_pulse_database";
 pub const DATABASE_LABEL_ALT: &str = "__database__";
 pub const DATABASE_LABEL_ALT_BYTES: &[u8] = b"__database__";
 
@@ -65,8 +67,8 @@ pub const SCHEMA_LABEL: &str = "__schema__";
 pub const SCHEMA_LABEL_BYTES: &[u8] = b"__schema__";
 
 /// special label for selecting physical table name on remote write
-pub const PHYSICAL_TABLE_LABEL: &str = "x_greptime_physical_table";
-pub const PHYSICAL_TABLE_LABEL_BYTES: &[u8] = b"x_greptime_physical_table";
+pub const PHYSICAL_TABLE_LABEL: &str = "x_pulse_physical_table";
+pub const PHYSICAL_TABLE_LABEL_BYTES: &[u8] = b"x_pulse_physical_table";
 pub const PHYSICAL_TABLE_LABEL_ALT: &str = "__physical_table__";
 pub const PHYSICAL_TABLE_LABEL_ALT_BYTES: &[u8] = b"__physical_table__";
 
@@ -586,14 +588,14 @@ pub fn to_grpc_row_insert_requests(request: &WriteRequest) -> Result<(RowInsertR
             // value
             row_writer::write_f64(
                 table_data,
-                greptime_value(),
+                pulse_value(),
                 series.samples[0].value,
                 &mut one_row,
             )?;
             // timestamp
             row_writer::write_ts_to_millis(
                 table_data,
-                greptime_timestamp(),
+                pulse_timestamp(),
                 Some(series.samples[0].timestamp),
                 Precision::Millisecond,
                 &mut one_row,
@@ -608,11 +610,11 @@ pub fn to_grpc_row_insert_requests(request: &WriteRequest) -> Result<(RowInsertR
                 let kvs = kvs.clone();
                 row_writer::write_tags(table_data, kvs, &mut one_row)?;
                 // value
-                row_writer::write_f64(table_data, greptime_value(), *value, &mut one_row)?;
+                row_writer::write_f64(table_data, pulse_value(), *value, &mut one_row)?;
                 // timestamp
                 row_writer::write_ts_to_millis(
                     table_data,
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     Some(*timestamp),
                     Precision::Millisecond,
                     &mut one_row,
@@ -1046,11 +1048,11 @@ mod tests {
 
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 true,
             ),
-            ColumnSchema::new(greptime_value(), ConcreteDataType::float64_datatype(), true),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), true),
             ColumnSchema::new("instance", ConcreteDataType::string_datatype(), true),
             ColumnSchema::new("job", ConcreteDataType::string_datatype(), true),
             ColumnSchema::new("service.name", ConcreteDataType::string_datatype(), true),
@@ -1074,10 +1076,10 @@ mod tests {
         let table_provider = Arc::new(DfTableProviderAdapter::new(table));
 
         let dataframe = ctx.read_table(table_provider.clone()).unwrap();
-        let plan = query_to_plan(dataframe, &q, greptime_timestamp()).unwrap();
+        let plan = query_to_plan(dataframe, &q, pulse_timestamp()).unwrap();
         let display_string = format!("{}", plan.display_indent());
 
-        let ts_col = greptime_timestamp();
+        let ts_col = pulse_timestamp();
         let expected = format!(
             "Filter: ?table?.{} >= TimestampMillisecond(1000, None) AND ?table?.{} <= TimestampMillisecond(2000, None)\n  TableScan: ?table?",
             ts_col, ts_col
@@ -1118,10 +1120,10 @@ mod tests {
         };
 
         let dataframe = ctx.read_table(table_provider).unwrap();
-        let plan = query_to_plan(dataframe, &q, greptime_timestamp()).unwrap();
+        let plan = query_to_plan(dataframe, &q, pulse_timestamp()).unwrap();
         let display_string = format!("{}", plan.display_indent());
 
-        let ts_col = greptime_timestamp();
+        let ts_col = pulse_timestamp();
         let expected = format!(
             "Filter: ?table?.{} >= TimestampMillisecond(1000, None) AND ?table?.{} <= TimestampMillisecond(2000, None) AND regexp_match(?table?.job, Utf8(\"*prom*\")) IS NOT NULL AND ?table?.instance != Utf8(\"localhost\") AND ?table?.service.name = Utf8(\"api\") AND ?table?.Region = Utf8(\"us\")\n  TableScan: ?table?",
             ts_col, ts_col
@@ -1132,13 +1134,9 @@ mod tests {
     fn column_schemas_with(
         mut kts_iter: Vec<(&str, ColumnDataType, SemanticType)>,
     ) -> Vec<api::v1::ColumnSchema> {
+        kts_iter.push((pulse_value(), ColumnDataType::Float64, SemanticType::Field));
         kts_iter.push((
-            greptime_value(),
-            ColumnDataType::Float64,
-            SemanticType::Field,
-        ));
-        kts_iter.push((
-            greptime_timestamp(),
+            pulse_timestamp(),
             ColumnDataType::TimestampMillisecond,
             SemanticType::Timestamp,
         ));
@@ -1273,11 +1271,11 @@ mod tests {
     fn test_recordbatches_to_timeseries() {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 true,
             ),
-            ColumnSchema::new(greptime_value(), ConcreteDataType::float64_datatype(), true),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), true),
             ColumnSchema::new("instance", ConcreteDataType::string_datatype(), true),
         ]));
 
@@ -1306,13 +1304,9 @@ mod tests {
         )
         .unwrap();
 
-        let timeseries = recordbatches_to_timeseries(
-            "metric1",
-            greptime_timestamp(),
-            greptime_value(),
-            recordbatches,
-        )
-        .unwrap();
+        let timeseries =
+            recordbatches_to_timeseries("metric1", pulse_timestamp(), pulse_value(), recordbatches)
+                .unwrap();
         assert_eq!(2, timeseries.len());
 
         assert_eq!(
@@ -1363,11 +1357,11 @@ mod tests {
     fn test_recordbatches_to_timeseries_merges_across_batches() {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 true,
             ),
-            ColumnSchema::new(greptime_value(), ConcreteDataType::float64_datatype(), true),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), true),
             ColumnSchema::new("instance", ConcreteDataType::string_datatype(), true),
         ]));
 
@@ -1407,8 +1401,8 @@ mod tests {
 
         let timeseries = recordbatches_to_timeseries(
             "cpu_usage",
-            greptime_timestamp(),
-            greptime_value(),
+            pulse_timestamp(),
+            pulse_value(),
             recordbatches,
         )
         .unwrap();
@@ -1478,11 +1472,11 @@ mod tests {
     fn test_recordbatches_to_timeseries_borrows_and_groups_dictionary_labels() {
         let arrow_schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new(greptime_value(), ArrowDataType::Float64, false),
+            Field::new(pulse_value(), ArrowDataType::Float64, false),
             Field::new_dictionary("instance", ArrowDataType::UInt32, ArrowDataType::Utf8, true),
         ]));
         let schema = Arc::new(Schema::try_from(arrow_schema.clone()).unwrap());
@@ -1502,7 +1496,7 @@ mod tests {
         )
         .unwrap();
         let recordbatch = RecordBatch::from_df_record_batch(schema.clone(), batch);
-        let columns = label_columns(&recordbatch, greptime_timestamp(), greptime_value()).unwrap();
+        let columns = label_columns(&recordbatch, pulse_timestamp(), pulse_value()).unwrap();
         assert!(matches!(
             columns[0].values,
             LabelValues::DictionaryUtf8 { .. }
@@ -1510,13 +1504,9 @@ mod tests {
         drop(columns);
         let recordbatches = RecordBatches::try_new(schema, vec![recordbatch]).unwrap();
 
-        let timeseries = recordbatches_to_timeseries(
-            "metric1",
-            greptime_timestamp(),
-            greptime_value(),
-            recordbatches,
-        )
-        .unwrap();
+        let timeseries =
+            recordbatches_to_timeseries("metric1", pulse_timestamp(), pulse_value(), recordbatches)
+                .unwrap();
 
         assert_eq!(3, timeseries.len());
         assert_eq!(
@@ -1567,11 +1557,11 @@ mod tests {
     fn test_recordbatches_to_timeseries_groups_non_contiguous_series() {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 true,
             ),
-            ColumnSchema::new(greptime_value(), ConcreteDataType::float64_datatype(), true),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), true),
             ColumnSchema::new("instance", ConcreteDataType::string_datatype(), true),
         ]));
         let recordbatch = RecordBatch::new(
@@ -1585,13 +1575,9 @@ mod tests {
         .unwrap();
 
         let recordbatches = RecordBatches::try_new(schema, vec![recordbatch]).unwrap();
-        let timeseries = recordbatches_to_timeseries(
-            "metric1",
-            greptime_timestamp(),
-            greptime_value(),
-            recordbatches,
-        )
-        .unwrap();
+        let timeseries =
+            recordbatches_to_timeseries("metric1", pulse_timestamp(), pulse_value(), recordbatches)
+                .unwrap();
 
         // The result stays sorted by labels as it was with the previous BTreeMap.
         assert_eq!("host1", timeseries[0].labels[1].value);
@@ -1615,11 +1601,11 @@ mod tests {
     fn test_recordbatches_to_timeseries_arrow_label_types_and_nulls() {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 true,
             ),
-            ColumnSchema::new(greptime_value(), ConcreteDataType::float64_datatype(), true),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), true),
             ColumnSchema::new("instance", ConcreteDataType::large_string_datatype(), true),
             ColumnSchema::new("zone", ConcreteDataType::utf8_view_datatype(), true),
             ColumnSchema::new("shard", ConcreteDataType::int32_datatype(), true),
@@ -1643,13 +1629,9 @@ mod tests {
         .unwrap();
 
         let recordbatches = RecordBatches::try_new(schema, vec![recordbatch]).unwrap();
-        let timeseries = recordbatches_to_timeseries(
-            "metric1",
-            greptime_timestamp(),
-            greptime_value(),
-            recordbatches,
-        )
-        .unwrap();
+        let timeseries =
+            recordbatches_to_timeseries("metric1", pulse_timestamp(), pulse_value(), recordbatches)
+                .unwrap();
 
         assert_eq!(2, timeseries.len());
         assert_eq!(

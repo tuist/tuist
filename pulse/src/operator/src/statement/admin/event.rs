@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 
 use api::v1::value::ValueData;
@@ -232,7 +234,7 @@ mod tests {
     use sql::ast::{
         Expr, FunctionArg, FunctionArgExpr, FunctionArguments, Ident, Value as SqlValue,
     };
-    use sql::dialect::GreptimeDbDialect;
+    use sql::dialect::PulseDialect;
     use sql::parser::{ParseOptions, ParserContext};
     use sql::statements::admin::Admin;
     use sql::statements::statement::Statement;
@@ -247,7 +249,7 @@ mod tests {
 
     fn request(sql: &str) -> AdminFunctionRequest {
         let Statement::Admin(statement) =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0)
         else {
@@ -286,7 +288,7 @@ mod tests {
             event.extra_rows().unwrap(),
             vec![Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue(function_name.to_string()).into(),
                     ValueData::StringValue(status.to_string()).into(),
                     jsonb_value(&output),
@@ -298,7 +300,7 @@ mod tests {
     #[test]
     fn success_uses_separate_output_columns() {
         let input = AdminFunctionEventInput::from_request(&request(
-            "ADMIN flush_table('greptime.public.demo')",
+            "ADMIN flush_table('pulse.public.demo')",
         ));
         let event = AdminFunctionEvent::success(input, Some(&Value::UInt64(3)));
 
@@ -307,7 +309,7 @@ mod tests {
             event.json_payload().unwrap(),
             json!({
                 "version": 1,
-                "arguments": {"type": "list", "value": ["greptime.public.demo"]},
+                "arguments": {"type": "list", "value": ["pulse.public.demo"]},
             })
         );
     }
@@ -359,7 +361,7 @@ mod tests {
     #[test]
     fn failure_payload_has_error_only() {
         let input = AdminFunctionEventInput::from_request(&request(
-            "ADMIN flush_table('greptime.public.demo')",
+            "ADMIN flush_table('pulse.public.demo')",
         ));
         let error = Error::BuildAdminFunctionArgs {
             msg: "invalid input".to_string(),
@@ -377,7 +379,7 @@ mod tests {
             event.json_payload().unwrap(),
             json!({
                 "version": 1,
-                "arguments": {"type": "list", "value": ["greptime.public.demo"]},
+                "arguments": {"type": "list", "value": ["pulse.public.demo"]},
             })
         );
     }
@@ -399,7 +401,7 @@ mod tests {
     fn subquery_arguments_use_display() {
         let Statement::Query(query) = ParserContext::create_with_dialect(
             "SELECT 1",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()

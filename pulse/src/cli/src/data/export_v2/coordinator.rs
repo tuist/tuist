@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_telemetry::{error, info};
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
@@ -377,7 +379,7 @@ mod tests {
 
     fn pending_manifest(n: u32) -> Manifest {
         let mut manifest = Manifest::new_full(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             TimeRange::unbounded(),
             DataFormat::Parquet,

@@ -14,17 +14,17 @@ Error: 1001(Unsupported), Failed to plan SQL: This feature is not implemented: Q
 --- Table already exists ---
 CREATE VIEW test_table as SELECT * FROM public.numbers;
 
-Error: 4000(TableAlreadyExists), Table already exists: `greptime.public.test_table`
+Error: 4000(TableAlreadyExists), Table already exists: `pulse.public.test_table`
 
 --- Table already exists even when create_if_not_exists ---
 CREATE VIEW IF NOT EXISTS test_table as SELECT * FROM public.numbers;
 
-Error: 4000(TableAlreadyExists), Table already exists: `greptime.public.test_table`
+Error: 4000(TableAlreadyExists), Table already exists: `pulse.public.test_table`
 
 --- Table already exists even when or_replace ---
 CREATE OR REPLACE VIEW test_table as SELECT * FROM public.numbers;
 
-Error: 4000(TableAlreadyExists), Table already exists: `greptime.public.test_table`
+Error: 4000(TableAlreadyExists), Table already exists: `pulse.public.test_table`
 
 CREATE VIEW test_view as SELECT * FROM public.numbers;
 
@@ -37,7 +37,7 @@ Affected Rows: 0
 --- View already exists ----
 CREATE VIEW test_view as SELECT * FROM public.numbers;
 
-Error: 4000(TableAlreadyExists), View already exists: `greptime.public.test_view`
+Error: 4000(TableAlreadyExists), View already exists: `pulse.public.test_view`
 
 CREATE VIEW IF NOT EXISTS test_view as SELECT * FROM public.numbers;
 
@@ -83,65 +83,65 @@ WHERE c.relkind IN ('v','')
   AND pg_catalog.pg_table_is_visible(c.oid)
 ORDER BY 1,2;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.pg_catalog.pg_class
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.pg_catalog.pg_class
 
 -- SQLNESS REPLACE (\s\d+\s) ID
 -- SQLNESS REPLACE (\s[\-0-9T:\.]{15,}) DATETIME
 -- SQLNESS REPLACE [\u0020\-]+
 SELECT *
 FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_SCHEMA != 'greptime_private'
+WHERE TABLE_SCHEMA != 'pulse_private'
 ORDER BY TABLE_NAME, TABLE_TYPE;
 
 +++++++++++++++++++++++++
 |table_catalog|table_schema|table_name|table_type|table_id|data_length|max_data_length|index_length|max_index_length|avg_row_length|engine|version|row_format|table_rows|data_free|auto_increment|create_time|update_time|check_time|table_collation|checksum|create_options|table_comment|temporary|
 +++++++++++++++++++++++++
-|greptime|information_schema|build_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|character_sets|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|check_constraints|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|cluster_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|collation_character_set_applicability|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|collations|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|column_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|column_statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|columns|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|engines|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|events|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|files|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|flow_statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|flows|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|global_status|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|key_column_usage|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|public|numbers|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID|test_engine|ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||Y|
-|greptime|information_schema|optimizer_trace|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|parameters|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|partitions|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|plugins|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|procedure_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|process_list|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|processlist|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|profiling|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|referential_constraints|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|region_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|region_peers|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|region_statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|routines|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|schema_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|schemata|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|session_status|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|ssts_index_meta|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|ssts_manifest|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|ssts_storage|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|table_constraints|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|table_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|table_semantics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|information_schema|tables|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
-|greptime|public|test_table|BASETABLE|ID|ID|ID|ID|ID|ID|mito|ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||N|
-|greptime|public|test_view|VIEW|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||N|
-|greptime|public|test_view2|VIEW|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||N|
-|greptime|information_schema|user_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
-|greptime|information_schema|views|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|build_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|character_sets|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|check_constraints|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|cluster_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|collation_character_set_applicability|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|collations|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|column_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|column_statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|columns|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|engines|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|events|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|files|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|flow_statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|flows|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|global_status|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|key_column_usage|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|public|numbers|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID|test_engine|ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||Y|
+|pulse|information_schema|optimizer_trace|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|parameters|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|partitions|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|plugins|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|procedure_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|process_list|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|processlist|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|profiling|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|referential_constraints|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|region_info|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|region_peers|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|region_statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|routines|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|schema_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|schemata|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|session_status|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|ssts_index_meta|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|ssts_manifest|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|ssts_storage|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|statistics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|table_constraints|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|table_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|table_semantics|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|information_schema|tables|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
+|pulse|public|test_table|BASETABLE|ID|ID|ID|ID|ID|ID|mito|ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||N|
+|pulse|public|test_view|VIEW|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||N|
+|pulse|public|test_view2|VIEW|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|||N|
+|pulse|information_schema|user_privileges|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=global||Y|
+|pulse|information_schema|views|LOCALTEMPORARY|ID|ID|ID|ID|ID|ID||ID|Fixed|ID|ID|ID|DATETIME|DATETIME||utf8_bin|ID|greptime.semantic.table_scope=catalog||Y|
 +++++++++++++++++++++++++
 
 -- SQLNESS REPLACE (\s\d+\s) ID
@@ -151,30 +151,30 @@ SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'VIEW' ORDER BY TABLE
 +---------------+--------------+------------+------------+----------+-------------+-----------------+--------------+------------------+----------------+--------+---------+------------+------------+-----------+----------------+---------------------+---------------------+------------+-----------------+----------+----------------+---------------+-----------+
 | table_catalog | table_schema | table_name | table_type | table_id | data_length | max_data_length | index_length | max_index_length | avg_row_length | engine | version | row_format | table_rows | data_free | auto_increment | create_time         | update_time         | check_time | table_collation | checksum | create_options | table_comment | temporary |
 +---------------+--------------+------------+------------+----------+-------------+-----------------+--------------+------------------+----------------+--------+---------+------------+------------+-----------+----------------+---------------------+---------------------+------------+-----------------+----------+----------------+---------------+-----------+
-| greptime      | public       | test_view  | VIEW       |ID    |ID          |ID              |ID           |ID               |ID             |        |ID     | Fixed      |ID         |ID        |ID             |DATETIME |DATETIME |            | utf8_bin        |ID       |                |               | N         |
-| greptime      | public       | test_view2 | VIEW       |ID    |ID          |ID              |ID           |ID               |ID             |        |ID     | Fixed      |ID         |ID        |ID             |DATETIME |DATETIME |            | utf8_bin        |ID       |                |               | N         |
+| pulse         | public       | test_view  | VIEW       |ID    |ID          |ID              |ID           |ID               |ID             |        |ID     | Fixed      |ID         |ID        |ID             |DATETIME |DATETIME |            | utf8_bin        |ID       |                |               | N         |
+| pulse         | public       | test_view2 | VIEW       |ID    |ID          |ID              |ID           |ID               |ID             |        |ID     | Fixed      |ID         |ID        |ID             |DATETIME |DATETIME |            | utf8_bin        |ID       |                |               | N         |
 +---------------+--------------+------------+------------+----------+-------------+-----------------+--------------+------------------+----------------+--------+---------+------------+------------+-----------+----------------+---------------------+---------------------+------------+-----------------+----------+----------------+---------------+-----------+
 
 SHOW COLUMNS FROM test_view;
 
-+-------+------+------+-----+---------+-------+---------------+
-| Field | Type | Null | Key | Default | Extra | Greptime_type |
-+-------+------+------+-----+---------+-------+---------------+
-+-------+------+------+-----+---------+-------+---------------+
++-------+------+------+-----+---------+-------+------------+
+| Field | Type | Null | Key | Default | Extra | Pulse_type |
++-------+------+------+-----+---------+-------+------------+
++-------+------+------+-----+---------+-------+------------+
 
 SHOW FULL COLUMNS FROM test_view;
 
-+-------+------+-----------+------+-----+---------+---------+------------+-------+---------------+
-| Field | Type | Collation | Null | Key | Default | Comment | Privileges | Extra | Greptime_type |
-+-------+------+-----------+------+-----+---------+---------+------------+-------+---------------+
-+-------+------+-----------+------+-----+---------+---------+------------+-------+---------------+
++-------+------+-----------+------+-----+---------+---------+------------+-------+------------+
+| Field | Type | Collation | Null | Key | Default | Comment | Privileges | Extra | Pulse_type |
++-------+------+-----------+------+-----+---------+---------+------------+-------+------------+
++-------+------+-----------+------+-----+---------+---------+------------+-------+------------+
 
 SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'test_view';
 
-+---------------+--------------+------------+-------------+------------------+--------------------------+------------------------+-------------------+---------------+--------------------+--------------------+----------------+------------+-------+------------+-----------------------+--------------------+-----------+---------------+----------------+-------------+-------------+----------------+--------+
-| table_catalog | table_schema | table_name | column_name | ordinal_position | character_maximum_length | character_octet_length | numeric_precision | numeric_scale | datetime_precision | character_set_name | collation_name | column_key | extra | privileges | generation_expression | greptime_data_type | data_type | semantic_type | column_default | is_nullable | column_type | column_comment | srs_id |
-+---------------+--------------+------------+-------------+------------------+--------------------------+------------------------+-------------------+---------------+--------------------+--------------------+----------------+------------+-------+------------+-----------------------+--------------------+-----------+---------------+----------------+-------------+-------------+----------------+--------+
-+---------------+--------------+------------+-------------+------------------+--------------------------+------------------------+-------------------+---------------+--------------------+--------------------+----------------+------------+-------+------------+-----------------------+--------------------+-----------+---------------+----------------+-------------+-------------+----------------+--------+
++---------------+--------------+------------+-------------+------------------+--------------------------+------------------------+-------------------+---------------+--------------------+--------------------+----------------+------------+-------+------------+-----------------------+-----------------+-----------+---------------+----------------+-------------+-------------+----------------+--------+
+| table_catalog | table_schema | table_name | column_name | ordinal_position | character_maximum_length | character_octet_length | numeric_precision | numeric_scale | datetime_precision | character_set_name | collation_name | column_key | extra | privileges | generation_expression | pulse_data_type | data_type | semantic_type | column_default | is_nullable | column_type | column_comment | srs_id |
++---------------+--------------+------------+-------------+------------------+--------------------------+------------------------+-------------------+---------------+--------------------+--------------------+----------------+------------+-------+------------+-----------------------+-----------------+-----------+---------------+----------------+-------------+-------------+----------------+--------+
++---------------+--------------+------------+-------------+------------------+--------------------------+------------------------+-------------------+---------------+--------------------+--------------------+----------------+------------+-------+------------+-----------------------+-----------------+-----------+---------------+----------------+-------------+-------------+----------------+--------+
 
 SELECT * FROM test_view LIMIT 10;
 
@@ -224,7 +224,7 @@ Affected Rows: 0
 
 SELECT * FROM test_view LIMIT 10;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.public.test_view
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.public.test_view
 
 SHOW TABLES;
 
@@ -248,5 +248,5 @@ WHERE c.relkind IN ('v','')
   AND pg_catalog.pg_table_is_visible(c.oid)
 ORDER BY 1,2;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.pg_catalog.pg_class
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.pg_catalog.pg_class
 

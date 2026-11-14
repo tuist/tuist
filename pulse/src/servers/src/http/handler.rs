@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::future;
 use std::panic::AssertUnwindSafe;
@@ -27,7 +29,7 @@ use axum::{Extension, Form};
 use common_catalog::parse_catalog_and_schema_from_db_string;
 use common_error::ext::ErrorExt;
 use common_error::status_code::StatusCode;
-use common_plugins::GREPTIME_EXEC_WRITE_COST;
+use common_plugins::PULSE_EXEC_WRITE_COST;
 use common_query::{Output, OutputData};
 use common_recordbatch::error::Result as RecordBatchResult;
 use common_recordbatch::{RecordBatch, RecordBatchStreamWrapper, RecordBatches, util};
@@ -39,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use session::context::{Channel, QueryContext, QueryContextRef};
 use snafu::ResultExt;
-use sql::dialect::GreptimeDbDialect;
+use sql::dialect::PulseDialect;
 use sql::parser::{ParseOptions, ParserContext};
 use sql::statements::statement::Statement;
 use tokio::sync::{Notify, watch};
@@ -49,14 +51,14 @@ use crate::http::header::collect_plan_metrics;
 use crate::http::result::arrow_result::ArrowResponse;
 use crate::http::result::csv_result::CsvResponse;
 use crate::http::result::error_result::ErrorResponse;
-use crate::http::result::greptime_result_v1::GreptimedbV1Response;
 use crate::http::result::influxdb_result_v1::InfluxdbV1Response;
 use crate::http::result::json_result::JsonResponse;
 use crate::http::result::null_result::NullResponse;
+use crate::http::result::pulse_result_v1::PulseV1Response;
 use crate::http::result::table_result::TableResponse;
 use crate::http::{
-    ApiState, Epoch, GreptimeOptionsConfigState, GreptimeQueryOutput, HttpRecordsOutput,
-    HttpResponse, ResponseFormat,
+    ApiState, Epoch, HttpRecordsOutput, HttpResponse, PulseOptionsConfigState, PulseQueryOutput,
+    ResponseFormat,
 };
 use crate::metrics_handler::MetricsHandler;
 use crate::query_handler::sql::ServerSqlQueryHandlerRef;
@@ -65,9 +67,9 @@ use crate::query_handler::sql::ServerSqlQueryHandlerRef;
 pub struct SqlQuery {
     pub db: Option<String>,
     pub sql: Option<String>,
-    // (Optional) result format: [`greptimedb_v1`, `influxdb_v1`, `csv`,
+    // (Optional) result format: [`pulse_v1`, `influxdb_v1`, `csv`,
     // `arrow`],
-    // the default value is `greptimedb_v1`
+    // the default value is `pulse_v1`
     pub format: Option<String>,
     // Returns epoch timestamps with the specified precision.
     // Both u and µ indicate microseconds.
@@ -75,7 +77,7 @@ pub struct SqlQuery {
     //
     // TODO(jeremy): currently, only InfluxDB result format is supported,
     // and all columns of the `Timestamp` type will be converted to their
-    // specified time precision. Maybe greptimedb format can support this
+    // specified time precision. Maybe pulse format can support this
     // param too.
     pub epoch: Option<String>,
     pub limit: Option<usize>,
@@ -97,7 +99,7 @@ struct AnalyzeStreamPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     metrics: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    output: Option<GreptimeQueryOutput>,
+    output: Option<PulseQueryOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -163,8 +165,8 @@ pub async fn sql(
         .format
         .or(form_params.format)
         .map(|s| s.to_lowercase())
-        .map(|s| ResponseFormat::parse(s.as_str()).unwrap_or(ResponseFormat::GreptimedbV1))
-        .unwrap_or(ResponseFormat::GreptimedbV1);
+        .map(|s| ResponseFormat::parse(s.as_str()).unwrap_or(ResponseFormat::PulseV1))
+        .unwrap_or(ResponseFormat::PulseV1);
     let epoch = query_params
         .epoch
         .or(form_params.epoch)
@@ -200,7 +202,7 @@ pub async fn sql(
                 format,
                 ResponseFormat::Csv(..)
                     | ResponseFormat::Table
-                    | ResponseFormat::GreptimedbV1
+                    | ResponseFormat::PulseV1
                     | ResponseFormat::Json
             ) =>
         {
@@ -220,7 +222,7 @@ pub async fn sql(
             CsvResponse::from_output(outputs, with_names, with_types).await
         }
         ResponseFormat::Table => TableResponse::from_output(outputs).await,
-        ResponseFormat::GreptimedbV1 => GreptimedbV1Response::from_output(outputs).await,
+        ResponseFormat::PulseV1 => PulseV1Response::from_output(outputs).await,
         ResponseFormat::InfluxdbV1 => InfluxdbV1Response::from_output(outputs, epoch).await,
         ResponseFormat::Json => JsonResponse::from_output(outputs).await,
         ResponseFormat::Null => NullResponse::from_output(outputs).await,
@@ -409,7 +411,7 @@ pub async fn sql_analyze_stream(
                             }
                             None => {
                                 let output = HttpRecordsOutput::try_new(schema.clone(), batches)
-                                    .map(GreptimeQueryOutput::Records);
+                                    .map(PulseQueryOutput::Records);
                                 let (event_name, payload) = make_final_analyze_event(
                                     output.map_err(|err| (err.output_msg(), err.status_code() as u32)),
                                     worker_sequence.load(Ordering::Relaxed),
@@ -557,7 +559,7 @@ fn adaptive_interval_ms(payload_bytes: usize, requested_ms: u64) -> u64 {
 }
 
 fn make_final_analyze_event(
-    output: std::result::Result<GreptimeQueryOutput, (String, u32)>,
+    output: std::result::Result<PulseQueryOutput, (String, u32)>,
     seq: u64,
     start: Instant,
     plan: Option<&Arc<dyn ExecutionPlan>>,
@@ -600,7 +602,7 @@ struct AnalyzePayloadArgs<'a> {
     partial: bool,
     start: Instant,
     plan: Option<&'a Arc<dyn ExecutionPlan>>,
-    output: Option<GreptimeQueryOutput>,
+    output: Option<PulseQueryOutput>,
     reason: Option<String>,
     code: Option<u32>,
 }
@@ -656,9 +658,8 @@ pub async fn sql_parse(
         .fail();
     };
 
-    let stmts =
-        ParserContext::create_with_dialect(&sql, &GreptimeDbDialect {}, ParseOptions::default())
-            .context(FailedToParseQuerySnafu)?;
+    let stmts = ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+        .context(FailedToParseQuerySnafu)?;
 
     Ok(stmts.into())
 }
@@ -683,15 +684,12 @@ pub async fn sql_format(
         return HttpResponse::Error(resp).into_response();
     };
 
-    // Parse using GreptimeDB dialect then reconstruct statements via Display
-    let stmts = match ParserContext::create_with_dialect(
-        &sql,
-        &GreptimeDbDialect {},
-        ParseOptions::default(),
-    ) {
-        Ok(v) => v,
-        Err(e) => return HttpResponse::Error(ErrorResponse::from_error(e)).into_response(),
-    };
+    // Parse using Pulse dialect then reconstruct statements via Display
+    let stmts =
+        match ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default()) {
+            Ok(v) => v,
+            Err(e) => return HttpResponse::Error(ErrorResponse::from_error(e)).into_response(),
+        };
 
     let mut parts: Vec<String> = Vec::with_capacity(stmts.len());
     for stmt in stmts {
@@ -709,7 +707,7 @@ pub async fn sql_format(
 /// Create a response from query result
 pub async fn from_output(
     outputs: Vec<crate::error::Result<Output>>,
-) -> std::result::Result<(Vec<GreptimeQueryOutput>, HashMap<String, Value>), ErrorResponse> {
+) -> std::result::Result<(Vec<PulseQueryOutput>, HashMap<String, Value>), ErrorResponse> {
     // TODO(sunng87): this api response structure cannot represent error well.
     //  It hides successful execution results from error response
     let mut results = Vec::with_capacity(outputs.len());
@@ -719,9 +717,9 @@ pub async fn from_output(
         match out {
             Ok(o) => match o.data {
                 OutputData::AffectedRows(rows) => {
-                    results.push(GreptimeQueryOutput::AffectedRows(rows));
+                    results.push(PulseQueryOutput::AffectedRows(rows));
                     if o.meta.cost > 0 {
-                        merge_map.insert(GREPTIME_EXEC_WRITE_COST.to_string(), o.meta.cost as u64);
+                        merge_map.insert(PULSE_EXEC_WRITE_COST.to_string(), o.meta.cost as u64);
                     }
                 }
                 OutputData::Stream(stream) => {
@@ -749,12 +747,12 @@ pub async fn from_output(
                             .collect::<HashMap<String, Value>>();
                         http_record_output.metrics.extend(re);
                     }
-                    results.push(GreptimeQueryOutput::Records(http_record_output))
+                    results.push(PulseQueryOutput::Records(http_record_output))
                 }
                 OutputData::RecordBatches(rbs) => {
                     match HttpRecordsOutput::try_new(rbs.schema(), rbs.take()) {
                         Ok(rows) => {
-                            results.push(GreptimeQueryOutput::Records(rows));
+                            results.push(PulseQueryOutput::Records(rows));
                         }
                         Err(err) => {
                             return Err(ErrorResponse::from_error(err));
@@ -785,9 +783,9 @@ pub struct PromqlQuery {
     pub step: String,
     pub lookback: Option<String>,
     pub db: Option<String>,
-    // (Optional) result format: [`greptimedb_v1`, `influxdb_v1`, `csv`,
+    // (Optional) result format: [`pulse_v1`, `influxdb_v1`, `csv`,
     // `arrow`],
-    // the default value is `greptimedb_v1`
+    // the default value is `pulse_v1`
     pub format: Option<String>,
     // For arrow output
     pub compression: Option<String>,
@@ -799,7 +797,7 @@ pub struct PromqlQuery {
     //
     // TODO(jeremy): currently, only InfluxDB result format is supported,
     // and all columns of the `Timestamp` type will be converted to their
-    // specified time precision. Maybe greptimedb format can support this
+    // specified time precision. Maybe pulse format can support this
     // param too.
     pub epoch: Option<String>,
 }
@@ -849,8 +847,8 @@ pub async fn promql(
             .format
             .as_ref()
             .map(|s| s.to_lowercase())
-            .map(|s| ResponseFormat::parse(s.as_str()).unwrap_or(ResponseFormat::GreptimedbV1))
-            .unwrap_or(ResponseFormat::GreptimedbV1);
+            .map(|s| ResponseFormat::parse(s.as_str()).unwrap_or(ResponseFormat::PulseV1))
+            .unwrap_or(ResponseFormat::PulseV1);
         let epoch = params
             .epoch
             .as_ref()
@@ -867,7 +865,7 @@ pub async fn promql(
                 CsvResponse::from_output(outputs, with_names, with_types).await
             }
             ResponseFormat::Table => TableResponse::from_output(outputs).await,
-            ResponseFormat::GreptimedbV1 => GreptimedbV1Response::from_output(outputs).await,
+            ResponseFormat::PulseV1 => PulseV1Response::from_output(outputs).await,
             ResponseFormat::InfluxdbV1 => InfluxdbV1Response::from_output(outputs, epoch).await,
             ResponseFormat::Json => JsonResponse::from_output(outputs).await,
             ResponseFormat::Null => NullResponse::from_output(outputs).await,
@@ -938,8 +936,8 @@ pub async fn status() -> Json<StatusResponse<'static>> {
 
 /// Handler to expose configuration information info about runtime, build, etc.
 #[axum_macros::debug_handler]
-pub async fn config(State(state): State<GreptimeOptionsConfigState>) -> Response {
-    (axum::http::StatusCode::OK, state.greptime_config_options).into_response()
+pub async fn config(State(state): State<PulseOptionsConfigState>) -> Response {
+    (axum::http::StatusCode::OK, state.pulse_config_options).into_response()
 }
 
 async fn validate_schema(
@@ -1096,7 +1094,7 @@ mod tests {
     #[tokio::test]
     async fn test_sql_response_limit_across_batches_and_formats() {
         for format in [
-            "greptimedb_v1",
+            "pulse_v1",
             "json",
             "csv",
             "csvWithNames",
@@ -1117,13 +1115,13 @@ mod tests {
                     let response =
                         sql_response(vec![Ok(number_output(streaming))], format, limit).await;
                     let output = match &response {
-                        HttpResponse::GreptimedbV1(response) => response.output(),
+                        HttpResponse::PulseV1(response) => response.output(),
                         HttpResponse::Json(response) => response.output(),
                         HttpResponse::Csv(response) => response.output(),
                         HttpResponse::Table(response) => response.output(),
                         _ => panic!("unexpected response: {response:?}"),
                     };
-                    let GreptimeQueryOutput::Records(records) = &output[0] else {
+                    let PulseQueryOutput::Records(records) = &output[0] else {
                         panic!("expected records");
                     };
                     let expected_rows: Vec<_> = (0..limit.unwrap_or(5).min(5))
@@ -1152,26 +1150,26 @@ mod tests {
                 Ok(affected),
                 Ok(number_output(false)),
             ],
-            "greptimedb_v1",
+            "pulse_v1",
             Some(1),
         )
         .await;
-        let HttpResponse::GreptimedbV1(response) = response else {
-            panic!("expected greptimedb response");
+        let HttpResponse::PulseV1(response) = response else {
+            panic!("expected pulse response");
         };
         assert_eq!(response.output().len(), 3);
         for index in [0, 2] {
-            let GreptimeQueryOutput::Records(records) = &response.output()[index] else {
+            let PulseQueryOutput::Records(records) = &response.output()[index] else {
                 panic!("expected records");
             };
             assert_eq!(records.rows(), &vec![vec![Value::from(0)]]);
         }
         assert!(matches!(
             response.output()[1],
-            GreptimeQueryOutput::AffectedRows(7)
+            PulseQueryOutput::AffectedRows(7)
         ));
         assert_eq!(
-            response.resp_metrics[GREPTIME_EXEC_WRITE_COST],
+            response.resp_metrics[PULSE_EXEC_WRITE_COST],
             Value::from(42)
         );
     }
@@ -1212,7 +1210,7 @@ mod tests {
                 let output = Output::new_with_stream(Box::pin(RecordBatchStreamWrapper::new(
                     schema, stream,
                 )));
-                let response = sql_response(vec![Ok(output)], "greptimedb_v1", Some(limit)).await;
+                let response = sql_response(vec![Ok(output)], "pulse_v1", Some(limit)).await;
                 assert_eq!(observed.load(Ordering::Relaxed), expected_batches);
                 assert_eq!(matches!(response, HttpResponse::Error(_)), late_error);
             }
@@ -1239,7 +1237,7 @@ mod tests {
                 } else {
                     Output::new_with_record_batches(batches)
                 };
-                let response = sql_response(vec![Ok(output)], "greptimedb_v1", Some(limit)).await;
+                let response = sql_response(vec![Ok(output)], "pulse_v1", Some(limit)).await;
                 // Only retained rows should be decoded into HTTP response values.
                 assert_eq!(matches!(response, HttpResponse::Error(_)), limit == 2);
             }

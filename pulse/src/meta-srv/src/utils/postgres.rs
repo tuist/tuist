@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(unix)]
 use std::str::FromStr;
 
@@ -201,7 +203,7 @@ mod tests {
         {
             // libpq keyword-value form (issue #7734)
             assert!(is_unix_socket_url(
-                "host=/var/run/postgresql dbname=greptime user=greptime password=secret"
+                "host=/var/run/postgresql dbname=pulse user=pulse password=secret"
             ));
             // standard postgres URL with percent-encoded unix socket directory
             assert!(is_unix_socket_url(
@@ -224,7 +226,7 @@ mod tests {
             ));
             assert!(!is_unix_socket_url("postgresql://user@localhost/db"));
             assert!(!is_unix_socket_url(
-                "host=127.0.0.1 port=5432 dbname=greptime user=greptime password=secret"
+                "host=127.0.0.1 port=5432 dbname=pulse user=pulse password=secret"
             ));
             // mixed socket and TCP hosts must not be treated as a socket-only config:
             // a Require/VerifyFull TLS config would otherwise end up in plaintext over TCP
@@ -238,7 +240,7 @@ mod tests {
         #[cfg(not(unix))]
         {
             assert!(!is_unix_socket_url(
-                "host=/var/run/postgresql dbname=greptime user=greptime password=secret"
+                "host=/var/run/postgresql dbname=pulse user=pulse password=secret"
             ));
             assert!(!is_unix_socket_url(
                 "postgresql://user:pw@localhost:5432/mydb"

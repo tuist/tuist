@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Implementation of `SHOW CREATE TABLE` statement.
 
 use std::collections::HashMap;
@@ -29,7 +31,7 @@ use datatypes::schema::{
 use datatypes::types::JsonFormat;
 use snafu::ResultExt;
 use sql::ast::{ColumnDef, ColumnOption, ColumnOptionDef, DataType, Expr, Ident, ObjectName};
-use sql::dialect::GreptimeDbDialect;
+use sql::dialect::PulseDialect;
 use sql::parser::ParserContext;
 use sql::statements::create::{Column, ColumnExtensions, CreateTable, TableConstraint};
 use sql::statements::{self, OptionMap, concrete_data_type_to_sql_data_type};
@@ -101,7 +103,7 @@ fn create_column(column_schema: &ColumnSchema, quote_style: char) -> Result<Colu
                     .into(),
             ),
             ColumnDefaultConstraint::Function(expr) => {
-                ParserContext::parse_function(expr, &GreptimeDbDialect {}).context(SqlSnafu)?
+                ParserContext::parse_function(expr, &PulseDialect {}).context(SqlSnafu)?
             }
         };
 
@@ -337,7 +339,7 @@ mod tests {
         let table_schema = SchemaRef::new(Schema::new(schema));
         let table_name = "system_metrics";
         let schema_name = "public".to_string();
-        let catalog_name = "greptime".to_string();
+        let catalog_name = "pulse".to_string();
 
         let mut options = table::requests::TableOptions {
             ttl: Some(Duration::from_secs(30).into()),
@@ -452,7 +454,7 @@ WITH(
                 .table_version(0 as TableVersion)
                 .name(table_name)
                 .schema_name("public")
-                .catalog_name("greptime")
+                .catalog_name("pulse")
                 .desc(None)
                 .table_type(TableType::Base)
                 .meta(meta)
@@ -484,7 +486,7 @@ ENGINE=mito
         let table_schema = SchemaRef::new(Schema::new(schema));
         let table_name = "system_metrics";
         let schema_name = "public".to_string();
-        let catalog_name = "greptime".to_string();
+        let catalog_name = "pulse".to_string();
         let mut options: TableOptions = Default::default();
         let _ = options
             .extra_options

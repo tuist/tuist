@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::meta::ReconcileRequest;
 use async_trait::async_trait;
 use catalog::CatalogManagerRef;
@@ -343,7 +345,7 @@ mod tests {
         let contexts = executor.contexts.lock().unwrap();
         assert_eq!(contexts.len(), 1);
         // The default query context runs as the default user.
-        assert_eq!(contexts[0].actor.as_deref(), Some("greptime"));
+        assert_eq!(contexts[0].actor.as_deref(), Some("pulse"));
         assert_eq!(
             contexts[0].event_input.as_ref().map(|input| input.reason),
             Some(TriggerReason::Manual)

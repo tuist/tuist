@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use datafusion::datasource::DefaultTableSource;
 use datafusion_common::tree_node::{
     Transformed, TransformedResult, TreeNode, TreeNodeRecursion, TreeNodeVisitor,
@@ -258,7 +260,7 @@ mod test {
         let time_index = CountWildcardToTimeIndexRule::try_find_time_index_col(&plan);
         assert_eq!(
             time_index,
-            Some(Column::new(Some(table_ref), "greptime_timestamp"))
+            Some(Column::new(Some(table_ref), "pulse_timestamp"))
         );
     }
 
@@ -285,7 +287,7 @@ mod test {
         let time_index = CountWildcardToTimeIndexRule::try_find_time_index_col(&plan);
         assert_eq!(
             time_index,
-            Some(Column::new(Some(table_ref), "greptime_timestamp"))
+            Some(Column::new(Some(table_ref), "pulse_timestamp"))
         );
     }
 
@@ -316,7 +318,7 @@ mod test {
         let time_index = CountWildcardToTimeIndexRule::try_find_time_index_col(&plan);
         assert_eq!(
             time_index,
-            Some(Column::new(Some(table_ref), "greptime_timestamp"))
+            Some(Column::new(Some(table_ref), "pulse_timestamp"))
         );
     }
 
@@ -533,7 +535,7 @@ mod test {
     fn build_time_index_table(table_name: &str, schema_name: &str, catalog_name: &str) -> TableRef {
         let column_schemas = vec![
             ColumnSchema::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ConcreteDataType::timestamp_nanosecond_datatype(),
                 false,
             )

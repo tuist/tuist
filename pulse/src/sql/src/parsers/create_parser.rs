@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod json;
-#[cfg(feature = "enterprise")]
-pub mod trigger;
 
 use std::collections::HashMap;
 
@@ -115,12 +115,6 @@ impl<'a> ParserContext<'a> {
                 Keyword::VIEW => {
                     let _ = self.parser.next_token();
                     self.parse_create_view(false)
-                }
-
-                #[cfg(feature = "enterprise")]
-                Keyword::TRIGGER => {
-                    let _ = self.parser.next_token();
-                    self.parse_create_trigger()
                 }
 
                 Keyword::NoKeyword => {
@@ -1302,7 +1296,7 @@ mod tests {
     use sqlparser::tokenizer::Tokenizer;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     fn string_option_map(
@@ -1323,7 +1317,7 @@ mod tests {
     fn test_parse_create_table_like() {
         let sql = "CREATE TABLE t1 LIKE t2";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(1, stmts.len());
@@ -1348,7 +1342,7 @@ mod tests {
         ) with(location='/var/data/city.csv',format='csv',foo='bar');";
 
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result,
             Err(error::Error::InvalidTableOption { .. })
@@ -1402,7 +1396,7 @@ mod tests {
         for test in tests {
             let stmts = ParserContext::create_with_dialect(
                 test.sql,
-                &GreptimeDbDialect {},
+                &PulseDialect {},
                 ParseOptions::default(),
             )
             .unwrap();
@@ -1433,7 +1427,7 @@ mod tests {
         let options = HashMap::from([("location", "/var/data/city.csv"), ("format", "csv")]);
 
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         match &stmts[0] {
@@ -1469,7 +1463,7 @@ mod tests {
     fn test_parse_create_database() {
         let sql = "create database";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result
                 .unwrap_err()
@@ -1479,7 +1473,7 @@ mod tests {
 
         let sql = "create database prometheus";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(1, stmts.len());
@@ -1493,7 +1487,7 @@ mod tests {
 
         let sql = "create database if not exists prometheus";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(1, stmts.len());
@@ -1507,7 +1501,7 @@ mod tests {
 
         let sql = "CREATE DATABASE `fOo`";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         match &stmts.last().unwrap() {
             Statement::CreateDatabase(c) => {
@@ -1519,7 +1513,7 @@ mod tests {
 
         let sql = "CREATE DATABASE prometheus with (ttl='1h');";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         match &stmts[0] {
             Statement::CreateDatabase(c) => {
@@ -1532,7 +1526,7 @@ mod tests {
 
         let sql = "CREATE DATABASE prometheus with ('ingest_rows_rate_limit'='1000');";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         match &stmts[0] {
             Statement::CreateDatabase(c) => {
@@ -1555,7 +1549,7 @@ mod tests {
                 let sql = format!("CREATE DATABASE invalid WITH ('{key}'='{invalid}')");
                 let err = ParserContext::create_with_dialect(
                     &sql,
-                    &GreptimeDbDialect {},
+                    &PulseDialect {},
                     ParseOptions::default(),
                 )
                 .unwrap_err();
@@ -1568,12 +1562,8 @@ mod tests {
             }
             for valid in ["0", "1"] {
                 let sql = format!("CREATE DATABASE valid WITH ('{key}'='{valid}')");
-                ParserContext::create_with_dialect(
-                    &sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default(),
-                )
-                .unwrap();
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             }
         }
         for key in [
@@ -1581,12 +1571,9 @@ mod tests {
             "compaction.twcs.inactive_window.l1_merge_trigger",
         ] {
             let sql = format!("CREATE DATABASE invalid WITH ('{key}'='1')");
-            let err = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap_err();
+            let err =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap_err();
             assert_eq!(
                 format!(
                     "Invalid database option value for {key}: 1, expected an integer greater than or equal to 2"
@@ -1597,12 +1584,11 @@ mod tests {
 
         let sql =
             "CREATE DATABASE valid WITH ('compaction.twcs.active_window.l1_merge_trigger'='2')";
-        ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
-            .unwrap();
+        ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default()).unwrap();
 
         let sql = "CREATE DATABASE invalid WITH ('unknown'='1')";
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         assert_eq!("Unrecognized database option key: unknown", err.to_string());
     }
@@ -1611,12 +1597,9 @@ mod tests {
     fn test_parse_create_flow_more_testcases() {
         use pretty_assertions::assert_eq;
         fn parse_create_flow(sql: &str) -> CreateFlow {
-            let stmts = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let stmts =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             assert_eq!(1, stmts.len());
             match &stmts[0] {
                 Statement::CreateFlow(c) => c.clone(),
@@ -1836,12 +1819,9 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;",
     fn test_parse_create_flow() {
         use pretty_assertions::assert_eq;
         fn parse_create_flow(sql: &str) -> CreateFlow {
-            let stmts = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let stmts =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             assert_eq!(1, stmts.len());
             match &stmts[0] {
                 Statement::CreateFlow(c) => c.clone(),
@@ -2049,12 +2029,9 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;",
     fn test_parse_create_flow_with_eval_offset() {
         use pretty_assertions::assert_eq;
         fn parse_create_flow(sql: &str) -> CreateFlow {
-            let stmts = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let stmts =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             assert_eq!(1, stmts.len());
             match &stmts[0] {
                 Statement::CreateFlow(c) => c.clone(),
@@ -2113,7 +2090,7 @@ EVAL OFFSET '2 minutes'
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;"#;
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err()
                 .to_string();
         assert!(
@@ -2135,13 +2112,10 @@ EVAL OFFSET '{offset}'
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;"#
             );
-            let err = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap_err()
-            .to_string();
+            let err =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap_err()
+                    .to_string();
             assert!(
                 err.contains("EVAL OFFSET must be in range"),
                 "unexpected error for offset {offset}: {err}"
@@ -2156,7 +2130,7 @@ EVAL OFFSET '1.5 seconds'
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;"#;
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err()
                 .to_string();
         assert!(
@@ -2172,7 +2146,7 @@ EVAL OFFSET '1 second'
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;"#;
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err()
                 .to_string();
         assert!(
@@ -2195,7 +2169,7 @@ SELECT * FROM tql;
 "#;
 
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         let Statement::CreateFlow(create_flow) = &stmts[0] else {
@@ -2217,7 +2191,7 @@ WITH cte AS (SELECT 1) SELECT * FROM cte;
 "#;
 
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         let Statement::CreateFlow(create_flow) = &stmts[0] else {
@@ -2243,7 +2217,7 @@ SELECT * FROM tql;
 "#;
 
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
 
         let msg = format!("{err:?}");
@@ -2266,7 +2240,7 @@ SELECT ts FROM tql;
 "#;
 
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         assert!(err.to_string().contains("simplest TQL CTE"), "err: {err}");
     }
@@ -2284,7 +2258,7 @@ SELECT * FROM tql WHERE ts > 0;
 "#;
 
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         assert!(err.to_string().contains("simplest TQL CTE"), "err: {err}");
     }
@@ -2301,7 +2275,7 @@ SELECT * FROM tql;
 "#;
 
         let err =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         assert!(err.to_string().contains("simplest TQL CTE"), "err: {err}");
     }
@@ -2315,7 +2289,7 @@ EXPIRE AFTER '1 month 2 days 1h 2 min'
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         assert!(
             stmts.is_err()
@@ -2338,7 +2312,7 @@ PARTITION ON COLUMNS(c, a) (
 )
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let _ = result.unwrap();
 
         let sql = r"
@@ -2346,7 +2320,7 @@ CREATE TABLE rcx ( ts TIMESTAMP TIME INDEX, a INT, b STRING, c INT )
 PARTITION ON COLUMNS(x) ()
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result
                 .unwrap_err()
@@ -2375,7 +2349,7 @@ PARTITION ON COLUMNS(idc, host_id) (
 )
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(result.len(), 1);
         match &result[0] {
@@ -2506,7 +2480,7 @@ PARTITION ON COLUMNS(IdC, host_id) (
   idc > 'sh' AND host_id >= 3000,
 )";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(result.len(), 1);
     }
@@ -2523,12 +2497,9 @@ CREATE TABLE monitor (
   PRIMARY KEY (host),
 )
 ENGINE=mito";
-        let result1 = ParserContext::create_with_dialect(
-            sql1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result1 =
+            ParserContext::create_with_dialect(sql1, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         if let Statement::CreateTable(c) = &result1[0] {
             assert_eq!(c.constraints.len(), 2);
@@ -2556,12 +2527,9 @@ CREATE TABLE monitor (
   PRIMARY KEY (host),
 )
 ENGINE=mito";
-        let result2 = ParserContext::create_with_dialect(
-            sql2,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result2 =
+            ParserContext::create_with_dialect(sql2, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         assert_eq!(result1, result2);
 
@@ -2578,12 +2546,9 @@ CREATE TABLE monitor (
 )
 ENGINE=mito";
 
-        let result3 = ParserContext::create_with_dialect(
-            sql3,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result3 =
+            ParserContext::create_with_dialect(sql3, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         assert_ne!(result1, result3);
 
@@ -2598,11 +2563,8 @@ CREATE TABLE monitor (
   PRIMARY KEY (host),
 )
 ENGINE=mito";
-        let result1 = ParserContext::create_with_dialect(
-            sql1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        );
+        let result1 =
+            ParserContext::create_with_dialect(sql1, &PulseDialect {}, ParseOptions::default());
 
         assert!(
             result1
@@ -2626,7 +2588,7 @@ CREATE TABLE monitor (
 )
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(result.len(), 1);
@@ -2650,12 +2612,9 @@ CREATE TABLE monitor (
 )
 ENGINE=mito";
 
-        let result1 = ParserContext::create_with_dialect(
-            sql1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result1 =
+            ParserContext::create_with_dialect(sql1, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
         assert_eq!(result, result1);
 
         let sql2 = r"
@@ -2670,12 +2629,9 @@ CREATE TABLE monitor (
 )
 ENGINE=mito";
 
-        let result2 = ParserContext::create_with_dialect(
-            sql2,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result2 =
+            ParserContext::create_with_dialect(sql2, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
         assert_eq!(result, result2);
 
         let sql3 = r"
@@ -2690,11 +2646,8 @@ CREATE TABLE monitor (
 )
 ENGINE=mito";
 
-        let result3 = ParserContext::create_with_dialect(
-            sql3,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        );
+        let result3 =
+            ParserContext::create_with_dialect(sql3, &PulseDialect {}, ParseOptions::default());
         assert!(result3.is_err());
 
         let sql4 = r"
@@ -2709,11 +2662,8 @@ CREATE TABLE monitor (
 )
 ENGINE=mito";
 
-        let result4 = ParserContext::create_with_dialect(
-            sql4,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        );
+        let result4 =
+            ParserContext::create_with_dialect(sql4, &PulseDialect {}, ParseOptions::default());
         assert!(result4.is_err());
 
         let sql = r"
@@ -2729,7 +2679,7 @@ CREATE TABLE monitor (
 ENGINE=mito";
 
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         if let Statement::CreateTable(c) = &result[0] {
@@ -2761,7 +2711,7 @@ PARTITION COLUMNS(c, a) (
 )
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result
                 .unwrap_err()
@@ -2776,8 +2726,7 @@ ENGINE=mito";
 CREATE TABLE rcx ( a INT, b STRING, c INT, d TIMESTAMP TIME INDEX )
 PARTITION ON COLUMNS(c, a) ()
 ENGINE=mito";
-        ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
-            .unwrap();
+        ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default()).unwrap();
     }
 
     #[test]
@@ -2789,7 +2738,7 @@ PARTITION ON COLUMNS(c, a) (
 )
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert_eq!(
             result.unwrap_err().output_msg(),
             "Invalid SQL, error: Column \"b\" in rule expr is not referenced in PARTITION ON"
@@ -2805,7 +2754,7 @@ PARTITION ON COLUMNS(c, a) (
 )
 ENGINE=mito";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert_eq!(
             result.unwrap_err().output_msg(),
             r#"Invalid SQL, error: Partition rule expr Identifier(Ident { value: "b", quote_style: None, span: Span(Location(4,5)..Location(4,6)) }) is not a binary expr"#
@@ -2830,7 +2779,7 @@ ENGINE=mito";
                              with(ttl='10s');
          ";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         match &result[0] {
@@ -2880,7 +2829,7 @@ ENGINE=mito";
                              PRIMARY KEY(ts, host)) engine=mito;
          ";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert_matches!(result, Err(crate::error::Error::InvalidTimeIndex { .. }));
     }
@@ -2897,7 +2846,7 @@ ENGINE=mito";
                              PRIMARY KEY(ts, host)) engine=mito;
          ";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert_matches!(result, Err(crate::error::Error::InvalidTimeIndex { .. }));
 
@@ -2911,7 +2860,7 @@ ENGINE=mito";
                              PRIMARY KEY(ts, host)) engine=mito;
          ";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert_matches!(result, Err(crate::error::Error::InvalidTimeIndex { .. }));
     }
@@ -2920,11 +2869,8 @@ ENGINE=mito";
     fn test_invalid_column_name() {
         for name in ["user", "at", "value", "select"] {
             let sql = format!("create table foo({name} string, i timestamp time index)");
-            let result = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            );
+            let result =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default());
             let err = result.unwrap_err().output_msg();
             assert!(err.contains(&format!("Cannot use keyword '{name}' as column name")));
         }
@@ -2934,7 +2880,7 @@ ENGINE=mito";
             create table foo("user" string, i timestamp time index)
         "#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let _ = result.unwrap();
     }
 
@@ -2945,7 +2891,7 @@ non TIMESTAMP(6) TIME INDEX,
 `iUSTO` DOUBLE DEFAULT 0.047318541668048164
 )"#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         match &result[0] {
@@ -2964,7 +2910,7 @@ non TIMESTAMP(6) TIME INDEX,
         let sql = "CREATE VIEW test AS SELECT * FROM NUMBERS";
 
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         match &result[0] {
             Statement::CreateView(c) => {
@@ -2979,7 +2925,7 @@ non TIMESTAMP(6) TIME INDEX,
         let sql = "CREATE OR REPLACE VIEW IF NOT EXISTS test AS SELECT * FROM NUMBERS";
 
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         match &result[0] {
             Statement::CreateView(c) => {
@@ -2996,7 +2942,7 @@ non TIMESTAMP(6) TIME INDEX,
     fn test_parse_create_view_invalid_query() {
         let sql = "CREATE VIEW test AS DELETE from demo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_ok_and(|x| x.len() == 1));
     }
 
@@ -3007,12 +2953,9 @@ CREATE TABLE log (
     ts TIMESTAMP TIME INDEX,
     msg TEXT FULLTEXT INDEX,
 )";
-        let result1 = ParserContext::create_with_dialect(
-            sql1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result1 =
+            ParserContext::create_with_dialect(sql1, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         if let Statement::CreateTable(c) = &result1[0] {
             c.columns.iter().for_each(|col| {
@@ -3035,12 +2978,9 @@ CREATE TABLE log (
     ts TIMESTAMP TIME INDEX,
     msg STRING FULLTEXT INDEX WITH (analyzer='English', case_sensitive='false')
 )";
-        let result2 = ParserContext::create_with_dialect(
-            sql2,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result2 =
+            ParserContext::create_with_dialect(sql2, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         if let Statement::CreateTable(c) = &result2[0] {
             c.columns.iter().for_each(|col| {
@@ -3061,12 +3001,9 @@ CREATE TABLE log (
     msg1 TINYTEXT FULLTEXT INDEX WITH (analyzer='English', case_sensitive='false'),
     msg2 CHAR(20) FULLTEXT INDEX WITH (analyzer='Chinese', case_sensitive='true')
 )";
-        let result3 = ParserContext::create_with_dialect(
-            sql3,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result3 =
+            ParserContext::create_with_dialect(sql3, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         if let Statement::CreateTable(c) = &result3[0] {
             c.columns.iter().for_each(|col| {
@@ -3095,7 +3032,7 @@ CREATE TABLE log (
     msg INT FULLTEXT INDEX,
 )";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert!(
             result
@@ -3113,7 +3050,7 @@ CREATE TABLE log (
     msg STRING FULLTEXT INDEX WITH (analyzer='English', analyzer='Chinese') FULLTEXT INDEX WITH (case_sensitive='false')
 )";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert!(
             result
@@ -3131,7 +3068,7 @@ CREATE TABLE log (
     msg STRING FULLTEXT INDEX WITH (analyzer='English', invalid_option='Chinese')
 )";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert!(
             result
@@ -3149,7 +3086,7 @@ CREATE TABLE log (
     msg INT SKIPPING INDEX WITH (granularity='8192', type='bloom'),
 )";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         if let Statement::CreateTable(c) = &result[0] {
@@ -3174,7 +3111,7 @@ CREATE TABLE log (
             msg INT SKIPPING INDEX,
         )";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         if let Statement::CreateTable(c) = &result[0] {
@@ -3198,7 +3135,7 @@ CREATE TABLE log (
     fn test_parse_create_view_with_columns() {
         let sql = "CREATE VIEW test () AS SELECT * FROM NUMBERS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         match &result[0] {
@@ -3217,7 +3154,7 @@ CREATE TABLE log (
 
         let sql = "CREATE VIEW test (n1) AS SELECT * FROM NUMBERS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         match &result[0] {
@@ -3233,7 +3170,7 @@ CREATE TABLE log (
 
         let sql = "CREATE VIEW test (n1, n2) AS SELECT * FROM NUMBERS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         match &result[0] {
@@ -3250,28 +3187,28 @@ CREATE TABLE log (
         // Some invalid syntax cases
         let sql = "CREATE VIEW test (n1 AS select * from demo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         let sql = "CREATE VIEW test (n1, AS select * from demo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         let sql = "CREATE VIEW test n1,n2) AS select * from demo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         let sql = "CREATE VIEW test (1) AS select * from demo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         // keyword
         let sql = "CREATE VIEW test (n1, select) AS select * from demo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
     }
 
@@ -3476,12 +3413,8 @@ CREATE TABLE log (
                 "CREATE TABLE vectors (ts TIMESTAMP TIME INDEX, embedding VECTOR(3) {index})"
             );
             assert!(
-                ParserContext::create_with_dialect(
-                    &sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default()
-                )
-                .is_err()
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .is_err()
             );
         }
     }
@@ -3490,7 +3423,7 @@ CREATE TABLE log (
     fn test_parse_interval_cast() {
         let s = "select '10s'::INTERVAL";
         let stmts =
-            ParserContext::create_with_dialect(s, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(s, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!("SELECT '10 seconds'::INTERVAL", &stmts[0].to_string());
     }

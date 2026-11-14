@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use clap::Parser;
 use cli::Tool;
 use common_telemetry::logging::{LoggingOptions, TracingOptions};
@@ -21,7 +23,7 @@ use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::options::GlobalOptions;
 use crate::{App, Result, error};
-pub const APP_NAME: &str = "greptime-cli";
+pub const APP_NAME: &str = "pulse-cli";
 use async_trait::async_trait;
 
 pub struct Instance {
@@ -215,7 +217,7 @@ mod tests {
 
         let output_file = output_dir
             .path()
-            .join("greptime")
+            .join("pulse")
             .join("cli.export.create_table")
             .join("create_tables.sql");
         let res = std::fs::read_to_string(output_file).unwrap();

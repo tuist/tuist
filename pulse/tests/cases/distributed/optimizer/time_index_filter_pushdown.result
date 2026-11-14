@@ -5,8 +5,8 @@ CREATE TABLE
         `rack` STRING NULL,
         `os` STRING NULL,
         `usage_user` BIGINT NULL,
-        `greptime_timestamp` TIMESTAMP(9) NOT NULL,
-        TIME INDEX (`greptime_timestamp`),
+        `pulse_timestamp` TIMESTAMP(9) NOT NULL,
+        TIME INDEX (`pulse_timestamp`),
     ) PARTITION ON COLUMNS (`rack`) (
         rack < '2',
         rack >= '2'
@@ -58,7 +58,7 @@ select
 from
     public.cpu
 where
-    greptime_timestamp > '2023-06-12 01:05:00';
+    pulse_timestamp > '2023-06-12 01:05:00';
 
 +----------+
 | count(*) |
@@ -73,7 +73,7 @@ select
 from
     public.cpu
 where
-    greptime_timestamp > '2023-06-12 01:05:00'
+    pulse_timestamp > '2023-06-12 01:05:00'
 group by
     os;
 
@@ -94,17 +94,17 @@ group by
 EXPLAIN SELECT
     rack,
     os,
-    greptime_timestamp
+    pulse_timestamp
 FROM
     cpu
 WHERE
-    greptime_timestamp = (
+    pulse_timestamp = (
         SELECT
-            greptime_timestamp
+            pulse_timestamp
         FROM
             cpu
         ORDER BY
-            greptime_timestamp DESC
+            pulse_timestamp DESC
         LIMIT
             1
     );
@@ -112,26 +112,26 @@ WHERE
 +-+-+
 | plan_type_| plan_|
 +-+-+
-| logical_plan_| Filter: cpu.greptime_timestamp = (<subquery>)_|
+| logical_plan_| Filter: cpu.pulse_timestamp = (<subquery>)_|
 |_|_Subquery:_|
 |_|_Limit: skip=0, fetch=1_|
-|_|_MergeSort: cpu.greptime_timestamp DESC NULLS FIRST_|
+|_|_MergeSort: cpu.pulse_timestamp DESC NULLS FIRST_|
 |_|_MergeScan [is_placeholder=false, remote_input=[_|
 |_| Limit: skip=0, fetch=1_|
-|_|_Sort: cpu.greptime_timestamp DESC NULLS FIRST_|
-|_|_Projection: cpu.greptime_timestamp_|
+|_|_Sort: cpu.pulse_timestamp DESC NULLS FIRST_|
+|_|_Projection: cpu.pulse_timestamp_|
 |_|_TableScan: cpu_|
 |_| ]]_|
-|_|_Projection: cpu.rack, cpu.os, cpu.greptime_timestamp_|
+|_|_Projection: cpu.rack, cpu.os, cpu.pulse_timestamp_|
 |_|_MergeScan [is_placeholder=false, remote_input=[_|
 |_| TableScan: cpu_|
 |_| ]]_|
 | physical_plan | ScalarSubqueryExec: subqueries=1_|
-|_|_FilterExec: greptime_timestamp@2 = scalar_subquery(<pending>)_|
-|_|_ProjectionExec: expr=[rack@0 as rack, os@1 as os, greptime_timestamp@3 as greptime_timestamp]_|
+|_|_FilterExec: pulse_timestamp@2 = scalar_subquery(<pending>)_|
+|_|_ProjectionExec: expr=[rack@0 as rack, os@1 as os, pulse_timestamp@3 as pulse_timestamp]_|
 |_|_CooperativeExec_|
 |_|_MergeScanExec: REDACTED
-|_|_MergeSortExec: [greptime_timestamp@0 DESC], fetch=1_|
+|_|_MergeSortExec: [pulse_timestamp@0 DESC], fetch=1_|
 |_|_MergeScanExec: REDACTED
 |_|_|
 +-+-+
@@ -139,23 +139,23 @@ WHERE
 SELECT
     rack,
     os,
-    greptime_timestamp
+    pulse_timestamp
 FROM
     cpu
 WHERE
-    greptime_timestamp = (
+    pulse_timestamp = (
         SELECT
-            greptime_timestamp
+            pulse_timestamp
         FROM
             cpu
         ORDER BY
-            greptime_timestamp DESC
+            pulse_timestamp DESC
         LIMIT
             1
     );
 
 +------+---------+---------------------+
-| rack | os      | greptime_timestamp  |
+| rack | os      | pulse_timestamp     |
 +------+---------+---------------------+
 | 8    | windows | 2023-06-12T02:10:00 |
 +------+---------+---------------------+
@@ -171,24 +171,24 @@ WHERE
 -- SQLNESS REPLACE (?m)^\|_\|_\|_SortExec:.*\n
 -- SQLNESS REPLACE FilterExec:\sDynamicFilter\s\[[^\]]*\] FilterExec: DynamicFilter [ REDACTED ]
 -- SQLNESS REPLACE "files":\s\[.*?\],\s
--- SQLNESS REPLACE IS\sNULL\sOR\sgreptime_timestamp@0\s>\s\d+ IS NULL OR greptime_timestamp@0 > REDACTED
+-- SQLNESS REPLACE IS\sNULL\sOR\spulse_timestamp@0\s>\s\d+ IS NULL OR pulse_timestamp@0 > REDACTED
 -- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
 -- SQLNESS REPLACE Total\s+rows:\s+\d+ Total rows: REDACTED
 -- SQLNESS REPLACE UnorderedScan:.*"dyn_filters":\s(\["DynamicFilter\s\[[^\]]*\]"\]).* UnorderedScan: REDACTED, "dyn_filters": $1
 EXPLAIN ANALYZE VERBOSE SELECT
     rack,
     os,
-    greptime_timestamp
+    pulse_timestamp
 FROM
     cpu
 WHERE
-    greptime_timestamp = (
+    pulse_timestamp = (
         SELECT
-            greptime_timestamp
+            pulse_timestamp
         FROM
             cpu
         ORDER BY
-            greptime_timestamp DESC
+            pulse_timestamp DESC
         LIMIT
             1
     );
@@ -197,47 +197,47 @@ WHERE
 | stage | node | plan_|
 +-+-+-+
 | 0_| 0_|_ScalarSubqueryExec REDACTED
-|_|_|_FilterExec: greptime_timestamp@2 = scalar_subquery(1686535800000000000) REDACTED
-|_|_|_ProjectionExec: expr=[rack@0 as rack, os@1 as os, greptime_timestamp@3 as greptime_timestamp] REDACTED
+|_|_|_FilterExec: pulse_timestamp@2 = scalar_subquery(1686535800000000000) REDACTED
+|_|_|_ProjectionExec: expr=[rack@0 as rack, os@1 as os, pulse_timestamp@3 as pulse_timestamp] REDACTED
 |_|_|_CooperativeExec REDACTED
 |_|_|_MergeScanExec: REDACTED
-|_|_|_MergeSortExec: [greptime_timestamp@0 DESC], fetch=1 REDACTED
+|_|_|_MergeSortExec: [pulse_timestamp@0 DESC], fetch=1 REDACTED
 |_|_|_MergeScanExec: REDACTED
 |_|_|_|
 | 1_| 0_|_CooperativeExec REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@3 = 1686535800000000000 ]"]
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@3 = 1686535800000000000 ]"]
 |_|_|_|
 | 1_| 1_|_CooperativeExec REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@3 = 1686535800000000000 ]"]
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@3 = 1686535800000000000 ]"]
 |_|_|_|
 | 1_| 2_|_CooperativeExec REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@3 = 1686535800000000000 ]"]
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@3 = 1686535800000000000 ]"]
 |_|_|_|
 | 1_| 3_|_CooperativeExec REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@3 = 1686535800000000000 ]"]
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@3 = 1686535800000000000 ]"]
 |_|_|_|
 | 1_| 4_|_CooperativeExec REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@3 = 1686535800000000000 ]"]
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@3 = 1686535800000000000 ]"]
 |_|_|_|
 | 1_| 0_|_FilterExec: DynamicFilter [ REDACTED ] REDACTED
-|_|_|_SortPreservingMergeExec: [greptime_timestamp@0 DESC], fetch=1 REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@0 IS NULL OR greptime_timestamp@0 > REDACTED ]"]
+|_|_|_SortPreservingMergeExec: [pulse_timestamp@0 DESC], fetch=1 REDACTED
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@0 IS NULL OR pulse_timestamp@0 > REDACTED ]"]
 |_|_|_|
 | 1_| 1_|_FilterExec: DynamicFilter [ REDACTED ] REDACTED
-|_|_|_SortPreservingMergeExec: [greptime_timestamp@0 DESC], fetch=1 REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@0 IS NULL OR greptime_timestamp@0 > REDACTED ]"]
+|_|_|_SortPreservingMergeExec: [pulse_timestamp@0 DESC], fetch=1 REDACTED
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@0 IS NULL OR pulse_timestamp@0 > REDACTED ]"]
 |_|_|_|
 | 1_| 2_|_FilterExec: DynamicFilter [ REDACTED ] REDACTED
-|_|_|_SortPreservingMergeExec: [greptime_timestamp@0 DESC], fetch=1 REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@0 IS NULL OR greptime_timestamp@0 > REDACTED ]"]
+|_|_|_SortPreservingMergeExec: [pulse_timestamp@0 DESC], fetch=1 REDACTED
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@0 IS NULL OR pulse_timestamp@0 > REDACTED ]"]
 |_|_|_|
 | 1_| 3_|_FilterExec: DynamicFilter [ REDACTED ] REDACTED
-|_|_|_SortPreservingMergeExec: [greptime_timestamp@0 DESC], fetch=1 REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@0 IS NULL OR greptime_timestamp@0 > REDACTED ]"]
+|_|_|_SortPreservingMergeExec: [pulse_timestamp@0 DESC], fetch=1 REDACTED
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@0 IS NULL OR pulse_timestamp@0 > REDACTED ]"]
 |_|_|_|
 | 1_| 4_|_FilterExec: DynamicFilter [ REDACTED ] REDACTED
-|_|_|_SortPreservingMergeExec: [greptime_timestamp@0 DESC], fetch=1 REDACTED
-|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ greptime_timestamp@0 IS NULL OR greptime_timestamp@0 > REDACTED ]"]
+|_|_|_SortPreservingMergeExec: [pulse_timestamp@0 DESC], fetch=1 REDACTED
+|_|_|_UnorderedScan: REDACTED, "dyn_filters": ["DynamicFilter [ pulse_timestamp@0 IS NULL OR pulse_timestamp@0 > REDACTED ]"]
 |_|_|_|
 |_|_| Total rows: REDACTED_|
 +-+-+-+

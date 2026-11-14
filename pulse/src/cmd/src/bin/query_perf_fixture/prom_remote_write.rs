@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use clap::Args as ClapArgs;
 use prost::Message;
 use serde_json::json;
@@ -27,7 +29,7 @@ pub(super) struct PromRemoteWriteArgs {
     database: String,
     #[arg(long)]
     metric: String,
-    #[arg(long, default_value = "greptime_physical_table")]
+    #[arg(long, default_value = "pulse_physical_table")]
     physical_table: String,
     #[arg(long, default_value_t = 8)]
     series_count: u64,
@@ -122,8 +124,8 @@ fn make_prom_series(
 ) -> api::prom_store::remote::TimeSeries {
     let mut labels = vec![
         prom_label("__name__", &args.metric),
-        prom_label("x_greptime_database", &args.database),
-        prom_label("x_greptime_physical_table", &args.physical_table),
+        prom_label("x_pulse_database", &args.database),
+        prom_label("x_pulse_physical_table", &args.physical_table),
         prom_label("host", &format!("host{:04}", series_idx % 1024)),
         prom_label("instance", &format!("instance{:06}", series_idx)),
     ];
@@ -245,7 +247,7 @@ mod tests {
             endpoint: "http://127.0.0.1:4000/v1/prometheus/write".to_string(),
             database: "public".to_string(),
             metric: "test_metric".to_string(),
-            physical_table: "greptime_physical_table".to_string(),
+            physical_table: "pulse_physical_table".to_string(),
             series_count: 2,
             samples_per_series: 64,
             start_unix_millis: 1_704_067_200_000,

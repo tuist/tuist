@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod kafka;
 pub mod object_store;
 pub mod raft_engine;
@@ -197,7 +199,7 @@ mod tests {
             selector_type = "round_robin"
             replication_factor = 1
             create_topic_timeout = "30s"
-            topic_name_prefix = "greptimedb_wal_topic"
+            topic_name_prefix = "pulse_wal_topic"
             [tls]
             server_ca_cert_path = "/path/to/server.pem"
             [sasl]
@@ -228,7 +230,7 @@ mod tests {
             kafka_topic: KafkaTopicConfig {
                 num_topics: 32,
                 selector_type: TopicSelectorType::RoundRobin,
-                topic_name_prefix: "greptimedb_wal_topic".to_string(),
+                topic_name_prefix: "pulse_wal_topic".to_string(),
                 num_partitions: 1,
                 replication_factor: 1,
                 create_topic_timeout: Duration::from_secs(30),
@@ -268,7 +270,7 @@ mod tests {
             kafka_topic: KafkaTopicConfig {
                 num_topics: 32,
                 selector_type: TopicSelectorType::RoundRobin,
-                topic_name_prefix: "greptimedb_wal_topic".to_string(),
+                topic_name_prefix: "pulse_wal_topic".to_string(),
                 num_partitions: 1,
                 replication_factor: 1,
                 create_topic_timeout: Duration::from_secs(30),
@@ -352,7 +354,7 @@ mod tests {
             connection: KafkaConnectionConfig {
                 sasl: Some(KafkaClientSasl {
                     config: KafkaClientSaslConfig::Plain {
-                        username: "greptime".to_string(),
+                        username: "pulse".to_string(),
                         password: "kafka-secret".to_string(),
                     },
                 }),
@@ -363,7 +365,7 @@ mod tests {
 
         let debug = format!("{config:#?}");
 
-        assert!(debug.contains("greptime"));
+        assert!(debug.contains("pulse"));
         assert!(debug.contains("<REDACTED>"));
         assert!(!debug.contains("kafka-secret"));
     }

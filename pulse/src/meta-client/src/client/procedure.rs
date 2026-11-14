@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -722,7 +724,7 @@ mod tests {
             &client,
             executor_context,
             SubmitDdlTaskRequest::new(DdlTask::new_create_database(
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "metrics".to_string(),
                 false,
                 Default::default(),
@@ -793,7 +795,7 @@ mod tests {
         client.start(&[addr_str.as_str()]).await.unwrap();
 
         let mut request = SubmitDdlTaskRequest::new(DdlTask::new_comment_on(CommentOnTask {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             object_type: CommentObjectType::Table,
             object_name: "test_table".to_string(),

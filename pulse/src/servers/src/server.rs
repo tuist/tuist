@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -34,7 +36,7 @@ pub(crate) type AbortableStream = Abortable<TcpListenerStream>;
 
 pub type ServerHandler = (Box<dyn Server>, SocketAddr);
 
-/// [ServerHandlers] is used to manage the lifecycle of all the services like http or grpc in the GreptimeDB server.
+/// [ServerHandlers] is used to manage the lifecycle of all the services like http or grpc in the Pulse server.
 #[derive(Clone, Display)]
 pub enum ServerHandlers {
     Init(Arc<std::sync::Mutex<HashMap<String, ServerHandler>>>),

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{self, Debug};
 use std::path::Path;
 use std::time::Duration;
@@ -30,12 +32,12 @@ use snafu::ResultExt;
 use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::error::{self, LoadLayeredConfigSnafu, Result, StartMetaServerSnafu};
-use crate::options::{GlobalOptions, GreptimeOptions};
+use crate::options::{GlobalOptions, PulseOptions};
 use crate::{App, create_resource_limit_metrics, log_versions, maybe_activate_heap_profile};
 
-type MetasrvOptions = GreptimeOptions<meta_srv::metasrv::MetasrvOptions>;
+type MetasrvOptions = PulseOptions<meta_srv::metasrv::MetasrvOptions>;
 
-pub const APP_NAME: &str = "greptime-metasrv";
+pub const APP_NAME: &str = "pulse-metasrv";
 
 pub struct Instance {
     instance: MetasrvInstance,
@@ -164,7 +166,7 @@ pub struct StartCommand {
     http_addr: Option<String>,
     #[clap(long)]
     http_timeout: Option<u64>,
-    #[clap(long, default_value = "GREPTIMEDB_METASRV")]
+    #[clap(long, default_value = "PULSE_METASRV")]
     env_prefix: String,
     /// The working home directory of this metasrv instance.
     #[clap(long)]
@@ -408,7 +410,7 @@ mod tests {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
 
             [failure_detector]
             threshold = 8.0
@@ -428,10 +430,7 @@ mod tests {
         assert_eq!(vec!["127.0.0.1:2379".to_string()], options.store_addrs);
         assert_eq!(SelectorType::LeaseBased, options.selector);
         assert_eq!("debug", options.logging.level.as_ref().unwrap());
-        assert_eq!(
-            "./greptimedb_data/test/logs".to_string(),
-            options.logging.dir
-        );
+        assert_eq!("./pulse_data/test/logs".to_string(), options.logging.dir);
         assert_eq!(8.0, options.failure_detector.threshold);
         assert_eq!(
             100.0,
@@ -462,7 +461,7 @@ mod tests {
 
         let options = cmd
             .load_options(&GlobalOptions {
-                log_dir: Some("./greptimedb_data/test/logs".to_string()),
+                log_dir: Some("./pulse_data/test/logs".to_string()),
                 log_level: Some("debug".to_string()),
 
                 #[cfg(feature = "tokio-console")]
@@ -472,7 +471,7 @@ mod tests {
             .component;
 
         let logging_opt = options.logging;
-        assert_eq!("./greptimedb_data/test/logs", logging_opt.dir);
+        assert_eq!("./pulse_data/test/logs", logging_opt.dir);
         assert_eq!("debug", logging_opt.level.as_ref().unwrap());
     }
 
@@ -489,7 +488,7 @@ mod tests {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
         write!(file, "{}", toml_str).unwrap();
 

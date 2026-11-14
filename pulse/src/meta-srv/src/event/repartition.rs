@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -382,7 +384,7 @@ mod tests {
 
     fn parent_persistent_ctx() -> RepartitionPersistentContext {
         RepartitionPersistentContext::new(
-            TableName::new("greptime", "public", "repartition_events"),
+            TableName::new("pulse", "public", "repartition_events"),
             1024,
             Some(Duration::from_secs(30)),
         )
@@ -416,7 +418,7 @@ mod tests {
             &parent_schema(),
             &[Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue("public".to_string()).into(),
                     ValueData::StringValue("repartition_events".to_string()).into(),
                     ValueData::U32Value(1024).into(),
@@ -629,7 +631,7 @@ mod tests {
             &parent_schema(),
             &[Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue("public".to_string()).into(),
                     ValueData::StringValue("repartition_events".to_string()).into(),
                     ValueData::U32Value(1024).into(),
@@ -681,7 +683,7 @@ mod tests {
                     ValueData::StringValue("Running".to_string()).into(),
                     ValueData::StringValue(String::new()).into(),
                     jsonb_value(&serde_json::json!({"type": "Submitted"})),
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue("public".to_string()).into(),
                     ValueData::StringValue("repartition_events".to_string()).into(),
                     ValueData::U32Value(1024).into(),

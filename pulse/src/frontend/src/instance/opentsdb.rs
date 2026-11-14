@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -124,15 +126,15 @@ mod tests {
                 "mem".to_string(),
                 0,
                 1.0,
-                vec![("greptime_value".to_string(), "tag".to_string())],
+                vec![("pulse_value".to_string(), "tag".to_string())],
             ),
         ];
         assert!(data_point_to_grpc_row_insert_requests(data_points.to_vec()).is_err());
 
         assert_eq!(
             PermissionTableTargets::Resolved(vec![
-                PermissionTableTarget::new("greptime", "public", "cpu"),
-                PermissionTableTarget::new("greptime", "public", "mem"),
+                PermissionTableTarget::new("pulse", "public", "cpu"),
+                PermissionTableTarget::new("pulse", "public", "mem"),
             ]),
             permission_targets(&data_points, &QueryContext::arc())
         );

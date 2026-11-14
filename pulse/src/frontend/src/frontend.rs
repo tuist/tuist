@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use common_base::readable_size::ReadableSize;
@@ -213,7 +215,7 @@ mod tests {
     use servers::batcher::BatchingProtocol;
     use servers::grpc::{FlightCompression, GRPC_SERVER};
     use servers::http::HTTP_SERVER;
-    use servers::http::result::greptime_result_v1::GreptimedbV1Response;
+    use servers::http::result::pulse_result_v1::PulseV1Response;
     use servers::server::Server;
     use tokio::sync::mpsc;
     use tonic::codec::CompressionEncoding;
@@ -711,7 +713,7 @@ max_batch_rows = 25
 
         match (response, expected) {
             (Ok(response), Ok(expected)) => {
-                let response: GreptimedbV1Response = serde_json::from_str(&response).unwrap();
+                let response: PulseV1Response = serde_json::from_str(&response).unwrap();
                 let response = serde_json::to_string(response.output()).unwrap();
                 assert_eq!(&response, expected);
             }

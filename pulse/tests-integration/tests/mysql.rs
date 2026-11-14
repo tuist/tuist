@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use itertools::Itertools;
 use sqlx::mysql::{MySqlQueryResult, MySqlRow};
 use sqlx::{Connection, MySqlConnection, Row};
@@ -105,7 +107,7 @@ OK packet (rows affected: 0)
         .await
         .unwrap_err()
         .to_string();
-    let expected = r#"error returned from database: 1146 (42S02): (TableNotFound): Failed to plan SQL: Table not found: greptime.public.bar"#;
+    let expected = r#"error returned from database: 1146 (42S02): (TableNotFound): Failed to plan SQL: Table not found: pulse.public.bar"#;
     assert_eq!(result, expected);
 
     let query = "select i from bar; select i from foo";
@@ -115,7 +117,7 @@ OK packet (rows affected: 0)
         .await
         .unwrap_err()
         .to_string();
-    let expected = r#"error returned from database: 1146 (42S02): (TableNotFound): Failed to plan SQL: Table not found: greptime.public.bar"#;
+    let expected = r#"error returned from database: 1146 (42S02): (TableNotFound): Failed to plan SQL: Table not found: pulse.public.bar"#;
     assert_eq!(result, expected);
 
     let _ = server.shutdown().await;

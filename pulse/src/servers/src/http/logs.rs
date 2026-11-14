@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -22,7 +24,7 @@ use common_telemetry::tracing;
 use log_query::{Limit, LogQuery};
 use session::context::{Channel, QueryContext};
 
-use crate::http::result::greptime_result_v1::GreptimedbV1Response;
+use crate::http::result::pulse_result_v1::PulseV1Response;
 use crate::query_handler::LogQueryHandlerRef;
 
 const DEFAULT_FETCH: usize = 1000;
@@ -50,7 +52,7 @@ pub async fn logs(
         .start_timer();
 
     let output = handler.query(params, query_ctx).await;
-    let resp = GreptimedbV1Response::from_output(vec![output]).await;
+    let resp = PulseV1Response::from_output(vec![output]).await;
 
     resp.with_execution_time(exec_start.elapsed().as_millis() as u64)
         .into_response()

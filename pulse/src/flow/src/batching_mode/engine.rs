@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Batching mode engine
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -1204,7 +1206,7 @@ mod tests {
             .downcast_ref::<MemoryCatalogManager>()
             .unwrap()
             .register_table_sync(RegisterTableRequest {
-                catalog: "greptime".to_string(),
+                catalog: "pulse".to_string(),
                 schema: "public".to_string(),
                 table_name: name.to_string(),
                 table_id: 9000,
@@ -1230,7 +1232,7 @@ mod tests {
             .downcast_ref::<MemoryCatalogManager>()
             .unwrap()
             .register_table_sync(RegisterTableRequest {
-                catalog: "greptime".to_string(),
+                catalog: "pulse".to_string(),
                 schema: "public".to_string(),
                 table_name: name.to_string(),
                 table_id: 9001,
@@ -1242,11 +1244,7 @@ mod tests {
     fn flow_create_args(flow_id: FlowId, sink: &str) -> CreateFlowArgs {
         CreateFlowArgs {
             flow_id,
-            sink_table_name: [
-                "greptime".to_string(),
-                "public".to_string(),
-                sink.to_string(),
-            ],
+            sink_table_name: ["pulse".to_string(), "public".to_string(), sink.to_string()],
             source_table_ids: vec![1],
             create_if_not_exists: false,
             or_replace: false,
@@ -1562,7 +1560,7 @@ GROUP BY l.number, time_window
     #[test]
     fn test_incremental_source_append_only_enforcement() {
         let table_name = [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers".to_string(),
         ];
@@ -1644,7 +1642,7 @@ GROUP BY l.number, time_window
             .table_id(table_id)
             .table_version(0)
             .name(table_name)
-            .catalog_name("greptime")
+            .catalog_name("pulse")
             .schema_name("public")
             .meta(meta)
             .build()
@@ -1703,12 +1701,12 @@ GROUP BY l.number, time_window
             time_window_expr,
             expire_after: None,
             sink_table_name: [
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 "sink".to_string(),
             ],
             source_table_names: vec![[
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 source_table_name.to_string(),
             ]],
@@ -1731,7 +1729,7 @@ GROUP BY l.number, time_window
         // Register the source table info so the engine can resolve the table
         // name and the time index unit (millisecond).
         let mut table_info = new_test_table_info_with_name(1, "numbers_with_ts");
-        table_info.catalog_name = "greptime".to_string();
+        table_info.catalog_name = "pulse".to_string();
         table_info.schema_name = "public".to_string();
         engine
             .table_meta

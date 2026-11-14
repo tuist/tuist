@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::{Duration, Instant};
 
 use api::v1::meta::{HeartbeatRequest, Role};
@@ -76,7 +78,7 @@ struct PersistRegionStat<'a> {
     write_bytes_delta: u64,
     #[col(
         // This col name is for the information schema table, so we don't touch it
-        name = "greptime_timestamp",
+        name = "pulse_timestamp",
         semantic = "Timestamp",
         datatype = "TimestampMillisecond"
     )]

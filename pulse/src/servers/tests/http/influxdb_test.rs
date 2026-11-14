@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::RowInsertRequests;
@@ -25,7 +27,7 @@ use datafusion_expr::LogicalPlan;
 use query::parser::PromQuery;
 use query::query_engine::DescribeResult;
 use servers::error::Result;
-use servers::http::header::constants::GREPTIME_DB_HEADER_NAME;
+use servers::http::header::constants::PULSE_DB_HEADER_NAME;
 use servers::http::test_helpers::TestClient;
 use servers::http::{HttpOptions, HttpServerBuilder};
 use servers::influxdb::InfluxdbRequest;
@@ -104,9 +106,9 @@ fn make_test_app(tx: Arc<mpsc::Sender<(String, String)>>, db_name: Option<&str>)
     let mut user_provider = MockUserProvider::default();
     if let Some(name) = db_name {
         user_provider.set_authorization_info(DatabaseAuthInfo {
-            catalog: "greptime",
+            catalog: "pulse",
             schema: name,
-            username: "greptime",
+            username: "pulse",
         })
     }
     let server = HttpServerBuilder::new(http_opts)
@@ -137,7 +139,7 @@ async fn test_influxdb_write() {
     let result = client
         .post("/v1/influxdb/write?db=public")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -145,7 +147,7 @@ async fn test_influxdb_write() {
 
     // right request using v1 auth
     let result = client
-        .post("/v1/influxdb/write?db=public&p=greptime&u=greptime")
+        .post("/v1/influxdb/write?db=public&p=pulse&u=pulse")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
         .send()
         .await;
@@ -156,10 +158,7 @@ async fn test_influxdb_write() {
     let result = client
         .post("/v1/influxdb/write?db=public")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(
-            http::header::AUTHORIZATION,
-            basic_auth("greptime", "greptime"),
-        )
+        .header(http::header::AUTHORIZATION, basic_auth("pulse", "pulse"))
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -169,12 +168,12 @@ async fn test_influxdb_write() {
     let result = client
         .post("/v1/influxdb/write?db=public")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:wrongpwd")
+        .header(http::header::AUTHORIZATION, "token pulse:wrongpwd")
         .send()
         .await;
     assert_eq!(result.status(), 401);
     assert_eq!(
-        "{\"code\":7002,\"error\":\"Username and password does not match, username: greptime\",\"execution_time_ms\":0}",
+        "{\"code\":7002,\"error\":\"Username and password does not match, username: pulse\",\"execution_time_ms\":0}",
         result.text().await
     );
 
@@ -198,7 +197,7 @@ async fn test_influxdb_write() {
     let result = client
         .post("/v1/influxdb/write?db=influxdb")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -208,7 +207,7 @@ async fn test_influxdb_write() {
     let result = client
         .post("/v1/influxdb/write?db=influxdb")
         .body("monitor,   host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 400);
@@ -249,7 +248,7 @@ async fn test_influxdb_write_v2() {
     let result = public_db_client
         .post("/v1/influxdb/api/v2/write")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -259,7 +258,7 @@ async fn test_influxdb_write_v2() {
     let result = public_db_client
         .post("/v1/influxdb/api/v2/write?bucket=public")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -269,7 +268,7 @@ async fn test_influxdb_write_v2() {
     let result = public_db_client
         .post("/v1/influxdb/api/v2/write?db=public")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -283,7 +282,7 @@ async fn test_influxdb_write_v2() {
     let result = client
         .post("/v1/influxdb/api/v2/write?bucket=influxdb")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -293,7 +292,7 @@ async fn test_influxdb_write_v2() {
     let result = client
         .post("/v1/influxdb/api/v2/write?db=influxdb")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
@@ -303,29 +302,29 @@ async fn test_influxdb_write_v2() {
     let result = public_db_client
         .post("/v1/influxdb/api/v2/write")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
         .send()
         .await;
     assert_eq!(result.status(), 204);
     assert!(result.text().await.is_empty());
 
-    // right request with the 'greptime' header and 'db' query string
+    // right request with the 'pulse' header and 'db' query string
     let result = client
         .post("/v1/influxdb/api/v2/write?db=influxdbv2")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
-        .header(GREPTIME_DB_HEADER_NAME, "influxdb")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
+        .header(PULSE_DB_HEADER_NAME, "influxdb")
         .send()
         .await;
     assert_eq!(result.status(), 204);
     assert!(result.text().await.is_empty());
 
-    // right request with the 'greptime' header and 'bucket' query string
+    // right request with the 'pulse' header and 'bucket' query string
     let result = client
         .post("/v1/influxdb/api/v2/write?bucket=influxdbv2")
         .body("monitor,host=host1 cpu=1.2 1664370459457010101")
-        .header(http::header::AUTHORIZATION, "token greptime:greptime")
-        .header(GREPTIME_DB_HEADER_NAME, "influxdb")
+        .header(http::header::AUTHORIZATION, "token pulse:pulse")
+        .header(PULSE_DB_HEADER_NAME, "influxdb")
         .send()
         .await;
     assert_eq!(result.status(), 204);

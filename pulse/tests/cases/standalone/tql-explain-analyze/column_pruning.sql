@@ -3,7 +3,7 @@ CREATE TABLE promql_column_pruning (
   job STRING,
   instance STRING,
   "region" STRING,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(job, instance, region),
 );
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Use regex to filter out some MySQL federated components' emitted statements.
 //! Inspired by Databend's "[mysql_federated.rs](https://github.com/datafuselabs/databend/blob/ac706bf65845e6895141c96c0a10bad6fdc2d367/src/query/service/src/servers/mysql/mysql_federated.rs)".
 
@@ -590,7 +592,7 @@ mod test {
 +-------------------+
 | @@version_comment |
 +-------------------+
-| GreptimeDB        |
+| Pulse             |
 +-------------------+";
         test(query, expected);
 
@@ -724,7 +726,7 @@ mod test {
 +--------------+
 | CURRENT_USER |
 +--------------+
-| greptime     |
+| pulse        |
 +--------------+"
         );
         assert_eq!(
@@ -733,7 +735,7 @@ mod test {
 +--------------+
 | session_user |
 +--------------+
-| greptime     |
+| pulse        |
 +--------------+"
         );
 

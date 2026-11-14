@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod flight;
 mod network;
 
@@ -83,7 +85,7 @@ mod test {
     use substrait::{DFLogicalSubstraitConvertor, SubstraitPlan};
 
     use super::*;
-    use crate::standalone::GreptimeDbStandaloneBuilder;
+    use crate::standalone::PulseStandaloneBuilder;
     use crate::test_util::execute_sql_and_expect;
     use crate::tests;
     use crate::tests::MockDistributedInstance;
@@ -102,7 +104,7 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_handle_ddl_request() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_handle_ddl_request")
+        let standalone = PulseStandaloneBuilder::new("test_standalone_handle_ddl_request")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -123,10 +125,9 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_handle_multi_ddl_request() {
-        let standalone =
-            GreptimeDbStandaloneBuilder::new("test_standalone_handle_multi_ddl_request")
-                .build()
-                .await;
+        let standalone = PulseStandaloneBuilder::new("test_standalone_handle_multi_ddl_request")
+            .build()
+            .await;
         let instance = standalone.fe_instance();
 
         test_handle_multi_ddl_request(instance.as_ref()).await;
@@ -144,7 +145,7 @@ mod test {
         plugins.insert::<PermissionCheckerRef>(DefaultPermissionChecker::arc());
 
         let standalone =
-            GreptimeDbStandaloneBuilder::new("test_grpc_insert_into_plan_rejects_readonly_user")
+            PulseStandaloneBuilder::new("test_grpc_insert_into_plan_rejects_readonly_user")
                 .with_plugin(plugins)
                 .build()
                 .await;
@@ -167,7 +168,7 @@ mod test {
             .plan(&stmt, QueryContext::arc())
             .await
             .unwrap();
-        let (table_name, insert_plan) = breakup_insert_plan(&plan, "greptime", "public").unwrap();
+        let (table_name, insert_plan) = breakup_insert_plan(&plan, "pulse", "public").unwrap();
         let logical_plan = DFLogicalSubstraitConvertor
             .encode(&insert_plan, DefaultSerializer)
             .unwrap()
@@ -217,7 +218,7 @@ mod test {
     async fn test_handle_multi_ddl_request(instance: &Instance) {
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::CreateDatabase(CreateDatabaseExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 create_if_not_exists: true,
                 options: Default::default(),
@@ -228,7 +229,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::CreateTable(CreateTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 column_defs: vec![
@@ -259,7 +260,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::AlterTable(AlterTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 kind: Some(alter_table_expr::Kind::AddColumns(AddColumns {
@@ -297,7 +298,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::AlterTable(AlterTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 kind: Some(alter_table_expr::Kind::AddColumns(AddColumns {
@@ -350,7 +351,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::DropTable(DropTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 ..Default::default()
@@ -363,7 +364,7 @@ mod test {
     async fn test_handle_ddl_request(instance: &Instance) {
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::CreateDatabase(CreateDatabaseExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 create_if_not_exists: true,
                 options: Default::default(),
@@ -374,7 +375,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::CreateTable(CreateTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 column_defs: vec![
@@ -405,7 +406,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::AlterTable(AlterTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 kind: Some(alter_table_expr::Kind::AddColumns(AddColumns {
@@ -444,7 +445,7 @@ mod test {
 
         let request = Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::DropTable(DropTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "database_created_through_grpc".to_string(),
                 table_name: "table_created_through_grpc".to_string(),
                 ..Default::default()
@@ -460,7 +461,7 @@ mod test {
                 .frontend()
                 .catalog_manager()
                 .table(
-                    "greptime",
+                    "pulse",
                     "database_created_through_grpc",
                     "table_created_through_grpc",
                     None,
@@ -577,7 +578,7 @@ CREATE TABLE {table_name} (
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_insert_and_query() {
         common_telemetry::init_default_ut_logging();
-        let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_insert_and_query")
+        let standalone = PulseStandaloneBuilder::new("test_standalone_insert_and_query")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -933,7 +934,7 @@ CREATE TABLE {table_name} (
         let table = instance
             .frontend()
             .catalog_manager()
-            .table("greptime", "public", table_name, None)
+            .table("pulse", "public", table_name, None)
             .await
             .unwrap()
             .unwrap();
@@ -1157,7 +1158,7 @@ CREATE TABLE {table_name} (
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_promql_query() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_promql_query")
+        let standalone = PulseStandaloneBuilder::new("test_standalone_promql_query")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -1442,7 +1443,7 @@ CREATE TABLE {table_name} (
     #[tokio::test(flavor = "multi_thread")]
     async fn test_grpc_first_write_creates_declared_relationships_table() {
         common_telemetry::init_default_ut_logging();
-        let standalone = GreptimeDbStandaloneBuilder::new("test_grpc_declared_first_write")
+        let standalone = PulseStandaloneBuilder::new("test_grpc_declared_first_write")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -1468,7 +1469,7 @@ CREATE TABLE {table_name} (
         use api::v1::{ColumnSchema, Row, RowInsertRequest, RowInsertRequests, Rows, Value};
 
         common_telemetry::init_default_ut_logging();
-        let standalone = GreptimeDbStandaloneBuilder::new("test_grpc_declared_no_auto_create")
+        let standalone = PulseStandaloneBuilder::new("test_grpc_declared_no_auto_create")
             .build()
             .await;
         let instance = standalone.fe_instance();

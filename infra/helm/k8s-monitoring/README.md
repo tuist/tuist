@@ -82,7 +82,7 @@ Prerequisites:
    | `PULSE_TOKEN` | Password | `password` (random, e.g. `openssl rand -hex 32`) |
    | `PULSE_S3_CREDENTIALS` | Login | `access_key_id`, `secret_access_key` |
 
-3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. See the [Pulse bootstrap prerequisites](../greptimedb/README.md#bootstrap-prerequisites).
+3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. See the [Pulse bootstrap prerequisites](../pulse/README.md#bootstrap-prerequisites).
 4. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
 5. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
 
@@ -137,17 +137,17 @@ A rack can live in a non-production env (BER1 was in staging while it was built 
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 
-## Pulse (GreptimeDB)
+## Pulse
 
-Pulse is Tuist's GreptimeDB fork, installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/greptimedb`](../greptimedb/README.md). The management cluster runs its own `pulse` release through Flux ([`infra/flux/pulse`](../../flux/pulse)); pentest sends its metrics only to Grafana Cloud.
+Pulse, Tuist's observability database ([`pulse/`](../../../pulse/FORK.md)), is installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/pulse`](../pulse/README.md). The management cluster runs its own `pulse` release through Flux ([`infra/flux/pulse`](../../flux/pulse)); pentest sends its metrics only to Grafana Cloud.
 
 Staging, canary and production collectors send metrics, logs and traces to Grafana Cloud and, through separate write queues, directly to Pulse (`pulse.observability.svc.cluster.local:4000`), with no gateway in between:
 
 - `pulse-metrics`: Prometheus remote write to `/v1/prometheus/write`, with the same relabel/drop policy as Cloud.
 - `pulse-logs`: a custom WAL-backed Loki writer to `/v1/loki/api/v1/push` with the `loki_otlp` pipeline into `opentelemetry_logs`. It sets no tenant.
-- `pulse-traces`: OTLP/HTTP to `/v1/otlp/v1/traces` with the `greptime_trace_v1` pipeline into `opentelemetry_traces`. Traces are unsampled, while Cloud keeps its tail sampling.
+- `pulse-traces`: OTLP/HTTP to `/v1/otlp/v1/traces` with the `pulse_trace_v1` pipeline into `opentelemetry_traces`. Traces are unsampled, while Cloud keeps its tail sampling.
 
-Every request selects the `public` database with `X-Greptime-DB-Name`; these are the headers the retired `greptimedb-ingest` gateway set. Basic auth uses the `ingest-username` (`tuist`, write-only in Greptime's static user provider) and `ingest-password` (the `PULSE_TOKEN` value) keys of the `pulse-dashboard-auth` Secret owned by the `pulse` release, which renders it when `dashboard.enabled`. The upstream chart still renders an `X-Scope-OrgID` header from a `tenantId` key; the Secret has none, so Alloy sends it empty, as it does for Grafana Cloud, and Greptime ignores it.
+Every request selects the `public` database with `X-Pulse-DB-Name`. Basic auth uses the `ingest-username` (`tuist`, write-only in Pulse's static user provider) and `ingest-password` (the `PULSE_TOKEN` value) keys of the `pulse-dashboard-auth` Secret owned by the `pulse` release, which renders it when `dashboard.enabled`. The upstream chart still renders an `X-Scope-OrgID` header from a `tenantId` key; the Secret has none, so Alloy sends it empty, as it does for Grafana Cloud, and Pulse ignores it.
 
 Install the `pulse` release with `dashboard=true` before these collectors reach a cluster. Alloy fails its whole config load, Grafana Cloud included, when a referenced Secret is missing, so `.github/scripts/pulse-readiness.sh` refuses a deploy whose collector values reference `pulse-dashboard-auth` until that ExternalSecret is Ready with the ingest keys.
 
@@ -165,7 +165,7 @@ still blocks ingestion and ephemeral collector replacement can lose buffered
 data. It does not repair Pulse availability or recover historical logs
 already lost during an outage.
 
-`bash .github/scripts/greptimedb-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret or the retired interim `greptimedb` release, or if management or pentest write anywhere but Cloud.
+`bash .github/scripts/pulse-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret, or if management or pentest write anywhere but Cloud.
 
 `python3 infra/helm/k8s-monitoring/test-log-destination-outage.py` uses the rendered
 canary Faro receiver and Pulse log writer with local backends: it fills more than the default

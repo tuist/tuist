@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::HashMap;
@@ -34,18 +36,17 @@ use tests_fuzz::ir::CreateTableExpr;
 use tests_fuzz::translator::DslTranslator;
 use tests_fuzz::translator::mysql::create_expr::CreateTableExprTranslator;
 use tests_fuzz::utils::{
-    Connections, get_fuzz_override, get_gt_fuzz_input_max_columns,
-    init_greptime_connections_via_env,
+    Connections, get_fuzz_override, get_gt_fuzz_input_max_columns, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -94,14 +95,14 @@ async fn execute_create_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> 
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create table: {sql}, result: {result:?}");
 
     // Validates columns
     let mut column_entries =
-        validator::column::fetch_columns(&ctx.greptime, "public".into(), expr.table_name.clone())
+        validator::column::fetch_columns(&ctx.pulse, "public".into(), expr.table_name.clone())
             .await?;
     column_entries.sort_by(|a, b| a.column_name.cmp(&b.column_name));
     let mut columns = expr.columns.clone();
@@ -111,7 +112,7 @@ async fn execute_create_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> 
     // Cleans up
     let sql = format!("DROP TABLE {}", expr.table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!("Drop table: {}, result: {result:?}", expr.table_name);
@@ -123,9 +124,9 @@ async fn execute_create_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> 
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_create_table(ctx, input)
             .await

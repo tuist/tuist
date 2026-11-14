@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
-#[cfg(feature = "enterprise")]
-use std::time::Duration;
 
 use api::v1::ddl_request::Expr as DdlExpr;
 use api::v1::greptime_request::Request;
@@ -29,10 +29,6 @@ use common_event_recorder::event_table::{
     CATALOG_NAME_COLUMN, PAYLOAD_COLUMN, PHYSICAL_TABLE_ID_COLUMN, PROCEDURE_ID_COLUMN,
     PROCEDURE_TRIGGER_COLUMN, SCHEMA_NAME_COLUMN, TABLE_ID_COLUMN, TABLE_NAME_COLUMN, TYPE_COLUMN,
 };
-#[cfg(feature = "enterprise")]
-use common_event_recorder::{PersistentEventContext, TriggerReason};
-#[cfg(feature = "enterprise")]
-use common_procedure::ProcedureContext;
 use common_test_util::temp_dir::create_temp_dir;
 use frontend::instance::Instance;
 use meta_srv::gc::GcSchedulerOptions;
@@ -40,7 +36,7 @@ use mito2::gc::GcConfig;
 use servers::query_handler::grpc::GrpcQueryHandler;
 use servers::query_handler::sql::SqlQueryHandler;
 use session::context::{Channel, QueryContext};
-use tests_integration::cluster::GreptimeDbClusterBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
 use tests_integration::test_util::{
     setup_authenticated_grpc_database, test_event_recorder_options,
 };
@@ -50,7 +46,7 @@ use crate::event_recorder_test_util::{
     find_eventually_u32,
 };
 
-const EVENTS_TABLE: &str = "greptime_private.events";
+const EVENTS_TABLE: &str = "pulse_private.events";
 const TABLE: &str = "table_ddl_events";
 const PHYSICAL_TABLE: &str = "table_ddl_events_phy";
 const LOGICAL_TABLE: &str = "table_ddl_events_logical";
@@ -67,19 +63,11 @@ async fn test_table_ddl_procedure_events() {
     // Arrange: use a distributed cluster to submit Undrop and Purge directly
     // through the metasrv DDL manager and exercise logical-table task grouping.
     let home_dir = create_temp_dir("table_ddl_procedure_events");
-    #[cfg_attr(not(feature = "enterprise"), allow(unused_mut))]
-    let mut gc_options = GcSchedulerOptions {
+    let gc_options = GcSchedulerOptions {
         enable: true,
         ..Default::default()
     };
-    // Soft drop is enterprise-only; non-enterprise builds run this test with
-    // plain GC and skip the undrop/purge assertions below.
-    #[cfg(feature = "enterprise")]
-    {
-        gc_options.experimental_soft_drop.enable = true;
-        gc_options.experimental_soft_drop.retention = Duration::from_secs(1);
-    }
-    let cluster = GreptimeDbClusterBuilder::new("table_ddl_procedure_events")
+    let cluster = PulseClusterBuilder::new("table_ddl_procedure_events")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)
@@ -123,7 +111,7 @@ async fn test_table_ddl_procedure_events() {
         frontend.as_ref(),
         Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::CreateTable(CreateTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: GRPC_TABLE.to_string(),
                 column_defs: vec![
@@ -147,17 +135,13 @@ async fn test_table_ddl_procedure_events() {
                 ..Default::default()
             })),
         }),
-        Arc::new(QueryContext::with_channel(
-            "greptime",
-            "public",
-            Channel::Grpc,
-        )),
+        Arc::new(QueryContext::with_channel("pulse", "public", Channel::Grpc)),
     )
     .await
     .unwrap();
     let grpc_create_procedure_id =
         submitted_procedure_id(&frontend, "create_table", GRPC_TABLE).await;
-    assert_procedure_actor(&frontend, &grpc_create_procedure_id, Some("greptime")).await;
+    assert_procedure_actor(&frontend, &grpc_create_procedure_id, Some("pulse")).await;
     assert_event_context(
         &frontend,
         "create_table",
@@ -170,7 +154,7 @@ async fn test_table_ddl_procedure_events() {
         frontend.as_ref(),
         Request::Ddl(DdlRequest {
             expr: Some(DdlExpr::AlterTable(AlterTableExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: GRPC_TABLE.to_string(),
                 kind: Some(alter_table_expr::Kind::AddColumns(AddColumns {
@@ -187,11 +171,7 @@ async fn test_table_ddl_procedure_events() {
                 })),
             })),
         }),
-        Arc::new(QueryContext::with_channel(
-            "greptime",
-            "public",
-            Channel::Grpc,
-        )),
+        Arc::new(QueryContext::with_channel("pulse", "public", Channel::Grpc)),
     )
     .await
     .unwrap();
@@ -258,7 +238,7 @@ async fn test_table_ddl_procedure_events() {
         &frontend,
         &format!("ALTER TABLE {TABLE} ADD COLUMN extra STRING"),
         Arc::new(QueryContext::with_channel(
-            "greptime",
+            "pulse",
             "public",
             Channel::HttpSql,
         )),
@@ -303,7 +283,7 @@ async fn test_table_ddl_procedure_events() {
         &frontend,
         &format!("TRUNCATE TABLE {TABLE}"),
         Arc::new(QueryContext::with_channel(
-            "greptime",
+            "pulse",
             "public",
             Channel::HttpSql,
         )),
@@ -347,7 +327,7 @@ async fn test_table_ddl_procedure_events() {
         &frontend,
         &format!("DROP TABLE {TABLE}"),
         Arc::new(QueryContext::with_channel(
-            "greptime",
+            "pulse",
             "public",
             Channel::HttpSql,
         )),
@@ -383,92 +363,6 @@ async fn test_table_ddl_procedure_events() {
         Some(table_id),
     )
     .await;
-    #[cfg(feature = "enterprise")]
-    {
-        let (undrop_table_procedure_id, _) = cluster
-            .metasrv
-            .ddl_manager()
-            .submit_undrop_table_task(
-                common_meta::rpc::ddl::UndropTableTask { table_id },
-                ProcedureContext::from_event_context(PersistentEventContext::new(
-                    TriggerReason::Manual,
-                )),
-            )
-            .await
-            .unwrap();
-        let undrop_table_procedure_id = undrop_table_procedure_id.to_string();
-        assert_event_context(
-            &frontend,
-            "undrop_table",
-            &undrop_table_procedure_id,
-            "manual",
-            None,
-        )
-        .await;
-        assert_id_submitted_event(
-            &frontend,
-            "undrop_table",
-            &undrop_table_procedure_id,
-            "\
-+--------------+
-| type         |
-+--------------+
-| undrop_table |
-+--------------+",
-        )
-        .await;
-        assert_terminal_event(
-            &frontend,
-            "undrop_table",
-            &undrop_table_procedure_id,
-            "Succeeded",
-            Some(TABLE),
-            Some(table_id),
-        )
-        .await;
-        run_sql(&frontend, &format!("DROP TABLE {TABLE}")).await;
-        let (purge_table_procedure_id, _) = cluster
-            .metasrv
-            .ddl_manager()
-            .submit_purge_dropped_table_task(
-                common_meta::rpc::ddl::PurgeDroppedTableTask { table_id },
-                ProcedureContext::from_event_context(PersistentEventContext::new(
-                    TriggerReason::Manual,
-                )),
-            )
-            .await
-            .unwrap();
-        let purge_table_procedure_id = purge_table_procedure_id.to_string();
-        assert_event_context(
-            &frontend,
-            "purge_dropped_table",
-            &purge_table_procedure_id,
-            "manual",
-            None,
-        )
-        .await;
-        assert_id_submitted_event(
-            &frontend,
-            "purge_dropped_table",
-            &purge_table_procedure_id,
-            "\
-+---------------------+
-| type                |
-+---------------------+
-| purge_dropped_table |
-+---------------------+",
-        )
-        .await;
-        assert_terminal_event(
-            &frontend,
-            "purge_dropped_table",
-            &purge_table_procedure_id,
-            "Succeeded",
-            Some(TABLE),
-            Some(table_id),
-        )
-        .await;
-    }
 
     // Arrange / Act: metric logical-table DDL is executed through the distributed
     // frontend, which groups logical DDL tasks for the meta procedure manager.
@@ -486,7 +380,7 @@ async fn test_table_ddl_procedure_events() {
             "CREATE TABLE {LOGICAL_TABLE} (ts TIMESTAMP TIME INDEX, val DOUBLE, host STRING PRIMARY KEY) ENGINE=metric WITH (\"on_physical_table\" = \"{PHYSICAL_TABLE}\")"
         ),
         Arc::new(QueryContext::with_channel(
-            "greptime",
+            "pulse",
             "public",
             Channel::HttpSql,
         )),
@@ -540,7 +434,7 @@ async fn test_table_ddl_procedure_events() {
         &frontend,
         &format!("ALTER TABLE {LOGICAL_TABLE} ADD COLUMN rack STRING PRIMARY KEY"),
         Arc::new(QueryContext::with_channel(
-            "greptime",
+            "pulse",
             "public",
             Channel::HttpSql,
         )),
@@ -623,7 +517,7 @@ async fn auto_create_table(instance: &Arc<Instance>, table_name: &str, channel: 
                     }),
                 }],
             },
-            Arc::new(QueryContext::with_channel("greptime", "public", channel)),
+            Arc::new(QueryContext::with_channel("pulse", "public", channel)),
             false,
             false,
         )
@@ -679,7 +573,7 @@ async fn find_table_id(instance: &Arc<Instance>, table_name: &str) -> u32 {
     find_eventually_u32(
         instance,
         &format!(
-            "SELECT table_id FROM information_schema.tables WHERE table_catalog = 'greptime' AND table_schema = 'public' AND table_name = '{table_name}'"
+            "SELECT table_id FROM information_schema.tables WHERE table_catalog = 'pulse' AND table_schema = 'public' AND table_name = '{table_name}'"
         ),
         "table_id",
     )
@@ -720,24 +614,6 @@ async fn assert_named_submitted_event(
     assert_eventually_eq(instance, &query, expected).await;
 }
 
-#[cfg(feature = "enterprise")]
-async fn assert_id_submitted_event(
-    instance: &Arc<Instance>,
-    event_type: &str,
-    procedure_id: &str,
-    expected: &str,
-) {
-    let query = format!(
-        "SELECT {} FROM {EVENTS_TABLE} WHERE {} = '{event_type}' AND {} = '{procedure_id}' AND json_path_match({}, '$.type == \"Submitted\"') AND json_path_match({}, '$.version == 1')",
-        TYPE_COLUMN.name(),
-        TYPE_COLUMN.name(),
-        PROCEDURE_ID_COLUMN.name(),
-        PROCEDURE_TRIGGER_COLUMN.name(),
-        PAYLOAD_COLUMN.name(),
-    );
-    assert_eventually_eq(instance, &query, expected).await;
-}
-
 async fn assert_terminal_event(
     instance: &Arc<Instance>,
     event_type: &str,
@@ -760,7 +636,7 @@ async fn assert_terminal_event(
         },
         |_| {
             format!(
-                "{} = 'greptime' AND {} = 'public'",
+                "{} = 'pulse' AND {} = 'public'",
                 CATALOG_NAME_COLUMN.name(),
                 SCHEMA_NAME_COLUMN.name(),
             )

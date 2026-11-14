@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(not(windows))]
 pub(crate) mod jemalloc;
 
@@ -52,20 +54,20 @@ pub(crate) const METRIC_FAILURE_VALUE: &str = "failure";
 lazy_static! {
 
     pub static ref HTTP_REQUEST_COUNTER: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_http_request_counter",
+        "pulse_servers_http_request_counter",
         "servers http request counter",
         &[METRIC_METHOD_LABEL, METRIC_PATH_LABEL, METRIC_CODE_LABEL, METRIC_DB_LABEL]
     ).unwrap();
 
     pub static ref METRIC_ERROR_COUNTER: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_error",
+        "pulse_servers_error",
         "servers error",
         &[METRIC_PROTOCOL_LABEL]
     )
     .unwrap();
     /// Http SQL query duration per database.
     pub static ref METRIC_HTTP_SQL_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_sql_elapsed",
+        "pulse_servers_http_sql_elapsed",
         "servers http sql elapsed",
         &[METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
@@ -73,7 +75,7 @@ lazy_static! {
     .unwrap();
     /// Http pql query duration per database.
     pub static ref METRIC_HTTP_PROMQL_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_promql_elapsed",
+        "pulse_servers_http_promql_elapsed",
         "servers http promql elapsed",
         &[METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
@@ -81,21 +83,21 @@ lazy_static! {
     .unwrap();
     /// Http logs query duration per database.
     pub static ref METRIC_HTTP_LOGS_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_logs_elapsed",
+        "pulse_servers_http_logs_elapsed",
         "servers http logs elapsed",
         &[METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref METRIC_AUTH_FAILURE: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_auth_failure_count",
+        "pulse_servers_auth_failure_count",
         "servers auth failure count",
         &[METRIC_CODE_LABEL]
     )
     .unwrap();
     /// Http influxdb write duration per database.
     pub static ref METRIC_HTTP_INFLUXDB_WRITE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_influxdb_write_elapsed",
+        "pulse_servers_http_influxdb_write_elapsed",
         "servers http influxdb write elapsed",
         &[METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
@@ -103,7 +105,7 @@ lazy_static! {
     .unwrap();
     /// Http prometheus write duration per database and remote write protocol version.
     pub static ref METRIC_HTTP_PROM_STORE_WRITE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_prometheus_write_elapsed",
+        "pulse_servers_http_prometheus_write_elapsed",
         "servers http prometheus write elapsed",
         &[METRIC_DB_LABEL, METRIC_VERSION_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
@@ -111,89 +113,89 @@ lazy_static! {
     .unwrap();
     /// Prometheus remote write codec duration per protocol version.
     pub static ref METRIC_HTTP_PROM_STORE_CODEC_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_prometheus_codec_elapsed",
+        "pulse_servers_http_prometheus_codec_elapsed",
         "servers http prometheus request codec duration",
         &["type", METRIC_VERSION_LABEL],
     )
     .unwrap();
     /// The samples count of Prometheus remote write per protocol version.
     pub static ref PROM_STORE_REMOTE_WRITE_SAMPLES: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_prometheus_remote_write_samples",
+        "pulse_servers_prometheus_remote_write_samples",
         "frontend prometheus remote write samples",
         &[METRIC_DB_LABEL, METRIC_VERSION_LABEL]
     )
     .unwrap();
     /// The native histograms count of Prometheus remote write per protocol version.
     pub static ref PROM_STORE_REMOTE_WRITE_HISTOGRAMS: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_prometheus_remote_write_histograms",
+        "pulse_servers_prometheus_remote_write_histograms",
         "frontend prometheus remote write native histograms",
         &[METRIC_DB_LABEL, METRIC_VERSION_LABEL]
     )
     .unwrap();
     /// OTLP exponential-histogram data points rejected during conversion, by reason.
     pub static ref OTLP_EXPONENTIAL_HISTOGRAM_REJECTED_DATA_POINTS: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_otlp_exponential_histogram_rejected_data_points_total",
+        "pulse_servers_otlp_exponential_histogram_rejected_data_points_total",
         "Number of OTLP exponential histogram data points rejected during conversion",
         &["reason"]
     )
     .unwrap();
     pub static ref PENDING_BATCHES: IntGauge = register_int_gauge!(
-        "greptime_prom_store_pending_batches",
+        "pulse_prom_store_pending_batches",
         "Number of pending batches waiting to be flushed"
     )
     .unwrap();
     pub static ref PENDING_ROWS: IntGauge = register_int_gauge!(
-        "greptime_prom_store_pending_rows",
+        "pulse_prom_store_pending_rows",
         "Number of pending rows waiting to be flushed"
     )
     .unwrap();
     pub static ref PENDING_WORKERS: IntGauge = register_int_gauge!(
-        "greptime_prom_store_pending_workers",
+        "pulse_prom_store_pending_workers",
         "Number of active pending rows batch workers"
     )
     .unwrap();
     pub static ref FLUSH_TOTAL: IntCounter = register_int_counter!(
-        "greptime_prom_store_flush_total",
+        "pulse_prom_store_flush_total",
         "Total number of batch flushes"
     )
     .unwrap();
     pub static ref FLUSH_ROWS: Histogram = register_histogram!(
-        "greptime_prom_store_flush_rows",
+        "pulse_prom_store_flush_rows",
         "Number of rows per flush",
         vec![100.0, 1000.0, 10000.0, 50000.0, 100000.0, 500000.0]
     )
     .unwrap();
     pub static ref FLUSH_ELAPSED: Histogram = register_histogram!(
-        "greptime_prom_store_flush_elapsed",
+        "pulse_prom_store_flush_elapsed",
         "Elapsed time of pending rows batch flush in seconds",
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref FLUSH_DROPPED_ROWS: IntCounter = register_int_counter!(
-        "greptime_pending_rows_flush_dropped_rows",
+        "pulse_pending_rows_flush_dropped_rows",
         "Total rows dropped due to pending rows flush failures"
     )
     .unwrap();
     pub static ref FLUSH_FAILURES: IntCounter = register_int_counter!(
-        "greptime_pending_rows_flush_failures",
+        "pulse_pending_rows_flush_failures",
         "Total pending rows flush failures"
     )
     .unwrap();
     pub static ref FLOW_NOTIFICATION_DROPPED: IntCounterVec = register_int_counter_vec!(
-        "greptime_prom_store_flow_notification_dropped_total",
+        "pulse_prom_store_flow_notification_dropped_total",
         "Total flow notifications dropped by the pending rows batcher",
         &["reason"]
     )
     .unwrap();
     pub static ref PENDING_ROWS_BATCH_INGEST_STAGE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_prom_store_pending_rows_batch_ingest_stage_elapsed",
+        "pulse_prom_store_pending_rows_batch_ingest_stage_elapsed",
         "Elapsed time of pending rows batch ingestion stages in seconds",
         &["stage"],
         vec![0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0]
     )
     .unwrap();
     pub static ref PENDING_ROWS_BATCH_FLUSH_STAGE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_prom_store_pending_rows_batch_flush_stage_elapsed",
+        "pulse_prom_store_pending_rows_batch_flush_stage_elapsed",
         "Elapsed time of pending rows batch flush stages in seconds",
         &["stage"],
         vec![0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0]
@@ -201,48 +203,48 @@ lazy_static! {
     .unwrap();
     /// Http prometheus read duration per database.
     pub static ref METRIC_HTTP_PROM_STORE_READ_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_prometheus_read_elapsed",
+        "pulse_servers_http_prometheus_read_elapsed",
         "servers http prometheus read elapsed",
         &[METRIC_DB_LABEL]
     )
     .unwrap();
     /// Http prometheus endpoint query duration per database.
     pub static ref METRIC_HTTP_PROMETHEUS_PROMQL_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_prometheus_promql_elapsed",
+        "pulse_servers_http_prometheus_promql_elapsed",
         "servers http prometheus promql elapsed",
         &[METRIC_DB_LABEL, METRIC_METHOD_LABEL]
     )
     .unwrap();
     pub static ref METRIC_HTTP_OPENTELEMETRY_METRICS_ELAPSED: HistogramVec =
         register_histogram_vec!(
-            "greptime_servers_http_otlp_metrics_elapsed",
+            "pulse_servers_http_otlp_metrics_elapsed",
             "servers_http_otlp_metrics_elapsed",
             &[METRIC_DB_LABEL]
         )
         .unwrap();
     pub static ref METRIC_HTTP_OPENTELEMETRY_TRACES_ELAPSED: HistogramVec =
         register_histogram_vec!(
-            "greptime_servers_http_otlp_traces_elapsed",
+            "pulse_servers_http_otlp_traces_elapsed",
             "servers http otlp traces elapsed",
             &[METRIC_DB_LABEL]
         )
         .unwrap();
     pub static ref METRIC_HTTP_OPENTELEMETRY_LOGS_ELAPSED: HistogramVec =
     register_histogram_vec!(
-        "greptime_servers_http_otlp_logs_elapsed",
+        "pulse_servers_http_otlp_logs_elapsed",
         "servers http otlp logs elapsed",
         &[METRIC_DB_LABEL]
     )
     .unwrap();
     pub static ref METRIC_HTTP_LOGS_INGESTION_COUNTER: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_http_logs_ingestion_counter",
+        "pulse_servers_http_logs_ingestion_counter",
         "servers http logs ingestion counter",
         &[METRIC_DB_LABEL]
     )
     .unwrap();
     pub static ref METRIC_HTTP_LOGS_INGESTION_ELAPSED: HistogramVec =
         register_histogram_vec!(
-            "greptime_servers_http_logs_ingestion_elapsed",
+            "pulse_servers_http_logs_ingestion_elapsed",
             "servers http logs ingestion elapsed",
             &[METRIC_DB_LABEL, METRIC_RESULT_LABEL]
         )
@@ -250,21 +252,21 @@ lazy_static! {
 
     /// Count of logs ingested into Loki.
     pub static ref METRIC_LOKI_LOGS_INGESTION_COUNTER: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_loki_logs_ingestion_counter",
+        "pulse_servers_loki_logs_ingestion_counter",
         "servers loki logs ingestion counter",
         &[METRIC_DB_LABEL]
     )
     .unwrap();
     pub static ref METRIC_LOKI_LOGS_INGESTION_ELAPSED: HistogramVec =
         register_histogram_vec!(
-            "greptime_servers_loki_logs_ingestion_elapsed",
+            "pulse_servers_loki_logs_ingestion_elapsed",
             "servers loki logs ingestion elapsed",
             &[METRIC_DB_LABEL, METRIC_RESULT_LABEL]
         )
         .unwrap();
     pub static ref METRIC_ELASTICSEARCH_LOGS_INGESTION_ELAPSED: HistogramVec =
         register_histogram_vec!(
-            "greptime_servers_elasticsearch_logs_ingestion_elapsed",
+            "pulse_servers_elasticsearch_logs_ingestion_elapsed",
             "servers elasticsearch logs ingestion elapsed",
             &[METRIC_DB_LABEL]
         )
@@ -272,7 +274,7 @@ lazy_static! {
 
     /// Count of documents ingested into Elasticsearch logs.
     pub static ref METRIC_ELASTICSEARCH_LOGS_DOCS_COUNT: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_elasticsearch_logs_docs_count",
+        "pulse_servers_elasticsearch_logs_docs_count",
         "servers elasticsearch ingest logs docs count",
         &[METRIC_DB_LABEL]
     )
@@ -280,112 +282,112 @@ lazy_static! {
 
     pub static ref METRIC_HTTP_LOGS_TRANSFORM_ELAPSED: HistogramVec =
         register_histogram_vec!(
-            "greptime_servers_http_logs_transform_elapsed",
+            "pulse_servers_http_logs_transform_elapsed",
             "servers http logs transform elapsed",
             &[METRIC_DB_LABEL, METRIC_RESULT_LABEL]
         )
         .unwrap();
     pub static ref METRIC_MYSQL_CONNECTIONS: IntGauge = register_int_gauge!(
-        "greptime_servers_mysql_connection_count",
+        "pulse_servers_mysql_connection_count",
         "servers mysql connection count"
     )
     .unwrap();
     pub static ref METRIC_MYSQL_QUERY_TIMER: HistogramVec = register_histogram_vec!(
-        "greptime_servers_mysql_query_elapsed",
+        "pulse_servers_mysql_query_elapsed",
         "servers mysql query elapsed",
         &[METRIC_MYSQL_SUBPROTOCOL_LABEL, METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref METRIC_MYSQL_PREPARED_COUNT: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_mysql_prepared_count",
+        "pulse_servers_mysql_prepared_count",
         "servers mysql prepared count",
         &[METRIC_DB_LABEL]
     )
     .unwrap();
     pub static ref METRIC_POSTGRES_CONNECTIONS: IntGauge = register_int_gauge!(
-        "greptime_servers_postgres_connection_count",
+        "pulse_servers_postgres_connection_count",
         "servers postgres connection count"
     )
     .unwrap();
     pub static ref METRIC_POSTGRES_QUERY_TIMER: HistogramVec = register_histogram_vec!(
-        "greptime_servers_postgres_query_elapsed",
+        "pulse_servers_postgres_query_elapsed",
         "servers postgres query elapsed",
         &[METRIC_POSTGRES_SUBPROTOCOL_LABEL, METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref METRIC_POSTGRES_PREPARED_COUNT: IntCounter = register_int_counter!(
-        "greptime_servers_postgres_prepared_count",
+        "pulse_servers_postgres_prepared_count",
         "servers postgres prepared count"
     )
     .unwrap();
     pub static ref METRIC_SERVER_GRPC_DB_REQUEST_TIMER: HistogramVec = register_histogram_vec!(
-        "greptime_servers_grpc_db_request_elapsed",
+        "pulse_servers_grpc_db_request_elapsed",
         "servers grpc db request elapsed",
         &[METRIC_DB_LABEL, METRIC_TYPE_LABEL, METRIC_CODE_LABEL]
     )
     .unwrap();
     pub static ref METRIC_SERVER_GRPC_PROM_REQUEST_TIMER: HistogramVec = register_histogram_vec!(
-        "greptime_servers_grpc_prom_request_elapsed",
+        "pulse_servers_grpc_prom_request_elapsed",
         "servers grpc prom request elapsed",
         &[METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref METRIC_HTTP_REQUESTS_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_http_requests_total",
+        "pulse_servers_http_requests_total",
         "servers http requests total",
         &[METRIC_METHOD_LABEL, METRIC_PATH_LABEL, METRIC_CODE_LABEL, METRIC_DB_LABEL]
     )
     .unwrap();
     pub static ref METRIC_HTTP_REQUESTS_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_http_requests_elapsed",
+        "pulse_servers_http_requests_elapsed",
         "servers http requests elapsed",
         &[METRIC_METHOD_LABEL, METRIC_PATH_LABEL, METRIC_CODE_LABEL, METRIC_DB_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref METRIC_GRPC_REQUESTS_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_grpc_requests_total",
+        "pulse_servers_grpc_requests_total",
         "servers grpc requests total",
         &[METRIC_PATH_LABEL, METRIC_CODE_LABEL]
     )
     .unwrap();
     pub static ref METRIC_GRPC_REQUESTS_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_grpc_requests_elapsed",
+        "pulse_servers_grpc_requests_elapsed",
         "servers grpc requests elapsed",
         &[METRIC_PATH_LABEL, METRIC_CODE_LABEL],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
     )
     .unwrap();
     pub static ref METRIC_JAEGER_QUERY_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_servers_jaeger_query_elapsed",
+        "pulse_servers_jaeger_query_elapsed",
         "servers jaeger query elapsed",
         &[METRIC_DB_LABEL, METRIC_PATH_LABEL]
     ).unwrap();
 
     pub static ref GRPC_BULK_INSERT_ELAPSED: Histogram = register_histogram!(
-        "greptime_servers_bulk_insert_elapsed",
+        "pulse_servers_bulk_insert_elapsed",
         "servers handle bulk insert elapsed",
     ).unwrap();
 
     // Unified request memory metrics
     /// Current memory in use by all concurrent requests (HTTP, gRPC, Flight).
     pub static ref REQUEST_MEMORY_IN_USE: IntGauge = register_int_gauge!(
-        "greptime_servers_request_memory_in_use_bytes",
+        "pulse_servers_request_memory_in_use_bytes",
         "bytes currently reserved for all concurrent request bodies and messages"
     ).unwrap();
 
     /// Maximum configured memory for all concurrent requests.
     pub static ref REQUEST_MEMORY_LIMIT: IntGauge = register_int_gauge!(
-        "greptime_servers_request_memory_limit_bytes",
+        "pulse_servers_request_memory_limit_bytes",
         "maximum bytes allowed for all concurrent request bodies and messages"
     ).unwrap();
 
     /// Total number of requests rejected due to memory exhaustion.
     pub static ref REQUEST_MEMORY_REJECTED: IntCounterVec = register_int_counter_vec!(
-        "greptime_servers_request_memory_rejected_total",
+        "pulse_servers_request_memory_rejected_total",
         "number of requests rejected due to memory limit",
         &["reason"]
     ).unwrap();

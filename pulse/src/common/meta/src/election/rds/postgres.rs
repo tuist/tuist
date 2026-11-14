@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -894,7 +896,7 @@ mod tests {
         let value = "test_value".to_string();
 
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_postgres_crud_greptime_metakv";
+        let table_name = "test_postgres_crud_pulse_metakv";
         let candidate_lease_ttl = Duration::from_secs(10);
         let execution_timeout = Duration::from_secs(10);
         let statement_timeout = Duration::from_secs(10);
@@ -1029,7 +1031,7 @@ mod tests {
         maybe_skip_postgres_integration_test!();
         let leader_value_prefix = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_candidate_registration_greptime_metakv";
+        let table_name = "test_candidate_registration_pulse_metakv";
         let mut handles = vec![];
         let candidate_lease_ttl = Duration::from_secs(5);
         let execution_timeout = Duration::from_secs(10);
@@ -1099,7 +1101,7 @@ mod tests {
         maybe_skip_postgres_integration_test!();
         let leader_value = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_elected_and_step_down_greptime_metakv";
+        let table_name = "test_elected_and_step_down_pulse_metakv";
         let candidate_lease_ttl = Duration::from_secs(5);
         let execution_timeout = Duration::from_secs(10);
         let statement_timeout = Duration::from_secs(10);
@@ -1224,7 +1226,7 @@ mod tests {
         maybe_skip_postgres_integration_test!();
         let leader_value = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_leader_action_greptime_metakv";
+        let table_name = "test_leader_action_pulse_metakv";
         let candidate_lease_ttl = Duration::from_secs(5);
         let execution_timeout = Duration::from_secs(10);
         let statement_timeout = Duration::from_secs(10);
@@ -1507,7 +1509,7 @@ mod tests {
     #[tokio::test]
     async fn test_step_down_releases_reentrant_lock() {
         maybe_skip_postgres_integration_test!();
-        let table_name = "test_step_down_reentrant_lock_greptime_metakv";
+        let table_name = "test_step_down_reentrant_lock_pulse_metakv";
         let store_key_prefix = uuid::Uuid::new_v4().to_string();
         let lock_id = 28323;
         let other_lock_id = 28324;
@@ -1648,7 +1650,7 @@ mod tests {
         maybe_skip_postgres_integration_test!();
         common_telemetry::init_default_ut_logging();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_follower_action_greptime_metakv";
+        let table_name = "test_follower_action_pulse_metakv";
 
         let candidate_lease_ttl = Duration::from_secs(5);
         let execution_timeout = Duration::from_secs(10);
@@ -1756,7 +1758,7 @@ mod tests {
         maybe_skip_postgres_integration_test!();
         let leader_value = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_reset_campaign_greptime_metakv";
+        let table_name = "test_reset_campaign_pulse_metakv";
         let candidate_lease_ttl = Duration::from_secs(5);
         let execution_timeout = Duration::from_secs(10);
         let statement_timeout = Duration::from_secs(10);
@@ -1856,28 +1858,25 @@ mod tests {
 
     #[test]
     fn test_election_sql_with_schema() {
-        let f = ElectionSqlFactory::new(42, Some("test_schema"), "greptime_metakv");
+        let f = ElectionSqlFactory::new(42, Some("test_schema"), "pulse_metakv");
         let s = f.build();
         assert!(s.campaign.contains("pg_try_advisory_lock"));
         assert!(
             s.put_value_with_lease
-                .contains("\"test_schema\".\"greptime_metakv\"")
+                .contains("\"test_schema\".\"pulse_metakv\"")
         );
         assert!(
             s.update_value_with_lease
-                .contains("\"test_schema\".\"greptime_metakv\"")
+                .contains("\"test_schema\".\"pulse_metakv\"")
         );
         assert!(
             s.get_value_with_lease
-                .contains("\"test_schema\".\"greptime_metakv\"")
+                .contains("\"test_schema\".\"pulse_metakv\"")
         );
         assert!(
             s.get_value_with_lease_by_prefix
-                .contains("\"test_schema\".\"greptime_metakv\"")
+                .contains("\"test_schema\".\"pulse_metakv\"")
         );
-        assert!(
-            s.delete_value
-                .contains("\"test_schema\".\"greptime_metakv\"")
-        );
+        assert!(s.delete_value.contains("\"test_schema\".\"pulse_metakv\""));
     }
 }

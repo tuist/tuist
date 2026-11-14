@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -60,7 +62,7 @@ use standalone::{StandaloneDatanodeManager, StandaloneRepartitionProcedureFactor
 
 use crate::test_util::{self, StorageType, TestGuard, create_tmp_dir_and_datanode_opts};
 
-pub struct GreptimeDbStandalone {
+pub struct PulseStandalone {
     /// Storage engine for assertions across protocol and storage boundaries.
     pub mito_engine: mito2::engine::MitoEngine,
     pub frontend: Arc<Frontend>,
@@ -72,13 +74,13 @@ pub struct GreptimeDbStandalone {
     pub event_recorder_handle: EventRecorderHandle,
 }
 
-impl GreptimeDbStandalone {
+impl PulseStandalone {
     pub fn fe_instance(&self) -> &Arc<Instance> {
         &self.frontend.instance
     }
 }
 
-pub struct GreptimeDbStandaloneBuilder {
+pub struct PulseStandaloneBuilder {
     instance_name: String,
     datanode_wal_config: DatanodeWalConfig,
     metasrv_wal_config: MetasrvWalConfig,
@@ -95,7 +97,7 @@ pub struct GreptimeDbStandaloneBuilder {
     pipeline_options: pipeline::PipelineOptions,
 }
 
-impl GreptimeDbStandaloneBuilder {
+impl PulseStandaloneBuilder {
     pub fn new(instance_name: &str) -> Self {
         Self {
             instance_name: instance_name.to_string(),
@@ -222,7 +224,7 @@ impl GreptimeDbStandaloneBuilder {
         procedure_manager: ProcedureManagerRef,
         event_recorder_handle: EventRecorderHandle,
         register_procedure_loaders: bool,
-    ) -> GreptimeDbStandalone {
+    ) -> PulseStandalone {
         let plugins = self.plugin.clone().unwrap_or_default();
 
         let layered_cache_registry = Arc::new(
@@ -370,7 +372,7 @@ impl GreptimeDbStandaloneBuilder {
             heartbeat_task: None,
         };
 
-        GreptimeDbStandalone {
+        PulseStandalone {
             mito_engine: datanode.region_server().mito_engine().unwrap(),
             frontend: Arc::new(frontend),
             opts,
@@ -381,7 +383,7 @@ impl GreptimeDbStandaloneBuilder {
         }
     }
 
-    pub async fn build(&self) -> GreptimeDbStandalone {
+    pub async fn build(&self) -> PulseStandalone {
         let default_store_type = self.default_store.unwrap_or(StorageType::File);
         let store_types = self.store_providers.clone().unwrap_or_default();
 

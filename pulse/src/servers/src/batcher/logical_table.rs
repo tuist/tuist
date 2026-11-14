@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod batch;
 mod batch_convert;
 mod flow_notifier;
@@ -35,7 +37,7 @@ use common_batcher::request_limiter::RequestLimiter;
 use common_batcher::worker_registry::WorkerRegistry;
 use common_meta::cache::TableFlownodeSetCacheRef;
 use common_meta::node_manager::NodeManagerRef;
-use common_query::prelude::GREPTIME_PHYSICAL_TABLE;
+use common_query::prelude::PULSE_PHYSICAL_TABLE;
 use common_time::timestamp::TimeUnit;
 use meter_core::data::MeterRecord;
 use meter_macros::write_meter;
@@ -82,7 +84,7 @@ pub(crate) struct BatchKey {
 pub(crate) fn batch_key_from_ctx(ctx: &QueryContextRef) -> BatchKey {
     let physical_table = ctx
         .extension(PHYSICAL_TABLE_KEY)
-        .unwrap_or(GREPTIME_PHYSICAL_TABLE)
+        .unwrap_or(PULSE_PHYSICAL_TABLE)
         .to_string();
     BatchKey {
         catalog: ctx.current_catalog().to_string(),
@@ -430,7 +432,7 @@ mod tests {
     use arrow::array::{StringArray, TimestampMillisecondArray};
     use arrow::datatypes::{DataType as ArrowDataType, Field, Schema as ArrowSchema};
     use arrow::record_batch::RecordBatch;
-    use common_query::prelude::greptime_timestamp;
+    use common_query::prelude::pulse_timestamp;
 
     use crate::batcher::logical_table::batch_convert::{RecordBatchWithTsIdx, TableBatch};
     use crate::batcher::logical_table::flow_notifier::extract_timestamps;
@@ -531,7 +533,7 @@ mod tests {
     fn mock_timestamp_batch(timestamps: Vec<Option<i64>>) -> RecordBatchWithTsIdx {
         let batch = RecordBatch::try_new(
             Arc::new(ArrowSchema::new(vec![Field::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 true,
             )])),

@@ -30,10 +30,10 @@ use sqlparser::ast::{Expr, Query, SetExpr, Visit, Visitor};
 /// Deepest SQL expression accepted, the same as the query analyzer's limit.
 pub const MAX_SQL_EXPR_DEPTH: usize = 128;
 /// Longest chain of set operations (UNION, INTERSECT, EXCEPT) in one query.
-/// GreptimeDB v1.3.0 overflowed at 256 chained `UNION ALL`s.
+/// Pulse v1.3.0 overflowed at 256 chained `UNION ALL`s.
 pub const MAX_SQL_SET_OPERATION_DEPTH: usize = 64;
 /// Deepest PromQL expression accepted, counting every node. Planning a level
-/// takes up to about 100 KiB of stack: GreptimeDB v1.3.0 overflowed an 8 MiB
+/// takes up to about 100 KiB of stack: Pulse v1.3.0 overflowed an 8 MiB
 /// stack at 72 chained binary operators (through TQL) and 48 nested subqueries.
 pub const MAX_PROMQL_DEPTH: usize = 32;
 /// Most PromQL operators, parentheses and brackets accepted in one query. Each
@@ -224,7 +224,7 @@ impl Visitor for SqlDepth {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
 
     fn promql_chain(terms: usize) -> String {
@@ -275,7 +275,7 @@ mod tests {
     }
 
     fn parse_sql(sql: &str) -> crate::error::Result<Vec<crate::statements::statement::Statement>> {
-        ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+        ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
     }
 
     #[test]

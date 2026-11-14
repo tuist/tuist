@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fmt;
 use std::num::NonZeroUsize;
@@ -548,7 +550,7 @@ const AGGREGATE_FUNCTION_ALIASES: &[(&str, &str)] =
 /// Register function aliases.
 ///
 /// This function adds aliases like `ucase` -> `upper`, `lcase` -> `lower`, etc.
-/// to make GreptimeDB more compatible with MySQL syntax.
+/// to make Pulse more compatible with MySQL syntax.
 fn register_function_aliases(ctx: &SessionContext) {
     let state = ctx.state();
 
@@ -1039,7 +1041,7 @@ mod tests {
         use datafusion::physical_plan::collect as df_collect;
 
         let spill_dir =
-            std::env::temp_dir().join(format!("greptime_spill_smoke_{}", std::process::id()));
+            std::env::temp_dir().join(format!("pulse_spill_smoke_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&spill_dir);
 
         let opts = QueryOptions {

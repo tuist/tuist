@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::assert_matches;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -51,7 +53,7 @@ async fn test_create_database_and_insert_query(
 
     let output = execute_sql_with(
         &instance,
-        r#"create table greptime.test.demo(
+        r#"create table pulse.test.demo(
              host STRING,
              cpu DOUBLE,
              memory DOUBLE,
@@ -246,7 +248,7 @@ async fn do_create(instance: &Arc<Instance>, table_name: &str) -> Output {
     execute_sql_with(
         instance,
         &format!(
-            r#"create table greptime.test.{} (
+            r#"create table pulse.test.{} (
                     host STRING,
                     cpu DOUBLE,
                     memory DOUBLE,

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 
 use api::v1::value::ValueData;
@@ -111,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_wal_prune_event_contract() {
-        let event = WalPruneEvent::new("greptimedb_wal_topic_0", 100, Some(200), false);
+        let event = WalPruneEvent::new("pulse_wal_topic_0", 100, Some(200), false);
 
         assert_event_contract(
             &event,
@@ -123,7 +125,7 @@ mod tests {
             ]),
             &[Row {
                 values: vec![
-                    ValueData::StringValue("greptimedb_wal_topic_0".to_string()).into(),
+                    ValueData::StringValue("pulse_wal_topic_0".to_string()).into(),
                     ValueData::U64Value(100).into(),
                     ValueData::U64Value(200).into(),
                 ],
@@ -137,7 +139,7 @@ mod tests {
             })
         );
 
-        let event = WalPruneEvent::new("greptimedb_wal_topic_1", 42, None, true);
+        let event = WalPruneEvent::new("pulse_wal_topic_1", 42, None, true);
         assert!(
             event.extra_rows().unwrap()[0].values[2]
                 .value_data

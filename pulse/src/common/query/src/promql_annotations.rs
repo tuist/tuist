@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, Weak};
 
@@ -71,7 +73,7 @@ impl PromqlAnnotationCollector {
 }
 
 impl ConfigExtension for PromqlAnnotationCollector {
-    const PREFIX: &'static str = "greptime_promql_annotations";
+    const PREFIX: &'static str = "pulse_promql_annotations";
 }
 
 impl ExtensionOptions for PromqlAnnotationCollector {

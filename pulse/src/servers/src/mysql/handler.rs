@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -373,7 +375,7 @@ impl<W: AsyncWrite + Send + Sync + Unpin> AsyncMysqlShim<W> for MysqlInstanceShi
     type Error = error::Error;
 
     fn version(&self) -> String {
-        std::env::var("GREPTIMEDB_MYSQL_SERVER_VERSION").unwrap_or_else(|_| "8.4.2".to_string())
+        std::env::var("PULSE_MYSQL_SERVER_VERSION").unwrap_or_else(|_| "8.4.2".to_string())
     }
 
     fn connect_id(&self) -> u32 {
@@ -430,7 +432,7 @@ impl<W: AsyncWrite + Send + Sync + Unpin> AsyncMysqlShim<W> for MysqlInstanceShi
         auth_data: &[u8],
         database: Option<&[u8]>,
     ) -> bool {
-        // if not specified then **greptime** will be used
+        // if not specified then **pulse** will be used
         let username = String::from_utf8_lossy(username);
 
         let mut user_info = None;
@@ -1224,7 +1226,7 @@ mod tests {
         assert_eq!(outputs.len(), 1);
         let output = outputs.into_iter().next().unwrap().unwrap();
         let pretty = output.data.pretty_print().await;
-        assert!(pretty.contains("GreptimeDB"));
+        assert!(pretty.contains("Pulse"));
     }
 
     #[tokio::test]

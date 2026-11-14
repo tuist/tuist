@@ -84,37 +84,15 @@ data described below. No new customer collection or source retention is added.
 
 ## Exportable Data
 
-### Legacy Pulse objects
+### Pulse storage
 
-The custom Elixir Pulse that preceded the GreptimeDB fork is uninstalled
-everywhere and nothing writes its format any more. Its objects are retained
-until deleted: below `tenants/<tenant>/` (logs, metric samples, traces, error
-events, service-graph series and their manifests, pages and backups), plus
-`system/tenants/v1/`, `usage/v1/`, `auth/` and `.pulse/`, in
-`tuist-pulso-canary` and `tuist-pulso-production`. Staging's were deleted, and
-the management and pentest buckets that held the rest no longer exist. They can contain
-identifiers, message bodies, attributes and stack traces supplied by producers,
-and an operational tenant can mix telemetry from several accounts. They are
-being deleted: the one-shot `pulse-legacy-purge.yml` removes those prefixes
-from each bucket. Until that has run for a bucket, its objects remain, with no
-time-based deletion.
-
-To export, an authorized storage operator lists and retrieves the verified
-tenant's objects and the manifests needed to interpret them, decodes the Parquet
-with the last legacy Pulse release from Git history, and filters out other
-subjects before disclosure. Never export `auth/`, token digests, application
-Secrets or storage credentials. Requests spanning the cutover must also cover
-the GreptimeDB storage below.
-
-### GreptimeDB storage
-
-Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
+Pulse (Helm release `pulse`) uses an independent `pulse/`
 prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
 production), and under `management/` in `tuist-pulso-production` for the
 management cluster's own Pulse, for database-managed data and indexes, and disposable
-`pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
-release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
-those objects and its PVC until a `purge_greptimedb` dispatch deletes both. Staging and canary use a retained 10 GiB Kubernetes PVC for local
+`pulse/ci-preflight/<run>` storage probes. The interim release that ran before
+Pulse in staging and canary has been uninstalled and its volumes and bucket
+objects deleted. Staging and canary use a retained 10 GiB Kubernetes PVC for local
 WAL and standalone state. Production's cluster topology stores data under
 `pulse/distributed/`; its WAL lives on replicated Kafka volumes until
 flushed, and its metadata in a dedicated etcd. Staging and canary
@@ -124,8 +102,7 @@ Management's standalone WAL and catalog live on one node's
 is identified by its run ID and shares the database's retention policy. The
 storage probe deletes only its own run-scoped key. Failed rollouts preserve data
 and PVCs; qualification across a restart is not an exercised S3 disaster restore.
-The replacement does not import or delete legacy Pulse objects. Authentication and
-object-store credentials are excluded from exports. See the telemetry export
+Authentication and object-store credentials are excluded from exports. See the telemetry export
 procedure below for subject attribution and retention.
 
 ### Managed outbound email delivery
@@ -740,6 +717,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Recent shard plans** (`recent_shard_plans` PostgreSQL table): For one day after a plan is created, its ID, project, reference, creation time and `storage_target`, so uploads do not depend on ClickHouse replication. An hourly job deletes older rows, and deleting the project deletes its rows. The fields duplicate the exported `shard_plans` rows, so they are not exported separately.
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Coverage evidence state** (`test_case_runs.coverage_evidence`): What the run's per-test coverage evidence holds for the test: `own` when it recorded the test's own evidence (a `test` scope in `coverage_files`), `overlapped` when it recorded the test only as overlapping another test of its process (Swift Testing, or JUnit's parallel execution on Gradle, running tests at the same time, from `coverage_evidence.overlapped_tests`), `none` otherwise. Derived from the run's own report at ingestion; exported with the existing test-case runs under their existing retention policy.
+- **Nested Swift Testing suite identity** (`test_cases`, `test_case_runs`, `test_suite_runs`, `test_case_events`, `automation_alert_events`, `coverage_test_sources`): Suites nested in another type, an extension or an enum namespace are recorded by their whole path (`Outer/Inner`), so `suite_name` may contain `/`. Because the suite is part of the deterministic test-case identifier, these tests get a new identifier. The first report under the new identifier copies the old identifier's `test_case_events` and `automation_alert_events` rows (same timestamps, actors and automations, deterministic row IDs) so its quarantine, flaky flag and automation status carry over, and its `coverage_test_sources` versions (same fingerprints, paths, runs and timestamps) so coverage carry and coverage-based test selection keep its evidence; run history stays under the old identifier, whose rows are not modified. Export both identifiers' rows with the existing tables under their existing retention; no new table or retention policy is introduced.
 - **Bazel quarantine attribution** (`test_case_runs.is_quarantined`): Resolved from the shared test-case state history at invocation start, not at delayed ingestion time. Exported with the existing test-case runs under their existing retention policy. Bazel retry records include ordered attempt numbers, and failure diagnostics remain available when a retry passes.
 - **Flakiness evidence exclusion** (`test_case_runs.is_flakiness_excluded`): Server-derived boolean excluding an execution from automatic test-health evidence. Defaults to false (eligible); true identifies a sufficiently large burst of Xcode runner crashes with zero or unavailable timing across modules in one report. Original outcomes and diagnostics remain stored and exported. Include this field with test-case runs under their existing retention policy; it introduces no new retention or storage category. Cross-run detection and automation health aggregates exclude these executions prospectively; historical aggregate states are not rewritten.
 - **Test-case destination attribution** (`test_case_runs.test_run_destination_id`, ClickHouse): Case runs from a report with one complete distinct destination reference that report's existing `test_run_destinations.id`; platform, OS version and device name remain stored once on the destination row. Missing, incomplete, or multiple distinct destinations produce a null reference. These unattributed results participate in cross-run flakiness comparisons with each other, separately from known destinations; environmental differences within this group can still produce false flaky classifications. The reference is projected into `test_case_runs_by_commit`, alongside the existing case-run parent `test_run_id` to bound destination reads. Export these fields with project-scoped case runs and their parent runs' destination rows; the lookup is derived data. Immutable report replays reuse destination IDs. Existing retention is unchanged, with no new table, time-based TTL, or object-storage category. Historical references and flaky classifications are not backfilled.
@@ -1251,10 +1229,10 @@ search those backends using selected/auth IDs and legacy handles, distinguish
 caller from target, and include retained matching flag observations. Process-local
 snapshots are ephemeral and disappear with their request, socket, task or job.
 
-### Managed GreptimeDB telemetry
+### Managed Pulse telemetry
 
 Staging, canary and production collectors write operational metrics, pod logs
-and OTLP spans to the private GreptimeDB `public` database through each cluster's
+and OTLP spans to the private Pulse `public` database through each cluster's
 in-cluster `pulse` Service. The management cluster runs its own `pulse`, but its
 collectors still send only to Grafana Cloud. Grafana Cloud destinations remain independent and unchanged. Logs live in `opentelemetry_logs`
 (nanosecond `timestamp`, `body`, severity, trace/span IDs and JSON log/resource
@@ -1282,7 +1260,7 @@ allowlisting in the Tuist dashboard is not per-customer storage isolation: the
 not be exposed to arbitrary customer accounts.
 
 For a legal export, an authorized operator must query `/v1/sql` using the
-environment's read-only `dashboard` identity and `x-greptime-db-name: public`, and
+environment's read-only `dashboard` identity and `x-pulse-db-name: public`, and
 export matching rows as JSON. Use the subject's verified authenticated/selected
 IDs and legacy handles in `log_attributes`, `resource_attributes`, span events and
 log bodies; JSON paths for dotted keys require bracket syntax (for example
@@ -1295,7 +1273,7 @@ dashboard's latest-100-row view and literal text search are not a complete legal
 export; paginate the time/identity-scoped SQL result independently. There is no
 automated archive or per-subject erasure workflow for this backend; scoped deletion
 requires separate authorized operator handling. The SQL projections, nanosecond
-timestamps and aggregate queries have been exercised against GreptimeDB v1.3.0;
+timestamps and aggregate queries have been exercised against Pulse;
 this does not establish complete attribution for every collector or source.
 
 ## Bazel remote execution

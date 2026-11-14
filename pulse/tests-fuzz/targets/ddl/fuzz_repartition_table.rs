@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -49,19 +51,19 @@ use tests_fuzz::translator::mysql::insert_expr::InsertIntoExprTranslator;
 use tests_fuzz::translator::mysql::repartition_expr::RepartitionExprTranslator;
 use tests_fuzz::utils::{
     Connections, get_fuzz_override, get_gt_fuzz_input_max_alter_actions,
-    init_greptime_connections_via_env,
+    init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 use tests_fuzz::validator::row::count_values;
 
 #[derive(Clone)]
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -185,7 +187,7 @@ async fn execute_insert_with_retry(ctx: &FuzzContext, sql: &str) -> Result<()> {
     let max_attempts = 10;
     loop {
         match ctx
-            .greptime
+            .pulse
             // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
             .execute(sqlx::AssertSqlSafe(sql))
             .await
@@ -251,7 +253,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create table: {sql}, result: {result:?}");
@@ -272,7 +274,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
         let sql = translator.translate(&expr)?;
         info!("Initial partition sql: {sql}");
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Initial partition result: {result:?}");
@@ -280,7 +282,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
         shared_state.lock().unwrap().table_ctx = table_ctx.clone();
 
         let partition_entries = validator::partition::fetch_partitions_info_schema(
-            &ctx.greptime,
+            &ctx.pulse,
             "public".into(),
             &table_ctx.name,
         )
@@ -307,7 +309,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
         let sql = translator.translate(&expr)?;
         info!("Repartition sql: {sql}");
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("result: {result:?}");
@@ -317,7 +319,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
 
         // Validates partition expression
         let partition_entries = validator::partition::fetch_partitions_info_schema(
-            &ctx.greptime,
+            &ctx.pulse,
             "public".into(),
             &table_ctx.name,
         )
@@ -334,7 +336,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
     partition_name: {}
     partition_expression: {}
     partition_description: {}
-    greptime_partition_id: {}
+    pulse_partition_id: {}
     partition_ordinal_position: {}"#,
                         entry.table_catalog,
                         entry.table_schema,
@@ -342,7 +344,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
                         entry.partition_name,
                         entry.partition_expression,
                         entry.partition_description,
-                        entry.greptime_partition_id,
+                        entry.pulse_partition_id,
                         entry.partition_ordinal_position,
                     )
                 })
@@ -358,7 +360,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
     shared_state.lock().unwrap().running = false;
     writer_task.await.unwrap().unwrap();
     let count_sql = format!("SELECT COUNT(1) AS count FROM {}", table_ctx.name);
-    let count = count_values(&ctx.greptime, &count_sql).await?;
+    let count = count_values(&ctx.pulse, &count_sql).await?;
     assert_eq!(
         count.count as usize,
         shared_state.lock().unwrap().inserted_rows as usize
@@ -369,7 +371,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
         "SELECT COUNT(DISTINCT {}) AS count FROM {}",
         timestamp_column_name, table_ctx.name
     );
-    let distinct_count = count_values(&ctx.greptime, &distinct_count_sql).await?;
+    let distinct_count = count_values(&ctx.pulse, &distinct_count_sql).await?;
     assert_eq!(
         distinct_count.count as usize,
         shared_state.lock().unwrap().inserted_rows as usize
@@ -379,7 +381,7 @@ async fn execute_repartition_table(ctx: FuzzContext, input: FuzzInput) -> Result
     let table_name = table_ctx.name.clone();
     let sql = format!("DROP TABLE {}", table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!("Drop table: {}, result: {result:?}", table_name);
@@ -416,9 +418,9 @@ fn repartition_operation<R: Rng + 'static>(
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_repartition_table(ctx, input)
             .await

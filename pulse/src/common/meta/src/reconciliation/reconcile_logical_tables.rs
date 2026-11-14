@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub(crate) mod reconcile_regions;
 pub(crate) mod reconciliation_end;
 pub(crate) mod reconciliation_start;
@@ -412,7 +414,7 @@ mod tests {
                     .map(|value| value.value_data.clone())
                     .collect::<Vec<_>>(),
                 vec![
-                    Some(ValueData::StringValue("greptime".to_string())),
+                    Some(ValueData::StringValue("pulse".to_string())),
                     Some(ValueData::StringValue("public".to_string())),
                     Some(ValueData::StringValue("cpu".to_string())),
                     Some(ValueData::U32Value(43)),
@@ -426,7 +428,7 @@ mod tests {
                     .map(|value| value.value_data.clone())
                     .collect::<Vec<_>>(),
                 vec![
-                    Some(ValueData::StringValue("greptime".to_string())),
+                    Some(ValueData::StringValue("pulse".to_string())),
                     Some(ValueData::StringValue("public".to_string())),
                     Some(ValueData::StringValue("memory".to_string())),
                     Some(ValueData::U32Value(44)),
@@ -597,10 +599,10 @@ mod tests {
         ReconcileLogicalTablesProcedure::new(
             test_context(),
             42,
-            TableName::new("greptime", "public", "physical_metrics"),
+            TableName::new("pulse", "public", "physical_metrics"),
             vec![
-                (43, TableName::new("greptime", "public", "cpu")),
-                (44, TableName::new("greptime", "public", "memory")),
+                (43, TableName::new("pulse", "public", "cpu")),
+                (44, TableName::new("pulse", "public", "memory")),
             ],
             is_subprocedure,
         )

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::io::BufRead;
@@ -37,7 +39,7 @@ use lazy_static::lazy_static;
 use mime_guess::mime;
 use operator::expr_helper::{create_table_expr_by_column_schemas, expr_to_create};
 use pipeline::util::to_pipeline_version;
-use pipeline::{ContextReq, GreptimePipelineParams, PipelineContext, PipelineDefinition};
+use pipeline::{ContextReq, PipelineContext, PipelineDefinition, PulsePipelineParams};
 use prometheus::{HistogramVec, IntCounterVec};
 use serde::{Deserialize, Serialize};
 use serde_json::{Deserializer, Map, Value as JsonValue, json};
@@ -55,14 +57,14 @@ use crate::error::{
 };
 use crate::http::HttpResponse;
 use crate::http::header::constants::{
-    GREPTIME_LOG_PIPELINE_NAME_HEADER_NAME, GREPTIME_PIPELINE_NAME_HEADER_NAME,
-    GREPTIME_PIPELINE_PARAMS_HEADER,
+    PULSE_LOG_PIPELINE_NAME_HEADER_NAME, PULSE_PIPELINE_NAME_HEADER_NAME,
+    PULSE_PIPELINE_PARAMS_HEADER,
 };
 use crate::http::header::{
     CONTENT_TYPE_NDJSON_STR, CONTENT_TYPE_NDJSON_SUBTYPE_STR, CONTENT_TYPE_PROTOBUF_STR,
 };
-use crate::http::result::greptime_manage_resp::{GreptimedbManageResponse, SqlOutput};
-use crate::http::result::greptime_result_v1::GreptimedbV1Response;
+use crate::http::result::pulse_manage_resp::{PulseManageResponse, SqlOutput};
+use crate::http::result::pulse_result_v1::PulseV1Response;
 use crate::interceptor::{LogIngestInterceptor, LogIngestInterceptorRef};
 use crate::metrics::{
     METRIC_FAILURE_VALUE, METRIC_HTTP_LOGS_INGESTION_COUNTER, METRIC_HTTP_LOGS_INGESTION_ELAPSED,
@@ -71,8 +73,8 @@ use crate::metrics::{
 use crate::pipeline::run_pipeline;
 use crate::query_handler::PipelineHandlerRef;
 
-const GREPTIME_INTERNAL_PIPELINE_NAME_PREFIX: &str = "greptime_";
-const GREPTIME_PIPELINE_SKIP_ERROR_KEY: &str = "skip_error";
+const PULSE_INTERNAL_PIPELINE_NAME_PREFIX: &str = "pulse_";
+const PULSE_PIPELINE_SKIP_ERROR_KEY: &str = "skip_error";
 
 const CREATE_TABLE_SQL_SUFFIX_EXISTS: &str =
     "the pipeline has dispatcher or table_suffix, the table name may not be fixed";
@@ -120,7 +122,7 @@ pub struct LogIngesterQueryParams {
     /// If set to true, the ingestion will continue even if there are errors in the data.
     /// If set to false, the ingestion will stop at the first error.
     /// This is different from `ignore_errors`, which is used to ignore errors during the pipeline execution.
-    /// The priority of query params is lower than that headers of x-greptime-pipeline-params.
+    /// The priority of query params is lower than that headers of x-pulse-pipeline-params.
     pub skip_error: Option<bool>,
 }
 
@@ -180,7 +182,7 @@ pub async fn query_pipeline(
     Extension(mut query_ctx): Extension<QueryContext>,
     Query(query_params): Query<LogIngesterQueryParams>,
     Path(pipeline_name): Path<String>,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.log_handler;
     ensure!(
@@ -199,7 +201,7 @@ pub async fn query_pipeline(
         .get_pipeline_str(&pipeline_name, version, query_ctx)
         .await?;
 
-    Ok(GreptimedbManageResponse::from_pipeline(
+    Ok(PulseManageResponse::from_pipeline(
         pipeline_name,
         query_params
             .version
@@ -216,7 +218,7 @@ pub async fn query_pipeline_ddl(
     Extension(mut query_ctx): Extension<QueryContext>,
     Query(query_params): Query<LogIngesterQueryParams>,
     Path(pipeline_name): Path<String>,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.log_handler;
     ensure!(
@@ -226,7 +228,7 @@ pub async fn query_pipeline_ddl(
         }
     );
     ensure!(
-        !pipeline_name.starts_with(GREPTIME_INTERNAL_PIPELINE_NAME_PREFIX),
+        !pipeline_name.starts_with(PULSE_INTERNAL_PIPELINE_NAME_PREFIX),
         InvalidParameterSnafu {
             reason: "built-in pipelines don't have fixed table schema",
         }
@@ -283,7 +285,7 @@ pub async fn query_pipeline_ddl(
         message,
     };
 
-    Ok(GreptimedbManageResponse::from_sql(
+    Ok(PulseManageResponse::from_sql(
         sql,
         start.elapsed().as_millis() as u64,
     ))
@@ -295,7 +297,7 @@ pub async fn add_pipeline(
     Path(pipeline_name): Path<String>,
     Extension(mut query_ctx): Extension<QueryContext>,
     PipelineContent(payload): PipelineContent,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.log_handler;
     ensure!(
@@ -305,9 +307,9 @@ pub async fn add_pipeline(
         }
     );
     ensure!(
-        !pipeline_name.starts_with(GREPTIME_INTERNAL_PIPELINE_NAME_PREFIX),
+        !pipeline_name.starts_with(PULSE_INTERNAL_PIPELINE_NAME_PREFIX),
         InvalidParameterSnafu {
-            reason: "pipeline_name cannot start with greptime_",
+            reason: "pipeline_name cannot start with pulse_",
         }
     );
     ensure!(
@@ -327,7 +329,7 @@ pub async fn add_pipeline(
 
     result
         .map(|pipeline| {
-            GreptimedbManageResponse::from_pipeline(
+            PulseManageResponse::from_pipeline(
                 pipeline_name,
                 pipeline.0.to_timezone_aware_string(None),
                 start.elapsed().as_millis() as u64,
@@ -346,7 +348,7 @@ pub async fn delete_pipeline(
     Extension(mut query_ctx): Extension<QueryContext>,
     Query(query_params): Query<LogIngesterQueryParams>,
     Path(pipeline_name): Path<String>,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.log_handler;
     ensure!(
@@ -370,14 +372,14 @@ pub async fn delete_pipeline(
         .await
         .map(|v| {
             if v.is_some() {
-                GreptimedbManageResponse::from_pipeline(
+                PulseManageResponse::from_pipeline(
                     pipeline_name,
                     version_str,
                     start.elapsed().as_millis() as u64,
                     None,
                 )
             } else {
-                GreptimedbManageResponse::from_pipelines(vec![], start.elapsed().as_millis() as u64)
+                PulseManageResponse::from_pipelines(vec![], start.elapsed().as_millis() as u64)
             }
         })
         .map_err(|e| {
@@ -430,7 +432,7 @@ async fn dryrun_pipeline_inner(
     pipeline_handler: PipelineHandlerRef,
     query_ctx: &QueryContextRef,
 ) -> Result<Response> {
-    let params = GreptimePipelineParams::default();
+    let params = PulsePipelineParams::default();
 
     let pipeline_def = PipelineDefinition::Resolved(pipeline);
     let pipeline_ctx = PipelineContext::new(&pipeline_def, &params, query_ctx.channel());
@@ -498,9 +500,9 @@ async fn dryrun_pipeline_inner(
                                     &v,
                                     result_schema[idx].datatype_extension.as_ref(),
                                 );
-                                let greptime_value: datatypes::value::Value = value_ref.into();
+                                let pulse_value: datatypes::value::Value = value_ref.into();
                                 let serde_json_value =
-                                    serde_json::Value::try_from(greptime_value).unwrap();
+                                    serde_json::Value::try_from(pulse_value).unwrap();
                                 map.insert("value".to_string(), serde_json_value);
                                 map.insert("key".to_string(), schema[idx][name_key].clone());
                                 map.insert(
@@ -691,24 +693,24 @@ pub async fn pipeline_dryrun(
 pub(crate) fn extract_pipeline_params_map_from_headers(
     headers: &HeaderMap,
 ) -> ahash::HashMap<String, String> {
-    GreptimePipelineParams::parse_header_str_to_map(
+    PulsePipelineParams::parse_header_str_to_map(
         headers
-            .get(GREPTIME_PIPELINE_PARAMS_HEADER)
+            .get(PULSE_PIPELINE_PARAMS_HEADER)
             .and_then(|v| v.to_str().ok()),
     )
 }
 
 /// Extracts the pipeline name from the request headers.
 ///
-/// Both `x-greptime-pipeline-name` and the deprecated `x-greptime-log-pipeline-name`
+/// Both `x-pulse-pipeline-name` and the deprecated `x-pulse-log-pipeline-name`
 /// are accepted, matching the headers already honored by the OTLP/Elasticsearch/Splunk
 /// log ingestion endpoints. If both are present, the non-deprecated
-/// `x-greptime-pipeline-name` takes precedence. Empty header values are ignored so that
+/// `x-pulse-pipeline-name` takes precedence. Empty header values are ignored so that
 /// they fall back to the `pipeline_name` query parameter.
 fn pipeline_name_from_headers(headers: &HeaderMap) -> Option<String> {
     [
-        GREPTIME_PIPELINE_NAME_HEADER_NAME,
-        GREPTIME_LOG_PIPELINE_NAME_HEADER_NAME,
+        PULSE_PIPELINE_NAME_HEADER_NAME,
+        PULSE_LOG_PIPELINE_NAME_HEADER_NAME,
     ]
     .iter()
     .find_map(|name| {
@@ -749,7 +751,7 @@ pub async fn log_ingester(
     let ignore_errors = query_params.ignore_errors.unwrap_or(false);
 
     // A pipeline name supplied via header takes precedence over the query parameter,
-    // consistent with how other pipeline options (e.g. `x-greptime-pipeline-params`)
+    // consistent with how other pipeline options (e.g. `x-pulse-pipeline-params`)
     // outrank their query-parameter counterparts.
     let pipeline_name = pipeline_name_from_headers(&headers)
         .or(query_params.pipeline_name)
@@ -776,10 +778,10 @@ pub async fn log_ingester(
         .pre_pipeline(value, query_ctx.clone())?;
 
     let mut pipeline_params_map = extract_pipeline_params_map_from_headers(&headers);
-    if !pipeline_params_map.contains_key(GREPTIME_PIPELINE_SKIP_ERROR_KEY) && skip_error {
-        pipeline_params_map.insert(GREPTIME_PIPELINE_SKIP_ERROR_KEY.to_string(), "true".into());
+    if !pipeline_params_map.contains_key(PULSE_PIPELINE_SKIP_ERROR_KEY) && skip_error {
+        pipeline_params_map.insert(PULSE_PIPELINE_SKIP_ERROR_KEY.to_string(), "true".into());
     }
-    let pipeline_params = GreptimePipelineParams::from_map(pipeline_params_map);
+    let pipeline_params = PulsePipelineParams::from_map(pipeline_params_map);
 
     ingest_logs_inner(
         handler,
@@ -952,7 +954,7 @@ pub(crate) async fn ingest_logs_inner(
     pipeline: PipelineDefinition,
     log_ingest_requests: Vec<PipelineIngestRequest>,
     query_ctx: QueryContextRef,
-    pipeline_params: GreptimePipelineParams,
+    pipeline_params: PulsePipelineParams,
 ) -> Result<HttpResponse> {
     // Keep the timer boundary before pipeline execution to preserve existing
     // ingestion elapsed metrics.
@@ -1017,7 +1019,7 @@ pub(crate) async fn execute_log_context_req(
             .observe(exec_timer.elapsed().as_secs_f64());
     }
 
-    let response = GreptimedbV1Response::from_output(outputs)
+    let response = PulseV1Response::from_output(outputs)
         .await
         .with_execution_time(exec_timer.elapsed().as_millis() as u64);
     Ok(response)

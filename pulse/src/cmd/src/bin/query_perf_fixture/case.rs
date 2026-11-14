@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::num::{NonZeroU64, NonZeroUsize};
 
@@ -122,7 +124,7 @@ pub(super) fn default_database() -> String {
     "public".to_string()
 }
 pub(super) fn default_physical_table() -> String {
-    "greptime_physical_table".to_string()
+    "pulse_physical_table".to_string()
 }
 pub(super) fn default_series_count() -> u64 {
     8
@@ -381,7 +383,7 @@ pub(super) fn default_true() -> bool {
     true
 }
 pub(super) fn default_storage_column() -> String {
-    "greptime_value".to_string()
+    "pulse_value".to_string()
 }
 pub(super) fn default_min_files() -> u64 {
     1

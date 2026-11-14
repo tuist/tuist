@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Instant;
 
 use common_error::ext::BoxedError;
@@ -267,14 +269,14 @@ mod tests {
             &env.metadata_region(),
             target_physical_region_id,
             target_logical_region_id1,
-            &["greptime_timestamp", "greptime_value", "job"],
+            &["pulse_timestamp", "pulse_value", "job"],
         )
         .await;
         assert_logical_table_columns(
             &env.metadata_region(),
             target_physical_region_id,
             target_logical_region_id2,
-            &["greptime_timestamp", "greptime_value", "host"],
+            &["pulse_timestamp", "pulse_value", "host"],
         )
         .await;
         let logical_regions = env

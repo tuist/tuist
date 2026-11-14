@@ -20,7 +20,7 @@ co_declared_edges:
   - { src: service.instance, dst: k8s.container, rel: runs_on }
   - { src: k8s.container, dst: host, rel: runs_on }
 
-# Applied only to trace sources; the endpoints are Greptime entity types
+# Applied only to trace sources; the endpoints are Pulse entity types
 # derived from GenAI semantic-convention attributes.
 trace_co_declared_edges:
   - { src: gen_ai.agent, dst: gen_ai.model, rel: uses }
@@ -83,7 +83,7 @@ otlp_trace_entities:
 
 # Implicit declarations for Prometheus entity-descriptor metrics, keyed by
 # table name. Pod and service identities are the UIDs (names stay
-# descriptive); k8s.workload is a Greptime abstraction with the owner kind
+# descriptive); k8s.workload is a Pulse abstraction with the owner kind
 # encoded in its identity.
 prometheus_info_metrics:
   kube_pod_info:
@@ -160,7 +160,7 @@ prometheus_info_metrics:
 # descriptive columns are listed instead of swept up by descriptive_rest,
 # which would misfile other entities' ids under service.instance.
 otel_info_metrics:
-  greptime_otel_resource_info:
+  pulse_otel_resource_info:
     - entity: service
       id: [job]
       descriptive:

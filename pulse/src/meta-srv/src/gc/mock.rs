@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod basic;
 mod candidate_select;
 mod concurrent;
@@ -333,29 +335,6 @@ impl SchedulerCtx for MockSchedulerCtx {
 
         // Return the report with need_retry_regions populated - let the caller handle retry logic
         Ok(final_report)
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn list_dropped_tables(&self) -> Result<Vec<common_meta::key::DroppedTableName>> {
-        Ok(vec![])
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn purge_dropped_table(&self, _table_id: TableId) -> Result<()> {
-        Ok(())
-    }
-
-    #[cfg(feature = "enterprise")]
-    fn try_reserve_purge(
-        &self,
-        table_id: TableId,
-        max_in_flight: usize,
-    ) -> Option<crate::gc::ctx::PurgeReservation> {
-        crate::gc::ctx::PurgeReservation::try_new(
-            Arc::new(std::sync::Mutex::new(HashSet::new())),
-            table_id,
-            max_in_flight,
-        )
     }
 }
 

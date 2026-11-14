@@ -43,11 +43,11 @@ drop table trignan;
 
 -- About irate. Related to issue https://github.com/GreptimeTeam/greptimedb/issues/5880
 CREATE TABLE t(
-   greptime_timestamp TIMESTAMP(9) TIME INDEX,
-   greptime_value DOUBLE
+   pulse_timestamp TIMESTAMP(9) TIME INDEX,
+   pulse_value DOUBLE
 );
 
-INSERT INTO t(greptime_timestamp, greptime_value)
+INSERT INTO t(pulse_timestamp, pulse_value)
 VALUES
    ('2025-04-01T00:00:00.5Z', 1),
    ('2025-04-01T00:00:01Z', 2),

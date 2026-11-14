@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod dispatcher;
 pub mod error;
 mod etl;
@@ -22,16 +24,16 @@ mod tablesuffix;
 
 pub use etl::ctx_req::{ContextOpt, ContextReq};
 pub use etl::processor::Processor;
-pub use etl::transform::GreptimeTransformer;
-pub use etl::transform::transformer::greptime::{GreptimePipelineParams, SchemaInfo};
+pub use etl::transform::PulseTransformer;
 pub use etl::transform::transformer::identity_pipeline;
+pub use etl::transform::transformer::pulse::{PulsePipelineParams, SchemaInfo};
 pub use etl::{
     Content, DispatchedTo, Pipeline, PipelineExecOutput, PipelineProcessOutput, TransformedOutput,
     TransformerMode, parse, parse_with_options,
 };
 pub use manager::{
-    GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME, GREPTIME_INTERNAL_TRACE_PIPELINE_V1_NAME,
-    GREPTIME_INTERNAL_TRACE_PIPELINE_V2_NAME, IdentityTimeIndex, PipelineContext,
+    IdentityTimeIndex, PULSE_INTERNAL_IDENTITY_PIPELINE_NAME,
+    PULSE_INTERNAL_TRACE_PIPELINE_V1_NAME, PULSE_INTERNAL_TRACE_PIPELINE_V2_NAME, PipelineContext,
     PipelineDefinition, PipelineInfo, PipelineRef, PipelineTableRef, PipelineVersion, PipelineWay,
     SelectInfo, pipeline_operator, table, util,
 };

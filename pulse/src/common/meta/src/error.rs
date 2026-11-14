@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::str::Utf8Error;
 use std::sync::Arc;
 
@@ -1174,31 +1176,6 @@ pub enum Error {
         #[snafu(implicit)]
         location: Location,
     },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Too large duration"))]
-    TooLargeDuration {
-        #[snafu(source)]
-        error: prost_types::DurationError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Negative duration"))]
-    NegativeDuration {
-        #[snafu(source)]
-        error: prost_types::DurationError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Missing interval field"))]
-    MissingInterval {
-        #[snafu(implicit)]
-        location: Location,
-    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -1300,11 +1277,6 @@ impl ErrorExt for Error {
             | InvalidFilePath { .. }
             | ConflictingSchemaOptions { .. }
             | PartitionExprIncompatible { .. } => StatusCode::InvalidArguments,
-
-            #[cfg(feature = "enterprise")]
-            MissingInterval { .. } | NegativeDuration { .. } | TooLargeDuration { .. } => {
-                StatusCode::InvalidArguments
-            }
 
             FlowNotFound { .. } => StatusCode::FlowNotFound,
             FlowRouteNotFound { .. } => StatusCode::Unexpected,

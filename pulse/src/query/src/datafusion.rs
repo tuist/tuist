@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Planner, QueryEngine implementations based on DataFusion.
 
 mod error;
@@ -556,7 +558,7 @@ impl QueryEngine for DatafusionQueryEngine {
         let mut state = self.state.session_state();
         state.config_mut().set_extension(query_ctx.clone());
         state.config_mut().set_extension(self.state.clone());
-        // note that hints in "x-greptime-hints" is automatically parsed
+        // note that hints in "x-pulse-hints" is automatically parsed
         // and set to query context's extension, so we can get it from query context.
         if let Some(parallelism) = query_ctx.extension(QUERY_PARALLELISM_HINT) {
             if let Ok(n) = parallelism.parse::<u64>() {
@@ -1127,7 +1129,7 @@ mod tests {
         let table = engine
             .find_table(
                 &ResolvedTableReference {
-                    catalog: "greptime".into(),
+                    catalog: "pulse".into(),
                     schema: "public".into(),
                     table: "numbers".into(),
                 },

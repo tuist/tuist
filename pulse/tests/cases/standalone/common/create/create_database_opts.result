@@ -7,10 +7,10 @@ SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
 | information_schema |
 | mydb               |
 | public             |
+| pulse_private      |
 +--------------------+
 
 SHOW FULL DATABASES;
@@ -18,7 +18,7 @@ SHOW FULL DATABASES;
 +--------------------+------------+
 | Database           | Options    |
 +--------------------+------------+
-| greptime_private   |            |
+| pulse_private      |            |
 | information_schema |            |
 | mydb               | 'ttl'='1h' |
 |                    |            |
@@ -91,7 +91,7 @@ SHOW FULL DATABASES;
 +--------------------+------------------------------------+
 | Database           | Options                            |
 +--------------------+------------------------------------+
-| greptime_private   |                                    |
+| pulse_private      |                                    |
 | information_schema |                                    |
 | mydb               | 'ttl'='1h'                         |
 |                    | 'append_mode'='false'              |
@@ -344,8 +344,8 @@ SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
 | information_schema |
 | public             |
+| pulse_private      |
 +--------------------+
 

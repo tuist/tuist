@@ -18,7 +18,7 @@ Error: 2000(InvalidSyntax), Unexpected token while parsing SQL statement, expect
 SHOW COLUMNS FROM system_metrics;
 
 +-------------+--------------+------+------------+---------------------+-------+----------------------+
-| Field       | Type         | Null | Key        | Default             | Extra | Greptime_type        |
+| Field       | Type         | Null | Key        | Default             | Extra | Pulse_type           |
 +-------------+--------------+------+------------+---------------------+-------+----------------------+
 | cpu_util    | double       | YES  |            |                     |       | Float64              |
 | disk_util   | double       | YES  |            |                     |       | Float64              |
@@ -31,7 +31,7 @@ SHOW COLUMNS FROM system_metrics;
 SHOW COLUMNS FROM system_metrics in public;
 
 +-------------+--------------+------+------------+---------------------+-------+----------------------+
-| Field       | Type         | Null | Key        | Default             | Extra | Greptime_type        |
+| Field       | Type         | Null | Key        | Default             | Extra | Pulse_type           |
 +-------------+--------------+------+------------+---------------------+-------+----------------------+
 | cpu_util    | double       | YES  |            |                     |       | Float64              |
 | disk_util   | double       | YES  |            |                     |       | Float64              |
@@ -44,7 +44,7 @@ SHOW COLUMNS FROM system_metrics in public;
 SHOW FULL COLUMNS FROM `system_metrics`;
 
 +-------------+--------------+-----------+------+------------+---------------------+---------+---------------+-------+----------------------+
-| Field       | Type         | Collation | Null | Key        | Default             | Comment | Privileges    | Extra | Greptime_type        |
+| Field       | Type         | Collation | Null | Key        | Default             | Comment | Privileges    | Extra | Pulse_type           |
 +-------------+--------------+-----------+------+------------+---------------------+---------+---------------+-------+----------------------+
 | cpu_util    | double       |           | YES  |            |                     |         | select,insert |       | Float64              |
 | disk_util   | double       |           | YES  |            |                     |         | select,insert |       | Float64              |
@@ -56,21 +56,21 @@ SHOW FULL COLUMNS FROM `system_metrics`;
 
 SHOW COLUMNS FROM system_metrics like '%util%';
 
-+-------------+--------+------+-----+---------+-------+---------------+
-| Field       | Type   | Null | Key | Default | Extra | Greptime_type |
-+-------------+--------+------+-----+---------+-------+---------------+
-| cpu_util    | double | YES  |     |         |       | Float64       |
-| disk_util   | double | YES  |     |         |       | Float64       |
-| memory_util | double | YES  |     |         |       | Float64       |
-+-------------+--------+------+-----+---------+-------+---------------+
++-------------+--------+------+-----+---------+-------+------------+
+| Field       | Type   | Null | Key | Default | Extra | Pulse_type |
++-------------+--------+------+-----+---------+-------+------------+
+| cpu_util    | double | YES  |     |         |       | Float64    |
+| disk_util   | double | YES  |     |         |       | Float64    |
+| memory_util | double | YES  |     |         |       | Float64    |
++-------------+--------+------+-----+---------+-------+------------+
 
 SHOW COLUMNS FROM system_metrics WHERE Field = 'cpu_util';
 
-+----------+--------+------+-----+---------+-------+---------------+
-| Field    | Type   | Null | Key | Default | Extra | Greptime_type |
-+----------+--------+------+-----+---------+-------+---------------+
-| cpu_util | double | YES  |     |         |       | Float64       |
-+----------+--------+------+-----+---------+-------+---------------+
++----------+--------+------+-----+---------+-------+------------+
+| Field    | Type   | Null | Key | Default | Extra | Pulse_type |
++----------+--------+------+-----+---------+-------+------------+
+| cpu_util | double | YES  |     |         |       | Float64    |
++----------+--------+------+-----+---------+-------+------------+
 
 DROP TABLE system_metrics;
 

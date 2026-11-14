@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod flow_info;
 pub(crate) mod flow_name;
 pub mod flow_route;
@@ -540,7 +542,7 @@ mod tests {
         flownode_ids: BTreeMap<FlowPartitionId, FlownodeId>,
         source_table_ids: Vec<TableId>,
     ) -> FlowInfoValue {
-        let catalog_name = "greptime";
+        let catalog_name = "pulse";
         let sink_table_name = TableName {
             catalog_name: catalog_name.to_string(),
             schema_name: "my_schema".to_string(),
@@ -776,7 +778,7 @@ mod tests {
         let mem_kv = Arc::new(MemoryKvBackend::default());
         let flow_metadata_manager = FlowMetadataManager::new(mem_kv);
         let flow_id = 10;
-        let catalog_name = "greptime";
+        let catalog_name = "pulse";
         let flow_value = test_flow_info_value("flow", [(0, 1u64)].into(), vec![1024, 1025, 1026]);
         let flow_routes = vec![
             (
@@ -803,7 +805,7 @@ mod tests {
             table_name: "another_sink_table".to_string(),
         };
         let flow_value = FlowInfoValue {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             query_context: None,
             flow_name: "flow".to_string(),
             source_table_ids: vec![1024, 1025, 1026],
@@ -1157,7 +1159,7 @@ mod tests {
         let mem_kv = Arc::new(MemoryKvBackend::default());
         let flow_metadata_manager = FlowMetadataManager::new(mem_kv);
         let flow_id = 10;
-        let catalog_name = "greptime";
+        let catalog_name = "pulse";
         let flow_value = test_flow_info_value("flow", [(0, 1u64)].into(), vec![1024, 1025, 1026]);
         let flow_routes = vec![
             (
@@ -1184,7 +1186,7 @@ mod tests {
             table_name: "another_sink_table".to_string(),
         };
         let flow_value = FlowInfoValue {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             query_context: None,
             flow_name: "flow".to_string(),
             source_table_ids: vec![1024, 1025, 1026],

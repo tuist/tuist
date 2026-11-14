@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -276,8 +278,8 @@ criterion_group!(
 
 fn main() {
     // Run each memory case in a fresh process, e.g. with `/usr/bin/time -v`:
-    // GREPTIME_HTTP_LIMIT_MEMORY_CASE=late,1000000,100 <bench executable>
-    if let Ok(case) = std::env::var("GREPTIME_HTTP_LIMIT_MEMORY_CASE") {
+    // PULSE_HTTP_LIMIT_MEMORY_CASE=late,1000000,100 <bench executable>
+    if let Ok(case) = std::env::var("PULSE_HTTP_LIMIT_MEMORY_CASE") {
         let parts: Vec<_> = case.split(',').collect();
         assert_eq!(parts.len(), 3, "expected late|early,rows,limit");
         let placement = match parts[0] {

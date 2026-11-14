@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use arrow::array::{
     ArrayRef, DictionaryArray, Float64Array, Int32Array, ListArray, StringArray, StructArray,
 };
@@ -19,7 +21,7 @@ use arrow::buffer::OffsetBuffer;
 use arrow::datatypes::{Field, Schema, UInt32Type};
 use bytes::Bytes;
 use common_error::status_code::StatusCode;
-use common_recordbatch::{RecordBatch as GreptimeRecordBatch, RecordBatches};
+use common_recordbatch::{RecordBatch as PulseRecordBatch, RecordBatches};
 use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use table::test_util::EmptyTable;
 use table::test_util::table_info::test_table_info;
@@ -28,7 +30,7 @@ use super::*;
 
 fn table(id: u32, name: &str, fields: Vec<Field>, physical: bool) -> TableRef {
     let schema = Arc::new(datatypes::schema::Schema::try_from(Schema::new(fields)).unwrap());
-    let mut info = test_table_info(id, name, "public", "greptime", schema);
+    let mut info = test_table_info(id, name, "public", "pulse", schema);
     info.meta.engine = METRIC_ENGINE_NAME.into();
     let (key, value) = if physical {
         (PHYSICAL_TABLE_METADATA_KEY, "")
@@ -108,7 +110,7 @@ fn stream(batches: Vec<RecordBatch>) -> SendableRecordBatchStream {
     let schema = Arc::new(datatypes::schema::Schema::try_from(batches[0].schema()).unwrap());
     let batches = batches
         .into_iter()
-        .map(|batch| GreptimeRecordBatch::from_df_record_batch(schema.clone(), batch))
+        .map(|batch| PulseRecordBatch::from_df_record_batch(schema.clone(), batch))
         .collect();
     RecordBatches::try_new(schema, batches).unwrap().as_stream()
 }

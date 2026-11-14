@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
@@ -47,7 +49,7 @@ use common_meta::peer::Peer;
 use common_meta::rpc::ddl::TriggerReason;
 use common_query::Output;
 use common_query::native_histogram::{is_native_histogram_value_type, native_histogram_value_type};
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use common_telemetry::tracing_context::TracingContext;
 use common_telemetry::{debug, error, warn};
 use common_time::Timestamp;
@@ -1404,14 +1406,14 @@ impl Inserter {
         // schema with timestamp and field column
         let default_schema = vec![
             ColumnSchema {
-                column_name: greptime_timestamp().to_string(),
+                column_name: pulse_timestamp().to_string(),
                 datatype: ColumnDataType::TimestampMillisecond as _,
                 semantic_type: SemanticType::Timestamp as _,
                 datatype_extension: None,
                 options: None,
             },
             ColumnSchema {
-                column_name: greptime_value().to_string(),
+                column_name: pulse_value().to_string(),
                 datatype: ColumnDataType::Float64 as _,
                 semantic_type: SemanticType::Field as _,
                 datatype_extension: None,
@@ -2271,7 +2273,7 @@ mod tests {
     use common_meta::ddl::test_util::datanode_handler::NaiveDatanodeHandler;
     use common_meta::test_util::{MockDatanodeManager, MockFlownodeHandler, MockFlownodeManager};
     use common_query::native_histogram::NATIVE_HISTOGRAM_FIELD;
-    use common_query::prelude::{greptime_native_histogram, set_default_prefix};
+    use common_query::prelude::{pulse_native_histogram, set_default_prefix};
     use datatypes::data_type::ConcreteDataType;
     use datatypes::schema::ColumnSchema;
     use moka::future::Cache;
@@ -2335,12 +2337,12 @@ mod tests {
     fn make_metric_physical_table_ref_with_time_unit(unit: TimeUnit) -> TableRef {
         let schema = datatypes::schema::SchemaBuilder::try_from_columns(vec![
             ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_datatype(unit),
                 false,
             )
             .with_time_index(true),
-            ColumnSchema::new(greptime_value(), ConcreteDataType::float64_datatype(), true),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), true),
         ])
         .unwrap()
         .build()
@@ -2359,7 +2361,7 @@ mod tests {
             TableInfoBuilder::default()
                 .table_id(1)
                 .table_version(0)
-                .name("greptime_physical_table")
+                .name("pulse_physical_table")
                 .schema_name(DEFAULT_SCHEMA_NAME)
                 .catalog_name(DEFAULT_CATALOG_NAME)
                 .desc(None)
@@ -2385,10 +2387,10 @@ mod tests {
             rows: Some(Rows {
                 schema: vec![
                     time_index_column_schema(
-                        greptime_timestamp(),
+                        pulse_timestamp(),
                         ColumnDataType::TimestampMillisecond,
                     ),
-                    field_column_schema(greptime_value(), ColumnDataType::Float64),
+                    field_column_schema(pulse_value(), ColumnDataType::Float64),
                 ],
                 rows: vec![Row {
                     values: vec![
@@ -2462,10 +2464,10 @@ mod tests {
                 rows: Some(Rows {
                     schema: vec![
                         time_index_column_schema(
-                            greptime_timestamp(),
+                            pulse_timestamp(),
                             ColumnDataType::TimestampNanosecond,
                         ),
-                        field_column_schema(greptime_value(), ColumnDataType::Float64),
+                        field_column_schema(pulse_value(), ColumnDataType::Float64),
                     ],
                     rows: vec![Row {
                         values: vec![
@@ -2596,7 +2598,7 @@ mod tests {
                 schema: vec![
                     time_index_column_schema("ts", ColumnDataType::TimestampMillisecond),
                     api::v1::ColumnSchema {
-                        column_name: greptime_native_histogram().to_string(),
+                        column_name: pulse_native_histogram().to_string(),
                         datatype: datatype as i32,
                         semantic_type: SemanticType::Field as i32,
                         datatype_extension,
@@ -2617,7 +2619,7 @@ mod tests {
 
         let histogram_table = make_table_ref_with_schema(
             "ts",
-            greptime_native_histogram(),
+            pulse_native_histogram(),
             native_histogram_value_type().clone(),
         );
         let mut sample_req = RowInsertRequest {
@@ -2625,7 +2627,7 @@ mod tests {
             rows: Some(Rows {
                 schema: vec![
                     time_index_column_schema("ts", ColumnDataType::TimestampMillisecond),
-                    field_column_schema(greptime_value(), ColumnDataType::Float64),
+                    field_column_schema(pulse_value(), ColumnDataType::Float64),
                 ],
                 rows: vec![],
             }),
@@ -2660,7 +2662,7 @@ mod tests {
                 .unwrap()
                 .into_parts();
         let request_schema = [api::v1::ColumnSchema {
-            column_name: greptime_native_histogram().to_string(),
+            column_name: pulse_native_histogram().to_string(),
             datatype: datatype as i32,
             semantic_type: SemanticType::Field as i32,
             datatype_extension,

@@ -18,7 +18,7 @@ openssl genrsa -out ca-key.pem 2048
 
 echo "Generating CA certificate..."
 openssl req -new -x509 -key ca-key.pem -out ca.crt -days "${DAYS}" \
-  -subj "/C=US/ST=CA/L=SF/O=Greptime/CN=etcd-ca"
+  -subj "/C=US/ST=CA/L=SF/O=Pulse/CN=etcd-ca"
 
 # Create server certificate config with Subject Alternative Names
 echo "Creating server certificate configuration..."

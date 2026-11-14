@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::HashMap;
@@ -51,12 +53,12 @@ use tests_fuzz::{error, validator};
 use tokio::sync::watch;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -79,7 +81,7 @@ impl Arbitrary<'_> for FuzzInput {
 
 const DEFAULT_TEMPLATE: &str = "standalone.template.toml";
 const DEFAULT_CONFIG_NAME: &str = "standalone.template.toml";
-const DEFAULT_ROOT_DIR: &str = "/tmp/unstable_greptime/";
+const DEFAULT_ROOT_DIR: &str = "/tmp/unstable_pulse/";
 const DEFAULT_MYSQL_URL: &str = "127.0.0.1:4002";
 const DEFAULT_HTTP_HEALTH_URL: &str = "http://127.0.0.1:4000/health";
 
@@ -138,7 +140,7 @@ async fn execute_unstable_create_table(
     }
     let mysql = connect_mysql(DEFAULT_MYSQL_URL, FUZZ_TESTS_DATABASE).await;
     let mut rng = ChaChaRng::seed_from_u64(input.seed);
-    let ctx = FuzzContext { greptime: mysql };
+    let ctx = FuzzContext { pulse: mysql };
     let mut table_states = HashMap::new();
 
     for _ in 0..input.tables {
@@ -154,13 +156,13 @@ async fn execute_unstable_create_table(
         let translator = CreateTableExprTranslator;
         let sql = translator.translate(&expr).unwrap();
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await;
         match result {
             Ok(result) => {
                 let state = *rx.borrow();
                 table_states.insert(table_name, state);
-                validate_columns(&ctx.greptime, FUZZ_TESTS_DATABASE, &table_ctx).await;
+                validate_columns(&ctx.pulse, FUZZ_TESTS_DATABASE, &table_ctx).await;
                 info!("Create table: {sql}, result: {result:?}");
             }
             Err(err) => {

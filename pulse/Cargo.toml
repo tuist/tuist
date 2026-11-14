@@ -17,7 +17,7 @@ members = [
     "src/common/event-recorder",
     "src/common/frontend",
     "src/common/function",
-    "src/common/greptimedb-telemetry",
+    "src/common/pulse-telemetry",
     "src/common/grpc",
     "src/common/grpc-expr",
     "src/common/macro",
@@ -270,7 +270,7 @@ tokio-util = { version = "0.7", features = ["io-util", "compat"] }
 toml = "0.8.8"
 url = "2.3"
 # Pin below 0.14.5 to avoid the `connection_timeout_future` "async fn resumed after
-# completion" panic (greptimedb#8265 / grpc-rust#2522). Remove once tonic ships a fix.
+# completion" panic (pulse#8265 / grpc-rust#2522). Remove once tonic ships a fix.
 tonic = { version = "0.14, <0.14.5", features = ["tls-aws-lc", "gzip", "zstd"] }
 tonic-prost = "0.14"
 tower = "0.5"
@@ -306,7 +306,7 @@ common-error = { path = "src/common/error" }
 common-event-recorder = { path = "src/common/event-recorder" }
 common-frontend = { path = "src/common/frontend" }
 common-function = { path = "src/common/function" }
-common-greptimedb-telemetry = { path = "src/common/greptimedb-telemetry" }
+common-pulse-telemetry = { path = "src/common/pulse-telemetry" }
 common-grpc = { path = "src/common/grpc" }
 common-grpc-expr = { path = "src/common/grpc-expr" }
 common-macro = { path = "src/common/macro" }

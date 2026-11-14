@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! # Mito
 //!
 //! Mito is the a region engine to store timeseries data.
@@ -27,8 +29,6 @@ pub mod compaction;
 pub mod config;
 pub mod engine;
 pub mod error;
-#[cfg(feature = "enterprise")]
-pub mod extension;
 pub mod flush;
 pub mod gc;
 pub mod manifest;

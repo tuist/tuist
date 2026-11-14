@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serializer};
@@ -227,7 +229,7 @@ macro_rules! define_from_tonic_status {
                         .get(key)
                         .and_then(|v| String::from_utf8(v.as_bytes().to_vec()).ok())
                 }
-                let code = metadata_value(&e, $crate::GREPTIME_DB_HEADER_ERROR_CODE)
+                let code = metadata_value(&e, $crate::PULSE_DB_HEADER_ERROR_CODE)
                     .and_then(|s| {
                         if let Ok(code) = s.parse::<u32>() {
                             StatusCode::from_u32(code)
@@ -241,9 +243,9 @@ macro_rules! define_from_tonic_status {
                         _ => StatusCode::Internal,
                     });
 
-                let msg = metadata_value(&e, $crate::GREPTIME_DB_HEADER_ERROR_MSG)
+                let msg = metadata_value(&e, $crate::PULSE_DB_HEADER_ERROR_MSG)
                     .unwrap_or_else(|| e.message().to_string());
-                let retry_hint = metadata_value(&e, $crate::GREPTIME_DB_HEADER_ERROR_RETRY_HINT)
+                let retry_hint = metadata_value(&e, $crate::PULSE_DB_HEADER_ERROR_RETRY_HINT)
                     .and_then(|s| s.parse().ok())
                     .unwrap_or($crate::ext::RetryHint::NonRetryable);
 
@@ -268,7 +270,7 @@ macro_rules! define_into_tonic_status {
                 use tonic::codegen::http::{HeaderMap, HeaderValue};
                 use tonic::metadata::MetadataMap;
                 use $crate::{
-                    GREPTIME_DB_HEADER_ERROR_CODE, GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                    PULSE_DB_HEADER_ERROR_CODE, PULSE_DB_HEADER_ERROR_RETRY_HINT,
                 };
 
                 common_telemetry::error!(err; "Failed to handle request");
@@ -279,11 +281,11 @@ macro_rules! define_into_tonic_status {
                 // (which is a very rare case), just ignore. Client will use Tonic status code and message.
                 let status_code = err.status_code();
                 headers.insert(
-                    GREPTIME_DB_HEADER_ERROR_CODE,
+                    PULSE_DB_HEADER_ERROR_CODE,
                     HeaderValue::from(status_code as u32),
                 );
                 headers.insert(
-                    GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                    PULSE_DB_HEADER_ERROR_RETRY_HINT,
                     HeaderValue::from_static(err.retry_hint().as_str()),
                 );
                 let root_error = err.output_msg();

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_error::define_from_tonic_status;
 use common_error::ext::{ErrorExt, RetryHint};
 use common_error::status_code::StatusCode;
@@ -206,7 +208,7 @@ define_from_tonic_status!(Error, MetaServer);
 #[cfg(test)]
 mod tests {
     use common_error::ext::{ErrorExt, RetryHint};
-    use common_error::{GREPTIME_DB_HEADER_ERROR_CODE, GREPTIME_DB_HEADER_ERROR_RETRY_HINT};
+    use common_error::{PULSE_DB_HEADER_ERROR_CODE, PULSE_DB_HEADER_ERROR_RETRY_HINT};
     use tonic::codegen::http::{HeaderMap, HeaderValue};
     use tonic::metadata::MetadataMap;
 
@@ -225,7 +227,7 @@ mod tests {
     fn test_from_tonic_status_fallback_can_be_non_retryable() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            GREPTIME_DB_HEADER_ERROR_CODE,
+            PULSE_DB_HEADER_ERROR_CODE,
             HeaderValue::from(StatusCode::InvalidArguments as u32),
         );
         let status = tonic::Status::with_metadata(
@@ -243,11 +245,11 @@ mod tests {
     fn test_from_tonic_status_with_retry_hint() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            GREPTIME_DB_HEADER_ERROR_CODE,
+            PULSE_DB_HEADER_ERROR_CODE,
             HeaderValue::from(StatusCode::Internal as u32),
         );
         headers.insert(
-            GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+            PULSE_DB_HEADER_ERROR_RETRY_HINT,
             HeaderValue::from_static(RetryHint::Retryable.as_str()),
         );
         let status = tonic::Status::with_metadata(

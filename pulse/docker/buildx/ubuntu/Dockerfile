@@ -6,7 +6,7 @@ ARG FEATURES
 ARG OUTPUT_DIR
 
 ENV LANG=en_US.utf8
-WORKDIR /greptimedb
+WORKDIR /pulse
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
@@ -54,10 +54,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get \
     -y install ca-certificates \
     curl
 
-WORKDIR /greptime
-COPY --from=builder /out/target/${OUTPUT_DIR}/greptime /greptime/bin/
-ENV PATH=/greptime/bin/:$PATH
+WORKDIR /pulse
+COPY --from=builder /out/target/${OUTPUT_DIR}/pulse /pulse/bin/
+ENV PATH=/pulse/bin/:$PATH
 
 ENV MALLOC_CONF="prof:true,prof_active:false"
 
-ENTRYPOINT ["greptime"]
+ENTRYPOINT ["pulse"]

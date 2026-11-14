@@ -83,7 +83,7 @@ ALTER TABLE repartition_test_table REPARTITION (
   device_id >= 25 AND device_id < 50
 );
 
-Error: 1004(InvalidArguments), Invalid partition rule: partition expression 'device_id < 50' does not exist in table greptime.public.repartition_test_table
+Error: 1004(InvalidArguments), Invalid partition rule: partition expression 'device_id < 50' does not exist in table pulse.public.repartition_test_table
 
 ALTER TABLE repartition_test_table SPLIT PARTITION (
   device_id < 50
@@ -92,14 +92,14 @@ ALTER TABLE repartition_test_table SPLIT PARTITION (
   device_id >= 25 AND device_id < 50
 );
 
-Error: 1004(InvalidArguments), Invalid partition rule: partition expression 'device_id < 50' does not exist in table greptime.public.repartition_test_table
+Error: 1004(InvalidArguments), Invalid partition rule: partition expression 'device_id < 50' does not exist in table pulse.public.repartition_test_table
 
 ALTER TABLE repartition_test_table MERGE PARTITION (
   device_id < 50,
   device_id >= 50 AND device_id < 75
 );
 
-Error: 1004(InvalidArguments), Invalid partition rule: partition expression 'device_id < 50' does not exist in table greptime.public.repartition_test_table
+Error: 1004(InvalidArguments), Invalid partition rule: partition expression 'device_id < 50' does not exist in table pulse.public.repartition_test_table
 
 -- Test 3: New partition rule is incomplete (cannot pass checker)
 -- This creates a gap: device_id < 50 and device_id >= 100, missing [50, 100)

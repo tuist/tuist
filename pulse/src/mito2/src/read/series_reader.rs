@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Reads selected metric series from partition ranges.
 
 use std::collections::HashSet;
@@ -26,8 +28,6 @@ use store_api::region_engine::PartitionRange;
 use store_api::storage::SequenceRange;
 use tokio::sync::Semaphore;
 
-#[cfg(feature = "enterprise")]
-use crate::error::InvalidRequestSnafu;
 use crate::error::{JoinSnafu, Result, UnexpectedSnafu};
 use crate::read::BoxedRecordBatchStream;
 use crate::read::pruner::PartitionPruner;
@@ -287,14 +287,6 @@ impl SeriesReader {
         part_metrics: PartitionMetrics,
     ) -> Result<Self> {
         validate_metric_metadata(&stream_ctx)?;
-        #[cfg(feature = "enterprise")]
-        snafu::ensure!(
-            stream_ctx.input.extension_ranges().is_empty(),
-            InvalidRequestSnafu {
-                region_id: stream_ctx.input.region_metadata().region_id,
-                reason: "series reader does not support extension ranges",
-            }
-        );
 
         let filter = MetricSeriesFilter::new(&assigned_series);
         let codec = SparsePrimaryKeyCodec::new(stream_ctx.input.region_metadata());

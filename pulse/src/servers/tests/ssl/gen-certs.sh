@@ -5,7 +5,7 @@ openssl req -x509 \
             -sha256 -days 356 \
             -nodes \
             -newkey rsa:2048 \
-            -subj "/CN=greptime-ca" \
+            -subj "/CN=pulse-ca" \
             -keyout root-ca.key -out root-ca.crt
 
 # Create the server private key.

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::ResultExt;
 use sqlparser::ast::Statement as SpStatement;
 
@@ -46,14 +48,14 @@ mod tests {
     use std::assert_matches;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     #[test]
     pub fn test_parse_insert() {
         let sql = r"delete from my_table where k1 = xxx and k2 = xxx and timestamp = xxx;";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         assert_matches!(result[0], Statement::Delete { .. })
@@ -63,7 +65,7 @@ mod tests {
     pub fn test_parse_invalid_insert() {
         let sql = r"delete my_table where "; // intentionally a bad sql
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err(), "result is: {result:?}");
     }
 }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 // Retain coverage of the legacy constructors, including TLS configuration.
 #![allow(deprecated)]
 
@@ -489,7 +491,7 @@ pub async fn test_grpc_message_size_limit_recv(store_type: StorageType) {
 
 pub async fn test_grpc_auth(store_type: StorageType) {
     let user_provider =
-        user_provider_from_option("static_user_provider:cmd:greptime_user=greptime_pwd").unwrap();
+        user_provider_from_option("static_user_provider:cmd:pulse_user=pulse_pwd").unwrap();
     let (_db, fe_grpc_server) =
         setup_grpc_server_with_user_provider(store_type, "auto_create_table", Some(user_provider))
             .await;
@@ -514,7 +516,7 @@ pub async fn test_grpc_auth(store_type: StorageType) {
 
     // 2. test wrong auth
     db.set_auth(api::v1::auth_header::AuthScheme::Basic(Basic {
-        username: "greptime_user".to_string(),
+        username: "pulse_user".to_string(),
         password: "wrong_pwd".to_string(),
     }));
     let re = db.sql("show tables;").await;
@@ -529,8 +531,8 @@ pub async fn test_grpc_auth(store_type: StorageType) {
 
     // 3. test right auth
     db.set_auth(api::v1::auth_header::AuthScheme::Basic(Basic {
-        username: "greptime_user".to_string(),
-        password: "greptime_pwd".to_string(),
+        username: "pulse_user".to_string(),
+        password: "pulse_pwd".to_string(),
     }));
     let re = db.sql("show tables;").await;
     assert!(re.is_ok());
@@ -540,7 +542,7 @@ pub async fn test_grpc_auth(store_type: StorageType) {
 
 pub async fn test_otel_arrow_auth(store_type: StorageType) {
     let user_provider =
-        user_provider_from_option("static_user_provider:cmd:greptime_user=greptime_pwd").unwrap();
+        user_provider_from_option("static_user_provider:cmd:pulse_user=pulse_pwd").unwrap();
     let (_db, fe_grpc_server) = setup_grpc_server_with_user_provider(
         store_type,
         "test_otel_arrow_auth",
@@ -576,7 +578,7 @@ pub async fn test_otel_arrow_auth(store_type: StorageType) {
         let mut request = Request::new(stream);
         request.metadata_mut().insert(
             "authorization",
-            MetadataValue::try_from(basic_auth("greptime_user", "greptime_pwd")).unwrap(),
+            MetadataValue::try_from(basic_auth("pulse_user", "pulse_pwd")).unwrap(),
         );
         let response = client.arrow_metrics(request).await;
         assert!(response.is_ok());
@@ -596,8 +598,7 @@ pub async fn test_otel_arrow_auth(store_type: StorageType) {
         let mut request = Request::new(stream);
         request.metadata_mut().insert(
             "authorization",
-            MetadataValue::try_from(basic_auth_credentials("greptime_user", "greptime_pwd"))
-                .unwrap(),
+            MetadataValue::try_from(basic_auth_credentials("pulse_user", "pulse_pwd")).unwrap(),
         );
         let response = client.arrow_metrics(request).await;
         assert!(response.is_ok());
@@ -1175,7 +1176,7 @@ pub async fn test_auto_create_table_disabled_by_config(store_type: StorageType) 
             },
             &[
                 ("auto_create_table", "true"),
-                ("physical_table", "greptime_physical_table"),
+                ("physical_table", "pulse_physical_table"),
             ],
         )
         .await;
@@ -1194,7 +1195,7 @@ pub async fn test_auto_create_table_disabled_by_config(store_type: StorageType) 
     };
     let tables = record_batches.pretty_print().unwrap();
     assert!(
-        !tables.contains("greptime_physical_table"),
+        !tables.contains("pulse_physical_table"),
         "physical table leaked despite disabled auto-create:\n{tables}"
     );
 
@@ -1464,7 +1465,7 @@ async fn test_skip_wal_grpc_unary_stream_and_flight_sql(distributed: bool) {
     let mut grpc = GreptimeDatabaseClient::connect(format!("http://{addr}"))
         .await
         .unwrap();
-    let database = Database::new_with_dbname("greptime-public", Client::with_urls(vec![addr]));
+    let database = Database::new_with_dbname("pulse-public", Client::with_urls(vec![addr]));
     database
         .sql("CREATE TABLE skip_wal_grpc (ts TIMESTAMP TIME INDEX)")
         .await
@@ -1476,7 +1477,7 @@ async fn test_skip_wal_grpc_unary_stream_and_flight_sql(distributed: bool) {
                 let before = env.flush_and_snapshot_wal().await;
                 let request = GreptimeRequest {
                     header: Some(RequestHeader {
-                        catalog: "greptime".to_string(),
+                        catalog: "pulse".to_string(),
                         schema: "public".to_string(),
                         ..Default::default()
                     }),
@@ -1543,7 +1544,7 @@ async fn test_grpc_json2_row_inserts(distributed: bool) {
     let mut env = MockInstanceImpl::new("grpc_json2_row_inserts", distributed).await;
     let server = setup_grpc_server_for_frontend_instance(env.frontend(), None).await;
     let addr = server.bind_addr().unwrap().to_string();
-    let database = Database::new_with_dbname("greptime-public", Client::with_urls(vec![addr]));
+    let database = Database::new_with_dbname("pulse-public", Client::with_urls(vec![addr]));
     database
         .sql(
             "CREATE TABLE grpc_json2 (ts TIMESTAMP TIME INDEX, host STRING PRIMARY KEY, j JSON2) \
@@ -1887,7 +1888,7 @@ fn testing_create_expr() -> CreateTableExpr {
         },
     ];
     CreateTableExpr {
-        catalog_name: "greptime".to_string(),
+        catalog_name: "pulse".to_string(),
         schema_name: "public".to_string(),
         table_name: "demo".to_string(),
         desc: "blabla little magic fairy".to_string(),

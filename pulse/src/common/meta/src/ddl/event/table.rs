@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::collections::BTreeSet;
 
@@ -40,10 +42,6 @@ pub(crate) enum TableDdlEventType {
     AlterTable,
     AlterLogicalTables,
     DropTable,
-    #[cfg(feature = "enterprise")]
-    UndropTable,
-    #[cfg(feature = "enterprise")]
-    PurgeDroppedTable,
     TruncateTable,
 }
 
@@ -56,10 +54,6 @@ impl TableDdlEventType {
             Self::AlterTable => "alter_table",
             Self::AlterLogicalTables => "alter_logical_tables",
             Self::DropTable => "drop_table",
-            #[cfg(feature = "enterprise")]
-            Self::UndropTable => "undrop_table",
-            #[cfg(feature = "enterprise")]
-            Self::PurgeDroppedTable => "purge_dropped_table",
             Self::TruncateTable => "truncate_table",
         }
     }
@@ -99,15 +93,6 @@ impl TableDdlLocator {
         }
     }
 
-    /// Creates a locator containing only a table ID.
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn from_table_id(table_id: TableId) -> Self {
-        Self {
-            table_id: Some(table_id),
-            ..Default::default()
-        }
-    }
-
     /// Adds a table ID to the locator.
     pub(crate) fn with_table_id(mut self, table_id: TableId) -> Self {
         self.table_id = Some(table_id);
@@ -129,10 +114,6 @@ enum TableDdlPayload {
     AlterTable(AlterTablePayload),
     AlterLogicalTables(AlterLogicalTablesPayload),
     DropTable(DropTablePayload),
-    #[cfg(feature = "enterprise")]
-    UndropTable(UndropTablePayload),
-    #[cfg(feature = "enterprise")]
-    PurgeDroppedTable(PurgeDroppedTablePayload),
     TruncateTable(TruncateTablePayload),
 }
 
@@ -166,18 +147,6 @@ struct AlterLogicalTablesPayload {
 struct DropTablePayload {
     version: u8,
     drop_if_exists: bool,
-}
-
-#[cfg(feature = "enterprise")]
-#[derive(Debug, Serialize)]
-struct UndropTablePayload {
-    version: u8,
-}
-
-#[cfg(feature = "enterprise")]
-#[derive(Debug, Serialize)]
-struct PurgeDroppedTablePayload {
-    version: u8,
 }
 
 #[derive(Debug, Serialize)]
@@ -293,30 +262,6 @@ impl TableDdlEvent {
             TableDdlPayload::DropTable(DropTablePayload {
                 version: TABLE_DDL_PAYLOAD_VERSION,
                 drop_if_exists,
-            }),
-        )
-    }
-
-    /// Builds the bounded event emitted when restoring a dropped table is submitted.
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn undrop_table_submitted(locator: TableDdlLocator) -> Self {
-        Self::submitted(
-            TableDdlEventType::UndropTable,
-            [locator],
-            TableDdlPayload::UndropTable(UndropTablePayload {
-                version: TABLE_DDL_PAYLOAD_VERSION,
-            }),
-        )
-    }
-
-    /// Builds the bounded event emitted when purging a dropped table is submitted.
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn purge_dropped_table_submitted(locator: TableDdlLocator) -> Self {
-        Self::submitted(
-            TableDdlEventType::PurgeDroppedTable,
-            [locator],
-            TableDdlPayload::PurgeDroppedTable(PurgeDroppedTablePayload {
-                version: TABLE_DDL_PAYLOAD_VERSION,
             }),
         )
     }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::env;
@@ -53,7 +55,7 @@ use tests_fuzz::utils::procedure::procedure_state;
 use tests_fuzz::utils::wait::wait_condition_fn;
 use tests_fuzz::utils::{
     Connections, flush_memtable, get_fuzz_override, get_gt_fuzz_input_max_rows,
-    get_gt_fuzz_input_max_tables, init_greptime_connections_via_env,
+    get_gt_fuzz_input_max_tables, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 
@@ -65,18 +67,18 @@ const MIGRATION_TIMEOUT_SECS: u64 = 240;
 const ACTIVITY_TICK_SECS: u64 = 5;
 const DEFAULT_KAFKA_ADDR: &str = "127.0.0.1:9092";
 const DEFAULT_KAFKA_WAL_HELPER_URL: &str = "http://127.0.0.1:8080";
-const DEFAULT_WAL_TOPIC_PREFIX: &str = "greptimedb_wal_topic";
+const DEFAULT_WAL_TOPIC_PREFIX: &str = "pulse_wal_topic";
 const DEFAULT_WAL_NUM_TOPICS: usize = 3;
 const DEFAULT_WAL_PARTITION: i32 = 0;
 const DEFAULT_DELETE_RECORDS_TIMEOUT_MS: i32 = 5000;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -256,7 +258,7 @@ async fn create_tables<R: Rng + 'static>(
         let translator = CreateTableExprTranslator;
         let sql = translator.translate(&create_expr)?;
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!(
@@ -286,7 +288,7 @@ async fn insert_table<R: Rng + 'static>(
     let translator = InsertIntoExprTranslator;
     let sql = translator.translate(&insert_expr)?;
     let result = ctx
-        .greptime
+        .pulse
         // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
         .execute(sqlx::AssertSqlSafe(sql.as_str()))
         .await
@@ -307,7 +309,7 @@ async fn insert_table<R: Rng + 'static>(
 }
 
 async fn flush_table(ctx: &FuzzContext, table: &TableState) -> Result<()> {
-    flush_memtable(&ctx.greptime, &table.ctx.name).await
+    flush_memtable(&ctx.pulse, &table.ctx.name).await
 }
 
 async fn validate_table(ctx: &FuzzContext, table: &TableState) -> Result<()> {
@@ -351,7 +353,7 @@ async fn validate_insert_exprs(
         );
         info!("Executing sql: {select_sql}");
         let fetched_rows = ctx
-            .greptime
+            .pulse
             .fetch_all(sqlx::AssertSqlSafe(select_sql.as_str()))
             .await
             .unwrap();
@@ -372,7 +374,7 @@ async fn validate_insert_exprs(
     );
     info!("Executing sql: {select_sql}");
     let fetched_rows = ctx
-        .greptime
+        .pulse
         .fetch_all(sqlx::AssertSqlSafe(select_sql.as_str()))
         .await
         .unwrap();
@@ -392,7 +394,7 @@ async fn migrate_all_regions<R: Rng + 'static>(
     let mut migrations = Vec::new();
 
     for table in tables {
-        let partitions = fetch_partitions(&ctx.greptime, table.ctx.name.clone()).await?;
+        let partitions = fetch_partitions(&ctx.pulse, table.ctx.name.clone()).await?;
         for partition in partitions {
             let from_peer = partition.datanode_id;
             let to_peer = choose_target_peer(&datanodes, from_peer, rng, || {
@@ -413,7 +415,7 @@ async fn migrate_all_regions<R: Rng + 'static>(
 }
 
 async fn fetch_datanodes(ctx: &FuzzContext) -> Result<Vec<u64>> {
-    let datanodes = fetch_nodes(&ctx.greptime)
+    let datanodes = fetch_nodes(&ctx.pulse)
         .await?
         .into_iter()
         .filter(|node| node.peer_type == PEER_TYPE_DATANODE)
@@ -475,7 +477,7 @@ async fn migrate_regions(ctx: &FuzzContext, migrations: &[Migration]) -> Result<
 
 async fn submit_migration(ctx: &FuzzContext, migration: &Migration) -> String {
     let procedure_id = migrate_region(
-        &ctx.greptime,
+        &ctx.pulse,
         migration.region_id.as_u64(),
         migration.from_peer,
         migration.to_peer,
@@ -498,12 +500,12 @@ async fn wait_for_migration(
     wait_condition_fn(
         Duration::from_secs(MIGRATION_TIMEOUT_SECS),
         || {
-            let greptime = ctx.greptime.clone();
+            let pulse = ctx.pulse.clone();
             let procedure_id = procedure_id.to_string();
             Box::pin(async move {
-                let output = procedure_state(&greptime, &procedure_id).await;
+                let output = procedure_state(&pulse, &procedure_id).await;
                 info!("Checking procedure: {procedure_id}, output: {output}");
-                (fetch_partition(&greptime, region_id).await.ok(), output)
+                (fetch_partition(&pulse, region_id).await.ok(), output)
             })
         },
         |(partition, output)| {
@@ -629,7 +631,7 @@ async fn execute_logical_prune_fuzz<W: WalAdmin>(
     for table in tables {
         let sql = format!("DROP TABLE {}", table.ctx.name);
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql })?;
         info!("Drop table: {}, result: {result:?}", table.ctx.name);
@@ -642,9 +644,9 @@ async fn execute_logical_prune_fuzz<W: WalAdmin>(
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         let wal_admin = wal_admin_from_env();
 

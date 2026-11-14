@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,7 +21,7 @@ use client::Database;
 use common_test_util::temp_dir::create_temp_dir;
 use meta_srv::gc::GcSchedulerOptions;
 use mito2::gc::GcConfig;
-use tests_integration::cluster::GreptimeDbClusterBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
 use tests_integration::test_util::{
     StorageType, get_test_store_config, setup_authenticated_grpc_database,
     test_event_recorder_options,
@@ -43,7 +45,7 @@ async fn test_repartition_event() {
     common_telemetry::init_default_ut_logging();
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_repartition_event_data_home");
-    let cluster = GreptimeDbClusterBuilder::new("test_repartition_event")
+    let cluster = PulseClusterBuilder::new("test_repartition_event")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)
@@ -122,7 +124,7 @@ async fn assert_repartition_event(instance: &Arc<frontend::instance::Instance>) 
     json_path_match(payload, '$.version == 2') AS payload_version,
     json_path_match(payload, '$.source_type == "unpartitioned"') AS unpartitioned_source,
     json_path_match(payload, '$.target_partition_columns[0] == "host"') AS target_column
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'repartition'
   AND procedure_id = '{procedure_id}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
@@ -132,7 +134,7 @@ WHERE type = 'repartition'
 +-------------+--------------+-------------+--------------------+----------+-----------------+----------------------+---------------+
 | type        | catalog_name | schema_name | table_name         | table_id | payload_version | unpartitioned_source | target_column |
 +-------------+--------------+-------------+--------------------+----------+-----------------+----------------------+---------------+
-| repartition | greptime     | public      | repartition_events | 1024     | true            | true                 | true          |
+| repartition | pulse        | public      | repartition_events | 1024     | true            | true                 | true          |
 +-------------+--------------+-------------+--------------------+----------+-----------------+----------------------+---------------+";
 
     assert_eventually_eq(instance, &query, expected).await;
@@ -146,7 +148,7 @@ async fn assert_repartition_lifecycle_event(
 ) {
     let query = format!(
         r#"SELECT type, catalog_name, schema_name, table_name, table_id
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'repartition'
   AND procedure_id = '{procedure_id}'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
@@ -156,7 +158,7 @@ WHERE type = 'repartition'
 +-------------+--------------+-------------+--------------------+----------+
 | type        | catalog_name | schema_name | table_name         | table_id |
 +-------------+--------------+-------------+--------------------+----------+
-| repartition | greptime     | public      | repartition_events | 1024     |
+| repartition | pulse        | public      | repartition_events | 1024     |
 +-------------+--------------+-------------+--------------------+----------+";
 
     assert_eventually_eq(instance, &query, expected).await;
@@ -186,7 +188,7 @@ async fn assert_repartition_group_event(
     target_region_id,
     target_region_number,
     target_partition_expr
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'repartition_group'
   AND procedure_id = '{procedure_id}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
@@ -197,8 +199,8 @@ ORDER BY target_region_id"#
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+------------------+----------------------+----------------+------------------+----------------------+-----------------------+
 | type              | catalog_name | schema_name | table_name         | table_id | matches_parent_procedure_id | has_group_id | source_region_id | source_region_number | default_source | target_region_id | target_region_number | target_partition_expr |
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+------------------+----------------------+----------------+------------------+----------------------+-----------------------+
-| repartition_group | greptime     | public      | repartition_events | 1024     | true                        | true         | 4398046511104    | 0                    | true           | 4398046511104    | 0                    | host < 10             |
-| repartition_group | greptime     | public      | repartition_events | 1024     | true                        | true         | 4398046511104    | 0                    | true           | 4398046511105    | 1                    | host >= 10            |
+| repartition_group | pulse        | public      | repartition_events | 1024     | true                        | true         | 4398046511104    | 0                    | true           | 4398046511104    | 0                    | host < 10             |
+| repartition_group | pulse        | public      | repartition_events | 1024     | true                        | true         | 4398046511104    | 0                    | true           | 4398046511105    | 1                    | host >= 10            |
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+------------------+----------------------+----------------+------------------+----------------------+-----------------------+";
 
     assert_eventually_eq(instance, &query, expected).await;
@@ -214,7 +216,7 @@ async fn assert_repartition_group_lifecycle_event(
         r#"SELECT type, catalog_name, schema_name, table_name, table_id,
     parent_procedure_id = '{parent_procedure_id}' AS matches_parent_procedure_id,
     repartition_group_id IS NOT NULL AS has_group_id
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'repartition_group'
   AND procedure_id = '{procedure_id}'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
@@ -224,7 +226,7 @@ WHERE type = 'repartition_group'
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+
 | type              | catalog_name | schema_name | table_name         | table_id | matches_parent_procedure_id | has_group_id |
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+
-| repartition_group | greptime     | public      | repartition_events | 1024     | true                        | true         |
+| repartition_group | pulse        | public      | repartition_events | 1024     | true                        | true         |
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+";
 
     assert_eventually_eq(instance, &query, expected).await;
@@ -254,7 +256,7 @@ async fn assert_merge_repartition_group_event(
     target_region_id,
     target_region_number,
     target_partition_expr IS NOT NULL AS target_expr
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'repartition_group'
   AND procedure_id = '{procedure_id}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
@@ -266,8 +268,8 @@ ORDER BY source_region_id"#
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+------------------+----------------------+--------------------+------------------+----------------------+-------------+
 | type              | catalog_name | schema_name | table_name         | table_id | matches_parent_procedure_id | has_group_id | source_region_id | source_region_number | partitioned_source | target_region_id | target_region_number | target_expr |
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+------------------+----------------------+--------------------+------------------+----------------------+-------------+
-| repartition_group | greptime     | public      | repartition_events | 1024     | true                        | true         | 4398046511104    | 0                    | true               | 4398046511104    | 0                    | true        |
-| repartition_group | greptime     | public      | repartition_events | 1024     | true                        | true         | 4398046511105    | 1                    | true               | 4398046511104    | 0                    | true        |
+| repartition_group | pulse        | public      | repartition_events | 1024     | true                        | true         | 4398046511104    | 0                    | true               | 4398046511104    | 0                    | true        |
+| repartition_group | pulse        | public      | repartition_events | 1024     | true                        | true         | 4398046511105    | 1                    | true               | 4398046511104    | 0                    | true        |
 +-------------------+--------------+-------------+--------------------+----------+-----------------------------+--------------+------------------+----------------------+--------------------+------------------+----------------------+-------------+";
 
     assert_eventually_eq(instance, &query, expected).await;
@@ -282,7 +284,7 @@ async fn find_submitted_procedure_id(
         instance,
         &format!(
             r#"SELECT procedure_id
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{event_type}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
   AND {predicate}

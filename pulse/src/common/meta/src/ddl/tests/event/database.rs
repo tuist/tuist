@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -50,12 +52,12 @@ fn test_create_database_submitted_event_contract() {
         ("password".to_string(), "do-not-record".to_string()),
         ("compaction.type".to_string(), "twcs".to_string()),
     ]);
-    let event = DatabaseDdlEvent::create_submitted("greptime", "metrics", true, &options);
+    let event = DatabaseDdlEvent::create_submitted("pulse", "metrics", true, &options);
 
     assert_event_locator(
         &event,
         CREATE_DATABASE_EVENT_TYPE,
-        Some("greptime"),
+        Some("pulse"),
         Some("metrics"),
     );
     assert_eq!(
@@ -81,7 +83,7 @@ fn test_create_database_submitted_event_contract() {
 #[test]
 fn test_alter_database_set_and_unset_event_contracts() {
     let set = DatabaseDdlEvent::alter_submitted(
-        "greptime",
+        "pulse",
         "metrics",
         &AlterDatabaseKind::SetDatabaseOptions(SetDatabaseOptions(vec![
             SetDatabaseOption::Other("secret_token".to_string(), "hidden".to_string()),
@@ -91,7 +93,7 @@ fn test_alter_database_set_and_unset_event_contracts() {
     assert_event_locator(
         &set,
         ALTER_DATABASE_EVENT_TYPE,
-        Some("greptime"),
+        Some("pulse"),
         Some("metrics"),
     );
     assert_eq!(
@@ -107,7 +109,7 @@ fn test_alter_database_set_and_unset_event_contracts() {
     );
 
     let unset = DatabaseDdlEvent::alter_submitted(
-        "greptime",
+        "pulse",
         "metrics",
         &AlterDatabaseKind::UnsetDatabaseOptions(UnsetDatabaseOptions(vec![
             UnsetDatabaseOption::Ttl,
@@ -117,7 +119,7 @@ fn test_alter_database_set_and_unset_event_contracts() {
     assert_event_locator(
         &unset,
         ALTER_DATABASE_EVENT_TYPE,
-        Some("greptime"),
+        Some("pulse"),
         Some("metrics"),
     );
     assert_eq!(
@@ -132,12 +134,12 @@ fn test_alter_database_set_and_unset_event_contracts() {
 
 #[test]
 fn test_drop_database_submitted_event_contract() {
-    let event = DatabaseDdlEvent::drop_submitted("greptime", "metrics", true);
+    let event = DatabaseDdlEvent::drop_submitted("pulse", "metrics", true);
 
     assert_event_locator(
         &event,
         DROP_DATABASE_EVENT_TYPE,
-        Some("greptime"),
+        Some("pulse"),
         Some("metrics"),
     );
     assert_eq!(
@@ -150,24 +152,24 @@ fn test_drop_database_submitted_event_contract() {
 fn test_database_lifecycle_events_preserve_locator_and_null_intent() {
     for (event, event_type) in [
         (
-            DatabaseDdlEvent::create_lifecycle("greptime", "metrics"),
+            DatabaseDdlEvent::create_lifecycle("pulse", "metrics"),
             CREATE_DATABASE_EVENT_TYPE,
         ),
         (
-            DatabaseDdlEvent::alter_lifecycle("greptime", "metrics"),
+            DatabaseDdlEvent::alter_lifecycle("pulse", "metrics"),
             ALTER_DATABASE_EVENT_TYPE,
         ),
         (
-            DatabaseDdlEvent::drop_lifecycle("greptime", "metrics"),
+            DatabaseDdlEvent::drop_lifecycle("pulse", "metrics"),
             DROP_DATABASE_EVENT_TYPE,
         ),
     ] {
-        assert_event_locator(&event, event_type, Some("greptime"), Some("metrics"));
+        assert_event_locator(&event, event_type, Some("pulse"), Some("metrics"));
         assert_eq!(event.json_payload().unwrap(), serde_json::Value::Null);
     }
 
     assert_eq!(
-        DatabaseDdlEvent::create_lifecycle("greptime", "metrics").extra_schema(),
+        DatabaseDdlEvent::create_lifecycle("pulse", "metrics").extra_schema(),
         DatabaseDdlEvent::create_submitted("c", "s", false, &HashMap::new()).extra_schema()
     );
 }
@@ -178,7 +180,7 @@ fn test_database_events_preserve_procedure_envelope_contract() {
     let submitted = ProcedureEvent::new(
         procedure_id,
         Box::new(DatabaseDdlEvent::create_submitted(
-            "greptime",
+            "pulse",
             "metrics",
             false,
             &HashMap::new(),
@@ -188,7 +190,7 @@ fn test_database_events_preserve_procedure_envelope_contract() {
     );
     let lifecycle = ProcedureEvent::new(
         procedure_id,
-        Box::new(DatabaseDdlEvent::create_lifecycle("greptime", "metrics")),
+        Box::new(DatabaseDdlEvent::create_lifecycle("pulse", "metrics")),
         ProcedureState::Done { output: None },
         EventTrigger::Succeeded,
     );
@@ -198,7 +200,7 @@ fn test_database_events_preserve_procedure_envelope_contract() {
         CREATE_DATABASE_EVENT_TYPE,
         "Running",
         "Submitted",
-        Some("greptime"),
+        Some("pulse"),
         Some("metrics"),
     );
     assert_procedure_event_contract(
@@ -206,7 +208,7 @@ fn test_database_events_preserve_procedure_envelope_contract() {
         CREATE_DATABASE_EVENT_TYPE,
         "Done",
         "Succeeded",
-        Some("greptime"),
+        Some("pulse"),
         Some("metrics"),
     );
     assert_eq!(lifecycle.json_payload().unwrap(), serde_json::Value::Null);
@@ -215,7 +217,7 @@ fn test_database_events_preserve_procedure_envelope_contract() {
 #[test]
 fn test_create_database_event_filter() {
     let procedure = CreateDatabaseProcedure::new(
-        "greptime".to_string(),
+        "pulse".to_string(),
         "metrics".to_string(),
         false,
         HashMap::new(),
@@ -231,7 +233,7 @@ fn test_alter_database_event_filter() {
     let procedure = AlterDatabaseProcedure::new(
         crate::rpc::ddl::AlterDatabaseTask {
             alter_expr: AlterDatabaseExpr {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "metrics".to_string(),
                 kind: Some(PbAlterDatabaseKind::SetDatabaseOptions(
                     PbSetDatabaseOptions {
@@ -250,7 +252,7 @@ fn test_alter_database_event_filter() {
 #[test]
 fn test_drop_database_event_filter() {
     let procedure = DropDatabaseProcedure::new(
-        "greptime".to_string(),
+        "pulse".to_string(),
         "metrics".to_string(),
         false,
         new_ddl_context(Arc::new(MockDatanodeManager::new(()))),

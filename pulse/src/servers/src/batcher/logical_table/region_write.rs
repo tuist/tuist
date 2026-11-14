@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 
 use api::v1::region::{
@@ -296,11 +298,11 @@ mod tests {
         let logical_batch = RecordBatch::try_new(
             Arc::new(ArrowSchema::new(vec![
                 Field::new(
-                    "greptime_timestamp",
+                    "pulse_timestamp",
                     ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                     false,
                 ),
-                Field::new("greptime_value", ArrowDataType::Float64, true),
+                Field::new("pulse_value", ArrowDataType::Float64, true),
                 Field::new("host", ArrowDataType::Utf8, true),
                 Field::new("zone", ArrowDataType::Utf8, true),
             ])),
@@ -431,11 +433,11 @@ mod tests {
                 Arc::new(ArrowSchema::new(vec![
                     Field::new("__primary_key", ArrowDataType::Binary, false),
                     Field::new(
-                        "greptime_timestamp",
+                        "pulse_timestamp",
                         ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                         false,
                     ),
-                    Field::new("greptime_value", ArrowDataType::Float64, true),
+                    Field::new("pulse_value", ArrowDataType::Float64, true),
                 ])),
                 vec![
                     Arc::new(BinaryArray::from(vec![b"k1".as_slice()])),

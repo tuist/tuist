@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod attributes;
 pub mod span;
 pub mod v0;
@@ -108,7 +110,7 @@ impl TraceAuxData {
     }
 }
 
-/// Convert a subset of trace spans to GreptimeDB row insert requests.
+/// Convert a subset of trace spans to Pulse row insert requests.
 pub fn to_grpc_insert_requests_from_spans(
     spans: &[TraceSpan],
     pipeline: &PipelineWay,

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt;
 
 use serde::Serialize;
@@ -68,18 +70,14 @@ impl fmt::Display for Query {
 mod test {
 
     use super::Query;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
     fn create_query(sql: &str) -> Option<Box<Query>> {
-        match ParserContext::create_with_dialect(
-            sql,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap()
-        .remove(0)
+        match ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+            .unwrap()
+            .remove(0)
         {
             Statement::Query(query) => Some(query),
             _ => None,

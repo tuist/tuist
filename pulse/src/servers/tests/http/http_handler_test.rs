@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fmt;
 use std::pin::Pin;
@@ -46,11 +48,11 @@ use query::parser::PromQuery;
 use query::query_engine::DescribeResult;
 use serde_json::Value;
 use servers::error::Result;
-use servers::http::GreptimeQueryOutput::Records;
+use servers::http::PulseQueryOutput::Records;
 use servers::http::test_helpers::TestClient;
 use servers::http::{
-    ApiState, GreptimeOptionsConfigState, GreptimeQueryOutput, HttpOptions, HttpResponse,
-    HttpServerBuilder, handler as http_handler,
+    ApiState, HttpOptions, HttpResponse, HttpServerBuilder, PulseOptionsConfigState,
+    PulseQueryOutput, handler as http_handler,
 };
 use servers::metrics_handler::MetricsHandler;
 use servers::query_handler::sql::{ServerSqlQueryHandlerRef, SqlQueryHandler};
@@ -256,7 +258,7 @@ async fn test_sql_not_provided() {
     ctx.set_current_user(auth::userinfo_by_name(None));
     let api_state = ApiState { sql_handler };
 
-    for format in ["greptimedb_v1", "influxdb_v1", "csv", "table"] {
+    for format in ["pulse_v1", "influxdb_v1", "csv", "table"] {
         let query = http_handler::SqlQuery {
             format: Some(format.to_string()),
             ..Default::default()
@@ -288,7 +290,7 @@ async fn test_sql_output_rows() {
     let api_state = ApiState { sql_handler };
 
     let query_sql = "select sum(uint32s) from numbers limit 20";
-    for format in ["greptimedb_v1", "influxdb_v1", "csv", "table"] {
+    for format in ["pulse_v1", "influxdb_v1", "csv", "table"] {
         let query = create_query(format, query_sql, None);
         let json = http_handler::sql(
             State(api_state.clone()),
@@ -299,8 +301,8 @@ async fn test_sql_output_rows() {
         .await;
 
         match json {
-            HttpResponse::GreptimedbV1(resp) => match &resp.output()[0] {
-                GreptimeQueryOutput::Records(records) => {
+            HttpResponse::PulseV1(resp) => match &resp.output()[0] {
+                PulseQueryOutput::Records(records) => {
                     assert_eq!(1, records.num_rows());
                     let json = serde_json::to_string_pretty(&records).unwrap();
                     assert_eq!(
@@ -391,7 +393,7 @@ async fn test_dashboard_sql_limit() {
     let ctx = QueryContext::with_db_name(None);
     ctx.set_current_user(auth::userinfo_by_name(None));
     let api_state = ApiState { sql_handler };
-    for format in ["greptimedb_v1", "csv", "table"] {
+    for format in ["pulse_v1", "csv", "table"] {
         let query = create_query(format, "select * from numbers", Some(1000));
         let sql_response = http_handler::sql(
             State(api_state.clone()),
@@ -402,7 +404,7 @@ async fn test_dashboard_sql_limit() {
         .await;
 
         match sql_response {
-            HttpResponse::GreptimedbV1(resp) => match resp.output().first().unwrap() {
+            HttpResponse::PulseV1(resp) => match resp.output().first().unwrap() {
                 Records(records) => {
                     assert_eq!(records.num_rows(), 1000);
                 }
@@ -435,7 +437,7 @@ async fn test_sql_form() {
     ctx.set_current_user(auth::userinfo_by_name(None));
     let api_state = ApiState { sql_handler };
 
-    for format in ["greptimedb_v1", "influxdb_v1", "csv", "table", "null"] {
+    for format in ["pulse_v1", "influxdb_v1", "csv", "table", "null"] {
         let form = create_form(format);
         let json = http_handler::sql(
             State(api_state.clone()),
@@ -446,8 +448,8 @@ async fn test_sql_form() {
         .await;
 
         match json {
-            HttpResponse::GreptimedbV1(resp) => match &resp.output()[0] {
-                GreptimeQueryOutput::Records(records) => {
+            HttpResponse::PulseV1(resp) => match &resp.output()[0] {
+                PulseQueryOutput::Records(records) => {
                     assert_eq!(1, records.num_rows());
                     let json = serde_json::to_string_pretty(&records).unwrap();
                     assert_eq!(
@@ -969,10 +971,10 @@ async fn test_config() {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
-    let rs = http_handler::config(State(GreptimeOptionsConfigState {
-        greptime_config_options: toml_str.to_string(),
+    let rs = http_handler::config(State(PulseOptionsConfigState {
+        pulse_config_options: toml_str.to_string(),
     }))
     .await;
     assert_eq!(200_u16, rs.status().as_u16());
@@ -1047,18 +1049,15 @@ async fn test_http_skip_wal_header() {
         .build();
     let client = TestClient::new(server.build(server.make_app()).unwrap()).await;
     for (header, expected) in [
-        (Some(("x-greptime-insert-skip-wal", "true")), Some(true)),
-        (Some(("x-greptime-insert-skip-wal", "false")), Some(false)),
+        (Some(("x-pulse-insert-skip-wal", "true")), Some(true)),
+        (Some(("x-pulse-insert-skip-wal", "false")), Some(false)),
         (None, Some(false)),
-        (Some(("x-greptime-insert-skip-wal", "yes")), None),
-        (Some(("x-greptime-insert-skip-wal", "1")), None),
-        (Some(("x-greptime-insert-skip-wal", "")), None),
-        (Some(("x-greptime-skip-wal", "true")), Some(false)),
-        (Some(("x-greptime-hints", "skip_wal=true")), Some(false)),
-        (
-            Some(("x-greptime-hints", "insert_skip_wal=true")),
-            Some(false),
-        ),
+        (Some(("x-pulse-insert-skip-wal", "yes")), None),
+        (Some(("x-pulse-insert-skip-wal", "1")), None),
+        (Some(("x-pulse-insert-skip-wal", "")), None),
+        (Some(("x-pulse-skip-wal", "true")), Some(false)),
+        (Some(("x-pulse-hints", "skip_wal=true")), Some(false)),
+        (Some(("x-pulse-hints", "insert_skip_wal=true")), Some(false)),
     ] {
         // Sentinel also proves invalid values are rejected before the SQL handler.
         handler.observed.store(2, Ordering::Relaxed);

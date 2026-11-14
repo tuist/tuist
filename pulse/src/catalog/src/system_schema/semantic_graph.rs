@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! The computed entity-graph tables `greptime_private.semantic_entities` and
-//! `greptime_private.semantic_relationships`.
+// Modified by Tuist; see pulse/FORK.md.
+
+//! The computed entity-graph tables `pulse_private.semantic_entities` and
+//! `pulse_private.semantic_relationships`.
 //!
-//! They live in `greptime_private`, not `information_schema`: scanning them
+//! They live in `pulse_private`, not `information_schema`: scanning them
 //! triggers read-time derivation over telemetry tables (trace self-joins, ...),
 //! which breaks the "cheap, metadata-only" expectation users have of
-//! `information_schema`. `greptime_private` also hosts the physical
+//! `information_schema`. `pulse_private` also hosts the physical
 //! declared-edge table (`semantic_relationships_declared`), whose rows are
 //! unioned into the computed `semantic_relationships`.
 //!
@@ -135,7 +137,7 @@ pub trait EntityGraphProvider: Send + Sync {
     fn table_declarations(&self, table_info: &TableInfo) -> Vec<TableEntityDeclaration>;
 }
 
-/// Serves the computed graph tables under `greptime_private`, overlaid on the
+/// Serves the computed graph tables under `pulse_private`, overlaid on the
 /// schema's physical tables the same way the `numbers` table overlays `public`
 /// (the system catalog is consulted before physical table resolution).
 pub(crate) struct SemanticGraphTableProvider {

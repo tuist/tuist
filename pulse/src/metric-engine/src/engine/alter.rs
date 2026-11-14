@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod extract_new_columns;
 mod validate;
 
@@ -273,7 +275,7 @@ mod test {
     use api::v1::SemanticType;
     use common_meta::ddl::test_util::assert_column_name_and_id;
     use common_meta::ddl::utils::{parse_column_metadatas, parse_manifest_infos_from_extensions};
-    use common_query::prelude::{greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_timestamp, pulse_value};
     use store_api::metric_engine_consts::ALTER_PHYSICAL_EXTENSION_KEY;
     use store_api::region_engine::RegionEngine;
     use store_api::region_request::{
@@ -354,7 +356,7 @@ mod test {
             .unwrap();
         assert_eq!(semantic_type, SemanticType::Tag);
         let timestamp_index = metadata_region
-            .column_semantic_type(physical_region_id, logical_region_id, greptime_timestamp())
+            .column_semantic_type(physical_region_id, logical_region_id, pulse_timestamp())
             .await
             .unwrap()
             .unwrap();
@@ -364,8 +366,8 @@ mod test {
         assert_column_name_and_id(
             &column_metadatas,
             &[
-                (greptime_timestamp(), 0),
-                (greptime_value(), 1),
+                (pulse_timestamp(), 0),
+                (pulse_value(), 1),
                 ("__table_id", ReservedColumnId::table_id()),
                 ("__tsid", ReservedColumnId::tsid()),
                 ("job", 2),
@@ -423,8 +425,8 @@ mod test {
         assert_column_name_and_id(
             &column_metadatas,
             &[
-                (greptime_timestamp(), 0),
-                (greptime_value(), 1),
+                (pulse_timestamp(), 0),
+                (pulse_value(), 1),
                 ("__table_id", ReservedColumnId::table_id()),
                 ("__tsid", ReservedColumnId::tsid()),
                 ("job", 2),

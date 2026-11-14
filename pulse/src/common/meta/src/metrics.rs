@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::*;
 
@@ -24,134 +26,134 @@ pub const STATS_TYPE_REGION_NOT_OPEN: &str = "region_not_open";
 
 lazy_static! {
     pub static ref METRIC_META_TXN_REQUEST: HistogramVec = register_histogram_vec!(
-        "greptime_meta_txn_request",
+        "pulse_meta_txn_request",
         "meta txn request",
         &["target", "op"]
     )
     .unwrap();
     pub static ref METRIC_META_CREATE_CATALOG: Histogram =
-        register_histogram!("greptime_meta_create_catalog", "meta create catalog").unwrap();
+        register_histogram!("pulse_meta_create_catalog", "meta create catalog").unwrap();
     pub static ref METRIC_META_CREATE_CATALOG_COUNTER: IntCounter = register_int_counter!(
-        "greptime_meta_create_catalog_counter",
+        "pulse_meta_create_catalog_counter",
         "meta create catalog"
     )
     .unwrap();
     pub static ref METRIC_META_CREATE_SCHEMA: Histogram =
-        register_histogram!("greptime_meta_create_schema", "meta create schema").unwrap();
+        register_histogram!("pulse_meta_create_schema", "meta create schema").unwrap();
     pub static ref METRIC_META_CREATE_SCHEMA_COUNTER: IntCounter =
-        register_int_counter!("greptime_meta_create_schema_counter", "meta create schema").unwrap();
+        register_int_counter!("pulse_meta_create_schema_counter", "meta create schema").unwrap();
     pub static ref METRIC_META_PROCEDURE_CREATE_TABLE: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_create_table",
+        "pulse_meta_procedure_create_table",
         "meta procedure create table",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_CREATE_VIEW: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_create_view",
+        "pulse_meta_procedure_create_view",
         "meta procedure create view",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_CREATE_FLOW: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_create_flow",
+        "pulse_meta_procedure_create_flow",
         "meta procedure create flow",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_DROP_FLOW: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_drop_flow",
+        "pulse_meta_procedure_drop_flow",
         "meta procedure drop flow",
         &["step"]
     )
         .unwrap();
     pub static ref METRIC_META_PROCEDURE_DROP_VIEW: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_drop_view",
+        "pulse_meta_procedure_drop_view",
         "meta procedure drop view",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_CREATE_TABLES: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_create_tables",
+        "pulse_meta_procedure_create_tables",
         "meta procedure create tables",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_DROP_TABLE: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_drop_table",
+        "pulse_meta_procedure_drop_table",
         "meta procedure drop table",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_ALTER_TABLE: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_alter_table",
+        "pulse_meta_procedure_alter_table",
         "meta procedure alter table",
         &["step"]
     )
     .unwrap();
     pub static ref METRIC_META_PROCEDURE_TRUNCATE_TABLE: HistogramVec = register_histogram_vec!(
-        "greptime_meta_procedure_truncate_table",
+        "pulse_meta_procedure_truncate_table",
         "meta procedure truncate table",
         &["step"]
     )
     .unwrap();
     /// Cache container cache get counter.
     pub static ref CACHE_CONTAINER_CACHE_GET: IntCounterVec = register_int_counter_vec!(
-        "greptime_meta_cache_container_cache_get",
+        "pulse_meta_cache_container_cache_get",
         "cache container cache get",
         &["name"]
     )
     .unwrap();
     /// Cache container cache miss counter.
     pub static ref CACHE_CONTAINER_CACHE_MISS: IntCounterVec = register_int_counter_vec!(
-        "greptime_meta_cache_container_cache_miss",
+        "pulse_meta_cache_container_cache_miss",
         "cache container cache miss",
         &["name"]
     )
     .unwrap();
     /// Cache container load cache timer
     pub static ref CACHE_CONTAINER_LOAD_CACHE: HistogramVec = register_histogram_vec!(
-        "greptime_meta_cache_container_load_cache",
+        "pulse_meta_cache_container_load_cache",
         "cache container load cache",
         &["name"]
     )
     .unwrap();
     pub static ref RDS_SQL_EXECUTE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_meta_rds_pg_sql_execute_elapsed_ms",
+        "pulse_meta_rds_pg_sql_execute_elapsed_ms",
         "rds pg sql execute elapsed",
         &["backend", "result", "op", "type"]
     )
     .unwrap();
     pub static ref METRIC_META_RECONCILIATION_LIST_REGION_METADATA_DURATION: HistogramVec =
         register_histogram_vec!(
-            "greptime_meta_reconciliation_list_region_metadata_duration",
+            "pulse_meta_reconciliation_list_region_metadata_duration",
             "reconciliation list region metadata duration",
             &["table_type"]
         )
         .unwrap();
     pub static ref METRIC_META_RECONCILIATION_RESOLVED_COLUMN_METADATA: IntCounterVec =
         register_int_counter_vec!(
-            "greptime_meta_reconciliation_resolved_column_metadata",
+            "pulse_meta_reconciliation_resolved_column_metadata",
             "reconciliation resolved column metadata",
             &["strategy"]
         )
         .unwrap();
     pub static ref METRIC_META_RECONCILIATION_STATS: IntCounterVec =
         register_int_counter_vec!(
-            "greptime_meta_reconciliation_stats",
+            "pulse_meta_reconciliation_stats",
             "reconciliation stats",
             &["procedure_name", "table_type", "type"]
         )
         .unwrap();
     pub static ref METRIC_META_RECONCILIATION_PROCEDURE: HistogramVec =
         register_histogram_vec!(
-            "greptime_meta_reconciliation_procedure",
+            "pulse_meta_reconciliation_procedure",
             "reconcile table procedure",
             &["procedure_name", "step"]
         )
         .unwrap();
     pub static ref METRIC_META_RECONCILIATION_PROCEDURE_ERROR: IntCounterVec =
         register_int_counter_vec!(
-            "greptime_meta_reconciliation_procedure_error",
+            "pulse_meta_reconciliation_procedure_error",
             "reconciliation procedure error",
             &["procedure_name", "step", "error_type"]
         )

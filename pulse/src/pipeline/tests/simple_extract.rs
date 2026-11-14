@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod common;
 
 use api::v1::value::ValueData;
 use api::v1::{ColumnDataType, ColumnSchema, SemanticType};
-use common_query::prelude::greptime_timestamp;
+use common_query::prelude::pulse_timestamp;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -27,7 +29,7 @@ lazy_static! {
             SemanticType::Field,
         ),
         common::make_column_schema(
-            greptime_timestamp().to_string(),
+            pulse_timestamp().to_string(),
             ColumnDataType::TimestampNanosecond,
             SemanticType::Timestamp,
         ),

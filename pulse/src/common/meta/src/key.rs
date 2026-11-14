@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! This mod defines all the keys used in the metadata store (Metasrv).
 //! Specifically, there are these kinds of keys:
 //!
@@ -1989,12 +1991,12 @@ mod tests {
     fn new_test_table_names() -> HashSet<TableName> {
         let mut set = HashSet::new();
         set.insert(TableName {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             table_name: "a_table".to_string(),
         });
         set.insert(TableName {
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             schema_name: "public".to_string(),
             table_name: "b_table".to_string(),
         });
@@ -2018,7 +2020,7 @@ mod tests {
 
     fn create_mock_region_wal_options() -> HashMap<RegionNumber, WalOptions> {
         let topics = (0..2)
-            .map(|i| format!("greptimedb_topic{}", i))
+            .map(|i| format!("pulse_topic{}", i))
             .collect::<Vec<_>>();
         let wal_options = topics
             .iter()
@@ -2035,13 +2037,13 @@ mod tests {
         HashMap::from([
             (
                 0,
-                WalOptions::Kafka(KafkaWalOptions::new("greptimedb_topic0".to_string())),
+                WalOptions::Kafka(KafkaWalOptions::new("pulse_topic0".to_string())),
             ),
             (1, WalOptions::RaftEngine),
             (2, WalOptions::Noop),
             (
                 3,
-                WalOptions::Kafka(KafkaWalOptions::new("greptimedb_topic1".to_string())),
+                WalOptions::Kafka(KafkaWalOptions::new("pulse_topic1".to_string())),
             ),
         ])
     }
@@ -2229,7 +2231,7 @@ mod tests {
         for i in 0..2 {
             let region_number = i as u32;
             let region_id = RegionId::new(table_info.ident.table_id, region_number);
-            let topic = format!("greptimedb_topic{}", i);
+            let topic = format!("pulse_topic{}", i);
             let regions = table_metadata_manager
                 .topic_region_manager
                 .regions(&topic)
@@ -2514,13 +2516,13 @@ mod tests {
         // Logical delete removes the topic region mapping as well.
         let regions = table_metadata_manager
             .topic_region_manager
-            .regions("greptimedb_topic0")
+            .regions("pulse_topic0")
             .await
             .unwrap();
         assert_eq!(regions.len(), 0);
         let regions = table_metadata_manager
             .topic_region_manager
-            .regions("greptimedb_topic1")
+            .regions("pulse_topic1")
             .await
             .unwrap();
         assert_eq!(regions.len(), 0);
@@ -3511,7 +3513,7 @@ mod tests {
 
         assert!(
             manager
-                .get_dropped_table(&TableName::new("greptime", "public", "missing"))
+                .get_dropped_table(&TableName::new("pulse", "public", "missing"))
                 .await
                 .unwrap()
                 .is_none()
@@ -3575,12 +3577,12 @@ mod tests {
         let new_table_names = {
             let mut set = HashSet::new();
             set.insert(TableName {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: "b_table".to_string(),
             });
             set.insert(TableName {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: "c_table".to_string(),
             });

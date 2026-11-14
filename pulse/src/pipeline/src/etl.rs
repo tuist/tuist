@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![allow(dead_code)]
 pub mod ctx_req;
 pub mod field;
@@ -37,13 +39,13 @@ use crate::error::{
     YamlLoadSnafu, YamlParseSnafu,
 };
 use crate::etl::processor::ProcessorKind;
-use crate::etl::transform::transformer::greptime::{
+use crate::etl::transform::transformer::pulse::{
     RowWithTableSuffix, values_to_row, values_to_rows,
 };
 use crate::tablesuffix::TableSuffixTemplate;
 use crate::{
-    ContextOpt, GreptimeTransformer, IdentityTimeIndex, PipelineContext, PipelineOptions,
-    SchemaInfo, unwrap_or_continue_if_err,
+    ContextOpt, IdentityTimeIndex, PipelineContext, PipelineOptions, PulseTransformer, SchemaInfo,
+    unwrap_or_continue_if_err,
 };
 
 const DESCRIPTION: &str = "description";
@@ -117,7 +119,7 @@ pub fn parse_with_options(input: &Content, options: &PipelineOptions) -> Result<
                 let (ts_name, timeunit) = cnt.first().unwrap();
                 TransformerMode::AutoTransform(ts_name.to_string(), *timeunit)
             } else {
-                TransformerMode::GreptimeTransformer(GreptimeTransformer::new(
+                TransformerMode::PulseTransformer(PulseTransformer::new(
                     transformers,
                     &doc_version,
                 )?)
@@ -208,7 +210,7 @@ pub struct Pipeline {
 
 #[derive(Debug, Clone)]
 pub enum TransformerMode {
-    GreptimeTransformer(GreptimeTransformer),
+    PulseTransformer(PulseTransformer),
     AutoTransform(String, TimeUnit),
 }
 
@@ -343,11 +345,11 @@ impl Pipeline {
         };
 
         let rows_by_context = match self.transformer() {
-            TransformerMode::GreptimeTransformer(greptime_transformer) => {
+            TransformerMode::PulseTransformer(pulse_transformer) => {
                 transform_array_elements_by_ctx(
                     // SAFETY: by line 326, val must be an array
                     val.as_array_mut().unwrap(),
-                    greptime_transformer,
+                    pulse_transformer,
                     self.is_v1(),
                     schema_info,
                     pipeline_ctx,
@@ -355,7 +357,7 @@ impl Pipeline {
                 )?
             }
             TransformerMode::AutoTransform(ts_name, time_unit) => {
-                let def = crate::PipelineDefinition::GreptimeIdentityPipeline(Some(
+                let def = crate::PipelineDefinition::PulseIdentityPipeline(Some(
                     IdentityTimeIndex::Epoch(ts_name.clone(), *time_unit, false),
                 ));
                 let n_ctx =
@@ -389,7 +391,7 @@ impl Pipeline {
     // the method is for test purpose
     pub fn schemas(&self) -> Option<&Vec<greptime_proto::v1::ColumnSchema>> {
         match &self.transformer {
-            TransformerMode::GreptimeTransformer(t) => Some(t.schemas()),
+            TransformerMode::PulseTransformer(t) => Some(t.schemas()),
             TransformerMode::AutoTransform(_, _) => None,
         }
     }
@@ -405,7 +407,7 @@ impl Pipeline {
 /// Each element can have its own ContextOpt for per-row configuration.
 fn transform_array_elements_by_ctx(
     arr: &mut [VrlValue],
-    transformer: &GreptimeTransformer,
+    transformer: &PulseTransformer,
     is_v1: bool,
     schema_info: &mut SchemaInfo,
     pipeline_ctx: &PipelineContext<'_>,
@@ -489,14 +491,14 @@ macro_rules! setup_pipeline {
     ($pipeline:expr) => {{
         use std::sync::Arc;
 
-        use $crate::{GreptimePipelineParams, Pipeline, PipelineDefinition, SchemaInfo};
+        use $crate::{Pipeline, PipelineDefinition, PulsePipelineParams, SchemaInfo};
 
         let pipeline: Arc<Pipeline> = Arc::new($pipeline);
         let schema = pipeline.schemas().unwrap();
         let schema_info = SchemaInfo::from_schema_list(schema.clone());
 
         let pipeline_def = PipelineDefinition::Resolved(pipeline.clone());
-        let pipeline_param = GreptimePipelineParams::default();
+        let pipeline_param = PulsePipelineParams::default();
 
         (pipeline, schema_info, pipeline_def, pipeline_param)
     }};
@@ -609,7 +611,7 @@ transform:
         let mut schema_info = SchemaInfo::from_schema_list(schema.clone());
 
         let pipeline_def = crate::PipelineDefinition::Resolved(pipeline.clone());
-        let pipeline_param = crate::GreptimePipelineParams::default();
+        let pipeline_param = crate::PulsePipelineParams::default();
         let pipeline_ctx = PipelineContext::new(
             &pipeline_def,
             &pipeline_param,
@@ -763,7 +765,7 @@ transform:
         let mut schema_info = SchemaInfo::from_schema_list(schema.clone());
 
         let pipeline_def = crate::PipelineDefinition::Resolved(pipeline.clone());
-        let pipeline_param = crate::GreptimePipelineParams::default();
+        let pipeline_param = crate::PulsePipelineParams::default();
         let pipeline_ctx = PipelineContext::new(
             &pipeline_def,
             &pipeline_param,
@@ -1098,7 +1100,7 @@ processors:
 transform:
   - field: value
     type: int32
-  - field: greptime_timestamp
+  - field: pulse_timestamp
     type: timestamp, ns
     index: time
 "#;
@@ -1136,7 +1138,7 @@ processors:
 transform:
   - field: value
     type: int32
-  - field: greptime_timestamp
+  - field: pulse_timestamp
     type: timestamp, ns
     index: time
 "#;
@@ -1175,7 +1177,7 @@ processors:
       resolution: ms
   - vrl:
       source: |
-        .greptime_table_suffix = "_" + string!(.category)
+        .pulse_table_suffix = "_" + string!(.category)
         .
 
 transform:
@@ -1236,7 +1238,7 @@ processors:
                 "name": event.name,
                 "value": event.value,
                 "timestamp": base_ts,
-                "greptime_table_suffix": suffix
+                "pulse_table_suffix": suffix
             }
         }
 
@@ -1329,7 +1331,7 @@ processors:
                 "event_type": event.type,
                 "event_value": event.value,
                 "timestamp": base_ts,
-                "greptime_ttl": ttl
+                "pulse_ttl": ttl
             }
         }
 
@@ -1468,7 +1470,7 @@ processors:
 transform:
   - field: value
     type: int32
-  - field: greptime_timestamp
+  - field: pulse_timestamp
     type: timestamp, ns
     index: time
 "#;

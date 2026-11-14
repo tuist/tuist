@@ -58,9 +58,9 @@ SELECT table_catalog, table_schema, table_name, table_type, engine FROM informat
 +---------------+--------------+------------+------------+--------+
 | table_catalog | table_schema | table_name | table_type | engine |
 +---------------+--------------+------------+------------+--------+
-| greptime      | public       | phy        | BASE TABLE | metric |
-| greptime      | public       | t1         | BASE TABLE | metric |
-| greptime      | public       | t2         | BASE TABLE | metric |
+| pulse         | public       | phy        | BASE TABLE | metric |
+| pulse         | public       | t1         | BASE TABLE | metric |
+| pulse         | public       | t2         | BASE TABLE | metric |
 +---------------+--------------+------------+------------+--------+
 
 DESC TABLE phy;

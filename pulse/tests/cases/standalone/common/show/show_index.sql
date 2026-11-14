@@ -53,7 +53,7 @@ SELECT table_schema,
        seq_in_index,
        column_name,
        index_type,
-       greptime_index_type
+       pulse_index_type
 FROM information_schema.statistics
 WHERE table_schema = 'public'
   AND table_name IN ('system_metrics', 'test')

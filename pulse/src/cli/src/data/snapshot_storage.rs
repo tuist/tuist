@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Storage abstraction for Export/Import V2.
 //!
 //! This module provides a unified interface for reading and writing snapshot data
@@ -995,7 +997,7 @@ mod tests {
         let storage = make_storage_with_rooted_fs(dir.path());
 
         let manifest = Manifest::new_full(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             TimeRange::unbounded(),
             DataFormat::Parquet,
@@ -1018,7 +1020,7 @@ mod tests {
 
         let mut snapshot = SchemaSnapshot::new();
         snapshot.add_schema(SchemaDefinition {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             name: "test_db".to_string(),
             options: HashMap::from([("ttl".to_string(), "7d".to_string())]),
         });
@@ -1070,7 +1072,7 @@ mod tests {
 
         storage
             .write_manifest(&Manifest::new_schema_only(
-                "greptime".to_string(),
+                "pulse".to_string(),
                 vec!["public".to_string()],
             ))
             .await

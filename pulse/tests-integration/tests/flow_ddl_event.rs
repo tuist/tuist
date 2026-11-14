@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 use tests_integration::test_util::{
     setup_authenticated_grpc_database, test_event_recorder_options,
 };
@@ -32,7 +34,7 @@ const PROCEDURE_ACTOR_PASSWORD: &str = "procedure_actor_pwd";
 #[tokio::test(flavor = "multi_thread")]
 async fn test_standalone_flow_ddl_events() {
     common_telemetry::init_default_ut_logging();
-    let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_flow_ddl_events")
+    let standalone = PulseStandaloneBuilder::new("test_standalone_flow_ddl_events")
         .with_event_recorder_options(test_event_recorder_options())
         .build()
         .await;
@@ -78,12 +80,12 @@ async fn assert_create_events(instance: &Arc<frontend::instance::Instance>, flow
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{CREATE_FLOW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Running'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND flow_name = '{flow}'
   AND flow_id IS NULL
   AND json_path_match(payload, '$.version == 1')
@@ -99,12 +101,12 @@ WHERE type = '{CREATE_FLOW_EVENT_TYPE}'
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{CREATE_FLOW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND flow_name = '{flow}'
   AND flow_id IS NOT NULL
   AND json_is_null(payload)"#,
@@ -121,7 +123,7 @@ async fn assert_event_context(
     let actual = find_eventually_string(
         instance,
         &format!(
-            "SELECT json_to_string(event_context) AS event_context FROM greptime_private.events WHERE type = '{event_type}' AND procedure_id = '{procedure_id}' AND json_path_match(procedure_trigger, '$.type == \"Submitted\"')"
+            "SELECT json_to_string(event_context) AS event_context FROM pulse_private.events WHERE type = '{event_type}' AND procedure_id = '{procedure_id}' AND json_path_match(procedure_trigger, '$.type == \"Submitted\"')"
         ),
         "event_context",
     )
@@ -136,12 +138,12 @@ async fn assert_drop_events(instance: &Arc<frontend::instance::Instance>, flow: 
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{DROP_FLOW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Running'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND flow_name = '{flow}'
   AND flow_id IS NOT NULL
   AND json_path_match(payload, '$.version == 1')
@@ -154,12 +156,12 @@ WHERE type = '{DROP_FLOW_EVENT_TYPE}'
         instance,
         &format!(
             r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{DROP_FLOW_EVENT_TYPE}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND flow_name = '{flow}'
   AND flow_id IS NOT NULL
   AND json_is_null(payload)"#,
@@ -177,7 +179,7 @@ async fn find_submitted_procedure_id(
         instance,
         &format!(
             r#"SELECT procedure_id
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{event_type}'
   AND flow_name = '{flow_name}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')

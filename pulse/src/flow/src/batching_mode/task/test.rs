@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -192,7 +194,7 @@ async fn test_execution_hook_receives_the_completed_incremental_plan() {
     let (sink, _) = get_table_info_df_schema(
         query_engine.engine_state().catalog_manager().clone(),
         [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             sink_table.to_string(),
         ],
@@ -544,12 +546,12 @@ async fn new_test_task_engine_and_plan_with_query_and_opts_and_required(
             time_window_expr: None,
             expire_after: None,
             sink_table_name: [
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 sink_table.to_string(),
             ],
             source_table_names: vec![[
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 "numbers_with_ts".to_string(),
             ]],
@@ -618,12 +620,12 @@ async fn test_non_aggregate_scheduled_sql_honors_eval_offset_phase() {
         time_window_expr: None,
         expire_after: None,
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "scheduled_non_aggr_sink".to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -743,12 +745,12 @@ async fn new_time_window_test_task_with_query(query: &str) -> TestTaskParts {
         time_window_expr,
         expire_after: None,
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "missing_sink".to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -1650,12 +1652,12 @@ async fn test_scheduled_time_ctx_restored_on_no_dirty_windows() {
         time_window_expr,
         expire_after: None,
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             sink_table_name.to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -1728,12 +1730,12 @@ async fn test_scheduled_time_now_is_bound_to_selected_attempt() {
         time_window_expr: None,
         expire_after: None,
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             sink_table_name.to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -3699,7 +3701,7 @@ async fn test_exact_required_unsupported_plan_keeps_exact_retry_state() {
     let (sink_table, _) = get_table_info_df_schema(
         query_engine.engine_state().catalog_manager().clone(),
         [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
@@ -3723,12 +3725,12 @@ async fn test_exact_required_unsupported_plan_keeps_exact_retry_state() {
             time_window_expr: None,
             expire_after: None,
             sink_table_name: [
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 "numbers_with_ts".to_string(),
             ],
             source_table_names: vec![[
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 "numbers_with_ts".to_string(),
             ]],
@@ -3791,7 +3793,7 @@ async fn test_prepare_plan_for_incremental_disables_on_non_aggregate() {
     let (sink_table, _) = get_table_info_df_schema(
         query_engine.engine_state().catalog_manager().clone(),
         [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
@@ -3815,12 +3817,12 @@ async fn test_prepare_plan_for_incremental_disables_on_non_aggregate() {
         time_window_expr: None,
         expire_after: None,
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -3869,7 +3871,7 @@ async fn test_unsafe_incremental_plan_skip_restores_dirty_without_query() {
     let (sink_table, _) = get_table_info_df_schema(
         query_engine.engine_state().catalog_manager().clone(),
         [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
@@ -3896,12 +3898,12 @@ async fn test_unsafe_incremental_plan_skip_restores_dirty_without_query() {
         // output column `total`, so incremental rewrite fails before any
         // frontend query should be sent.
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -3962,7 +3964,7 @@ async fn test_prepare_plan_for_incremental_group_by_without_merge_columns_uses_o
     let (sink_table, _) = get_table_info_df_schema(
         query_engine.engine_state().catalog_manager().clone(),
         [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
@@ -3986,12 +3988,12 @@ async fn test_prepare_plan_for_incremental_group_by_without_merge_columns_uses_o
         time_window_expr: None,
         expire_after: None,
         sink_table_name: [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ],
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -4035,7 +4037,7 @@ async fn test_auto_created_sql_aggregate_sink_reaches_incremental_safe() {
     let (sink_table, _) = get_table_info_df_schema(
         query_engine.engine_state().catalog_manager().clone(),
         [
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             sink_table.to_string(),
         ],

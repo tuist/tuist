@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod gc;
 mod instance_kafka_wal_test;
 mod instance_noop_wal_test;
@@ -28,9 +30,9 @@ use common_meta::key::TableMetadataManagerRef;
 use datanode::datanode::Datanode;
 use frontend::instance::Instance;
 
-use crate::cluster::{GreptimeDbCluster, GreptimeDbClusterBuilder};
+use crate::cluster::{PulseCluster, PulseClusterBuilder};
 
-pub struct MockDistributedInstance(GreptimeDbCluster);
+pub struct MockDistributedInstance(PulseCluster);
 
 impl MockDistributedInstance {
     pub fn frontend(&self) -> Arc<Instance> {
@@ -47,7 +49,7 @@ impl MockDistributedInstance {
 }
 
 pub async fn create_distributed_instance(test_name: &str) -> MockDistributedInstance {
-    let builder = GreptimeDbClusterBuilder::new(test_name).await;
+    let builder = PulseClusterBuilder::new(test_name).await;
     let cluster = builder.build(false).await;
     MockDistributedInstance(cluster)
 }

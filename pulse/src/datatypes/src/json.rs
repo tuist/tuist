@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Data conversion between greptime's StructType and Json
+// Modified by Tuist; see pulse/FORK.md.
+
+//! Data conversion between pulse's StructType and Json
 //!
-//! The idea of this module is to provide utilities to convert serde_json::Value to greptime's StructType and vice versa.
+//! The idea of this module is to provide utilities to convert serde_json::Value to pulse's StructType and vice versa.
 //!
 //! The struct will carry all the fields of the Json object. We will not flatten any json object in this implementation.
 //!

@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Dedicated helper plans for PromQL functions that cannot be expressed as a
 //! plain scalar function over the input plan: the histogram helpers, `vector()`,
 //! `scalar()`, and `absent()`.
 
 use std::sync::Arc;
 
-use common_query::prelude::greptime_value;
+use common_query::prelude::pulse_value;
 use datafusion::functions_aggregate::expr_fn::first_value;
 use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::{Extension, LogicalPlan, LogicalPlanBuilder};
@@ -304,7 +306,7 @@ impl PromPlanner {
         self.ctx.reset_table_name_and_schema();
         self.ctx.tag_columns = vec![];
         self.ctx.aggregation_field_labels.clear();
-        self.ctx.field_columns = vec![greptime_value().to_string()];
+        self.ctx.field_columns = vec![pulse_value().to_string()];
         Ok(LogicalPlan::Extension(Extension {
             node: Arc::new(
                 EmptyMetric::new(
@@ -312,7 +314,7 @@ impl PromPlanner {
                     self.ctx.end,
                     self.ctx.interval,
                     SPECIAL_TIME_FUNCTION.to_string(),
-                    greptime_value().to_string(),
+                    pulse_value().to_string(),
                     Some(lit),
                 )
                 .context(DataFusionPlanningSnafu)?,

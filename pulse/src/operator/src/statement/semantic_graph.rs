@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! The entity-relationship graph: the physical declared-edge table DDL and the
 //! typed DataFusion plan builders for the read-time derivation behind the
 //! computed `semantic_entities` / `semantic_relationships` tables.
@@ -133,7 +135,7 @@ const DEFAULT_DECLARED_RELATIONSHIPS_TTL: &str = "90d";
 /// Environment variable overriding the declared-edge table's TTL at creation
 /// time (e.g. `180d`, `forever`).
 // TODO(entity-graph): promote this to a real configuration option.
-const DECLARED_RELATIONSHIPS_TTL_ENV: &str = "GREPTIMEDB_DECLARED_RELATIONSHIPS_TTL";
+const DECLARED_RELATIONSHIPS_TTL_ENV: &str = "PULSE_DECLARED_RELATIONSHIPS_TTL";
 
 fn declared_relationships_ttl() -> String {
     std::env::var(DECLARED_RELATIONSHIPS_TTL_ENV)
@@ -1306,7 +1308,7 @@ mod tests {
         primary_key_indices: Vec<usize>,
         extra_options: &[(&str, &str)],
     ) -> table::metadata::TableInfo {
-        let canonical = build_declared_relationships_expr("greptime");
+        let canonical = build_declared_relationships_expr("pulse");
         let mut columns: Vec<datatypes::schema::ColumnSchema> = canonical
             .column_defs
             .iter()
@@ -1353,7 +1355,7 @@ mod tests {
         table::metadata::TableInfoBuilder::default()
             .table_id(1)
             .name(SEMANTIC_RELATIONSHIPS_DECLARED_TABLE_NAME)
-            .catalog_name("greptime")
+            .catalog_name("pulse")
             .schema_name(DEFAULT_PRIVATE_SCHEMA_NAME)
             .table_version(0)
             .table_type(table::metadata::TableType::Base)

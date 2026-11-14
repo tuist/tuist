@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -32,7 +34,7 @@ use common_catalog::{format_full_table_name, parse_optional_catalog_and_schema_f
 use common_error::ext::BoxedError;
 use common_meta::rpc::ddl::TriggerReason;
 use common_query::Output;
-use common_query::prelude::{GREPTIME_PHYSICAL_TABLE, greptime_value};
+use common_query::prelude::{PULSE_PHYSICAL_TABLE, pulse_value};
 use common_recordbatch::RecordBatches;
 use common_telemetry::{debug, tracing};
 use operator::insert::{
@@ -81,7 +83,7 @@ fn auto_create_table_type_for_prom_remote_write(
     if with_metric_engine {
         let physical_table = ctx
             .extension(PHYSICAL_TABLE_PARAM)
-            .unwrap_or(GREPTIME_PHYSICAL_TABLE)
+            .unwrap_or(PULSE_PHYSICAL_TABLE)
             .to_string();
         AutoCreateTableType::Logical(physical_table)
     } else {
@@ -186,8 +188,8 @@ fn resolve_column_names(table_name: &str, table: &TableRef) -> Result<String> {
 
         [only] => Ok(only.clone()),
 
-        columns if columns.iter().any(|name| name == greptime_value()) => {
-            Ok(greptime_value().to_string())
+        columns if columns.iter().any(|name| name == pulse_value()) => {
+            Ok(pulse_value().to_string())
         }
 
         columns => AmbiguousValueColumnSnafu {
@@ -468,7 +470,7 @@ impl Instance {
         let output = if with_metric_engine {
             let physical_table = ctx
                 .extension(PHYSICAL_TABLE_PARAM)
-                .unwrap_or(GREPTIME_PHYSICAL_TABLE)
+                .unwrap_or(PULSE_PHYSICAL_TABLE)
                 .to_string();
             self.handle_metric_row_inserts(request, ctx.clone(), physical_table.clone())
                 .await
@@ -690,14 +692,14 @@ impl Instance {
         let table_ref = TableReference::full(catalog, schema, physical_table);
         let default_schema = vec![
             api::v1::ColumnSchema {
-                column_name: common_query::prelude::greptime_timestamp().to_string(),
+                column_name: common_query::prelude::pulse_timestamp().to_string(),
                 datatype: api::v1::ColumnDataType::TimestampMillisecond as i32,
                 semantic_type: api::v1::SemanticType::Timestamp as i32,
                 datatype_extension: None,
                 options: None,
             },
             api::v1::ColumnSchema {
-                column_name: common_query::prelude::greptime_value().to_string(),
+                column_name: common_query::prelude::pulse_value().to_string(),
                 datatype: api::v1::ColumnDataType::Float64 as i32,
                 semantic_type: api::v1::SemanticType::Field as i32,
                 datatype_extension: None,
@@ -766,7 +768,7 @@ impl PromStoreProtocolHandler for ExportMetricHandler {
                 request,
                 ctx,
                 &self.statement_executor,
-                GREPTIME_PHYSICAL_TABLE.to_string(),
+                PULSE_PHYSICAL_TABLE.to_string(),
             )
             .await
             .map_err(BoxedError::new)

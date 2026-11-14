@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, Weak};
 
 use arrow_schema::SchemaRef as ArrowSchemaRef;
@@ -67,7 +69,7 @@ pub const COMMENT: &str = "comment";
 pub const INDEX_COMMENT: &str = "index_comment";
 pub const IS_VISIBLE: &str = "is_visible";
 pub const EXPRESSION: &str = "expression";
-pub const GREPTIME_INDEX_TYPE: &str = "greptime_index_type";
+pub const PULSE_INDEX_TYPE: &str = "pulse_index_type";
 
 const INIT_CAPACITY: usize = 42;
 const MYSQL_DEFAULT_CATALOG: &str = "def";
@@ -119,11 +121,7 @@ impl InformationSchemaStatistics {
             ColumnSchema::new(INDEX_COMMENT, ConcreteDataType::string_datatype(), false),
             ColumnSchema::new(IS_VISIBLE, ConcreteDataType::string_datatype(), false),
             ColumnSchema::new(EXPRESSION, ConcreteDataType::string_datatype(), true),
-            ColumnSchema::new(
-                GREPTIME_INDEX_TYPE,
-                ConcreteDataType::string_datatype(),
-                true,
-            ),
+            ColumnSchema::new(PULSE_INDEX_TYPE, ConcreteDataType::string_datatype(), true),
         ]))
     }
 
@@ -199,7 +197,7 @@ struct InformationSchemaStatisticsBuilder {
     index_comments: StringVectorBuilder,
     is_visible: StringVectorBuilder,
     expressions: StringVectorBuilder,
-    greptime_index_types: StringVectorBuilder,
+    pulse_index_types: StringVectorBuilder,
 }
 
 impl InformationSchemaStatisticsBuilder {
@@ -230,7 +228,7 @@ impl InformationSchemaStatisticsBuilder {
             index_comments: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             is_visible: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             expressions: StringVectorBuilder::with_capacity(INIT_CAPACITY),
-            greptime_index_types: StringVectorBuilder::with_capacity(INIT_CAPACITY),
+            pulse_index_types: StringVectorBuilder::with_capacity(INIT_CAPACITY),
         }
     }
 
@@ -301,7 +299,7 @@ impl InformationSchemaStatisticsBuilder {
                     if let Ok(Some(options)) = column.fulltext_options()
                         && options.enable
                     {
-                        let greptime_index_type = match options.backend {
+                        let pulse_index_type = match options.backend {
                             FulltextBackend::Bloom => PUFFIN_INDEX_TYPE_FULLTEXT_BLOOM,
                             FulltextBackend::Tantivy => PUFFIN_INDEX_TYPE_FULLTEXT_TANTIVY,
                         };
@@ -316,7 +314,7 @@ impl InformationSchemaStatisticsBuilder {
                             SECONDARY_INDEX_SEQ,
                             column,
                             FULLTEXT,
-                            greptime_index_type,
+                            pulse_index_type,
                         );
                     }
                     if column.is_skipping_indexed() {
@@ -352,7 +350,7 @@ impl InformationSchemaStatisticsBuilder {
         seq_in_index: i64,
         column: &ColumnSchema,
         index_type: &str,
-        greptime_index_type: &str,
+        pulse_index_type: &str,
     ) {
         // MySQL's `information_schema.statistics.nullable` is `YES` or `''`,
         // unlike `columns.is_nullable` which is `YES`/`NO`.
@@ -368,7 +366,7 @@ impl InformationSchemaStatisticsBuilder {
             (COLUMN_NAME, &Value::from(column.name.as_str())),
             (NULLABLE, &Value::from(nullable)),
             (INDEX_TYPE, &Value::from(index_type)),
-            (GREPTIME_INDEX_TYPE, &Value::from(greptime_index_type)),
+            (PULSE_INDEX_TYPE, &Value::from(pulse_index_type)),
         ];
 
         if !predicates.eval(&row) {
@@ -393,7 +391,7 @@ impl InformationSchemaStatisticsBuilder {
         self.index_comments.push(Some(EMPTY));
         self.is_visible.push(Some(YES));
         self.expressions.push(None);
-        self.greptime_index_types.push(Some(greptime_index_type));
+        self.pulse_index_types.push(Some(pulse_index_type));
     }
 
     fn finish(&mut self) -> Result<RecordBatch> {
@@ -416,7 +414,7 @@ impl InformationSchemaStatisticsBuilder {
             Arc::new(self.index_comments.finish()),
             Arc::new(self.is_visible.finish()),
             Arc::new(self.expressions.finish()),
-            Arc::new(self.greptime_index_types.finish()),
+            Arc::new(self.pulse_index_types.finish()),
         ];
         RecordBatch::new(self.schema.clone(), columns).context(CreateRecordBatchSnafu)
     }

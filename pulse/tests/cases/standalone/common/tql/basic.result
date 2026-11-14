@@ -69,7 +69,7 @@ TQL EVAL (0, 10, '5s') test{__schema__="public"};
 +-----+---------------------+---+
 
 -- SQLNESS SORT_RESULT 2 1
-TQL EVAL (0, 10, '5s') test{__schema__="greptime_private"};
+TQL EVAL (0, 10, '5s') test{__schema__="pulse_private"};
 
 +------+-------+
 | time | value |
@@ -89,7 +89,7 @@ TQL EVAL (0, 10, '5s') test{__database__="public"};
 +-----+---------------------+---+
 
 -- SQLNESS SORT_RESULT 2 1
-TQL EVAL (0, 10, '5s') test{__database__="greptime_private"};
+TQL EVAL (0, 10, '5s') test{__database__="pulse_private"};
 
 +------+-------+
 | time | value |

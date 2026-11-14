@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use common_meta::key::TableMetadataManager;
@@ -25,7 +27,7 @@ use common_wal::test_util::get_kafka_endpoints;
 use meta_srv::procedure::wal_prune::{Context as WalPruneContext, WalPruneProcedure};
 use rskafka::client::partition::{Compression, UnknownTopicHandling};
 use rskafka::record::Record;
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 use tests_integration::test_util::test_event_recorder_options;
 
 use crate::event_recorder_test_util::assert_single_event;
@@ -35,7 +37,7 @@ async fn test_standalone_wal_prune_event() {
     maybe_skip_kafka_integration_test!();
     common_telemetry::init_default_ut_logging();
 
-    let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_wal_prune_event")
+    let standalone = PulseStandaloneBuilder::new("test_standalone_wal_prune_event")
         .with_event_recorder_options(test_event_recorder_options())
         .build()
         .await;
@@ -97,7 +99,7 @@ async fn test_standalone_wal_prune_event() {
 
     let query = format!(
         r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'wal_prune'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -269,9 +271,9 @@ async fn test_schema_validation() -> Result<()> {
 
     common_telemetry::init_default_ut_logging();
     let (mysql_server, server_port) = generate_server(DatabaseAuthInfo {
-        catalog: "greptime",
+        catalog: "pulse",
         schema: "public",
-        username: "greptime",
+        username: "pulse",
     })
     .await?;
 
@@ -282,7 +284,7 @@ async fn test_schema_validation() -> Result<()> {
 
     // change to another username
     let (mysql_server, server_port) = generate_server(DatabaseAuthInfo {
-        catalog: "greptime",
+        catalog: "pulse",
         schema: "public",
         username: "no_access_user",
     })
@@ -391,9 +393,9 @@ async fn test_bearer_token_auth_over_clear_password() -> Result<()> {
     common_telemetry::init_default_ut_logging();
     for tls in [false, true] {
         for (database, catalog) in [
-            (None, "greptime"),
-            (Some("public"), "greptime"),
-            (Some("greptime-public"), "greptime"),
+            (None, "pulse"),
+            (Some("public"), "pulse"),
+            (Some("pulse-public"), "pulse"),
             (Some("tenant-public"), "tenant"),
         ] {
             let provider = Arc::new(BearerProvider {
@@ -1411,8 +1413,8 @@ async fn create_connection(
         .tcp_port(port)
         .prefer_socket(false)
         .wait_timeout(Some(1000))
-        .user(Some("greptime".to_string()))
-        .pass(Some("greptime".to_string()));
+        .user(Some("pulse".to_string()))
+        .pass(Some("pulse".to_string()));
 
     if let Some(db_name) = db_name {
         opts = opts.db_name(Some(db_name.to_string()));

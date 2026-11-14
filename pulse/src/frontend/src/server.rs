@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,7 +31,7 @@ use servers::error::Error as ServerError;
 use servers::grpc::builder::GrpcServerBuilder;
 use servers::grpc::flight::FlightCraftRef;
 use servers::grpc::frontend_grpc_handler::FrontendGrpcHandler;
-use servers::grpc::greptime_handler::GreptimeRequestHandler;
+use servers::grpc::pulse_handler::PulseRequestHandler;
 use servers::grpc::{GrpcOptions, GrpcServer};
 use servers::http::event::LogValidatorRef;
 use servers::http::result::error_result::ErrorResponse;
@@ -235,14 +237,14 @@ where
             None
         };
 
-        let greptime_request_handler = GreptimeRequestHandler::new(
+        let pulse_request_handler = PulseRequestHandler::new(
             self.instance.clone(),
             user_provider.clone(),
             runtime,
             grpc.flight_compression,
         );
 
-        let default_flight_handler = Arc::new(greptime_request_handler.clone()) as FlightCraftRef;
+        let default_flight_handler = Arc::new(pulse_request_handler.clone()) as FlightCraftRef;
         let flight_handler = if external {
             self.flight_handler
                 .clone()
@@ -255,7 +257,7 @@ where
 
         let grpc_server = builder
             .name(name)
-            .database_handler(greptime_request_handler.clone())
+            .database_handler(pulse_request_handler.clone())
             .prometheus_handler(self.instance.clone(), user_provider.clone())
             .otel_arrow_handler(OtelArrowServiceHandler::new(
                 self.instance.clone(),
@@ -306,7 +308,7 @@ where
         // option with the main server.
         let (internal, api) = builder
             .with_metrics_handler(MetricsHandler)
-            .with_greptime_config_options(toml)
+            .with_pulse_config_options(toml)
             .build_servers();
         Ok((internal, api))
     }
@@ -914,16 +916,16 @@ mod tests {
         );
         let plugins = Plugins::new();
         let provider =
-            static_user_provider_from_option("static_user_provider:cmd:greptime=greptime").unwrap();
+            static_user_provider_from_option("static_user_provider:cmd:pulse=pulse").unwrap();
         plugins.insert::<UserProviderRef>(Arc::new(provider));
-        let public_flight_handler = Arc::new(GreptimeRequestHandler::new(
+        let public_flight_handler = Arc::new(PulseRequestHandler::new(
             instance.clone(),
             plugins.get::<UserProviderRef>(),
             None,
             options.grpc.flight_compression,
         )) as FlightCraftRef;
         let internal_flight_handler = Arc::new(CountingFlightCraft {
-            inner: Arc::new(GreptimeRequestHandler::new(
+            inner: Arc::new(PulseRequestHandler::new(
                 instance.clone(),
                 None,
                 None,
@@ -943,7 +945,7 @@ mod tests {
         let public_addr = services.addr(GRPC_SERVER).unwrap();
         let internal_addr = services.addr("INTERNAL_GRPC_SERVER").unwrap();
         let public_database = Database::new(
-            "greptime",
+            "pulse",
             "public",
             Client::with_query_and_control_managers(
                 ChannelManager::new(),
@@ -952,7 +954,7 @@ mod tests {
             ),
         );
         let internal_database = Database::new(
-            "greptime",
+            "pulse",
             "public",
             Client::with_query_and_control_managers(
                 ChannelManager::new(),

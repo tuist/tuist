@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::sync::Arc;
 
@@ -600,7 +602,7 @@ mod tests {
 
     #[test]
     fn test_string_vector_misc() {
-        let strs = vec!["hello", "greptime", "rust"];
+        let strs = vec!["hello", "pulse", "rust"];
         let v = StringVector::from(strs.clone());
         assert_eq!(3, v.len());
         assert_eq!("StringVector", v.vector_type_name());

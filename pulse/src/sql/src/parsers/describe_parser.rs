@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::{ResultExt, ensure};
 use sqlparser::keywords::Keyword;
 
@@ -52,19 +54,18 @@ mod tests {
     use sqlparser::ast::Expr;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     #[test]
     fn test_parse_function() {
-        let expr =
-            ParserContext::parse_function("current_timestamp()", &GreptimeDbDialect {}).unwrap();
+        let expr = ParserContext::parse_function("current_timestamp()", &PulseDialect {}).unwrap();
         assert!(matches!(expr, Expr::Function(_)));
     }
 
     fn assert_describe_table(sql: &str) {
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();

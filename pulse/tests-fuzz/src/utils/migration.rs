@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, HashSet};
 use std::time::Duration;
 
@@ -47,7 +49,7 @@ pub async fn migrate_region(
 
 /// Waits until the region distribution matches the expected distribution within a specified timeout.
 pub async fn wait_for_region_distribution(
-    greptime: &Pool<MySql>,
+    pulse: &Pool<MySql>,
     timeout: Duration,
     table_name: Ident,
     expected_region_distribution: BTreeMap<u64, HashSet<RegionId>>,
@@ -55,10 +57,10 @@ pub async fn wait_for_region_distribution(
     wait_condition_fn(
         timeout,
         || {
-            let greptime = greptime.clone();
+            let pulse = pulse.clone();
             let table_name = table_name.clone();
             Box::pin(async move {
-                let partitions = fetch_partitions(&greptime, table_name).await.unwrap();
+                let partitions = fetch_partitions(&pulse, table_name).await.unwrap();
                 region_distribution(partitions)
                     .into_iter()
                     .map(|(datanode, regions)| {

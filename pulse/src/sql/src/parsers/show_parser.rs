@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "enterprise")]
-pub mod trigger;
+// Modified by Tuist; see pulse/FORK.md.
 
 use snafu::{ResultExt, ensure};
 use sqlparser::keywords::Keyword;
@@ -36,10 +35,6 @@ impl ParserContext<'_> {
     /// Parses SHOW statements
     /// todo(hl) support `show settings`/`show create`/`show users` etc.
     pub(crate) fn parse_show(&mut self) -> Result<Statement> {
-        #[cfg(feature = "enterprise")]
-        if self.consume_token("TRIGGERS") {
-            return self.parse_show_triggers();
-        }
         self.consume_variables_scope();
         if self.consume_token("DATABASES") || self.consume_token("SCHEMAS") {
             self.parse_show_databases(false)
@@ -93,11 +88,6 @@ impl ParserContext<'_> {
             // SHOW REGIONS
             self.parse_show_regions()
         } else if self.consume_token("CREATE") {
-            #[cfg(feature = "enterprise")]
-            if self.consume_token("TRIGGER") {
-                return self.parse_show_create_trigger();
-            }
-
             if self.consume_token("DATABASE") || self.consume_token("SCHEMA") {
                 self.parse_show_create_database()
             } else if self.consume_token("TABLE") {
@@ -149,7 +139,7 @@ impl ParserContext<'_> {
     }
 
     /// Consumes the `GLOBAL`/`SESSION`/`LOCAL` scope MySQL accepts in front of `VARIABLES` and
-    /// `STATUS`. GreptimeDB keeps no global/session split, so the scope is accepted and ignored.
+    /// `STATUS`. Pulse keeps no global/session split, so the scope is accepted and ignored.
     fn consume_variables_scope(&mut self) {
         let scoped = matches!(
             self.parser.peek_token().token,
@@ -632,19 +622,15 @@ mod tests {
     use sqlparser::ast::{Ident, ObjectName};
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
     use crate::statements::show::ShowDatabases;
-    #[cfg(feature = "enterprise")]
-    use crate::statements::show::trigger::ShowCreateTrigger;
-    #[cfg(feature = "enterprise")]
-    use crate::statements::show::trigger::ShowTriggers;
 
     #[test]
     pub fn test_show_database_all() {
         let sql = "SHOW DATABASES";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -661,7 +647,7 @@ mod tests {
     pub fn test_show_full_databases() {
         let sql = "SHOW FULL DATABASES";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -675,7 +661,7 @@ mod tests {
 
         let sql = "SHOW FULL DATABASES LIKE 'test%'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -692,7 +678,7 @@ mod tests {
     pub fn test_show_database_like() {
         let sql = "SHOW DATABASES LIKE test_database";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -713,7 +699,7 @@ mod tests {
     pub fn test_show_database_where() {
         let sql = "SHOW DATABASES WHERE Database LIKE '%whatever1%' OR Database LIKE '%whatever2%'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -734,7 +720,7 @@ mod tests {
     pub fn test_show_tables_all() {
         let sql = "SHOW TABLES";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -752,7 +738,7 @@ mod tests {
     pub fn test_show_tables_like() {
         let sql = "SHOW TABLES LIKE test_table";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -771,7 +757,7 @@ mod tests {
 
         let sql = "SHOW TABLES in test_db LIKE test_table";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -793,7 +779,7 @@ mod tests {
     pub fn test_show_tables_where() {
         let sql = "SHOW TABLES where name like test_table";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -808,7 +794,7 @@ mod tests {
 
         let sql = "SHOW TABLES in test_db where name LIKE test_table";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -826,7 +812,7 @@ mod tests {
     pub fn test_show_full_tables() {
         let sql = "SHOW FULL TABLES";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowTables { .. });
@@ -844,7 +830,7 @@ mod tests {
     pub fn test_show_full_tables_where() {
         let sql = "SHOW FULL TABLES IN test_db WHERE Tables LIKE test_table";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
 
@@ -862,7 +848,7 @@ mod tests {
     pub fn test_show_full_tables_like() {
         let sql = "SHOW FULL TABLES LIKE test_table";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -881,7 +867,7 @@ mod tests {
 
         let sql = "SHOW FULL TABLES in test_db LIKE test_table";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -903,7 +889,7 @@ mod tests {
     pub fn test_show_variables() {
         let sql = "SHOW VARIABLES system_time_zone";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -918,7 +904,7 @@ mod tests {
     pub fn test_show_columns() {
         let sql = "SHOW COLUMNS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let error = result.unwrap_err();
         assert_eq!(
             "Unexpected token while parsing SQL statement, expected: '{FROM | IN} table', found: EOF",
@@ -927,7 +913,7 @@ mod tests {
 
         let sql = "SHOW COLUMNS from test";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -941,7 +927,7 @@ mod tests {
 
         let sql = "SHOW FULL COLUMNS from test from public";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -954,7 +940,7 @@ mod tests {
 
         let sql = "SHOW COLUMNS from test like 'disk%'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -966,7 +952,7 @@ mod tests {
 
         let sql = "SHOW COLUMNS from test where Field = 'disk'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -981,7 +967,7 @@ mod tests {
     pub fn test_show_index() {
         let sql = "SHOW INDEX";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let error = result.unwrap_err();
         assert_eq!(
             "Unexpected token while parsing SQL statement, expected: '{FROM | IN} table', found: EOF",
@@ -990,7 +976,7 @@ mod tests {
 
         let sql = "SHOW INDEX from test";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -1003,7 +989,7 @@ mod tests {
 
         let sql = "SHOW INDEX from test from public";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -1016,7 +1002,7 @@ mod tests {
         // SHOW INDEX deosn't support like
         let sql = "SHOW INDEX from test like 'disk%'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let error = result.unwrap_err();
         assert_eq!(
             "SQL statement is not supported, keyword: like",
@@ -1025,7 +1011,7 @@ mod tests {
 
         let sql = "SHOW INDEX from test where Field = 'disk'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -1040,7 +1026,7 @@ mod tests {
     fn test_show_region() {
         let sql = "SHOW REGION";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let error = result.unwrap_err();
         assert_eq!(
             "Unexpected token while parsing SQL statement, expected: '{FROM | IN} table', found: EOF",
@@ -1049,7 +1035,7 @@ mod tests {
 
         let sql = "SHOW REGION from test";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -1062,7 +1048,7 @@ mod tests {
 
         let sql = "SHOW REGION from test from public";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -1075,7 +1061,7 @@ mod tests {
         // SHOW REGION deosn't support like
         let sql = "SHOW REGION from test like 'disk%'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let error = result.unwrap_err();
         assert_eq!(
             "SQL statement is not supported, keyword: like",
@@ -1084,7 +1070,7 @@ mod tests {
 
         let sql = "SHOW REGION from test where Field = 'disk'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert!(matches!(&stmts[0],
@@ -1099,7 +1085,7 @@ mod tests {
     fn parse_show_collation() {
         let sql = "SHOW COLLATION";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCollation(ShowKind::All)
@@ -1107,7 +1093,7 @@ mod tests {
 
         let sql = "SHOW COLLATION WHERE Charset = 'latin1'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCollation(ShowKind::Where(_))
@@ -1115,7 +1101,7 @@ mod tests {
 
         let sql = "SHOW COLLATION LIKE 'latin1'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCollation(ShowKind::Like(_))
@@ -1126,7 +1112,7 @@ mod tests {
     fn parse_show_charset() {
         let sql = "SHOW CHARSET";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCharset(ShowKind::All)
@@ -1134,7 +1120,7 @@ mod tests {
 
         let sql = "SHOW CHARACTER SET";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCharset(ShowKind::All)
@@ -1142,7 +1128,7 @@ mod tests {
 
         let sql = "SHOW CHARSET WHERE Charset = 'latin1'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCharset(ShowKind::Where(_))
@@ -1150,7 +1136,7 @@ mod tests {
 
         let sql = "SHOW CHARACTER SET LIKE 'latin1'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(matches!(
             result.unwrap()[0],
             Statement::ShowCharset(ShowKind::Like(_))
@@ -1165,11 +1151,8 @@ mod tests {
             "SHOW SESSION STATUS",
             "SHOW LOCAL STATUS",
         ] {
-            let result = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            );
+            let result =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
             assert!(
                 matches!(result.unwrap()[0], Statement::ShowStatus(_)),
                 "{sql}"
@@ -1179,7 +1162,7 @@ mod tests {
         // The scope is only swallowed in front of VARIABLES/STATUS.
         let result = ParserContext::create_with_dialect(
             "SHOW GLOBAL TABLES",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         );
         assert!(result.is_err());
@@ -1187,7 +1170,7 @@ mod tests {
 
     fn parse_show_table_status(sql: &str) -> ShowTableStatus {
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 
@@ -1226,7 +1209,7 @@ mod tests {
     pub fn test_show_create_view() {
         let sql = "SHOW CREATE VIEW test";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1242,7 +1225,7 @@ mod tests {
     pub fn test_show_views() {
         let sql = "SHOW VIEWS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1259,7 +1242,7 @@ mod tests {
     pub fn test_show_views_in_db() {
         let sql = "SHOW VIEWS IN d1";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1276,7 +1259,7 @@ mod tests {
     pub fn test_show_flows() {
         let sql = "SHOW FLOWS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1293,7 +1276,7 @@ mod tests {
     pub fn test_show_flows_in_db() {
         let sql = "SHOW FLOWS IN d1";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1310,7 +1293,7 @@ mod tests {
     pub fn test_show_flow_status() {
         let sql = "SHOW FLOW STATUS";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1326,7 +1309,7 @@ mod tests {
     pub fn test_show_processlist() {
         let sql = "SHOW PROCESSLIST";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
@@ -1337,81 +1320,13 @@ mod tests {
 
         let sql = "SHOW FULL PROCESSLIST";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
         assert_eq!(
             stmts[0],
             Statement::ShowProcesslist(ShowProcessList { full: true })
         );
-        assert_eq!(sql, stmts[0].to_string());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    pub fn test_parse_show_create_trigger() {
-        let sql = "SHOW CREATE TRIGGER test_trigger";
-        let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
-        let stmts = result.unwrap();
-        assert_eq!(1, stmts.len());
-        assert_eq!(
-            stmts[0],
-            Statement::ShowCreateTrigger(ShowCreateTrigger {
-                trigger_name: ObjectName::from(vec![Ident::new("test_trigger")]),
-            })
-        );
-        assert_eq!(sql, stmts[0].to_string());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    pub fn test_parse_show_triggers() {
-        let sql = "SHOW TRIGGERS";
-        let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
-        let stmts = result.unwrap();
-        assert_eq!(1, stmts.len());
-        assert_eq!(
-            stmts[0],
-            Statement::ShowTriggers(ShowTriggers {
-                kind: ShowKind::All,
-            })
-        );
-        assert_eq!(sql, stmts[0].to_string());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    pub fn test_parse_show_triggers_like() {
-        let sql = "SHOW TRIGGERS LIKE 'test_trigger'";
-        let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
-        let stmts = result.unwrap();
-        assert_eq!(1, stmts.len());
-        assert_eq!(
-            stmts[0],
-            Statement::ShowTriggers(ShowTriggers {
-                kind: ShowKind::Like(Ident::with_quote('\'', "test_trigger")),
-            })
-        );
-        assert_eq!(sql, stmts[0].to_string());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    pub fn test_parse_show_triggers_where() {
-        let sql = "SHOW TRIGGERS WHERE name = 'test_trigger'";
-        let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
-        let stmts = result.unwrap();
-        assert_eq!(1, stmts.len());
-        assert!(matches!(
-            &stmts[0],
-            Statement::ShowTriggers(ShowTriggers {
-                kind: ShowKind::Where(_)
-            })
-        ));
         assert_eq!(sql, stmts[0].to_string());
     }
 }

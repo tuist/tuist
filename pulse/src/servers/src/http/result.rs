@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use arrow::array::AsArray;
 use arrow::datatypes::{
     Date32Type, Date64Type, Decimal128Type, Float32Type, Float64Type, Int8Type, Int16Type,
@@ -35,12 +37,12 @@ use crate::error::{
 pub(crate) mod arrow_result;
 pub(crate) mod csv_result;
 pub mod error_result;
-pub(crate) mod greptime_manage_resp;
-pub mod greptime_result_v1;
 pub mod influxdb_result_v1;
 pub(crate) mod json_result;
 pub(crate) mod null_result;
 pub(crate) mod prometheus_resp;
+pub(crate) mod pulse_manage_resp;
+pub mod pulse_result_v1;
 pub(crate) mod table_result;
 
 pub struct HttpOutputWriter {

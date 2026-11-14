@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -25,7 +27,7 @@ use pin_project::pin_project;
 use tokio::time::{Instant, Sleep};
 use tower::{Layer, Service};
 
-use crate::http::header::constants::GREPTIME_DB_HEADER_TIMEOUT;
+use crate::http::header::constants::PULSE_DB_HEADER_TIMEOUT;
 
 /// [`Timeout`] response future
 ///
@@ -146,7 +148,7 @@ where
         let status_code = (self.status_code_fn)(&request);
         let timeout = request
             .headers()
-            .get(GREPTIME_DB_HEADER_TIMEOUT)
+            .get(PULSE_DB_HEADER_TIMEOUT)
             .and_then(|value| {
                 value
                     .to_str()

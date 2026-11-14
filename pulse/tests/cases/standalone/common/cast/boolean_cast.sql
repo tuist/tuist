@@ -1,6 +1,6 @@
 -- Migrated from DuckDB test: test/sql/cast/boolean_autocast.test
 -- Description: Test boolean casts
--- Note: GreptimeDB doesn't support automatic boolean-integer comparisons
+-- Note: Pulse doesn't support automatic boolean-integer comparisons
 
 -- Test explicit boolean casts (supported)
 SELECT 1::BOOLEAN;

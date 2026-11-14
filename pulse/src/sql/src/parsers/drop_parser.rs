@@ -12,53 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::{ResultExt, ensure};
 use sqlparser::dialect::keywords::Keyword;
 use sqlparser::tokenizer::Token;
 
 use crate::error::{self, InvalidFlowNameSnafu, InvalidTableNameSnafu, Result};
 use crate::parser::{FLOW, ParserContext};
-#[cfg(feature = "enterprise")]
-use crate::statements::drop::UndropTable;
-#[cfg(feature = "enterprise")]
-use crate::statements::drop::trigger::DropTrigger;
 use crate::statements::drop::{DropDatabase, DropFlow, DropTable, DropView};
 use crate::statements::statement::Statement;
 
 /// DROP statement parser implementation
 impl ParserContext<'_> {
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn parse_undrop_table(&mut self) -> Result<Statement> {
-        let _ = self.parser.next_token();
-        if !self.parser.parse_keyword(Keyword::TABLE) {
-            return self.expected("TABLE", self.parser.peek_token());
-        }
-
-        let raw_table_name = self
-            .parse_object_name()
-            .with_context(|_| error::UnexpectedSnafu {
-                expected: "a table name",
-                actual: self.peek_token_as_string(),
-            })?;
-        let table_name = Self::canonicalize_object_name(raw_table_name)?;
-        ensure!(
-            !table_name.0.is_empty(),
-            InvalidTableNameSnafu {
-                name: table_name.to_string()
-            }
-        );
-
-        Ok(Statement::UndropTable(UndropTable::new(table_name)))
-    }
-
     pub(crate) fn parse_drop(&mut self) -> Result<Statement> {
         let _ = self.parser.next_token();
         match self.parser.peek_token().token {
             Token::Word(w) => match w.keyword {
                 Keyword::TABLE => self.parse_drop_table(),
                 Keyword::VIEW => self.parse_drop_view(),
-                #[cfg(feature = "enterprise")]
-                Keyword::TRIGGER => self.parse_drop_trigger(),
                 Keyword::SCHEMA | Keyword::DATABASE => self.parse_drop_database(),
                 Keyword::NoKeyword => {
                     let uppercase = w.value.to_uppercase();
@@ -71,31 +43,6 @@ impl ParserContext<'_> {
             },
             unexpected => self.unsupported(unexpected.to_string()),
         }
-    }
-
-    #[cfg(feature = "enterprise")]
-    fn parse_drop_trigger(&mut self) -> Result<Statement> {
-        let _ = self.parser.next_token();
-
-        let if_exists = self.parser.parse_keywords(&[Keyword::IF, Keyword::EXISTS]);
-        let raw_trigger_ident =
-            self.parse_object_name()
-                .with_context(|_| error::UnexpectedSnafu {
-                    expected: "a trigger name",
-                    actual: self.peek_token_as_string(),
-                })?;
-        let trigger_ident = Self::canonicalize_object_name(raw_trigger_ident)?;
-        ensure!(
-            !trigger_ident.0.is_empty(),
-            error::InvalidTriggerNameSnafu {
-                name: trigger_ident.to_string()
-            }
-        );
-
-        Ok(Statement::DropTrigger(DropTrigger::new(
-            trigger_ident,
-            if_exists,
-        )))
     }
 
     fn parse_drop_view(&mut self) -> Result<Statement> {
@@ -195,45 +142,8 @@ mod tests {
     use sqlparser::ast::{Ident, ObjectName};
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
-    #[cfg(feature = "enterprise")]
-    use crate::statements::drop::UndropTable;
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    fn test_undrop_table() {
-        let cases = [
-            ("UNDROP TABLE foo", "foo"),
-            ("undrop table my_schema.FOO", "my_schema.foo"),
-            (
-                "UnDrOp TaBlE my_catalog.my_schema.foo",
-                "my_catalog.my_schema.foo",
-            ),
-            (
-                "UNDROP TABLE `My Catalog`.`My Schema`.`My Table`",
-                "`My Catalog`.`My Schema`.`My Table`",
-            ),
-        ];
-
-        for (sql, expected_name) in cases {
-            let mut stmts = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
-            let stmt = stmts.pop().unwrap();
-            assert_eq!(
-                stmt,
-                Statement::UndropTable(UndropTable::new(
-                    ParserContext::parse_table_name(expected_name, &GreptimeDbDialect {}).unwrap()
-                ))
-            );
-            assert_eq!(format!("UNDROP TABLE {expected_name}"), stmt.to_string());
-            assert!(!stmt.is_readonly());
-        }
-    }
 
     #[test]
     fn test_undrop_table_rejects_unsupported_syntax() {
@@ -248,12 +158,8 @@ mod tests {
             "UNDROP TABLE foo AT '2026-01-01'",
         ] {
             assert!(
-                ParserContext::create_with_dialect(
-                    sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default(),
-                )
-                .is_err(),
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default(),)
+                    .is_err(),
                 "unexpectedly parsed: {sql}"
             );
         }
@@ -263,7 +169,7 @@ mod tests {
     pub fn test_drop_table() {
         let sql = "DROP TABLE foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -275,7 +181,7 @@ mod tests {
 
         let sql = "DROP TABLE IF EXISTS foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -287,7 +193,7 @@ mod tests {
 
         let sql = "DROP TABLE my_schema.foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -302,7 +208,7 @@ mod tests {
 
         let sql = "DROP TABLE my_catalog.my_schema.foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -321,7 +227,7 @@ mod tests {
     pub fn test_drop_database() {
         let sql = "DROP DATABASE public";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -333,7 +239,7 @@ mod tests {
 
         let sql = "DROP DATABASE IF EXISTS public";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -345,7 +251,7 @@ mod tests {
 
         let sql = "DROP DATABASE `fOo`";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -360,7 +266,7 @@ mod tests {
     pub fn test_drop_flow() {
         let sql = "DROP FLOW foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts: Vec<Statement> = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -372,7 +278,7 @@ mod tests {
 
         let sql = "DROP FLOW IF EXISTS foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -384,7 +290,7 @@ mod tests {
 
         let sql = "DROP FLOW my_schema.foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -396,7 +302,7 @@ mod tests {
 
         let sql = "DROP FLOW my_catalog.my_schema.foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -415,7 +321,7 @@ mod tests {
     pub fn test_drop_view() {
         let sql = "DROP VIEW foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts: Vec<Statement> = result.unwrap();
         let stmt = stmts.pop().unwrap();
         assert_eq!(
@@ -427,16 +333,16 @@ mod tests {
         );
         assert_eq!(sql, stmt.to_string());
 
-        let sql = "DROP VIEW greptime.public.foo";
+        let sql = "DROP VIEW pulse.public.foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts: Vec<Statement> = result.unwrap();
         let stmt = stmts.pop().unwrap();
         assert_eq!(
             stmt,
             Statement::DropView(DropView {
                 view_name: ObjectName::from(vec![
-                    Ident::new("greptime"),
+                    Ident::new("pulse"),
                     Ident::new("public"),
                     Ident::new("foo")
                 ]),
@@ -447,7 +353,7 @@ mod tests {
 
         let sql = "DROP VIEW IF EXISTS foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts: Vec<Statement> = result.unwrap();
         let stmt = stmts.pop().unwrap();
         assert_eq!(

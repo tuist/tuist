@@ -573,20 +573,20 @@ kuraVolumesCSI:
   # Thin-ready nodes: eu-west qvv7x-ndgzl (lvm-v1 since 2026-11-05), sa-west
   # gnbzx-gmn2k and gnbzx-d5ltg, us-central 9bg76-5kr98 and 9bg76-9rhgh, every
   # us-east host (converted 2026-11-11 to 11-13 through the landing box
-  # 5764k-5p29k), and the eu-east and us-west landing boxes nh9pb-7bnjr and
-  # qgdlc-v4x2c (lvm-v1 since 2026-11-13).
+  # 5764k-5p29k), every us-west host, the eu-east landing box nh9pb-7bnjr
+  # (lvm-v1 since 2026-11-13), and ap-southeast tzvlx-kzkm4.
   # Only accounts on the kura_thin_volumes flag move; listing a region changes
   # no other manifest.
-  thinRegions: [eu-west, sa-west, us-central, us-east, eu-east, us-west]
+  thinRegions: [eu-west, sa-west, us-central, us-east, eu-east, us-west, ap-southeast]
   # Every account in these regions is on thin. sa-west and us-central were
-  # converted host by host (2026-11-09) and us-east the same way (2026-11-13);
-  # eu-east and us-west are converting through their landing boxes. New
-  # instances land only on thin-ready nodes.
+  # converted host by host (2026-11-09), us-east and us-west the same way
+  # (2026-11-13 and 11-14); eu-east is converting through its landing box and
+  # ap-southeast through kzkm4. New instances land only on thin-ready nodes.
   #
   # ber1-runners stays off thin until ber1-store-a is reinstalled lvm-v1. Its
   # firmware has no network boot entry and no install stick is plugged in, so
   # the reinstall needs someone at the rack first.
-  thinEnrolledRegions: [sa-west, us-central, us-east, eu-east, us-west]
+  thinEnrolledRegions: [sa-west, us-central, us-east, eu-east, us-west, ap-southeast]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming

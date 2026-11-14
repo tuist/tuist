@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Generates Rust protobuf bindings for `proto/logstore.proto`.
 //!
 //! The protoc compiler is selected in the following order:
@@ -35,7 +37,7 @@ use std::process::Command;
 
 use protoc_rust::{Codegen, Customize};
 
-/// Returns whether `protoc` runs and meets GreptimeDB's minimum supported version.
+/// Returns whether `protoc` runs and meets Pulse's minimum supported version.
 fn usable_protoc(protoc: &Path) -> bool {
     let Ok(output) = Command::new(protoc).arg("--version").output() else {
         return false;

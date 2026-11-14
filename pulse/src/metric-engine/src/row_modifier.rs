@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, HashMap};
 use std::hash::Hasher;
 
@@ -487,7 +489,7 @@ mod tests {
         let encoder = RowModifier::default();
         let table_id = 1025;
         let schema = test_schema();
-        let row = test_row("greptimedb", "127.0.0.1");
+        let row = test_row("pulse", "127.0.0.1");
         let rows = Rows {
             schema,
             rows: vec![row],
@@ -562,7 +564,7 @@ mod tests {
         let encoder = RowModifier::default();
         let table_id = 1025;
         let schema = test_schema();
-        let row = test_row("greptimedb", "127.0.0.1");
+        let row = test_row("pulse", "127.0.0.1");
         let rows = Rows {
             schema,
             rows: vec![row],
@@ -577,7 +579,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             result.rows[0].values[0],
-            ValueData::StringValue("greptimedb".to_string()).into()
+            ValueData::StringValue("pulse".to_string()).into()
         );
         assert_eq!(
             result.rows[0].values[1],
@@ -624,7 +626,7 @@ mod tests {
         let name_to_column_id = test_name_to_column_id();
         let table_id = 1025;
         let schema = test_schema();
-        let row = test_row("greptimedb", "127.0.0.1");
+        let row = test_row("pulse", "127.0.0.1");
         let rows = Rows {
             schema,
             rows: vec![row],
@@ -652,7 +654,7 @@ mod tests {
                 options: None,
             },
         ];
-        let row = test_row("127.0.0.1", "greptimedb");
+        let row = test_row("127.0.0.1", "pulse");
         let rows = Rows {
             schema,
             rows: vec![row],

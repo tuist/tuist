@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::panic;
 #[cfg(feature = "deadlock_detection")]
 use std::time::Duration;
@@ -22,7 +24,7 @@ use prometheus::*;
 
 lazy_static! {
     pub static ref PANIC_COUNTER: IntCounter =
-        register_int_counter!("greptime_panic_counter", "panic_counter").unwrap();
+        register_int_counter!("pulse_panic_counter", "panic_counter").unwrap();
 }
 
 pub fn set_panic_hook() {

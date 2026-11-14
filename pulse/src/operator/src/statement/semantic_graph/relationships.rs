@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! The `semantic_relationships` derivation: the plan builders for every edge
 //! branch behind the computed table — trace-derived service `calls` (with
 //! virtual-node edges for unmatched clients), agent `calls` from span
@@ -322,7 +324,7 @@ const VIRTUAL_NODE_CONFIDENCE: f64 = 0.5;
 /// `trace_id` + `parent_span_id`, and aggregate RED metrics per 60s window —
 /// the plan form of the Tempo servicegraph connector. Unioning spans before
 /// the join pairs a client with a server stored in a *different* trace table
-/// (`x-greptime-trace-table-name` routing); with a single table it degenerates
+/// (`x-pulse-trace-table-name` routing); with a single table it degenerates
 /// to the previous self-join. Returns `None` when no trace table has a
 /// usable `service` declaration.
 ///
@@ -545,7 +547,7 @@ fn client_spans(
     scan: &DataFrame,
     window: &GraphQueryWindow,
 ) -> DfResult<DataFrame> {
-    // Attribute columns are dynamic in `greptime_trace_v1` (created on first
+    // Attribute columns are dynamic in `pulse_trace_v1` (created on first
     // use), so only candidate columns present in the table's schema
     // participate. NULLIF('') lets an empty value fall through to the next
     // candidate.
@@ -763,7 +765,7 @@ mod tests {
         GraphQueryWindow::from_observed(0, 10 * 60 * 1000)
     }
 
-    /// One span row of the fixed `greptime_trace_v1` shape:
+    /// One span row of the fixed `pulse_trace_v1` shape:
     /// `(ts_ms, trace_id, span_id, parent_span_id, span_kind, status_code,
     /// service_name, duration_nano)`.
     type Span<'a> = (

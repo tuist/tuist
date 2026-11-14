@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -46,16 +48,12 @@ pub mod drop_table;
 pub mod drop_view;
 pub(crate) mod event;
 pub mod flow_meta;
-#[cfg(feature = "enterprise")]
-pub mod purge_dropped_table;
 pub mod table_meta;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_util;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod truncate_table;
-#[cfg(feature = "enterprise")]
-pub mod undrop_table;
 pub mod utils;
 
 /// Metadata allocated to a table.

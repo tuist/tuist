@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use catalog::system_schema::information_schema::tables::{
     CREATE_OPTIONS, ENGINE as TABLE_ENGINE, TABLE_CATALOG, TABLE_NAME, TABLE_SCHEMA,
 };
@@ -126,7 +128,7 @@ mod tests {
         let batch = RecordBatch::try_new(
             schema,
             vec![
-                Arc::new(StringArray::from(vec!["greptime"; 5])),
+                Arc::new(StringArray::from(vec!["pulse"; 5])),
                 Arc::new(StringArray::from(vec![
                     "public", "private", "private", "private", "private",
                 ])),
@@ -153,7 +155,7 @@ mod tests {
 
         let session = SessionContext::new();
         let dataframe = session.read_batch(batch).unwrap();
-        let query_ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let query_ctx = Arc::new(QueryContext::with("pulse", "public"));
         let plan = metric_name_matchers_to_plan(
             dataframe,
             vec![Matcher::new(MatchOp::NotEqual, "__name__", "")],

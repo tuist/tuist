@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
@@ -25,7 +27,7 @@ use arrow_schema::{
 use async_stream::stream;
 use common_catalog::parse_catalog_and_schema_from_db_string;
 use common_error::ext::BoxedError;
-use common_plugins::GREPTIME_EXEC_READ_COST;
+use common_plugins::PULSE_EXEC_READ_COST;
 use common_query::request::QueryRequest;
 use common_recordbatch::adapter::{RecordBatchMetrics, region_scan_output_bytes};
 use common_telemetry::tracing_context::TracingContext;
@@ -803,7 +805,7 @@ impl MergeScanExec {
                             let load = region_scan_load(&metrics);
                             let (c, s) = parse_catalog_and_schema_from_db_string(&dbname);
                             let value = read_meter!(c, s, load, current_channel as u8);
-                            metric.record_greptime_exec_cost(value as usize);
+                            metric.record_pulse_exec_cost(value as usize);
                             sub_stage_metrics_moved
                                 .lock()
                                 .unwrap()
@@ -1297,8 +1299,8 @@ struct MergeScanMetric {
     /// Count of rows fetched from remote
     output_rows: Count,
 
-    /// Gauge for greptime plan execution cost metrics for output
-    greptime_exec_cost: Gauge,
+    /// Gauge for pulse plan execution cost metrics for output
+    pulse_exec_cost: Gauge,
 }
 
 impl MergeScanMetric {
@@ -1308,7 +1310,7 @@ impl MergeScanMetric {
             first_consume_time: MetricBuilder::new(metric).subset_time("first_consume_time", 1),
             finish_time: MetricBuilder::new(metric).subset_time("finish_time", 1),
             output_rows: MetricBuilder::new(metric).output_rows(1),
-            greptime_exec_cost: MetricBuilder::new(metric).gauge(GREPTIME_EXEC_READ_COST, 1),
+            pulse_exec_cost: MetricBuilder::new(metric).gauge(PULSE_EXEC_READ_COST, 1),
         }
     }
 
@@ -1328,8 +1330,8 @@ impl MergeScanMetric {
         self.output_rows.add(num_rows);
     }
 
-    pub fn record_greptime_exec_cost(&self, metrics: usize) {
-        self.greptime_exec_cost.add(metrics);
+    pub fn record_pulse_exec_cost(&self, metrics: usize) {
+        self.pulse_exec_cost.add(metrics);
     }
 }
 

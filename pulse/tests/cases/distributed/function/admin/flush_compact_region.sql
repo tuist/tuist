@@ -17,9 +17,9 @@ INSERT INTO my_table VALUES
 
 SELECT * FROM my_table;
 
--- SELECT flush_region(greptime_partition_id) from information_schema.partitions WHERE table_name = 'my_table'; --
+-- SELECT flush_region(pulse_partition_id) from information_schema.partitions WHERE table_name = 'my_table'; --
 
--- SELECT compact_region(greptime_partition_id) from information_schema.partitions WHERE table_name = 'my_table'; --
+-- SELECT compact_region(pulse_partition_id) from information_schema.partitions WHERE table_name = 'my_table'; --
 
 SELECT * FROM my_table;
 

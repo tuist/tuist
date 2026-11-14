@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, Weak};
 
 use arrow_schema::SchemaRef as ArrowSchemaRef;
@@ -73,8 +75,8 @@ pub const COLUMN_KEY: &str = "column_key";
 pub const EXTRA: &str = "extra";
 pub const PRIVILEGES: &str = "privileges";
 const GENERATION_EXPRESSION: &str = "generation_expression";
-// Extension field to keep greptime data type name
-pub const GREPTIME_DATA_TYPE: &str = "greptime_data_type";
+// Extension field to keep pulse data type name
+pub const PULSE_DATA_TYPE: &str = "pulse_data_type";
 pub const DATA_TYPE: &str = "data_type";
 pub const SEMANTIC_TYPE: &str = "semantic_type";
 pub const COLUMN_DEFAULT: &str = "column_default";
@@ -138,11 +140,7 @@ impl InformationSchemaColumns {
                 ConcreteDataType::string_datatype(),
                 false,
             ),
-            ColumnSchema::new(
-                GREPTIME_DATA_TYPE,
-                ConcreteDataType::string_datatype(),
-                false,
-            ),
+            ColumnSchema::new(PULSE_DATA_TYPE, ConcreteDataType::string_datatype(), false),
             ColumnSchema::new(DATA_TYPE, ConcreteDataType::string_datatype(), false),
             ColumnSchema::new(SEMANTIC_TYPE, ConcreteDataType::string_datatype(), false),
             ColumnSchema::new(COLUMN_DEFAULT, ConcreteDataType::string_datatype(), true),
@@ -220,7 +218,7 @@ struct InformationSchemaColumnsBuilder {
     character_set_names: StringVectorBuilder,
     collation_names: StringVectorBuilder,
     column_keys: StringVectorBuilder,
-    greptime_data_types: StringVectorBuilder,
+    pulse_data_types: StringVectorBuilder,
     data_types: StringVectorBuilder,
     semantic_types: StringVectorBuilder,
     column_defaults: StringVectorBuilder,
@@ -252,7 +250,7 @@ impl InformationSchemaColumnsBuilder {
             character_set_names: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             collation_names: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             column_keys: StringVectorBuilder::with_capacity(INIT_CAPACITY),
-            greptime_data_types: StringVectorBuilder::with_capacity(INIT_CAPACITY),
+            pulse_data_types: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             data_types: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             semantic_types: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             column_defaults: StringVectorBuilder::with_capacity(INIT_CAPACITY),
@@ -394,7 +392,7 @@ impl InformationSchemaColumnsBuilder {
         }
 
         self.column_keys.push(Some(column_key));
-        self.greptime_data_types
+        self.pulse_data_types
             .push(Some(&column_schema.data_type.name()));
         self.data_types.push(Some(&data_type));
         self.semantic_types.push(Some(semantic_type));
@@ -438,7 +436,7 @@ impl InformationSchemaColumnsBuilder {
             empty_string.clone(),
             privileges,
             empty_string,
-            Arc::new(self.greptime_data_types.finish()),
+            Arc::new(self.pulse_data_types.finish()),
             Arc::new(self.data_types.finish()),
             Arc::new(self.semantic_types.finish()),
             Arc::new(self.column_defaults.finish()),

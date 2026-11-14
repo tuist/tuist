@@ -36,7 +36,7 @@ Affected Rows: 0
 
 DROP TABLE foo, bar;
 
-Error: 4001(TableNotFound), Table not found: greptime.public.bar
+Error: 4001(TableNotFound), Table not found: pulse.public.bar
 
 SHOW TABLES;
 

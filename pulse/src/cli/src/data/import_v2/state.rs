@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -27,7 +29,7 @@ use crate::data::import_v2::error::{
 };
 use crate::data::path::encode_path_segment;
 
-const IMPORT_STATE_ROOT: &str = ".greptime";
+const IMPORT_STATE_ROOT: &str = ".pulse";
 const IMPORT_STATE_DIR: &str = "import_state";
 static IMPORT_STATE_TMP_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -414,7 +416,7 @@ mod tests {
 
     use super::*;
 
-    const CHILD_LOCK_PATH_ENV: &str = "GREPTIME_IMPORT_STATE_LOCK_PATH";
+    const CHILD_LOCK_PATH_ENV: &str = "PULSE_IMPORT_STATE_LOCK_PATH";
     const CHILD_LOCK_TEST: &str =
         "data::import_v2::state::tests::test_try_acquire_import_state_lock_child_process";
 
@@ -431,17 +433,11 @@ mod tests {
 
     #[test]
     fn test_import_state_new_initializes_pending_tasks() {
-        let state = ImportState::new(
-            "snapshot-1",
-            "127.0.0.1:4000",
-            "greptime",
-            &schemas(),
-            tasks(),
-        );
+        let state = ImportState::new("snapshot-1", "127.0.0.1:4000", "pulse", &schemas(), tasks());
 
         assert_eq!(state.snapshot_id, "snapshot-1");
         assert_eq!(state.target_addr, "127.0.0.1:4000");
-        assert_eq!(state.catalog, "greptime");
+        assert_eq!(state.catalog, "pulse");
         assert_eq!(state.schemas, vec!["analytics", "public"]);
         assert_eq!(state.tasks.len(), 2);
         assert_eq!(state.tasks[0].status, ImportTaskStatus::Pending);
@@ -450,13 +446,8 @@ mod tests {
 
     #[test]
     fn test_set_task_status_updates_timestamp_and_error() {
-        let mut state = ImportState::new(
-            "snapshot-1",
-            "127.0.0.1:4000",
-            "greptime",
-            &schemas(),
-            tasks(),
-        );
+        let mut state =
+            ImportState::new("snapshot-1", "127.0.0.1:4000", "pulse", &schemas(), tasks());
         let before = state.updated_at;
         state.updated_at = Utc::now() - chrono::Duration::seconds(10);
 
@@ -478,13 +469,8 @@ mod tests {
 
     #[test]
     fn test_set_task_status_rejects_unknown_task() {
-        let mut state = ImportState::new(
-            "snapshot-1",
-            "127.0.0.1:4000",
-            "greptime",
-            &schemas(),
-            tasks(),
-        );
+        let mut state =
+            ImportState::new("snapshot-1", "127.0.0.1:4000", "pulse", &schemas(), tasks());
 
         let error = state
             .set_task_status(99, "public", ImportTaskStatus::Completed, None)
@@ -501,13 +487,8 @@ mod tests {
     async fn test_save_and_load_import_state_round_trip() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("import_state.json");
-        let mut state = ImportState::new(
-            "snapshot-1",
-            "127.0.0.1:4000",
-            "greptime",
-            &schemas(),
-            tasks(),
-        );
+        let mut state =
+            ImportState::new("snapshot-1", "127.0.0.1:4000", "pulse", &schemas(), tasks());
         state
             .set_task_status(2, "analytics", ImportTaskStatus::Completed, None)
             .unwrap();
@@ -526,13 +507,8 @@ mod tests {
     async fn test_save_import_state_overwrites_existing_file() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("import_state.json");
-        let mut state = ImportState::new(
-            "snapshot-1",
-            "127.0.0.1:4000",
-            "greptime",
-            &schemas(),
-            tasks(),
-        );
+        let mut state =
+            ImportState::new("snapshot-1", "127.0.0.1:4000", "pulse", &schemas(), tasks());
         save_import_state(&path, &state).await.unwrap();
 
         state
@@ -549,13 +525,8 @@ mod tests {
 
     #[test]
     fn test_load_import_state_resets_in_progress_to_pending() {
-        let mut state = ImportState::new(
-            "snapshot-1",
-            "127.0.0.1:4000",
-            "greptime",
-            &schemas(),
-            tasks(),
-        );
+        let mut state =
+            ImportState::new("snapshot-1", "127.0.0.1:4000", "pulse", &schemas(), tasks());
         state
             .set_task_status(
                 2,
@@ -672,7 +643,7 @@ mod tests {
             Some(cwd.path()),
             "../snapshot",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &schemas(),
         )
         .unwrap();
@@ -695,7 +666,7 @@ mod tests {
             Some(cwd.path()),
             "snapshot-1",
             "target-a",
-            "greptime",
+            "pulse",
             &schemas(),
         )
         .unwrap();
@@ -715,7 +686,7 @@ mod tests {
             Some(cwd.path()),
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &schemas(),
         )
         .unwrap();
@@ -724,7 +695,7 @@ mod tests {
             Some(cwd.path()),
             "snapshot-1",
             "127.0.0.1:4001",
-            "greptime",
+            "pulse",
             &schemas(),
         )
         .unwrap();
@@ -743,7 +714,7 @@ mod tests {
             Some(cwd.path()),
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &public_only,
         )
         .unwrap();
@@ -761,7 +732,7 @@ mod tests {
             Some(cwd.path()),
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &analytics_only,
         )
         .unwrap();

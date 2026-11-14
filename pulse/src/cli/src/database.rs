@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Duration;
 
 use base64::Engine;
@@ -20,9 +22,9 @@ use common_catalog::consts::{DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME};
 use common_error::ext::BoxedError;
 use humantime::format_duration;
 use serde_json::Value;
-use servers::http::GreptimeQueryOutput;
-use servers::http::header::constants::GREPTIME_DB_HEADER_TIMEOUT;
-use servers::http::result::greptime_result_v1::GreptimedbV1Response;
+use servers::http::PulseQueryOutput;
+use servers::http::header::constants::PULSE_DB_HEADER_TIMEOUT;
+use servers::http::result::pulse_result_v1::PulseV1Response;
 use snafu::ResultExt;
 
 use crate::error::{
@@ -158,16 +160,12 @@ impl DatabaseClient {
     pub async fn sql(&self, sql: &str, schema: &str) -> Result<Option<Vec<Vec<Value>>>> {
         let body = self.sql_response(sql, schema).await?;
         Ok(body.output().first().and_then(|output| match output {
-            GreptimeQueryOutput::Records(records) => Some(records.rows().clone()),
-            GreptimeQueryOutput::AffectedRows(_) => None,
+            PulseQueryOutput::Records(records) => Some(records.rows().clone()),
+            PulseQueryOutput::AffectedRows(_) => None,
         }))
     }
 
-    pub(crate) async fn sql_response(
-        &self,
-        sql: &str,
-        schema: &str,
-    ) -> Result<GreptimedbV1Response> {
+    pub(crate) async fn sql_response(&self, sql: &str, schema: &str) -> Result<PulseV1Response> {
         let url = format!("http://{}/v1/sql", self.addr);
         let params = [
             ("db", format!("{}-{}", self.catalog, schema)),
@@ -190,7 +188,7 @@ impl DatabaseClient {
         }
 
         request = request.header(
-            GREPTIME_DB_HEADER_TIMEOUT,
+            PULSE_DB_HEADER_TIMEOUT,
             format_duration(self.timeout).to_string(),
         );
 
@@ -207,7 +205,7 @@ impl DatabaseClient {
             reason: "cannot get response text".to_string(),
         })?;
 
-        serde_json::from_str::<GreptimedbV1Response>(&text).context(SerdeJsonSnafu)
+        serde_json::from_str::<PulseV1Response>(&text).context(SerdeJsonSnafu)
     }
 }
 
@@ -261,7 +259,7 @@ mod tests {
                 });
                 let client = super::DatabaseClient::new(
                     address.to_string(),
-                    "greptime".into(),
+                    "pulse".into(),
                     Some("user:password".into()),
                     std::time::Duration::from_secs(5),
                     None,
@@ -289,12 +287,12 @@ mod tests {
         assert_eq!(result, ("catalog".to_string(), Some("schema".to_string())));
 
         let result = split_database("schema").unwrap();
-        assert_eq!(result, ("greptime".to_string(), Some("schema".to_string())));
+        assert_eq!(result, ("pulse".to_string(), Some("schema".to_string())));
 
         let result = split_database("catalog-*").unwrap();
         assert_eq!(result, ("catalog".to_string(), None));
 
         let result = split_database("*").unwrap();
-        assert_eq!(result, ("greptime".to_string(), None));
+        assert_eq!(result, ("pulse".to_string(), None));
     }
 }

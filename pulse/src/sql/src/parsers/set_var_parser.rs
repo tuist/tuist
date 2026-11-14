@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::ResultExt;
 use sqlparser::ast::{Set, Statement as SpStatement};
 
@@ -60,12 +62,12 @@ mod tests {
     use sqlparser::ast::{Expr, Ident, ObjectName, Value};
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     fn assert_mysql_parse_result(sql: &str, indent_str: &str, expr: Expr) {
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -78,7 +80,7 @@ mod tests {
 
     fn assert_pg_parse_result(sql: &str, indent: &str, expr: Expr) {
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let mut stmts = result.unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -148,7 +150,7 @@ mod tests {
     fn test_unsupported_set_variant_remains_rejected() {
         let result = ParserContext::create_with_dialect(
             "SET ROLE admin",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         );
         assert!(result.is_err());

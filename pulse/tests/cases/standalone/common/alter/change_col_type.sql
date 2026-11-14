@@ -14,7 +14,7 @@ ALTER TABLE change_col_type_test MODIFY COLUMN I STRING;
 
 SELECT * FROM change_col_type_test;
 
-INSERT INTO change_col_type_test VALUES (3, "greptime", 3, true);
+INSERT INTO change_col_type_test VALUES (3, "pulse", 3, true);
 
 -- SQLNESS SORT_RESULT 3 1
 SELECT * FROM change_col_type_test;

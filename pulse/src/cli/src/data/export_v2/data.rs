@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_base::secrets::{ExposeSecret, SecretString};
 use common_telemetry::info;
 use object_store::util::{join_path, normalize_path};
@@ -521,7 +523,7 @@ mod tests {
     #[test]
     fn test_mask_secrets_redacts_sql_escaped_literals() {
         let sql =
-            "COPY DATABASE \"greptime\".\"public\" TO 's3://bucket' CONNECTION (SECRET='ab''cd');";
+            "COPY DATABASE \"pulse\".\"public\" TO 's3://bucket' CONNECTION (SECRET='ab''cd');";
         let masked = mask_secrets(sql, &[Some("ab'cd".to_string())]);
 
         assert!(!masked.contains("ab'cd"));

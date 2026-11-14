@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 
@@ -33,7 +35,7 @@ use datatypes::schema::SchemaRef;
 pub type StreamFactoryRef =
     Arc<dyn Fn() -> datafusion_common::Result<SendableRecordBatchStream> + Send + Sync>;
 
-/// Adapts greptime's [SendableRecordBatchStream] to DataFusion's [ExecutionPlan].
+/// Adapts pulse's [SendableRecordBatchStream] to DataFusion's [ExecutionPlan].
 pub struct StreamScanAdapter {
     stream: Mutex<Option<SendableRecordBatchStream>>,
     /// Opens a replacement stream once `stream` has been handed out. DataFusion

@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use common_plugins::GREPTIME_EXEC_PREFIX;
+use common_plugins::PULSE_EXEC_PREFIX;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::physical_plan::metrics::MetricValue;
 use headers::{Header, HeaderName, HeaderValue};
@@ -23,81 +25,68 @@ use hyper::HeaderMap;
 use serde_json::Value;
 
 pub mod constants {
-    // New HTTP headers would better distinguish use cases among:
-    // * GreptimeDB
-    // * GreptimeCloud
-    // * ...
-    //
-    // And thus trying to use:
-    // * x-greptime-db-xxx
-    // * x-greptime-cloud-xxx
-    //
-    // ... accordingly
-    //
-    // Most of the headers are for GreptimeDB and thus using `x-greptime-db-` as prefix.
-    // Only use `x-greptime-cloud` when it's intentionally used by GreptimeCloud.
+    // New headers use the `x-pulse-db-` prefix.
 
-    // LEGACY HEADERS - KEEP IT UNMODIFIED
-    pub const GREPTIME_DB_HEADER_FORMAT: &str = "x-greptime-format";
-    pub const GREPTIME_DB_HEADER_TIMEOUT: &str = "x-greptime-timeout";
-    pub const GREPTIME_DB_HEADER_EXECUTION_TIME: &str = "x-greptime-execution-time";
-    pub const GREPTIME_DB_HEADER_METRICS: &str = "x-greptime-metrics";
-    pub const GREPTIME_DB_HEADER_NAME: &str = "x-greptime-db-name";
-    pub const GREPTIME_DB_HEADER_READ_PREFERENCE: &str = "x-greptime-read-preference";
-    pub const GREPTIME_INSERT_SKIP_WAL_HEADER_NAME: &str = "x-greptime-insert-skip-wal";
-    pub const GREPTIME_TIMEZONE_HEADER_NAME: &str = "x-greptime-timezone";
-    pub const GREPTIME_DB_HEADER_ERROR_CODE: &str = common_error::GREPTIME_DB_HEADER_ERROR_CODE;
+    pub const PULSE_DB_HEADER_FORMAT: &str = "x-pulse-format";
+    pub const PULSE_DB_HEADER_TIMEOUT: &str = "x-pulse-timeout";
+    pub const PULSE_DB_HEADER_EXECUTION_TIME: &str = "x-pulse-execution-time";
+    pub const PULSE_DB_HEADER_METRICS: &str = "x-pulse-metrics";
+    pub const PULSE_DB_HEADER_NAME: &str = "x-pulse-db-name";
+    pub const PULSE_DB_HEADER_READ_PREFERENCE: &str = "x-pulse-read-preference";
+    pub const PULSE_INSERT_SKIP_WAL_HEADER_NAME: &str = "x-pulse-insert-skip-wal";
+    pub const PULSE_TIMEZONE_HEADER_NAME: &str = "x-pulse-timezone";
+    pub const PULSE_DB_HEADER_ERROR_CODE: &str = common_error::PULSE_DB_HEADER_ERROR_CODE;
 
     // Deprecated: pipeline is also used with trace, so we remove log from it.
-    pub const GREPTIME_LOG_PIPELINE_NAME_HEADER_NAME: &str = "x-greptime-log-pipeline-name";
-    pub const GREPTIME_LOG_PIPELINE_VERSION_HEADER_NAME: &str = "x-greptime-log-pipeline-version";
+    pub const PULSE_LOG_PIPELINE_NAME_HEADER_NAME: &str = "x-pulse-log-pipeline-name";
+    pub const PULSE_LOG_PIPELINE_VERSION_HEADER_NAME: &str = "x-pulse-log-pipeline-version";
 
     // More generic pipeline header name
-    pub const GREPTIME_PIPELINE_NAME_HEADER_NAME: &str = "x-greptime-pipeline-name";
-    pub const GREPTIME_PIPELINE_VERSION_HEADER_NAME: &str = "x-greptime-pipeline-version";
+    pub const PULSE_PIPELINE_NAME_HEADER_NAME: &str = "x-pulse-pipeline-name";
+    pub const PULSE_PIPELINE_VERSION_HEADER_NAME: &str = "x-pulse-pipeline-version";
 
-    pub const GREPTIME_LOG_TABLE_NAME_HEADER_NAME: &str = "x-greptime-log-table-name";
-    pub const GREPTIME_LOG_EXTRACT_KEYS_HEADER_NAME: &str = "x-greptime-log-extract-keys";
-    pub const GREPTIME_TRACE_TABLE_NAME_HEADER_NAME: &str = "x-greptime-trace-table-name";
+    pub const PULSE_LOG_TABLE_NAME_HEADER_NAME: &str = "x-pulse-log-table-name";
+    pub const PULSE_LOG_EXTRACT_KEYS_HEADER_NAME: &str = "x-pulse-log-extract-keys";
+    pub const PULSE_TRACE_TABLE_NAME_HEADER_NAME: &str = "x-pulse-trace-table-name";
 
     // OTLP headers
-    pub const GREPTIME_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER_NAME: &str =
-        "x-greptime-otlp-metric-promote-all-resource-attrs";
-    pub const GREPTIME_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER_NAME: &str =
-        "x-greptime-otlp-metric-promote-resource-attrs";
-    pub const GREPTIME_OTLP_METRIC_IGNORE_RESOURCE_ATTRS_HEADER_NAME: &str =
-        "x-greptime-otlp-metric-ignore-resource-attrs";
-    pub const GREPTIME_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER_NAME: &str =
-        "x-greptime-otlp-metric-promote-scope-attrs";
-    pub const GREPTIME_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME: &str =
-        "x-greptime-otlp-metric-translation-strategy";
+    pub const PULSE_OTLP_METRIC_PROMOTE_ALL_RESOURCE_ATTRS_HEADER_NAME: &str =
+        "x-pulse-otlp-metric-promote-all-resource-attrs";
+    pub const PULSE_OTLP_METRIC_PROMOTE_RESOURCE_ATTRS_HEADER_NAME: &str =
+        "x-pulse-otlp-metric-promote-resource-attrs";
+    pub const PULSE_OTLP_METRIC_IGNORE_RESOURCE_ATTRS_HEADER_NAME: &str =
+        "x-pulse-otlp-metric-ignore-resource-attrs";
+    pub const PULSE_OTLP_METRIC_PROMOTE_SCOPE_ATTRS_HEADER_NAME: &str =
+        "x-pulse-otlp-metric-promote-scope-attrs";
+    pub const PULSE_OTLP_METRIC_TRANSLATION_STRATEGY_HEADER_NAME: &str =
+        "x-pulse-otlp-metric-translation-strategy";
 
     /// The header key that contains the pipeline params.
-    pub const GREPTIME_PIPELINE_PARAMS_HEADER: &str = "x-greptime-pipeline-params";
+    pub const PULSE_PIPELINE_PARAMS_HEADER: &str = "x-pulse-pipeline-params";
 }
 
-pub static GREPTIME_DB_HEADER_FORMAT: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_DB_HEADER_FORMAT);
-pub static GREPTIME_DB_HEADER_EXECUTION_TIME: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_DB_HEADER_EXECUTION_TIME);
-pub static GREPTIME_DB_HEADER_METRICS: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_DB_HEADER_METRICS);
+pub static PULSE_DB_HEADER_FORMAT: HeaderName =
+    HeaderName::from_static(constants::PULSE_DB_HEADER_FORMAT);
+pub static PULSE_DB_HEADER_EXECUTION_TIME: HeaderName =
+    HeaderName::from_static(constants::PULSE_DB_HEADER_EXECUTION_TIME);
+pub static PULSE_DB_HEADER_METRICS: HeaderName =
+    HeaderName::from_static(constants::PULSE_DB_HEADER_METRICS);
 
-/// Header key of `db-name`. Example format of the header value is `greptime-public`.
-pub static GREPTIME_DB_HEADER_NAME: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_DB_HEADER_NAME);
+/// Header key of `db-name`. Example format of the header value is `pulse-public`.
+pub static PULSE_DB_HEADER_NAME: HeaderName =
+    HeaderName::from_static(constants::PULSE_DB_HEADER_NAME);
 
 /// Header key of query specific timezone. Example format of the header value is `Asia/Shanghai` or `+08:00`.
-pub static GREPTIME_TIMEZONE_HEADER_NAME: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_TIMEZONE_HEADER_NAME);
+pub static PULSE_TIMEZONE_HEADER_NAME: HeaderName =
+    HeaderName::from_static(constants::PULSE_TIMEZONE_HEADER_NAME);
 
 /// Header key of query specific read preference. Example format of the header value is `leader`.
-pub static GREPTIME_DB_HEADER_READ_PREFERENCE: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_DB_HEADER_READ_PREFERENCE);
+pub static PULSE_DB_HEADER_READ_PREFERENCE: HeaderName =
+    HeaderName::from_static(constants::PULSE_DB_HEADER_READ_PREFERENCE);
 
 /// Request-level WAL policy, independent of the table-level skip_wal option.
-pub static GREPTIME_INSERT_SKIP_WAL_HEADER_NAME: HeaderName =
-    HeaderName::from_static(constants::GREPTIME_INSERT_SKIP_WAL_HEADER_NAME);
+pub static PULSE_INSERT_SKIP_WAL_HEADER_NAME: HeaderName =
+    HeaderName::from_static(constants::PULSE_INSERT_SKIP_WAL_HEADER_NAME);
 
 pub static CONTENT_TYPE_PROTOBUF_STR: &str = "application/x-protobuf";
 pub static CONTENT_TYPE_PROTOBUF: HeaderValue = HeaderValue::from_static(CONTENT_TYPE_PROTOBUF_STR);
@@ -106,11 +95,11 @@ pub static CONTENT_ENCODING_SNAPPY: HeaderValue = HeaderValue::from_static("snap
 pub static CONTENT_TYPE_NDJSON_STR: &str = "application/x-ndjson";
 pub static CONTENT_TYPE_NDJSON_SUBTYPE_STR: &str = "x-ndjson";
 
-pub struct GreptimeDbName(Option<String>);
+pub struct PulseName(Option<String>);
 
-impl Header for GreptimeDbName {
+impl Header for PulseName {
     fn name() -> &'static HeaderName {
-        &GREPTIME_DB_HEADER_NAME
+        &PULSE_DB_HEADER_NAME
     }
 
     fn decode<'i, I>(values: &mut I) -> Result<Self, headers::Error>
@@ -135,7 +124,7 @@ impl Header for GreptimeDbName {
     }
 }
 
-impl GreptimeDbName {
+impl PulseName {
     pub fn value(&self) -> Option<&String> {
         self.0.as_ref()
     }
@@ -147,19 +136,19 @@ pub fn write_cost_header_map(cost: usize) -> HeaderMap {
     if cost > 0 {
         let mut map: HashMap<String, Value> = HashMap::new();
         map.insert(
-            common_plugins::GREPTIME_EXEC_WRITE_COST.to_string(),
+            common_plugins::PULSE_EXEC_WRITE_COST.to_string(),
             Value::from(cost),
         );
         let _ = serde_json::to_string(&map)
             .ok()
             .and_then(|s| HeaderValue::from_str(&s).ok())
-            .and_then(|v| header_map.insert(&GREPTIME_DB_HEADER_METRICS, v));
+            .and_then(|v| header_map.insert(&PULSE_DB_HEADER_METRICS, v));
     }
     header_map
 }
 
 fn collect_into_maps(name: &str, value: u64, maps: &mut [&mut HashMap<String, u64>]) {
-    if name.starts_with(GREPTIME_EXEC_PREFIX) && value > 0 {
+    if name.starts_with(PULSE_EXEC_PREFIX) && value > 0 {
         maps.iter_mut().for_each(|map| {
             map.entry(name.to_string())
                 .and_modify(|v| *v += value)
@@ -177,7 +166,7 @@ pub fn collect_plan_metrics(plan: &Arc<dyn ExecutionPlan>, maps: &mut [&mut Hash
             MetricValue::Gauge { name, gauge } => {
                 collect_into_maps(name, gauge.value() as u64, maps);
             }
-            MetricValue::Time { name, time } if name.starts_with(GREPTIME_EXEC_PREFIX) => {
+            MetricValue::Time { name, time } if name.starts_with(PULSE_EXEC_PREFIX) => {
                 // override
                 maps.iter_mut().for_each(|map| {
                     map.insert(name.to_string(), time.value() as u64);

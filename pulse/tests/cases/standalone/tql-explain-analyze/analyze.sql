@@ -115,10 +115,10 @@ TQL ANALYZE FORMAT TEXT (0, 10, '5s') test;
 drop table test;
 
 CREATE TABLE test2 (
-  "greptime_timestamp" TIMESTAMP(3) NOT NULL,
-  "greptime_value" DOUBLE NULL,
+  "pulse_timestamp" TIMESTAMP(3) NOT NULL,
+  "pulse_value" DOUBLE NULL,
   "shard" STRING NULL INVERTED INDEX,
-  TIME INDEX ("greptime_timestamp"),
+  TIME INDEX ("pulse_timestamp"),
   PRIMARY KEY ("shard")
 )
 PARTITION ON COLUMNS ("shard") (

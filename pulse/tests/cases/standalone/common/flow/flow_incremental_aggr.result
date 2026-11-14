@@ -20,7 +20,7 @@ FROM
 GROUP BY
     time_window;
 
-Error: 3001(EngineExecuteQuery), Unsupported: Flow incremental read requires append-only source table, but source table `greptime.public.incremental_non_append_input` is not append-only. Consider setting append_mode='true' on the source table or disabling experimental_enable_incremental_read
+Error: 3001(EngineExecuteQuery), Unsupported: Flow incremental read requires append-only source table, but source table `pulse.public.incremental_non_append_input` is not append-only. Consider setting append_mode='true' on the source table or disabling experimental_enable_incremental_read
 
 DROP TABLE incremental_non_append_input;
 

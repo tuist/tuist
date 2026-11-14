@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeSet;
 use std::time::Duration;
 
@@ -45,7 +47,7 @@ CREATE TABLE test_cleanup_repartition (
 
     let table = instance
         .catalog_manager()
-        .table("greptime", "public", "test_cleanup_repartition", None)
+        .table("pulse", "public", "test_cleanup_repartition", None)
         .await
         .unwrap()
         .unwrap();
@@ -136,12 +138,7 @@ async fn test_cleanup_region_repartition_preserve_uninvolved_entries() {
 
     let table = instance
         .catalog_manager()
-        .table(
-            "greptime",
-            "public",
-            "test_cleanup_repartition_preserve",
-            None,
-        )
+        .table("pulse", "public", "test_cleanup_repartition_preserve", None)
         .await
         .unwrap()
         .unwrap();
@@ -231,7 +228,7 @@ async fn test_cleanup_region_repartition_remove_when_tmp_refs_empty() {
     let table = instance
         .catalog_manager()
         .table(
-            "greptime",
+            "pulse",
             "public",
             "test_cleanup_repartition_empty_tmp_refs",
             None,

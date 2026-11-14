@@ -1,5 +1,5 @@
 -- Migrated from DuckDB test: test/sql/keywords/escaped_quotes_expressions.test
--- Note: Schema names don't support escaped quotes in GreptimeDB
+-- Note: Schema names don't support escaped quotes in Pulse
 
 CREATE TABLE test_table("COL""UMN" VARCHAR, "NA""ME" VARCHAR, ts TIMESTAMP TIME INDEX);
 

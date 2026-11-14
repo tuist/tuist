@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -26,7 +28,7 @@ use snafu::{ResultExt, ensure};
 
 use crate::error::{BuildHttpResponseSnafu, InvalidParameterSnafu, Result};
 use crate::http::DashboardState;
-use crate::http::result::greptime_manage_resp::{DashboardOutput, GreptimedbManageResponse};
+use crate::http::result::pulse_manage_resp::{DashboardOutput, PulseManageResponse};
 
 #[derive(RustEmbed)]
 #[folder = "dashboard/dist/"]
@@ -75,7 +77,7 @@ pub async fn add_dashboard(
     Path(dashboard_name): Path<String>,
     Extension(mut query_ctx): Extension<QueryContext>,
     payload: Bytes,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.handler;
     ensure!(
@@ -94,10 +96,7 @@ pub async fn add_dashboard(
         .save(&dashboard_name, &definition, query_ctx)
         .await
         .map(|_| {
-            GreptimedbManageResponse::from_dashboard(
-                dashboard_name,
-                start.elapsed().as_millis() as u64,
-            )
+            PulseManageResponse::from_dashboard(dashboard_name, start.elapsed().as_millis() as u64)
         })
         .map_err(|e| {
             error!(e; "failed to save dashboard");
@@ -109,7 +108,7 @@ pub async fn add_dashboard(
 pub async fn list_dashboards(
     State(state): State<DashboardState>,
     Extension(mut query_ctx): Extension<QueryContext>,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.handler;
 
@@ -127,7 +126,7 @@ pub async fn list_dashboards(
                     definition: d.definition,
                 })
                 .collect();
-            GreptimedbManageResponse::from_dashboards(outputs, start.elapsed().as_millis() as u64)
+            PulseManageResponse::from_dashboards(outputs, start.elapsed().as_millis() as u64)
         })
         .map_err(|e| {
             error!(e; "failed to list dashboards");
@@ -140,7 +139,7 @@ pub async fn delete_dashboard(
     State(state): State<DashboardState>,
     Extension(mut query_ctx): Extension<QueryContext>,
     Path(dashboard_name): Path<String>,
-) -> Result<GreptimedbManageResponse> {
+) -> Result<PulseManageResponse> {
     let start = Instant::now();
     let handler = state.handler;
     ensure!(
@@ -157,10 +156,7 @@ pub async fn delete_dashboard(
         .delete(&dashboard_name, query_ctx)
         .await
         .map(|_| {
-            GreptimedbManageResponse::from_dashboard(
-                dashboard_name,
-                start.elapsed().as_millis() as u64,
-            )
+            PulseManageResponse::from_dashboard(dashboard_name, start.elapsed().as_millis() as u64)
         })
         .map_err(|e| {
             error!(e; "failed to delete dashboard");

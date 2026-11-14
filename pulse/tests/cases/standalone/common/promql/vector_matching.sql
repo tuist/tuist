@@ -2,7 +2,7 @@ CREATE TABLE counter_metric (
   host STRING NULL,
   device STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, device)
 );
 
@@ -10,7 +10,7 @@ CREATE TABLE gauge_metric (
   host STRING NULL,
   device STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, device)
 );
 
@@ -77,7 +77,7 @@ CREATE TABLE collide_left (
   host STRING NULL,
   __promql_match_group_count STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, __promql_match_group_count)
 );
 
@@ -85,7 +85,7 @@ CREATE TABLE collide_right (
   host STRING NULL,
   __promql_match_group_count STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, __promql_match_group_count)
 );
 
@@ -105,7 +105,7 @@ CREATE TABLE spread_left (
   host STRING NULL,
   device STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, device)
 )
 PARTITION ON COLUMNS (device) (
@@ -116,7 +116,7 @@ PARTITION ON COLUMNS (device) (
 CREATE TABLE spread_right (
   host STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host)
 );
 
@@ -138,14 +138,14 @@ CREATE TABLE outer_agg_a (
   host STRING NULL,
   device STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host, device)
 );
 
 CREATE TABLE outer_agg_b (
   host STRING NULL,
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
   PRIMARY KEY(host)
 );
 
@@ -171,14 +171,14 @@ DROP TABLE outer_agg_b;
 -- Same over the metric engine, whose operands carry `__tsid`.
 CREATE TABLE outer_agg_physical (
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
 ) ENGINE = metric WITH ("physical_metric_table" = "");
 
 CREATE TABLE outer_agg_metric_a (
   host STRING NULL,
   device STRING NULL,
   ts TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
+  pulse_value DOUBLE NULL,
   TIME INDEX (ts),
   PRIMARY KEY(host, device),
 )
@@ -190,7 +190,7 @@ WITH(
 CREATE TABLE outer_agg_metric_b (
   host STRING NULL,
   ts TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
+  pulse_value DOUBLE NULL,
   TIME INDEX (ts),
   PRIMARY KEY(host),
 )
@@ -199,10 +199,10 @@ WITH(
   on_physical_table = 'outer_agg_physical'
 );
 
-INSERT INTO outer_agg_metric_a (host, device, ts, greptime_value) VALUES
+INSERT INTO outer_agg_metric_a (host, device, ts, pulse_value) VALUES
   ('h1', 'd1', 0, 10), ('h2', 'd2', 0, 20);
 
-INSERT INTO outer_agg_metric_b (host, ts, greptime_value) VALUES
+INSERT INTO outer_agg_metric_b (host, ts, pulse_value) VALUES
   ('h1', 0, 2), ('h2', 0, 4);
 
 -- SQLNESS SORT_RESULT 3 1

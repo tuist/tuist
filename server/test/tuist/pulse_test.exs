@@ -24,7 +24,7 @@ defmodule Tuist.PulseTest do
     expect(Req, :request, fn request ->
       assert request.url.path == "/v1/sql"
       assert request.options[:auth] == {:basic, "dashboard:secret"}
-      assert request.headers["x-greptime-db-name"] == ["public"]
+      assert request.headers["x-pulse-db-name"] == ["public"]
 
       response(
         sql_body(@log_columns, [
@@ -164,7 +164,7 @@ defmodule Tuist.PulseTest do
         assert request.method == :get
         assert request.url.host == "pulse.internal"
         assert request.url.path == unquote(path)
-        assert Req.Request.get_header(request, "x-greptime-db-name") == ["public"]
+        assert Req.Request.get_header(request, "x-pulse-db-name") == ["public"]
         assert Req.Request.get_header(request, "accept") == ["application/json"]
         assert request.options.auth == {:basic, "dashboard:secret"}
         assert request.options.redirect == false
@@ -500,7 +500,7 @@ defmodule Tuist.PulseTest do
           assert request.method == :get
           assert request.url.host == "pulse.internal"
           assert request.options.auth == {:basic, "dashboard:secret"}
-          assert Req.Request.get_header(request, "x-greptime-db-name") == ["public"]
+          assert Req.Request.get_header(request, "x-pulse-db-name") == ["public"]
           assert request.options.redirect == false
           assert request.options.retry == false
           assert request.options.receive_timeout == 30_000

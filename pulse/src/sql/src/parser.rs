@@ -42,7 +42,7 @@ pub struct ParseOptions {
     pub scheduled_time: Option<DateTime<Utc>>,
 }
 
-/// GrepTime SQL parser context, a simple wrapper for Datafusion SQL parser.
+/// Pulse SQL parser context, a simple wrapper for Datafusion SQL parser.
 pub struct ParserContext<'a> {
     pub(crate) parser: Parser<'a>,
     pub(crate) sql: &'a str,
@@ -214,13 +214,6 @@ impl ParserContext<'_> {
                     self.parse_tql(false)
                 }
 
-                #[cfg(feature = "enterprise")]
-                Keyword::NoKeyword
-                    if w.quote_style.is_none() && w.value.eq_ignore_ascii_case("UNDROP") =>
-                {
-                    self.parse_undrop_table()
-                }
-
                 Keyword::DECLARE => self.parse_declare_cursor(),
 
                 Keyword::FETCH => self.parse_fetch_cursor(),
@@ -383,19 +376,15 @@ mod tests {
     use sqlparser::dialect::MySqlDialect;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::statements::create::CreateTable;
     use crate::statements::sql_data_type_to_concrete_data_type;
 
     fn test_timestamp_precision(sql: &str, expected_type: ConcreteDataType) {
-        match ParserContext::create_with_dialect(
-            sql,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap()
-        .pop()
-        .unwrap()
+        match ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+            .unwrap()
+            .pop()
+            .unwrap()
         {
             Statement::CreateTable(CreateTable { columns, .. }) => {
                 let ts_col = columns.first().unwrap();
@@ -445,32 +434,28 @@ mod tests {
     pub fn test_parse_table_name() {
         let table_name = "a.b.c";
 
-        let object_name =
-            ParserContext::parse_table_name(table_name, &GreptimeDbDialect {}).unwrap();
+        let object_name = ParserContext::parse_table_name(table_name, &PulseDialect {}).unwrap();
 
         assert_eq!(object_name.0.len(), 3);
         assert_eq!(object_name.to_string(), table_name);
 
         let table_name = "a.b";
 
-        let object_name =
-            ParserContext::parse_table_name(table_name, &GreptimeDbDialect {}).unwrap();
+        let object_name = ParserContext::parse_table_name(table_name, &PulseDialect {}).unwrap();
 
         assert_eq!(object_name.0.len(), 2);
         assert_eq!(object_name.to_string(), table_name);
 
         let table_name = "Test.\"public-test\"";
 
-        let object_name =
-            ParserContext::parse_table_name(table_name, &GreptimeDbDialect {}).unwrap();
+        let object_name = ParserContext::parse_table_name(table_name, &PulseDialect {}).unwrap();
 
         assert_eq!(object_name.0.len(), 2);
         assert_eq!(object_name.to_string(), table_name.to_ascii_lowercase());
 
         let table_name = "HelloWorld";
 
-        let object_name =
-            ParserContext::parse_table_name(table_name, &GreptimeDbDialect {}).unwrap();
+        let object_name = ParserContext::parse_table_name(table_name, &PulseDialect {}).unwrap();
 
         assert_eq!(object_name.0.len(), 1);
         assert_eq!(object_name.to_string(), table_name.to_ascii_lowercase());
@@ -495,7 +480,7 @@ mod tests {
     pub fn test_parse_mysql_execute_stmt() {
         let sql = "EXECUTE stmt1 USING 1, 'hello';";
         let (stmt_name, params) =
-            ParserContext::parse_mysql_execute_stmt(sql, &GreptimeDbDialect {}).unwrap();
+            ParserContext::parse_mysql_execute_stmt(sql, &PulseDialect {}).unwrap();
         assert_eq!(stmt_name, "stmt1");
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].to_string(), "1");
@@ -503,13 +488,13 @@ mod tests {
 
         let sql = "EXECUTE stmt2;";
         let (stmt_name, params) =
-            ParserContext::parse_mysql_execute_stmt(sql, &GreptimeDbDialect {}).unwrap();
+            ParserContext::parse_mysql_execute_stmt(sql, &PulseDialect {}).unwrap();
         assert_eq!(stmt_name, "stmt2");
         assert_eq!(params.len(), 0);
 
         let sql = "EXECUTE stmt3 USING 231, 'hello', \"2003-03-1\", NULL, ;";
         let (stmt_name, params) =
-            ParserContext::parse_mysql_execute_stmt(sql, &GreptimeDbDialect {}).unwrap();
+            ParserContext::parse_mysql_execute_stmt(sql, &PulseDialect {}).unwrap();
         assert_eq!(stmt_name, "stmt3");
         assert_eq!(params.len(), 4);
         assert_eq!(params[0].to_string(), "231");
@@ -536,7 +521,7 @@ mod tests {
         // Test MySQL-style KILL QUERY with connection ID
         let sql = "KILL QUERY 123";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -550,7 +535,7 @@ mod tests {
         // Test with larger connection ID
         let sql = "KILL QUERY 999999";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -569,7 +554,7 @@ mod tests {
         // Test KILL with process ID string
         let sql = "KILL 'process-123'";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -583,7 +568,7 @@ mod tests {
         // Test with double quotes
         let sql = "KILL \"process-456\"";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -597,7 +582,7 @@ mod tests {
         // Test with UUID-like process ID
         let sql = "KILL 'f47ac10b-58cc-4372-a567-0e02b2c3d479'";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -614,25 +599,25 @@ mod tests {
         // Test KILL QUERY without connection ID
         let sql = "KILL QUERY";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         // Test KILL QUERY with non-numeric connection ID
         let sql = "KILL QUERY 'not-a-number'";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         // Test KILL without any argument
         let sql = "KILL";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
 
         // Test KILL QUERY with connection ID that's too large for u32
         let sql = "KILL QUERY 4294967296"; // u32::MAX + 1
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
     }
 
@@ -643,7 +628,7 @@ mod tests {
         // Test KILL QUERY with zero connection ID
         let sql = "KILL QUERY 0";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -657,7 +642,7 @@ mod tests {
         // Test KILL QUERY with maximum u32 value
         let sql = "KILL QUERY 4294967295"; // u32::MAX
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -671,7 +656,7 @@ mod tests {
         // Test KILL with empty string process ID
         let sql = "KILL ''";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -690,7 +675,7 @@ mod tests {
         // Test lowercase
         let sql = "kill query 123";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);
@@ -704,7 +689,7 @@ mod tests {
         // Test mixed case
         let sql = "Kill Query 456";
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(statements.len(), 1);

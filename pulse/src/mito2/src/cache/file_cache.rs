@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! A cache for files.
 
 use std::fmt;
@@ -1082,7 +1084,7 @@ mod tests {
         let key = IndexKey::new(region_id, file_id, FileType::Parquet);
         let file_path = file_cache.cache_file_path(key);
         // Write a file.
-        let data = b"hello greptime database";
+        let data = b"hello pulse database";
         local_store
             .write(&file_path, data.as_slice())
             .await

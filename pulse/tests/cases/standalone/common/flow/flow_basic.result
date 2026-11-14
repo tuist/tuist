@@ -1713,7 +1713,7 @@ SELECT
 FROM
     live_connection_log;
 
-Error: 1001(Unsupported), Unsupported operation Creating flow with source and sink table being the same: greptime.public.live_connection_log
+Error: 1001(Unsupported), Unsupported operation Creating flow with source and sink table being the same: pulse.public.live_connection_log
 
 DROP FLOW live_connection_aggregation_detail;
 

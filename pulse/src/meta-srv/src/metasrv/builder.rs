@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, RwLock};
@@ -59,7 +61,6 @@ use crate::cluster::MetaPeerClientRef;
 use crate::error::{self, BuildWalProviderSnafu, OtherSnafu, Result};
 use crate::event::EventHandlerImpl;
 use crate::gc::{DefaultGcSchedulerCtx, GcScheduler};
-use crate::greptimedb_telemetry::get_greptimedb_telemetry_task;
 use crate::handler::failure_handler::RegionFailureHandler;
 use crate::handler::flow_state_handler::FlowStateHandler;
 use crate::handler::persist_stats_handler::PersistStatsHandler;
@@ -78,6 +79,7 @@ use crate::procedure::repartition::{
 };
 use crate::procedure::wal_prune::Context as WalPruneContext;
 use crate::procedure::wal_prune::manager::{WalPruneManager, WalPruneTicker};
+use crate::pulse_telemetry::get_pulse_telemetry_task;
 use crate::region::flush_trigger::RegionFlushTrigger;
 use crate::region::supervisor::{
     DEFAULT_INITIALIZATION_RETRY_PERIOD, DEFAULT_TICK_INTERVAL, HeartbeatAcceptor,
@@ -533,8 +535,6 @@ impl MetasrvBuilder {
                 table_metadata_manager.clone(),
                 procedure_manager.clone(),
                 runtime_switch_manager.clone(),
-                #[cfg(feature = "enterprise")]
-                ddl_manager.clone(),
                 meta_peer_client.clone(),
                 mailbox.clone(),
                 options.grpc.server_addr.clone(),
@@ -638,7 +638,7 @@ impl MetasrvBuilder {
             table_metadata_manager,
             runtime_switch_manager,
             repartition_gc_requirement_manager,
-            greptimedb_telemetry_task: get_greptimedb_telemetry_task(
+            pulse_telemetry_task: get_pulse_telemetry_task(
                 Some(metasrv_home),
                 meta_peer_client,
                 enable_telemetry,
@@ -703,10 +703,10 @@ fn build_procedure_manager(
 
 /// Resolves if soft-drop is enabled from metasrv options.
 ///
-/// Soft drop is an enterprise-only feature; it is always disabled in
-/// non-enterprise builds regardless of the configuration.
-fn ddl_soft_drop_enabled(options: &MetasrvOptions) -> bool {
-    cfg!(feature = "enterprise") && options.gc.experimental_soft_drop.enable
+/// Soft drop needs the undrop and purge procedures, which Pulse does not
+/// include, so it is always disabled regardless of the configuration.
+fn ddl_soft_drop_enabled(_options: &MetasrvOptions) -> bool {
+    false
 }
 
 /// Returns soft-drop retention for recovering persisted procedures.
@@ -730,24 +730,8 @@ pub struct DdlManagerConfigureContext {
 mod tests {
     use super::*;
 
-    #[cfg(feature = "enterprise")]
     #[test]
-    fn test_ddl_soft_drop_gate_preserves_retention_for_recovery() {
-        let mut options = MetasrvOptions::default();
-        options.gc.enable = true;
-        options.gc.experimental_soft_drop.enable = true;
-        options.gc.experimental_soft_drop.retention = Duration::from_secs(123);
-
-        assert!(ddl_soft_drop_enabled(&options));
-        assert_eq!(
-            Some(Duration::from_secs(123)),
-            ddl_soft_drop_retention(&options)
-        );
-    }
-
-    #[cfg(not(feature = "enterprise"))]
-    #[test]
-    fn test_ddl_soft_drop_is_always_disabled_in_non_enterprise_build() {
+    fn test_ddl_soft_drop_is_always_disabled() {
         let mut options = MetasrvOptions::default();
         options.gc.enable = true;
         options.gc.experimental_soft_drop.enable = true;

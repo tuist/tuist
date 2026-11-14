@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::SemanticType;
 use common_query::native_histogram::is_native_histogram_value_type;
 use common_telemetry::{debug, info};
@@ -252,7 +254,7 @@ impl DataRegion {
 
 #[cfg(test)]
 mod test {
-    use common_query::prelude::{greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_timestamp, pulse_value};
     use datatypes::prelude::ConcreteDataType;
     use datatypes::schema::ColumnSchema;
 
@@ -313,8 +315,8 @@ mod test {
             .map(|c| &c.column_schema.name)
             .collect::<Vec<_>>();
         let expected = vec![
-            greptime_timestamp(),
-            greptime_value(),
+            pulse_timestamp(),
+            pulse_value(),
             "__table_id",
             "__tsid",
             "job",

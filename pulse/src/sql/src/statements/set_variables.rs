@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Display;
 
 use serde::Serialize;
@@ -64,7 +66,7 @@ impl Display for SetVariables {
 mod tests {
     use std::assert_matches;
 
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
@@ -72,7 +74,7 @@ mod tests {
     fn test_display_show_variables() {
         let sql = r"set delayed_insert_timeout=300;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::SetVariables { .. });
@@ -101,12 +103,9 @@ SET delayed_insert_timeout = 300"#,
             ("SET \"search_path\" TO private", None),
             ("SET timezone TO 'UTC'", None),
         ] {
-            let statements = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let statements =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             let [Statement::SetVariables(set)] = statements.as_slice() else {
                 unreachable!()
             };

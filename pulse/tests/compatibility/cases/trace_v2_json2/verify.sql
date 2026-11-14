@@ -15,8 +15,8 @@ WHERE table_name = 't_trace_v2';
 
 SELECT COUNT(*) AS n FROM information_schema.tables
 WHERE table_name = 't_trace_v2'
-  AND create_options LIKE '%table_data_model=greptime_trace_v2%'
-  AND create_options LIKE '%greptime.semantic.pipeline=greptime_trace_v2%';
+  AND create_options LIKE '%table_data_model=pulse_trace_v2%'
+  AND create_options LIKE '%greptime.semantic.pipeline=pulse_trace_v2%';
 
 SELECT COUNT(*) AS n FROM t_trace_v2
 WHERE json_get_string(span_events, '$[0].name') = 'cache.hit'

@@ -175,6 +175,7 @@ defmodule Tuist do
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
+      Tests.LegacySuiteIdentity,
       Tests.Coverage,
       Tests.Coverage.Commits,
       Tests.Coverage.Deltas,

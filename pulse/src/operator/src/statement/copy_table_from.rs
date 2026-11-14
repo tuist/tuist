@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
@@ -709,8 +711,8 @@ async fn batch_insert(
     Ok(result)
 }
 
-/// Custom type compatibility check for GreptimeDB that handles Map -> Binary (JSON) conversion
-fn can_cast_types_for_greptime(from: &ArrowDataType, to: &ArrowDataType) -> bool {
+/// Custom type compatibility check for Pulse that handles Map -> Binary (JSON) conversion
+fn can_cast_types_for_pulse(from: &ArrowDataType, to: &ArrowDataType) -> bool {
     // Handle Map -> Binary conversion for JSON types
     if let ArrowDataType::Map(_, _) = from
         && let ArrowDataType::Binary = to
@@ -775,7 +777,7 @@ fn ensure_schema_compatible(from: &SchemaRef, to: &SchemaRef) -> Result<()> {
         .zip(to.fields.iter())
         .map(|(l, r)| (l.data_type(), r.data_type()))
         .enumerate()
-        .find(|(_, (l, r))| !can_cast_types_for_greptime(l, r));
+        .find(|(_, (l, r))| !can_cast_types_for_pulse(l, r));
 
     if let Some((index, _)) = not_match {
         error::InvalidSchemaSnafu {
@@ -939,7 +941,7 @@ mod tests {
 
     fn copy_from_request(location: &str, pattern: Option<&str>) -> CopyTableRequest {
         CopyTableRequest {
-            catalog_name: "greptime".into(),
+            catalog_name: "pulse".into(),
             schema_name: "public".into(),
             table_name: "test".into(),
             location: location.into(),

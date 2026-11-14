@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::sync::Arc;
 
@@ -387,7 +389,7 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "The definition of table `{name}` is managed by GreptimeDB; it cannot be created or altered (DROP recreates it on the next write)"
+        "The definition of table `{name}` is managed by Pulse; it cannot be created or altered (DROP recreates it on the next write)"
     ))]
     TableDdlReserved {
         name: String,
@@ -763,14 +765,6 @@ pub enum Error {
         location: Location,
     },
 
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Invalid trigger name: {name}"))]
-    InvalidTriggerName {
-        name: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
     #[snafu(display("Empty {} expr", name))]
     EmptyDdlExpr {
         name: String,
@@ -948,30 +942,6 @@ pub enum Error {
         #[snafu(implicit)]
         location: Location,
     },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Too large duration"))]
-    TooLargeDuration {
-        #[snafu(source)]
-        error: prost_types::DurationError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Not trigger querier is specified"))]
-    MissingTriggerQuerier {
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Trigger querier error"))]
-    TriggerQuerier {
-        source: BoxedError,
-        #[snafu(implicit)]
-        location: Location,
-    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -1118,14 +1088,6 @@ impl ErrorExt for Error {
             Error::ProcessManagerMissing { .. } => StatusCode::Unexpected,
             Error::TimestampFormatNotSupported { .. } => StatusCode::InvalidArguments,
             Error::SqlCommon { source, .. } => source.status_code(),
-            #[cfg(feature = "enterprise")]
-            Error::InvalidTriggerName { .. } => StatusCode::InvalidArguments,
-            #[cfg(feature = "enterprise")]
-            Error::TooLargeDuration { .. } => StatusCode::InvalidArguments,
-            #[cfg(feature = "enterprise")]
-            Error::MissingTriggerQuerier { .. } => StatusCode::Internal,
-            #[cfg(feature = "enterprise")]
-            Error::TriggerQuerier { source, .. } => source.status_code(),
         }
     }
 
@@ -1196,8 +1158,6 @@ impl ErrorExt for Error {
             Error::PrepareFileTable { source, .. } | Error::InferFileTableSchema { source, .. } => {
                 source.retry_hint()
             }
-            #[cfg(feature = "enterprise")]
-            Error::TriggerQuerier { source, .. } => source.retry_hint(),
             _ => RetryHint::NonRetryable,
         }
     }

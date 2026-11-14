@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
@@ -127,7 +129,7 @@ pub(crate) async fn flush_batch(
     // into physical format and write them together.
     let physical_table_name = ctx
         .extension(logical_table::PHYSICAL_TABLE_KEY)
-        .unwrap_or(prelude::GREPTIME_PHYSICAL_TABLE)
+        .unwrap_or(prelude::PULSE_PHYSICAL_TABLE)
         .to_string();
     let result = flush_batch_physical(
         &table_batches,
@@ -580,12 +582,12 @@ mod tests {
                     false,
                 ),
                 DtColumnSchema::new(
-                    "greptime_timestamp",
+                    "pulse_timestamp",
                     datatypes::prelude::ConcreteDataType::timestamp_millisecond_datatype(),
                     false,
                 ),
                 DtColumnSchema::new(
-                    "greptime_value",
+                    "pulse_value",
                     datatypes::prelude::ConcreteDataType::float64_datatype(),
                     true,
                 ),
@@ -597,7 +599,7 @@ mod tests {
             ])
             .unwrap(),
         );
-        let mut table_info = test_table_info(table_id, "phy", "public", "greptime", schema);
+        let mut table_info = test_table_info(table_id, "phy", "public", "pulse", schema);
         table_info.meta.column_ids = vec![0, 1, 2, 3];
 
         PhysicalTableMetadata {

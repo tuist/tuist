@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Export V2 CLI commands.
 
 use std::collections::HashSet;
@@ -24,7 +26,7 @@ use common_catalog::consts::DEFAULT_SCHEMA_NAME;
 use common_error::ext::BoxedError;
 use common_telemetry::info;
 use serde_json::Value;
-use servers::http::{ColumnSchema, GreptimeQueryOutput, OutputSchema};
+use servers::http::{ColumnSchema, OutputSchema, PulseQueryOutput};
 use snafu::{OptionExt, ResultExt};
 
 use crate::Tool;
@@ -262,7 +264,7 @@ pub struct ExportCreateCommand {
     to: String,
 
     /// Catalog name.
-    #[clap(long, default_value = "greptime")]
+    #[clap(long, default_value = "pulse")]
     catalog: String,
 
     /// Schema list to export (default: all non-system schemas).
@@ -430,7 +432,7 @@ impl ExportCreateCommand {
                 "EXPERIMENTAL_METRIC_EXPORT".to_string(),
                 "String".to_string(),
             )]);
-            if !matches!(capability.output(), [GreptimeQueryOutput::Records(records)]
+            if !matches!(capability.output(), [PulseQueryOutput::Records(records)]
                 if records.schema() == &expected_schema
                     && records.rows() == &vec![vec![Value::String("true".to_string())]])
             {
@@ -1831,7 +1833,7 @@ mod tests {
     #[test]
     fn test_validate_resume_config_rejects_catalog_mismatch() {
         let manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             false,
             TimeRange::unbounded(),
@@ -1866,7 +1868,7 @@ mod tests {
     #[test]
     fn test_validate_resume_config_accepts_schema_selection_with_different_case_and_order() {
         let mut manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string(), "analytics".to_string()],
             false,
             TimeRange::unbounded(),
@@ -1875,7 +1877,7 @@ mod tests {
         )
         .unwrap();
         let mut config = ExportConfig {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schemas: Some(vec![
                 "ANALYTICS".to_string(),
                 "PUBLIC".to_string(),
@@ -1916,7 +1918,7 @@ mod tests {
         let end = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 2, 0, 0).unwrap();
         let time_range = TimeRange::new(Some(start), Some(end));
         let manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             false,
             time_range.clone(),
@@ -1925,7 +1927,7 @@ mod tests {
         )
         .unwrap();
         let config = ExportConfig {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schemas: None,
             schema_only: false,
             format: DataFormat::Parquet,
@@ -1951,7 +1953,7 @@ mod tests {
     #[test]
     fn test_validate_resume_config_rejects_format_mismatch() {
         let manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             false,
             TimeRange::unbounded(),
@@ -1960,7 +1962,7 @@ mod tests {
         )
         .unwrap();
         let config = ExportConfig {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schemas: None,
             schema_only: false,
             format: DataFormat::Csv,
@@ -1988,7 +1990,7 @@ mod tests {
         let start = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
         let end = chrono::Utc.with_ymd_and_hms(2025, 1, 1, 1, 0, 0).unwrap();
         let manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             false,
             TimeRange::new(Some(start), Some(end)),
@@ -1997,7 +1999,7 @@ mod tests {
         )
         .unwrap();
         let config = ExportConfig {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schemas: None,
             schema_only: false,
             format: DataFormat::Parquet,
@@ -2797,7 +2799,7 @@ mod tests {
         complete: bool,
     ) -> Manifest {
         let mut manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string(), "analytics".to_string()],
             schema_only,
             TimeRange::unbounded(),

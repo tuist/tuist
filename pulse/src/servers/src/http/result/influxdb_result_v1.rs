@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use axum::Json;
 use axum::http::HeaderValue;
 use axum::response::{IntoResponse, Response};
@@ -21,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{Error, Result};
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 use crate::http::result::HttpOutputWriter;
 use crate::http::result::error_result::ErrorResponse;
 use crate::http::{Epoch, HttpResponse, ResponseFormat};
@@ -211,11 +213,11 @@ impl IntoResponse for InfluxdbV1Response {
         let execution_time = self.execution_time_ms;
         let mut resp = Json(self).into_response();
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_FORMAT,
+            &PULSE_DB_HEADER_FORMAT,
             HeaderValue::from_static(ResponseFormat::InfluxdbV1.as_str()),
         );
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_EXECUTION_TIME,
+            &PULSE_DB_HEADER_EXECUTION_TIME,
             HeaderValue::from(execution_time),
         );
         resp

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 mod tests;
 
@@ -175,7 +177,7 @@ impl<Q: AiQuestion> AiFunction<Q> {
     fn client(&self) -> Result<Client> {
         if !self.enabled {
             return exec_err!(
-                "{} is experimental; set GREPTIMEDB_EXPERIMENTAL_JEV=true to enable it",
+                "{} is experimental; set PULSE_EXPERIMENTAL_JEV=true to enable it",
                 Q::NAME
             );
         }
@@ -208,7 +210,7 @@ impl<Q: AiQuestion> Default for AiFunction<Q> {
                 Volatility::Volatile,
             ),
             question: PhantomData,
-            enabled: std::env::var("GREPTIMEDB_EXPERIMENTAL_JEV").as_deref() == Ok("true"),
+            enabled: std::env::var("PULSE_EXPERIMENTAL_JEV").as_deref() == Ok("true"),
             api_key: std::env::var("JEV_API_KEY").ok(),
             endpoint: std::env::var("JEV_ENDPOINT")
                 .unwrap_or_else(|_| "https://api.typesafe.ai/v1/systemone".to_string()),

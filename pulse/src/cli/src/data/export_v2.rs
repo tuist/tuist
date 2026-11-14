@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Export V2 module.
 //!
 //! This module provides the V2 implementation of database export functionality,
@@ -25,13 +27,13 @@
 //!
 //! ```bash
 //! # Export schema only
-//! greptime cli data export-v2 create \
+//! pulse cli data export-v2 create \
 //!   --addr 127.0.0.1:4000 \
 //!   --to file:///tmp/snapshot \
 //!   --schema-only
 //!
 //! # Export with time range
-//! greptime cli data export-v2 create \
+//! pulse cli data export-v2 create \
 //!   --addr 127.0.0.1:4000 \
 //!   --to s3://bucket/snapshots/prod-20250101 \
 //!   --start-time 2025-01-01T00:00:00Z \

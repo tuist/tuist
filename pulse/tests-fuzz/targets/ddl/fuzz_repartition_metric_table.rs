@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::{BTreeMap, HashMap};
@@ -56,7 +58,7 @@ use tests_fuzz::utils::retry::retry_with_backoff;
 use tests_fuzz::utils::sql_dump_writer::SqlDumpSession;
 use tests_fuzz::utils::{
     Connections, get_fuzz_override, get_gt_fuzz_input_max_alter_actions,
-    get_gt_fuzz_input_max_tables, init_greptime_connections_via_env,
+    get_gt_fuzz_input_max_tables, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator::row::count_values;
 use tokio::sync::{mpsc, oneshot};
@@ -68,12 +70,12 @@ const VALIDATE_QUERY_MAX_BACKOFF: Duration = Duration::from_millis(800);
 
 #[derive(Clone)]
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -153,7 +155,7 @@ async fn create_metric_tables<R: Rng + 'static>(
     let translator = CreateTableExprTranslator;
     let create_physical_sql = translator.translate(&create_physical_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(create_physical_sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu {
             sql: &create_physical_sql,
@@ -181,7 +183,7 @@ async fn create_metric_tables<R: Rng + 'static>(
 
         let create_logical_sql = translator.translate(&create_logical_expr)?;
         let result = sqlx::query(sqlx::AssertSqlSafe(create_logical_sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu {
                 sql: &create_logical_sql,
@@ -214,7 +216,7 @@ async fn execute_insert_with_retry(ctx: &FuzzContext, sql: &str) -> Result<()> {
     loop {
         match sqlx::query(sqlx::AssertSqlSafe(sql))
             .persistent(false)
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
         {
             Ok(_) => return Ok(()),
@@ -359,7 +361,7 @@ async fn validate_rows(
         let expected = *inserted_rows.get(&table_ctx.name.to_string()).unwrap_or(&0) as usize;
         let count_sql = format!("SELECT COUNT(1) AS count FROM {}", table_ctx.name);
         let count = retry_with_backoff(
-            || count_values(&ctx.greptime, &count_sql),
+            || count_values(&ctx.pulse, &count_sql),
             VALIDATE_QUERY_MAX_ATTEMPTS,
             VALIDATE_QUERY_INIT_BACKOFF,
             VALIDATE_QUERY_MAX_BACKOFF,
@@ -371,7 +373,7 @@ async fn validate_rows(
             table_ctx.name
         );
         let distinct_count = retry_with_backoff(
-            || count_values(&ctx.greptime, &distinct_count_sql),
+            || count_values(&ctx.pulse, &distinct_count_sql),
             VALIDATE_QUERY_MAX_ATTEMPTS,
             VALIDATE_QUERY_INIT_BACKOFF,
             VALIDATE_QUERY_MAX_BACKOFF,
@@ -409,7 +411,7 @@ async fn cleanup_tables(
     for table_ctx in logical_tables.values() {
         let drop_logical_sql = format!("DROP TABLE {}", table_ctx.name);
         let result = sqlx::query(sqlx::AssertSqlSafe(drop_logical_sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu {
                 sql: &drop_logical_sql,
@@ -419,7 +421,7 @@ async fn cleanup_tables(
 
     let drop_physical_sql = format!("DROP TABLE {}", physical_table_ctx.name);
     let result = sqlx::query(sqlx::AssertSqlSafe(drop_physical_sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu {
             sql: &drop_physical_sql,
@@ -573,7 +575,7 @@ async fn execute_repartition_metric_table(ctx: FuzzContext, input: FuzzInput) ->
         let started_at_ms = current_time_millis();
         let now = Instant::now();
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         let elapsed = now.elapsed();
@@ -586,7 +588,7 @@ async fn execute_repartition_metric_table(ctx: FuzzContext, input: FuzzInput) ->
         );
 
         let partition_entries = tests_fuzz::validator::partition::fetch_partitions_info_schema(
-            &ctx.greptime,
+            &ctx.pulse,
             "public".into(),
             &physical_table_ctx.name,
         )
@@ -694,9 +696,9 @@ async fn execute_repartition_metric_table(ctx: FuzzContext, input: FuzzInput) ->
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_repartition_metric_table(ctx, input)
             .await

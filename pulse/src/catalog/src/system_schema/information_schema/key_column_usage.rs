@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, Weak};
 
 use arrow_schema::SchemaRef as ArrowSchemaRef;
@@ -52,7 +54,7 @@ pub const TABLE_NAME: &str = "table_name";
 pub const COLUMN_NAME: &str = "column_name";
 pub const ORDINAL_POSITION: &str = "ordinal_position";
 /// The type of the index.
-pub const GREPTIME_INDEX_TYPE: &str = "greptime_index_type";
+pub const PULSE_INDEX_TYPE: &str = "pulse_index_type";
 const INIT_CAPACITY: usize = 42;
 
 /// Time index constraint name
@@ -72,7 +74,7 @@ pub(crate) const CONSTRAINT_NAME_SKIPPING_INDEX: &str = "SKIPPING INDEX";
 
 /// The virtual table implementation for `information_schema.KEY_COLUMN_USAGE`.
 ///
-/// Provides an extra column `greptime_index_type` for the index type of the key column.
+/// Provides an extra column `pulse_index_type` for the index type of the key column.
 #[derive(Debug)]
 pub(super) struct InformationSchemaKeyColumnUsage {
     schema: SchemaRef,
@@ -132,11 +134,7 @@ impl InformationSchemaKeyColumnUsage {
                 ConcreteDataType::string_datatype(),
                 true,
             ),
-            ColumnSchema::new(
-                GREPTIME_INDEX_TYPE,
-                ConcreteDataType::string_datatype(),
-                true,
-            ),
+            ColumnSchema::new(PULSE_INDEX_TYPE, ConcreteDataType::string_datatype(), true),
         ]))
     }
 
@@ -207,7 +205,7 @@ struct InformationSchemaKeyColumnUsageBuilder {
     column_name: StringVectorBuilder,
     ordinal_position: UInt32VectorBuilder,
     position_in_unique_constraint: UInt32VectorBuilder,
-    greptime_index_type: StringVectorBuilder,
+    pulse_index_type: StringVectorBuilder,
 }
 
 impl InformationSchemaKeyColumnUsageBuilder {
@@ -230,7 +228,7 @@ impl InformationSchemaKeyColumnUsageBuilder {
             column_name: StringVectorBuilder::with_capacity(INIT_CAPACITY),
             ordinal_position: UInt32VectorBuilder::with_capacity(INIT_CAPACITY),
             position_in_unique_constraint: UInt32VectorBuilder::with_capacity(INIT_CAPACITY),
-            greptime_index_type: StringVectorBuilder::with_capacity(INIT_CAPACITY),
+            pulse_index_type: StringVectorBuilder::with_capacity(INIT_CAPACITY),
         }
     }
 
@@ -311,7 +309,7 @@ impl InformationSchemaKeyColumnUsageBuilder {
             (TABLE_NAME, &Value::from(table_name)),
             (COLUMN_NAME, &Value::from(column_name)),
             (ORDINAL_POSITION, &Value::from(ordinal_position)),
-            (GREPTIME_INDEX_TYPE, &Value::from(index_types)),
+            (PULSE_INDEX_TYPE, &Value::from(index_types)),
         ];
 
         if !predicates.eval(&row) {
@@ -328,7 +326,7 @@ impl InformationSchemaKeyColumnUsageBuilder {
         self.column_name.push(Some(column_name));
         self.ordinal_position.push(Some(ordinal_position));
         self.position_in_unique_constraint.push(None);
-        self.greptime_index_type.push(Some(index_types));
+        self.pulse_index_type.push(Some(index_types));
     }
 
     fn finish(&mut self) -> Result<RecordBatch> {
@@ -349,7 +347,7 @@ impl InformationSchemaKeyColumnUsageBuilder {
             null_string_vector.clone(),
             null_string_vector.clone(),
             null_string_vector,
-            Arc::new(self.greptime_index_type.finish()),
+            Arc::new(self.pulse_index_type.finish()),
         ];
         RecordBatch::new(self.schema.clone(), columns).context(CreateRecordBatchSnafu)
     }

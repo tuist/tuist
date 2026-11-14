@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::assert_matches;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -186,7 +188,7 @@ impl TestingEnv {
 /// Generates a [PersistentContext].
 pub fn new_persistent_context(from: u64, to: u64, region_id: RegionId) -> PersistentContext {
     PersistentContext::new(
-        vec![("greptime".into(), "public".into())],
+        vec![("pulse".into(), "public".into())],
         Peer::empty(from),
         Peer::empty(to),
         vec![region_id],

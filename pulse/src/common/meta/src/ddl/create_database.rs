@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -407,7 +409,7 @@ mod tests {
         let committer = Arc::new(MockCommitter::new(outcomes));
         context.create_database_metadata_committer = Some(committer.clone());
         let procedure = CreateDatabaseProcedure::new(
-            "greptime".to_string(),
+            "pulse".to_string(),
             "metrics".to_string(),
             false,
             HashMap::new(),
@@ -569,7 +571,7 @@ mod tests {
         ))]));
         context.create_database_metadata_committer = Some(committer.clone());
         let mut procedure = CreateDatabaseProcedure::new(
-            "greptime".to_string(),
+            "pulse".to_string(),
             "legacy".to_string(),
             false,
             HashMap::new(),
@@ -591,7 +593,7 @@ mod tests {
                 .context
                 .table_metadata_manager
                 .schema_manager()
-                .exists(SchemaNameKey::new("greptime", "legacy"))
+                .exists(SchemaNameKey::new("pulse", "legacy"))
                 .await
                 .unwrap()
         );
@@ -601,7 +603,7 @@ mod tests {
     async fn creator_without_committer_fails_closed() {
         let context = new_ddl_context(Arc::new(MockDatanodeManager::new(())));
         let mut procedure = CreateDatabaseProcedure::new(
-            "greptime".to_string(),
+            "pulse".to_string(),
             "missing_committer".to_string(),
             false,
             HashMap::new(),
@@ -619,7 +621,7 @@ mod tests {
                 .context
                 .table_metadata_manager
                 .schema_manager()
-                .exists(SchemaNameKey::new("greptime", "missing_committer"))
+                .exists(SchemaNameKey::new("pulse", "missing_committer"))
                 .await
                 .unwrap()
         );
@@ -631,7 +633,7 @@ mod tests {
         let procedure = CreateDatabaseProcedure::from_json(
             r#"{
                 "state":"CreateMetadata",
-                "catalog":"greptime",
+                "catalog":"pulse",
                 "schema":"metrics",
                 "create_if_not_exists":false,
                 "options":{}

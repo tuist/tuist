@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Merge sort logical plan for distributed query execution, roughly corresponding to the
 //! `SortPreservingMergeExec` operator in datafusion
 //!
@@ -155,7 +157,7 @@ impl ExecutionPlan for MergeSortExec {
     /// parent does not require sorted output.
     ///
     /// That rewrite is valid for an ordinary SPM used only to satisfy parent
-    /// ordering, but not for GreptimeDB's distributed TopK merge stage. In a
+    /// ordering, but not for Pulse's distributed TopK merge stage. In a
     /// scalar-subquery shape like `ORDER BY ts DESC LIMIT 1`, this node is the
     /// operator that merges region-local TopK streams into the global TopK.
     /// Replacing it with unordered coalescing can return a partial/latest row

@@ -1,6 +1,6 @@
 -- Migrated from DuckDB test: test/sql/select/test_projection_names.test
 -- Description: Test projection lists
--- Note: Adapted for GreptimeDB - testing column selection and naming
+-- Note: Adapted for Pulse - testing column selection and naming
 
 CREATE TABLE integers(COL1 INTEGER, COL2 INTEGER, ts TIMESTAMP TIME INDEX);
 

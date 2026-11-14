@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 
 use api::v1::value::ValueData;
@@ -599,10 +601,10 @@ mod tests {
 
     #[test]
     fn reconciliation_events_use_the_shared_locator_contract() {
-        let catalog = ReconcileCatalogEvent::lifecycle(ReconciliationLocator::catalog("greptime"));
+        let catalog = ReconcileCatalogEvent::lifecycle(ReconciliationLocator::catalog("pulse"));
         assert_eq!(catalog.event_type(), RECONCILE_CATALOG_EVENT_TYPE);
         let table = ReconcileTableEvent::table_lifecycle(ReconciliationLocator::physical_table(
-            "greptime", "public", "metrics", 42,
+            "pulse", "public", "metrics", 42,
         ));
         assert_eq!(table.event_type(), RECONCILE_TABLE_EVENT_TYPE);
         assert_eq!(
@@ -649,7 +651,7 @@ mod tests {
             catalog.extra_rows().unwrap(),
             vec![Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     Value::default(),
                     Value::default(),
                     Value::default(),
@@ -659,16 +661,15 @@ mod tests {
         );
         assert_eq!(catalog.json_payload().unwrap(), serde_json::Value::Null);
 
-        let database = ReconcileDatabaseEvent::lifecycle(ReconciliationLocator::database(
-            "greptime", "public",
-        ));
+        let database =
+            ReconcileDatabaseEvent::lifecycle(ReconciliationLocator::database("pulse", "public"));
         assert_eq!(database.event_type(), RECONCILE_DATABASE_EVENT_TYPE);
         assert_eq!(database.extra_schema(), catalog.extra_schema());
         assert_eq!(
             database.extra_rows().unwrap(),
             vec![Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue("public".to_string()).into(),
                     Value::default(),
                     Value::default(),
@@ -683,7 +684,7 @@ mod tests {
             table.extra_rows().unwrap(),
             vec![Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue("public".to_string()).into(),
                     ValueData::StringValue("metrics".to_string()).into(),
                     ValueData::U32Value(42).into(),
@@ -694,8 +695,8 @@ mod tests {
         assert_eq!(table.json_payload().unwrap(), serde_json::Value::Null);
 
         let logical_tables = ReconcileLogicalTablesEvent::lifecycle(vec![
-            ReconciliationLocator::logical_table("greptime", "public", "cpu", 43, 42),
-            ReconciliationLocator::logical_table("greptime", "public", "memory", 44, 42),
+            ReconciliationLocator::logical_table("pulse", "public", "cpu", 43, 42),
+            ReconciliationLocator::logical_table("pulse", "public", "memory", 44, 42),
         ]);
         assert_eq!(
             logical_tables.event_type(),
@@ -707,7 +708,7 @@ mod tests {
             vec![
                 Row {
                     values: vec![
-                        ValueData::StringValue("greptime".to_string()).into(),
+                        ValueData::StringValue("pulse".to_string()).into(),
                         ValueData::StringValue("public".to_string()).into(),
                         ValueData::StringValue("cpu".to_string()).into(),
                         ValueData::U32Value(43).into(),
@@ -716,7 +717,7 @@ mod tests {
                 },
                 Row {
                     values: vec![
-                        ValueData::StringValue("greptime".to_string()).into(),
+                        ValueData::StringValue("pulse".to_string()).into(),
                         ValueData::StringValue("public".to_string()).into(),
                         ValueData::StringValue("memory".to_string()).into(),
                         ValueData::U32Value(44).into(),
@@ -739,7 +740,7 @@ mod tests {
             (ResolveStrategy::AbortOnConflict, "abort_on_conflict"),
         ] {
             let catalog = ReconcileCatalogEvent::submitted(
-                ReconciliationLocator::catalog("greptime"),
+                ReconciliationLocator::catalog("pulse"),
                 strategy,
                 true,
                 16,
@@ -755,7 +756,7 @@ mod tests {
             );
 
             let table = ReconcileTableEvent::table_submitted(
-                ReconciliationLocator::physical_table("greptime", "public", "metrics", 42),
+                ReconciliationLocator::physical_table("pulse", "public", "metrics", 42),
                 strategy,
                 true,
             );
@@ -770,7 +771,7 @@ mod tests {
         }
 
         let database = ReconcileDatabaseEvent::submitted(
-            ReconciliationLocator::database("greptime", "public"),
+            ReconciliationLocator::database("pulse", "public"),
             ResolveStrategy::UseMetasrv,
             false,
             64,
@@ -789,8 +790,8 @@ mod tests {
 
         let logical_tables = ReconcileLogicalTablesEvent::submitted(
             vec![
-                ReconciliationLocator::logical_table("greptime", "public", "cpu", 43, 42),
-                ReconciliationLocator::logical_table("greptime", "public", "memory", 44, 42),
+                ReconciliationLocator::logical_table("pulse", "public", "cpu", 43, 42),
+                ReconciliationLocator::logical_table("pulse", "public", "memory", 44, 42),
             ],
             true,
         );
@@ -807,7 +808,7 @@ mod tests {
     #[test]
     fn terminal_payloads_distinguish_complete_and_partial_results() {
         let catalog =
-            ReconcileCatalogEvent::result(ReconciliationLocator::catalog("greptime"), true, 3, 1);
+            ReconcileCatalogEvent::result(ReconciliationLocator::catalog("pulse"), true, 3, 1);
         assert_eq!(
             catalog.json_payload().unwrap(),
             json!({
@@ -820,7 +821,7 @@ mod tests {
         );
 
         let database = ReconcileDatabaseEvent::result(
-            ReconciliationLocator::database("greptime", "public"),
+            ReconciliationLocator::database("pulse", "public"),
             false,
             5,
             2,
@@ -841,7 +842,7 @@ mod tests {
         );
 
         let table = ReconcileTableEvent::table_result(
-            ReconciliationLocator::physical_table("greptime", "public", "metrics", 42),
+            ReconciliationLocator::physical_table("pulse", "public", "metrics", 42),
             false,
             Some("inconsistent"),
             Some(ResolveStrategy::UseMetasrv),
@@ -868,7 +869,7 @@ mod tests {
 
         let logical_tables = ReconcileLogicalTablesEvent::result(
             vec![ReconciliationLocator::logical_table(
-                "greptime", "public", "cpu", 43, 42,
+                "pulse", "public", "cpu", 43, 42,
             )],
             true,
             1,

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -102,7 +104,7 @@ impl StructType {
     }
 
     /// Like the `From<&Fields>` impl, but returns an error for arrow field
-    /// types greptimedb cannot represent instead of panicking.
+    /// types pulse cannot represent instead of panicking.
     pub fn try_from_arrow_fields(fields: &Fields) -> Result<Self> {
         let struct_fields = fields
             .iter()

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! logging stuffs, inspired by databend
 mod file_retention;
 
@@ -646,7 +648,7 @@ fn create_tracer(app_name: &str, node_id: &str, opts: &LoggingOptions) -> Tracer
         .with_sampler(sampler)
         .with_resource(resource)
         .build()
-        .tracer("greptimedb")
+        .tracer("pulse")
 }
 
 /// Ensure that the OTLP tracer has been constructed, building it lazily if needed.
@@ -764,7 +766,7 @@ mod tests {
 
     #[test]
     fn test_slow_query_logging() {
-        const CASE_ENV: &str = "GREPTIME_TEST_SLOW_QUERY_LOGGING";
+        const CASE_ENV: &str = "PULSE_TEST_SLOW_QUERY_LOGGING";
         let Ok(case) = env::var(CASE_ENV) else {
             // Each configuration needs a fresh process because logging initializes only once.
             for case in [
@@ -897,9 +899,9 @@ mod tests {
             let entry = entry.unwrap();
             let name = entry.file_name();
             let name = name.to_str().unwrap();
-            if name.starts_with("greptimedb-slow-queries.") {
+            if name.starts_with("pulse-slow-queries.") {
                 slow_logs.push_str(&std::fs::read_to_string(entry.path()).unwrap());
-            } else if name.starts_with("greptimedb.") {
+            } else if name.starts_with("pulse.") {
                 regular_logs.push_str(&std::fs::read_to_string(entry.path()).unwrap());
             }
         }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod builder;
 mod dashboard;
 mod entity_graph;
@@ -1620,8 +1622,6 @@ pub fn check_permission(
         | Statement::AlterDatabase(_)
         | Statement::DropFlow(_)
         | Statement::Use(_) => {}
-        #[cfg(feature = "enterprise")]
-        Statement::DropTrigger(_) => {}
         Statement::ShowCreateDatabase(stmt) => {
             validate_database(&stmt.database_name, query_ctx)?;
         }
@@ -1630,10 +1630,6 @@ pub fn check_permission(
         }
         Statement::ShowCreateFlow(stmt) => {
             validate_flow(&stmt.flow_name, query_ctx)?;
-        }
-        #[cfg(feature = "enterprise")]
-        Statement::ShowCreateTrigger(stmt) => {
-            validate_param(&stmt.trigger_name, query_ctx)?;
         }
         Statement::ShowCreateView(stmt) => {
             validate_param(&stmt.view_name, query_ctx)?;
@@ -1645,18 +1641,12 @@ pub fn check_permission(
             // TODO: should also validate source table name here?
             validate_param(&stmt.sink_table_name, query_ctx)?;
         }
-        #[cfg(feature = "enterprise")]
-        Statement::CreateTrigger(stmt) => {
-            validate_param(&stmt.trigger_name, query_ctx)?;
-        }
         Statement::CreateView(stmt) => {
             validate_param(&stmt.name, query_ctx)?;
         }
         Statement::AlterTable(stmt) => {
             validate_param(stmt.table_name(), query_ctx)?;
         }
-        #[cfg(feature = "enterprise")]
-        Statement::AlterTrigger(_) => {}
         // set/show variable now only alter/show variable in session
         Statement::SetVariables(_) | Statement::ShowVariables(_) => {}
         // show charset and show collation won't be checked
@@ -1683,10 +1673,6 @@ pub fn check_permission(
             for table_name in drop_stmt.table_names() {
                 validate_param(table_name, query_ctx)?;
             }
-        }
-        #[cfg(feature = "enterprise")]
-        Statement::UndropTable(stmt) => {
-            validate_param(stmt.table_name(), query_ctx)?;
         }
         Statement::DropView(stmt) => {
             validate_param(&stmt.view_name, query_ctx)?;
@@ -1716,11 +1702,6 @@ pub fn check_permission(
             // Flow statistics are organized based on the catalog dimension and
             // filtered by the current catalog, so there is no need to check the
             // permission of the database(schema).
-        }
-        #[cfg(feature = "enterprise")]
-        Statement::ShowTriggers(_stmt) => {
-            // The trigger is organized based on the catalog dimension, so there
-            // is no need to check the permission of the database(schema).
         }
         Statement::ShowStatus(_stmt) => {}
         Statement::ShowSearchPath(_stmt) => {}
@@ -1852,7 +1833,7 @@ mod tests {
     use common_meta::rpc::procedure::{
         MigrateRegionRequest, MigrateRegionResponse, ProcedureStateResponse,
     };
-    use common_query::prelude::greptime_value;
+    use common_query::prelude::pulse_value;
     use common_query::{Output, OutputMeta};
     use common_recordbatch::{
         OrderOption, RecordBatch, RecordBatchStream, SendableRecordBatchStream,
@@ -1877,7 +1858,7 @@ mod tests {
     };
     use session::context::{Channel, ConnInfo, QueryContext, QueryContextBuilder};
     use snafu::{Location, Snafu};
-    use sql::dialect::GreptimeDbDialect;
+    use sql::dialect::PulseDialect;
     use store_api::data_source::DataSource;
     use store_api::metric_engine_consts::{
         LOGICAL_TABLE_METADATA_KEY, METRIC_ENGINE_NAME, PHYSICAL_TABLE_METADATA_KEY,
@@ -1898,7 +1879,7 @@ mod tests {
     use crate::instance::*;
 
     fn parse_test_sql(sql: &str) -> Vec<Statement> {
-        parse_stmt(sql, &GreptimeDbDialect {}).unwrap()
+        parse_stmt(sql, &PulseDialect {}).unwrap()
     }
 
     #[derive(Debug, Default)]
@@ -2099,7 +2080,7 @@ mod tests {
     type TestResult<T> = std::result::Result<T, TestError>;
 
     fn parse_one_sql(sql: &str) -> Statement {
-        parse_stmt(sql, &GreptimeDbDialect {}).unwrap().remove(0)
+        parse_stmt(sql, &PulseDialect {}).unwrap().remove(0)
     }
 
     fn test_query_ctx(process_id: u32) -> QueryContextRef {
@@ -2709,7 +2690,7 @@ mod tests {
             ColumnSchema::new("create_options", ConcreteDataType::string_datatype(), false),
         ]));
         let columns: Vec<VectorRef> = vec![
-            Arc::new(StringVector::from(vec!["greptime", "greptime"])),
+            Arc::new(StringVector::from(vec!["pulse", "pulse"])),
             Arc::new(StringVector::from(vec!["public", "public"])),
             Arc::new(StringVector::from(vec!["denied", "target"])),
             Arc::new(StringVector::from(vec!["metric", "metric"])),
@@ -2723,7 +2704,7 @@ mod tests {
             "tables",
             record_batch,
             2048,
-            "greptime".to_string(),
+            "pulse".to_string(),
             "information_schema".to_string(),
         )
     }
@@ -2755,7 +2736,7 @@ mod tests {
             "pipelines",
             record_batch,
             2049,
-            "greptime".to_string(),
+            "pulse".to_string(),
             DEFAULT_PRIVATE_SCHEMA_NAME.to_string(),
         )
     }
@@ -2833,7 +2814,7 @@ mod tests {
         });
         let uri = reqwest::Url::from_directory_path(destination.path()).unwrap();
         let sql = format!(
-            "COPY DATABASE greptime.public TO '{uri}' WITH (experimental_metric_export='true')"
+            "COPY DATABASE pulse.public TO '{uri}' WITH (experimental_metric_export='true')"
         );
         let request = tokio::spawn(async move {
             reqwest::Client::builder()
@@ -2937,7 +2918,7 @@ mod tests {
         let target_table_name = "target";
         catalog_manager
             .register_table_sync(catalog::RegisterTableRequest {
-                catalog: "greptime".to_string(),
+                catalog: "pulse".to_string(),
                 schema: "public".to_string(),
                 table_name: target_table_name.to_string(),
                 table_id: 1025,
@@ -2949,14 +2930,14 @@ mod tests {
         if let Some(table) = metric_names_table {
             catalog_manager
                 .deregister_table_sync(catalog::DeregisterTableRequest {
-                    catalog: "greptime".to_string(),
+                    catalog: "pulse".to_string(),
                     schema: "information_schema".to_string(),
                     table_name: "tables".to_string(),
                 })
                 .unwrap();
             catalog_manager
                 .register_table_sync(catalog::RegisterTableRequest {
-                    catalog: "greptime".to_string(),
+                    catalog: "pulse".to_string(),
                     schema: "information_schema".to_string(),
                     table_name: "tables".to_string(),
                     table_id: 2048,
@@ -3068,7 +3049,7 @@ mod tests {
         )
         .await?;
         let req = table::requests::CopyDatabaseRequest {
-            catalog_name: "greptime".into(),
+            catalog_name: "pulse".into(),
             schema_name: "public".into(),
             location: "invalid-destination".into(),
             with: Default::default(),
@@ -3085,8 +3066,8 @@ mod tests {
             .await;
         assert!(matches!(result, Err(Error::Permission { .. })));
         let expected = PermissionTableTargets::resolved(vec![
-            PermissionTableTarget::new("greptime", "public", "source"),
-            PermissionTableTarget::new("greptime", "public", "target"),
+            PermissionTableTarget::new("pulse", "public", "source"),
+            PermissionTableTarget::new("pulse", "public", "target"),
         ]);
         assert_eq!(*checker.0.lock().unwrap(), vec![expected.clone(), expected]);
         // An empty selection must still check the operation privilege.
@@ -3185,11 +3166,7 @@ mod tests {
             )
             .with_time_index(true),
             ColumnSchema::new("extra_field", ConcreteDataType::float64_datatype(), false),
-            ColumnSchema::new(
-                greptime_value(),
-                ConcreteDataType::float64_datatype(),
-                false,
-            ),
+            ColumnSchema::new(pulse_value(), ConcreteDataType::float64_datatype(), false),
         ]));
         let recordbatch = RecordBatch::new(
             schema,
@@ -3335,7 +3312,7 @@ mod tests {
             "denied".to_string(),
         );
         let jaeger_targets = Some(PermissionTableTargets::resolved(vec![
-            PermissionTableTarget::new("greptime", "public", "denied"),
+            PermissionTableTarget::new("pulse", "public", "denied"),
         ]));
 
         assert_permission_denied(JaegerQueryHandler::get_services(&instance, ctx.clone()).await);
@@ -3433,7 +3410,7 @@ mod tests {
             .downcast_ref::<catalog::memory::MemoryCatalogManager>()
             .unwrap()
             .register_table_sync(catalog::RegisterTableRequest {
-                catalog: "greptime".to_string(),
+                catalog: "pulse".to_string(),
                 schema: DEFAULT_PRIVATE_SCHEMA_NAME.to_string(),
                 table_name: "pipelines".to_string(),
                 table_id: 2049,
@@ -3531,7 +3508,7 @@ mod tests {
         .await?;
 
         let ctx = test_query_ctx(1);
-        let physical_target = PermissionTableTarget::new("greptime", "public", physical_table);
+        let physical_target = PermissionTableTarget::new("pulse", "public", physical_table);
         assert_eq!(
             PermissionTableTargets::Resolved(vec![physical_target.clone()]),
             instance
@@ -3569,7 +3546,7 @@ mod tests {
         )
         .await?;
         let ctx = test_query_ctx(1);
-        let target = PermissionTableTarget::new("greptime", "public", "target");
+        let target = PermissionTableTarget::new("pulse", "public", "target");
 
         assert_eq!(
             PermissionTableTargets::Resolved(vec![target.clone()]),
@@ -3598,7 +3575,7 @@ mod tests {
         .await?;
 
         let ctx = test_query_ctx(1);
-        let logical_target = PermissionTableTarget::new("greptime", "public", "target");
+        let logical_target = PermissionTableTarget::new("pulse", "public", "target");
         assert_eq!(
             PermissionTableTargets::Resolved(vec![logical_target.clone()]),
             instance
@@ -3609,7 +3586,7 @@ mod tests {
                 .await
                 .unwrap()
         );
-        let physical_target = PermissionTableTarget::new("greptime", "public", physical_table);
+        let physical_target = PermissionTableTarget::new("pulse", "public", physical_table);
         assert_eq!(
             PermissionTableTargets::Unresolved,
             instance
@@ -3672,7 +3649,7 @@ mod tests {
         let err = LogQueryHandler::query(
             &instance,
             LogQuery {
-                table: TableName::new("greptime", "public", physical_table),
+                table: TableName::new("pulse", "public", physical_table),
                 ..Default::default()
             },
             ctx.clone(),
@@ -3905,7 +3882,7 @@ mod tests {
             test_instance_with_tables(test_table(1024, "source")?, test_table(1025, "target")?)
                 .await?;
         let _current_catalog = instance.process_manager().register_query(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             "current_catalog_query".to_string(),
             String::new(),
@@ -4034,7 +4011,7 @@ mod tests {
         CREATE DATABASE test_database;
         SHOW DATABASES;
         "#;
-        let stmts = parse_stmt(sql, &GreptimeDbDialect {}).unwrap();
+        let stmts = parse_stmt(sql, &PulseDialect {}).unwrap();
         assert_eq!(stmts.len(), 4);
         for stmt in stmts {
             let re = check_permission(plugins.clone(), &stmt, &query_ctx);
@@ -4045,7 +4022,7 @@ mod tests {
         SHOW CREATE TABLE demo;
         ALTER TABLE demo ADD COLUMN new_col INT;
         "#;
-        let stmts = parse_stmt(sql, &GreptimeDbDialect {}).unwrap();
+        let stmts = parse_stmt(sql, &PulseDialect {}).unwrap();
         assert_eq!(stmts.len(), 2);
         for stmt in stmts {
             let re = check_permission(plugins.clone(), &stmt, &query_ctx);
@@ -4054,7 +4031,7 @@ mod tests {
 
         fn replace_test(template_sql: &str, plugins: Plugins, query_ctx: &QueryContextRef) {
             // test right
-            let right = vec![("", ""), ("", "public."), ("greptime.", "public.")];
+            let right = vec![("", ""), ("", "public."), ("pulse.", "public.")];
             for (catalog, schema) in right {
                 let sql = do_fmt(template_sql, catalog, schema);
                 do_test(&sql, plugins.clone(), query_ctx, true);
@@ -4079,7 +4056,7 @@ mod tests {
         }
 
         fn do_test(sql: &str, plugins: Plugins, query_ctx: &QueryContextRef, is_ok: bool) {
-            let stmt = &parse_stmt(sql, &GreptimeDbDialect {}).unwrap()[0];
+            let stmt = &parse_stmt(sql, &PulseDialect {}).unwrap()[0];
             let re = check_permission(plugins, stmt, query_ctx);
             if is_ok {
                 re.unwrap();
@@ -4106,19 +4083,14 @@ mod tests {
         replace_test(sql, plugins.clone(), &query_ctx);
 
         // test undrop table
-        #[cfg(feature = "enterprise")]
-        {
-            let sql = "UNDROP TABLE {catalog}{schema}demo;";
-            replace_test(sql, plugins.clone(), &query_ctx);
-        }
 
         // test show tables
         let sql = "SHOW TABLES FROM public";
-        let stmt = parse_stmt(sql, &GreptimeDbDialect {}).unwrap();
+        let stmt = parse_stmt(sql, &PulseDialect {}).unwrap();
         check_permission(plugins.clone(), &stmt[0], &query_ctx).unwrap();
 
         let sql = "SHOW TABLES FROM private";
-        let stmt = parse_stmt(sql, &GreptimeDbDialect {}).unwrap();
+        let stmt = parse_stmt(sql, &PulseDialect {}).unwrap();
         let re = check_permission(plugins.clone(), &stmt[0], &query_ctx);
         assert!(re.is_ok());
 
@@ -4128,22 +4100,22 @@ mod tests {
 
         let comment_flow_cases = [
             ("COMMENT ON FLOW my_flow IS 'comment';", true),
-            ("COMMENT ON FLOW greptime.my_flow IS 'comment';", true),
+            ("COMMENT ON FLOW pulse.my_flow IS 'comment';", true),
             ("COMMENT ON FLOW wrongcatalog.my_flow IS 'comment';", false),
         ];
         for (sql, is_ok) in comment_flow_cases {
-            let stmt = &parse_stmt(sql, &GreptimeDbDialect {}).unwrap()[0];
+            let stmt = &parse_stmt(sql, &PulseDialect {}).unwrap()[0];
             let result = check_permission(plugins.clone(), stmt, &query_ctx);
             assert_eq!(result.is_ok(), is_ok);
         }
 
         let show_flow_cases = [
             ("SHOW CREATE FLOW my_flow;", true),
-            ("SHOW CREATE FLOW greptime.my_flow;", true),
+            ("SHOW CREATE FLOW pulse.my_flow;", true),
             ("SHOW CREATE FLOW wrongcatalog.my_flow;", false),
         ];
         for (sql, is_ok) in show_flow_cases {
-            let stmt = &parse_stmt(sql, &GreptimeDbDialect {}).unwrap()[0];
+            let stmt = &parse_stmt(sql, &PulseDialect {}).unwrap()[0];
             let result = check_permission(plugins.clone(), stmt, &query_ctx);
             assert_eq!(result.is_ok(), is_ok);
         }
@@ -4257,13 +4229,13 @@ mod tests {
         )
         .await?;
 
-        // The default "greptime.public" schema must be visible to the kv-backed table
+        // The default "pulse.public" schema must be visible to the kv-backed table
         // metadata manager for `CREATE VIEW`/`CREATE TABLE` to pass validation.
         instance
             .table_metadata_manager()
             .schema_manager()
             .create(
-                common_meta::key::schema_name::SchemaNameKey::new("greptime", "public"),
+                common_meta::key::schema_name::SchemaNameKey::new("pulse", "public"),
                 None,
                 true,
             )
@@ -4305,7 +4277,7 @@ mod tests {
         // The view is registered in the catalog as a view.
         let view = instance
             .catalog_manager()
-            .table("greptime", "public", "my_view", None)
+            .table("pulse", "public", "my_view", None)
             .await
             .unwrap()
             .expect("view should exist after CREATE VIEW");
@@ -4342,7 +4314,7 @@ mod tests {
         assert!(
             instance
                 .catalog_manager()
-                .table("greptime", "public", "my_view", None)
+                .table("pulse", "public", "my_view", None)
                 .await
                 .unwrap()
                 .is_none(),
@@ -4428,13 +4400,13 @@ mod tests {
         )
         .await?;
 
-        // The default "greptime.public" schema must be visible to the kv-backed table
+        // The default "pulse.public" schema must be visible to the kv-backed table
         // metadata manager for `CREATE TABLE` to pass validation.
         instance
             .table_metadata_manager()
             .schema_manager()
             .create(
-                common_meta::key::schema_name::SchemaNameKey::new("greptime", "public"),
+                common_meta::key::schema_name::SchemaNameKey::new("pulse", "public"),
                 None,
                 true,
             )
@@ -4498,7 +4470,7 @@ mod tests {
         // The table is registered in the catalog.
         let table = instance
             .catalog_manager()
-            .table("greptime", "public", "demo", None)
+            .table("pulse", "public", "demo", None)
             .await
             .unwrap()
             .expect("table should exist after CREATE TABLE");

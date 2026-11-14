@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Splunk HTTP Event Collector (HEC) compatible ingestion endpoint.
 //!
 //! Clients point their base endpoint at `/v1/splunk`, so the full paths are e.g.
@@ -30,13 +32,13 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use common_base::regex_pattern::NAME_PATTERN_REG;
 use common_error::ext::ErrorExt;
-use common_query::prelude::greptime_timestamp;
+use common_query::prelude::pulse_timestamp;
 use common_telemetry::{debug, error};
 use operator::insert::SPLUNK_PK_METADATA_ORDER_KEY;
 use pipeline::util::to_pipeline_version;
 use pipeline::{
-    ContextReq, GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME, GreptimePipelineParams, PipelineContext,
-    PipelineDefinition,
+    ContextReq, PULSE_INTERNAL_IDENTITY_PIPELINE_NAME, PipelineContext, PipelineDefinition,
+    PulsePipelineParams,
 };
 use serde_json::{Deserializer, json};
 use session::context::{Channel, QueryContext, QueryContextRef};
@@ -48,7 +50,7 @@ use crate::http::event::{
     LogIngesterQueryParams, LogState, PipelineIngestRequest, execute_log_context_req,
     extract_pipeline_params_map_from_headers, transform_ndjson_array_factory,
 };
-use crate::http::header::constants::GREPTIME_PIPELINE_NAME_HEADER_NAME;
+use crate::http::header::constants::PULSE_PIPELINE_NAME_HEADER_NAME;
 use crate::metrics::{METRIC_HTTP_LOGS_INGESTION_COUNTER, METRIC_HTTP_LOGS_INGESTION_ELAPSED};
 use crate::pipeline::run_pipeline;
 use crate::query_handler::PipelineHandlerRef;
@@ -62,7 +64,7 @@ const HEC_HEALTHY_CODE: u32 = 17;
 
 /// Query parameters for `/services/collector/raw`.
 /// `channel` is accepted but ignored until indexer acknowledgment lands. `table`,
-/// `pipeline_name`, `version`, and `linebreaker` are Greptime extensions
+/// `pipeline_name`, `version`, and `linebreaker` are Pulse extensions
 /// (`linebreaker` opts into event breaking; without it the body is one event).
 #[derive(Debug, Default, serde::Deserialize)]
 pub struct SplunkRawQueryParams {
@@ -121,7 +123,7 @@ fn raw_metadata(params: &SplunkRawQueryParams) -> Vec<(&'static str, Bytes)> {
     .collect()
 }
 
-/// Maps one raw event to a per-event map: `{ greptime_timestamp: ts, message: <event>,
+/// Maps one raw event to a per-event map: `{ pulse_timestamp: ts, message: <event>,
 /// <metadata columns> }`. The event text is stored as it is.
 fn raw_event_to_map(
     event: &str,
@@ -129,10 +131,7 @@ fn raw_event_to_map(
     metadata: &[(&'static str, Bytes)],
 ) -> VrlValue {
     let mut map: BTreeMap<KeyString, VrlValue> = BTreeMap::new();
-    map.insert(
-        KeyString::from(greptime_timestamp()),
-        VrlValue::Timestamp(ts),
-    );
+    map.insert(KeyString::from(pulse_timestamp()), VrlValue::Timestamp(ts));
     map.insert(
         KeyString::from(RAW_MESSAGE_COLUMN),
         VrlValue::Bytes(Bytes::copy_from_slice(event.as_bytes())),
@@ -243,10 +242,7 @@ fn hec_event_to_map(
         .unwrap_or_else(|| DEFAULT_SPLUNK_TABLE.to_string());
 
     let mut map: BTreeMap<KeyString, VrlValue> = BTreeMap::new();
-    map.insert(
-        KeyString::from(greptime_timestamp()),
-        VrlValue::Timestamp(ts),
-    );
+    map.insert(KeyString::from(pulse_timestamp()), VrlValue::Timestamp(ts));
 
     let mut tag_names: Vec<String> = Vec::new();
 
@@ -341,7 +337,7 @@ async fn ingest_events(
     pipeline: PipelineDefinition,
     requests: Vec<PipelineIngestRequest>,
     query_ctx: QueryContextRef,
-    pipeline_params: GreptimePipelineParams,
+    pipeline_params: PulsePipelineParams,
     tag_columns: HashMap<String, HashSet<String>>,
     apply_tags: bool,
 ) -> Result<HttpResponse> {
@@ -545,9 +541,9 @@ async fn resolve_pipeline_and_ingest(
     // Pipeline: identity by default; override via `pipeline_name` param or header.
     let pipeline_name = pipeline_name.unwrap_or_else(|| {
         headers
-            .get(GREPTIME_PIPELINE_NAME_HEADER_NAME)
+            .get(PULSE_PIPELINE_NAME_HEADER_NAME)
             .and_then(|v| v.to_str().ok())
-            .unwrap_or(GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME)
+            .unwrap_or(PULSE_INTERNAL_IDENTITY_PIPELINE_NAME)
             .to_string()
     });
     let version = match to_pipeline_version(version.as_deref()) {
@@ -556,14 +552,14 @@ async fn resolve_pipeline_and_ingest(
         Err(_) => return hec_response(StatusCode::BAD_REQUEST, 6, "invalid pipeline version"),
     };
     // Only post-process tags for the identity default; respect a user pipeline's schema.
-    let apply_tags = pipeline_name == GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME;
+    let apply_tags = pipeline_name == PULSE_INTERNAL_IDENTITY_PIPELINE_NAME;
     if apply_tags {
         // Ask the insert path to lead the primary key with our metadata tags. Scoped to the
         // identity path so a user pipeline's own key order is left untouched.
         query_ctx.set_extension(SPLUNK_PK_METADATA_ORDER_KEY, "true");
     }
     // custom_time_index so timestamp doesn't get overridden by identity pipeline.
-    let custom_time_index = Some((format!("{};epoch;ns", greptime_timestamp()), false));
+    let custom_time_index = Some((format!("{};epoch;ns", pulse_timestamp()), false));
     let pipeline = match PipelineDefinition::from_name(&pipeline_name, version, custom_time_index) {
         Ok(pipeline) => pipeline,
         Err(e) => {
@@ -572,7 +568,7 @@ async fn resolve_pipeline_and_ingest(
         }
     };
     let pipeline_params =
-        GreptimePipelineParams::from_map(extract_pipeline_params_map_from_headers(headers));
+        PulsePipelineParams::from_map(extract_pipeline_params_map_from_headers(headers));
 
     match ingest_events(
         log_state.log_handler,
@@ -736,7 +732,7 @@ mod tests {
         // absent metadata (`source`) makes no column.
         assert!(!m.contains_key("source"));
         assert!(matches!(
-            m.get(greptime_timestamp()),
+            m.get(pulse_timestamp()),
             Some(VrlValue::Timestamp(dt)) if dt.timestamp() == 1447828325
         ));
 
@@ -904,7 +900,7 @@ mod tests {
         // `time` became the timestamp column, not a `time` column.
         assert!(!m.contains_key("time"));
         assert!(matches!(
-            m.get(greptime_timestamp()),
+            m.get(pulse_timestamp()),
             Some(VrlValue::Timestamp(dt)) if dt.timestamp() == 1426279439
         ));
         // `index` and `fields` are consumed, not columns.
@@ -1012,7 +1008,7 @@ mod tests {
             };
             assert_eq!(m.get("event"), Some(&VrlValue::from(json!("event 1"))));
             assert!(matches!(
-                m.get(greptime_timestamp()),
+                m.get(pulse_timestamp()),
                 Some(VrlValue::Timestamp(dt)) if dt.timestamp() == 1447828325
             ));
             assert!(!m.contains_key("host"));
@@ -1037,7 +1033,7 @@ mod tests {
             panic!("expected object");
         };
         assert!(matches!(
-            m.get(greptime_timestamp()),
+            m.get(pulse_timestamp()),
             Some(VrlValue::Timestamp(_))
         ));
     }
@@ -1071,7 +1067,7 @@ mod tests {
             panic!("expected object");
         };
         assert!(matches!(
-            m.get(greptime_timestamp()),
+            m.get(pulse_timestamp()),
             Some(VrlValue::Timestamp(dt)) if dt.timestamp() == 1781713834
         ));
         assert!(matches!(m.get("event"), Some(VrlValue::Object(_)))); // event is an object
@@ -1100,7 +1096,7 @@ mod tests {
             panic!("expected object");
         };
         assert!(matches!(
-            m.get(greptime_timestamp()),
+            m.get(pulse_timestamp()),
             Some(VrlValue::Timestamp(dt)) if dt.timestamp() == 1781714234
         ));
         assert!(matches!(m.get("event"), Some(VrlValue::Bytes(_)))); // event is a string

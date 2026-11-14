@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
@@ -21,12 +23,12 @@ use tinytemplate::TinyTemplate;
 
 use crate::cmd::bare::ServerAddr;
 use crate::cmd::compat_case::Version;
-use crate::env::bare::{CompatConfigStage, Env, GreptimeDBContext, ServiceProvider};
+use crate::env::bare::{CompatConfigStage, Env, PulseContext, ServiceProvider};
 use crate::util;
 
 const DEFAULT_LOG_LEVEL: &str = "--log-level=debug,hyper=warn,tower=warn,datafusion=warn,reqwest=warn,sqlparser=warn,h2=info,opendal=info";
 
-/// Which set of gRPC CLI argument names to use when spawning a GreptimeDB binary.
+/// Which set of gRPC CLI argument names to use when spawning a Pulse binary.
 ///
 /// The CLI rename from `rpc-*` to `grpc-*` landed before v1.1.0.  Older release
 /// binaries (e.g. v1.0.0) only recognize `--rpc-bind-addr` and
@@ -41,7 +43,7 @@ pub enum GrpcArgStyle {
 }
 
 impl GrpcArgStyle {
-    /// Chooses the argument style from an inferred GreptimeDB binary version.
+    /// Chooses the argument style from an inferred Pulse binary version.
     ///
     /// Unknown versions are treated as current/development binaries and use the
     /// official `grpc-*` names.
@@ -303,7 +305,7 @@ impl ServerMode {
     pub fn generate_config_file(
         &self,
         sqlness_home: &Path,
-        db_ctx: &GreptimeDBContext,
+        db_ctx: &PulseContext,
         id: usize,
         compat_stage: &CompatConfigStage,
     ) -> String {
@@ -315,7 +317,7 @@ impl ServerMode {
             .unwrap_or_else(|e| panic!("read file '{}' error: {e}", path.display()));
         tt.add_template(self.name(), &template).unwrap();
 
-        let data_home = sqlness_home.join(format!("greptimedb-{}-{}", id, self.name()));
+        let data_home = sqlness_home.join(format!("pulse-{}-{}", id, self.name()));
         std::fs::create_dir_all(data_home.as_path()).unwrap();
 
         let wal_dir = data_home.join("wal").display().to_string();
@@ -410,7 +412,7 @@ impl ServerMode {
         &self,
         sqlness_home: &Path,
         env: &Env,
-        db_ctx: &GreptimeDBContext,
+        db_ctx: &PulseContext,
         id: usize,
         arg_style: GrpcArgStyle,
         compat_stage: &CompatConfigStage,
@@ -432,7 +434,7 @@ impl ServerMode {
             } => {
                 args.extend([
                     format!(
-                        "--log-dir={}/greptimedb-{}-standalone/logs",
+                        "--log-dir={}/pulse-{}-standalone/logs",
                         sqlness_home.display(),
                         id
                     ),
@@ -461,7 +463,7 @@ impl ServerMode {
                     format!("--mysql-addr={mysql_addr}"),
                     format!("--postgres-addr={postgres_addr}"),
                     format!(
-                        "--log-dir={}/greptimedb-{}-frontend/logs",
+                        "--log-dir={}/pulse-{}-frontend/logs",
                         sqlness_home.display(),
                         id
                     ),
@@ -483,7 +485,7 @@ impl ServerMode {
                     "false".to_string(),
                     format!("--http-addr={http_addr}"),
                     format!(
-                        "--log-dir={}/greptimedb-{}-metasrv/logs",
+                        "--log-dir={}/pulse-{}-metasrv/logs",
                         sqlness_home.display(),
                         id
                     ),
@@ -503,7 +505,7 @@ impl ServerMode {
                         .collect::<Vec<_>>();
                     let client_port = client_ports.first().unwrap_or(&5432);
                     let pg_server_addr = format!(
-                        "postgresql://greptimedb:admin@127.0.0.1:{}/postgres",
+                        "postgresql://pulse:admin@127.0.0.1:{}/postgres",
                         client_port
                     );
                     args.extend(vec!["--backend".to_string(), "postgres-store".to_string()]);
@@ -530,7 +532,7 @@ impl ServerMode {
                         .collect::<Vec<_>>();
                     let client_port = client_ports.first().unwrap_or(&3306);
                     let mysql_server_addr =
-                        format!("mysql://greptimedb:admin@127.0.0.1:{}/mysql", client_port);
+                        format!("mysql://pulse:admin@127.0.0.1:{}/mysql", client_port);
                     args.extend(vec!["--backend".to_string(), "mysql-store".to_string()]);
                     args.extend(vec!["--store-addrs".to_string(), mysql_server_addr]);
                 } else if let Some(ServiceProvider::External(connection_string)) =
@@ -554,11 +556,8 @@ impl ServerMode {
                 metasrv_addr,
                 node_id,
             } => {
-                let data_home = sqlness_home.join(format!(
-                    "greptimedb_{}_datanode_{}_{node_id}",
-                    id,
-                    db_ctx.time()
-                ));
+                let data_home =
+                    sqlness_home.join(format!("pulse_{}_datanode_{}_{node_id}", id, db_ctx.time()));
                 args.extend([
                     format!("{}={rpc_bind_addr}", arg_style.bind_addr_arg()),
                     format!("{}={rpc_server_addr}", arg_style.server_addr_arg()),
@@ -583,7 +582,7 @@ impl ServerMode {
                     format!("{}={rpc_server_addr}", arg_style.server_addr_arg()),
                     format!("--node-id={node_id}"),
                     format!(
-                        "--log-dir={}/greptimedb-{}-flownode/logs",
+                        "--log-dir={}/pulse-{}-flownode/logs",
                         sqlness_home.display(),
                         id
                     ),
@@ -606,7 +605,7 @@ mod tests {
     use crate::cmd::datanode_overlay::{DatanodeOverlay, DatanodeProtectionPolicy};
     use crate::env::bare::{StoreConfig, WalConfig};
 
-    fn test_env(sqlness_home: &Path) -> (Env, GreptimeDBContext) {
+    fn test_env(sqlness_home: &Path) -> (Env, PulseContext) {
         let store_config = StoreConfig {
             store_addrs: vec!["127.0.0.1:2379".to_string()],
             setup_etcd: true,
@@ -624,7 +623,7 @@ mod tests {
             store_config.clone(),
             vec![],
         );
-        let db_ctx = GreptimeDBContext::new(WalConfig::RaftEngine, store_config);
+        let db_ctx = PulseContext::new(WalConfig::RaftEngine, store_config);
 
         (env, db_ctx)
     }
@@ -675,7 +674,7 @@ mod tests {
         }
     }
 
-    fn test_all_modes(env: &Env, db_ctx: &GreptimeDBContext, temp_dir: &Path, style: GrpcArgStyle) {
+    fn test_all_modes(env: &Env, db_ctx: &PulseContext, temp_dir: &Path, style: GrpcArgStyle) {
         let standalone = ServerMode::Standalone {
             http_addr: "127.0.0.1:4000".to_string(),
             rpc_bind_addr: "127.0.0.1:4001".to_string(),
@@ -822,7 +821,7 @@ mod tests {
             enable_flat_format: false,
             enable_gc: true,
         };
-        let db_ctx = GreptimeDBContext::new(WalConfig::RaftEngine, store_config);
+        let db_ctx = PulseContext::new(WalConfig::RaftEngine, store_config);
         let metasrv = ServerMode::Metasrv {
             rpc_bind_addr: "127.0.0.1:4201".to_string(),
             rpc_server_addr: "127.0.0.1:4201".to_string(),

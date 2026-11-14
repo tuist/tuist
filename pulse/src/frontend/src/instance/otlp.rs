@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod trace_ingest;
 pub mod trace_semconv;
 pub mod trace_types;
@@ -27,14 +29,14 @@ use auth::{
 use client::Output;
 use common_catalog::consts::{trace_operations_table_name, trace_services_table_name};
 use common_error::ext::BoxedError;
-use common_query::prelude::GREPTIME_PHYSICAL_TABLE;
+use common_query::prelude::PULSE_PHYSICAL_TABLE;
 use common_query::{OutputData, OutputMeta};
 use common_telemetry::{tracing, warn};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use operator::insert::{Inserter, admit_row_insert_batches, admit_write};
 use otel_arrow_rust::proto::opentelemetry::collector::metrics::v1::ExportMetricsServiceRequest;
-use pipeline::{GreptimePipelineParams, PipelineWay};
+use pipeline::{PipelineWay, PulsePipelineParams};
 use servers::error::{self, AuthSnafu, Result as ServerResult};
 use servers::http::prom_store::PHYSICAL_TABLE_PARAM;
 use servers::interceptor::{OpenTelemetryProtocolInterceptor, OpenTelemetryProtocolInterceptorRef};
@@ -212,7 +214,7 @@ impl OpenTelemetryProtocolHandler for Instance {
         _pipeline_handler: PipelineHandlerRef,
         request: ExportTraceServiceRequest,
         pipeline: PipelineWay,
-        _pipeline_params: GreptimePipelineParams,
+        _pipeline_params: PulsePipelineParams,
         table_name: String,
         ctx: QueryContextRef,
     ) -> ServerResult<TraceIngestOutcome> {
@@ -250,7 +252,7 @@ impl OpenTelemetryProtocolHandler for Instance {
         pipeline_handler: PipelineHandlerRef,
         request: ExportLogsServiceRequest,
         pipeline: PipelineWay,
-        pipeline_params: GreptimePipelineParams,
+        pipeline_params: PulsePipelineParams,
         table_name: String,
         ctx: QueryContextRef,
     ) -> ServerResult<Vec<Output>> {
@@ -327,7 +329,7 @@ impl Instance {
     ) -> ServerResult<Output> {
         let physical_table = ctx
             .extension(PHYSICAL_TABLE_PARAM)
-            .unwrap_or(GREPTIME_PHYSICAL_TABLE)
+            .unwrap_or(PULSE_PHYSICAL_TABLE)
             .to_string();
         // The bulk path converts each request's time index unit to the
         // destination table's unit during batch alignment, so no pre-gate
@@ -414,13 +416,13 @@ mod tests {
             }],
         };
         let groups = servers::otlp::trace::span::parse(request);
-        let ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let ctx = Arc::new(QueryContext::with("pulse", "public"));
 
         assert_eq!(
             PermissionTableTargets::Resolved(vec![
-                PermissionTableTarget::new("greptime", "public", "traces"),
-                PermissionTableTarget::new("greptime", "public", "traces_services"),
-                PermissionTableTarget::new("greptime", "public", "traces_operations"),
+                PermissionTableTarget::new("pulse", "public", "traces"),
+                PermissionTableTarget::new("pulse", "public", "traces_services"),
+                PermissionTableTarget::new("pulse", "public", "traces_operations"),
             ]),
             trace_permission_targets("traces", &groups, &ctx)
         );

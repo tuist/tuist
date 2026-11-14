@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Sorted strings tables.
 
 use std::collections::HashMap;
@@ -511,7 +513,7 @@ mod tests {
     use ::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use ::parquet::basic::LogicalType;
     use ::parquet::variant::{VariantArray, VariantType, json_to_variant};
-    use common_query::prelude::greptime_native_histogram;
+    use common_query::prelude::pulse_native_histogram;
     use datatypes::arrow::array::{
         ArrayRef, BinaryArray, DictionaryArray, Int64Array, StringArray, StructArray,
         TimestampMillisecondArray, UInt8Array, UInt32Array, UInt64Array,
@@ -758,16 +760,16 @@ mod tests {
     fn test_maybe_wrap_schema_native_histogram() {
         let schema = Arc::new(Schema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            histogram_field(greptime_native_histogram(), 1),
+            histogram_field(pulse_native_histogram(), 1),
         ]));
 
         let wrapped = maybe_wrap_schema(&schema).unwrap();
         let hist = wrapped
-            .field_with_name(greptime_native_histogram())
+            .field_with_name(pulse_native_histogram())
             .expect("histogram field present");
         // The struct has 18 sub-fields.
         let ArrowDataType::Struct(children) = hist.data_type() else {
@@ -785,8 +787,8 @@ mod tests {
         use common_query::native_histogram::native_histogram_subfield_id;
 
         let schema = Arc::new(Schema::new(vec![
-            histogram_field(greptime_native_histogram(), 1),
-            histogram_field(greptime_native_histogram(), 7),
+            histogram_field(pulse_native_histogram(), 1),
+            histogram_field(pulse_native_histogram(), 7),
         ]));
         let wrapped = maybe_wrap_schema(&schema).unwrap();
         let h1 = &wrapped.fields()[0];
@@ -901,16 +903,16 @@ mod tests {
         // nested (sub-field + list-element) PARQUET:field_id.
         let schema = Arc::new(Schema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            histogram_field(greptime_native_histogram(), 3),
+            histogram_field(pulse_native_histogram(), 3),
         ]));
 
         let on_disk = parquet_footer_arrow_schema(&schema);
         let hist = on_disk
-            .field_with_name(greptime_native_histogram())
+            .field_with_name(pulse_native_histogram())
             .expect("histogram field present");
         assert_histogram_stamped(hist, 3);
     }
@@ -941,11 +943,11 @@ mod tests {
         // id, wrapping, or panicking.
         let schema = Arc::new(Schema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            histogram_field(greptime_native_histogram(), 12_582_912),
+            histogram_field(pulse_native_histogram(), 12_582_912),
         ]));
         let err = maybe_wrap_schema(&schema).unwrap_err();
         assert!(
@@ -969,7 +971,7 @@ mod tests {
         use datatypes::data_type::DataType;
 
         let field = Field::new(
-            greptime_native_histogram(),
+            pulse_native_histogram(),
             native_histogram_value_type().as_arrow_type(),
             true,
         );
@@ -997,11 +999,11 @@ mod tests {
         // surface a checked-conversion error instead.
         let schema = Arc::new(Schema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            histogram_field(greptime_native_histogram(), u32::MAX),
+            histogram_field(pulse_native_histogram(), u32::MAX),
         ]));
         let err = maybe_wrap_schema(&schema).unwrap_err();
         assert!(

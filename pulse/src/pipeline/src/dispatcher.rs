@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_telemetry::debug;
 use snafu::OptionExt;
 use vrl::value::Value as VrlValue;
@@ -58,7 +60,7 @@ pub(crate) struct Dispatcher {
 ///
 /// - `value`: for pattern matching
 /// - `pipeline`: the pipeline to call, if it's unspecified, we use default
-///   `greptime_identity`
+///   `pulse_identity`
 /// - `table_suffix`: the table name segment that we use to construct full table
 ///   name
 #[derive(Debug, PartialEq)]

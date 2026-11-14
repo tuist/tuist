@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeSet, HashMap};
 use std::env;
 use std::net::TcpListener;
@@ -84,7 +86,7 @@ use crate::test_util::{
     create_tmp_dir_and_datanode_opts,
 };
 
-pub struct GreptimeDbCluster {
+pub struct PulseCluster {
     pub guards: Vec<TestGuard>,
     pub datanode_options: Vec<DatanodeOptions>,
 
@@ -94,7 +96,7 @@ pub struct GreptimeDbCluster {
     pub frontend: Arc<Frontend>,
 }
 
-impl GreptimeDbCluster {
+impl PulseCluster {
     pub fn fe_instance(&self) -> &Arc<FeInstance> {
         &self.frontend.instance
     }
@@ -161,7 +163,7 @@ impl GreptimeDbCluster {
     }
 }
 
-pub struct GreptimeDbClusterBuilder {
+pub struct PulseClusterBuilder {
     cluster_name: String,
     kv_backend: KvBackendRef,
     store_config: Option<ObjectStoreConfig>,
@@ -178,7 +180,7 @@ pub struct GreptimeDbClusterBuilder {
     event_recorder_options: EventRecorderOptions,
 }
 
-impl GreptimeDbClusterBuilder {
+impl PulseClusterBuilder {
     pub async fn new(cluster_name: &str) -> Self {
         let endpoints = env::var("GT_ETCD_ENDPOINTS").unwrap_or_default();
 
@@ -295,7 +297,7 @@ impl GreptimeDbClusterBuilder {
         datanode_options: Vec<DatanodeOptions>,
         start_frontend_servers: bool,
         guards: Vec<TestGuard>,
-    ) -> GreptimeDbCluster {
+    ) -> PulseCluster {
         let datanodes = datanode_options.len();
         let channel_config = ChannelConfig::new().timeout(Some(Duration::from_secs(20)));
         let datanode_clients = Arc::new(NodeClients::new(channel_config));
@@ -350,7 +352,7 @@ impl GreptimeDbClusterBuilder {
 
         frontend.start().await.unwrap();
 
-        GreptimeDbCluster {
+        PulseCluster {
             datanode_options,
             guards,
             datanode_instances,
@@ -360,7 +362,7 @@ impl GreptimeDbClusterBuilder {
         }
     }
 
-    pub async fn build(&self, start_frontend_servers: bool) -> GreptimeDbCluster {
+    pub async fn build(&self, start_frontend_servers: bool) -> PulseCluster {
         let datanodes = self.datanodes.unwrap_or(4);
         let (datanode_options, guards) = self.build_datanode_options_and_guards(datanodes).await;
         self.build_with(datanode_options, start_frontend_servers, guards)
@@ -885,7 +887,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_region_requester_health_check_and_list_metadata() {
         // Arrange: configure active and inactive synthetic peers over the duplex harness.
-        let cluster = GreptimeDbClusterBuilder::new("region_requester_health_check")
+        let cluster = PulseClusterBuilder::new("region_requester_health_check")
             .await
             .with_datanodes(1)
             .build(false)

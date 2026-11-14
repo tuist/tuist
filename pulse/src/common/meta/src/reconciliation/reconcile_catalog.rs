@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::fmt::Debug;
 use std::time::Instant;
@@ -474,7 +476,7 @@ mod tests {
     fn test_procedure() -> ReconcileCatalogProcedure {
         ReconcileCatalogProcedure::new(
             test_context(),
-            "greptime".to_string(),
+            "pulse".to_string(),
             false,
             ResolveStrategy::UseLatest,
             8,

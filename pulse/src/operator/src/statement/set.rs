@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -185,7 +187,7 @@ pub fn validate_client_encoding(set: SetVariables) -> Result<()> {
     // For the sake of simplicity, we only support "UTF8" ("UNICODE" is the alias for it,
     // see https://www.postgresql.org/docs/current/multibyte.html#MULTIBYTE-CHARSET-SUPPORTED).
     // "UTF8" is universal and sufficient for almost all cases.
-    // GreptimeDB itself is always using "UTF8" as the internal encoding.
+    // Pulse itself is always using "UTF8" as the internal encoding.
     ensure!(
         encoding == "UTF8" || encoding == "UNICODE",
         NotSupportedSnafu {

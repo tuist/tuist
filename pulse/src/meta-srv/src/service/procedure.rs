@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Duration;
 
 use api::v1::meta::reconcile_request::Target;
@@ -591,7 +593,7 @@ mod tests {
 
     fn create_database_task() -> DdlTask {
         DdlTask::new_create_database(
-            "greptime".to_string(),
+            "pulse".to_string(),
             "metrics".to_string(),
             false,
             Default::default(),
@@ -694,7 +696,7 @@ mod tests {
             let mut task = if create_database {
                 create_database_task()
             } else {
-                DdlTask::new_drop_database("greptime".to_string(), "metrics".to_string(), false)
+                DdlTask::new_drop_database("pulse".to_string(), "metrics".to_string(), false)
             };
             let mut context = creator_context(body);
             assert!(

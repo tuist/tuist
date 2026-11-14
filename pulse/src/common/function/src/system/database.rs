@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use datafusion::arrow::datatypes::DataType;
 use datafusion_common::ScalarValue;
 use datafusion_expr::{ColumnarValue, ScalarFunctionArgs, Signature, Volatility};
@@ -99,7 +101,7 @@ macro_rules! impl_current_user_function {
     };
 }
 
-// GreptimeDB has no notion of a user switching identity mid-session, so `USER()`,
+// Pulse has no notion of a user switching identity mid-session, so `USER()`,
 // `CURRENT_USER()` and `SYSTEM_USER()` all report the authenticated user.
 impl_current_user_function!(UserFunction, USER_FUNCTION_NAME);
 impl_current_user_function!(CurrentUserFunction, CURRENT_USER_FUNCTION_NAME);

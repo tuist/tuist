@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Manifest data structures for Export/Import V2.
 
 use std::collections::HashSet;
@@ -495,8 +497,7 @@ fn generate_single_chunk(time_range: &TimeRange) -> Vec<ChunkMeta> {
 mod tests {
     #[test]
     fn packed_manifest_read_contract_preserves_legacy_writer() {
-        let mut manifest =
-            super::Manifest::new_schema_only("greptime".into(), vec!["public".into()]);
+        let mut manifest = super::Manifest::new_schema_only("pulse".into(), vec!["public".into()]);
         assert!(manifest.validate_layout().is_ok());
         manifest.version = 2;
         assert!(manifest.validate_layout().is_err());
@@ -513,8 +514,7 @@ mod tests {
 
     #[test]
     fn packed_required_fields_and_checksums_preserve_v1_defaults() {
-        let mut manifest =
-            super::Manifest::new_schema_only("greptime".into(), vec!["public".into()]);
+        let mut manifest = super::Manifest::new_schema_only("pulse".into(), vec!["public".into()]);
         manifest
             .chunks
             .push(super::ChunkMeta::new(1, super::TimeRange::unbounded()));
@@ -599,8 +599,7 @@ mod tests {
 
     #[test]
     fn test_manifest_schema_only() {
-        let manifest =
-            Manifest::new_schema_only("greptime".to_string(), vec!["public".to_string()]);
+        let manifest = Manifest::new_schema_only("pulse".to_string(), vec!["public".to_string()]);
 
         assert_eq!(manifest.version, MANIFEST_VERSION);
         assert!(manifest.schema_only);
@@ -631,7 +630,7 @@ mod tests {
     #[test]
     fn test_manifest_full() {
         let manifest = Manifest::new_full(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             TimeRange::unbounded(),
             DataFormat::Parquet,
@@ -676,7 +675,7 @@ mod tests {
     #[test]
     fn test_manifest_is_complete_when_chunks_are_completed_or_skipped() {
         let mut manifest = Manifest::new_full(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             TimeRange::unbounded(),
             DataFormat::Parquet,
@@ -700,7 +699,7 @@ mod tests {
         let end = Utc.with_ymd_and_hms(2025, 1, 2, 0, 0, 0).unwrap();
         let range = TimeRange::new(Some(start), Some(end));
         let manifest = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             false,
             range.clone(),
@@ -722,7 +721,7 @@ mod tests {
     #[test]
     fn test_new_for_export_with_chunk_window_requires_bounded_range() {
         let result = Manifest::new_for_export(
-            "greptime".to_string(),
+            "pulse".to_string(),
             vec!["public".to_string()],
             false,
             TimeRange::new(

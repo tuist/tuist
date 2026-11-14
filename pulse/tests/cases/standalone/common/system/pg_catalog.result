@@ -19,7 +19,7 @@ SELECT session_user is not null;
 -- SQLNESS PROTOCOL POSTGRES
 select current_schema(), current_schemas(true), current_schemas(false), version(), current_database();
 
-++++++|current_schema()|current_schemas(Boolean(true))|current_schemas(Boolean(false))|version|current_database()|++++++|public|{public,information_schema,pg_catalog,greptime_private}|{public}|VERSION++++++
+++++++|current_schema()|current_schemas(Boolean(true))|current_schemas(Boolean(false))|version|current_database()|++++++|public|{public,information_schema,pg_catalog,pulse_private}|{public}|VERSION++++++
 
 -- search_path for pg using schema for now FIXME when support real search_path
 -- SQLNESS PROTOCOL POSTGRES
@@ -67,19 +67,19 @@ select current_schema();
 -- make sure all the pg_catalog tables are only visible to postgres
 select * from pg_catalog.pg_class;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.pg_catalog.pg_class
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.pg_catalog.pg_class
 
 select * from pg_catalog.pg_namespace;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.pg_catalog.pg_namespace
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.pg_catalog.pg_namespace
 
 select * from pg_catalog.pg_type;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.pg_catalog.pg_type
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.pg_catalog.pg_type
 
 select * from pg_catalog.pg_database;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.pg_catalog.pg_database
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.pg_catalog.pg_database
 
 -- SQLNESS PROTOCOL POSTGRES
 select * from pg_catalog.pg_type order by oid;
@@ -727,7 +727,7 @@ WHERE c.relkind IN ('r','p','v','m','S','f','')
       AND n.nspname <> 'pg_catalog'
       AND n.nspname !~ '^pg_toast'
       AND n.nspname <> 'information_schema'
-      AND n.nspname <> 'greptime_private'
+      AND n.nspname <> 'pulse_private'
   AND pg_catalog.pg_table_is_visible(c.oid)
 ORDER BY 1,2;
 
@@ -749,7 +749,7 @@ WHERE c.relkind IN ('r','p','')
       AND n.nspname <> 'pg_catalog'
       AND n.nspname !~ '^pg_toast'
       AND n.nspname <> 'information_schema'
-      AND n.nspname <> 'greptime_private'
+      AND n.nspname <> 'pulse_private'
   AND pg_catalog.pg_table_is_visible(c.oid)
 ORDER BY 1,2;
 
@@ -767,9 +767,9 @@ SELECT * FROM pg_namespace ORDER BY nspname;
 +-------+--------------------+----------+--------+---------+
 | oid   | nspname            | nspowner | nspacl | options |
 +-------+--------------------+----------+--------+---------+
-| OID| greptime_private   | OID|        |         |
 | OID| information_schema | OID|        |         |
 | OID| public             | OID|        |         |
+| OID| pulse_private      | OID|        |         |
 +-------+--------------------+----------+--------+---------+
 
 -- SQLNESS PROTOCOL POSTGRES
@@ -818,7 +818,7 @@ WHERE c.relkind IN ('r','p','')
       AND n.nspname <> 'pg_catalog'
       AND n.nspname !~ '^pg_toast'
       AND n.nspname <> 'information_schema'
-      AND n.nspname <> 'greptime_private'
+      AND n.nspname <> 'pulse_private'
   AND pg_catalog.pg_table_is_visible(c.oid)
 ORDER BY 1,2;
 
@@ -881,7 +881,7 @@ SELECT
     FROM information_schema.tables
     WHERE quote_ident(table_schema) NOT IN ('information_schema',
                                 'pg_catalog',
-                                'greptime_private',
+                                'pulse_private',
                                 '_timescaledb_cache',
                                 '_timescaledb_catalog',
                                 '_timescaledb_internal',
@@ -944,7 +944,7 @@ where relnamespace in (
     where nspname <> 'public'
       and nspname <> 'information_schema'
       and nspname <> 'pg_catalog'
-      and nspname <> 'greptime_private'
+      and nspname <> 'pulse_private'
 )
 order by relnamespace, relname;
 
@@ -1025,7 +1025,7 @@ desc table pg_namespace;
 -- SQLNESS PROTOCOL POSTGRES
 drop table my_db.foo;
 
-Failed to execute query, encountered: Error { kind: Db, cause: Some(DbError { severity: "ERROR", parsed_severity: None, code: SqlState(E42P01), message: "Table not found: greptime.my_db.foo", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }
+Failed to execute query, encountered: Error { kind: Db, cause: Some(DbError { severity: "ERROR", parsed_severity: None, code: SqlState(E42P01), message: "Table not found: pulse.my_db.foo", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }
 
 -- SQLNESS PROTOCOL POSTGRES
 use public;
@@ -1096,9 +1096,9 @@ WHERE oid = pg_my_temp_schema();
 +-------+--------------------+-------------------+---------+
 | oid   | nspname            | is_on_search_path | comment |
 +-------+--------------------+-------------------+---------+
-| OID| greptime_private   | t                 |         |
 | OID| information_schema | t                 |         |
 | OID| public             | t                 |         |
+| OID| pulse_private      | t                 |         |
 +-------+--------------------+-------------------+---------+
 
 -- SQLNESS PROTOCOL POSTGRES

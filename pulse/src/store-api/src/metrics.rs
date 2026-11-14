@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::{HistogramVec, IntCounterVec, register_histogram_vec, register_int_counter_vec};
 
@@ -20,7 +22,7 @@ pub const REGION_LABEL: &str = "region_id";
 
 lazy_static! {
     pub static ref CONVERT_REGION_BULK_REQUEST: HistogramVec = register_histogram_vec!(
-        "greptime_datanode_convert_region_request",
+        "pulse_datanode_convert_region_request",
         "datanode duration to convert region request",
         &["stage"],
         vec![
@@ -31,14 +33,14 @@ lazy_static! {
     .unwrap();
     /// Query CPU time accumulated by each region.
     pub static ref REGION_QUERY_CPU_TIME: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_region_query_cpu_time",
+        "pulse_mito_region_query_cpu_time",
         "mito region query CPU time in nanoseconds",
         &[REGION_LABEL]
     )
     .unwrap();
     /// Query scanned bytes accumulated by each region.
     pub static ref REGION_QUERY_SCANNED_BYTES: IntCounterVec = register_int_counter_vec!(
-        "greptime_mito_region_query_scanned_bytes",
+        "pulse_mito_region_query_scanned_bytes",
         "mito region query scanned bytes",
         &[REGION_LABEL]
     )

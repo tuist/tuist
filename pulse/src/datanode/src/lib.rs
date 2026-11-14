@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod alive_keeper;
 pub mod config;
 pub mod datanode;
 pub mod error;
 pub mod event_listener;
-mod greptimedb_telemetry;
 pub mod heartbeat;
 pub mod metrics;
 mod partition_expr_fetcher;
+mod pulse_telemetry;
 pub mod query_stream;
 pub mod region_server;
 pub mod service;

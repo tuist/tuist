@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod builder;
 #[allow(clippy::print_stdout)]
 pub(crate) mod objbench;
@@ -60,11 +62,11 @@ use crate::datanode::sst_replace::SstReplaceCommand;
 use crate::error::{
     LoadLayeredConfigSnafu, MissingConfigSnafu, Result, ShutdownDatanodeSnafu, StartDatanodeSnafu,
 };
-use crate::options::{GlobalOptions, GreptimeOptions};
+use crate::options::{GlobalOptions, PulseOptions};
 
-pub const APP_NAME: &str = "greptime-datanode";
+pub const APP_NAME: &str = "pulse-datanode";
 
-type DatanodeOptions = GreptimeOptions<datanode::config::DatanodeOptions>;
+type DatanodeOptions = PulseOptions<datanode::config::DatanodeOptions>;
 
 pub struct Instance {
     datanode: Datanode,
@@ -279,7 +281,7 @@ pub struct StartCommand {
     http_addr: Option<String>,
     #[clap(long)]
     http_timeout: Option<u64>,
-    #[clap(long, default_value = "GREPTIMEDB_DATANODE")]
+    #[clap(long, default_value = "PULSE_DATANODE")]
     env_prefix: String,
 }
 
@@ -487,7 +489,7 @@ mod tests {
             sync_write = false
 
             [storage]
-            data_home = "./greptimedb_data/"
+            data_home = "./pulse_data/"
             type = "File"
 
             [[storage.providers]]
@@ -501,7 +503,7 @@ mod tests {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
         write!(file, "{}", toml_str).unwrap();
 
@@ -542,7 +544,7 @@ mod tests {
         assert_eq!(10000, ddl_timeout.as_millis());
         assert_eq!(3000, timeout.as_millis());
         assert!(tcp_nodelay);
-        assert_eq!("./greptimedb_data/", options.storage.data_home);
+        assert_eq!("./pulse_data/", options.storage.data_home);
         assert!(matches!(
             &options.storage.store,
             ObjectStoreConfig::File(FileConfig { .. })
@@ -558,10 +560,7 @@ mod tests {
         ));
 
         assert_eq!("debug", options.logging.level.unwrap());
-        assert_eq!(
-            "./greptimedb_data/test/logs".to_string(),
-            options.logging.dir
-        );
+        assert_eq!("./pulse_data/test/logs".to_string(), options.logging.dir);
     }
 
     #[test]
@@ -591,7 +590,7 @@ mod tests {
         let mut cmd = StartCommand::default();
 
         let result = cmd.load_options(&GlobalOptions {
-            log_dir: Some("./greptimedb_data/test/logs".to_string()),
+            log_dir: Some("./pulse_data/test/logs".to_string()),
             log_level: Some("debug".to_string()),
 
             #[cfg(feature = "tokio-console")]
@@ -604,7 +603,7 @@ mod tests {
 
         let options = cmd
             .load_options(&GlobalOptions {
-                log_dir: Some("./greptimedb_data/test/logs".to_string()),
+                log_dir: Some("./pulse_data/test/logs".to_string()),
                 log_level: Some("debug".to_string()),
 
                 #[cfg(feature = "tokio-console")]
@@ -614,7 +613,7 @@ mod tests {
             .component;
 
         let logging_opt = options.logging;
-        assert_eq!("./greptimedb_data/test/logs", logging_opt.dir);
+        assert_eq!("./pulse_data/test/logs", logging_opt.dir);
         assert_eq!("debug", logging_opt.level.as_ref().unwrap());
     }
 
@@ -642,11 +641,11 @@ mod tests {
 
             [storage]
             type = "File"
-            data_home = "./greptimedb_data/"
+            data_home = "./pulse_data/"
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
         write!(file, "{}", toml_str).unwrap();
 

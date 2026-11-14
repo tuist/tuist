@@ -60,8 +60,8 @@ hcloudLoadBalancerExporter:
       cpu: 250m
       memory: 192Mi
 
-# Pulse (the GreptimeDB fork) is the independent `pulse` release in the
-# observability namespace (infra/helm/greptimedb). Its
+# Pulse is the independent `pulse` release in the
+# observability namespace (infra/helm/pulse). Its
 # chart owns pulse-dashboard-auth, including the write-only Basic auth keys
 # the collectors use. Staging, canary and production write to it through queues
 # independent of Grafana Cloud; no backend runs in this release.
@@ -319,7 +319,7 @@ k8s-monitoring:
         }
 
     # Share the exact write-time identity and filtering policy with Cloud,
-    # written straight to the independently released Pulse (GreptimeDB) backend. Inert
+    # written straight to the independently released Pulse backend. Inert
     # here: a `custom` destination without a config emits no component, so the
     # management and pentest overlays never reference its Secret. Staging,
     # canary and production set `type: prometheus` and their env label. The
@@ -328,7 +328,7 @@ k8s-monitoring:
       type: custom
       url: http://pulse.observability.svc.cluster.local:4000/v1/prometheus/write
       extraHeaders:
-        X-Greptime-DB-Name: public
+        X-Pulse-DB-Name: public
       auth:
         type: basic
         usernameKey: ingest-username
@@ -1741,7 +1741,7 @@ k8s-monitoring:
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
-          // and GreptimeDB metrics destinations (match the `destinations` keys in
+          // and Pulse metrics destinations (match the `destinations` keys in
           // values.yaml, dashes to underscores per Alloy syntax).
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
@@ -1768,7 +1768,7 @@ k8s-monitoring:
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
-          // and GreptimeDB metrics destinations (match the `destinations` keys in
+          // and Pulse metrics destinations (match the `destinations` keys in
           // values.yaml — dashes → underscores per Alloy syntax).
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "tuist-macos-tart-kubelet"

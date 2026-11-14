@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Write;
 
 use axum::http::{HeaderValue, header};
@@ -21,9 +23,9 @@ use common_query::Output;
 use mime_guess::mime;
 use serde::{Deserialize, Serialize};
 
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 use crate::http::result::error_result::ErrorResponse;
-use crate::http::{GreptimeQueryOutput, HttpResponse, ResponseFormat, handler};
+use crate::http::{HttpResponse, PulseQueryOutput, ResponseFormat, handler};
 
 #[derive(Serialize, Deserialize, Debug)]
 enum Rows {
@@ -50,14 +52,14 @@ impl NullResponse {
                     ))
                 } else {
                     match output.pop() {
-                        Some(GreptimeQueryOutput::AffectedRows(rows)) => {
+                        Some(PulseQueryOutput::AffectedRows(rows)) => {
                             HttpResponse::Null(NullResponse {
                                 rows: Rows::Affected(rows),
                                 execution_time_ms: 0,
                             })
                         }
 
-                        Some(GreptimeQueryOutput::Records(records)) => {
+                        Some(PulseQueryOutput::Records(records)) => {
                             HttpResponse::Null(NullResponse {
                                 rows: Rows::Queried(records.num_rows()),
                                 execution_time_ms: 0,
@@ -111,11 +113,11 @@ impl IntoResponse for NullResponse {
         )
             .into_response();
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_FORMAT,
+            &PULSE_DB_HEADER_FORMAT,
             HeaderValue::from_static(ResponseFormat::Null.as_str()),
         );
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_EXECUTION_TIME,
+            &PULSE_DB_HEADER_EXECUTION_TIME,
             HeaderValue::from(self.execution_time_ms),
         );
 
@@ -147,11 +149,11 @@ mod tests {
             mime::TEXT_PLAIN_UTF_8.as_ref()
         );
         assert_eq!(
-            headers.get(&GREPTIME_DB_HEADER_FORMAT).unwrap(),
+            headers.get(&PULSE_DB_HEADER_FORMAT).unwrap(),
             ResponseFormat::Null.as_str()
         );
         assert_eq!(
-            headers.get(&GREPTIME_DB_HEADER_EXECUTION_TIME).unwrap(),
+            headers.get(&PULSE_DB_HEADER_EXECUTION_TIME).unwrap(),
             "1234"
         );
 

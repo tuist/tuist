@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, RwLock, Weak};
 
 use common_event_recorder::{EventRecorder, EventRecorderRef};
@@ -159,7 +161,7 @@ mod tests {
     use datatypes::value::Value;
     use serde_json::json;
     use session::context::QueryContext;
-    use sql::dialect::GreptimeDbDialect;
+    use sql::dialect::PulseDialect;
     use sql::parser::{ParseOptions, ParserContext};
     use sql::statements::statement::Statement;
     use tokio::sync::Notify;
@@ -425,7 +427,7 @@ mod tests {
     fn request() -> AdminFunctionRequest {
         let Statement::Admin(statement) = ParserContext::create_with_dialect(
             "ADMIN flush_table('demo')",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()

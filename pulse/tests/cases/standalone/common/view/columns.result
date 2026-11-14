@@ -216,7 +216,7 @@ Affected Rows: 0
 SELECT * FROM v1;
 
 Error: 1002(Unexpected), Failed to decode DataFusion plan: No field named n.
-Valid fields are greptime.public.t1.ts, greptime.public.t1.s.
+Valid fields are pulse.public.t1.ts, pulse.public.t1.s.
 
 DROP VIEW v1;
 

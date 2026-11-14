@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_telemetry::warn;
 use futures::stream::BoxStream;
 use lazy_static::lazy_static;
@@ -307,8 +309,8 @@ mod tests {
     #[test]
     fn test_key_start_range() {
         assert_eq!(
-            b"__flow/name/greptime/".to_vec(),
-            FlowNameKey::range_start_key("greptime")
+            b"__flow/name/pulse/".to_vec(),
+            FlowNameKey::range_start_key("pulse")
         );
     }
 }

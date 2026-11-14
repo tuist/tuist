@@ -84,7 +84,7 @@ class ProviderConfigTest(unittest.TestCase):
         command = textwrap.dedent(step.split("      run: |\n", 1)[1])
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "greptimedb").symlink_to(SCRIPTS.parents[1], target_is_directory=True)
+            (root / "pulse").symlink_to(SCRIPTS.parents[1], target_is_directory=True)
             output = root / "output"
             for provider, requested, expected in (
                 ("Aliyun", "auto", "ecs.g9i.2xlarge"),
@@ -117,10 +117,10 @@ class ProviderConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "output"
             for enabled, tag, expected in (
-                (("true", "false", "false"), "latest", "greptimedb"),
+                (("true", "false", "false"), "latest", "pulse"),
                 (("false", "true", "false"), "", "victoriatraces"),
                 (("false", "false", "true"), "", "tempo"),
-                (("true", "true", "true"), "v1.3.0-beta.1", "greptimedb,victoriatraces,tempo"),
+                (("true", "true", "true"), "v1.3.0-beta.1", "pulse,victoriatraces,tempo"),
                 (("false", "false", "false"), "latest", None),
                 (("true", "false", "false"), "latest; touch /tmp/unexpected", None),
                 (("true", "false", "false"), "", None),
@@ -128,8 +128,8 @@ class ProviderConfigTest(unittest.TestCase):
             ):
                 with self.subTest(enabled=enabled, tag=tag):
                     output.write_text("")
-                    env = dict(os.environ, GREPTIMEDB_TAG=tag, GITHUB_OUTPUT=str(output))
-                    env.update(zip(("greptimedb", "victoriatraces", "tempo"), enabled))
+                    env = dict(os.environ, PULSE_TAG=tag, GITHUB_OUTPUT=str(output))
+                    env.update(zip(("pulse", "victoriatraces", "tempo"), enabled))
                     result = subprocess.run(["bash", "-c", command], env=env,
                                             capture_output=True, text=True, timeout=5)
                     if expected is None:
@@ -537,14 +537,14 @@ class BenchmarkImagePullTest(unittest.TestCase):
         start = traces.index('    - name: Pull database images before generating data')
         end = traces.index('    - name: Generate selected dataset once')
         command = textwrap.dedent(traces[start:end].split('      run: |\n', 1)[1])
-        helper = self.root / 'greptimedb/.github/scripts/pull-benchmark-image.sh'
+        helper = self.root / 'pulse/.github/scripts/pull-benchmark-image.sh'
         helper.parent.mkdir(parents=True)
         helper.write_text((SCRIPTS / helper.name).read_text())
         catalogs = self.root / 'o11ybench/workloads/tracesbench/catalogs'
         catalogs.mkdir(parents=True)
         images = [f'registry/{name}@sha256:' + 'a' * 64
-                  for name in ('greptimedb', 'victoriatraces', 'tempo')]
-        for name, image in zip(('greptimedb', 'victoriatraces', 'tempo'), images):
+                  for name in ('pulse', 'victoriatraces', 'tempo')]
+        for name, image in zip(('pulse', 'victoriatraces', 'tempo'), images):
             (catalogs / f'{name}.json').write_text(json.dumps({'target_identity': {'image': image}}))
         self.tool('docker', '''
             echo "$*" >> "$PULL_TEST_ROOT/docker.log"
@@ -552,29 +552,29 @@ class BenchmarkImagePullTest(unittest.TestCase):
             if [[ $1 == image ]]; then printf '[{"RepoDigests":["greptime/greptimedb@sha256:%s"]}]\\n' "$(printf 'a%.0s' {1..64})"; fi
         ''')
         images[0] = 'greptime/greptimedb:v1.3.0-beta.1'
-        self.env.update(METADATA_ROOT=str(self.root), GREPTIMEDB_TAG='v1.3.0-beta.1',
-                        GITHUB_ENV=str(self.root / 'env'), BASELINE_GREPTIMEDB_TAG='v1.2.1')
-        for selected, compare in ((('greptimedb',), False), (('tempo',), False),
-                                  (('greptimedb', 'victoriatraces', 'tempo'), False),
-                                  (('greptimedb',), True), (('greptimedb', 'victoriatraces', 'tempo'), True)):
+        self.env.update(METADATA_ROOT=str(self.root), PULSE_TAG='v1.3.0-beta.1',
+                        GITHUB_ENV=str(self.root / 'env'), BASELINE_PULSE_TAG='v1.2.1')
+        for selected, compare in ((('pulse',), False), (('tempo',), False),
+                                  (('pulse', 'victoriatraces', 'tempo'), False),
+                                  (('pulse',), True), (('pulse', 'victoriatraces', 'tempo'), True)):
             with self.subTest(selected=selected):
                 self.env['TARGETS'] = ','.join(selected)
-                self.env['COMPARE_GREPTIMEDB'] = str(compare).lower()
+                self.env['COMPARE_PULSE'] = str(compare).lower()
                 (self.root / 'env').write_text('')
                 (self.root / 'docker.log').unlink(missing_ok=True)
                 result = subprocess.run(['bash', '-c', command], cwd=self.root, env=self.env,
                                         capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                selected_images = [image for target, image in zip(('greptimedb', 'victoriatraces', 'tempo'), images)
+                selected_images = [image for target, image in zip(('pulse', 'victoriatraces', 'tempo'), images)
                                    if target in selected]
                 if compare:
                     selected_images.append('greptime/greptimedb:v1.2.1')
                 self.assertEqual(self.lines('docker'),
                                  [call for image in selected_images for call in (f'pull {image}', f'image inspect {image}')])
-                expected_env = 'GREPTIMEDB_IMAGE=greptime/greptimedb@sha256:' + 'a' * 64 + '\n'
-                expected_env = expected_env if 'greptimedb' in selected else ''
+                expected_env = 'PULSE_IMAGE=greptime/greptimedb@sha256:' + 'a' * 64 + '\n'
+                expected_env = expected_env if 'pulse' in selected else ''
                 if compare:
-                    expected_env += 'BASELINE_GREPTIMEDB_IMAGE=greptime/greptimedb@sha256:' + 'a' * 64 + '\n'
+                    expected_env += 'BASELINE_PULSE_IMAGE=greptime/greptimedb@sha256:' + 'a' * 64 + '\n'
                 self.assertEqual((self.root / 'env').read_text(), expected_env)
         (self.root / 'docker.log').unlink()
         self.env['PULL_FAIL_IMAGE'] = images[1]

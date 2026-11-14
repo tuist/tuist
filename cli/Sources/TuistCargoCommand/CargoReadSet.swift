@@ -126,7 +126,8 @@ struct CargoReadSet: Codable, Equatable {
                 written.insert(path)
             case "R", "S", "A", "D": observed.append((kind, standardized(value)))
             default:
-                explain(kind == "N" ? "connected to \(value) from \(programs[pid] ?? "an unknown program")" : "event \(kind) \(value)")
+                explain(kind == "N" ? "connected to \(value) from \(programs[pid] ?? "an unknown program")" :
+                    "event \(kind) \(value)")
                 return nil
             }
         }

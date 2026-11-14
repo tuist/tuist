@@ -2,7 +2,8 @@
 
 Integration test modules are registered in `tests/main.rs` (`autotests = false`).
 Shared instance and storage helpers live in `src/instance.rs` and
-`src/test_util.rs`. See [README.md](README.md) for external-service setup.
+`src/test_util.rs`. Tests against external storage (S3, OSS, Azure Blob, GCS)
+read their settings from `.env`; copy `.env.example` at the `pulse/` root.
 
 ## Import/export portability
 

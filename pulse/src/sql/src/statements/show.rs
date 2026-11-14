@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{self, Display};
 
 use serde::Serialize;
@@ -45,9 +47,6 @@ macro_rules! format_kind {
         }
     };
 }
-
-#[cfg(feature = "enterprise")]
-pub mod trigger;
 
 /// SQL structure for `SHOW DATABASES`.
 #[derive(Debug, Clone, PartialEq, Eq, Visit, VisitMut, Serialize)]
@@ -360,7 +359,7 @@ mod tests {
     use sqlparser::ast::UnaryOperator;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
@@ -387,7 +386,7 @@ mod tests {
     pub fn test_show_database() {
         let sql = "SHOW DATABASES";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowDatabases { .. });
@@ -405,7 +404,7 @@ mod tests {
     pub fn test_show_create_table() {
         let sql = "SHOW CREATE TABLE test";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowCreateTable { .. });
@@ -422,7 +421,7 @@ mod tests {
 
         let sql = "SHOW CREATE TABLE test FOR POSTGRES_FOREIGN_TABLE";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowCreateTable { .. });
@@ -442,7 +441,7 @@ mod tests {
     pub fn test_show_create_missing_table_name() {
         let sql = "SHOW CREATE TABLE";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
     }
@@ -451,7 +450,7 @@ mod tests {
     pub fn test_show_create_unknown_for() {
         let sql = "SHOW CREATE TABLE t FOR UNKNOWN";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
     }
@@ -460,7 +459,7 @@ mod tests {
     pub fn test_show_create_flow() {
         let sql = "SHOW CREATE FLOW test";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowCreateFlow { .. });
@@ -478,7 +477,7 @@ mod tests {
     pub fn test_show_create_missing_flow() {
         let sql = "SHOW CREATE FLOW";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
     }
@@ -487,7 +486,7 @@ mod tests {
     fn test_display_show_variables() {
         let sql = r"show variables v1;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowVariables { .. });
@@ -510,7 +509,7 @@ SHOW VARIABLES v1"#,
     fn test_display_show_create_table() {
         let sql = r"show create table monitor;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowCreateTable { .. });
@@ -533,7 +532,7 @@ SHOW CREATE TABLE monitor"#,
     fn test_display_show_index() {
         let sql = r"show index from t1 from d1;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowIndex { .. });
@@ -556,7 +555,7 @@ SHOW INDEX IN t1 IN d1"#,
     fn test_display_show_columns() {
         let sql = r"show full columns in t1 in d1;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowColumns { .. });
@@ -579,7 +578,7 @@ SHOW FULL COLUMNS IN t1 IN d1"#,
     fn test_display_show_tables() {
         let sql = r"show full tables in d1;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowTables { .. });
@@ -599,7 +598,7 @@ SHOW FULL TABLES IN d1"#,
 
         let sql = r"show full tables;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowTables { .. });
@@ -622,7 +621,7 @@ SHOW FULL TABLES"#,
     fn test_display_show_views() {
         let sql = r"show views in d1;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowViews { .. });
@@ -642,7 +641,7 @@ SHOW VIEWS IN d1"#,
 
         let sql = r"show views;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowViews { .. });
@@ -665,7 +664,7 @@ SHOW VIEWS"#,
     fn test_display_show_flows() {
         let sql = r"show flows in d1;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowFlows { .. });
@@ -685,7 +684,7 @@ SHOW FLOWS IN d1"#,
 
         let sql = r"show flows;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowFlows { .. });
@@ -708,7 +707,7 @@ SHOW FLOWS"#,
     fn test_display_show_databases() {
         let sql = r"show databases;";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::ShowDatabases { .. });

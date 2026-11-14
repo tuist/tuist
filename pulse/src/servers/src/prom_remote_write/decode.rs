@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Decoding of Prometheus remote write protobuf payloads.
 
 use std::collections::BTreeMap;
@@ -19,8 +21,8 @@ use std::collections::btree_map::Entry;
 
 use api::prom_store::remote::Sample;
 use bytes::Buf;
-use common_query::prelude::{greptime_timestamp, greptime_value};
-use pipeline::{ContextReq, GreptimePipelineParams, PipelineContext, PipelineDefinition};
+use common_query::prelude::{pulse_timestamp, pulse_value};
+use pipeline::{ContextReq, PipelineContext, PipelineDefinition, PulsePipelineParams};
 use prost::DecodeError;
 use prost::encoding::message::merge;
 use prost::encoding::{WireType, decode_key, decode_varint};
@@ -326,10 +328,10 @@ impl PromSeriesProcessor {
 
             let timestamp = s.timestamp;
             pipeline_map.insert(
-                KeyString::from(greptime_timestamp()),
+                KeyString::from(pulse_timestamp()),
                 VrlValue::Integer(timestamp),
             );
-            pipeline_map.insert(KeyString::from(greptime_value()), VrlValue::Float(value));
+            pipeline_map.insert(KeyString::from(pulse_value()), VrlValue::Float(value));
             if one_sample {
                 vec_pipeline_map.push(VrlValue::Object(pipeline_map));
                 break;
@@ -358,7 +360,7 @@ impl PromSeriesProcessor {
         let pipeline_def = self.pipeline_def.as_ref().context(InternalSnafu {
             err_msg: "pipeline definition is not set",
         })?;
-        let pipeline_param = GreptimePipelineParams::default();
+        let pipeline_param = PulsePipelineParams::default();
         let query_ctx = self.query_ctx.as_ref().context(InternalSnafu {
             err_msg: "query context is not set",
         })?;
@@ -531,7 +533,7 @@ mod tests {
                         label("__name__", "rejected_metric"),
                         label("rejected_label", "rejected_value"),
                         label("__schema__", "rejected_schema"),
-                        label("x_greptime_physical_table", "rejected_physical_table"),
+                        label("x_pulse_physical_table", "rejected_physical_table"),
                     ],
                     samples: vec![sample],
                     histograms: vec![Histogram::default()],
@@ -589,7 +591,7 @@ mod tests {
                 .iter()
                 .map(|column| column.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![greptime_timestamp(), greptime_value(), "fresh_label"]
+            vec![pulse_timestamp(), pulse_value(), "fresh_label"]
         );
     }
 

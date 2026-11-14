@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -31,16 +33,10 @@ use tokio::sync::{Mutex, oneshot};
 use crate::define_ticker;
 use crate::error::{self, Error, Result};
 use crate::gc::Region2Peers;
-#[cfg(feature = "enterprise")]
-use crate::gc::ctx::PurgeOutcome;
-#[cfg(all(test, feature = "enterprise"))]
-use crate::gc::ctx::PurgeReservation;
 use crate::gc::ctx::SchedulerCtx;
 use crate::gc::dropped::DroppedRegionCollector;
 use crate::gc::options::{GcSchedulerOptions, TICKER_INTERVAL};
 use crate::gc::tracker::RegionGcTracker;
-#[cfg(feature = "enterprise")]
-use crate::metrics::METRIC_META_GC_SOFT_DROP_PURGES_TOTAL;
 use crate::metrics::{
     METRIC_META_GC_SCHEDULER_CYCLES_TOTAL, METRIC_META_GC_SCHEDULER_DURATION_SECONDS,
 };
@@ -215,11 +211,6 @@ impl GcScheduler {
             info!("Skip gc trigger because maintenance mode is enabled");
             return Ok(GcJobReport::default());
         }
-        #[cfg(feature = "enterprise")]
-        if self.config.experimental_soft_drop.enable {
-            self.purge_expired_soft_dropped_tables(common_time::util::current_time_millis())
-                .await;
-        }
         let span = common_telemetry::tracing::info_span!("meta_gc_handle_tick");
         let report = self
             .trigger_gc(ProcedureContext {
@@ -235,61 +226,6 @@ impl GcScheduler {
         info!("Finished gc trigger");
 
         Ok(report)
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn purge_expired_soft_dropped_tables(&self, now_millis: i64) {
-        // The scheduler is only constructed after GcSchedulerOptions::validate().
-        let retention_millis =
-            i64::try_from(self.config.experimental_soft_drop.retention.as_millis())
-                .unwrap_or(i64::MAX);
-        let dropped_tables = match self.ctx.list_dropped_tables().await {
-            Ok(dropped_tables) => dropped_tables,
-            Err(error) => {
-                error!(error; "Failed to list soft-dropped tables for GC");
-                return;
-            }
-        };
-        let table_count = dropped_tables.len();
-        let scan_start = self.ctx.next_purge_scan_start(table_count);
-
-        for table in dropped_tables
-            .iter()
-            .cycle()
-            .skip(scan_start)
-            .take(table_count)
-            .filter(|table| {
-                table
-                    .retention_expires_at
-                    .or_else(|| {
-                        table
-                            .dropped_at
-                            .and_then(|dropped_at| dropped_at.checked_add(retention_millis))
-                    })
-                    .is_some_and(|expires_at| expires_at <= now_millis)
-            })
-        {
-            let table_id = table.table_id;
-            let Some(reservation) = self
-                .ctx
-                .try_reserve_purge(table_id, self.config.max_concurrent_tables)
-            else {
-                continue;
-            };
-            METRIC_META_GC_SOFT_DROP_PURGES_TOTAL
-                .with_label_values(&["submitted"])
-                .inc();
-            let ctx = self.ctx.clone();
-            common_runtime::spawn_global(async move {
-                match ctx.purge_dropped_table(table_id).await {
-                    Ok(()) => reservation.record_outcome(PurgeOutcome::Succeeded),
-                    Err(error) => {
-                        reservation.record_outcome(PurgeOutcome::Failed);
-                        error!(error; "Failed to purge expired soft-dropped table {}", table_id);
-                    }
-                }
-            });
-        }
     }
 
     /// Handles a manual GC request with optional specific parameters.
@@ -403,20 +339,14 @@ pub(crate) fn new_test_runtime_switch_manager() -> RuntimeSwitchManagerRef {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    #[cfg(feature = "enterprise")]
-    use std::sync::Mutex as StdMutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     use common_meta::datanode::RegionStat;
-    #[cfg(feature = "enterprise")]
-    use common_meta::key::DroppedTableName;
     use common_meta::key::table_repart::TableRepartValue;
     use common_meta::key::table_route::PhysicalTableRouteValue;
     use store_api::storage::RegionId;
     use table::metadata::TableId;
-    #[cfg(feature = "enterprise")]
-    use table::table_name::TableName;
 
     use super::*;
 
@@ -425,10 +355,6 @@ mod tests {
         get_table_to_region_stats_calls: AtomicUsize,
         get_table_reparts_calls: AtomicUsize,
         gc_regions_calls: AtomicUsize,
-        #[cfg(feature = "enterprise")]
-        list_dropped_tables_calls: AtomicUsize,
-        #[cfg(feature = "enterprise")]
-        purge_dropped_table_calls: AtomicUsize,
     }
 
     impl CountingSchedulerCtx {
@@ -447,18 +373,6 @@ mod tests {
                 0,
                 self.gc_regions_calls.load(Ordering::Relaxed),
                 "gc_regions should not be called"
-            );
-            #[cfg(feature = "enterprise")]
-            assert_eq!(
-                0,
-                self.list_dropped_tables_calls.load(Ordering::Relaxed),
-                "list_dropped_tables should not be called"
-            );
-            #[cfg(feature = "enterprise")]
-            assert_eq!(
-                0,
-                self.purge_dropped_table_calls.load(Ordering::Relaxed),
-                "purge_dropped_table should not be called"
             );
         }
     }
@@ -501,378 +415,6 @@ mod tests {
             self.gc_regions_calls.fetch_add(1, Ordering::Relaxed);
             panic!("gc_regions should not be called in maintenance mode")
         }
-
-        #[cfg(feature = "enterprise")]
-        async fn list_dropped_tables(&self) -> Result<Vec<DroppedTableName>> {
-            self.list_dropped_tables_calls
-                .fetch_add(1, Ordering::Relaxed);
-            panic!("list_dropped_tables should not be called in maintenance mode")
-        }
-
-        #[cfg(feature = "enterprise")]
-        async fn purge_dropped_table(&self, _table_id: TableId) -> Result<()> {
-            self.purge_dropped_table_calls
-                .fetch_add(1, Ordering::Relaxed);
-            panic!("purge_dropped_table should not be called in maintenance mode")
-        }
-
-        #[cfg(feature = "enterprise")]
-        fn try_reserve_purge(
-            &self,
-            _table_id: TableId,
-            _max_in_flight: usize,
-        ) -> Option<PurgeReservation> {
-            panic!("try_reserve_purge should not be called in maintenance mode")
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[derive(Default)]
-    struct SoftDropSchedulerCtx {
-        dropped_tables: StdMutex<Vec<DroppedTableName>>,
-        purge_attempts: StdMutex<Vec<TableId>>,
-        failed_table: StdMutex<Option<TableId>>,
-        never_complete_tables: StdMutex<HashSet<TableId>>,
-        in_flight_purges: Arc<StdMutex<HashSet<TableId>>>,
-        purge_scan_cursor: AtomicUsize,
-        region_gc_calls: AtomicUsize,
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[async_trait::async_trait]
-    impl SchedulerCtx for SoftDropSchedulerCtx {
-        async fn get_table_to_region_stats(&self) -> Result<HashMap<TableId, Vec<RegionStat>>> {
-            self.region_gc_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(HashMap::new())
-        }
-
-        async fn get_table_reparts(&self) -> Result<Vec<(TableId, TableRepartValue)>> {
-            Ok(vec![])
-        }
-
-        async fn get_table_route(
-            &self,
-            _table_id: TableId,
-        ) -> Result<(TableId, PhysicalTableRouteValue)> {
-            unreachable!()
-        }
-
-        async fn batch_get_table_route(
-            &self,
-            _table_ids: &[TableId],
-        ) -> Result<HashMap<TableId, PhysicalTableRouteValue>> {
-            Ok(HashMap::new())
-        }
-
-        async fn gc_regions(
-            &self,
-            _region_ids: &[RegionId],
-            _full_file_listing: bool,
-            _timeout: Duration,
-            _region_routes_override: Region2Peers,
-            _procedure_context: ProcedureContext,
-        ) -> Result<GcReport> {
-            Ok(GcReport::default())
-        }
-
-        async fn list_dropped_tables(&self) -> Result<Vec<DroppedTableName>> {
-            Ok(self.dropped_tables.lock().unwrap().clone())
-        }
-
-        async fn purge_dropped_table(&self, table_id: TableId) -> Result<()> {
-            self.purge_attempts.lock().unwrap().push(table_id);
-            if self
-                .never_complete_tables
-                .lock()
-                .unwrap()
-                .contains(&table_id)
-            {
-                std::future::pending().await
-            }
-            if *self.failed_table.lock().unwrap() == Some(table_id) {
-                return crate::error::UnexpectedSnafu {
-                    violated: format!("mock purge failure for table {table_id}"),
-                }
-                .fail();
-            }
-            Ok(())
-        }
-
-        fn try_reserve_purge(
-            &self,
-            table_id: TableId,
-            max_in_flight: usize,
-        ) -> Option<PurgeReservation> {
-            PurgeReservation::try_new(self.in_flight_purges.clone(), table_id, max_in_flight)
-        }
-
-        fn next_purge_scan_start(&self, table_count: usize) -> usize {
-            if table_count == 0 {
-                return 0;
-            }
-            self.purge_scan_cursor.fetch_add(1, Ordering::Relaxed) % table_count
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    fn dropped_table(table_id: TableId, dropped_at: Option<i64>) -> DroppedTableName {
-        DroppedTableName {
-            table_id,
-            table_name: TableName::new("greptime", "public", format!("table_{table_id}")),
-            dropped_at,
-            retention_expires_at: None,
-            drop_generation: None,
-            purging: false,
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    fn dropped_table_with_deadline(table_id: TableId, deadline: i64) -> DroppedTableName {
-        DroppedTableName {
-            retention_expires_at: Some(deadline),
-            ..dropped_table(table_id, Some(i64::MAX))
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    fn soft_drop_scheduler(ctx: Arc<dyn SchedulerCtx>) -> GcScheduler {
-        let (tx, rx) = GcScheduler::channel();
-        drop(tx);
-        GcScheduler {
-            ctx,
-            runtime_switch_manager: new_test_runtime_switch_manager(),
-            receiver: rx,
-            config: GcSchedulerOptions {
-                enable: true,
-                experimental_soft_drop: crate::gc::options::SoftDropGcOptions {
-                    enable: true,
-                    retention: Duration::from_millis(100),
-                },
-                ..Default::default()
-            },
-            region_gc_tracker: Arc::new(Mutex::new(HashMap::new())),
-            last_tracker_cleanup: Arc::new(Mutex::new(Instant::now())),
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    async fn wait_for_purge_attempts(ctx: &SoftDropSchedulerCtx, expected: usize) {
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while ctx.purge_attempts.lock().unwrap().len() < expected {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("purge tasks should be scheduled");
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_purge_expired_soft_dropped_tables_filters_by_retention_and_timestamp() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![
-            dropped_table(1, Some(899)),
-            dropped_table(2, Some(900)),
-            dropped_table(3, Some(901)),
-            dropped_table(4, None),
-            dropped_table(5, Some(i64::MAX)),
-        ];
-        let scheduler = soft_drop_scheduler(ctx.clone());
-
-        scheduler.purge_expired_soft_dropped_tables(1_000).await;
-        wait_for_purge_attempts(&ctx, 2).await;
-
-        let mut attempts = ctx.purge_attempts.lock().unwrap().clone();
-        attempts.sort_unstable();
-        assert_eq!(vec![1, 2], attempts);
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_purge_uses_fixed_deadline_before_legacy_retention_fallback() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![
-            dropped_table_with_deadline(1, 1_000),
-            dropped_table_with_deadline(2, 1_001),
-            dropped_table(3, Some(900)),
-        ];
-        let scheduler = soft_drop_scheduler(ctx.clone());
-
-        scheduler.purge_expired_soft_dropped_tables(1_000).await;
-        wait_for_purge_attempts(&ctx, 2).await;
-
-        let mut attempts = ctx.purge_attempts.lock().unwrap().clone();
-        attempts.sort_unstable();
-        assert_eq!(vec![1, 3], attempts);
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_purge_saturates_legacy_retention_that_exceeds_i64() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![dropped_table(1, Some(0))];
-        ctx.never_complete_tables.lock().unwrap().insert(1);
-        let mut scheduler = soft_drop_scheduler(ctx.clone());
-        scheduler.config.experimental_soft_drop.retention =
-            Duration::from_millis(i64::MAX as u64 + 1);
-
-        scheduler.purge_expired_soft_dropped_tables(0).await;
-
-        assert!(!ctx.in_flight_purges.lock().unwrap().contains(&1));
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_purge_failure_does_not_prevent_other_purges() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![
-            dropped_table(1, Some(0)),
-            dropped_table(2, Some(0)),
-            dropped_table(3, Some(0)),
-        ];
-        *ctx.failed_table.lock().unwrap() = Some(2);
-        let scheduler = soft_drop_scheduler(ctx.clone());
-
-        scheduler.purge_expired_soft_dropped_tables(1_000).await;
-        wait_for_purge_attempts(&ctx, 3).await;
-
-        let mut attempts = ctx.purge_attempts.lock().unwrap().clone();
-        attempts.sort_unstable();
-        assert_eq!(vec![1, 2, 3], attempts);
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_purge_scans_rotate_after_failure() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() =
-            vec![dropped_table(1, Some(0)), dropped_table(2, Some(0))];
-        *ctx.failed_table.lock().unwrap() = Some(1);
-        let mut scheduler = soft_drop_scheduler(ctx.clone());
-        scheduler.config.max_concurrent_tables = 1;
-
-        scheduler.purge_expired_soft_dropped_tables(1_000).await;
-        wait_for_purge_attempts(&ctx, 1).await;
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while !ctx.in_flight_purges.lock().unwrap().is_empty() {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("failed purge should release its in-flight slot");
-
-        scheduler.purge_expired_soft_dropped_tables(1_000).await;
-        wait_for_purge_attempts(&ctx, 2).await;
-
-        assert_eq!(vec![1, 2], *ctx.purge_attempts.lock().unwrap());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_tick_purges_expired_soft_dropped_tables_and_runs_region_gc() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![dropped_table(1, Some(i64::MIN))];
-        let scheduler = soft_drop_scheduler(ctx.clone());
-
-        scheduler.handle_tick().await.unwrap();
-        wait_for_purge_attempts(&ctx, 1).await;
-
-        assert_eq!(vec![1], *ctx.purge_attempts.lock().unwrap());
-        assert_eq!(1, ctx.region_gc_calls.load(Ordering::Relaxed));
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_tick_with_no_tombstones_makes_no_purge_submissions() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        let scheduler = soft_drop_scheduler(ctx.clone());
-
-        scheduler.handle_tick().await.unwrap();
-
-        assert!(ctx.purge_attempts.lock().unwrap().is_empty());
-        assert_eq!(1, ctx.region_gc_calls.load(Ordering::Relaxed));
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_multiple_purge_scans_do_not_duplicate_in_flight_purges() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![
-            dropped_table(1, Some(i64::MIN)),
-            dropped_table(2, Some(i64::MIN)),
-        ];
-        ctx.never_complete_tables.lock().unwrap().insert(1);
-        *ctx.failed_table.lock().unwrap() = Some(2);
-        let mut scheduler = soft_drop_scheduler(ctx.clone());
-        scheduler.config.max_concurrent_tables = 2;
-
-        tokio::time::timeout(
-            Duration::from_millis(100),
-            scheduler.purge_expired_soft_dropped_tables(1_000),
-        )
-        .await
-        .expect("first scan should not wait for purge completion");
-        wait_for_purge_attempts(&ctx, 2).await;
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while ctx.in_flight_purges.lock().unwrap().contains(&2) {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("terminal failure should release its in-flight slot");
-        tokio::time::timeout(
-            Duration::from_millis(100),
-            scheduler.purge_expired_soft_dropped_tables(1_000),
-        )
-        .await
-        .expect("second scan should not wait for purge completion");
-        wait_for_purge_attempts(&ctx, 3).await;
-
-        let attempts = ctx.purge_attempts.lock().unwrap().clone();
-        assert_eq!(
-            1,
-            attempts.iter().filter(|&&table_id| table_id == 1).count()
-        );
-        assert_eq!(
-            2,
-            attempts.iter().filter(|&&table_id| table_id == 2).count()
-        );
-        assert_eq!(0, ctx.region_gc_calls.load(Ordering::Relaxed));
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_purge_scan_caps_submissions() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![
-            dropped_table(1, Some(i64::MIN)),
-            dropped_table(2, Some(i64::MIN)),
-            dropped_table(3, Some(i64::MIN)),
-        ];
-        let mut scheduler = soft_drop_scheduler(ctx.clone());
-        scheduler.config.max_concurrent_tables = 2;
-        ctx.never_complete_tables.lock().unwrap().extend([1, 2]);
-
-        scheduler.purge_expired_soft_dropped_tables(1_000).await;
-        wait_for_purge_attempts(&ctx, 2).await;
-
-        assert_eq!(2, ctx.purge_attempts.lock().unwrap().len());
-        assert_eq!(0, ctx.region_gc_calls.load(Ordering::Relaxed));
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[tokio::test]
-    async fn test_manual_gc_does_not_purge_soft_dropped_tables() {
-        let ctx = Arc::new(SoftDropSchedulerCtx::default());
-        *ctx.dropped_tables.lock().unwrap() = vec![dropped_table(1, Some(i64::MIN))];
-        let scheduler = soft_drop_scheduler(ctx.clone());
-
-        scheduler
-            .handle_manual_gc(None, None, None, ProcedureContext::default())
-            .await
-            .unwrap();
-
-        assert!(ctx.purge_attempts.lock().unwrap().is_empty());
     }
 
     struct ErrorMockSchedulerCtx;
@@ -913,29 +455,6 @@ mod tests {
                 violated: "mock gc failure".to_string(),
             }
             .fail()
-        }
-
-        #[cfg(feature = "enterprise")]
-        async fn list_dropped_tables(&self) -> Result<Vec<DroppedTableName>> {
-            Ok(vec![])
-        }
-
-        #[cfg(feature = "enterprise")]
-        async fn purge_dropped_table(&self, _table_id: TableId) -> Result<()> {
-            Ok(())
-        }
-
-        #[cfg(feature = "enterprise")]
-        fn try_reserve_purge(
-            &self,
-            table_id: TableId,
-            max_in_flight: usize,
-        ) -> Option<PurgeReservation> {
-            PurgeReservation::try_new(
-                Arc::new(StdMutex::new(HashSet::new())),
-                table_id,
-                max_in_flight,
-            )
         }
     }
 

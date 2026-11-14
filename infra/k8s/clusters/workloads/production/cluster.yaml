@@ -150,7 +150,7 @@ spec:
         # helm rolls the release back on "Progress deadline exceeded". The
         # fifth node is that headroom. Add a node when new workloads pinned
         # here take it, rather than lowering the server's request.
-        # Greptime's distributed backend, replicated WAL and metadata store
+        # Pulse's distributed backend, replicated WAL and metadata store
         # need additional capacity while Pulse remains online. Keep server
         # surge and single-node-failure headroom when sizing this pool; retire
         # migration capacity only after checking the final workload placement.

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 use std::collections::HashMap;
 use std::env;
@@ -51,12 +53,12 @@ use tests_fuzz::utils::pod_failure::{inject_datanode_pod_failure, recover_pod_fa
 use tests_fuzz::utils::{
     Connections, GT_FUZZ_CLUSTER_NAME, GT_FUZZ_CLUSTER_NAMESPACE, compact_table, flush_memtable,
     get_fuzz_override, get_gt_fuzz_input_max_rows, get_gt_fuzz_input_max_tables,
-    init_greptime_connections_via_env,
+    init_pulse_connections_via_env,
 };
 use tests_fuzz::validator::row::count_values;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
     kube: kube::client::Client,
     namespace: String,
     cluster_name: String,
@@ -64,7 +66,7 @@ struct FuzzContext {
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -111,7 +113,7 @@ async fn create_physical_table<R: Rng + 'static>(
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&create_physical_table_expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create physical table: {sql}, result: {result:?}");
@@ -165,7 +167,7 @@ async fn insert_values<R: Rng + 'static>(
     let translator = InsertIntoExprTranslator;
     let sql = translator.translate(&insert_expr)?;
     let result = ctx
-        .greptime
+        .pulse
         // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
         .execute(sqlx::AssertSqlSafe(sql.as_str()))
         .await
@@ -202,7 +204,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         }
         let sql = translator.translate(&create_logical_table_expr)?;
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Create logical table: {sql}, result: {result:?}");
@@ -211,10 +213,10 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         let insert_expr =
             insert_values(input.rows, &ctx, &mut rng, logical_table_ctx.clone()).await?;
         if rng.random_bool(0.1) {
-            flush_memtable(&ctx.greptime, &physical_table_ctx.name).await?;
+            flush_memtable(&ctx.pulse, &physical_table_ctx.name).await?;
         }
         if rng.random_bool(0.1) {
-            compact_table(&ctx.greptime, &physical_table_ctx.name).await?;
+            compact_table(&ctx.pulse, &physical_table_ctx.name).await?;
         }
 
         tables.insert(
@@ -223,7 +225,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         );
     }
 
-    let partitions = fetch_partitions(&ctx.greptime, physical_table_ctx.name.clone()).await?;
+    let partitions = fetch_partitions(&ctx.pulse, physical_table_ctx.name.clone()).await?;
     let region_distribution = region_distribution(partitions);
     let selected_datanode = *region_distribution.keys().next().unwrap();
     let selected_regions = region_distribution
@@ -244,7 +246,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
     // Waits for num of regions on `selected_datanode` become to 0.
     wait_for_all_regions_evicted(
-        ctx.greptime.clone(),
+        ctx.pulse.clone(),
         selected_datanode,
         Duration::from_secs(300),
     )
@@ -252,7 +254,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
     // Recovers pod failures
     recover_pod_failure(ctx.kube.clone(), &ctx.namespace, &chaos_name).await?;
-    wait_for_all_datanode_online(ctx.greptime.clone(), Duration::from_secs(180)).await;
+    wait_for_all_datanode_online(ctx.pulse.clone(), Duration::from_secs(180)).await;
 
     tokio::time::sleep(default_distributed_time_constants().region_lease).await;
     // Validates value rows
@@ -260,7 +262,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
     for (table_ctx, insert_expr) in tables.values() {
         let sql = format!("select count(1) as count from {}", table_ctx.name);
-        let values = count_values(&ctx.greptime, &sql).await?;
+        let values = count_values(&ctx.pulse, &sql).await?;
         let expected_rows = insert_expr.values_list.len() as u64;
         assert_eq!(
             values.count as u64, expected_rows,
@@ -273,7 +275,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     for (table_ctx, _) in tables.values() {
         let sql = format!("DROP TABLE {}", table_ctx.name);
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql })?;
         info!("Drop table: {}\n\nResult: {result:?}\n\n", table_ctx.name);
@@ -281,7 +283,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
     let sql = format!("DROP TABLE {}", physical_table_ctx.name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!(
@@ -296,14 +298,14 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
             kube: kube::client::Client::try_default()
                 .await
                 .expect("init kube client"),
-            namespace: env::var(GT_FUZZ_CLUSTER_NAMESPACE).unwrap_or("my-greptimedb".to_string()),
-            cluster_name: env::var(GT_FUZZ_CLUSTER_NAME).unwrap_or("my-greptimedb".to_string()),
+            namespace: env::var(GT_FUZZ_CLUSTER_NAMESPACE).unwrap_or("my-pulse".to_string()),
+            cluster_name: env::var(GT_FUZZ_CLUSTER_NAME).unwrap_or("my-pulse".to_string()),
         };
         execute_failover(ctx, input)
             .await

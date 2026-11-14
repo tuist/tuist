@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Memtable implementation for bulk load
 
 pub(crate) mod chunk_reader;
@@ -71,22 +73,22 @@ use crate::sst::parquet::flat_format::field_column_start;
 /// Default merge threshold for triggering compaction.
 const DEFAULT_MERGE_THRESHOLD: usize = 16;
 
-/// Threshold for triggering merge of parts. Configurable via `GREPTIME_BULK_MERGE_THRESHOLD`.
+/// Threshold for triggering merge of parts. Configurable via `PULSE_BULK_MERGE_THRESHOLD`.
 static MERGE_THRESHOLD: LazyLock<usize> =
-    LazyLock::new(|| env_usize("GREPTIME_BULK_MERGE_THRESHOLD", DEFAULT_MERGE_THRESHOLD));
+    LazyLock::new(|| env_usize("PULSE_BULK_MERGE_THRESHOLD", DEFAULT_MERGE_THRESHOLD));
 
 /// Default maximum number of groups for parallel merging.
 const DEFAULT_MAX_MERGE_GROUPS: usize = 32;
 
-/// Maximum merge groups. Configurable via `GREPTIME_BULK_MAX_MERGE_GROUPS`.
+/// Maximum merge groups. Configurable via `PULSE_BULK_MAX_MERGE_GROUPS`.
 static MAX_MERGE_GROUPS: LazyLock<usize> =
-    LazyLock::new(|| env_usize("GREPTIME_BULK_MAX_MERGE_GROUPS", DEFAULT_MAX_MERGE_GROUPS));
+    LazyLock::new(|| env_usize("PULSE_BULK_MAX_MERGE_GROUPS", DEFAULT_MAX_MERGE_GROUPS));
 
-/// Row threshold for encoding parts. Configurable via `GREPTIME_BULK_ENCODE_ROW_THRESHOLD`.
+/// Row threshold for encoding parts. Configurable via `PULSE_BULK_ENCODE_ROW_THRESHOLD`.
 /// When estimated rows exceed this threshold, parts are encoded as EncodedBulkPart.
 pub(crate) static ENCODE_ROW_THRESHOLD: LazyLock<usize> = LazyLock::new(|| {
     env_usize(
-        "GREPTIME_BULK_ENCODE_ROW_THRESHOLD",
+        "PULSE_BULK_ENCODE_ROW_THRESHOLD",
         10 * DEFAULT_ROW_GROUP_SIZE,
     )
 });
@@ -100,9 +102,9 @@ const MAX_ENCODE_BYTES_THRESHOLD: usize = 512 * 1024 * 1024;
 /// Divisor to derive the encode bytes threshold from the global write buffer size.
 const ENCODE_BYTES_THRESHOLD_DIVISOR: usize = 32;
 
-/// Optional bytes threshold override from `GREPTIME_BULK_ENCODE_BYTES_THRESHOLD`.
+/// Optional bytes threshold override from `PULSE_BULK_ENCODE_BYTES_THRESHOLD`.
 static ENCODE_BYTES_THRESHOLD_OVERRIDE: LazyLock<Option<usize>> = LazyLock::new(|| {
-    std::env::var("GREPTIME_BULK_ENCODE_BYTES_THRESHOLD")
+    std::env::var("PULSE_BULK_ENCODE_BYTES_THRESHOLD")
         .ok()
         .and_then(|v| v.parse().ok())
 });

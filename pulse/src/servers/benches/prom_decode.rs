@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -186,7 +188,7 @@ fn bench_decode_prom_request(c: &mut Criterion) {
 ///
 /// Two layers are measured on equivalent logical payloads:
 /// 1. protobuf decode only (`WriteRequest` / v2 `Request`)
-/// 2. full Greptime path to row-insert requests
+/// 2. full Pulse path to row-insert requests
 ///
 /// Workloads:
 /// - `fixture`: existing `write_request.pb.data` converted v1 -> v2
@@ -253,7 +255,7 @@ fn bench_prom_v1_vs_v2_decode(c: &mut Criterion) {
         group.finish();
     }
 
-    // --- full path: protobuf -> Greptime row inserts ---
+    // --- full path: protobuf -> Pulse row inserts ---
     {
         let mut group = c.benchmark_group("prom_rw_decode_to_rows");
         group.sample_size(50);

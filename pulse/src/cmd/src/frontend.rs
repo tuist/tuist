@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Debug;
 use std::future::Future;
 use std::path::Path;
@@ -59,10 +61,10 @@ use snafu::{OptionExt, ResultExt};
 use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::error::{self, OtherSnafu, Result};
-use crate::options::{GlobalOptions, GreptimeOptions};
+use crate::options::{GlobalOptions, PulseOptions};
 use crate::{App, create_resource_limit_metrics, log_versions, maybe_activate_heap_profile};
 
-type FrontendOptions = GreptimeOptions<frontend::frontend::FrontendOptions>;
+type FrontendOptions = PulseOptions<frontend::frontend::FrontendOptions>;
 type HeartbeatExtensionSetupFuture<'a> = Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 
 pub struct Instance {
@@ -71,7 +73,7 @@ pub struct Instance {
     _guard: Vec<WorkerGuard>,
 }
 
-pub const APP_NAME: &str = "greptime-frontend";
+pub const APP_NAME: &str = "pulse-frontend";
 
 impl Instance {
     pub fn new(frontend: Frontend, _guard: Vec<WorkerGuard>) -> Self {
@@ -240,7 +242,7 @@ pub struct StartCommand {
     user_provider: Option<String>,
     #[clap(long)]
     disable_dashboard: Option<bool>,
-    #[clap(long, default_value = "GREPTIMEDB_FRONTEND")]
+    #[clap(long, default_value = "PULSE_FRONTEND")]
     pub env_prefix: String,
 }
 
@@ -813,7 +815,7 @@ mod tests {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
         write!(file, "{}", toml_str).unwrap();
 
@@ -831,10 +833,7 @@ mod tests {
         assert_eq!(ReadableSize::gb(2), fe_opts.http.body_limit);
 
         assert_eq!("debug", fe_opts.logging.level.as_ref().unwrap());
-        assert_eq!(
-            "./greptimedb_data/test/logs".to_string(),
-            fe_opts.logging.dir
-        );
+        assert_eq!("./pulse_data/test/logs".to_string(), fe_opts.logging.dir);
         assert!(!fe_opts.opentsdb.enable);
     }
 
@@ -874,7 +873,7 @@ mod tests {
 
         let options = cmd
             .load_options(&GlobalOptions {
-                log_dir: Some("./greptimedb_data/test/logs".to_string()),
+                log_dir: Some("./pulse_data/test/logs".to_string()),
                 log_level: Some("debug".to_string()),
 
                 #[cfg(feature = "tokio-console")]
@@ -884,7 +883,7 @@ mod tests {
             .component;
 
         let logging_opt = options.logging;
-        assert_eq!("./greptimedb_data/test/logs", logging_opt.dir);
+        assert_eq!("./pulse_data/test/logs", logging_opt.dir);
         assert_eq!("debug", logging_opt.level.as_ref().unwrap());
     }
 

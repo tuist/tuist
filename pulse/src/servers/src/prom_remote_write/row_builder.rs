@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 
 use api::prom_store::remote::Sample;
 use api::v1::helper::{field_column_schema, time_index_column_schema};
 use api::v1::value::ValueData;
 use api::v1::{ColumnDataType, ColumnSchema, Row, RowInsertRequest, Rows, SemanticType, Value};
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use pipeline::{ContextOpt, ContextReq};
 use prost::DecodeError;
 
@@ -108,18 +110,15 @@ impl<'a> Default for TableBuilder<'a> {
 impl<'a> TableBuilder<'a> {
     pub(crate) fn with_capacity(cols: usize, rows: usize) -> Self {
         let mut col_indexes = HashMap::with_capacity_and_hasher(cols, Default::default());
-        col_indexes.insert(greptime_timestamp().as_bytes(), 0);
-        col_indexes.insert(greptime_value().as_bytes(), 1);
+        col_indexes.insert(pulse_timestamp().as_bytes(), 0);
+        col_indexes.insert(pulse_value().as_bytes(), 1);
 
         let mut schema = Vec::with_capacity(cols);
         schema.push(time_index_column_schema(
-            greptime_timestamp(),
+            pulse_timestamp(),
             ColumnDataType::TimestampMillisecond,
         ));
-        schema.push(field_column_schema(
-            greptime_value(),
-            ColumnDataType::Float64,
-        ));
+        schema.push(field_column_schema(pulse_value(), ColumnDataType::Float64));
 
         Self {
             schema,

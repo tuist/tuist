@@ -1,6 +1,6 @@
 CREATE TABLE counter_reset_precision (
     ts TIMESTAMP TIME INDEX,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     series STRING PRIMARY KEY
 );
 

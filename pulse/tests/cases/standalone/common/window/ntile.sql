@@ -29,7 +29,7 @@ SELECT "TeamName", "Score", NTILE(1) OVER (PARTITION BY "TeamName" ORDER BY "Sco
 FROM "Scoreboard" ORDER BY "TeamName", "Score";
 
 -- NTILE with NULL (should return NULL)
--- TODO: duckdb return null, but GreptimeDB raise an error
+-- TODO: duckdb return null, but Pulse raise an error
 SELECT "TeamName", "Score", NTILE(NULL) OVER (PARTITION BY "TeamName" ORDER BY "Score" ASC) AS ntile_val
 FROM "Scoreboard" ORDER BY "TeamName", "Score";
 

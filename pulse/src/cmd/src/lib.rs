@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![recursion_limit = "256"]
 
 use async_trait::async_trait;
@@ -35,13 +37,13 @@ pub mod user;
 
 lazy_static::lazy_static! {
     static ref APP_VERSION: prometheus::IntGaugeVec =
-        prometheus::register_int_gauge_vec!("greptime_app_version", "app version", &["version", "short_version", "app"]).unwrap();
+        prometheus::register_int_gauge_vec!("pulse_app_version", "app version", &["version", "short_version", "app"]).unwrap();
 
     static ref CPU_LIMIT: prometheus::IntGaugeVec =
-        prometheus::register_int_gauge_vec!("greptime_cpu_limit_in_millicores", "cpu limit in millicores", &["app"]).unwrap();
+        prometheus::register_int_gauge_vec!("pulse_cpu_limit_in_millicores", "cpu limit in millicores", &["app"]).unwrap();
 
     static ref MEMORY_LIMIT: prometheus::IntGaugeVec =
-        prometheus::register_int_gauge_vec!("greptime_memory_limit_in_bytes", "memory limit in bytes", &["app"]).unwrap();
+        prometheus::register_int_gauge_vec!("pulse_memory_limit_in_bytes", "memory limit in bytes", &["app"]).unwrap();
 }
 
 /// wait for the close signal, for unix platform it's SIGINT or SIGTERM
@@ -119,25 +121,19 @@ pub fn log_versions(version: &str, short_version: &str, app: &str) {
         .with_label_values(&[common_version::version(), short_version, app])
         .inc();
 
-    info!("GreptimeDB version: {}", version);
+    info!("Pulse version: {}", version);
 }
 
 pub fn create_resource_limit_metrics(app: &str) {
     let cpu_limit = get_total_cpu_millicores();
     if cpu_limit > 0 {
-        info!(
-            "GreptimeDB start with cpu limit in millicores: {}",
-            cpu_limit
-        );
+        info!("Pulse start with cpu limit in millicores: {}", cpu_limit);
         CPU_LIMIT.with_label_values(&[app]).set(cpu_limit);
     }
 
     let memory_limit = get_total_memory_bytes();
     if memory_limit > 0 {
-        info!(
-            "GreptimeDB start with memory limit in bytes: {}",
-            memory_limit
-        );
+        info!("Pulse start with memory limit in bytes: {}", memory_limit);
         MEMORY_LIMIT.with_label_values(&[app]).set(memory_limit);
     }
 }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -33,7 +35,7 @@ pub(crate) fn new_drop_view_task(
     drop_if_exists: bool,
 ) -> DropViewTask {
     DropViewTask {
-        catalog: "greptime".to_string(),
+        catalog: "pulse".to_string(),
         schema: "public".to_string(),
         view: view.to_string(),
         view_id,

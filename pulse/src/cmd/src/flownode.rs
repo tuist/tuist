@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Debug;
 use std::path::Path;
 use std::sync::Arc;
@@ -48,12 +50,12 @@ use crate::error::{
     BuildCacheRegistrySnafu, LoadLayeredConfigSnafu, MetaClientInitSnafu, MissingConfigSnafu,
     OtherSnafu, Result, ShutdownFlownodeSnafu, StartFlownodeSnafu,
 };
-use crate::options::{GlobalOptions, GreptimeOptions};
+use crate::options::{GlobalOptions, PulseOptions};
 use crate::{App, create_resource_limit_metrics, log_versions, maybe_activate_heap_profile};
 
-pub const APP_NAME: &str = "greptime-flownode";
+pub const APP_NAME: &str = "pulse-flownode";
 
-type FlownodeOptions = GreptimeOptions<flow::FlownodeOptions>;
+type FlownodeOptions = PulseOptions<flow::FlownodeOptions>;
 
 pub struct Instance {
     flownode: FlownodeInstance,
@@ -155,8 +157,8 @@ struct StartCommand {
     /// The configuration file for flownode
     #[clap(short, long)]
     config_file: Option<String>,
-    /// The prefix of environment variables, default is `GREPTIMEDB_FLOWNODE`;
-    #[clap(long, default_value = "GREPTIMEDB_FLOWNODE")]
+    /// The prefix of environment variables, default is `PULSE_FLOWNODE`;
+    #[clap(long, default_value = "PULSE_FLOWNODE")]
     env_prefix: String,
     #[clap(long)]
     http_addr: Option<String>,

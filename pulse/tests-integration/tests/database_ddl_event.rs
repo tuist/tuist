@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use client::{Database, OutputData};
 use common_event_recorder::{EventRecorderOptions, EventTypeFilter};
 use common_test_util::temp_dir::create_temp_dir;
-use tests_integration::cluster::GreptimeDbClusterBuilder;
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 use tests_integration::test_util::{
     StorageType, execute_sql, get_test_store_config, setup_authenticated_grpc_database,
     test_event_recorder_options,
@@ -37,7 +39,7 @@ const RECONCILIATION_DATABASE_NAME: &str = "event_schema_reconciliation";
 #[tokio::test(flavor = "multi_thread")]
 async fn test_event_table_auto_creation_with_auto_create_disabled() {
     common_telemetry::init_default_ut_logging();
-    let standalone = GreptimeDbStandaloneBuilder::new("test_event_table_auto_creation")
+    let standalone = PulseStandaloneBuilder::new("test_event_table_auto_creation")
         .with_auto_create_table(false)
         .with_event_recorder_options(EventRecorderOptions {
             event_types: Arc::new(EventTypeFilter::Only(
@@ -64,8 +66,8 @@ async fn test_event_table_auto_creation_with_auto_create_disabled() {
         instance,
         "SELECT count(*) AS events_tables \
          FROM information_schema.tables \
-         WHERE table_catalog = 'greptime' \
-           AND table_schema = 'greptime_private' \
+         WHERE table_catalog = 'pulse' \
+           AND table_schema = 'pulse_private' \
            AND table_name = 'events'",
         "+---------------+\n| events_tables |\n+---------------+\n| 1             |\n+---------------+",
     )
@@ -74,7 +76,7 @@ async fn test_event_table_auto_creation_with_auto_create_disabled() {
     let procedure_id = find_eventually_string(
         instance,
         &format!(
-            "SELECT procedure_id FROM greptime_private.events \
+            "SELECT procedure_id FROM pulse_private.events \
              WHERE type = 'create_database' \
                AND schema_name = '{CREATION_DATABASE_NAME}' \
                AND json_path_match(procedure_trigger, '$.type == \"Submitted\"') \
@@ -89,7 +91,7 @@ async fn test_event_table_auto_creation_with_auto_create_disabled() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_event_table_schema_reconciliation_with_auto_create_disabled() {
     common_telemetry::init_default_ut_logging();
-    let standalone = GreptimeDbStandaloneBuilder::new("test_event_table_schema_reconciliation")
+    let standalone = PulseStandaloneBuilder::new("test_event_table_schema_reconciliation")
         .with_auto_create_table(false)
         .with_event_recorder_options(EventRecorderOptions {
             event_types: Arc::new(EventTypeFilter::Only(
@@ -106,7 +108,7 @@ async fn test_event_table_schema_reconciliation_with_auto_create_disabled() {
     execute_sql(
         instance,
         r#"
-            CREATE TABLE greptime_private.events (
+            CREATE TABLE pulse_private.events (
                 "type" STRING,
                 payload JSON,
                 "timestamp" TIMESTAMP(9) NOT NULL,
@@ -128,8 +130,8 @@ async fn test_event_table_schema_reconciliation_with_auto_create_disabled() {
         instance,
         "SELECT count(*) AS actor_columns \
          FROM information_schema.columns \
-         WHERE table_catalog = 'greptime' \
-           AND table_schema = 'greptime_private' \
+         WHERE table_catalog = 'pulse' \
+           AND table_schema = 'pulse_private' \
            AND table_name = 'events' \
            AND column_name = 'actor'",
         "+---------------+\n| actor_columns |\n+---------------+\n| 0             |\n+---------------+",
@@ -151,8 +153,8 @@ async fn test_event_table_schema_reconciliation_with_auto_create_disabled() {
         instance,
         "SELECT count(*) AS actor_columns \
          FROM information_schema.columns \
-         WHERE table_catalog = 'greptime' \
-           AND table_schema = 'greptime_private' \
+         WHERE table_catalog = 'pulse' \
+           AND table_schema = 'pulse_private' \
            AND table_name = 'events' \
            AND column_name = 'actor'",
         "+---------------+\n| actor_columns |\n+---------------+\n| 1             |\n+---------------+",
@@ -162,7 +164,7 @@ async fn test_event_table_schema_reconciliation_with_auto_create_disabled() {
     let procedure_id = find_eventually_string(
         instance,
         &format!(
-            "SELECT procedure_id FROM greptime_private.events \
+            "SELECT procedure_id FROM pulse_private.events \
              WHERE type = 'create_database' \
                AND schema_name = '{RECONCILIATION_DATABASE_NAME}' \
                AND json_path_match(procedure_trigger, '$.type == \"Submitted\"') \
@@ -184,7 +186,7 @@ async fn test_database_ddl_events() {
     common_telemetry::init_default_ut_logging();
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_database_ddl_events_data_home");
-    let cluster = GreptimeDbClusterBuilder::new("test_database_ddl_events")
+    let cluster = PulseClusterBuilder::new("test_database_ddl_events")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)
@@ -209,7 +211,7 @@ async fn test_database_ddl_events() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_standalone_database_ddl_events() {
     common_telemetry::init_default_ut_logging();
-    let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_database_ddl_events")
+    let standalone = PulseStandaloneBuilder::new("test_standalone_database_ddl_events")
         .with_event_recorder_options(test_event_recorder_options())
         .build()
         .await;
@@ -274,7 +276,7 @@ async fn assert_database_event(
         instance,
         &format!(
             r#"SELECT procedure_id
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{event_type}'
   AND schema_name = '{DATABASE_NAME}'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
@@ -288,12 +290,12 @@ LIMIT 1"#
 
     let submitted = format!(
         r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{event_type}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Running'
   AND json_path_match(procedure_trigger, '$.type == "Submitted"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND schema_name = '{DATABASE_NAME}'
   AND {submitted_payload_predicate}"#
     );
@@ -301,7 +303,7 @@ WHERE type = '{event_type}'
     let actual = find_eventually_string(
         instance,
         &format!(
-            "SELECT json_to_string(event_context) AS event_context FROM greptime_private.events WHERE procedure_id = '{procedure_id}' AND json_path_match(procedure_trigger, '$.type == \"Submitted\"')"
+            "SELECT json_to_string(event_context) AS event_context FROM pulse_private.events WHERE procedure_id = '{procedure_id}' AND json_path_match(procedure_trigger, '$.type == \"Submitted\"')"
         ),
         "event_context",
     )
@@ -310,12 +312,12 @@ WHERE type = '{event_type}'
 
     let lifecycle = format!(
         r#"SELECT count(*) AS event_count
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = '{event_type}'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'
   AND json_path_match(procedure_trigger, '$.type == "Succeeded"')
-  AND catalog_name = 'greptime'
+  AND catalog_name = 'pulse'
   AND schema_name = '{DATABASE_NAME}'
   AND json_is_null(payload)"#
     );

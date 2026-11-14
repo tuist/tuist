@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod error;
 
 use std::collections::HashMap;
@@ -234,10 +236,10 @@ impl ToSqlText for OidAliasValue<'_> {
     }
 }
 
-/// this function will encode greptime's structured values (`StructValue`, or a
+/// this function will encode pulse's structured values (`StructValue`, or a
 /// list of them) into PostgreSQL jsonb type
 ///
-/// Note that greptimedb has different types of StructValue for storing json data,
+/// Note that pulse has different types of StructValue for storing json data,
 /// based on policy defined in `JsonSettings`. But here the `StructValue`
 /// should be fully structured.
 ///
@@ -261,7 +263,7 @@ fn encode_struct<S: Encoder>(
 /// Encodes one row of a structured column (`Struct`, or `List` of `Struct`) as
 /// a PostgreSQL `json` value.
 ///
-/// Returns an error for arrow field types greptimedb cannot represent
+/// Returns an error for arrow field types pulse cannot represent
 /// (e.g. `Decimal256`) instead of panicking, so the client receives a proper
 /// error response.
 fn encode_structured_json<S: Encoder>(
@@ -373,7 +375,7 @@ where
             }
 
             match column.data_type() {
-                // these types are greptimedb specific or custom
+                // these types are pulse specific or custom
                 DataType::Binary | DataType::LargeBinary | DataType::BinaryView => {
                     // jsonb
                     if let ConcreteDataType::Json(_) = &schema.column_schemas()[j].data_type {
@@ -1842,11 +1844,7 @@ mod test {
                 Some(f64::MAX),
                 Some(f64::MIN),
             ])),
-            Arc::new(StringVector::from(vec![
-                None,
-                Some("hello"),
-                Some("greptime"),
-            ])),
+            Arc::new(StringVector::from(vec![None, Some("hello"), Some("pulse")])),
             Arc::new(BinaryVector::from(vec![
                 None,
                 Some("hello".as_bytes().to_vec()),
@@ -2081,14 +2079,14 @@ mod test {
             Helper::try_from_row_into_vector(&rows, native_histogram_value_type()).unwrap();
 
         let schema = Arc::new(Schema::new(vec![ColumnSchema::new(
-            "greptime_native_histogram",
+            "pulse_native_histogram",
             native_histogram_value_type().clone(),
             true,
         )]));
         let record_batch = RecordBatch::new(schema.clone(), vec![vector]).unwrap();
 
         let pg_schema = Arc::new(vec![FieldInfo::new(
-            "greptime_native_histogram".into(),
+            "pulse_native_histogram".into(),
             None,
             None,
             Type::JSON,

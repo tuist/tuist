@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 // Mock connectors are registered on a shared channel manager.
 #[cfg(test)]
 #[allow(deprecated)]
@@ -24,7 +26,7 @@ mod test {
     use std::time::{Duration, Instant};
 
     use api::v1::auth_header::AuthScheme;
-    use api::v1::greptime_request::Request as GreptimeQueryRequest;
+    use api::v1::greptime_request::Request as PulseQueryRequest;
     use api::v1::health_check_server::HealthCheckServer;
     use api::v1::query_request::Query;
     use api::v1::{Basic, ColumnDataType, ColumnDef, CreateTableExpr, QueryRequest, SemanticType};
@@ -64,7 +66,7 @@ mod test {
         FlightCraft, FlightCraftWrapper, FlightRecordBatchSource, FlightRecordBatchStream,
         FlightRecordBatchStreamInput, PutRecordBatchRequestStream, TonicStream,
     };
-    use servers::grpc::greptime_handler::GreptimeRequestHandler;
+    use servers::grpc::pulse_handler::PulseRequestHandler;
     use servers::grpc::{FlightCompression, GrpcServerConfig};
     use servers::query_handler::grpc::GrpcQueryHandler;
     use servers::server::Server;
@@ -76,7 +78,7 @@ mod test {
     use tonic::{Response, Status};
     use tower::service_fn;
 
-    use crate::cluster::GreptimeDbClusterBuilder;
+    use crate::cluster::PulseClusterBuilder;
     use crate::grpc::query_and_expect;
     use crate::test_util::{
         MockInstanceImpl, StorageType, assert_wal_delta, setup_grpc_server,
@@ -181,7 +183,7 @@ mod test {
     impl GrpcQueryHandler for SlowRemoteQueryHandler {
         async fn do_query(
             &self,
-            _: GreptimeQueryRequest,
+            _: PulseQueryRequest,
             _: QueryContextRef,
         ) -> servers::error::Result<Output> {
             let stream = self
@@ -390,7 +392,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_flight_request_timeout_does_not_cancel_slow_datanode_stream() {
         let datanode_client = client_for_flight_craft("slow-datanode", SlowFlightCraft);
-        let frontend_handler = GreptimeRequestHandler::new(
+        let frontend_handler = PulseRequestHandler::new(
             Arc::new(SlowRemoteQueryHandler {
                 region_requester: RegionRequester::new(datanode_client, false, false),
             }),
@@ -425,7 +427,7 @@ mod test {
             MockInstanceImpl::new(&format!("flight_bulk_skip_wal_{partitioned}"), distributed)
                 .await;
         let runtime = common_runtime::global_runtime().clone();
-        let handler = GreptimeRequestHandler::new(
+        let handler = PulseRequestHandler::new(
             db.frontend(),
             None,
             Some(runtime.clone()),
@@ -491,7 +493,7 @@ mod test {
         )
         .await;
         let runtime = common_runtime::global_runtime().clone();
-        let handler = GreptimeRequestHandler::new(
+        let handler = PulseRequestHandler::new(
             db.frontend(),
             None,
             Some(runtime.clone()),
@@ -553,7 +555,7 @@ mod test {
         )
         .await;
         let client = Database::new_with_dbname(
-            "greptime-public",
+            "pulse-public",
             Client::with_urls(vec![server.bind_addr().unwrap().to_string()]),
         );
         client
@@ -631,7 +633,7 @@ mod test {
             setup_grpc_server(StorageType::File, name).await
         };
         let client = Database::new_with_dbname(
-            "greptime-public",
+            "pulse-public",
             Client::with_urls(vec![server.bind_addr().unwrap().to_string()]),
         );
         client
@@ -725,7 +727,7 @@ mod test {
         )
         .await;
         let client = Database::new_with_dbname(
-            "greptime-public",
+            "pulse-public",
             Client::with_urls(vec![server.bind_addr().unwrap().to_string()]),
         );
         client
@@ -733,7 +735,7 @@ mod test {
             .await
             .unwrap();
 
-        // Use raw Arrow fields: Greptime's schema conversion itself used to panic
+        // Use raw Arrow fields: Pulse's schema conversion itself used to panic
         // on unsupported child types. A preceding scalar must not be partially added.
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
@@ -793,7 +795,7 @@ mod test {
         let addr = server.bind_addr().unwrap().to_string();
 
         let client = Client::with_urls(vec![addr]);
-        let client = Database::new_with_dbname("greptime-public", client);
+        let client = Database::new_with_dbname("pulse-public", client);
 
         create_table(&client).await;
 
@@ -856,7 +858,7 @@ mod test {
         let addr = server.bind_addr().unwrap().to_string();
 
         let client = Client::with_urls(vec![addr]);
-        let client = Database::new_with_dbname("greptime-public", client);
+        let client = Database::new_with_dbname("pulse-public", client);
 
         client
             .sql(
@@ -927,7 +929,7 @@ mod test {
         let addr = server.bind_addr().unwrap().to_string();
 
         let client = Client::with_urls(vec![addr]);
-        let client = Database::new_with_dbname("greptime-public", client);
+        let client = Database::new_with_dbname("pulse-public", client);
 
         create_table(&client).await;
 
@@ -948,22 +950,21 @@ mod test {
     async fn test_distributed_frontend_database_and_flight_health() {
         common_telemetry::init_default_ut_logging();
 
-        let db =
-            GreptimeDbClusterBuilder::new("test_distributed_frontend_database_and_flight_health")
-                .await
-                .build(false)
-                .await;
+        let db = PulseClusterBuilder::new("test_distributed_frontend_database_and_flight_health")
+            .await
+            .build(false)
+            .await;
 
         let runtime = common_runtime::global_runtime().clone();
-        let greptime_request_handler = GreptimeRequestHandler::new(
+        let pulse_request_handler = PulseRequestHandler::new(
             db.frontend.instance.clone(),
-            user_provider_from_option("static_user_provider:cmd:greptime_user=greptime_pwd").ok(),
+            user_provider_from_option("static_user_provider:cmd:pulse_user=pulse_pwd").ok(),
             Some(runtime.clone()),
             FlightCompression::default(),
         );
         let mut grpc_server = GrpcServerBuilder::new(GrpcServerConfig::default(), runtime)
-            .database_handler(greptime_request_handler.clone())
-            .flight_handler(Arc::new(greptime_request_handler))
+            .database_handler(pulse_request_handler.clone())
+            .flight_handler(Arc::new(pulse_request_handler))
             .build();
         grpc_server
             .start("127.0.0.1:0".parse::<SocketAddr>().unwrap())
@@ -975,8 +976,8 @@ mod test {
         wait_for_client_health(&client).await;
         let mut client = Database::new(DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME, client);
         client.set_auth(AuthScheme::Basic(Basic {
-            username: "greptime_user".to_string(),
-            password: "greptime_pwd".to_string(),
+            username: "pulse_user".to_string(),
+            password: "pulse_pwd".to_string(),
         }));
 
         create_table(&client).await;
@@ -1118,7 +1119,7 @@ mod test {
     async fn test_distributed_flight_snapshot_seqs_rejects_stale_sst_fence() {
         common_telemetry::init_default_ut_logging();
 
-        let db = GreptimeDbClusterBuilder::new(
+        let db = PulseClusterBuilder::new(
             "test_distributed_flight_snapshot_seqs_rejects_stale_sst_fence",
         )
         .await
@@ -1126,14 +1127,14 @@ mod test {
         .await;
 
         let runtime = common_runtime::global_runtime().clone();
-        let greptime_request_handler = GreptimeRequestHandler::new(
+        let pulse_request_handler = PulseRequestHandler::new(
             db.frontend.instance.clone(),
-            user_provider_from_option("static_user_provider:cmd:greptime_user=greptime_pwd").ok(),
+            user_provider_from_option("static_user_provider:cmd:pulse_user=pulse_pwd").ok(),
             Some(runtime.clone()),
             FlightCompression::default(),
         );
         let mut grpc_server = GrpcServerBuilder::new(GrpcServerConfig::default(), runtime)
-            .flight_handler(Arc::new(greptime_request_handler))
+            .flight_handler(Arc::new(pulse_request_handler))
             .build();
         grpc_server
             .start("127.0.0.1:0".parse::<SocketAddr>().unwrap())
@@ -1143,8 +1144,8 @@ mod test {
         let client = Client::with_urls(vec![grpc_server.bind_addr().unwrap().to_string()]);
         let mut client = Database::new(DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME, client);
         client.set_auth(AuthScheme::Basic(Basic {
-            username: "greptime_user".to_string(),
-            password: "greptime_pwd".to_string(),
+            username: "pulse_user".to_string(),
+            password: "pulse_pwd".to_string(),
         }));
 
         create_table(&client).await;

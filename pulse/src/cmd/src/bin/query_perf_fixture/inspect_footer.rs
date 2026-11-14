@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::ops::Range;
@@ -49,7 +51,7 @@ pub(super) struct InspectFooterArgs {
     /// TOML file: data_home = "..." and object_store = { type = "File" | "S3" | ... }.
     #[arg(long)]
     destination: Option<PathBuf>,
-    #[arg(long, default_value = "greptime_value")]
+    #[arg(long, default_value = "pulse_value")]
     column: String,
     #[arg(long)]
     include_metadata_files: bool,

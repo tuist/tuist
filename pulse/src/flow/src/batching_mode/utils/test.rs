@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -896,7 +898,7 @@ async fn test_validate_sink_table_schema_rejects_existing_sink_missing_flow_colu
 
     let catalog_manager = catalog::memory::new_memory_catalog_manager().unwrap();
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "existing_sink".to_string(),
     ];
@@ -924,7 +926,7 @@ async fn test_validate_sink_table_schema_rejects_existing_sink_missing_flow_colu
         expire_after: None,
         sink_table_name,
         source_table_names: vec![[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "numbers_with_ts".to_string(),
         ]],
@@ -1252,7 +1254,7 @@ async fn test_rewrite_incremental_aggregate_allows_alias_wrapped_scan() {
         &query_engine,
         single_row_u32_table("alias_wrapped_sink", vec!["ts", "number"]),
         &[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "alias_wrapped_sink".to_string(),
         ],
@@ -1546,7 +1548,7 @@ async fn test_analyze_incremental_aggregate_plan_allows_literal_outputs() {
     );
 
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "numbers_with_ts".to_string(),
     ];
@@ -1650,7 +1652,7 @@ async fn test_rewrite_incremental_aggregate_preserves_non_identifier_aliases() {
         &query_engine,
         sink_table,
         &[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "non_identifier_alias_sink".to_string(),
         ],
@@ -1847,7 +1849,7 @@ async fn test_analyze_incremental_aggregate_plan_supports_avg_merge() {
         .downcast_ref::<catalog::memory::MemoryCatalogManager>()
         .unwrap()
         .register_table_sync(RegisterTableRequest {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             table_name: "avg_states".to_string(),
             table_id: 4096,
@@ -1961,7 +1963,7 @@ async fn test_rewrite_incremental_aggregate_merges_populated_mixed_state_familie
     let empty_state_sink_batch = old_batch.clone();
     let sink_table = MemTable::table("state_merge_sink", old_batch);
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "state_merge_sink".to_string(),
     ];
@@ -2042,7 +2044,7 @@ async fn test_rewrite_incremental_aggregate_merges_populated_mixed_state_familie
         .downcast_ref::<catalog::memory::MemoryCatalogManager>()
         .unwrap()
         .register_table_sync(RegisterTableRequest {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             table_name: "merged_states".to_string(),
             table_id: 4097,
@@ -2133,7 +2135,7 @@ async fn test_rewrite_incremental_aggregate_merges_populated_mixed_state_familie
         &query_engine,
         MemTable::table("empty_state_sink", empty_state_sink_batch),
         &[
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             "empty_state_sink".to_string(),
         ],
@@ -2178,7 +2180,7 @@ async fn test_rewrite_incremental_aggregate_merges_populated_mixed_state_familie
         .downcast_ref::<catalog::memory::MemoryCatalogManager>()
         .unwrap()
         .register_table_sync(RegisterTableRequest {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             table_name: "empty_states".to_string(),
             table_id: 4098,
@@ -2316,7 +2318,7 @@ async fn test_rewrite_incremental_aggregate_with_left_join() {
         .unwrap();
     let analysis = analyze_incremental_aggregate_plan(&plan).unwrap().unwrap();
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "numbers_with_ts".to_string(),
     ];
@@ -2371,7 +2373,7 @@ async fn test_rewrite_incremental_aggregate_filters_sink_dirty_time_window() {
     let analysis = analyze_incremental_aggregate_plan(&plan).unwrap().unwrap();
     let sink_table = time_window_u32_table("time_window_sink");
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "time_window_sink".to_string(),
     ];
@@ -2459,7 +2461,7 @@ async fn test_rewrite_incremental_aggregate_rejects_empty_group_keys() {
 
     let sink_table = single_row_u32_table("global_guard_sink", vec!["number"]);
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "global_guard_sink".to_string(),
     ];
@@ -2494,7 +2496,7 @@ async fn test_rewrite_incremental_aggregate_preserves_raw_aggregate_field_name()
     let raw_field_name = "max(numbers_with_ts.number)";
     let sink_table = single_row_u32_table("raw_aggregate_sink", vec!["number", raw_field_name]);
     let sink_table_name = [
-        "greptime".to_string(),
+        "pulse".to_string(),
         "public".to_string(),
         "raw_aggregate_sink".to_string(),
     ];

@@ -13,7 +13,7 @@ SELECT @@version_comment;
 +-------------------+
 | @@version_comment |
 +-------------------+
-| GreptimeDB        |
+| Pulse             |
 +-------------------+
 
 -- SQLNESS PROTOCOL MYSQL
@@ -22,9 +22,9 @@ SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
 | information_schema |
 | public             |
+| pulse_private      |
 +--------------------+
 
 -- ======================================================

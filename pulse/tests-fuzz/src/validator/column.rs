@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_telemetry::debug;
 use datatypes::data_type::DataType;
 use snafu::{ResultExt, ensure};
@@ -202,7 +204,7 @@ pub async fn fetch_columns(
     schema_name: Ident,
     table_name: Ident,
 ) -> Result<Vec<ColumnEntry>> {
-    let sql = "SELECT table_schema, table_name, column_name, greptime_data_type as data_type, semantic_type, column_default, is_nullable FROM information_schema.columns WHERE table_schema = ? AND table_name = ?";
+    let sql = "SELECT table_schema, table_name, column_name, pulse_data_type as data_type, semantic_type, column_default, is_nullable FROM information_schema.columns WHERE table_schema = ? AND table_name = ?";
     sqlx::query_as::<_, ColumnEntry>(sql)
         .bind(schema_name.value.clone())
         .bind(table_name.value.clone())

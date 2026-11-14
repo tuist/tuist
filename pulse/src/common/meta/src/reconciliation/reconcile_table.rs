@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub(crate) mod reconcile_regions;
 pub(crate) mod reconciliation_end;
 pub(crate) mod reconciliation_start;
@@ -712,7 +714,7 @@ mod tests {
         let mut procedure = ReconcileTableProcedure::new(
             context,
             42,
-            TableName::new("greptime", "public", "metrics"),
+            TableName::new("pulse", "public", "metrics"),
             ResolveStrategy::UseLatest,
             false,
         );
@@ -797,7 +799,7 @@ mod tests {
         ReconcileTableProcedure::new(
             test_context(),
             42,
-            TableName::new("greptime", "public", "metrics"),
+            TableName::new("pulse", "public", "metrics"),
             ResolveStrategy::UseLatest,
             is_subprocedure,
         )
