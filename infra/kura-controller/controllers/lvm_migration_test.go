@@ -9,6 +9,7 @@ import (
 	kurav1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,7 +37,7 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 		{name: "backfill in progress holds both copies", backing: "file", cycle: "running"},
 		{name: "operator pause holds both copies", backing: "file", cycle: backfillCycleComplete, paused: true},
 		{name: "single copy holds for a standby", backing: "file", cycle: backfillCycleComplete, single: true},
-		{name: "cross-host legacy claims hold the whole template", backing: "file", cycle: backfillCycleComplete, otherLegacy: true},
+		{name: "cross-host legacy claims move the selected host's replica", backing: "file", cycle: backfillCycleComplete, otherLegacy: true, wantDelete: true},
 		{name: "regional enrollment alone holds legacy claims", backing: "file", cycle: backfillCycleComplete, skipMark: true},
 		{name: "no prepared landing node holds the source", backing: "file", cycle: backfillCycleComplete, noLanding: true},
 		{name: "source must be cordoned", backing: "file", cycle: backfillCycleComplete, uncordoned: true},
@@ -62,7 +63,7 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			}
 			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = ptr(f.instance.Spec.StorageClassName)
 			sts.Spec.Template.Spec.Containers[0].Resources.Requests[kuraDiskResource] = diskReservation(f.instance)
-			templateHeld := tc.skipMark || tc.noLanding || tc.uncordoned || tc.multiple || tc.otherLegacy
+			templateHeld := tc.skipMark || tc.noLanding || tc.uncordoned || tc.multiple
 			if templateHeld {
 				delete(sts.Spec.Template.Spec.Containers[0].Resources.Requests, kuraDiskResource)
 				sts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("32Gi")
@@ -301,26 +302,51 @@ func TestLVMEnrollmentKeepsReconcilingUnselectedInstances(t *testing.T) {
 }
 
 func TestLVMEnrollmentKeepsAPartlyMigratedInstanceOnItsResizeHold(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		thin, stranded bool
+	}{
+		{name: "running legacy replica keeps its claim"},
+		{name: "running legacy replica keeps its thin template's claim", thin: true},
+		{name: "legacy replica the thin template cannot place is rebuilt", thin: true, stranded: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testPartlyMigratedInstance(t, tc.thin, tc.stranded)
+		})
+	}
+}
+
+func testPartlyMigratedInstance(t *testing.T, thin, stranded bool) {
 	ctx := context.Background()
 	scheme := meshTestScheme(t)
 	f := newResizeHoldFixture(100)
 	f.instance.Spec.StorageClassName = encryptedLocalStorageClass
+	if thin {
+		f.instance.Spec.StorageClassName = thinLocalStorageClass
+	}
 	f.instance.Spec.DiskResource = string(kuraDiskResource)
 	sharedSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: f.instance.Namespace, ResourceVersion: "1"}}
 	box := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box", Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura"}}, Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}}
-	objects := []client.Object{f.instance, sharedSecret, box}
+	// Prepared capacity exists, so only the replica's own state decides.
+	spare := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "spare", Labels: map[string]string{"node.cluster.x-k8s.io/pool": "kura", "tuist.dev/kura-thin-ready": "true"}}, Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}}
+	objects := []client.Object{f.instance, sharedSecret, box, spare, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}}
 	statuses := map[string]runtimeStatus{}
 	for i := 0; i < 2; i++ {
 		claim := f.claim(i, "32Gi")
 		claim.Spec.StorageClassName = ptr(encryptedLocalStorageClass)
 		claim.Spec.VolumeName = fmt.Sprintf("pv-%d", i)
 		claim.Status.Phase = corev1.ClaimBound
-		backing := "lvm"
+		attributes := map[string]string{"backing": "lvm"}
+		if thin {
+			claim.Spec.StorageClassName = ptr(thinLocalStorageClass)
+			attributes = map[string]string{"backing": "thin", "layout": "thin-luks-xfs-v1", "capacity_mode": "ceiling-backed-v1"}
+		}
 		if i == 1 {
-			backing = "file"
+			claim.Spec.StorageClassName = ptr(encryptedLocalStorageClass)
+			attributes = map[string]string{"backing": "file"}
 		}
 		pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: claim.Spec.VolumeName}, Spec: corev1.PersistentVolumeSpec{
-			PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: claim.Spec.VolumeName, VolumeAttributes: map[string]string{"backing": backing}}},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: claim.Spec.VolumeName, VolumeAttributes: attributes}},
 			NodeAffinity:           &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: encryptedLocalTopologyKey, Operator: corev1.NodeSelectorOpIn, Values: []string{box.Name}}}}}}},
 		}}
 		pod := f.servingPod(i, "100m")
@@ -328,6 +354,13 @@ func TestLVMEnrollmentKeepsAPartlyMigratedInstanceOnItsResizeHold(t *testing.T) 
 		pod.Status.PodIP = fmt.Sprintf("10.0.0.%d", i+1)
 		pod.Labels[appsv1.ControllerRevisionHashLabelKey] = "current"
 		statuses[pod.Name] = runtimeStatus{Ready: true, State: "serving", BackfillInitialCycle: backfillCycleComplete, ConnectionIncarnation: "boot"}
+		if i == 1 && stranded {
+			// Recreated from the moved template, it cannot schedule beside its
+			// legacy claim, and serves nothing.
+			pod.Spec.NodeName = ""
+			pod.Status = corev1.PodStatus{Phase: corev1.PodPending, Conditions: []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionFalse, Reason: corev1.PodReasonUnschedulable}}}
+			delete(statuses, pod.Name)
+		}
 		objects = append(objects, claim, pv, pod)
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).WithStatusSubresource(f.instance, &appsv1.StatefulSet{}).Build()
@@ -356,7 +389,11 @@ func TestLVMEnrollmentKeepsAPartlyMigratedInstanceOnItsResizeHold(t *testing.T) 
 	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType || sts.Annotations[resizeRolloutHoldAnnotation] == "" {
 		t.Fatalf("partly migrated instance released its hold: %+v", sts.Spec.UpdateStrategy)
 	}
-	if err := c.Get(ctx, client.ObjectKeyFromObject(f.claim(1, "32Gi")), &corev1.PersistentVolumeClaim{}); err != nil {
-		t.Fatalf("legacy claim removed without node selection: %v", err)
+	err := c.Get(ctx, client.ObjectKeyFromObject(f.claim(1, "32Gi")), &corev1.PersistentVolumeClaim{})
+	if stranded != apierrors.IsNotFound(err) {
+		t.Fatalf("legacy claim deleted = %v, want %v (err %v)", apierrors.IsNotFound(err), stranded, err)
+	}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(f.claim(0, "32Gi")), &corev1.PersistentVolumeClaim{}); err != nil {
+		t.Fatalf("migrated claim removed: %v", err)
 	}
 }

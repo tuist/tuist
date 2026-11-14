@@ -19,6 +19,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.MCPRateLimitPlug
+  alias TuistWeb.Plugs.OAuthReturnToPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -204,6 +205,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    plug OAuthReturnToPlug
     plug Ueberauth
   end
 
@@ -220,6 +222,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
+    plug OAuthReturnToPlug
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug
@@ -328,6 +331,7 @@ defmodule TuistWeb.Router do
   pipeline :mcp do
     plug :put_request_kind, "mcp"
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, :load_agent_identity
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
@@ -384,8 +388,8 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
-  pipeline :jams_no_store do
-    plug :put_jams_no_store
+  pipeline :threads_no_store do
+    plug :put_threads_no_store
   end
 
   pipeline :report_publishing_api do
@@ -806,6 +810,14 @@ defmodule TuistWeb.Router do
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
 
+  scope "/oidc/accounts/:account_id", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/.well-known/openid-configuration", OIDCIssuerController, :openid_configuration, metadata: %{robots_txt: false}
+
+    get "/jwks.json", OIDCIssuerController, :jwks, metadata: %{robots_txt: false}
+  end
+
   scope "/.well-known", TuistWeb do
     pipe_through :open_api
 
@@ -828,6 +840,13 @@ defmodule TuistWeb.Router do
     pipe_through [:webmcp]
 
     post "/accounts/:account_handle", WebMCPController, :account
+  end
+
+  scope "/api/dashboard-search", TuistWeb do
+    # The same browser-session, CSRF, SSO and requester limits as WebMCP reads.
+    pipe_through [:webmcp]
+
+    post "/:account_handle", DashboardSearchController, :search
   end
 
   scope "/scim/v2", TuistWeb.SCIM do
@@ -865,21 +884,21 @@ defmodule TuistWeb.Router do
     get "/cache/endpoint", CacheController, :endpoint
   end
 
-  for collection <- [:jams, :threads] do
-    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{jams_collection: collection} do
-      pipe_through [:jams_no_store, :open_api, :authenticated_api, :on_premise_api]
+  for collection <- [:threads, :jams] do
+    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{threads_collection: collection} do
+      pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
 
       # Phoenix's dispatch logs include request params, including private prompts.
-      get "/", JamsController, :index, log: false
-      post "/", JamsController, :create, log: false
-      get "/repositories", JamsController, :repositories, log: false
-      get "/models", JamsController, :models, log: false
-      get "/:id", JamsController, :show, log: false
-      post "/:id/messages", JamsController, :message, log: false
-      patch "/:id", JamsController, :update, log: false
-      post "/:id/ship-preview", JamsController, :ship_preview, log: false
-      post "/:id/ship", JamsController, :ship, log: false
-      post "/:id/ship-reconcile", JamsController, :reconcile_ship, log: false
+      get "/", ThreadsController, :index, log: false
+      post "/", ThreadsController, :create, log: false
+      get "/repositories", ThreadsController, :repositories, log: false
+      get "/models", ThreadsController, :models, log: false
+      get "/:id", ThreadsController, :show, log: false
+      post "/:id/messages", ThreadsController, :message, log: false
+      patch "/:id", ThreadsController, :update, log: false
+      post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
+      post "/:id/ship", ThreadsController, :ship, log: false
+      post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
     end
   end
 
@@ -964,6 +983,7 @@ defmodule TuistWeb.Router do
         get "/:sandbox_id/commands/:command_id/logs", SandboxesController, :stream_command_logs
         post "/:sandbox_id/commands/:command_id/stdin", SandboxesController, :write_command_stdin
         post "/:sandbox_id/commands/:command_id/cancel", SandboxesController, :cancel_command
+        post "/:sandbox_id/uploads", SandboxesController, :create_upload
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
         post "/:sandbox_id/archive", SandboxesController, :archive
@@ -1347,6 +1367,11 @@ defmodule TuistWeb.Router do
     post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/cache-volumes/image", RunnerCacheVolumesController, :image
     get "/runners/cache-volumes/masters", RunnerCacheVolumesController, :masters
+    post "/runners/cache-volumes/actions-cache/lookup", RunnerCacheVolumesController, :actions_cache_lookup
+    post "/runners/cache-volumes/actions-cache/enabled", RunnerCacheVolumesController, :actions_cache_enabled
+    post "/runners/cache-volumes/actions-cache/reserve", RunnerCacheVolumesController, :actions_cache_reserve
+    post "/runners/cache-volumes/actions-cache/upload", RunnerCacheVolumesController, :actions_cache_upload
+    post "/runners/cache-volumes/actions-cache/commit", RunnerCacheVolumesController, :actions_cache_commit
     get "/runners/cache-masters", RunnerCacheMastersController, :index
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
@@ -1383,6 +1408,19 @@ defmodule TuistWeb.Router do
     get "/atlas/flags/evaluate", AtlasFeatureFlagsController, :evaluate
     get "/atlas/flags/:name", AtlasFeatureFlagsController, :show
     put "/atlas/flags/:name", AtlasFeatureFlagsController, :update
+
+    get "/atlas/accounts/lookup", AtlasAccountsController, :lookup
+
+    get "/atlas/accounts/:account_id/runner-concurrency-limits",
+        AtlasAccountsController,
+        :runner_concurrency_limits
+
+    put "/atlas/accounts/:account_id/runner-concurrency-limits",
+        AtlasAccountsController,
+        :update_runner_concurrency_limits
+
+    get "/atlas/accounts/:account_id/plan", AtlasAccountsController, :plan
+    put "/atlas/accounts/:account_id/plan", AtlasAccountsController, :update_plan
 
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
@@ -1856,6 +1894,7 @@ defmodule TuistWeb.Router do
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
       live "/settings/ai", AISubscriptionsSettingsLive
+      live "/settings/ai/routing", OrganizationAISettingsLive
     end
   end
 
@@ -1988,7 +2027,7 @@ defmodule TuistWeb.Router do
     assign(conn, :current_path, conn.request_path)
   end
 
-  defp put_jams_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+  defp put_threads_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
 
   defp put_request_kind(conn, kind) when is_binary(kind) do
     assign(conn, :request_kind, kind)

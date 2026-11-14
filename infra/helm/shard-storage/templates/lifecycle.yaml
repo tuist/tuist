@@ -33,7 +33,8 @@ data:
 ---
 # Reapplying the policy is idempotent and recovers automatically if the bucket
 # was recreated. It is separate from readiness: do not block server releases.
-# The same run creates the archive bucket when it is missing.
+# The same run creates the archive bucket when it is missing, and the Actions
+# cache bucket with its quota.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -101,6 +102,42 @@ spec:
                   readOnly: true
           {{- end }}
           containers:
+            {{- if .Values.actionsCache.bucket }}
+            # Through the admin API: S3 cannot set a quota, and a bucket the S3
+            # API creates has only a key-local alias the admin API cannot find.
+            - name: actions-cache
+              image: {{ .Values.lifecycle.image | quote }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  admin() { curl -sS -H "Authorization: Bearer $GARAGE_ADMIN_TOKEN" -H 'Content-Type: application/json' "$@"; }
+                  # Answers 409 once the bucket exists.
+                  admin -o /dev/null -X POST "$ADMIN/v2/CreateBucket" -d "{\"globalAlias\":\"$BUCKET\"}"
+                  id=$(admin -f "$ADMIN/v2/GetBucketInfo?globalAlias=$BUCKET" | grep -o '"id": *"[0-9a-f]\{64\}"' | head -n 1 | grep -o '[0-9a-f]\{64\}')
+                  admin -f -o /dev/null -X POST "$ADMIN/v2/AllowBucketKey" -d "{\"bucketId\":\"$id\",\"accessKeyId\":\"$AWS_ACCESS_KEY_ID\",\"permissions\":{\"read\":true,\"write\":true,\"owner\":true}}"
+                  admin -f -o /dev/null -X POST "$ADMIN/v2/UpdateBucket?id=$id" -d "{\"quotas\":{\"maxSize\":$MAX_SIZE,\"maxObjects\":null}}"
+                  echo "$BUCKET is capped at $MAX_SIZE bytes"
+              env:
+                - name: ADMIN
+                  value: {{ printf "http://%s.%s.svc.cluster.local:3903" .Release.Name .Release.Namespace | quote }}
+                - name: BUCKET
+                  value: {{ .Values.actionsCache.bucket | quote }}
+                - name: MAX_SIZE
+                  value: {{ mul (int64 .Values.actionsCache.maxGB) 1000000000 | quote }}
+                - name: GARAGE_ADMIN_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Release.Name }}
+                      key: rpc-secret
+                {{- include "shard-storage.awsEnv" . | nindent 16 }}
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
+            {{- end }}
             - name: policy
               image: {{ .Values.lifecycle.image | quote }}
               args:

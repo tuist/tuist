@@ -49,6 +49,9 @@ func (f *fakeBackend) Archive(ctx context.Context, args protocol.ArchiveArgs) (p
 func (f *fakeBackend) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
 	return protocol.ArchiveResult{}, nil
 }
+func (f *fakeBackend) CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (protocol.SaveDisksResult, error) {
+	return protocol.SaveDisksResult{}, nil
+}
 func (f *fakeBackend) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.OutputFunc) (protocol.ExecResult, error) {
 	out("stdout", []byte("out\n"))
 	out("stderr", []byte("err\n"))

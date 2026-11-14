@@ -1,0 +1,73 @@
+{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.nestedVirtualization.enabled .Values.runnersFleetLinux.nestedVirtualization.nri.enabled }}
+{{- /*
+Gives /dev/kvm to the runner Pods of pools with both `exclusiveCPUs` and
+`nestedVirtualization`. Their Pod-level budget rules out the
+devices.tuist.dev/kvm device plugin (kubernetes/kubernetes#143490), so this
+containerd NRI plugin adds the device when containerd creates each container a
+kata-qemu Pod in the runners namespace names in its tuist.dev/kvm-containers
+annotation. Without it those containers get no /dev/kvm, and the poller exits
+before claiming a job. Source: infra/runners-controller/cmd/kvm-nri-plugin.
+*/}}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "kvm-nri-plugin") }}
+{{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $imageTag := required "runnersController.image.tag is required for the kvm NRI plugin" .Values.runnersController.image.tag }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kvm-nri-plugin
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kvm-nri-plugin
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: kvm-nri-plugin
+    spec:
+      automountServiceAccountToken: false
+      priorityClassName: system-node-critical
+      nodeSelector:
+        kubernetes.io/os: linux
+        node.cluster.x-k8s.io/pool: {{ include "tuist.runnersFleetLinuxName" . | quote }}
+        tuist.dev/kata-kvm: "true"
+      tolerations:
+        - key: tuist.dev/runner-tier
+          operator: Exists
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      containers:
+        - name: plugin
+          image: "{{ .Values.runnersController.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.runnersController.image.pullPolicy }}
+          command: [/usr/local/bin/kvm-nri-plugin]
+          args:
+            - --namespace={{ $namespace }}
+          securityContext:
+            # Root only to reach containerd's root-owned NRI socket; no
+            # capabilities and no privilege.
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+          volumeMounts:
+            - name: nri
+              mountPath: /var/run/nri
+      volumes:
+        # containerd's NRI socket (2.x enables NRI by default).
+        - name: nri
+          hostPath:
+            path: /var/run/nri
+            type: Directory
+{{- end }}

@@ -28,7 +28,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       assert String.starts_with?(body, "# Tuist\n")
 
       assert body =~
-               "\n> Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+               "\n> Tuist is build infrastructure for engineering teams and coding agents."
 
       assert body =~ "capabilities and prerequisites that vary by feature"
     end
@@ -118,7 +118,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert String.starts_with?(
                body,
-               "# Tuist\n\n> Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+               "# Tuist\n\n> Tuist is build infrastructure for engineering teams and coding agents."
              )
     end
 

@@ -4,9 +4,17 @@ defmodule Tuist.EntireTrails.Summary do
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
-  schema "entire_trail_summaries" do
+  schema "entire_trail_reports" do
     belongs_to :connection, Tuist.EntireTrails.Connection
     field :trail_id, :string
+    field :head_sha, :string
+    field :report_body, :string
+    field :reported_at, :utc_datetime_usec
+    field :published_at, :utc_datetime_usec
+    field :publication_started, :boolean, default: false
+    field :findings, {:array, :map}, default: []
+    field :review_id, :string
+    field :finding_ids, {:array, :string}, default: []
     field :discussion_id, :string
     field :message_id, :string
     timestamps(type: :utc_datetime)

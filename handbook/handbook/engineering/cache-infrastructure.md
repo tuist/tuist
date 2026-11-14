@@ -34,9 +34,8 @@ That is the substantive change. The old fleet had its own operating system, its 
 | `eu-west` | OVHcloud | Gravelines, France |
 | `us-east` | OVHcloud | Vint Hill, Virginia |
 | `us-west` | OVHcloud | Hillsboro, Oregon |
-| `scw-fr-par-runners` | Scaleway Elastic Metal | Paris |
 
-The first three serve customers. `scw-fr-par-runners` is private: it serves the macOS runner fleet's build cache over the private network the Mac minis attach to.
+These serve customers. Each rack site also has a private region (`<site>-runners`) on the site's storage node, which serves the build cache of the macOS runners racked there over the site's network.
 
 Customers do not choose among them. An account is placed in the region its cache traffic comes from, and the placement follows that traffic when it durably moves; what an account states is where its data may live (the storage region setting), which is a compliance boundary rather than a placement. Each account also has a cache hostname without a region in it, so a client that writes the endpoint down keeps working when its cache moves.
 

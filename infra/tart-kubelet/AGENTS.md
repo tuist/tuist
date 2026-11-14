@@ -394,6 +394,15 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
   content store (`~/.tart/cache/content`). Deleting a local VM leaves the
   store alone, so the GC runs `tart prune --gc` after it reaps a golden, and
   before it re-measures free space under disk pressure.
+- The macOS sandbox store is seeded from the CI store's files (`macosandbox/seed.go`):
+  a cached image is `cache/OCIs/<host, ':' as %3A>/<repository>/sha256:<hex>/`
+  (`config.json`, `nvram.bin`, `manifest.json`; `disk.img` when standalone),
+  its manifest names each stacked disk file by the
+  `org.cirruslabs.tart.disk-file-content-digest` layer annotation, the file is
+  `cache/content/sha256/<hex>`, and `prune --gc` deletes content under an
+  exclusive `flock` on `cache/content/.gc.lock`. `tart get` opens only local
+  VMs; a cached image is found in `tart list`. A Tart release that changes
+  any of this makes seeding fall back to a pull.
 - `tart run` stays a foreground process for the life of the VM, so the
   `Setsid` launch and the `pgrep` liveness check are unchanged.
 - JSON: `list` and `get` print humanized sizes in text output only (2.36). JSON

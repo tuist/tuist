@@ -63,6 +63,12 @@ struct CargoUnitCache {
         /// The registry source directory (`<name>-<version>`) the unit was built from, when known. Restoration skips
         /// units of packages the current `Cargo.lock` does not have.
         var package: String?
+
+        /// The unit's fingerprint directory, relative to the profile, in the layout of the Cargo that built it.
+        var fingerprint: String {
+            files.contains { $0.path.hasPrefix(".fingerprint/") } ? ".fingerprint/" + name
+                : CargoUnitCache.unitDirectory(name) + "/fingerprint"
+        }
     }
 
     struct File: Codable, Equatable {
@@ -76,6 +82,11 @@ struct CargoUnitCache {
 
         var digest: REAPI.Digest { .with { $0.hash = hash; $0.sizeBytes = size } }
     }
+
+    /// The directory Cargo 1.100's build-directory layout keeps a whole unit in: `build/<package>/<hash>`, with its
+    /// fingerprint in `fingerprint`, its compiler outputs in `out` (a run's `OUT_DIR`) and a run's records in `run`.
+    /// Earlier versions spread a unit over `.fingerprint/<package>-<hash>`, `deps` and `build/<package>-<hash>`.
+    static func unitDirectory(_ name: String) -> String { "build/\(name.dropLast(17))/\(name.suffix(16))" }
 
     // MARK: - Setup
 
@@ -103,6 +114,9 @@ struct CargoUnitCache {
         let options = Array(arguments.prefix(while: { $0 != "--" }))
         var metadataArguments = ["metadata", "--format-version", "1", "--no-deps", "--offline"]
         if let manifest = value("--manifest-path", in: options) { metadataArguments += ["--manifest-path", manifest] }
+        if let targetDirectory = value("--target-dir", in: options) {
+            metadataArguments += ["--target-dir", targetDirectory]
+        }
         async let metadataOutput = try? process.capture(
             executable, arguments: metadataArguments, environment: environment, directory: directory
         )
@@ -118,7 +132,9 @@ struct CargoUnitCache {
         let profileName = profileDirectory(options: options, kind: kind)
         let flags = environment.filter { key, _ in
             ["RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_RUSTFLAGS", "CARGO_INCREMENTAL", "RUSTC_BOOTSTRAP"]
-                .contains(key) || key.hasPrefix("CARGO_PROFILE_") || key.hasPrefix("CARGO_TARGET_")
+                .contains(key) || key.hasPrefix("CARGO_PROFILE_")
+                // Not target runners, which start test binaries and build nothing; coverage sets one.
+                || (key.hasPrefix("CARGO_TARGET_") && !key.hasSuffix("_RUNNER"))
         }.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
         let cargoHome = URL(fileURLWithPath: environment["CARGO_HOME"] ?? FileManager.default
             .homeDirectoryForCurrentUser.appendingPathComponent(".cargo").path).standardizedFileURL
@@ -252,7 +268,7 @@ extension CargoUnitCache {
         let missing = manifest.units.filter {
             Self.isSafe($0) && Set($0.bound ?? []).isSubset(of: relocation.roots.map(\.path))
                 && ($0.package.map(lockedPackages.contains) ?? true)
-                && !FileManager.default.fileExists(atPath: profile.appendingPathComponent(".fingerprint/" + $0.name).path)
+                && !FileManager.default.fileExists(atPath: profile.appendingPathComponent($0.fingerprint).path)
         }
         guard !missing.isEmpty else {
             debug("all \(manifest.units.count) dependency units are present")
@@ -298,7 +314,7 @@ extension CargoUnitCache {
             let restoredAt = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
             // A Cargo that held the lock meanwhile may have built some of these units; its outputs stay.
             let absent = missing.filter {
-                !FileManager.default.fileExists(atPath: profile.appendingPathComponent(".fingerprint/" + $0.name).path)
+                !FileManager.default.fileExists(atPath: profile.appendingPathComponent($0.fingerprint).path)
             }
             let candidates = absent.filter { $0.files.allSatisfy { blobStore.contains($0.digest) } }
             let results = Self.concurrentMap(candidates) { materialize($0, at: restoredAt) }
@@ -447,8 +463,9 @@ extension CargoUnitCache {
     /// build, and Foundation's copy, attribute, and move calls cost several times the syscalls a clone needs.
     private func materialize(_ unit: Unit, at date: Date) -> Bool {
         let verifier = CargoInputHasher(sessionDirectory: root.appendingPathComponent("verified"))
-        let ordered = unit.files.filter { !$0.path.hasPrefix(".fingerprint/") } + unit.files
-            .filter { $0.path.hasPrefix(".fingerprint/") }
+        let fingerprint = unit.fingerprint + "/"
+        let ordered = unit.files.filter { !$0.path.hasPrefix(fingerprint) } + unit.files
+            .filter { $0.path.hasPrefix(fingerprint) }
         var times = [timespec](repeating: timespec(tv_sec: Int(date.timeIntervalSince1970), tv_nsec: 0), count: 2)
         do {
             var created = Set<String>()
@@ -484,10 +501,10 @@ extension CargoUnitCache {
                 else { throw CocoaError(.fileWriteUnknown) }
                 if file.certified == true { try? CargoCacheInputs.certify(file.digest, environment: environment) }
             }
-            remember(unit.files, at: date)
+            remember([unit], at: date)
             return true
         } catch {
-            try? FileManager.default.removeItem(at: profile.appendingPathComponent(".fingerprint/" + unit.name))
+            try? FileManager.default.removeItem(at: profile.appendingPathComponent(unit.fingerprint))
             debug("unit \(unit.name) was not restored: \(error)")
             return false
         }
@@ -496,13 +513,14 @@ extension CargoUnitCache {
     /// Restored files are clones of verified content, so a served session records their digests under the clones'
     /// identities: the hooks that read them (externs, a build script's outputs) do not hash them again. Only while a
     /// file keeps its restoration time and size; a write since restoration changes them.
-    private func remember(_ files: [File], at date: Date) {
+    private func remember(_ units: [Unit], at date: Date) {
         guard let session = environment["TUIST_CARGO_SESSION"].map({ URL(fileURLWithPath: $0) }),
               CargoInputHasher.isServing(session: session) else { return }
         let hasher = CargoInputHasher(sessionDirectory: session)
         let seconds = String(Int(date.timeIntervalSince1970))
         let base = profile.path + "/"
-        hasher.remember(files.filter { !$0.path.hasPrefix(".fingerprint/") }.map { (base + $0.path, $0.digest) }) {
+        let files = units.flatMap { unit in unit.files.filter { !$0.path.hasPrefix(unit.fingerprint + "/") } }
+        hasher.remember(files.map { (base + $0.path, $0.digest) }) {
             $0.fields[2] == String($1.sizeBytes) && $0.fields[4] == seconds && $0.fields[5] == "0"
         }
     }
@@ -562,7 +580,7 @@ extension CargoUnitCache {
             for file in units.flatMap(\.files) where file.certified == true {
                 try? CargoCacheInputs.certify(file.digest, environment: environment)
             }
-            remember(units.flatMap(\.files), at: Date(timeIntervalSince1970: record.at))
+            remember(units, at: Date(timeIntervalSince1970: record.at))
             // Use marks are renewed hourly, like a blob's; the snapshot's blobs stay recent with it, since restoring
             // from them again needs them once the snapshot is gone.
             if CargoBlobStore.markUsed(directory.path) {
@@ -782,10 +800,27 @@ extension CargoUnitCache {
     }
 
     private func collectUnits(reusing restored: Restored) -> [Unit] {
-        let fingerprints = profile.appendingPathComponent(".fingerprint")
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: fingerprints.path) else { return [] }
-        let deps = (try? FileManager.default.contentsOfDirectory(atPath: profile.appendingPathComponent("deps").path)) ?? []
-        let candidates = names.filter(Self.isUnitName).prefix(10000)
+        let fileManager = FileManager.default
+        // Each unit's fingerprint directory, in either layout: a target directory can hold both.
+        var fingerprints: [String: String] = [:]
+        for name in (try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent(".fingerprint").path)) ?? []
+            where Self.isUnitName(name)
+        {
+            fingerprints[name] = ".fingerprint/" + name
+        }
+        let build = profile.appendingPathComponent("build")
+        for package in (try? fileManager.contentsOfDirectory(atPath: build.path)) ?? [] where !Self.isUnitName(package) {
+            for hash in (try? fileManager.contentsOfDirectory(atPath: build.appendingPathComponent(package).path)) ?? [] {
+                let name = "\(package)-\(hash)"
+                let fingerprint = Self.unitDirectory(name) + "/fingerprint"
+                guard Self.isUnitName(name), fileManager.fileExists(atPath: profile.appendingPathComponent(fingerprint).path)
+                else { continue }
+                fingerprints[name] = fingerprint
+            }
+        }
+        guard !fingerprints.isEmpty else { return [] }
+        let deps = (try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent("deps").path)) ?? []
+        let candidates = fingerprints.keys.sorted().prefix(10000)
         // A unit is a dependency's when every source its compiler read is in Cargo's registry or git checkouts
         // (or generated into this target directory). Build-script runs read nothing through rustc: they belong to
         // a package only when all of that package's compiled units are dependencies.
@@ -813,17 +848,28 @@ extension CargoUnitCache {
         // reused every dependency does not read the dep-info of the workspace's own units.
         let fresh = candidates.filter { name in
             guard !reusedNames.contains(name),
-                  let created = (try? fingerprints.appendingPathComponent(name).resourceValues(forKeys: [.creationDateKey]))?
-                  .creationDate else { return false }
+                  let fingerprint = fingerprints[name],
+                  let created = (try? profile.appendingPathComponent(fingerprint)
+                      .resourceValues(forKeys: [.creationDateKey]))?.creationDate else { return false }
             return created >= sessionStarted.addingTimeInterval(-1)
         }
         let freshPackages = Set(fresh.map(package))
         var classified: [String: Bool] = [:]
         for name in candidates where !reusedNames.contains(name) && freshPackages.contains(package(name)) {
             let hash = String(name.suffix(16))
-            let depInfo = deps.filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("deps/" + $0) }
-                + ((try? FileManager.default.contentsOfDirectory(atPath: profile.appendingPathComponent("build/" + name).path))
-                    ?? []).filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("build/\(name)/" + $0) }
+            let depInfo: [URL]
+            if fingerprints[name]?.hasPrefix(".fingerprint/") == true {
+                depInfo = deps.filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("deps/" + $0) }
+                    + ((try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent("build/" + name).path))
+                        ?? []).filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("build/\(name)/" + $0) }
+            } else {
+                // A compiled unit's dep-info is in its `out`, named without the hash for build scripts; a run's `out` is
+                // its `OUT_DIR`, whose files are the script's own.
+                let unit = profile.appendingPathComponent(Self.unitDirectory(name))
+                depInfo = fileManager.fileExists(atPath: unit.appendingPathComponent("run").path) ? []
+                    : ((try? fileManager.contentsOfDirectory(atPath: unit.appendingPathComponent("out").path)) ?? [])
+                    .filter { $0.hasSuffix(".d") }.map { unit.appendingPathComponent("out/" + $0) }
+            }
             guard !depInfo.isEmpty else { continue }
             classified[name] = depInfo.allSatisfy(isDependencySource)
         }
@@ -848,7 +894,7 @@ extension CargoUnitCache {
     /// Whether Cargo left a restored unit as it was written: every file still has the restoration's time and size,
     /// and its fingerprint directory holds nothing else. Cargo rewrites a unit's fingerprint whenever it rebuilds it.
     private func isUntouched(_ unit: Unit, since date: Date) -> Bool {
-        let fingerprint = ".fingerprint/" + unit.name
+        let fingerprint = unit.fingerprint
         let listed = Set(unit.files.map(\.path).filter { $0.hasPrefix(fingerprint + "/") })
         guard let present = try? FileManager.default
             .contentsOfDirectory(atPath: profile.appendingPathComponent(fingerprint).path),
@@ -862,13 +908,17 @@ extension CargoUnitCache {
         }
     }
 
-    /// The files directly in each `.fingerprint/<unit>` directory of a profile walk, by unit.
+    /// The files directly in each unit's fingerprint directory of a profile walk, by unit: `.fingerprint/<unit>`, or
+    /// `build/<package>/<hash>/fingerprint` in Cargo 1.100's layout.
     private static func fingerprintFiles(_ entries: [String: stat]) -> [String: Set<String>] {
         var result: [String: Set<String>] = [:]
-        for path in entries.keys where path.hasPrefix(".fingerprint/") {
+        for path in entries.keys {
             let components = path.split(separator: "/", omittingEmptySubsequences: false)
-            guard components.count == 3 else { continue }
-            result[String(components[1]), default: []].insert(path)
+            if components.count == 3, components[0] == ".fingerprint" {
+                result[String(components[1]), default: []].insert(path)
+            } else if components.count == 5, components[0] == "build", components[3] == "fingerprint" {
+                result["\(components[1])-\(components[2])", default: []].insert(path)
+            }
         }
         return result
     }
@@ -877,7 +927,7 @@ extension CargoUnitCache {
     private static func isUntouched(
         _ unit: Unit, since date: Date, entries: [String: stat], fingerprints: [String: Set<String>]
     ) -> Bool {
-        let fingerprint = ".fingerprint/" + unit.name + "/"
+        let fingerprint = unit.fingerprint + "/"
         let listed = Set(unit.files.map(\.path).filter { $0.hasPrefix(fingerprint) })
         guard (fingerprints[unit.name] ?? []) == listed else { return false }
         let seconds = Int(date.timeIntervalSince1970)
@@ -917,13 +967,18 @@ extension CargoUnitCache {
     /// outputs name one. Absolute `rerun-if-changed` paths outside every root are not restored: a restored unit's newer
     /// timestamps would hide another machine's file.
     private func runBinding(_ name: String) -> Set<String>? {
-        let directory = profile.appendingPathComponent("build/" + name)
-        guard let output = try? String(contentsOf: directory.appendingPathComponent("output"), encoding: .utf8),
+        // Cargo 1.100 keeps a run's records in `run`, its printed directives as `stdout`.
+        let layout = profile.appendingPathComponent(Self.unitDirectory(name))
+        let modern = FileManager.default.fileExists(atPath: layout.appendingPathComponent("fingerprint").path)
+        let directory = modern ? layout.appendingPathComponent("run") : profile.appendingPathComponent("build/" + name)
+        let directives = directory.appendingPathComponent(modern ? "stdout" : "output")
+        guard let output = try? String(contentsOf: directives, encoding: .utf8),
               let outDirectory = try? String(contentsOf: directory.appendingPathComponent("root-output"), encoding: .utf8)
         else { return nil }
         let remaining = output.replacingOccurrences(of: outDirectory.trimmingCharacters(in: .newlines), with: "")
         var bound = Set(relocation.boundRoots(in: Data(remaining.utf8)).map(\.path))
-        let fingerprint = profile.appendingPathComponent(".fingerprint/" + name)
+        let fingerprint = modern ? layout.appendingPathComponent("fingerprint")
+            : profile.appendingPathComponent(".fingerprint/" + name)
         let records = ((try? FileManager.default.contentsOfDirectory(atPath: fingerprint.path)) ?? [])
             .filter { $0.hasSuffix(".json") }
         guard !records.isEmpty else { return nil }
@@ -945,12 +1000,15 @@ extension CargoUnitCache {
 
     private func collect(_ name: String, deps: [String]) -> Unit? {
         let hash = String(name.suffix(16))
-        var paths = deps.filter { file in
+        let modern = FileManager.default.fileExists(
+            atPath: profile.appendingPathComponent(Self.unitDirectory(name) + "/fingerprint").path
+        )
+        var paths = modern ? [] : deps.filter { file in
             guard let range = file.range(of: "-" + hash) else { return false }
             return range.upperBound == file.endIndex || file[range.upperBound] == "."
         }.map { "deps/" + $0 }
         var directories: [String] = []
-        for tree in [".fingerprint/" + name, "build/" + name] {
+        for tree in modern ? [Self.unitDirectory(name)] : [".fingerprint/" + name, "build/" + name] {
             let base = profile.appendingPathComponent(tree)
             guard FileManager.default.fileExists(atPath: base.path) else { continue }
             directories.append(tree)
@@ -966,7 +1024,8 @@ extension CargoUnitCache {
         var files: [File] = []
         var bound: Set<String> = []
         // Cargo's own records and rustc's dep-info name paths by design; Cargo relocates a run's `OUT_DIR` itself.
-        let records = ["output", "root-output", "stderr", "invoked.timestamp"]
+        let records = ["output", "stdout", "root-output", "stderr", "invoked.timestamp"]
+        let fingerprint = (modern ? Self.unitDirectory(name) + "/fingerprint" : ".fingerprint/" + name) + "/"
         for path in paths.sorted() {
             let file = profile.appendingPathComponent(path)
             guard let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
@@ -974,7 +1033,7 @@ extension CargoUnitCache {
                   let size = properties.fileSize, size <= 4_000_000_000,
                   let digest = try? blobStore.publish(file)
             else { return nil }
-            if !path.hasPrefix(".fingerprint/"), !path.hasSuffix(".d"),
+            if !path.hasPrefix(fingerprint), !path.hasSuffix(".d"),
                !(path.hasPrefix("build/") && records.contains(URL(fileURLWithPath: path).lastPathComponent))
             {
                 guard let data = try? Data(contentsOf: file) else { return nil }
@@ -989,8 +1048,8 @@ extension CargoUnitCache {
                 certified: certified ? true : nil
             ))
         }
-        guard files.contains(where: { $0.path.hasPrefix(".fingerprint/") }) else { return nil }
-        if paths.contains("build/\(name)/output") {
+        guard files.contains(where: { $0.path.hasPrefix(fingerprint) }) else { return nil }
+        if paths.contains(modern ? Self.unitDirectory(name) + "/run/stdout" : "build/\(name)/output") {
             guard let roots = runBinding(name) else { return nil }
             bound.formUnion(roots)
         }

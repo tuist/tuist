@@ -17,8 +17,16 @@ defmodule Atlas.Support.Notifier do
   @event_type "atlas_support_event"
   @events ~w(inbound_received chat_received agent_feedback_received reply_delivered note_added status_changed assigned)
 
-  def notify(%Thread{} = thread, event, opts \\ []) when event in @events do
-    with {:ok, channel_id} <- channel_id(thread, event, opts) do
+  # `#support` only hears about inbound mail and chats that need someone.
+  # The classifier already resolved no-action threads; the weekly digest
+  # summarises them.
+  def notify(thread, event, opts \\ [])
+
+  def notify(%Thread{action_needed: false}, event, _opts) when event in ["inbound_received", "chat_received"],
+    do: :silenced
+
+  def notify(%Thread{} = thread, event, opts) when event in @events do
+    with {:ok, channel_id} <- channel_id(opts) do
       notification_id = Keyword.fetch!(opts, :notification_id)
 
       case API.find_message_by_metadata(@app_key, channel_id, @event_type, notification_id) do
@@ -36,7 +44,7 @@ defmodule Atlas.Support.Notifier do
 
           post(thread, event, channel_id, opts)
       end
-      |> maybe_fallback(thread, event, channel_id, opts)
+      |> audit_failure(thread, event, channel_id)
     end
   end
 
@@ -112,37 +120,19 @@ defmodule Atlas.Support.Notifier do
     end
   end
 
-  defp channel_id(%Thread{} = thread, event, opts) do
-    override = Keyword.get(opts, :channel_id)
-
-    cond do
-      is_binary(override) and override != "" ->
-        {:ok, override}
-
-      silenced?(thread, event) ->
-        filtered_channel_id() || default_channel_id()
-
-      true ->
-        default_channel_id()
+  defp channel_id(opts) do
+    case Keyword.get(opts, :channel_id) do
+      override when is_binary(override) and override != "" -> {:ok, override}
+      _override -> default_channel_id()
     end
   end
 
-  defp maybe_fallback({:error, reason} = error, thread, event, channel_id, opts) do
-    permanent? = reason in ["channel_not_found", "not_in_channel", "is_archived", "missing_scope", "no_permission"]
+  defp audit_failure({:error, reason} = error, thread, event, channel_id) do
     audit_delivery_failure(thread, event, channel_id, failure_summary(reason))
-
-    with true <- permanent? or Keyword.get(opts, :final_attempt?, false),
-         true <- silenced?(thread, event) and !Keyword.has_key?(opts, :channel_id),
-         {:ok, support_channel_id} when support_channel_id != channel_id <- default_channel_id() do
-      # A broken filtered-channel integration must not swallow inbound mail.
-      # Reuse the notification id so retries can reconcile the fallback post.
-      notify(thread, event, Keyword.put(opts, :channel_id, support_channel_id))
-    else
-      _other -> error
-    end
+    error
   end
 
-  defp maybe_fallback(result, _thread, _event, _channel_id, _opts), do: result
+  defp audit_failure(result, _thread, _event, _channel_id), do: result
 
   defp failure_summary(reason)
        when reason in [
@@ -180,22 +170,6 @@ defmodule Atlas.Support.Notifier do
     end
   end
 
-  defp filtered_channel_id do
-    case Config.slack_filtered_channel_id() do
-      nil -> nil
-      channel_id -> {:ok, channel_id}
-    end
-  end
-
-  # A silenced email still ends up somewhere — either in the
-  # dedicated `#support-filtered` channel when it is configured,
-  # or back in `#support` so nothing goes entirely dark before
-  # `#support-filtered` exists. Only `inbound_received` and
-  # `chat_received` are eligible for silencing; team-side events
-  # always go to the main channel.
-  defp silenced?(%Thread{action_needed: false}, event) when event in ["inbound_received", "chat_received"], do: true
-  defp silenced?(_thread, _event), do: false
-
   defp event_title("inbound_received"), do: "New support email"
   defp event_title("chat_received"), do: "New support chat"
   defp event_title("agent_feedback_received"), do: "New agent feedback"
@@ -215,10 +189,6 @@ defmodule Atlas.Support.Notifier do
 
   defp header_text(_thread, event), do: event_title(event)
 
-  # Silenced threads (action_needed=false) always show the file
-  # badge, regardless of urgency — a low-urgency filed vendor
-  # notice should not be dressed up as urgent.
-  defp urgency_badge(%Thread{action_needed: false}), do: "🗂"
   defp urgency_badge(%Thread{urgency: "high"}), do: "🚨"
   defp urgency_badge(%Thread{urgency: "low"}), do: "🕰"
   defp urgency_badge(_thread), do: nil

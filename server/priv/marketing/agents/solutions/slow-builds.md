@@ -2,7 +2,23 @@
 
 Tuist helps engineering teams and coding agents investigate slow builds and reuse compatible outputs without replacing CI. Improve the project first, then its execution environment: start with recorded build evidence and remove unnecessary work before buying more compute.
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. It provides build evidence and capabilities, not a coding agent or automatic project repair.
+Tuist is build infrastructure for engineering teams and coding agents: a shared environment where developers, CI, and coding agents build and test. It provides build evidence and capabilities, not a CI provider, a coding agent, or automatic project repair.
+
+## Why builds get slow
+
+Most slow builds are slow because they repeat work, not because the work is new. Three patterns cause most of it:
+
+- **Fresh environments start cold.** A CI job, a new checkout, or a coding agent's sandbox starts without the outputs a teammate's machine already produced, so it compiles unchanged code again. More branches and more agents mean more cold builds of the same code.
+- **Small changes invalidate too much.** When a widely used module, a generated file, a build setting, or an undeclared input changes, the build system must redo everything that depends on it, even if the change was cosmetic.
+- **Serial work hides behind parallel hardware.** A long chain of dependent steps, a slow script phase, or one oversized module leaves cores idle. A bigger machine runs the same chain no faster.
+
+Faster machines only help the last pattern, and only partly. The first two are about avoiding work, which is where to start.
+
+## How Tuist addresses it
+
+- **Shared caching.** Tuist backs the build system's own cache, so an output produced once can be reused on developer machines, in CI, and in agent environments: Xcode's compilation cache, the module cache for generated Xcode projects, Gradle's build cache, Bazel's remote cache, and compiled Elixir dependencies. Reuse only happens when inputs match, so cache hits also reveal which inputs keep changing. See [Cache](/marketing-markdown/cache) and the [cache documentation](/en/docs-markdown/guides/features/cache).
+- **Build insights.** Tuist records every reported build with its duration, steps or tasks, and cache results, across machines and over time. A regression shows up as a change in a specific target or task instead of a vaguely slower CI. See [Build Insights](/en/docs-markdown/guides/features/build-insights).
+- **Evidence for agents.** The same records are available to authorized coding agents, so an agent can find the slow step and propose a change backed by data, as described below.
 
 ## Choose an approach
 
@@ -39,11 +55,18 @@ Ask for an evidence-backed bottleneck, one proposed change, and a before/after m
 3. Remove one source of unnecessary work or enable the matching [cache integration](/marketing-markdown/cache).
 4. Compare end-to-end duration and total machine usage, not only hit rate. Repeat in development or an agent environment as well as CI.
 
-## Questions before you start
+## Further reading
+
+- [Build smart before you build fast](/blog/2025/11/17/smart-before-fast) on why avoiding work beats adding capacity.
+- [The physics of build systems](/blog/2026/08/25/the-physics-of-build-systems) on build graphs, incremental builds, and remote caching.
+- Remote caching for [Xcode](/blog/2025/10/22/xcode-cache), [Gradle](/blog/2026/03/02/gradle), and [Bazel](/blog/2026/09/09/bazel).
+- Related guides: [slow tests](/marketing-markdown/solutions/slow-tests) and [rising CI costs](/marketing-markdown/solutions/ci-costs).
+
+## Frequently asked questions
 
 ### What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. For slow builds, start with evidence and reuse rather than a CI migration.
+Tuist is build infrastructure for engineering teams and coding agents. For slow builds, start with evidence and reuse rather than a CI migration.
 
 ### Does this replace CI?
 
@@ -55,10 +78,12 @@ Yes. Instrument one project, establish a baseline, and test one intervention bef
 
 ### Hosted or self-hosted?
 
-Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server) and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the invite-only managed Compute fleet.
+Use hosted Tuist, or operate a [self-hosted server](/en/docs-markdown/guides/server/self-host/server), which requires the Enterprise plan, and [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). Self-hosting brings operational responsibility and does not grant access to the invite-only managed Compute fleet.
 
 ### How do we measure value?
 
 Measure feedback time and total machine usage before and after a representative change. Include transfer overhead, integration and operational effort, and current [Tuist pricing](/pricing). Do not treat hit rate or a faster isolated task as proof of end-to-end savings.
 
-Related: [slow tests](/marketing-markdown/solutions/slow-tests) and [rising CI costs](/marketing-markdown/solutions/ci-costs).
+### Will Tuist make our builds faster automatically?
+
+Not by itself. A cache only skips work whose inputs match a previous run, and insights show where time goes without changing the build. The gains come from reusing compatible outputs across environments and from fixing the invalidation and serial work that the evidence points to.

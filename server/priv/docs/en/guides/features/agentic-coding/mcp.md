@@ -213,6 +213,19 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 If your agent supports `auth.md`, it can start anonymously without opening a browser. A trusted provider identity can also complete without a browser when the provider identity is already linked. For service-authenticated email, anonymous claiming, or a first provider link, the agent shows you a Tuist verification link and six-digit code. Open the link, sign in, and enter the agent's code on the Tuist page. Never send the code back to the agent. Tuist's authorization-server metadata points directly to the deployment's own `/auth.md`, which contains the exact request and polling shapes.
 
+## Agents in Amp orbs and Claude Code cloud sessions
+
+Coding agents running in sandboxes connected to a Tuist account can authenticate to the endpoint with their own identity token, without a browser or a stored Tuist credential:
+
+- **Amp orbs** of an Amp workspace, or project, that the account connected under **Settings → Integrations → Amp** send the orb's ID token. In Amp, set the server's `Authorization` header to `Bearer ${amp:id-token}`. Amp mints the token for the origin of the server URL, so the URL must be this Tuist instance's own address, and refreshes it before it expires. Tokens minted for another origin are refused.
+- **Claude Code cloud sessions** of a connected Claude Code environment send the session token Tuist passes them as `TUIST_OIDC_TOKEN`. Set the header to `Bearer ${TUIST_OIDC_TOKEN}`.
+
+Tuist's Linux sandboxes come with this configured: a `tuist` server in Amp's user settings and in Claude Code's user configuration, both pointed at `${TUIST_URL}/mcp`, along with the Tuist CLI and a skill that tells the agent when to check its results against the project's history. Elsewhere, add the server with the header above yourself.
+
+These tokens give read-only access to every project of the connected account: they carry the read scopes of the `mcp` group and none that create, change, or delete data, such as muting or skipping tests. Disconnecting the workspace or environment stops access on the next request, and access never outlasts the token itself. An Amp workspace connected to several Tuist accounts is refused, because its token does not name one. When a connection is missing, the unauthorized response's `error_description` says so.
+
+This read-only access applies only to the Model Context Protocol endpoint. The command-line tool and build-system integrations in the same sandbox still exchange the token for the connection's CI access.
+
 ## WebMCP
 
 In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
@@ -336,7 +349,7 @@ These tools manage the authenticated user's own notification rules: when an even
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_runner_jobs` | List continuous-integration runner jobs for an account. | `account_handle` |
-| `get_runner_job` | Get a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
+| `get_runner_job` | Get a continuous-integration runner job, including whether its machine ran out of memory, what it stopped, and what to change. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_steps` | List the steps recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_metrics` | List machine metrics recorded for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
 | `list_runner_job_logs` | List up to 500 captured log lines for a continuous-integration runner job. | `account_handle`, `workflow_job_id` |
@@ -366,7 +379,7 @@ and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
 
 #### Sandboxes
 
-Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandboxes run arbitrary commands, so every tool, including the read-only ones, requires account administration, and the account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
+Sandbox tools expose the same data and actions as the Sandboxes dashboard, with the same access as the [API](https://tuist.dev/api/docs): account members can list, get, create, pause, resume and delete sandboxes, but sandboxes that serve an agent environment, Amp or remote execution, and the analytics and archive tools, require account administration. Read-only viewers can't use them. The account needs sandboxes enabled. The dashboard's sandbox pages register the read-only tools.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
@@ -378,6 +391,25 @@ Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandb
 | `resume_sandbox` | Resume a paused or archived sandbox. | `account_handle`, `sandbox_id` |
 | `archive_sandbox` | Queue moving a paused sandbox's disks to object storage. | `account_handle`, `sandbox_id` |
 | `delete_sandbox` | Delete a sandbox and its disks, after user confirmation. | `account_handle`, `sandbox_id` |
+
+#### Amp workspaces
+
+These tools manage the <.localized_link href="/guides/server/authentication#amp-orbs">Amp workspace connections</.localized_link> that let orbs sign in to Tuist without a token. They use the same administrator-only permission as the dashboard's Integrations page. An agent in an orb can read its own IDs from `$AMP_WORKSPACE_ID` and `$AMP_PROJECT_ID`. Every orb a connection admits gets CI access to all projects in the account, so agents should confirm with the user before connecting.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_amp_workspace_connections` | List the account's connected Amp workspaces and the project each one is limited to, if any. | `account_handle` |
+| `connect_amp_workspace` | Connect an Amp workspace. Optional `project_id` limits sign-in to the orbs of one Amp project. | `account_handle`, `workspace_id` |
+| `disconnect_amp_workspace` | Disconnect a workspace. Sessions its orbs already have stay valid until they expire. | `account_handle`, `connection_id` |
+
+#### Claude environments
+
+These tools connect Claude Managed Agents self-hosted environments, so their sessions run in Tuist sandboxes, as Settings → Integrations → Claude does. They require account administration and sandboxes enabled. An agent can create the environment with Anthropic's API, but only the Claude Console generates its environment key, so the agent asks the user for it. Tuist starts sessions with an Anthropic API key or with workload identity federation, and fetches the environment with that credential before saving it. The Anthropic-side setup uses the user's own Anthropic credentials; Tuist never receives them. The keys pass through the client and model, so only provide them explicitly.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_claude_environments` | List connected environments and the credential each uses, plus the issuer URL and subject prefix a federation rule should trust. | `account_handle` |
+| `connect_claude_environment` | Connect an environment with `api_key`, or with `organization_id`, `workspace_id`, `service_account_id` and `federation_rule_id`. Optional `platform`, `vcpus` and `memory_mb` set the sandbox shape. | `account_handle`, `environment_id`, `environment_key` |
 
 #### Webhooks
 

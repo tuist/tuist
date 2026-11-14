@@ -1,0 +1,733 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Parquet writer.
+
+use std::collections::HashMap;
+use std::future::Future;
+use std::mem;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::{Context, Poll};
+use std::time::Instant;
+
+use bytes::Bytes;
+use common_telemetry::debug;
+use common_time::Timestamp;
+use datatypes::arrow::array::{
+    ArrayRef, BinaryArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, TimestampSecondArray, UInt32Array,
+};
+use datatypes::arrow::compute::{max, min};
+use datatypes::arrow::datatypes::{DataType, SchemaRef, TimeUnit};
+use datatypes::arrow::record_batch::RecordBatch;
+use datatypes::extension::json::is_json2_extension_type;
+use object_store::{FuturesAsyncWriter, ObjectStore};
+use parquet::arrow::AsyncArrowWriter;
+use parquet::basic::{Compression, Encoding, ZstdLevel};
+use parquet::file::metadata::KeyValue;
+use parquet::file::properties::WriterProperties;
+use smallvec::smallvec;
+use snafu::{OptionExt, ResultExt};
+use store_api::metadata::RegionMetadataRef;
+use store_api::storage::{FileId, SequenceNumber};
+use tokio::io::AsyncWrite;
+use tokio_util::compat::{Compat, FuturesAsyncWriteCompatExt};
+
+use crate::access_layer::{FilePathProvider, Metrics, SstInfoArray, TempFileCleaner};
+use crate::config::{IndexBuildMode, IndexConfig};
+use crate::error::{
+    InvalidMetadataSnafu, InvalidRecordBatchSnafu, OpenDalSnafu, Result, UnexpectedSnafu,
+    WriteParquetSnafu,
+};
+use crate::read::FlatSource;
+use crate::sst::file::RegionFileId;
+use crate::sst::index::{IndexOutput, Indexer, IndexerBuilder};
+use crate::sst::parquet::flat_format::{
+    FlatWriteFormat, primary_key_column_index, time_index_column_index,
+};
+use crate::sst::parquet::format::{PrimaryKeyArray, PrimaryKeyWriteFormat};
+use crate::sst::parquet::{
+    COLUMN_INDEX_TRUNCATE_LENGTH, PARQUET_METADATA_KEY, SstInfo, WriteOptions,
+    apply_float_field_encoding, apply_internal_column_encoding,
+};
+use crate::sst::{
+    DEFAULT_WRITE_CONCURRENCY, FlatSchemaOptions, SeriesEstimator, maybe_wrap_schema,
+};
+
+/// Converts a flat RecordBatch for writing to parquet.
+enum FlatBatchConverter {
+    /// Write as-is in flat format.
+    Flat(FlatWriteFormat),
+    /// Convert flat batch to primary-key format by stripping tag columns.
+    PrimaryKey {
+        format: PrimaryKeyWriteFormat,
+        num_fields: usize,
+    },
+}
+
+impl FlatBatchConverter {
+    fn convert_batch(&self, batch: &RecordBatch) -> Result<RecordBatch> {
+        match self {
+            FlatBatchConverter::Flat(f) => f.convert_batch(batch),
+            FlatBatchConverter::PrimaryKey { format, num_fields } => {
+                format.convert_flat_batch(batch, *num_fields)
+            }
+        }
+    }
+}
+
+/// Result of splitting a batch at the next series boundary.
+enum SeriesBoundarySplit {
+    /// The whole batch belongs to the current series and stays in the current file.
+    Continue(RecordBatch),
+    /// The batch crosses a series boundary.
+    Split {
+        /// Remaining rows of the current series, appended to the current file.
+        current_file_tail: Option<RecordBatch>,
+        /// Rows of the following series that start the next file.
+        next_file_head: RecordBatch,
+    },
+}
+
+/// Returns the dictionary keys and values of the encoded `__primary_key` column.
+fn encoded_primary_keys(batch: &RecordBatch) -> Result<(&UInt32Array, &BinaryArray)> {
+    let column = batch.column(primary_key_column_index(batch.num_columns()));
+    let primary_keys = column
+        .as_any()
+        .downcast_ref::<PrimaryKeyArray>()
+        .with_context(|| InvalidRecordBatchSnafu {
+            reason: format!(
+                "expected dictionary primary key column, got {:?}",
+                column.data_type()
+            ),
+        })?;
+    let values = primary_keys
+        .values()
+        .as_any()
+        .downcast_ref::<BinaryArray>()
+        .with_context(|| InvalidRecordBatchSnafu {
+            reason: format!(
+                "expected binary primary key values, got {:?}",
+                primary_keys.values().data_type()
+            ),
+        })?;
+    Ok((primary_keys.keys(), values))
+}
+
+/// Splits `batch` at the first row whose encoded primary key differs from
+/// `current_primary_key`, the last primary key written to the current file.
+///
+/// The writer finishes an oversized file at such a series boundary so that the
+/// primary key ranges of output files never overlap, which allows pickers like
+/// TWCS to detect overlapping files by their time and primary key ranges. A
+/// series is never split in the middle: if no row starts a new series, the whole
+/// batch stays in the current file even if it already exceeds the size limit.
+fn split_at_next_series(
+    batch: RecordBatch,
+    current_primary_key: &[u8],
+) -> Result<SeriesBoundarySplit> {
+    let (keys, values) = encoded_primary_keys(&batch)?;
+    let Some(offset) = (0..batch.num_rows())
+        .find(|&row| values.value(keys.value(row) as usize) != current_primary_key)
+    else {
+        return Ok(SeriesBoundarySplit::Continue(batch));
+    };
+
+    let next_file_head = batch.slice(offset, batch.num_rows() - offset);
+    let current_file_tail = (offset > 0).then(|| batch.slice(0, offset));
+    Ok(SeriesBoundarySplit::Split {
+        current_file_tail,
+        next_file_head,
+    })
+}
+
+/// Parquet SST writer.
+pub struct ParquetWriter<'a, F: WriterFactory, I: IndexerBuilder, P: FilePathProvider> {
+    /// Path provider that creates SST and index file paths according to file id.
+    path_provider: P,
+    writer: Option<AsyncArrowWriter<SizeAwareWriter<F::Writer>>>,
+    /// Current active file id.
+    current_file: FileId,
+    writer_factory: F,
+    /// Region metadata of the source and the target SST.
+    metadata: RegionMetadataRef,
+    /// Global index config.
+    index_config: IndexConfig,
+    /// Indexer build that can create indexer for multiple files.
+    indexer_builder: I,
+    /// Current active indexer.
+    current_indexer: Option<Indexer>,
+    bytes_written: Arc<AtomicUsize>,
+    /// Cleaner to remove temp files on failure.
+    file_cleaner: Option<TempFileCleaner>,
+    /// Write metrics
+    metrics: &'a mut Metrics,
+}
+
+pub trait WriterFactory {
+    type Writer: AsyncWrite + Send + Unpin;
+    fn create(
+        &mut self,
+        file_path: &str,
+        write_buffer_size: usize,
+    ) -> impl Future<Output = Result<Self::Writer>>;
+}
+
+pub struct ObjectStoreWriterFactory {
+    object_store: ObjectStore,
+}
+
+impl WriterFactory for ObjectStoreWriterFactory {
+    type Writer = Compat<FuturesAsyncWriter>;
+
+    async fn create(&mut self, file_path: &str, write_buffer_size: usize) -> Result<Self::Writer> {
+        self.object_store
+            .writer_with(file_path)
+            .chunk(write_buffer_size)
+            .concurrent(DEFAULT_WRITE_CONCURRENCY)
+            .await
+            .map(|v| v.into_futures_async_write().compat_write())
+            .context(OpenDalSnafu)
+    }
+}
+
+impl<'a, I, P> ParquetWriter<'a, ObjectStoreWriterFactory, I, P>
+where
+    P: FilePathProvider,
+    I: IndexerBuilder,
+{
+    pub async fn new_with_object_store(
+        object_store: ObjectStore,
+        metadata: RegionMetadataRef,
+        index_config: IndexConfig,
+        indexer_builder: I,
+        path_provider: P,
+        metrics: &'a mut Metrics,
+    ) -> ParquetWriter<'a, ObjectStoreWriterFactory, I, P> {
+        ParquetWriter::new(
+            ObjectStoreWriterFactory { object_store },
+            metadata,
+            index_config,
+            indexer_builder,
+            path_provider,
+            metrics,
+        )
+        .await
+    }
+
+    pub(crate) fn with_file_cleaner(mut self, cleaner: TempFileCleaner) -> Self {
+        self.file_cleaner = Some(cleaner);
+        self
+    }
+}
+
+impl<'a, F, I, P> ParquetWriter<'a, F, I, P>
+where
+    F: WriterFactory,
+    I: IndexerBuilder,
+    P: FilePathProvider,
+{
+    /// Creates a new parquet SST writer.
+    pub async fn new(
+        factory: F,
+        metadata: RegionMetadataRef,
+        index_config: IndexConfig,
+        indexer_builder: I,
+        path_provider: P,
+        metrics: &'a mut Metrics,
+    ) -> ParquetWriter<'a, F, I, P> {
+        let init_file = FileId::random();
+        let indexer = indexer_builder
+            .build(RegionFileId::new(metadata.region_id, init_file), 0, None)
+            .await;
+
+        ParquetWriter {
+            path_provider,
+            writer: None,
+            current_file: init_file,
+            writer_factory: factory,
+            metadata,
+            index_config,
+            indexer_builder,
+            current_indexer: Some(indexer),
+            bytes_written: Arc::new(AtomicUsize::new(0)),
+            file_cleaner: None,
+            metrics,
+        }
+    }
+
+    /// Finishes current SST file and index file.
+    async fn finish_current_file(
+        &mut self,
+        ssts: &mut SstInfoArray,
+        stats: &mut SourceStats,
+    ) -> Result<()> {
+        // maybe_init_writer will re-create a new file.
+        if let Some(mut current_writer) = mem::take(&mut self.writer) {
+            let mut stats = mem::take(stats);
+            // At least one row has been written.
+            assert!(stats.num_rows > 0);
+
+            debug!(
+                "Finishing current file {}, file size: {}, num rows: {}",
+                self.current_file,
+                self.bytes_written.load(Ordering::Relaxed),
+                stats.num_rows
+            );
+
+            // Finish indexer and writer.
+            // safety: writer and index can only be both present or not.
+            let mut index_output = IndexOutput::default();
+            match self.index_config.build_mode {
+                IndexBuildMode::Sync => {
+                    index_output = self.current_indexer.as_mut().unwrap().finish().await;
+                }
+                IndexBuildMode::Async => {
+                    debug!(
+                        "Index for file {} will be built asynchronously later",
+                        self.current_file
+                    );
+                }
+            }
+            current_writer.flush().await.context(WriteParquetSnafu)?;
+
+            let parquet_metadata = current_writer.close().await.context(WriteParquetSnafu)?;
+            let file_size = self.bytes_written.load(Ordering::Relaxed) as u64;
+
+            // Safety: num rows > 0 so we must have min/max.
+            let time_range = stats.time_range.unwrap();
+
+            let max_row_group_uncompressed_size: u64 = parquet_metadata
+                .row_groups()
+                .iter()
+                .map(|rg| {
+                    rg.columns()
+                        .iter()
+                        .map(|c| c.uncompressed_size() as u64)
+                        .sum::<u64>()
+                })
+                .max()
+                .unwrap_or(0);
+            let num_series = stats.series_estimator.finish();
+            ssts.push(SstInfo {
+                file_id: self.current_file,
+                time_range,
+                file_size,
+                max_row_group_uncompressed_size,
+                num_rows: stats.num_rows,
+                num_row_groups: parquet_metadata.num_row_groups() as u64,
+                file_metadata: Some(Arc::new(parquet_metadata)),
+                index_metadata: index_output,
+                num_series,
+            });
+            self.current_file = FileId::random();
+            self.bytes_written.store(0, Ordering::Relaxed)
+        };
+
+        Ok(())
+    }
+
+    /// Iterates FlatSource and writes all RecordBatch in flat format to Parquet file.
+    ///
+    /// The source must yield batches globally sorted by the encoded primary key.
+    /// `opts.max_file_size` is a soft limit for regions with a primary key: the
+    /// current file is finished at the next series boundary after exceeding the
+    /// limit (see [split_at_next_series]), so a series larger than the limit
+    /// stays in one file. Regions without a primary key are split at batch
+    /// boundaries.
+    ///
+    /// Returns the [SstInfo] if the SST is written.
+    pub async fn write_all_flat(
+        &mut self,
+        source: FlatSource,
+        override_sequence: Option<SequenceNumber>,
+        opts: &WriteOptions,
+    ) -> Result<SstInfoArray> {
+        let mut options = FlatSchemaOptions::from_encoding(self.metadata.primary_key_encoding);
+
+        if source.schema().fields().iter().any(is_json2_extension_type) {
+            options.concretized_json_types = source
+                .schema()
+                .fields()
+                .iter()
+                .filter(|&field| is_json2_extension_type(field))
+                .map(|field| (field.name().clone(), field.data_type().clone()))
+                .collect::<HashMap<_, _>>();
+        }
+
+        let converter = FlatBatchConverter::Flat(
+            FlatWriteFormat::new(self.metadata.clone(), &options)
+                .with_override_sequence(override_sequence),
+        );
+        let res = self.write_all_flat_inner(source, &converter, opts).await;
+        if res.is_err() {
+            let file_id = self.current_file;
+            if let Some(cleaner) = &self.file_cleaner {
+                cleaner.clean_by_file_id(file_id).await;
+            }
+        }
+        res
+    }
+
+    /// Iterates FlatSource and writes all RecordBatch in primary-key format to Parquet file.
+    ///
+    /// The source must yield batches globally sorted by the encoded primary key.
+    /// See [Self::write_all_flat] for the `opts.max_file_size` semantics.
+    ///
+    /// Returns the [SstInfo] if the SST is written.
+    pub async fn write_all_flat_as_primary_key(
+        &mut self,
+        source: FlatSource,
+        override_sequence: Option<SequenceNumber>,
+        opts: &WriteOptions,
+    ) -> Result<SstInfoArray> {
+        let num_fields = self.metadata.field_columns().count();
+        let converter = FlatBatchConverter::PrimaryKey {
+            format: PrimaryKeyWriteFormat::new(self.metadata.clone())
+                .with_override_sequence(override_sequence),
+            num_fields,
+        };
+        let res = self.write_all_flat_inner(source, &converter, opts).await;
+        if res.is_err() {
+            let file_id = self.current_file;
+            if let Some(cleaner) = &self.file_cleaner {
+                cleaner.clean_by_file_id(file_id).await;
+            }
+        }
+        res
+    }
+
+    async fn write_all_flat_inner(
+        &mut self,
+        mut source: FlatSource,
+        converter: &FlatBatchConverter,
+        opts: &WriteOptions,
+    ) -> Result<SstInfoArray> {
+        let mut results = smallvec![];
+        let mut stats = SourceStats::default();
+
+        loop {
+            let start = Instant::now();
+            let batch = match source.next_batch().await {
+                Ok(Some(batch)) => batch,
+                Ok(None) => break,
+                Err(e) => {
+                    self.abort_current_indexer().await;
+                    return Err(e);
+                }
+            };
+            self.metrics.iter_source += start.elapsed();
+
+            if self.metadata.primary_key.is_empty() {
+                self.append_flat_batch(&batch, converter, opts, &mut stats)
+                    .await?;
+                if self.exceeds_max_file_size(opts) {
+                    self.finish_current_file(&mut results, &mut stats).await?;
+                }
+            } else if self.exceeds_max_file_size(opts)
+                && let Some(current_primary_key) = stats.last_primary_key.as_deref()
+            {
+                let series_split = match split_at_next_series(batch, current_primary_key) {
+                    Ok(series_split) => series_split,
+                    Err(e) => {
+                        self.abort_current_indexer().await;
+                        return Err(e);
+                    }
+                };
+                match series_split {
+                    SeriesBoundarySplit::Continue(batch) => {
+                        self.append_flat_batch(&batch, converter, opts, &mut stats)
+                            .await?;
+                    }
+                    SeriesBoundarySplit::Split {
+                        current_file_tail,
+                        next_file_head,
+                    } => {
+                        if let Some(tail) = current_file_tail {
+                            self.append_flat_batch(&tail, converter, opts, &mut stats)
+                                .await?;
+                        }
+                        self.finish_current_file(&mut results, &mut stats).await?;
+                        self.append_flat_batch(&next_file_head, converter, opts, &mut stats)
+                            .await?;
+                    }
+                }
+            } else {
+                self.append_flat_batch(&batch, converter, opts, &mut stats)
+                    .await?;
+            }
+        }
+
+        self.finish_current_file(&mut results, &mut stats).await?;
+
+        // object_store.write will make sure all bytes are written or an error is raised.
+        Ok(results)
+    }
+
+    async fn append_flat_batch(
+        &mut self,
+        batch: &RecordBatch,
+        converter: &FlatBatchConverter,
+        opts: &WriteOptions,
+        stats: &mut SourceStats,
+    ) -> Result<()> {
+        let result = async {
+            let arrow_batch = converter.convert_batch(batch)?;
+            let start = Instant::now();
+            self.maybe_init_writer(arrow_batch.schema_ref(), opts)
+                .await?
+                .write(&arrow_batch)
+                .await
+                .context(WriteParquetSnafu)?;
+            self.metrics.write_batch += start.elapsed();
+
+            stats.update_flat(batch)?;
+            if matches!(self.index_config.build_mode, IndexBuildMode::Sync) {
+                let start = Instant::now();
+                // safety: self.current_indexer must be set when first batch has been written.
+                self.current_indexer
+                    .as_mut()
+                    .unwrap()
+                    .update_flat(batch)
+                    .await;
+                self.metrics.update_index += start.elapsed();
+            }
+            Ok(())
+        }
+        .await;
+
+        if result.is_err() {
+            self.abort_current_indexer().await;
+        }
+        result
+    }
+
+    fn exceeds_max_file_size(&self, opts: &WriteOptions) -> bool {
+        opts.max_file_size
+            .is_some_and(|max_size| self.bytes_written.load(Ordering::Relaxed) >= max_size)
+    }
+
+    async fn abort_current_indexer(&mut self) {
+        if let Some(indexer) = &mut self.current_indexer {
+            indexer.abort().await;
+        }
+    }
+
+    async fn maybe_init_writer(
+        &mut self,
+        schema: &SchemaRef,
+        opts: &WriteOptions,
+    ) -> Result<&mut AsyncArrowWriter<SizeAwareWriter<F::Writer>>> {
+        if let Some(ref mut w) = self.writer {
+            Ok(w)
+        } else {
+            let json = self.metadata.to_json().context(InvalidMetadataSnafu)?;
+            let key_value_meta = KeyValue::new(PARQUET_METADATA_KEY.to_string(), json);
+
+            // TODO(yingwen): Find and set proper column encoding for internal columns: op type and tsid.
+            let props_builder = WriterProperties::builder()
+                .set_key_value_metadata(Some(vec![key_value_meta]))
+                .set_compression(Compression::ZSTD(ZstdLevel::default()))
+                .set_encoding(Encoding::PLAIN)
+                .set_max_row_group_row_count(Some(opts.row_group_size))
+                .set_column_index_truncate_length(COLUMN_INDEX_TRUNCATE_LENGTH)
+                .set_statistics_truncate_length(None);
+            let props_builder = apply_internal_column_encoding(props_builder, &self.metadata);
+            let props_builder = apply_float_field_encoding(
+                props_builder,
+                &self.metadata,
+                opts.float_field_encoding,
+            );
+            let writer_props = props_builder.build();
+
+            let sst_file_path = self.path_provider.build_sst_file_path(RegionFileId::new(
+                self.metadata.region_id,
+                self.current_file,
+            ));
+            let writer = SizeAwareWriter::new(
+                self.writer_factory
+                    .create(&sst_file_path, opts.write_buffer_size.as_bytes() as usize)
+                    .await?,
+                self.bytes_written.clone(),
+            );
+            let arrow_writer =
+                AsyncArrowWriter::try_new(writer, maybe_wrap_schema(schema)?, Some(writer_props))
+                    .context(WriteParquetSnafu)?;
+            self.writer = Some(arrow_writer);
+
+            let indexer = self
+                .indexer_builder
+                .build(
+                    RegionFileId::new(self.metadata.region_id, self.current_file),
+                    0,
+                    Some(opts.row_group_size),
+                )
+                .await;
+            self.current_indexer = Some(indexer);
+
+            // safety: self.writer is assigned above
+            Ok(self.writer.as_mut().unwrap())
+        }
+    }
+}
+
+#[derive(Default)]
+struct SourceStats {
+    /// Number of rows fetched.
+    num_rows: usize,
+    /// Time range of fetched batches.
+    time_range: Option<(Timestamp, Timestamp)>,
+    /// Last primary key written to the current file.
+    last_primary_key: Option<Bytes>,
+    /// Series estimator for computing num_series.
+    series_estimator: SeriesEstimator,
+}
+
+impl SourceStats {
+    fn update_flat(&mut self, record_batch: &RecordBatch) -> Result<()> {
+        if record_batch.num_rows() == 0 {
+            return Ok(());
+        }
+
+        self.num_rows += record_batch.num_rows();
+        self.series_estimator.update_flat(record_batch);
+        let (keys, values) = encoded_primary_keys(record_batch)?;
+        let key = keys.value(record_batch.num_rows() - 1);
+        self.last_primary_key = Some(Bytes::copy_from_slice(values.value(key as usize)));
+
+        // Get the timestamp column by index
+        let time_index_col_idx = time_index_column_index(record_batch.num_columns());
+        let timestamp_array = record_batch.column(time_index_col_idx);
+
+        if let Some((min_in_batch, max_in_batch)) = timestamp_range_from_array(timestamp_array)? {
+            if let Some(time_range) = &mut self.time_range {
+                time_range.0 = time_range.0.min(min_in_batch);
+                time_range.1 = time_range.1.max(max_in_batch);
+            } else {
+                self.time_range = Some((min_in_batch, max_in_batch));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Gets min and max timestamp from an timestamp array.
+fn timestamp_range_from_array(
+    timestamp_array: &ArrayRef,
+) -> Result<Option<(Timestamp, Timestamp)>> {
+    let (min_ts, max_ts) = match timestamp_array.data_type() {
+        DataType::Timestamp(TimeUnit::Second, _) => {
+            let array = timestamp_array
+                .as_any()
+                .downcast_ref::<TimestampSecondArray>()
+                .unwrap();
+            let min_val = min(array).map(Timestamp::new_second);
+            let max_val = max(array).map(Timestamp::new_second);
+            (min_val, max_val)
+        }
+        DataType::Timestamp(TimeUnit::Millisecond, _) => {
+            let array = timestamp_array
+                .as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .unwrap();
+            let min_val = min(array).map(Timestamp::new_millisecond);
+            let max_val = max(array).map(Timestamp::new_millisecond);
+            (min_val, max_val)
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, _) => {
+            let array = timestamp_array
+                .as_any()
+                .downcast_ref::<TimestampMicrosecondArray>()
+                .unwrap();
+            let min_val = min(array).map(Timestamp::new_microsecond);
+            let max_val = max(array).map(Timestamp::new_microsecond);
+            (min_val, max_val)
+        }
+        DataType::Timestamp(TimeUnit::Nanosecond, _) => {
+            let array = timestamp_array
+                .as_any()
+                .downcast_ref::<TimestampNanosecondArray>()
+                .unwrap();
+            let min_val = min(array).map(Timestamp::new_nanosecond);
+            let max_val = max(array).map(Timestamp::new_nanosecond);
+            (min_val, max_val)
+        }
+        _ => {
+            return UnexpectedSnafu {
+                reason: format!(
+                    "Unexpected data type of time index: {:?}",
+                    timestamp_array.data_type()
+                ),
+            }
+            .fail();
+        }
+    };
+
+    // If min timestamp exists, max timestamp should also exist.
+    Ok(min_ts.zip(max_ts))
+}
+
+/// Workaround for [AsyncArrowWriter] does not provide a method to
+/// get total bytes written after close.
+struct SizeAwareWriter<W> {
+    inner: W,
+    size: Arc<AtomicUsize>,
+}
+
+impl<W> SizeAwareWriter<W> {
+    fn new(inner: W, size: Arc<AtomicUsize>) -> Self {
+        Self {
+            inner,
+            size: size.clone(),
+        }
+    }
+}
+
+impl<W> AsyncWrite for SizeAwareWriter<W>
+where
+    W: AsyncWrite + Unpin,
+{
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        let this = self.as_mut().get_mut();
+
+        match Pin::new(&mut this.inner).poll_write(cx, buf) {
+            Poll::Ready(Ok(bytes_written)) => {
+                this.size.fetch_add(bytes_written, Ordering::Relaxed);
+                Poll::Ready(Ok(bytes_written))
+            }
+            other => other,
+        }
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}

@@ -8,10 +8,10 @@
 "AI subscriptions" = "AI 구독";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 리프레시 토큰이 없습니다";
+"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 새로 고침 토큰이 없습니다";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All" = "모두";
+"All" = "전체";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "All tracks" = "모든 트랙";
@@ -35,7 +35,7 @@
 "Apple Sign In failed" = "Apple 로그인 실패";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "앱 위치:";
+"Apps in" = "다음의 앱:";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Are you sure you want to delete this preview? This action cannot be undone." = "이 프리뷰를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.";
@@ -71,7 +71,7 @@
 "Connect Claude" = "Claude 연결";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Claude 및 ChatGPT 구독을 연결하여 Tuist의 AI 기능과 함께 사용하세요.";
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "개인 Claude 및 ChatGPT 구독을 연결하여 Tuist의 AI 기능과 함께 사용하세요.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "연결됨";
@@ -95,7 +95,7 @@
 "Couldn't install the app for %@ as it doesn't include any valid app builds." = "유효한 앱 빌드가 포함되어 있지 않아 %@에 앱을 설치할 수 없습니다.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@에 대한 앱을 설치할 수 없습니다. %@의 플랫폼은 %@이며, 앱에는 다음 플랫폼만 포함되어 있습니다: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@에 앱을 설치할 수 없습니다. %@의 플랫폼은 %@이며, 앱에는 다음 플랫폼만 포함되어 있습니다: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "생성일";
@@ -113,16 +113,16 @@
 "Delete Preview" = "프리뷰 삭제";
 
 /* TuistProfile/ProfileView.swift */
-"Delete account" = "계정 삭제";
+"Delete account" = "계정 삭제하기";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "프리뷰 삭제";
+"Delete preview" = "프리뷰 삭제하기";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "세부 정보";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Devices" = "디바이스";
+"Devices" = "기기";
 
 /* TuistProfile/AISubscriptionsSection.swift */
 "Disconnect" = "연결 해제";
@@ -137,10 +137,10 @@
 "Email" = "이메일";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "인증 정보, 쿼리 또는 프래그먼트가 포함되지 않은 유효한 HTTPS 서버 URL을 입력하세요.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "자격 증명, 쿼리 또는 프래그먼트가 없는 유효한 HTTPS 서버 URL을 입력하세요.";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "OpenAI 로그인 페이지에서 코드를 입력하세요. 승인하면 이 화면이 닫힙니다.";
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "OpenAI 로그인 페이지에 코드를 입력하세요. 승인하면 이 화면이 닫힙니다.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "오류";
@@ -152,7 +152,7 @@
 "Get help" = "도움말 받기";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "최신 프리뷰를 한 번의 클릭으로 설치하세요.";
+"Install latest previews with one click." = "최신 미리보기를 한 번의 클릭으로 설치하세요.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "설치 실패";
@@ -164,7 +164,7 @@
 "Installed %@@%@" = "%@@%@ 설치됨";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "프리뷰 설치 중";
+"Installing preview" = "미리보기 설치 중";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid callback URL received" = "잘못된 콜백 URL을 받았습니다";
@@ -185,7 +185,7 @@
 "Logged out" = "로그아웃됨";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "인증에서 Apple 자격 증명이 누락되었습니다";
+"Missing Apple credentials from authorization" = "인증에 Apple 자격 증명이 없습니다";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "프리뷰 없음";
@@ -260,7 +260,7 @@
 "Sign in" = "로그인";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 액세스하고 팀과 협업하려면 로그인하세요";
+"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 접근하고 팀과 협업하려면 로그인하세요";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "미리보기 실행을 위해 로그인";
@@ -302,7 +302,7 @@
 "The preview %@ does not have a package name set." = "미리보기 %@에 패키지 이름이 설정되어 있지 않습니다.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "미리보기 딥 링크 %@이 유효하지 않습니다.";
+"The preview deeplink %@ is invalid." = "미리보기 딥링크 %@이 유효하지 않습니다.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
 "The server returned a preview page that did not advance. Update your server or try again." = "서버에서 진행되지 않은 미리보기 페이지를 반환했습니다. 서버를 업데이트하거나 다시 시도하세요.";
@@ -365,7 +365,6 @@
 "Archived" = "보관됨";
 "Archive thread" = "스레드 보관";
 "Archive this thread?" = "이 스레드를 보관하시겠습니까?";
-"Ask Tuist a question or choose a repository to work on." = "Tuist에 질문하거나 작업할 리포지토리를 선택하세요.";
 "Base branch" = "기본 브랜치";
 "Changes" = "변경 사항";
 "Close" = "닫기";
@@ -375,41 +374,39 @@
 "Create preview thread" = "프리뷰 스레드 생성";
 "Design preview · Sample accounts" = "디자인 프리뷰 · 샘플 계정";
 "Design preview · Sample builds" = "디자인 프리뷰 · 샘플 빌드";
-"Design preview · Sample conversation" = "디자인 미리보기 · 샘플 대화";
+"Design preview · Sample conversation" = "디자인 프리뷰 · 샘플 대화";
 "Design preview · Sample data" = "디자인 미리보기 · 샘플 데이터";
-"Design preview · Sample threads and people" = "디자인 미리보기 · 샘플 스레드 및 사용자";
 "Design preview · Starting creates a sample thread, not a running environment." = "디자인 미리보기 · 시작은 실행 환경이 아닌 샘플 스레드를 생성합니다.";
 "Done" = "완료";
 "Each repository thread gets its own worktree and branch. The original checkout is not edited." = "각 리포지토리 스레드는 자체 작업 트리(worktree)와 브랜치를 가집니다. 원래 체크아웃은 수정되지 않습니다.";
 "Environment" = "환경";
 "Goal" = "목표";
 "Hide keyboard" = "키보드 숨기기";
-"Illustrative diff · Not a live repository change" = "참고용 차이점 · 실제 저장소 변경 사항 아님";
+"Illustrative diff · Not a live repository change" = "설명용 diff · 실제 리포지토리 변경 사항이 아닙니다.";
 "In progress" = "진행 중";
-"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@ 초대하기는 기존 모든 메시지, 도구 결과 및 향후 답변을 공유합니다. 이 미리보기에서는 초대장이나 알림을 보내지 않습니다.";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "%@ 초대하기는 기존 메시지, 도구 결과 및 향후 응답을 모두 공유합니다. 이 미리보기에서는 초대나 알림을 보내지 않습니다.";
 "Latest builds" = "최신 빌드";
-"Latest message" = "최신 메시지";
+"Latest message" = "최근 메시지";
 "Layout preview" = "레이아웃 미리보기";
 "Linux" = "Linux";
-"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "메시지에서 누군가를 멘션하여 초대하세요. 초대는 기존 대화 기록을 공유합니다. @Tuist는 봇에게 작업을 요청합니다. 샘플 사용자만 표시됩니다.";
-"Message…" = "메시지…";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "메시지에서 누군가를 멘션하여 초대하세요. 초대 시 기존 기록이 공유됩니다. @Tuist는 봇에게 작업을 요청합니다. 샘플 사용자만 표시됩니다.";
+"Message…" = "메시지 입력…";
 "Message Tuist…" = "Tuist에 메시지 보내기…";
-"Message, or ask @Tuist…" = "메시지를 보내거나 @Tuist에게 요청…";
+"Message, or ask @Tuist…" = "메시지 보내기 또는 @Tuist에게 질문하기…";
 "New thread" = "새 스레드";
 "No account is signed in. These screens use sample data." = "로그인된 계정이 없습니다. 이 화면은 샘플 데이터를 사용합니다.";
 "Only you" = "나만 보기";
 "Original response" = "원본 응답";
-"People" = "사용자";
+"People" = "사람들";
 "Previous builds" = "이전 빌드";
 "Private thread" = "비공개 스레드";
 "Private · Design preview · No work runs" = "비공개 · 디자인 미리보기 · 작업 실행 없음";
 "Private · Saved to your account" = "비공개 · 계정에 저장됨";
-"Private · Threads are saved to your account" = "비공개 · 스레드가 계정에 저장됩니다";
 "Prompt" = "프롬프트";
 "Prompts" = "프롬프트";
-"Provider" = "공급자";
+"Provider" = "제공자";
 "Recent" = "최근";
-"Reconnect" = "다시 연결";
+"Reconnect" = "재연결";
 "Repositories" = "저장소";
 "Repository" = "저장소";
 "Resources" = "리소스";
@@ -421,18 +418,17 @@
 "Search repositories" = "저장소 검색";
 "Select project" = "프로젝트 선택";
 "Send" = "보내기";
-"Share preview and send" = "미리보기 공유 및 보내기";
+"Share preview and send" = "프리뷰 공유 및 보내기";
 "Share the conversation history?" = "대화 기록을 공유하시겠습니까?";
 "Shared conversation" = "공유된 대화";
 "Shared with 2 people" = "2명과 공유됨";
 "Sign out of Tuist?" = "Tuist에서 로그아웃하시겠습니까?";
 "Signing out of this app does not stop running threads." = "이 앱에서 로그아웃해도 실행 중인 스레드는 중단되지 않습니다.";
-"Start privately. Inviting someone would share the existing conversation with them." = "비공개로 시작하세요. 누군가를 초대하면 기존 대화가 해당 사용자와 공유됩니다.";
+"Start privately. Inviting someone would share the existing conversation with them." = "비공개로 시작하세요. 누군가를 초대하면 기존 대화가 공유됩니다.";
 "Start thread" = "스레드 시작";
-"Start with a goal" = "목표 설정으로 시작";
 "Switch account" = "계정 전환";
-"The conversation stays available in Archived." = "대화는 보관됨 상태에서도 계속 이용할 수 있습니다.";
-"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "스레드는 서버가 소유하며, 환경에서는 도구만 실행됩니다. 리포지토리 스레드는 각각 전용 작업 트리를 사용합니다.";
+"Archiving cancels any active work. The conversation stays available in Archived." = "보관 처리 시 활성 작업이 모두 취소됩니다. 대화는 보관됨에 계속 표시됩니다.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "스레드는 서버가 소유하며, 환경에서는 도구만 실행됩니다. 리포지토리 스레드는 자체 작업 트리를 가집니다.";
 "Thread details" = "스레드 세부 정보";
 "Thread settings" = "스레드 설정";
 "Threads" = "스레드";
@@ -443,12 +439,21 @@
 "Tool result" = "도구 결과";
 "Try again" = "다시 시도";
 "Tuist is working…" = "Tuist가 작업 중입니다…";
-"What would you like Tuist to do?" = "Tuist에 무엇을 수행하도록 하시겠습니까?";
+"Allow microphone access in Settings to record a message." = "메시지를 녹음하려면 설정에서 마이크 접근을 허용하세요.";
+"Allow speech recognition in Settings to transcribe on this device." = "이 기기에서 음성을 텍스트로 변환하려면 설정에서 음성 인식을 허용하세요.";
+"Could not start dictation. Your typed draft is unchanged." = "받아쓰기를 시작할 수 없습니다. 입력한 초안은 변경되지 않았습니다.";
+"No speech was captured. Your typed draft is unchanged." = "음성이 캡처되지 않았습니다. 입력한 초안은 변경되지 않았습니다.";
+"Recording on this device" = "이 기기에서 녹음 중";
+"Stop dictation" = "받아쓰기 중지";
+"Tap stop to add editable text. Nothing is sent automatically." = "중지를 탭하여 편집 가능한 텍스트를 추가하세요. 자동으로 전송되지 않습니다.";
+"Transcribe a voice message" = "음성 메시지 텍스트 변환";
+"Uses on-device speech recognition. Nothing is sent automatically." = "기기 내 음성 인식을 사용합니다. 데이터는 자동으로 전송되지 않습니다.";
+"What would you like Tuist to do?" = "Tuist에 무엇을 수행할지 알려주세요.";
 "Worktree branch" = "워크트리 브랜치";
-"You" = "나";
+"You" = "사용자";
 "macOS" = "macOS";
-"Adds this suggestion to your draft without sending." = "이 제안을 초안에 추가하지만 전송하지 않습니다.";
-"Connection lost. Reconnecting…" = "연결이 끊어졌습니다. 다시 연결 중…";
+"Adds this suggestion to your draft without sending." = "이 제안 사항을 초안에 추가하지만 전송하지는 않습니다.";
+"Connection lost. Reconnecting…" = "연결이 끊겼습니다. 다시 연결 중…";
 "Needs attention" = "주의 필요";
 "Outcome unknown" = "결과 알 수 없음";
 "Preview" = "프리뷰";
@@ -458,42 +463,56 @@
 "Load earlier messages" = "이전 메시지 불러오기";
 "Load more threads" = "스레드 더 불러오기";
 "No repository" = "저장소 없음";
-"Private threads only" = "비공개 스레드만 표시";
+"Private threads only" = "비공개 스레드만";
 "Ship" = "배포";
 "Approve and ship" = "승인 및 배포";
 "Target branch" = "대상 브랜치";
 "Mode" = "모드";
-"Base" = "기본";
+"Base" = "베이스";
 "Head" = "헤드";
-"Shipping follows repository policy. Approving queues this exact reviewed change." = "배포는 저장소 정책을 따릅니다. 승인하면 검토된 이 변경 사항이 대기열에 추가됩니다.";
-"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "배포에는 별도의 검토와 명시적 승인이 필요합니다. 대상은 저장소 정책에 따라 결정됩니다.";
-"Design preview · Ship requires a live account and repository policy." = "디자인 미리보기 · 배포하려면 활성 계정과 저장소 정책이 필요합니다.";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "배포는 저장소 정책을 따릅니다. 승인하면 검토된 이 변경 사항이 정확히 큐에 추가됩니다.";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "배포하려면 별도의 검토와 명시적인 승인이 필요합니다. 대상은 리포지토리 정책에 따라 결정됩니다.";
+"Design preview · Ship requires a live account and repository policy." = "디자인 미리보기 · 배포에는 활성 계정과 리포지토리 정책이 필요합니다.";
 "Review again" = "다시 검토";
 "Organization" = "조직";
 "Model" = "모델";
 "Choose model" = "모델 선택";
-"Loading models…" = "모델 로딩 중…";
-"Couldn’t load models" = "모델을 불러올 수 없습니다";
-"Check your connection or try again in a moment." = "네트워크 연결을 확인하거나 잠시 후 다시 시도하세요.";
+"Loading models…" = "모델 로드 중…";
+"Couldn’t load models" = "모델을 로드할 수 없습니다";
+"Check your connection or try again in a moment." = "연결 상태를 확인하거나 잠시 후 다시 시도하세요.";
 "No models available" = "사용 가능한 모델 없음";
 "Connect an AI subscription in your profile, then try again." = "프로필에서 AI 구독을 연결한 후 다시 시도하세요.";
 "Models unavailable. Try again later." = "모델을 사용할 수 없습니다. 나중에 다시 시도하세요.";
-"Refresh models" = "모델 새로고침";
-"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "프로필의 AI 구독을 통해 사용 가능한 모델입니다. 생성 후 모델은 변경할 수 없습니다.";
+"Refresh models" = "모델 새로 고침";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "프로필의 AI 구독을 통해 모델을 이용할 수 있습니다. 생성 후에는 모델을 변경할 수 없습니다.";
 "Sample model catalog · Design preview · No subscription access implied" = "샘플 모델 카탈로그 · 디자인 미리보기 · 구독 액세스가 포함되지 않음";
 "AI model" = "AI 모델";
-"AI provider" = "AI 제공자";
+"AI provider" = "AI 제공업체";
 "Not recorded" = "기록되지 않음";
-"The provider and model are fixed for this thread. Start a new thread to choose another model." = "이 스레드에서는 제공자와 모델이 고정되어 있습니다. 다른 모델을 선택하려면 새 스레드를 시작하세요.";
-"This subscription is not supported for Threads." = "이 구독은 스레드에서 지원되지 않습니다.";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "이 스레드에서는 제공업체와 모델이 고정되어 있습니다. 다른 모델을 선택하려면 새 스레드를 시작하세요.";
+"This subscription is not supported for Threads." = "이 구독은 Threads에서 지원되지 않습니다.";
 "ChatGPT" = "ChatGPT";
 "Claude" = "Claude";
 
 /* TuistApp/TuistApp.swift */
 "OK" = "확인";
-"Unable to open link" = "링크를 열 수 없음";
+"Unable to open link" = "링크를 열 수 없습니다";
 "This link belongs to a different Tuist server. Sign in to that server and open the link again." = "이 링크는 다른 Tuist 서버에 속해 있습니다. 해당 서버에 로그인한 후 링크를 다시 열어 주세요.";
-"This navigation link is invalid or unsupported." = "이 탐색 링크가 유효하지 않거나 지원되지 않습니다.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "이 링크는 다른 조직에 속해 있습니다. 조직을 전환한 후 링크를 다시 열어 주세요.";
+"This navigation link is invalid or unsupported." = "잘못되었거나 지원되지 않는 탐색 링크입니다.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Open on web" = "웹에서 열기";
+"Profiles" = "프로필";
+"Add profile" = "프로필 추가";
+"Switch profile" = "프로필 전환";
+"Switch profile?" = "프로필을 전환하시겠습니까?";
+"View profile" = "프로필 보기";
+"Open screens and unsent drafts will be closed. Running threads will continue." = "열려 있는 화면과 전송되지 않은 초안은 닫힙니다. 실행 중인 스레드는 계속됩니다.";
+"Your saved profiles could not be updated. Please try again." = "저장된 프로필을 업데이트할 수 없습니다. 다시 시도해 주세요.";
+
+/* TuistApp/ThreadEmptyStateView.swift */
+"Big things start here" = "위대한 일은 여기서 시작됩니다";
+"Ask a question, explore an idea, or solve a problem with Tuist." = "Tuist와 함께 질문하고, 아이디어를 탐구하며, 문제를 해결하세요.";
+"All clear, nothing archived" = "모두 정리됨, 보관된 항목 없음";
+"Archived threads will live here. You can come back to them anytime." = "보관된 스레드가 여기에 표시됩니다. 언제든지 다시 확인할 수 있습니다.";

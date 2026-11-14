@@ -1638,7 +1638,7 @@ documented here, and update this rule's description. These documentation edits
 do not publish Grafana changes. During a mixed server rollout, `max` can report
 the new line while an old replica still refuses under the old one.
 
-The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
+The private runner-cache regions (`ber1-runners`, `larch-runners`) report
 the gauge too. Before they did, the plugin polled it over the same public-only
 region list as the lifecycle gauges, so a full runner-cache box had neither
 operand and the rule could not fire for it: on 2026-10-16 `scw-fr-par-runners`
@@ -1648,9 +1648,8 @@ operand, still cover public regions only, so a private region whose server does
 not emit the headroom gauge has no row.
 
 The same `< 32` holds for them. A private region's candidate is claim x its own
-replica count, so 32 GiB is one enterprise instance at its starting claim in
-`scw-fr-par-runners` (two replicas) and two in `ber1-runners` (one replica).
-Both are a single box, so the remedy is freeing reservations or giving the
+replica count, so 32 GiB is two enterprise instances at their starting claim
+in a site region such as `ber1-runners` (one replica). Each is a single box, so the remedy is freeing reservations or giving the
 site another storage node rather than adding a node to a pool. Runner-cache
 claims grow well past their starting claim (16 to 100 GiB on the rack in
 October 2026), so a single-box private region is effectively out of room for
@@ -5385,7 +5384,7 @@ Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 - Threshold: `> 0`; pending period: **2 minutes**; severity: **critical**.
 - Desired zero is excluded. One Ready replica is degraded but does not fire.
 - StatefulSets created in the last ten minutes are excluded. Runner-region
-  instances (ber1, scw-fr-par) run one replica, so a new instance has zero
+  instances (ber1, larch) run one replica, so a new instance has zero
   Ready until its initial region passes settle (about 2.5 minutes for a new
   ber1 instance on 2026-10-21, which paged as incident #130).
   A new or recreated instance still unready after ten minutes fires at twelve.
@@ -5501,7 +5500,7 @@ still usable but needs the summary rewritten rather than left interpolating
 nothing.
 
 **Single-replica instances are handled by the expression, not by an exception.**
-The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
+The private runner-cache regions run `replicas: 1` (`kura-*-ber1`, `kura-*-larch`), and
 `1 - 1` is `0` like any other healthy instance. A scaled-to-zero or
 being-deleted StatefulSet is `0 - 0`.
 
@@ -5920,7 +5919,7 @@ It also read a new box as a reversal of the burn, which hid eu-west's queued
 claim growth taking about 440 GiB of its fifth box within a day of it joining
 on 2026-10-15. Reserved disk does not move when a box joins, leaves, or is
 evacuated, so its slope is the burn alone. The private runner-cache regions
-(`ber1-runners`, `scw-fr-par-runners`) report headroom but no reserved series,
+(`ber1-runners`, `larch-runners`) report headroom but no reserved series,
 so they fall through the `or` to the headroom trend.
 
 Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
@@ -6191,9 +6190,9 @@ saturated, and that box's tenants are shaped regardless. The `scope` and
 
 **Boxes without an advertised budget are out of scope by construction.** The
 join on `kube_node_status_capacity{resource="tuist_dev_egress_mbps"}` drops
-them, which today means the runner-cache box (scw-fr-par-runners): its
-traffic stays on the Scaleway private network, no budget is advertised for it
-and the egress-tree agent does not run there, and it is deliberately excluded.
+them, which today means the rack sites' runner-cache storage nodes
+(`rack-storage-<site>`): their traffic stays on the site's network, no budget
+is advertised for them, and they are deliberately excluded.
 A box that should be governed and is not shows up in **Kura egress shaping
 integrity** below, not here.
 
@@ -9078,6 +9077,101 @@ a second `up` series and `sum by (cluster, pod)` counts both.
 ```promql
 count_over_time(up[6h]) - sum_over_time(up[6h])
 ```
+
+## Linux runner kubelet health
+
+**Prepared, not provisioned.** `runner-kubelet-alert-rules.json` contains four
+paused Grafana rules. Helm does not install this payload. Create the
+`Runner kubelet health` evaluation group with a **60-second interval** only
+after separately approving rollout; keep the rules paused until the telemetry
+and maintenance checks below pass. No new notification route is included:
+policy routing preserves the staging exception and the existing canary/production
+notification destination. `severity: critical` does not itself enable IRM paging.
+These are infrastructure alerts, not declarations of customer-visible outages.
+
+On 2026-11-10, the canary Linux runner host's kubelet repeatedly failed CPU
+checkpoint validation while its Node still reported `Ready=True`. A historical
+five-minute `max_over_time(up)` was zero by 03:55 UTC, and the host journal
+recorded 110 kubelet starts in ten minutes ending 15:25 UTC. The inventory-backed
+scrape query identified that host at 15:25 UTC and cleared at 16:35 UTC after
+recovery. Pod readiness and container restart counters do not establish the
+health of the host's kubelet process.
+
+| Rule | Condition | Pending period | Scope |
+| --- | --- | --- | --- |
+| Linux runner kubelet unavailable | Inventoried host has no successful kubelet scrape in five minutes, including a disappeared target | 5 minutes | `runners-linux` nodes in staging, canary, production |
+| Linux runner node Lease stale or missing | No node Lease renewed within two minutes, or the renewal metric is absent | 3 minutes | Same inventory as above |
+| Linux host kubelet restart loop | More than three `"Kubelet version"` startup records in ten minutes | 5 minutes | Linux hosts shipping `integrations/kubernetes/journal` in those environments |
+| Kubelet monitoring node inventory missing | No `kube_node_labels` samples for ten minutes in an expected cluster | None beyond the ten-minute window | Each of the three workload clusters, explicitly named |
+
+The payload is the query source of truth. The first two queries select expected
+hosts from `kube_node_labels`, then subtract healthy hosts using `unless on
+(cluster, node)`. The Lease name equals the Node name; `label_replace` maps
+`lease` to `node`. Use the latest renewal if duplicate kube-state-metrics targets
+overlap during replacement. A healthy peer in another cluster must not hide a
+failed same-named node. Node deletion removes that node's expectation; cordoning
+does not, because a cordoned node should still have a working kubelet.
+
+Lease freshness and endpoint reachability are distinct: a process can keep
+serving metrics while its heartbeat loop is stuck. A controller leader-election
+Lease must never satisfy the check: only `namespace="kube-node-lease"` counts.
+No Data is Normal for these comparison/absence expressions; missing individual
+heartbeats return an explicit unhealthy host. The separately evaluated inventory
+rule detects collector/cluster loss, when both sides of the comparison vanish.
+It does not detect a mistakenly removed pool label on one Node. The journal rule
+counts startup records, not systemd's restart counter; duplicate log delivery can
+inflate the count, and absent logs are not proof of health.
+
+### Lease telemetry and rollout gates
+
+The pinned kube-state-metrics v2.18.0 already includes the Lease collector and
+list/watch RBAC for `coordination.k8s.io/leases`. Its built-in
+`kube_lease_renew_time{namespace,lease}` exports `spec.renewTime` as Unix seconds.
+No new exporter, privileged host access or RBAC expansion is required.
+`values.yaml` adds the metric to the KSM scrape allowlist, drops non-node Lease
+timestamps before forwarding, and retains it in nonproduction remote write.
+The same policy feeds Grafana Cloud and GreptimeDB. Preserve `cluster`, `namespace`
+and `lease`; the node inventory's pool label must also survive aggregation.
+
+After approval, deploy collection to staging first, then canary and production.
+Do not enable the Lease alert against the old collector configuration: every
+inventoried runner would correctly report its telemetry missing. Before unpausing:
+
+1. Confirm one fresh renewal metric for every inventoried Linux runner, with
+   the Lease name matching the Node name. Compare against the API's
+   `spec.renewTime`, not Node Ready. Confirm the pool selector matches the intended
+   nodes in each environment. Tart macOS nodes intentionally do not expose the
+   real kubelet endpoint and are excluded from the runner inventory selector.
+2. Confirm no non-node Lease timestamps are stored and that cluster/node labels
+   remain usable in Grafana after downstream aggregation. Budget one renewal
+   series per Node, rather than keeping every `kube_lease_*` family.
+3. Replay the shipped queries over at least 24 hours, including planned host
+   restarts, node joins and collector rollouts. Thresholds are initial candidates,
+   not a qualified fleet-wide noise baseline. For journal restarts, verify the
+   startup marker is present on each relevant kubelet version.
+4. In an approved staging drill, verify scrape failure, stopped Lease renewal
+   while the endpoint answers, missing target/Lease, repeated starts and
+   monitoring loss. Confirm firing, clearing and environment notification routing.
+   Never interrupt a host or its collectors solely to validate an alert without
+   separate approval.
+5. Unpause only the qualified rules. To roll back alerting, pause them again;
+   pause the Lease rule before withdrawing its telemetry. No host repair is part
+   of this rollout.
+
+Local checks (no cloud writes): `python3 test-runner-kubelet-alerts.py` uses
+promtool for pending periods, age boundaries, missing data, duplicate scrapes,
+cross-cluster isolation, recovery and Tart exclusion.
+`python3 test-kubelet-telemetry.py` renders all three overlays and passes fixture
+metrics through the shipped Alloy relabel and remote-write rules into a local
+Prometheus receiver, testing both Cloud and GreptimeDB configurations. It requires
+Helm, yq, Prometheus and Docker; `ALLOY_BINARY` can select a local Alloy v1.15.0
+binary instead of Docker. Neither check provisions Grafana rules. LogQL must
+also be replayed with Loki; promtool cannot execute it.
+
+When an alert fires, compare the API Lease, scrape target and kubelet journal
+before diagnosing a dead host. Inspect the live runtime through the approved
+host-access procedure before authorizing a repair; these alerts do not authorize
+checkpoint resets, sandbox interruption, restarts or automated remediation.
 
 ## Retired rules
 

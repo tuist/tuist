@@ -26,9 +26,85 @@ const (
 	WarmLabel     = "tuist.dev/macos-sandbox-warm"
 	WarmFinalizer = "tuist.dev/macos-sandbox-warm"
 	// WarmHostLabel is advertised by kubelets that own warm Pods, so an older
-	// kubelet is never given one to boot as a CI VM.
+	// kubelet is never given one to boot as a CI VM, and only while the host
+	// can boot one now (WarmHostLabels).
 	WarmHostLabel = "tuist.dev/macos-sandbox-warm-host"
 )
+
+// warmMemoryMB lists the warm shapes' memory, largest first. Every warm VM
+// has 8 vCPU.
+var warmMemoryMB = []int{24576, 16384, 8192}
+
+// WarmHostLabelFor is the label a warm Pod of memoryMB selects: WarmHostLabel
+// for 8 GiB, the shape it always named, and WarmHostLabel-<MB> for the
+// others. The runners-controller renders the same (podtemplate).
+func WarmHostLabelFor(memoryMB int) string {
+	if memoryMB == 8192 {
+		return WarmHostLabel
+	}
+	return fmt.Sprintf("%s-%d", WarmHostLabel, memoryMB)
+}
+
+// WarmHostLabels advertises each warm shape's label while the sandbox service
+// is ready and the disk has room for one more VM of that shape (a 24 GiB VM
+// reserves 32 GiB more than an 8 GiB one for its memory image). Otherwise the
+// scheduler keeps placing warm Pods on a host with free CPU and memory that
+// refuses each one: on 2026-11-13 b04 and b05 failed a new warm Pod every 2 s
+// for hours on "sandbox disk reserve", and no host kept a warm VM meanwhile.
+func (s *Service) WarmHostLabels(ctx context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	m, ready := s.manager, s.ready
+	s.mu.Unlock()
+	if m == nil || !ready {
+		return map[string]string{}, nil
+	}
+	runtime, ok := m.Runtime.(*TartRuntime)
+	if !ok {
+		return map[string]string{}, nil
+	}
+	labels := map[string]string{}
+	// Largest first: room for one shape is room for every smaller one, so a
+	// roomy host checks its disk once.
+	for i, memoryMB := range warmMemoryMB {
+		err := runtime.roomForClone(ctx, runtime.Client, memoryMB)
+		if errors.Is(err, ErrCapacity) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, smaller := range warmMemoryMB[i:] {
+			labels[WarmHostLabelFor(smaller)] = "v1"
+		}
+		break
+	}
+	return labels, nil
+}
+
+// SessionHostLabel is advertised while this host holds a sandbox session,
+// running or paused. Its saved state is encrypted for this Mac, so the
+// session resumes only here, and CI placement prefers hosts without it
+// (runners-controller podtemplate).
+const SessionHostLabel = "tuist.dev/macos-sandbox-sessions"
+
+// SessionHostLabels advertises SessionHostLabel. A running session counts
+// too: it pauses after its next idle grace, and CI placed beside it in the
+// meantime can still fill the host by then. A host that runs no sandbox
+// service, or has not loaded its store yet, advertises nothing.
+func (s *Service) SessionHostLabels(context.Context) (map[string]string, error) {
+	s.mu.Lock()
+	m := s.manager
+	s.mu.Unlock()
+	if m == nil {
+		return map[string]string{}, nil
+	}
+	for _, info := range m.Snapshot() {
+		if info.State == "running" || info.State == "paused" {
+			return map[string]string{SessionHostLabel: "true"}, nil
+		}
+	}
+	return map[string]string{}, nil
+}
 
 type warmVM struct {
 	pod       types.UID
@@ -146,8 +222,13 @@ func (m *Manager) warmRecord(pod *corev1.Pod) (*Record, string) {
 		template = runtime.Template
 	}
 	return &Record{VM: warmVMPrefix + string(pod.UID), RuntimePath: m.RuntimePath, ToolsPath: m.ToolsPath, NodeUID: m.NodeUID,
-		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: m.TemplateTag, VCPUs: vcpus, MemoryMB: memoryMB}}, ""
+		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: m.TemplateTag, VCPUs: vcpus, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB}}, ""
 }
+
+// warmWorkspaceGB is the workspace a warm VM gets before it is claimed: the
+// size Amp Orbs and agent environments request. A claim for another size
+// replaces the volume.
+const warmWorkspaceGB = 10
 
 // admitWarm charges the warm Pod like a CI launch: under the launch gate,
 // after repairing sandbox reservations, every bound Pod (this one included)
@@ -206,6 +287,13 @@ func (m *Manager) claimWarm(a protocol.CreateArgs) *warmVM {
 
 // retireWarm deletes a warm Pod's VM, then lets the Pod go. A VM still
 // booting finishes first; a claimed one belongs to its sandbox.
+//
+// It completes the deletion with a zero grace period, as the CI Pod path
+// does: no kubelet confirms a warm Pod's termination, so a Pod deleted with
+// a grace period otherwise stays Terminating, Running and charged to its
+// host until the runners-controller force-reaps it. On 2026-11-13 a warm Pod
+// the controller retired to clear b12 for a CI job held it for 6 minutes,
+// and the job was scheduled the second the reap dropped it.
 func (s *Service) retireWarm(ctx context.Context, m *Manager, pod *corev1.Pod) error {
 	if m != nil {
 		m.Gate.Lock()
@@ -222,7 +310,15 @@ func (s *Service) retireWarm(ctx context.Context, m *Manager, pod *corev1.Pod) e
 			}
 		}
 	}
-	return s.removeWarmFinalizer(ctx, pod)
+	if err := s.removeWarmFinalizer(ctx, pod); err != nil {
+		return err
+	}
+	zero := int64(0)
+	err := s.Kube.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{GracePeriodSeconds: &zero, Preconditions: &metav1.Preconditions{UID: &pod.UID}})
+	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
+		return nil
+	}
+	return err
 }
 
 func (s *Service) addWarmFinalizer(ctx context.Context, pod *corev1.Pod) error {

@@ -164,6 +164,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Every deploy leg needs this job, so a version collision from two
+      # PRs merged independently stops before canary migrates.
+      - name: Check migration versions are unique
+        run: .github/scripts/server-migration-versions.sh
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked git-cliff jq"
@@ -436,7 +440,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/cluster-api-provider-tuist/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:latest
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -501,7 +522,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -515,8 +539,44 @@ jobs:
           # images on main, so releases reuse its layers.
           cache-from: type=gha,scope=runners-controller
           cache-to: type=gha,mode=max,scope=runners-controller
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runners-controller:latest
+          cache-from: type=gha,scope=runners-controller
+          cache-to: type=gha,mode=max,scope=runners-controller
 
-      - name: Build and push cache volume agent
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push-cache-volumes
+        name: Build and push cache volume agent
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          target: cache-volumes
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runner-cache-volumes:latest
+          cache-from: type=gha,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes
+      - name: Wait before retrying build and push cache volume agent
+        if: steps.build-push-cache-volumes.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push cache volume agent
+        if: steps.build-push-cache-volumes.outcome == 'failure'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -577,7 +637,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/stable-egress-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
+            ghcr.io/tuist/tuist-stable-egress-controller:latest
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -635,7 +712,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
+        name: Build and push
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/egress-tree-agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/egress-tree-agent:${{ needs.check-releases.outputs.egress-tree-agent-next-version-number }}
+            ghcr.io/tuist/egress-tree-agent:latest
+      - name: Wait before retrying build and push
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push
+        if: steps.build-push.outcome == 'failure'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -1205,8 +1299,11 @@ jobs:
               "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
             }
           skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
-      - uses: docker/build-push-action@v6
+      # Retried once on failure, like the build-images job explains.
+      - id: build-push
         name: Build and push server image
+        continue-on-error: true
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./server/Dockerfile
@@ -1228,6 +1325,28 @@ jobs:
           # every hosted-server event lands in Atlas without a release tag.
           # Reuse the image tag so the Atlas release matches the image the pod
           # runs (`sha-<12chars>`).
+          build-args: |
+            TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
+            MIX_ENV=prod
+      - name: Wait before retrying build and push server image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push server image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |
             TUIST_HOSTED=1
             TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
@@ -1312,8 +1431,30 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      # Base images come straight from Docker Hub and gcr.io, and their
+      # metadata lookups occasionally fail (a gcr.io digest that exists has
+      # come back "not found"). One failed lookup should not stop the deploy,
+      # so a failed build waits and runs once more; the builder's layer cache
+      # makes the second attempt cheap.
+      - id: build-push
         name: Build and push ${{ matrix.name }} image
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: ${{ matrix.cache && format('type=registry,ref={0}/{1}', env.REGISTRY, matrix.cache) || '' }}
+          cache-to: ${{ matrix.cache && format('type=registry,ref={0}/{1},mode=max', env.REGISTRY, matrix.cache) || '' }}
+      - name: Wait before retrying build and push ${{ matrix.name }} image
+        if: steps.build-push.outcome == 'failure'
+        run: sleep 30
+      - name: Retry build and push ${{ matrix.name }} image
+        if: steps.build-push.outcome == 'failure'
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}

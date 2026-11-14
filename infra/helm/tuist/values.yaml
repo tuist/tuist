@@ -396,6 +396,12 @@ kuraVolumesCSI:
   # Opt in only after at least one of its nodes is labelled
   # tuist.dev/kura-thin-ready=true.
   thinRegions: []
+  # Regions where every account's instance uses kura-thin-encrypted-nvme,
+  # without the :kura_thin_volumes flag; implies thinRegions for them. Existing
+  # instances still move only through the controller's source-node gate, and new
+  # ones are placed only on thin-ready nodes. Enroll a region only once it has
+  # enough thin-ready capacity, or is being converted host by host.
+  thinEnrolledRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
@@ -1667,43 +1673,6 @@ capi:
         name: onepassword
         kind: ClusterSecretStore
 
-# Kura runner-cache fleet — declarative Scaleway node co-located with the
-# Mac fleet. Off by default; managed envs that run the runner cache enable
-# it and set the PN id. Scale with
-# `kubectl scale machinedeployment <name> --replicas=N`.
-kuraFleet:
-  # replicas counts hosts; each account has two Kura process replicas/PVCs.
-  enabled: false
-  replicas: 1
-  # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
-  # region's nodeSelector pins the cache pods here.
-  nodePool: kura-scw-fr-par
-  # Kubernetes apt repo minor (pkgs.k8s.io channel) + the joined kubelet
-  # version. Keep both in step with the cluster's control-plane version.
-  kubernetesMinorVersion: "v1.34"
-  kubernetesVersion: "v1.34.8"
-  machine:
-    # The Scaleway Elastic Metal offer for the runner-cache node: a bare-metal
-    # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
-    # staging/canary shape; production uses EM-I220E-NVME.
-    offerType: EM-B220E-NVME
-    # Name prefix of the pre-ordered Elastic Metal pool. The operator orders the
-    # boxes out-of-band (named with this prefix, authorized with the fleet SSH
-    # key); the controller claims a free one rather than ordering inline, so a
-    # rollout never blocks on out-of-stock capacity, and releases it back to the
-    # pool (reinstall) on delete.
-    adoptNamePrefix: tuist-kura-em-
-    zone: fr-par-1
-    # Elastic Metal OS install label.
-    os: ubuntu_noble
-    # The VPC Private Network the node attaches to (the runner-cache PN shared
-    # with the Mac fleet). Declared by name + CIDR, not a UUID: the operator
-    # finds the PN by name in the env's Scaleway project and creates it from the
-    # CIDR if it doesn't exist. The name is shared across envs (each lives in its
-    # own project, so there's no collision).
-    privateNetworkName: tuist-runner-cache
-    privateNetworkCIDR: 172.16.0.0/22
-
 ovhFleet:
   enabled: false
   replicas: 1
@@ -1782,6 +1751,12 @@ ovhFleet:
 # `katacontainers.io/kata-runtime=true`. Required for a Linux runner pool (every
 # runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
 # on that label); leave it off for cache fleets so they skip the download.
+#
+# `kubernetesVersion` is the fleet Machines' version, and a fresh join installs
+# that kubelet minor. Kata fleets on v1.36 or later also run the pod-level
+# resource managers. The MachineDeployment is OnDelete, so a change only reaches
+# boxes as they are reprovisioned; see
+# infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
 ovhFleets: {}
 
 # Shared Vultr config holder. There is no singular Vultr MachineDeployment: the
@@ -2593,10 +2568,9 @@ macosFleet:
     kuraServiceCIDR: ""
     clusterDNSIP: ""
   # Scaleway Private Network for the kura runner-cache node-port data
-  # plane (per-account NodePorts on the kura-scw-fr-par pool). Both
-  # fields required to enable. name is the same PN the kura fleet
-  # attaches to (kuraFleet.machine.privateNetworkName), so the minis
-  # and the cache node share one PN per env; the operator resolves it
+  # plane (per-account NodePorts on the retired kura-scw-fr-par pool). Both
+  # fields required to enable. name is the PN the retired Elastic Metal
+  # cache node shared with the minis, one per env; the operator resolves it
   # to an ID, creating it from cidr if absent. The operator's IAM
   # principal needs Apple Silicon Private Networks permissions to
   # attach minis.
@@ -2690,13 +2664,17 @@ sandboxes:
     xcodeVersion: "26.6"
     # Empty follows the same released, digest-pinned image as the CI pool.
     image: ""
-    # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
-    # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
-    # macOS runner fleet) and share its warm-pool budget with CI. The pool
-    # keeps no always-on floor yet: the template renders `minWarmPoolFloor: 0`.
+    # Pre-booted 8 vCPU sandbox VMs that a create of the same shape claims
+    # instead of cold-booting. Each entry of `memoryMB` (8192, 16384 or 24576)
+    # is a RunnerPool on `fleetSelector` (default: the macOS runner fleet)
+    # sharing its warm-pool budget with CI. With the default floor of 0 no
+    # warm VM is ever booted: nothing routes demand to the pools, so
+    # `minWarmPoolFloor` is how many each keeps.
     warm:
       enabled: false
       fleetSelector: ""
+      memoryMB: [8192]
+      minWarmPoolFloor: 0
       maxReplicas: 1
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
@@ -2745,24 +2723,42 @@ sandboxes:
   # workspace_gb, memory image), so the server reserves each sandbox's
   # ceiling (template rootfs + workspace + memory) at placement, running or
   # paused, and stops placing on a node whose ceilings would exceed this.
-  # A default 2x4096 sandbox with a 10 GB workspace on a 12 GiB rootfs
-  # reserves about 26 GiB. The server also keeps one memory image plus
+  # A default 2x4096 sandbox with a 10 GB workspace on a 20 GiB rootfs
+  # reserves about 34 GiB. The server also keeps one memory image plus
   # headroom free for the next pause. 0 disables the budget and leaves only
   # that free-space floor.
   diskGiB: 200
+  # With Linux cache volumes on, the daemon keeps a prepared workspace image
+  # per repository from the first seed of its checkout master on the node,
+  # and a fresh sandbox's first worker starts from a reflink of it instead of
+  # copying the tree into the guest. The images come out of diskGiB. 0 turns
+  # them off. See infra/sandboxd/AGENTS.md, "Guest to host: checkout".
+  checkoutWorkspacesGiB: 0
+  # Size of the root filesystem every sandbox gets, which holds home (mise
+  # toolchains, caches, Amp Desktop's Chrome) beside the separate workspace.
+  # The template's init container grows the image to it, sparse, when it
+  # installs a template version, so a change applies from the next template
+  # tag on; sandboxes keep the rootfs they were created with. Each GiB is
+  # reserved against diskGiB by every sandbox on the node.
+  rootfsGiB: 20
   # Hours an Amp Orb stays paused on its node before the server archives its
   # kernel, rootfs and workspace (not its memory image) to the account's
   # object storage and deletes the node copy, releasing its disk reservation.
   # The next spawn restores it on any node and cold boots it. 0 keeps paused
   # Orbs on their nodes. See infra/amp-orbs/README.md.
   archiveAfterHours: 0
+  # While the archive tier is on, each minute archive the oldest idle Orb
+  # on each node above this percentage of its reserved disk budget (including
+  # node copies of disk snapshots), even if paused less than archiveAfterHours.
+  # Rechecks before uploading; 0 disables only this proactive trigger.
+  archiveDiskHighWaterPercent: 85
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
-  prebuildShapes: "2x4096"
+  prebuildShapes: "4x8192,2x4096"
   # The only shapes a node accepts. Each shape costs a template build and a
   # memory image on disk, so the list is short and matches the shapes the
   # server lets accounts request (Tuist.Sandboxes.Sandbox.shapes/0).
-  allowedShapes: "2x4096,4x8192,8x16384"
+  allowedShapes: "1x2048,2x4096,4x8192,8x16384,16x32768,16x45056"
   metricsPort: 9470
   # Unauthenticated HTTP API on the daemon for bring-up validation from Jobs
   # labelled `tuist.dev/sandboxd-admin-client=true` in the sandboxes
@@ -3180,6 +3176,14 @@ runnersFleetLinux:
     dockerCache:
       enabled: false
       pools: []
+    # Serves the GitHub Actions cache (actions/cache, setup actions, buildx
+    # type=gha) from each node, with entries in the shard store's quota-capped
+    # `actionsCache.bucket` (infra/helm/shard-storage) or the account's own
+    # storage. Jobs use GitHub's cache whenever the node or the store does not
+    # answer.
+    actionsCache:
+      enabled: false
+      store: http://shard-storage.kura.svc.cluster.local:3900
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and
@@ -3222,6 +3226,32 @@ runnersFleetLinux:
     # Internal rollout/rollback switch. Requires enabled above. Applies to
     # every Linux pool; pools may explicitly override nestedVirtualization.
     defaultEnabled: false
+    # Pools that also set exclusiveCPUs cannot use the device plugin: their
+    # Pod-level budget makes the kubelet skip device allocation and can panic
+    # it on concurrent starts (kubernetes/kubernetes#143490). Enabling this
+    # deploys the kvm-nri-plugin DaemonSet on the same hosts, which adds
+    # /dev/kvm through containerd NRI to the containers those Pods name in
+    # `tuist.dev/kvm-containers`, and lets the chart combine the two.
+    nri:
+      enabled: false
+  # Whole physical cores per runner Pod, shared by the runner and its
+  # sidecars, so a job does not share cores with another job or an Orb.
+  # A pool with `exclusiveCPUs: true` gives its Pods one Guaranteed
+  # Pod-level budget and lands only on the hosts the CAPI provider labels
+  # `tuist.dev/pod-level-resource-managers=true` (Kata hosts on kubelet
+  # v1.36 or newer); with no such host in the fleet its Pods stay Pending.
+  # Combined with nestedVirtualization only when
+  # `nestedVirtualization.nri.enabled`, which gives those Pods /dev/kvm
+  # without the device plugin: current kubelets skip device allocation during
+  # pod-level admission and can panic on concurrent starts
+  # (kubernetes/kubernetes#143490).
+  # Needs kata-qemu and an even vCPU count. See
+  # infra/runners-controller/AGENTS.md "Exclusive CPUs".
+  exclusiveCPUs:
+    # Rollout switch for every Linux pool and shape with an even vCPU
+    # count; odd shapes keep shared cores. A pool or shape may set
+    # `exclusiveCPUs` itself to override it.
+    defaultEnabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -3263,6 +3293,9 @@ runnersFleetLinux:
     #   # such as Android emulators. Needs kata-qemu and
     #   # `runnersFleetLinux.nestedVirtualization.enabled`.
     #   nestedVirtualization: false
+    #   # Optional. Whole cores for each Pod; needs an even pod.cpuMilli.
+    #   # Defaults to `runnersFleetLinux.exclusiveCPUs.defaultEnabled`.
+    #   exclusiveCPUs: false
     #   provisioning:
     #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300

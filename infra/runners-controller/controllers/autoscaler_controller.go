@@ -692,14 +692,20 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		}
 		shapes[shape.key()] = shape
 
+		var lastDemandAt time.Time
+		if p.Status.LastDemandAt != nil {
+			lastDemandAt = p.Status.LastDemandAt.Time
+		}
 		demands = append(demands, scaling.PoolDemand{
-			Name:       p.Name,
-			PerPodCost: cost,
-			Floor:      scaling.WarmFloor(sig, k),
-			InUse:      sig.InUse(),
-			Load:       sig.Load(),
-			Target:     scaling.DesiredReplicas(sig, k),
-			ShapeKey:   shape.key(),
+			Name:          p.Name,
+			PerPodCost:    cost,
+			Floor:         scaling.WarmFloor(sig, k),
+			InUse:         sig.InUse(),
+			HoursWithJobs: sig.HoursWithJobs,
+			LastDemandAt:  lastDemandAt,
+			Load:          sig.Load(),
+			Target:        scaling.DesiredReplicas(sig, k),
+			ShapeKey:      shape.key(),
 		})
 		members[p.Name] = fleetMember{pool: p, cost: cost, queued: sig.Queued}
 	}
@@ -858,15 +864,31 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return b.Complete(r)
 }
 
-func (r *AutoscalerReconciler) darwinPools(ctx context.Context, _ client.Object) []reconcile.Request {
+// darwinPools reconciles the pools with runners on the reservation's host,
+// the only ones that can give it room. Enqueueing every darwin pool put the
+// pool owning that idle runner behind the others' reconciles, each of which
+// lists every Pod in the cluster: in production, with 21 darwin pools, a
+// sandbox create or restore waited 5 to 12 s for its runner to be retired.
+func (r *AutoscalerReconciler) darwinPools(ctx context.Context, obj client.Object) []reconcile.Request {
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools); err != nil {
 		return nil
 	}
+	var runners corev1.PodList
+	listErr := r.List(ctx, &runners, client.HasLabels{"tuist.dev/runner-pool"})
+	node := obj.(*corev1.Pod).Spec.NodeName
+	onNode := map[client.ObjectKey]bool{}
+	for i := range runners.Items {
+		if pod := &runners.Items[i]; pod.Spec.NodeName == node {
+			onNode[client.ObjectKey{Namespace: pod.Namespace, Name: pod.Labels["tuist.dev/runner-pool"]}] = true
+		}
+	}
 	var requests []reconcile.Request
 	for _, pool := range pools.Items {
-		if pool.Spec.OS == "darwin" {
-			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&pool)})
+		key := client.ObjectKeyFromObject(&pool)
+		// Without the runners, every darwin pool, as before.
+		if pool.Spec.OS == "darwin" && (onNode[key] || listErr != nil) {
+			requests = append(requests, reconcile.Request{NamespacedName: key})
 		}
 	}
 	return requests

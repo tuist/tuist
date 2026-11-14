@@ -283,6 +283,16 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         XCTAssertEqual(got, "tuist")
     }
 
+    func test_get_authenticated_handle_when_signed_in_with_an_account_token() async throws {
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .value(serverURL))
+            .willReturn(.account(.test(preferredUsername: "tuist-org")))
+
+        let got = try await subject.authenticatedHandle(serverURL: serverURL)
+
+        XCTAssertEqual(got, "tuist-org")
+    }
+
     func test_get_authenticated_handle_when_logged_out() async throws {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))

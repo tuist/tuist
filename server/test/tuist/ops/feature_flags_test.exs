@@ -100,21 +100,6 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert enabled?(result, "build_entities_kill_switch")
   end
 
-  test "coverage dependency is evaluated from the same persisted batch" do
-    account = AccountsFixtures.user_fixture().account
-    gate(:immutable_shard_reports, :actor, "account:#{account.id}", true)
-    coverage = gate(:xcode_coverage, :actor, "account:#{account.id}", true)
-
-    assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
-    assert enabled?(result, "xcode_coverage")
-    refute enabled?(result, "immutable_shard_reports")
-
-    Repo.delete!(coverage)
-    assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => account.id})
-    refute enabled?(result, "xcode_coverage")
-    assert enabled?(result, "immutable_shard_reports")
-  end
-
   test "test impact analysis needs its own toggle and coverage on production" do
     account = AccountsFixtures.user_fixture().account
     stub(Environment, :env, fn -> :prod end)
@@ -146,7 +131,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
       assert enabled?(result, "test_impact_analysis") == coverage
       assert enabled?(result, "runner_site") == site
       assert enabled?(result, "kura_stable_hostname") == stable
-      assert enabled?(result, "immutable_shard_reports") == not coverage
+      refute enabled?(result, "immutable_shard_reports")
     end
   end
 

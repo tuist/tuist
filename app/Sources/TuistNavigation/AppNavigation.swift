@@ -4,7 +4,7 @@ import Observation
 @Observable
 public final class AppNavigation {
     public enum Tab: Hashable {
-        case jams, previews, profile
+        case threads, previews, profile
     }
 
     public var tab = Tab.previews

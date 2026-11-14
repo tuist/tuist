@@ -38,7 +38,7 @@ required CLI and Swift toolchain installed.
 | `path` | `.` | Project directory inside `GITHUB_WORKSPACE`, relative to it or absolute. Subdirectories follow Tuist's root lookup. |
 | `cache` | `auto` | `auto` selects Tuist volumes or GitHub caching. `external` leaves `.build` persistence to the runner; see [Runners that persist `.build`](#runners-that-persist-build). |
 | `cache-key` | Generated | Override the cache namespace to share a compatible workspace between jobs, or rotate it. On Tuist runners, keys starting with `tuist-` are reserved for Tuist. Ignored for external caching. |
-| `size` | 20gb for new volumes | Volume capacity on Tuist runners, from `1gb` to `100gb`. Raise it when `.build` nears the volume's size: a volume stops saving at 99% full. Changing it keeps the saved contents. Ignored for GitHub and external caching. |
+| `size` | 20gb for new volumes | Volume capacity on Tuist runners, from `1gb` to `100gb`. Raise it when `.build` nears the volume's size: a volume stops saving at 99% full. Changing it keeps the saved contents. The dependency cache inside `.build` is bounded to the same share of it that `tuist/module-cache` gives the module cache, unless `TUIST_DEPENDENCIES_CACHE_MAX_BYTES` is already set. Ignored for GitHub and external caching. |
 
 The action follows Tuist's root markers (`Tuist/`, `Tuist.swift`, `tuist.toml`,
 `Plugin.swift`, or `.git/`) and prefers `Tuist/Package.swift` over a root
@@ -67,6 +67,15 @@ base namespace, while GitHub's platform/lockfile suffixes still apply.
 
 Use a stable name for an explicit key, not a content hash.
 Paths and keys are passed as literal arguments, not evaluated as shell code.
+
+## SHA-only action policies
+
+All nested actions are pinned to full commit SHAs. If your organization requires
+an action allowlist, pin `tuist/install` to a distribution commit and allowlist
+the exact `uses:` references in that commit's `action.yml` as well. GitHub checks
+nested actions before evaluating step conditions, so those references must be
+allowed even with `cache: external`, which does not execute either cache backend.
+Updating `tuist/install` may require approving new nested action SHAs.
 
 ## Automatic cache selection
 

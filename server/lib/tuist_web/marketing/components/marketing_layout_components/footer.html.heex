@@ -187,41 +187,6 @@ LiveView pages before the socket has joined; LiveView leaves the subtree
 alone on join. The navbar does the same. --%>
 <footer id="marketing-footer" phx-update="ignore">
   <div data-part="content">
-    <div data-part="main">
-      <div data-part="brand">
-        <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
-          <%!-- One wordmark for both themes (see wordmark/1), so nothing
-          depends on a theme rule hiding a second image; outline mode strokes
-          its paths in place. --%>
-          <.wordmark data-part="logo" role="img" aria-label="Tuist" />
-        </.link>
-        <span
-          data-part="soc-badge"
-          role="img"
-          aria-label={dgettext("marketing", "SOC 2 Type II certified")}
-          title={dgettext("marketing", "SOC 2 Type II certified")}
-        >
-          <.illustration name="transparency-soc-badge" />
-        </span>
-      </div>
-      <nav data-part="columns" aria-label={dgettext("marketing", "Footer navigation")}>
-        <section :for={column <- columns} data-part="column">
-          <h3 data-part="title">{column.title}</h3>
-          <ul data-part="links">
-            <li :for={link <- column.links}>
-              <.link
-                data-part="link"
-                href={link.href}
-                target={if link[:external], do: "_blank"}
-                rel={if link[:external], do: "noopener noreferrer"}
-              >
-                {link.label}
-              </.link>
-            </li>
-          </ul>
-        </section>
-      </nav>
-    </div>
     <div data-part="ask">
       <span data-part="ask-label">{dgettext("marketing", "Ask about Tuist on")}</span>
       <div data-part="ask-assistants">
@@ -241,6 +206,38 @@ alone on join. The navbar does the same. --%>
           <Noora.Icon.icon name={assistant.icon} />
         </.button>
       </div>
+    </div>
+    <div data-part="main">
+      <nav data-part="columns" aria-label={dgettext("marketing", "Footer navigation")}>
+        <section :for={column <- columns} data-part="column">
+          <h3 data-part="title">{column.title}</h3>
+          <ul data-part="links">
+            <li :for={link <- column.links}>
+              <.link
+                data-part="link"
+                href={link.href}
+                target={if link[:external], do: "_blank"}
+                rel={if link[:external], do: "noopener noreferrer"}
+              >
+                {link.label}
+              </.link>
+            </li>
+          </ul>
+        </section>
+      </nav>
+    </div>
+    <div data-part="brand">
+      <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
+        <.tuist_mark data-part="logo" aria-label="Tuist" />
+      </.link>
+      <span
+        data-part="soc-badge"
+        role="img"
+        aria-label={dgettext("marketing", "SOC 2 Type II certified")}
+        title={dgettext("marketing", "SOC 2 Type II certified")}
+      >
+        <.illustration name="transparency-soc-badge" />
+      </span>
     </div>
     <div data-part="bar">
       <.link

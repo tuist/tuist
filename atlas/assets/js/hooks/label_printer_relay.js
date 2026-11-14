@@ -2,25 +2,44 @@ export default {
   async mounted() {
     this.stopped = false;
     const id = this.el.dataset.sessionId;
-    let token;
+    const storageKey = `atlas-label-relay:${id}`;
     const capability = this.el.querySelector("#capability");
+    let token, clientId;
     try {
-      const storageKey = `atlas-label-relay:${id}`;
+      clientId = sessionStorage.getItem("m211-client") || crypto.randomUUID();
+      sessionStorage.setItem("m211-client", clientId);
       const params = new URLSearchParams(location.hash.slice(1));
       token = params.get("token") || localStorage.getItem(storageKey);
       if (params.has("token")) {
         localStorage.setItem(storageKey, token);
         history.replaceState(null, "", location.pathname);
       }
-      if (!token)
-        throw new Error(
-          "Reopen the full private connection link from your agent.",
-        );
-    } catch (error) {
-      capability.textContent = `Relay not started: ${error.message}`;
+    } catch {
+      capability.textContent =
+        "Browser storage is required to preserve the relay identity. No output will be sent.";
       return;
     }
-    const api = async (tail = "", method = "GET", body) => {
+    // The link's #token fragment does not survive every route here (sign-in
+    // round trips drop it), so the signed-in owner's page can ask Atlas for a
+    // fresh relay capability. Atlas refuses while another relay tab is active.
+    const issueToken = () =>
+      new Promise((resolve, reject) =>
+        this.pushEvent("relay_token", { clientId }, (reply) => {
+          if (!reply?.token)
+            return reject(new Error(reply?.error || "Relay not started."));
+          localStorage.setItem(storageKey, reply.token);
+          resolve(reply.token);
+        }),
+      );
+    if (!token) {
+      try {
+        token = await issueToken();
+      } catch (error) {
+        capability.textContent = `Relay not started: ${error.message}`;
+        return;
+      }
+    }
+    const api = async (tail = "", method = "GET", body, renewed = false) => {
       const response = await fetch(`/api/labels/relay/sessions/${id}${tail}`, {
         method,
         headers: {
@@ -29,6 +48,11 @@ export default {
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
+      // A stored capability can be outdated; Atlas did nothing for a 401.
+      if (response.status === 401 && !renewed) {
+        token = await issueToken();
+        return api(tail, method, body, true);
+      }
       if (!response.ok)
         throw new Error(
           (await response.json()).error || `HTTP ${response.status}`,
@@ -38,19 +62,13 @@ export default {
     let sdk,
       connecting = false,
       ready = false,
+      // Tells Atlas this page has no operation in flight, so anything it still
+      // shows as dispatched is uncertain and queued output stops.
+      restarted = true,
       message = "Waiting for connection.";
     const connect = this.el.querySelector("#connect");
     const disconnect = this.el.querySelector("#disconnect");
     const attempted = new Set();
-    let clientId;
-    try {
-      clientId = sessionStorage.getItem("m211-client") || crypto.randomUUID();
-      sessionStorage.setItem("m211-client", clientId);
-    } catch {
-      capability.textContent =
-        "Browser storage is required to preserve the relay identity. No output will be sent.";
-      return;
-    }
     const report = () => ({
       clientId,
       connected: sdk?.isConnected() === true,
@@ -63,9 +81,14 @@ export default {
       zoneDimensions: sdk?.zoneDimensions,
       supplyWidth: sdk?.supplyWidth,
       supplyHeight: sdk?.supplyHeight,
+      mediaIsDieCut: sdk?.mediaIsDieCut,
       cutReady: typeof sdk?.cut === "function",
+      restarted,
     });
-    const publish = () => api("/relay", "POST", report());
+    const publish = async () => {
+      await api("/relay", "POST", report());
+      restarted = false;
+    };
     const buttons = () => {
       connect.disabled = connecting || !ready || sdk?.isConnected() === true;
       disconnect.disabled = connecting || !sdk?.isConnected();
@@ -80,12 +103,16 @@ export default {
     const sameSupply = (job) =>
       sdk.printerName === job.printer &&
       sdk.supplyName === job.supply &&
+      String(sdk.supplyWidth ?? "") === job.supplyWidth &&
+      String(sdk.supplyHeight ?? "") === job.supplyHeight &&
+      (sdk.mediaIsDieCut ?? null) === job.mediaIsDieCut &&
       zonesKey(sdk.zoneDimensions) === zonesKey(job.zoneDimensions);
+    // Returns true only when the next queued label may follow.
     const dispatch = async (job) => {
-      if (this.stopped || attempted.has(job.id) || !sdk?.isConnected()) return;
+      if (this.stopped || attempted.has(job.id) || !sdk?.isConnected())
+        return false;
       if (!sameSupply(job))
         throw new Error("Printer or supply changed. Output blocked.");
-      attempted.add(job.id);
       let url;
       try {
         let image;
@@ -97,29 +124,43 @@ export default {
           image.src = url;
           await image.decode();
         }
+        await publish(); // Keep the relay lease fresh during long batches.
         // Exclusive, durable server-side consumption must succeed before any SDK output.
         await api(`/jobs/${job.id}/claim`, "POST", { clientId });
+        attempted.add(job.id);
         let success = false;
+        let cutSuccess = null;
+        let failure;
         try {
           if (this.stopped || !sdk.isConnected() || !sameSupply(job))
             throw new Error("Printer or supply changed");
           if (job.action === "cut") success = (await sdk.cut()) === true;
           else {
+            // One label per print call so every label gets its own SDK result.
+            // printBitmaps reports one boolean for the whole job.
             sdk.setCopies(1);
-            sdk.setCutOption(2); // Never cut as part of printing.
+            sdk.setCutOption(2); // Never cut inside the print job.
             success = (await sdk.printBitmap(image)) === true;
+            if (success && job.cut) {
+              cutSuccess = false;
+              cutSuccess = (await sdk.cut()) === true;
+            }
           }
-          message = success
-            ? "Brady SDK confirmed operation. Check the physical label."
-            : "Outcome uncertain. Inspect printer; never retry automatically.";
         } catch (error) {
-          message = `Outcome uncertain: ${error.message}. No retry.`;
+          failure = error.message;
         }
+        const ok =
+          success && (job.action === "cut" || !job.cut || cutSuccess === true);
+        message = ok
+          ? `Brady SDK confirmed ${job.title}. Check the physical label.`
+          : `Outcome uncertain for ${job.title}${failure ? `: ${failure}` : ""}. Inspect printer; never retry automatically.`;
         await api(`/jobs/${job.id}/result`, "POST", {
           clientId,
           success,
+          cutSuccess,
           message,
         });
+        return ok;
       } finally {
         if (url) URL.revokeObjectURL(url);
       }
@@ -129,8 +170,15 @@ export default {
       try {
         await publish();
         const state = await (await api()).json();
-        const job = state.jobs.find((j) => j.state === "queued");
-        if (job) await dispatch(job);
+        const queued = state.jobs
+          .filter((j) => j.state === "queued")
+          .sort(
+            (a, b) => a.queuedAt - b.queuedAt || a.batchIndex - b.batchIndex,
+          );
+        for (const job of queued) {
+          if (!(await dispatch(job))) break;
+          capability.textContent = message;
+        }
       } catch (error) {
         message = error.message;
       }

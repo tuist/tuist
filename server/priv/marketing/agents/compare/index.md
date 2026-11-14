@@ -4,7 +4,7 @@ Choose build infrastructure by the work your team needs to do. Compare Tuist wit
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not CI orchestration or just another coding agent. You can keep the delivery workflow and agents you already use while adopting supported Tuist capabilities.
+Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not CI orchestration or just another coding agent. You can keep the delivery workflow and agents you already use while adopting supported Tuist capabilities.
 
 ## Start with the decision, not a feature checklist
 
@@ -26,9 +26,13 @@ Include service charges, execution usage, and the team's operational work. Separ
 
 Follow the [documentation](/en/docs-markdown/guides/get-started), choose one supported capability, and consult [pricing](/marketing-markdown/pricing) for current terms. Adoption does not have to begin with moving CI or changing agents.
 
+## Compare project and build tools
+
+Some evaluations start from a developer tool rather than an infrastructure provider. [XcodeGen vs Tuist](/marketing-markdown/compare/xcodegen) shows how a team that keeps XcodeGen adds Tuist's build infrastructure, such as the Xcode cache, build and test insights, and previews, and when migrating to Tuist generated projects is worth it. [Nx vs Tuist](/marketing-markdown/compare/nx) compares a monorepo task runner with build infrastructure that works inside each build system's own cache.
+
 ## More existing comparison guides
 
-For a different evaluation, the existing guides remain available: [Appcircle](/marketing-markdown/compare/appcircle), [Bitrise](/marketing-markdown/compare/bitrise), [Blacksmith](/marketing-markdown/compare/blacksmith), [BuildBuddy](/marketing-markdown/compare/buildbuddy), [BuildJet](/marketing-markdown/compare/buildjet), [CircleCI](/marketing-markdown/compare/circleci), [Cirun](/marketing-markdown/compare/cirun), [Codemagic](/marketing-markdown/compare/codemagic), [Depot](/marketing-markdown/compare/depot), [RunsOn](/marketing-markdown/compare/runs-on), [Ubicloud](/marketing-markdown/compare/ubicloud), and [WarpBuild](/marketing-markdown/compare/warpbuild). Each retains its own scope and source-review date.
+For a different evaluation, the existing guides remain available: [Appcircle](/marketing-markdown/compare/appcircle), [Bitrise](/marketing-markdown/compare/bitrise), [Blacksmith](/marketing-markdown/compare/blacksmith), [BuildBuddy](/marketing-markdown/compare/buildbuddy), [BuildJet](/marketing-markdown/compare/buildjet), [CircleCI](/marketing-markdown/compare/circleci), [Cirun](/marketing-markdown/compare/cirun), [Codemagic](/marketing-markdown/compare/codemagic), [Depot](/marketing-markdown/compare/depot), [EngFlow](/marketing-markdown/compare/engflow), [RunsOn](/marketing-markdown/compare/runs-on), [Ubicloud](/marketing-markdown/compare/ubicloud), and [WarpBuild](/marketing-markdown/compare/warpbuild). Each retains its own scope and source-review date.
 
 ## Sources and review
 

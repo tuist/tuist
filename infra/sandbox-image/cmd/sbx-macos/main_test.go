@@ -4,7 +4,10 @@ package main
 
 import (
 	"context"
+	"io"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,6 +47,43 @@ func TestExecFencesBackgroundChildrenAfterLeaderExit(t *testing.T) {
 	probe.Dir = dir
 	if probe.Run() == nil {
 		t.Fatal("background child escaped exec")
+	}
+}
+
+// start re-executes this binary as the worker; stand in for one that reads
+// its request and exits.
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && strings.HasPrefix(os.Args[1], "--worker=") {
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+func TestStartReusesOnlyARunningWorkerWithTheSameID(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := os.MkdirAll(root(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	running := response{ID: "sesn_1", Running: true, PID: 1}
+	if err := save(running); err != nil {
+		t.Fatal(err)
+	}
+	if err := dispatch(request{Op: "start", ID: "sesn_1"}); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := status(); s.PID != 1 {
+		t.Fatalf("retried start replaced the running worker: %+v", s)
+	}
+
+	// The previous turn's worker of the same session has exited.
+	if err := save(response{ID: "sesn_1", ExitCode: 0, PID: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dispatch(request{Op: "start", ID: "sesn_1"}); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := status(); s.PID == 1 || !s.Running {
+		t.Fatalf("next turn did not start a worker: %+v", s)
 	}
 }
 func TestRejectsMalformedEnvironmentBeforeSpawn(t *testing.T) {

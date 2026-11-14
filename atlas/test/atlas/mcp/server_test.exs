@@ -5,9 +5,12 @@ defmodule Atlas.MCP.ServerTest do
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Server
   alias Atlas.MCP.Tools.EvaluateTuistFeatureFlags
+  alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
+  alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.ListTuistFeatureFlags
   alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
+  alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
   alias Atlas.Users
   alias Atlas.Users.User
   alias Ecto.Adapters.SQL.Sandbox
@@ -352,6 +355,10 @@ defmodule Atlas.MCP.ServerTest do
     refute Enum.any?(tools, &(&1["name"] == "review_holiday"))
   end
 
+  @flag_tool_names ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag
+                      get_tuist_account get_tuist_runner_concurrency_limits update_tuist_runner_concurrency_limits
+                      get_tuist_account_plan update_tuist_account_plan)
+
   test "feature flag discovery and dispatch require dedicated scopes in addition to the observability group" do
     stub(Proxy, :list_hoisted_tools, fn _conn -> [] end)
 
@@ -361,17 +368,19 @@ defmodule Atlas.MCP.ServerTest do
           {["feature_flags:read"], [], []},
           {["feature_flags:write"], [], []},
           {["feature_flags:read"], ["observability"],
-           ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags)},
+           ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags get_tuist_account
+              get_tuist_runner_concurrency_limits get_tuist_account_plan)},
           {["feature_flags:write"], ["observability"],
-           ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag)}
+           ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag
+              get_tuist_account get_tuist_runner_concurrency_limits update_tuist_runner_concurrency_limits
+              get_tuist_account_plan update_tuist_account_plan)}
         ] do
       stub(Users, :has_scope?, fn %User{}, scope -> Atlas.Authorization.granted?(granted, scope) end)
       conn = %{assigns: %{current_user: %User{}, mcp_claims: %{"mcp_tool_groups" => groups}}}
       response = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
       names = Enum.map(response["result"]["tools"], & &1["name"])
 
-      for name <-
-            ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag) do
+      for name <- @flag_tool_names do
         assert name in names == name in expected_names
 
         if name not in expected_names do
@@ -402,8 +411,7 @@ defmodule Atlas.MCP.ServerTest do
       response = Server.handle_message(conn, %{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
       names = Enum.map(response["result"]["tools"], & &1["name"])
 
-      for name <-
-            ~w(list_tuist_feature_flags get_tuist_feature_flag evaluate_tuist_feature_flags update_tuist_feature_flag) do
+      for name <- @flag_tool_names do
         refute name in names
 
         response =
@@ -424,11 +432,22 @@ defmodule Atlas.MCP.ServerTest do
     assert Server.workflow_tool_scopes(GetTuistFeatureFlag) == ["feature_flags:read"]
     assert Server.workflow_tool_scopes(EvaluateTuistFeatureFlags) == ["feature_flags:read"]
     assert Server.workflow_tool_scopes(UpdateTuistFeatureFlag) == ["feature_flags:write"]
+    assert Server.workflow_tool_scopes(GetTuistAccount) == ["feature_flags:read"]
+    assert Server.workflow_tool_scopes(GetTuistRunnerConcurrencyLimits) == ["feature_flags:read"]
+    assert Server.workflow_tool_scopes(UpdateTuistRunnerConcurrencyLimits) == ["feature_flags:write"]
 
     for granted <- [[], ["feature_flags:read"], ["feature_flags:write"]] do
       stub(Users, :has_scope?, fn %User{}, scope -> Atlas.Authorization.granted?(granted, scope) end)
 
-      for module <- [ListTuistFeatureFlags, GetTuistFeatureFlag, EvaluateTuistFeatureFlags, UpdateTuistFeatureFlag] do
+      for module <- [
+            ListTuistFeatureFlags,
+            GetTuistFeatureFlag,
+            EvaluateTuistFeatureFlags,
+            UpdateTuistFeatureFlag,
+            GetTuistAccount,
+            GetTuistRunnerConcurrencyLimits,
+            UpdateTuistRunnerConcurrencyLimits
+          ] do
         [scope] = Server.workflow_tool_scopes(module)
         expected = Atlas.Authorization.granted?(granted, scope)
         assert Server.workflow_tool_allowed?(%User{}, module) == expected

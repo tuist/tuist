@@ -471,7 +471,9 @@ func shapeSeatableOnFleet(nodes []corev1.Node, shape podShape) bool {
 // hosts that converge equally soon, one already holding the pool's golden
 // image wins, so the starved job clones it instead of pulling it. Holding
 // the image never outranks convergence, since a customer job can run longer
-// than a pull. Remaining ties break on name so a reservation does not
+// than a pull. Then a host holding no macOS sandbox session wins, since a
+// session resumes only on its own Mac and waits out the reservation. Remaining
+// ties break on name so a reservation does not
 // wander between reconciles. The second result reports whether the chosen
 // host clears at once: it holds no such Pods, or, on Linux, the shape fits
 // beside them once its idle Pods are retired.
@@ -611,6 +613,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		if warmA != warmB {
 			return warmA
 		}
+		_, sessionsA := candidates[a].Labels[podtemplate.MacosSandboxSessionsLabel]
+		_, sessionsB := candidates[b].Labels[podtemplate.MacosSandboxSessionsLabel]
+		if sessionsA != sessionsB {
+			return sessionsB
+		}
 		return candidates[a].Name < candidates[b].Name
 	})
 	return candidates[0], clearsAtOnce(candidates[0]), nil
@@ -687,7 +694,8 @@ func unplacedFootprint(pool *tuistv1.RunnerPool, pods []corev1.Pod) corev1.Resou
 }
 
 // podFootprint is a Pod's scheduling request: the larger of its containers'
-// sum and its largest init container, plus overhead.
+// sum and its largest init container, or the Pod-level budget where the Pod
+// sets one, plus overhead.
 func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 	total := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
@@ -702,6 +710,11 @@ func podFootprint(pod *corev1.Pod) corev1.ResourceList {
 			if current, ok := total[name]; !ok || quantity.Cmp(current) > 0 {
 				total[name] = quantity.DeepCopy()
 			}
+		}
+	}
+	if pod.Spec.Resources != nil {
+		for name, quantity := range pod.Spec.Resources.Requests {
+			total[name] = quantity.DeepCopy()
 		}
 	}
 	for name, quantity := range pod.Spec.Overhead {
@@ -954,6 +967,9 @@ func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 		}
 		if pool.Spec.NestedVirtualization {
 			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		if pool.Spec.ExclusiveCPUs {
+			labels[podtemplate.PodLevelResourceManagersNodeLabel] = "true"
 		}
 		return labels
 	default:

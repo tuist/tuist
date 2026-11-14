@@ -59,6 +59,22 @@ struct CargoCompilerObserver {
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, native: Bool = false
     ) async throws -> Decision {
         guard let compiler = arguments.first else { throw CargoReportError(message: "Missing compiler executable.") }
+        // Coverage instruments the repository's crates here, before they are keyed, so each variant has its own
+        // entries and dependencies keep the ones of builds without coverage. The marker says which variant the
+        // outputs are (`CargoCoverage.reconcile`).
+        var arguments = arguments
+        if !native, let marker = CargoCoverage.marker(arguments) {
+            if CargoCoverage.instruments(arguments, environment: environment) {
+                if !arguments.contains("-Cinstrument-coverage"),
+                   !zip(arguments, arguments.dropFirst()).contains(where: { $0 == "-C" && $1 == "instrument-coverage" })
+                {
+                    arguments += CargoCoverage.flag
+                }
+                FileManager.default.createFile(atPath: marker.path, contents: nil)
+            } else {
+                try? FileManager.default.removeItem(at: marker)
+            }
+        }
         // A build script being recorded runs `cc` through the protected `/bin/sh` shim, which drops the recorder: the
         // compiler starts recorded again, as the script's child, so everything it reads or finds missing joins the
         // script's reads and the run is cached as a whole, not compilation by compilation. `/usr/bin/cc` is a

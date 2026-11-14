@@ -61,7 +61,7 @@ function fixture(t) {
       ...env, TUIST_INSTALL_PROJECT_PATH: outputs['project-path'],
       TUIST_INSTALL_SCRATCH_PATH: outputs['scratch-path'],
       TUIST_INSTALL_CACHE_PATH: outputs['cache-path'],
-      TUIST_INSTALL_MATERIALIZATION: outputs.materialization, ...overrides,
+      TUIST_INSTALL_MATERIALIZATION: outputs.materialization, TUIST_INSTALL_BACKEND: outputs.backend, ...overrides,
     },
   });
   return { root, workspace, bin, write, env, pkg, prepare, install };
@@ -192,7 +192,7 @@ test('CLI versions without consolidated manifest caching fail; supported release
   }
 });
 
-test('standalone package works outside the source checkout and never overwrites existing output', t => {
+test('standalone package pins nested actions, works outside the source checkout and never overwrites existing output', t => {
   const f = fixture(t);
   f.pkg();
   const output = path.join(f.root, 'standalone action');
@@ -200,6 +200,13 @@ test('standalone package works outside the source checkout and never overwrites 
   success(pack());
   assert.deepEqual(fs.readdirSync(output).sort(), ['LICENSE.md', 'README.md', 'SOURCE_COMMIT', 'action.yml', 'install.sh', 'prepare.sh']);
   assert.match(fs.readFileSync(path.join(output, 'SOURCE_COMMIT'), 'utf8'), /^[a-f0-9]{40}\n$/);
+  // GitHub checks nested actions against the caller's policy even when their steps are skipped.
+  const definition = fs.readFileSync(path.join(output, 'action.yml'), 'utf8');
+  const dependencies = [...definition.matchAll(/^\s+uses:\s+(\S+)/gm)].map(match => match[1]);
+  assert.ok(dependencies.length > 0);
+  for (const dependency of dependencies) {
+    assert.match(dependency, /^[^@\s]+@[a-f0-9]{40}$/, 'nested actions must be allowlistable by immutable SHA');
+  }
   success(f.install(success(f.prepare({}, output)), {}, output));
   assert.notEqual(pack().status, 0);
 });
@@ -298,4 +305,26 @@ test('cache input reaches prepare and defaults to auto', () => {
   assert.match(step('prepare'), /^        TUIST_INSTALL_CACHE: \$\{\{ inputs\.cache \}\}$/m);
   assert.match(step('volume'), /^      if: steps\.prepare\.outputs\.backend == 'volume'$/m);
   assert.match(step('archive'), /^      if: steps\.prepare\.outputs\.backend == 'github'$/m);
+});
+
+test('a volume-backed install bounds the dependency cache by the volume capacity', t => {
+  const f = fixture(t);
+  const pkg = f.pkg();
+  const volume = path.join(f.root, 'volume');
+  fs.mkdirSync(volume);
+  fs.symlinkSync(volume, path.join(pkg, '.build'));
+  const outputs = success(f.prepare());
+  success(f.install(outputs));
+  const capacity = Number(spawnSync('df', ['-Pk', `${volume}/`], { encoding: 'utf8' }).stdout
+    .trim().split('\n')[1].split(/\s+/)[1]) * 1024;
+  const room = Math.min(Math.max(capacity / 5, 2e9), capacity / 2);
+  const budget = Number(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8').match(/^TUIST_DEPENDENCIES_CACHE_MAX_BYTES=(\d+)$/m)[1]);
+  assert.ok(Math.abs(budget - (capacity - room)) <= 1);
+  assert.doesNotMatch(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_INSTALL_/m);
+
+  // An explicit budget wins, and an archive-backed install, with no capacity, sets none.
+  success(f.install(outputs, { TUIST_DEPENDENCIES_CACHE_MAX_BYTES: '123' }));
+  assert.match(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_DEPENDENCIES_CACHE_MAX_BYTES=123$/m);
+  success(f.install({ ...outputs, backend: 'github' }));
+  assert.doesNotMatch(fs.readFileSync(f.env.CAPTURE_ENV, 'utf8'), /^TUIST_DEPENDENCIES_CACHE_MAX_BYTES=/m);
 });

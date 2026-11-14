@@ -17,7 +17,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tuist/tuist/infra/sandboxd/internal/blobcache"
+	"github.com/tuist/tuist/infra/sandboxd/internal/checkout"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
+	"github.com/tuist/tuist/infra/sandboxd/internal/lazydisk"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/template"
@@ -57,6 +60,9 @@ type Config struct {
 	// FirecrackerVersion is the running binary's version, recorded with
 	// every memory image a pause writes.
 	FirecrackerVersion string
+	// SnapshotCompat is the node's hostinfo.SnapshotCompat. Archives carry
+	// memory only when it is set, and restore it warm only where it matches.
+	SnapshotCompat string
 }
 
 type Deps struct {
@@ -71,6 +77,18 @@ type Deps struct {
 	// HTTPClient moves archives to and from object storage.
 	HTTPClient *http.Client
 	Metrics    *Metrics
+	// Blobs, when set, serves execution guests large input blobs from the
+	// node; see serveBlobs.
+	Blobs *blobcache.Cache
+	// Checkouts, when set, is the node's runner-cache agent: a worker whose
+	// start_worker carries a checkout grant is served the repository's master
+	// and exports back to it; see armCheckout.
+	Checkouts      checkout.Agent
+	CheckoutLimits checkout.Limits
+	// Workspaces, when set with Checkouts, keeps prepared workspaces built
+	// from seeds, which a fresh sandbox's first worker starts from; see
+	// preparedWorkspace.
+	Workspaces *checkout.Workspaces
 	Events     func(protocol.Event)
 	Log        *slog.Logger
 }
@@ -89,6 +107,11 @@ type Manager struct {
 	events    func(protocol.Event)
 	log       *slog.Logger
 	claims    *Claims
+	blobs     *blobcache.Cache
+	// checkouts and checkoutLimits serve workers' checkout grants.
+	checkouts      checkout.Agent
+	checkoutLimits checkout.Limits
+	workspaces     *checkout.Workspaces
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -127,6 +150,16 @@ type Sandbox struct {
 	// out an upload.
 	resumes       uint64
 	cancelArchive context.CancelFunc
+	// fresh is set on a sandbox created from the template snapshot until its
+	// first exec or worker: its workspace is the empty disk the create
+	// formatted, which a prepared workspace may replace.
+	fresh bool
+	// memoryPending is set while a warm restore still reads memory from
+	// its archive, disksPending while it still reads its disks (lazy, until
+	// then); EventMemoryLoaded reports both cleared.
+	memoryPending bool
+	disksPending  bool
+	lazy          *lazyDisks
 }
 
 var (
@@ -171,6 +204,8 @@ func New(cfg Config, deps Deps) *Manager {
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
 		cloneFile: deps.CloneFile,
 		http:      deps.HTTPClient,
+		blobs:     deps.Blobs,
+		checkouts: deps.Checkouts, checkoutLimits: deps.CheckoutLimits, workspaces: deps.Workspaces,
 		sandboxes: map[string]*Sandbox{},
 		claims:    NewClaims(),
 	}
@@ -354,6 +389,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	sb.meta.Generation = 0
 	sb.meta.FirecrackerVersion = artifacts.Meta.FirecrackerVersion
 	sb.meta.Error = ""
+	sb.fresh = !preparedWorkspace
 	err = sb.meta.Save(root)
 	sb.mu.Unlock()
 	if err != nil {
@@ -446,6 +482,12 @@ func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, met
 // brings the guest agent up to date. beforeAgent runs after the load and
 // before the agent handshake.
 func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, beforeAgent func(*firecracker.Client, vm.Instance) error, formatWorkspace bool) (vm.Instance, vsock.Agent, error) {
+	return m.restoreWith(ctx, sb, log, "", beforeAgent, formatWorkspace)
+}
+
+// restoreWith is restore with the memory served through the userfaultfd
+// socket at memSocket in the jail instead of /mem, when it is set.
+func (m *Manager) restoreWith(ctx context.Context, sb *Sandbox, log *slog.Logger, memSocket string, beforeAgent func(*firecracker.Client, vm.Instance) error, formatWorkspace bool) (vm.Instance, vsock.Agent, error) {
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
@@ -455,9 +497,13 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 	}
 	api := inst.API()
 	loadStarted := time.Now()
+	backend := firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)}
+	if memSocket != "" {
+		backend = firecracker.MemoryBackend{BackendType: "Uffd", BackendPath: inst.GuestPath(memSocket)}
+	}
 	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
 		SnapshotPath: inst.GuestPath(firecracker.SnapshotPath),
-		MemBackend:   firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)},
+		MemBackend:   backend,
 		ResumeVM:     true,
 	}); err != nil {
 		return fail(err)
@@ -567,6 +613,7 @@ func (m *Manager) discard(sb *Sandbox) {
 	meta := sb.meta
 	sb.mu.Unlock()
 	_ = m.net.Teardown(context.Background(), m.namespace(meta.ID), meta.Slot)
+	m.dropLazyDisks(sb)
 	_ = os.RemoveAll(vm.JailDir(m.cfg.JailBase, meta.ID))
 	if meta.Slot >= 0 {
 		m.slots.Release(meta.Slot)
@@ -759,6 +806,12 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		m.markDied(sb, fmt.Sprintf("pause: firecracker did not die: %v", err))
 		return res, err
 	}
+	// A restore whose disks still arrive from its archive holds them
+	// whole only once the fill ends.
+	if err := m.settleLazyDisks(context.Background(), sb); err != nil {
+		m.markDied(sb, fmt.Sprintf("pause: the restored disks could not be completed: %v", err))
+		return res, err
+	}
 	sb.mu.Lock()
 	meta := sb.meta
 	sb.mu.Unlock()
@@ -787,6 +840,10 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	}
 	memBytes := vm.FileSize(filepath.Join(sb.root, firecracker.MemPath))
 	sb.mu.Lock()
+	// The snapshot read every page, so a warm restore's memory is all on
+	// the node now, and its disks were settled above.
+	memoryLoaded := sb.memoryPending || sb.disksPending
+	sb.memoryPending, sb.disksPending = false, false
 	sb.meta.State = protocol.StatePaused
 	sb.meta.Generation++
 	sb.meta.FirecrackerVersion = m.cfg.FirecrackerVersion
@@ -798,6 +855,9 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 		return res, err
 	}
 	m.refreshGauges()
+	if memoryLoaded {
+		m.events(protocol.Event{Type: protocol.FrameEvent, Event: protocol.EventMemoryLoaded, SandboxID: id})
+	}
 	m.log.Info("sandbox paused", "sandbox", id, "snapshot", time.Since(start), "mem_bytes", memBytes, "generation", meta.Generation+1)
 	return protocol.PauseResult{SnapshotMs: time.Since(start).Milliseconds(), MemBytes: memBytes, DisksSynced: synced}, nil
 }
@@ -864,6 +924,7 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	sb.mu.Lock()
 	sb.inst = nil
 	sb.mu.Unlock()
+	m.dropLazyDisks(sb)
 	started = time.Now()
 	if err := os.RemoveAll(vm.JailDir(m.cfg.JailBase, id)); err != nil {
 		return err
@@ -941,6 +1002,7 @@ func (m *Manager) acquireAgent(id string) (*Sandbox, vsock.Agent, error) {
 		return nil, nil, fmt.Errorf("%w: %s", ErrPausing, id)
 	}
 	sb.inflight++
+	sb.fresh = false
 	return sb, sb.agent, nil
 }
 
@@ -960,6 +1022,7 @@ func (m *Manager) Exec(ctx context.Context, args protocol.ExecArgs, out vsock.Ou
 		return res, err
 	}
 	defer sb.releaseAgent()
+	defer m.serveBlobs(sb, args)()
 	if args.TimeoutMs > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(args.TimeoutMs)*time.Millisecond+10*time.Second)
@@ -1006,17 +1069,26 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 		sb.mu.Unlock()
 		return res, fmt.Errorf("%w: %s", ErrWorkerRunning, args.SandboxID)
 	}
-	agent := sb.agent
+	agent, inst := sb.agent, sb.inst
 	// Reserve the worker slot before the handshake so two concurrent
 	// start_worker commands cannot both start one.
 	run := &workerRun{started: time.Now(), done: make(chan struct{})}
 	sb.worker = run
+	fresh := sb.fresh && sb.inflight == 0
+	sb.fresh = false
+	meta := sb.meta
 	sb.mu.Unlock()
 
 	log := m.log.With("sandbox", args.SandboxID, "process", "sbx-worker")
 	logLines := newLineLogger(log)
-	proc, err := agent.Start(ctx, vsock.ExecRequest{Cmd: []string{m.cfg.WorkerPath}, Env: args.Env, Cwd: guestWorkspace}, logLines.write)
+	key, keyed := m.workspaceKey(meta, args.Checkout)
+	prepared := keyed && fresh && m.preparedWorkspace(ctx, sb, inst, agent, key, log)
+	// Served only while this worker runs: a pause waits for the worker, and
+	// the exit below disarms before it frees the worker slot.
+	env, disarm := m.armCheckout(inst, args, log, m.recorder(keyed && !prepared, key))
+	proc, err := agent.Start(ctx, vsock.ExecRequest{Cmd: []string{m.cfg.WorkerPath}, Env: env, Cwd: guestWorkspace}, logLines.write)
 	if err != nil {
+		disarm()
 		sb.mu.Lock()
 		if sb.worker == run {
 			sb.worker = nil
@@ -1032,6 +1104,7 @@ func (m *Manager) StartWorker(ctx context.Context, args protocol.StartWorkerArgs
 	log.Info("worker started", "exec_id", proc.ID(), "env_keys", len(args.Env))
 	go func() {
 		code, waitErr := proc.Wait(context.Background())
+		disarm()
 		logLines.flush()
 		duration := time.Since(run.started)
 		sb.mu.Lock()
@@ -1219,6 +1292,16 @@ func (m *Manager) Recover(ctx context.Context) error {
 			}
 		}
 		hasDisks := vm.Exists(filepath.Join(root, firecracker.RootfsPath)) && vm.Exists(filepath.Join(root, firecracker.WorkspacePath)) && vm.Exists(filepath.Join(root, firecracker.KernelPath))
+		for _, name := range lazyDiskNames {
+			// A previous daemon's mount over a disk being restored.
+			lazydisk.Unmount(filepath.Join(root, name))
+			if vm.Exists(filepath.Join(root, name+lazyDiskSuffix)) {
+				// Its disks were still arriving from its archive, which the
+				// server restores again.
+				meta.State = protocol.StateError
+				meta.Error = "daemon restarted while the sandbox's disks were still loading from its archive"
+			}
+		}
 		switch meta.State {
 		case protocol.StatePaused:
 			if !meta.ColdBoot && meta.FirecrackerVersion != m.cfg.FirecrackerVersion && hasDisks {

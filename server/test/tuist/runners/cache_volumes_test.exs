@@ -2881,4 +2881,123 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert {:error, :not_found} = CacheVolumes.image("other-node", use.id, Map.put(params, "operation", "abort"))
     end
   end
+
+  describe "allocate_sandbox_checkout/3" do
+    setup %{account: account} do
+      installation = %{installation_id: "99", client_url: nil}
+      stub(VCS, :get_github_app_installation_for_account, fn _ -> {:ok, installation} end)
+      stub(VCS, :installation_api_url, fn _ -> "https://api.github.com" end)
+
+      stub(GitHubClient, :get_repository, fn _, "Org/Repo" ->
+        {:ok, %{"id" => 123, "full_name" => "org/repo", "default_branch" => "trunk"}}
+      end)
+
+      stub(GitHubClient, :get_branch, fn _, "org/repo", "trunk" ->
+        {:ok, %{"commit" => %{"sha" => String.duplicate("c", 40)}}}
+      end)
+
+      %{sandbox: %{account_id: account.id, node_name: "mac-node", platform: :darwin}}
+    end
+
+    test "allocates the volume the repository's CI jobs use, at the default branch's head", %{
+      account: account,
+      job: job,
+      sandbox: sandbox
+    } do
+      # A CI job of the repository ran as UID 501, not the runner image's default.
+      {:ok, ci} =
+        CacheVolumes.allocate_for_job(
+          job,
+          %{repository_id: 123, trusted: true, default_branch: "trunk", writer_branch: "trunk"},
+          %{
+            pod_name: "ci-pod",
+            pod_uid: "ci-uid",
+            node_name: "mac-node",
+            key: "checkout",
+            architecture: "arm64",
+            platform: "macos",
+            uid: 501
+          }
+        )
+
+      assert {:ok, checkout} = CacheVolumes.allocate_sandbox_checkout(sandbox, "Org/Repo", "claude-code-work")
+
+      assert Repo.get!(Usage, checkout.id).volume_id == Repo.get!(Usage, ci.id).volume_id
+      assert checkout.uid == 501
+      assert checkout.commit == String.duplicate("c", 40)
+      assert checkout.default_branch == "trunk"
+      assert checkout.clone_url == "https://github.com/org/repo"
+      # Only an export of that commit moves the master, and the use itself never publishes.
+      assert checkout.default_branch_job
+      refute checkout.may_start_master
+      refute checkout.can_publish
+
+      usage = Repo.get!(Usage, checkout.id)
+      assert usage.writer_default_branch
+      assert is_nil(usage.workflow_job_id)
+      assert usage.node_name == "mac-node"
+
+      # A retried start of the same worker reuses its use.
+      assert {:ok, %{id: id}} = CacheVolumes.allocate_sandbox_checkout(sandbox, "Org/Repo", "claude-code-work")
+      assert id == checkout.id
+      assert Repo.aggregate(from(v in Volume, where: v.account_id == ^account.id), :count) == 1
+    end
+
+    test "takes the runner image's user for a repository without CI checkouts", %{sandbox: sandbox} do
+      assert {:ok, %{uid: 502}} = CacheVolumes.allocate_sandbox_checkout(sandbox, "Org/Repo", "work")
+
+      assert {:ok, %{uid: 1000}} =
+               CacheVolumes.allocate_sandbox_checkout(%{sandbox | platform: :linux}, "Org/Repo", "work")
+    end
+
+    test "recent_sandbox_checkout_nodes/4 lists the nodes sandboxes recently used the checkout on, newest first", %{
+      account: account,
+      job: job,
+      sandbox: sandbox
+    } do
+      linux = %{sandbox | platform: :linux}
+      now = DateTime.utc_now()
+
+      # A CI job's use leaves a master on its node but no prepared workspace.
+      {:ok, _ci} =
+        CacheVolumes.allocate_for_job(
+          job,
+          %{repository_id: 123, trusted: true, default_branch: "trunk", writer_branch: "trunk"},
+          %{
+            pod_name: "ci-pod",
+            pod_uid: "ci-uid",
+            node_name: "ci-node",
+            key: "checkout",
+            architecture: "amd64",
+            platform: "linux",
+            uid: 1000
+          }
+        )
+
+      {:ok, old} = CacheVolumes.allocate_sandbox_checkout(%{linux | node_name: "old-node"}, "Org/Repo", "w1")
+      {:ok, earlier} = CacheVolumes.allocate_sandbox_checkout(%{linux | node_name: "earlier-node"}, "Org/Repo", "w2")
+      {:ok, _latest} = CacheVolumes.allocate_sandbox_checkout(%{linux | node_name: "latest-node"}, "Org/Repo", "w3")
+      {:ok, _mac} = CacheVolumes.allocate_sandbox_checkout(sandbox, "Org/Repo", "w4")
+
+      for {use, hours} <- [{old, 7}, {earlier, 1}] do
+        at = DateTime.add(now, -hours * 60 * 60, :second)
+        Repo.update_all(from(u in Usage, where: u.id == ^use.id), set: [inserted_at: at])
+      end
+
+      since = DateTime.add(now, -6 * 60 * 60, :second)
+
+      assert CacheVolumes.recent_sandbox_checkout_nodes(account.id, "ORG/repo", "linux", since) ==
+               ["latest-node", "earlier-node"]
+
+      assert CacheVolumes.recent_sandbox_checkout_nodes(account.id, "org/other", "linux", since) == []
+    end
+
+    test "is unavailable for a repository the installation cannot read", %{account: account, sandbox: sandbox} do
+      stub(GitHubClient, :get_repository, fn _, _ -> {:error, "Not Found"} end)
+
+      assert {:error, :unavailable} = CacheVolumes.allocate_sandbox_checkout(sandbox, "org/private", "work")
+      assert {:error, :unavailable} = CacheVolumes.allocate_sandbox_checkout(sandbox, "../repo", "work")
+      refute Repo.exists?(from(v in Volume, where: v.account_id == ^account.id))
+    end
+  end
 end

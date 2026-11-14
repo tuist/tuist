@@ -69,7 +69,7 @@ They do not establish the final same-instance production performance.
 
 ## Staging
 
-Staging advertises `scw-fr-par-runners,eu-west,ca-east`. Its EU-West capacity is
+Staging advertises `eu-west,ca-east`. Its EU-West capacity is
 `ns3220989.ip-162-19-86.eu`, adopted under the `gra-runners-cache` fleet
 identity and labelled `kura-dedibox`. The host also runs the staging shard
 store and holds the migrated RISE-S fixtures and retained recovery archives: do
@@ -115,3 +115,11 @@ to start as a writer. Temporary copy pods, their NetworkPolicy and the pod
 finalizer used during the cold move were removed. Host release wipes local
 disks, so the retained archives are the preservation copies after retirement.
 Removing the Machine does not cancel the OVH monthly contract.
+
+On 2026-11-13, before the staging Scaleway Elastic Metal node retired,
+`kura-spec98-final` ordinal 1 moved off it: a live tar of its volume
+(`final-1-frpar-volume-20261113.tar`, recorded in `rise-s-retirement-backups`)
+went to the same archive PVC, its PV was set to `Retain`, and the instance's
+node selector now names the Gravelines `kura-dedibox` pool. The controller holds
+template changes on this activated fixture, so the StatefulSet template was
+patched directly before ordinal 1 was recreated there.

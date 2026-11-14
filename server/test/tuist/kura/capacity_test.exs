@@ -216,6 +216,40 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.room_for?(@region, :enterprise, other) == true
     end
 
+    test "counts a converted host's thin pool and thin replicas in the region's disk" do
+      # A converted host keeps only its root filesystem as ephemeral-storage and
+      # advertises its thin pool as tuist.dev/kura-disk; thin replicas request
+      # only the latter.
+      stub(Client, :list_nodes, fn _selector ->
+        {:ok,
+         %{
+           "items" => [
+             ready_node(%{"ephemeral-storage" => "1000Gi"}),
+             ready_node(%{"ephemeral-storage" => "100Gi", "tuist.dev/kura-disk" => "1400Gi"})
+           ]
+         }}
+      end)
+
+      stub_region_pods([reserved_pod(50), thin_pod(70)])
+
+      assert Capacity.allocatable_gib(@region) == 2500
+      assert Capacity.reserved_gib(@region) == 120
+
+      stub(Environment, :kura_thin_region_ids, fn -> [] end)
+      assert Capacity.allocatable_gib(@region) == 1100
+      assert Capacity.reserved_gib(@region) == 50
+    end
+
+    defp ready_node(allocatable),
+      do: %{"status" => %{"conditions" => [%{"type" => "Ready", "status" => "True"}], "allocatable" => allocatable}}
+
+    defp thin_pod(gib) do
+      %{
+        "status" => %{"phase" => "Running"},
+        "spec" => %{"containers" => [%{"resources" => %{"requests" => %{"tuist.dev/kura-disk" => "#{gib}Gi"}}}]}
+      }
+    end
+
     defp thin_box(name, kura_disk_bytes, opts \\ []) do
       pool_box(
         name,

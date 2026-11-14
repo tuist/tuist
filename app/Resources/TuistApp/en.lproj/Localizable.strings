@@ -358,27 +358,27 @@
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "or";
 
-/* TuistApp/AccountHomeView.swift, TuistApp/JamsPreview.swift, TuistApp/JamConversationView.swift */
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
 "Account" = "Account";
 "Accounts" = "Accounts";
 "Active" = "Active";
 "Archived" = "Archived";
-"Archive jam" = "Archive jam";
-"Archive this jam?" = "Archive this jam?";
+"Archive thread" = "Archive thread";
+"Archive this thread?" = "Archive this thread?";
 "Base branch" = "Base branch";
 "Changes" = "Changes";
 "Close" = "Close";
-"Close new jam" = "Close new jam";
+"Close new thread" = "Close new thread";
 "Conversation actions" = "Conversation actions";
 "Copy message" = "Copy message";
-"Create preview jam" = "Create preview jam";
+"Create preview thread" = "Create preview thread";
 "Design preview · Sample accounts" = "Design preview · Sample accounts";
 "Design preview · Sample builds" = "Design preview · Sample builds";
 "Design preview · Sample conversation" = "Design preview · Sample conversation";
 "Design preview · Sample data" = "Design preview · Sample data";
-"Design preview · Starting creates a sample jam, not a running environment." = "Design preview · Starting creates a sample jam, not a running environment.";
+"Design preview · Starting creates a sample thread, not a running environment." = "Design preview · Starting creates a sample thread, not a running environment.";
 "Done" = "Done";
-"Each repository jam gets its own worktree and branch. The original checkout is not edited." = "Each repository jam gets its own worktree and branch. The original checkout is not edited.";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "Each repository thread gets its own worktree and branch. The original checkout is not edited.";
 "Environment" = "Environment";
 "Goal" = "Goal";
 "Hide keyboard" = "Hide keyboard";
@@ -393,13 +393,13 @@
 "Message…" = "Message…";
 "Message Tuist…" = "Message Tuist…";
 "Message, or ask @Tuist…" = "Message, or ask @Tuist…";
-"New jam" = "New jam";
+"New thread" = "New thread";
 "No account is signed in. These screens use sample data." = "No account is signed in. These screens use sample data.";
 "Only you" = "Only you";
 "Original response" = "Original response";
 "People" = "People";
 "Previous builds" = "Previous builds";
-"Private jam" = "Private jam";
+"Private thread" = "Private thread";
 "Private · Design preview · No work runs" = "Private · Design preview · No work runs";
 "Private · Saved to your account" = "Private · Saved to your account";
 "Prompt" = "Prompt";
@@ -410,7 +410,7 @@
 "Repositories" = "Repositories";
 "Repository" = "Repository";
 "Resources" = "Resources";
-"Restore jam" = "Restore jam";
+"Restore thread" = "Restore thread";
 "Review changes" = "Review changes";
 "Repositories available to this account." = "Repositories available to this account.";
 "Sample repositories · Design preview" = "Sample repositories · Design preview";
@@ -423,15 +423,15 @@
 "Shared conversation" = "Shared conversation";
 "Shared with 2 people" = "Shared with 2 people";
 "Sign out of Tuist?" = "Sign out of Tuist?";
-"Signing out of this app does not stop running jams." = "Signing out of this app does not stop running jams.";
+"Signing out of this app does not stop running threads." = "Signing out of this app does not stop running threads.";
 "Start privately. Inviting someone would share the existing conversation with them." = "Start privately. Inviting someone would share the existing conversation with them.";
-"Start jam" = "Start jam";
+"Start thread" = "Start thread";
 "Switch account" = "Switch account";
-"The conversation stays available in Archived." = "The conversation stays available in Archived.";
-"The server owns the jam; only tools run in the environment. Repository jams have their own worktrees." = "The server owns the jam; only tools run in the environment. Repository jams have their own worktrees.";
-"Jam details" = "Jam details";
-"Jam settings" = "Jam settings";
-"Jams" = "Jams";
+"Archiving cancels any active work. The conversation stays available in Archived." = "Archiving cancels any active work. The conversation stays available in Archived.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "The server owns the thread; only tools run in the environment. Repository threads have their own worktrees.";
+"Thread details" = "Thread details";
+"Thread settings" = "Thread settings";
+"Threads" = "Threads";
 "Tool actions" = "Tool actions";
 "Tool environment" = "Tool environment";
 "Tool outcome unknown. Nothing will be retried automatically." = "Tool outcome unknown. Nothing will be retried automatically.";
@@ -439,6 +439,15 @@
 "Tool result" = "Tool result";
 "Try again" = "Try again";
 "Tuist is working…" = "Tuist is working…";
+"Allow microphone access in Settings to record a message." = "Allow microphone access in Settings to record a message.";
+"Allow speech recognition in Settings to transcribe on this device." = "Allow speech recognition in Settings to transcribe on this device.";
+"Could not start dictation. Your typed draft is unchanged." = "Could not start dictation. Your typed draft is unchanged.";
+"No speech was captured. Your typed draft is unchanged." = "No speech was captured. Your typed draft is unchanged.";
+"Recording on this device" = "Recording on this device";
+"Stop dictation" = "Stop dictation";
+"Tap stop to add editable text. Nothing is sent automatically." = "Tap stop to add editable text. Nothing is sent automatically.";
+"Transcribe a voice message" = "Transcribe a voice message";
+"Uses on-device speech recognition. Nothing is sent automatically." = "Uses on-device speech recognition. Nothing is sent automatically.";
 "What would you like Tuist to do?" = "What would you like Tuist to do?";
 "Worktree branch" = "Worktree branch";
 "You" = "You";
@@ -452,9 +461,9 @@
 "Ready to review" = "Ready to review";
 "Running" = "Running";
 "Load earlier messages" = "Load earlier messages";
-"Load more jams" = "Load more jams";
+"Load more threads" = "Load more threads";
 "No repository" = "No repository";
-"Private jams only" = "Private jams only";
+"Private threads only" = "Private threads only";
 "Ship" = "Ship";
 "Approve and ship" = "Approve and ship";
 "Target branch" = "Target branch";
@@ -480,8 +489,8 @@
 "AI model" = "AI model";
 "AI provider" = "AI provider";
 "Not recorded" = "Not recorded";
-"The provider and model are fixed for this jam. Start a new jam to choose another model." = "The provider and model are fixed for this jam. Start a new jam to choose another model.";
-"This subscription is not supported for Jams." = "This subscription is not supported for Jams.";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "The provider and model are fixed for this thread. Start a new thread to choose another model.";
+"This subscription is not supported for Threads." = "This subscription is not supported for Threads.";
 "ChatGPT" = "ChatGPT";
 "Claude" = "Claude";
 
@@ -499,11 +508,11 @@
 "Switch profile" = "Switch profile";
 "Switch profile?" = "Switch profile?";
 "View profile" = "View profile";
-"Open screens and unsent drafts will be closed. Running jams will continue." = "Open screens and unsent drafts will be closed. Running jams will continue.";
+"Open screens and unsent drafts will be closed. Running threads will continue." = "Open screens and unsent drafts will be closed. Running threads will continue.";
 "Your saved profiles could not be updated. Please try again." = "Your saved profiles could not be updated. Please try again.";
 
-/* TuistApp/JamEmptyStateView.swift */
+/* TuistApp/ThreadEmptyStateView.swift */
 "Big things start here" = "Big things start here";
 "Ask a question, explore an idea, or solve a problem with Tuist." = "Ask a question, explore an idea, or solve a problem with Tuist.";
 "All clear, nothing archived" = "All clear, nothing archived";
-"Archived jams will live here. You can come back to them anytime." = "Archived jams will live here. You can come back to them anytime.";
+"Archived threads will live here. You can come back to them anytime." = "Archived threads will live here. You can come back to them anytime.";

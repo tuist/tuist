@@ -27,42 +27,59 @@ k8s-monitoring:
               key: deployment.environment
               value: staging
 
-    # Independently deployed in-cluster Pulse. Features leave
-    # `destinations` empty, so every feature sends to all compatible
-    # destinations. Metrics/logs share Cloud's processing; traces are unsampled.
-    # Separate write queues keep Pulse retries independent of Cloud delivery.
-    # Basic auth carries the tenant as the username.
+    # Independently deployed in-cluster Pulse (GreptimeDB), written directly through
+    # its native endpoints. Features leave `destinations` empty, so every
+    # feature sends to all compatible destinations. Metrics/logs share Cloud's
+    # processing; traces are unsampled. Separate write queues keep Pulse
+    # retries independent of Cloud delivery. Basic auth uses the write-only
+    # `tuist` user from the pulse release's pulse-dashboard-auth Secret; the
+    # headers match what the retired greptimedb-ingest gateway set.
     pulse-metrics:
       type: prometheus
-      url: http://pulse.observability.svc.cluster.local:4000/api/v1/write
-      auth:
-        type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
-      secret:
-        create: false
-        name: pulse-credentials
-        namespace: observability
       extraLabels:
         env: staging
 
     pulse-logs:
-      type: loki
-      url: http://pulse.observability.svc.cluster.local:4000/loki/api/v1/push
-      auth:
-        type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
-      secret:
-        create: false
-        name: pulse-credentials
-        namespace: observability
-      extraLabels:
-        env: staging
+      # The upstream Loki destination does not expose WAL configuration.
+      # Buffer on disk so a full Greptime retry queue cannot block Cloud or Faro.
+      type: custom
+      ecosystem: loki
+      logs:
+        enabled: true
+        target: loki.write.pulse_logs.receiver
+      config: |
+        loki.write "pulse_logs" {
+          wal {
+            enabled = true
+            max_segment_age = "1h"
+          }
+          endpoint {
+            url = "http://pulse.observability.svc.cluster.local:4000/v1/loki/api/v1/push"
+            headers = {
+              "X-Greptime-DB-Name" = "public",
+              "X-Greptime-Pipeline-Name" = "loki_otlp",
+              "X-Greptime-Log-Table-Name" = "opentelemetry_logs",
+            }
+            basic_auth {
+              username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])
+              password = remote.kubernetes.secret.pulse_logs.data["ingest-password"]
+            }
+          }
+          external_labels = {
+            cluster = "tuist-staging",
+            k8s_cluster_name = "tuist-staging",
+            env = "staging",
+          }
+        }
+        remote.kubernetes.secret "pulse_logs" {
+          name = "pulse-dashboard-auth"
+          namespace = "observability"
+        }
 
     pulse-traces:
       type: otlp
-      url: http://pulse.observability.svc.cluster.local:4000
+      # otlphttp appends /v1/traces: /v1/otlp/v1/traces.
+      url: http://pulse.observability.svc.cluster.local:4000/v1/otlp
       protocol: http
       metrics:
         enabled: false
@@ -70,16 +87,20 @@ k8s-monitoring:
         enabled: false
       traces:
         enabled: true
+      extraHeaders:
+        X-Greptime-DB-Name: public
+        X-Greptime-Pipeline-Name: greptime_trace_v1
+        X-Greptime-Trace-Table-Name: opentelemetry_traces
       auth:
         type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
+        usernameKey: ingest-username
+        passwordKey: ingest-password
       secret:
         create: false
-        name: pulse-credentials
+        name: pulse-dashboard-auth
         namespace: observability
-      # Pulse rejects requests above 10,000 records or 4 MiB; the default
-      # 8192-span trigger with no ceiling can exceed both under load.
+      # Bound batches the same way the Pulse writer did; the default
+      # 8192-span trigger has no ceiling and grows without limit under load.
       processors:
         serviceGraphMetrics:
           enabled: true
@@ -103,6 +124,12 @@ k8s-monitoring:
         batch:
           size: 2048
           maxSize: 2048
+        transform:
+          traces:
+            span:
+              # Bandit can emit the Elixir nil atom as the string "nil" when
+              # no HTTP status exists. Keep the span, not an invalid integer.
+              - 'delete_key(attributes, "http.response.status_code") where attributes["http.response.status_code"] == "nil"'
         attributes:
           actions:
             - action: insert

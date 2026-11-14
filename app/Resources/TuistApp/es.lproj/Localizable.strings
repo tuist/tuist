@@ -14,7 +14,7 @@
 "All" = "Todo";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All tracks" = "Todas las pistas";
+"All tracks" = "Todos los canales";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
 "Android Device" = "Dispositivo Android";
@@ -50,7 +50,7 @@
 "Branch" = "Rama";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Bundle identifier" = "Identificador de bundle";
+"Bundle identifier" = "Identificador de paquete";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "Cancelar";
@@ -71,7 +71,7 @@
 "Connect Claude" = "Conectar Claude";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Conecta tus suscripciones personales a Claude y ChatGPT para usarlas con las funciones de IA de Tuist.";
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Conecta tus suscripciones personales de Claude y ChatGPT para usarlas con las funciones de IA de Tuist.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "Conectado";
@@ -89,7 +89,7 @@
 "Could not find APK file in the downloaded archive" = "No se ha encontrado el archivo APK en el archivo descargado";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "No se ha encontrado el paquete de la app en el archivo descargado";
+"Could not find app bundle in the downloaded archive" = "No se ha encontrado el bundle de la app en el archivo descargado";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "Couldn't install the app for %@ as it doesn't include any valid app builds." = "No se ha podido instalar la app para %@ porque no incluye ninguna compilación válida.";
@@ -128,7 +128,7 @@
 "Disconnect" = "Desconectar";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"Disconnect subscription" = "Cancelar suscripción";
+"Disconnect subscription" = "Cancelar la suscripción";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Disconnected" = "Desconectado";
@@ -152,10 +152,10 @@
 "Get help" = "Obtener ayuda";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "Instala las últimas previews con un solo clic.";
+"Install latest previews with one click." = "Instala las últimas previsualizaciones con un solo clic.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installation failed" = "La instalación ha fallado";
+"Installation failed" = "La instalación falló";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installed %@" = "%@ instalado";
@@ -164,7 +164,7 @@
 "Installed %@@%@" = "%@@%@ instalado";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "Instalando preview";
+"Installing preview" = "Instalando previsualización";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid callback URL received" = "URL de devolución de llamada no válida recibida";
@@ -185,7 +185,7 @@
 "Logged out" = "Sesión cerrada";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "Faltan credenciales de Apple en la autorización";
+"Missing Apple credentials from authorization" = "Credenciales de Apple faltantes en la autorización";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "Sin vistas previas";
@@ -215,7 +215,7 @@
 "Previews" = "Previews";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Previews: %lld" = "Vistas previas: %lld";
+"Previews: %lld" = "Previews: %lld";
 
 /* TuistProfile/ProfileView.swift */
 "Privacy Policy" = "Política de privacidad";
@@ -224,7 +224,7 @@
 "Profile" = "Perfil";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "Desliza hacia abajo para actualizar tus vistas previas.";
+"Pull down to refresh your previews." = "Desliza hacia abajo para actualizar tus previews.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Pull down to refresh your projects." = "Desliza hacia abajo para actualizar tus proyectos.";
@@ -242,7 +242,7 @@
 "Run" = "Ejecutar";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"Run claude setup-token in a terminal and paste the token it prints." = "Ejecuta claude setup-token en una terminal y pega el token que muestra.";
+"Run claude setup-token in a terminal and paste the token it prints." = "Ejecuta claude setup-token en una terminal y pega el token que imprime.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "Buscar";
@@ -263,7 +263,7 @@
 "Sign in to access your projects and\ncollaborate with your team" = "Inicia sesión para acceder a tus proyectos y\ncolaborar con tu equipo";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "Inicia sesión para ejecutar vistas previas";
+"Sign in to run previews" = "Inicia sesión para ejecutar previsualizaciones";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Apple" = "Iniciar sesión con Apple";
@@ -290,13 +290,13 @@
 "Supported platforms" = "Plataformas compatibles";
 
 /* TuistProfile/ProfileView.swift */
-"Terms of Service" = "Condiciones del servicio";
+"Terms of Service" = "Términos de servicio";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The app preview %@ was not found." = "No se ha encontrado la vista previa de la app %@.";
+"The app preview %@ was not found." = "No se encontró la vista previa de la app %@.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The latest preview for %@ was not found. Has any preview been published?" = "No se ha encontrado la última vista previa de %@. ¿Se ha publicado alguna vista previa?";
+"The latest preview for %@ was not found. Has any preview been published?" = "No se encontró la última vista previa para %@. ¿Se ha publicado alguna vista previa?";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "The preview %@ does not have a package name set." = "La vista previa %@ no tiene configurado un nombre de paquete.";
@@ -305,10 +305,10 @@
 "The preview deeplink %@ is invalid." = "El enlace profundo de la vista previa %@ no es válido.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "El servidor ha devuelto una página de vista previa que no avanzaba. Actualiza tu servidor o inténtalo de nuevo.";
+"The server returned a preview page that did not advance. Update your server or try again." = "El servidor devolvió una página de vista previa que no avanzó. Actualiza tu servidor o inténtalo de nuevo.";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"The sign-in expired. Close this screen and connect again." = "La sesión de inicio ha caducado. Cierra esta pantalla y conéctate de nuevo.";
+"The sign-in expired. Close this screen and connect again." = "El inicio de sesión ha caducado. Cierra esta pantalla y conéctate de nuevo.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Este servidor no admite filtrar vistas previas por canal. Actualiza tu servidor Tuist autoalojado o selecciona Todos los canales.";
@@ -335,7 +335,7 @@
 "Try a different search or select another track." = "Prueba con otra búsqueda o selecciona otro canal.";
 
 /* TuistProfile/AISubscriptionsSection.swift */
-"Tuist will delete the saved %@ credentials." = "Tuist eliminará las credenciales %@ guardadas.";
+"Tuist will delete the saved %@ credentials." = "Tuist eliminará las credenciales de %@ guardadas.";
 
 /* TuistProfile/AISubscriptionsSection.swift */
 "Unavailable" = "No disponible";
@@ -353,7 +353,7 @@
 "Use the root address of your Tuist server" = "Usa la dirección raíz de tu servidor Tuist";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Welcome to Tuist" = "Te damos la bienvenida a Tuist";
+"Welcome to Tuist" = "Bienvenido a Tuist";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "o";
@@ -365,21 +365,19 @@
 "Archived" = "Archivado";
 "Archive thread" = "Archivar hilo";
 "Archive this thread?" = "¿Archivar este hilo?";
-"Ask Tuist a question or choose a repository to work on." = "Haz una pregunta a Tuist o elige un repositorio en el que trabajar.";
 "Base branch" = "Rama base";
 "Changes" = "Cambios";
 "Close" = "Cerrar";
 "Close new thread" = "Cerrar nuevo hilo";
-"Conversation actions" = "Acciones de la conversación";
+"Conversation actions" = "Acciones de conversación";
 "Copy message" = "Copiar mensaje";
-"Create preview thread" = "Crear hilo de previsualización";
+"Create preview thread" = "Crear hilo de vista previa";
 "Design preview · Sample accounts" = "Vista previa de diseño · Cuentas de ejemplo";
 "Design preview · Sample builds" = "Vista previa de diseño · Compilaciones de ejemplo";
 "Design preview · Sample conversation" = "Vista previa de diseño · Conversación de ejemplo";
 "Design preview · Sample data" = "Vista previa de diseño · Datos de ejemplo";
-"Design preview · Sample threads and people" = "Vista previa de diseño · Hilos y personas de ejemplo";
 "Design preview · Starting creates a sample thread, not a running environment." = "Vista previa de diseño · Al iniciar se crea un hilo de ejemplo, no un entorno en ejecución.";
-"Done" = "Listo";
+"Done" = "Hecho";
 "Each repository thread gets its own worktree and branch. The original checkout is not edited." = "Cada hilo del repositorio obtiene su propio árbol de trabajo y rama. La copia original no se edita.";
 "Environment" = "Entorno";
 "Goal" = "Objetivo";
@@ -389,12 +387,12 @@
 "Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "Invitar a %@ comparte todos los mensajes existentes, resultados de herramientas y respuestas futuras. Esta vista previa no envía invitaciones ni notificaciones.";
 "Latest builds" = "Últimas compilaciones";
 "Latest message" = "Último mensaje";
-"Layout preview" = "Vista previa de diseño";
+"Layout preview" = "Vista previa del diseño";
 "Linux" = "Linux";
-"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "Menciona a alguien en un mensaje para invitarlo. Al invitar, se comparte el historial existente. @Tuist le pide al bot que actúe. Las personas mostradas son de ejemplo.";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "Menciona a alguien en un mensaje para invitarlo. Invitar comparte el historial existente. @Tuist pide al bot que actúe. Las personas de ejemplo solo.";
 "Message…" = "Mensaje…";
 "Message Tuist…" = "Enviar mensaje a Tuist…";
-"Message, or ask @Tuist…" = "Escribe un mensaje o pide ayuda a @Tuist…";
+"Message, or ask @Tuist…" = "Mensaje o mencionar a @Tuist…";
 "New thread" = "Nuevo hilo";
 "No account is signed in. These screens use sample data." = "No hay ninguna cuenta iniciada. Estas pantallas usan datos de ejemplo.";
 "Only you" = "Solo tú";
@@ -404,7 +402,6 @@
 "Private thread" = "Hilo privado";
 "Private · Design preview · No work runs" = "Privado · Vista previa de diseño · Sin ejecuciones de trabajo";
 "Private · Saved to your account" = "Privado · Guardado en tu cuenta";
-"Private · Threads are saved to your account" = "Privado · Los hilos se guardan en tu cuenta";
 "Prompt" = "Indicación";
 "Prompts" = "Indicaciones";
 "Provider" = "Proveedor";
@@ -427,23 +424,31 @@
 "Shared with 2 people" = "Compartido con 2 personas";
 "Sign out of Tuist?" = "¿Cerrar sesión en Tuist?";
 "Signing out of this app does not stop running threads." = "Cerrar sesión en esta aplicación no detiene los hilos en ejecución.";
-"Start privately. Inviting someone would share the existing conversation with them." = "Comienza en privado. Invitar a alguien compartiría la conversación existente con esa persona.";
+"Start privately. Inviting someone would share the existing conversation with them." = "Comienza de forma privada. Invitar a alguien compartiría la conversación existente con esa persona.";
 "Start thread" = "Iniciar hilo";
-"Start with a goal" = "Comienza con un objetivo";
-"Switch account" = "Cambiar de cuenta";
-"The conversation stays available in Archived." = "La conversación permanece disponible en Archivados.";
-"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "El servidor es el propietario del hilo; solo las herramientas se ejecutan en el entorno. Los hilos del repositorio tienen sus propios árboles de trabajo.";
+"Switch account" = "Cambiar cuenta";
+"Archiving cancels any active work. The conversation stays available in Archived." = "Al archivar se cancela cualquier trabajo activo. La conversación permanece disponible en Archivados.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "El servidor es propietario del hilo; solo las herramientas se ejecutan en el entorno. Los hilos del repositorio tienen sus propios árboles de trabajo.";
 "Thread details" = "Detalles del hilo";
 "Thread settings" = "Configuración del hilo";
 "Threads" = "Hilos";
 "Tool actions" = "Acciones de la herramienta";
 "Tool environment" = "Entorno de la herramienta";
 "Tool outcome unknown. Nothing will be retried automatically." = "Resultado de la herramienta desconocido. No se reintentará nada automáticamente.";
-"Tool provider" = "Proveedor de herramientas";
+"Tool provider" = "Proveedor de la herramienta";
 "Tool result" = "Resultado de la herramienta";
-"Try again" = "Volver a intentar";
+"Try again" = "Reintentar";
 "Tuist is working…" = "Tuist está trabajando…";
-"What would you like Tuist to do?" = "¿Qué te gustaría que hiciera Tuist?";
+"Allow microphone access in Settings to record a message." = "Permite el acceso al micrófono en Ajustes para grabar un mensaje.";
+"Allow speech recognition in Settings to transcribe on this device." = "Permite el reconocimiento de voz en Ajustes para transcribir en este dispositivo.";
+"Could not start dictation. Your typed draft is unchanged." = "No se ha podido iniciar la dictado. Tu borrador escrito no ha cambiado.";
+"No speech was captured. Your typed draft is unchanged." = "No se ha capturado ninguna voz. Tu borrador escrito no ha cambiado.";
+"Recording on this device" = "Grabando en este dispositivo";
+"Stop dictation" = "Detener dictado";
+"Tap stop to add editable text. Nothing is sent automatically." = "Toca detener para añadir texto editable. No se envía nada automáticamente.";
+"Transcribe a voice message" = "Transcribir un mensaje de voz";
+"Uses on-device speech recognition. Nothing is sent automatically." = "Usa el reconocimiento de voz en el dispositivo. No se envía nada automáticamente.";
+"What would you like Tuist to do?" = "¿Qué quieres que haga Tuist?";
 "Worktree branch" = "Rama del worktree";
 "You" = "Tú";
 "macOS" = "macOS";
@@ -454,33 +459,33 @@
 "Preview" = "Vista previa";
 "Queued" = "En cola";
 "Ready to review" = "Listo para revisar";
-"Running" = "Ejecutando";
+"Running" = "En ejecución";
 "Load earlier messages" = "Cargar mensajes anteriores";
 "Load more threads" = "Cargar más hilos";
 "No repository" = "Sin repositorio";
 "Private threads only" = "Solo hilos privados";
-"Ship" = "Desplegar";
-"Approve and ship" = "Aprobar y desplegar";
+"Ship" = "Publicar";
+"Approve and ship" = "Aprobar y publicar";
 "Target branch" = "Rama de destino";
 "Mode" = "Modo";
 "Base" = "Base";
 "Head" = "Head";
-"Shipping follows repository policy. Approving queues this exact reviewed change." = "El envío sigue la política del repositorio. Aprobar pone en cola este cambio exacto ya revisado.";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "La publicación sigue la política del repositorio. Al aprobar, se pone en cola este cambio revisado exacto.";
 "Shipping requires a separate review and explicit approval. Repository policy determines the target." = "El envío requiere una revisión por separado y aprobación explícita. La política del repositorio determina el destino.";
-"Design preview · Ship requires a live account and repository policy." = "Vista previa de diseño · El envío requiere una cuenta activa y la política del repositorio.";
+"Design preview · Ship requires a live account and repository policy." = "Vista previa de diseño · El envío requiere una cuenta activa y una política de repositorio.";
 "Review again" = "Revisar de nuevo";
 "Organization" = "Organización";
 "Model" = "Modelo";
 "Choose model" = "Elegir modelo";
 "Loading models…" = "Cargando modelos…";
 "Couldn’t load models" = "No se pudieron cargar los modelos";
-"Check your connection or try again in a moment." = "Comprueba tu conexión o inténtalo de nuevo en un momento.";
+"Check your connection or try again in a moment." = "Revisa tu conexión o inténtalo de nuevo en un momento.";
 "No models available" = "No hay modelos disponibles";
 "Connect an AI subscription in your profile, then try again." = "Conecta una suscripción de IA en tu perfil y vuelve a intentarlo.";
 "Models unavailable. Try again later." = "Modelos no disponibles. Inténtalo más tarde.";
 "Refresh models" = "Actualizar modelos";
 "Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "Modelos disponibles a través de las suscripciones de IA de tu perfil. El modelo no se puede cambiar después de la creación.";
-"Sample model catalog · Design preview · No subscription access implied" = "Catálogo de modelos de ejemplo · Vista previa de diseño · No implica acceso por suscripción";
+"Sample model catalog · Design preview · No subscription access implied" = "Catálogo de modelos de ejemplo · Vista previa de diseño · No implica acceso a suscripción";
 "AI model" = "Modelo de IA";
 "AI provider" = "Proveedor de IA";
 "Not recorded" = "No registrado";
@@ -493,7 +498,21 @@
 "OK" = "Aceptar";
 "Unable to open link" = "No se puede abrir el enlace";
 "This link belongs to a different Tuist server. Sign in to that server and open the link again." = "Este enlace pertenece a un servidor de Tuist diferente. Inicia sesión en ese servidor y vuelve a abrir el enlace.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "Este enlace pertenece a una organización diferente. Cambia de organización y vuelve a abrir el enlace.";
 "This navigation link is invalid or unsupported." = "Este enlace de navegación no es válido o no es compatible.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Open on web" = "Abrir en la web";
+"Profiles" = "Perfiles";
+"Add profile" = "Añadir perfil";
+"Switch profile" = "Cambiar de perfil";
+"Switch profile?" = "¿Cambiar de perfil?";
+"View profile" = "Ver perfil";
+"Open screens and unsent drafts will be closed. Running threads will continue." = "Las pantallas abiertas y los borradores no enviados se cerrarán. Los hilos en ejecución continuarán.";
+"Your saved profiles could not be updated. Please try again." = "No se han podido actualizar tus perfiles guardados. Inténtalo de nuevo.";
+
+/* TuistApp/ThreadEmptyStateView.swift */
+"Big things start here" = "Aquí comienzan las grandes cosas";
+"Ask a question, explore an idea, or solve a problem with Tuist." = "Haz una pregunta, explora una idea o resuelve un problema con Tuist.";
+"All clear, nothing archived" = "Todo limpio, nada archivado";
+"Archived threads will live here. You can come back to them anytime." = "Los hilos archivados aparecerán aquí. Puedes volver a ellos en cualquier momento.";

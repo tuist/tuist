@@ -1,0 +1,16 @@
+# Staging only. Does not modify Grafana Cloud, existing sources or alerts.
+environment: staging
+image: grafana/grafana:13.3.0
+plugin:
+  url: https://github.com/GreptimeTeam/greptimedb-grafana-datasource/releases/download/v3.0.4/info8fcc-greptimedb-datasource-unsigned.zip
+  sha256: 05b74fae48acc2bd471cd82cd6b2378bc9b8846f713f98f5844ff598c15496e0
+backend:
+  url: http://pulse.observability.svc.cluster.local:4000
+hostname: greptime-grafana-staging
+tailnet: taild6d7bb.ts.net
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 768Mi

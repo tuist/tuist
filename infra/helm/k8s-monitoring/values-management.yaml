@@ -17,22 +17,6 @@ k8s-monitoring:
     grafana-cloud-metrics:
       extraLabels:
         env: management
-    # Activate this overlay only after the independent pulse-management Flux
-    # Kustomization is Ready and pulse-credentials has synced. Missing Pulse
-    # credentials must not be introduced into the existing Cloud collectors.
-    pulse-metrics:
-      type: prometheus
-      url: http://pulse.observability.svc.cluster.local:4000/api/v1/write
-      auth:
-        type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
-      secret:
-        create: false
-        name: pulse-credentials
-        namespace: observability
-      extraLabels:
-        env: management
     grafana-cloud-traces:
       processors:
         tailSampling:
@@ -72,11 +56,9 @@ k8s-monitoring:
     alloy-metrics:
       includeDestinations:
         - grafana-cloud-metrics
-        - pulse-metrics
     alloy-control-plane:
       includeDestinations:
         - grafana-cloud-metrics
-        - pulse-metrics
     alloy-logs:
       enabled: false
     alloy-singleton:

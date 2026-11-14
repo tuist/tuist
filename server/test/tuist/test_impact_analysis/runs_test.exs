@@ -2,6 +2,8 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.GitHistory
+  alias Tuist.GitHistory.FileChanges
   alias Tuist.Shards
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Storage
@@ -159,6 +161,52 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
              ]
     end
 
+    test "falls back when the baseline's listing was truncated, instead of selecting the tests past the cut" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("c1", [], 0),
+        CoverageFixtures.commit("c2", ["c1"], 1)
+      ])
+
+      # The client stopped at the file limit before Sources/Core.swift.
+      CoverageFixtures.seed_listing(account, "c1", ["Sources/Math.swift"], truncated: true)
+
+      test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
+
+      scope = fn suite, name, file ->
+        %{kind: "test", module: "AppTests", suite: suite, name: name, files: [file], lines: [[1, 1]]}
+      end
+
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        Enum.map(["Sources/Math.swift", "Sources/Core.swift"], &CoverageFixtures.file(&1, [1])),
+        %{
+          git_commit_sha: "c1",
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [test_case.("testAdd()", "MathTests"), test_case.("testCore()", "CoreSuite")]
+            }
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Sources/Core.swift"],
+            scopes: [scope.("MathTests", "testAdd()", 0), scope.("CoreSuite", "testCore()", 1)]
+          }
+        }
+      )
+
+      assert {:ok, %{run: run, skipped_tests: nil}} =
+               Runs.create(project, params(%{modules: [%{name: "AppTests", skipped: false}], changed_files: []}))
+
+      assert {run.outcome, run.reason, run.baseline_sha} == {"fallback", "no_baseline", nil}
+      assert selected(project, run) == []
+    end
+
     test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do
       modules = [
         %{name: "AppTests", skipped: false},
@@ -288,6 +336,68 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: [%{name: "CoreTests"}]}))
       assert {run.requested_count, run.selected_count, run.requested_modules} == {1, 0, ["CoreTests"]}
       assert skip == [%{module: "CoreTests"}]
+    end
+  end
+
+  describe "the checked-out commit's file changes" do
+    # The baseline c1 on main, its file changes written.
+    setup %{repository_id: repository_id} do
+      GitHistory.record_branch_head(repository_id, "main", "c1", "main")
+      Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+      assert FileChanges.current(repository_id, "c1")
+      :ok
+    end
+
+    defp tree(repository_id, sha), do: Map.new(GitHistory.commit_files(repository_id, sha), &{&1.path, &1.git_blob_id})
+
+    test "are written from a clean checkout's diff, so its listing isn't asked for", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == ["c2"]
+
+      assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params())
+
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == []
+
+      assert tree(repository_id, "c2") ==
+               (@sources ++ ["Package.resolved"])
+               |> Map.new(&{&1, "blob-" <> &1})
+               |> Map.put("Sources/Math.swift", "new")
+    end
+
+    test "are not written from a dirty checkout's diff, nor from a capped one", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      assert {:ok, _} = Runs.create(project, params(%{dirty: true}))
+      assert {:ok, _} = Runs.create(project, params(%{changed_files_count: 2}))
+
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == ["c2"]
+      assert CoverageFixtures.listing(repository_id, "c2") == nil
+    end
+
+    test "are written from the stored diff once the commit reaches the graph", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      assert {:ok, %{run: %{outcome: "selected"}}} =
+               Runs.create(project, params(%{head_sha: "c3", parent_shas: ["c1"]}))
+
+      assert GitHistory.missing_listings(repository_id, ["c3"]) == ["c3"]
+
+      GitHistory.record_commits(repository_id, "sha1", [CoverageFixtures.commit("c3", ["c1"], 2)])
+
+      assert Runs.write_file_changes(project, repository_id, ["c3", "c4"]) == ["c3"]
+      assert GitHistory.missing_listings(repository_id, ["c3"]) == []
+      assert tree(repository_id, "c3")["Sources/Math.swift"] == "new"
+    end
+
+    test "a failed write doesn't fail the request", %{project: project, repository_id: repository_id} do
+      stub(FileChanges, :write_from_diff, fn _repository_id, _sha, _base_sha, _diff, _limit -> raise "boom" end)
+
+      assert {:ok, %{run: %{outcome: "selected"}}} = Runs.create(project, params())
+      assert GitHistory.missing_listings(repository_id, ["c2"]) == ["c2"]
     end
   end
 

@@ -14,6 +14,7 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Guardian
   alias Tuist.OIDC
   alias Tuist.Projects
+  alias Tuist.Sandboxes
   alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
@@ -79,14 +80,17 @@ defmodule TuistWeb.API.OIDCController do
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
-    with {:ok, claims} <- OIDC.claims(token, Map.get(conn.body_params, :account_handle)),
-         {:ok, account, project_scope} <- authorized_account(claims),
-         {:ok, access_token} <- generate_token(account, project_scope) do
+    account_handle = Map.get(conn.body_params, :account_handle)
+
+    with {:ok, claims} <- OIDC.claims(token, account_handle),
+         {:ok, account, grant} <- authorized_account(claims, token, account_handle),
+         ttl_seconds = token_ttl_seconds(claims),
+         {:ok, access_token} <- generate_token(account, grant, ttl_seconds) do
       conn
       |> put_status(:ok)
       |> json(%{
         access_token: access_token,
-        expires_in: @token_ttl_seconds
+        expires_in: ttl_seconds
       })
     else
       {:error, :invalid_token} ->
@@ -149,6 +153,30 @@ defmodule TuistWeb.API.OIDCController do
           message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."
         })
 
+      {:error, :amp_workspace_not_connected} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace or project is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
+        })
+
+      {:error, :claude_code_environment_not_connected} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Claude Code environment is not connected to a Tuist account. Connect it to a Tuist account with sandboxes to run its sessions on Tuist."
+        })
+
+      {:error, :ambiguous_amp_workspace, account_handles} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace is connected to several Tuist accounts (#{Enum.join(account_handles, ", ")}). Set TUIST_OIDC_ACCOUNT to the account to authenticate as."
+        })
+
       {:error, :ambiguous_repository, repository, account_handles} ->
         conn
         |> put_status(:forbidden)
@@ -163,6 +191,45 @@ defmodule TuistWeb.API.OIDCController do
         |> json(%{message: "Token validation failed: #{inspect(reason)}"})
     end
   end
+
+  defp authorized_account(%{amp_workspace_id: workspace_id, amp_project_id: project_id}, token, account_handle) do
+    result =
+      if workspace_id,
+        do: Accounts.amp_workspace_account(workspace_id, project_id, account_handle),
+        else: {:error, :amp_workspace_not_connected}
+
+    case result do
+      # An Orb of a connected workspace works like a member of the account, so
+      # it can also start sandboxes and run commands in them, such as a Mac to
+      # build on. Custom Amp trust policies stay CI-only, like other workload
+      # policies.
+      {:ok, account} ->
+        {:ok, account, %{"all_projects" => true, "scopes" => ["ci", "account:sandboxes:write"]}}
+
+      {:error, :amp_workspace_not_connected} = error when is_binary(account_handle) ->
+        with {:ok, identity} <- OIDC.amp_policy_claims(token, account_handle),
+             {:ok, _account, _grant} = authorized <- authorized_account(identity) do
+          authorized
+        else
+          _ -> error
+        end
+
+      error ->
+        error
+    end
+  end
+
+  # A session of a connected Claude Code environment runs on the account's
+  # sandboxes, and gets CI access like a build would, for its cache. Like an
+  # Amp Orb, it can also start sandboxes and run commands in them, such as a
+  # Mac to build on.
+  defp authorized_account(%{claude_code_environment_id: environment_id}, _token, _account_handle) do
+    with {:ok, account} <- Sandboxes.claude_code_environment_account(environment_id) do
+      {:ok, account, %{"all_projects" => true, "scopes" => ["ci", "account:sandboxes:write"]}}
+    end
+  end
+
+  defp authorized_account(identity, _token, _account_handle), do: authorized_account(identity)
 
   defp authorized_account(%{provider: :oidc} = identity) do
     with {:ok, account} <- Accounts.oidc_account_by_grants(identity) do
@@ -198,10 +265,18 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp generate_token(account, project_scope) do
-    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"]}, project_scope)
+  # Anthropic does not revoke a session token before its expiry, so nothing
+  # derived from one outlives it.
+  defp token_ttl_seconds(%{expires_at: expires_at}) when is_integer(expires_at),
+    do: max(min(@token_ttl_seconds, expires_at - System.system_time(:second)), 1)
 
-    case Guardian.encode_and_sign(account, claims, ttl: {@token_ttl_seconds, :second}) do
+  defp token_ttl_seconds(_claims), do: @token_ttl_seconds
+
+  defp generate_token(account, grant, ttl_seconds) do
+    # `preferred_username` names the account, which `tuist auth whoami` prints.
+    claims = Map.merge(%{"type" => "account", "scopes" => ["ci"], "preferred_username" => account.name}, grant)
+
+    case Guardian.encode_and_sign(account, claims, ttl: {ttl_seconds, :second}) do
       {:ok, token, _full_claims} -> {:ok, token}
       error -> error
     end

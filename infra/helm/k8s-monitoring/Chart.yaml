@@ -7,8 +7,8 @@ description: >
   via external-secrets-operator. Ships cluster-level metrics
   (kube-state-metrics, node-exporter, kubelet, cAdvisor), events, pod
   logs, and OTLP receivers for managed workload traces so the Grafana Cloud
-  Kubernetes app lights up. Dual-writes the same telemetry to the independently
-  deployed in-cluster Pulse instance.
+  Kubernetes app lights up. Workload clusters also write the same telemetry
+  directly to the independently deployed in-cluster Pulse (GreptimeDB fork).
 type: application
 version: 0.1.0
 appVersion: "4.0.3"

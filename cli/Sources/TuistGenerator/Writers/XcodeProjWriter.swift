@@ -163,7 +163,7 @@ public struct XcodeProjWriter: XcodeProjWriting {
             if staleXCProj.exists { try staleXCProj.delete() }
         case .xcproj:
             let xcprojPath = XcodeProj.xcprojPath(path)
-            let output = try xcodeProj.pbxproj.xcprojData()
+            let output = try xcprojData(xcodeProj.pbxproj)
             let existing = xcprojPath.exists ? try? xcprojPath.read() : nil
             if existing != output {
                 if xcprojPath.exists { try xcprojPath.delete() }
@@ -175,6 +175,31 @@ public struct XcodeProjWriter: XcodeProjWriting {
 
         try xcodeProj.writeSharedData(path: path, override: true)
         try xcodeProj.writeUserData(path: path, override: true)
+    }
+
+    /// `project.xcproj` records build phase membership on the elements of the groups and files tree, so the
+    /// encoder drops files that no group holds, such as the compile-only sources of a SwiftPM C-family target
+    /// (`ProjectFileElements.finalizeBuildFileReferences`). Those files are held by a group while the body is
+    /// encoded, named like the one Xcode creates when it converts such a project.
+    private func xcprojData(_ pbxproj: PBXProj) throws -> Data {
+        let groups: [PBXGroup] = pbxproj.groups + pbxproj.variantGroups + pbxproj.versionGroups
+        let grouped = Set(groups.flatMap(\.children).map(ObjectIdentifier.init))
+        let ungrouped = Dictionary(
+            pbxproj.buildFiles.compactMap { $0.file as? PBXFileReference }.map { (ObjectIdentifier($0), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        .filter { !grouped.contains($0.key) }.values
+        .sorted { ($0.path ?? "", $0.uuid) < ($1.path ?? "", $1.uuid) }
+        guard !ungrouped.isEmpty, let mainGroup = try pbxproj.rootGroup() else { return try pbxproj.xcprojData() }
+
+        let group = PBXGroup(children: ungrouped, sourceTree: .group, name: "Recovered References")
+        pbxproj.add(object: group)
+        mainGroup.children.append(group)
+        defer {
+            mainGroup.children.removeAll { $0 === group }
+            pbxproj.delete(object: group)
+        }
+        return try pbxproj.xcprojData()
     }
 
     private func writeSchemes(

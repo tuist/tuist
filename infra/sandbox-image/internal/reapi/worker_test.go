@@ -1,6 +1,7 @@
 package reapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -346,6 +347,108 @@ func TestWorkerRequiresImageAndExplicitEnvironment(t *testing.T) {
 	}
 }
 
+func TestWorkerKeepsTemporaryFilesOnTheWorkspaceDisk(t *testing.T) {
+	w, m := harness(t)
+	d := action(t, m, `printf x > "$TMPDIR/scratch" && printf '%s' "$TMPDIR"`, &re.Directory{}, nil)
+	r, _ := w.Execute(context.Background(), d)
+	if r.Status.Code != 0 || r.Result.ExitCode != 0 {
+		t.Fatalf("execution: %v", r)
+	}
+	tmp := string(m.blobs[r.Result.StdoutDigest.Hash])
+	// Beside the input root, so on its disk, but never collected as an output.
+	if filepath.Dir(tmp) != filepath.Dir(w.Root) || tmp == w.Root {
+		t.Fatalf("TMPDIR %q; want a directory beside %q", tmp, w.Root)
+	}
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("TMPDIR %q outlived the action: %v", tmp, err)
+	}
+
+	w, m = harness(t)
+	c := &re.Command{Arguments: []string{"/bin/sh", "-c", `printf '%s' "$TMPDIR"`}, EnvironmentVariables: []*re.Command_EnvironmentVariable{{Name: "PATH", Value: "/usr/bin:/bin"}, {Name: "TMPDIR", Value: "/chosen"}}}
+	d = m.message(t, &re.Action{CommandDigest: m.message(t, c), InputRootDigest: m.message(t, &re.Directory{}), Platform: &re.Platform{Properties: []*re.Platform_Property{{Name: "OSFamily", Value: "Linux"}, {Name: "Arch", Value: "amd64"}, {Name: "tuist-image", Value: "sha-test"}}}})
+	if r, _ = w.Execute(context.Background(), d); r.Status.Code != 0 || string(m.blobs[r.Result.StdoutDigest.Hash]) != "/chosen" {
+		t.Fatalf("an action's own TMPDIR must win: %v", r)
+	}
+}
+
+func withProperty(t *testing.T, m *memoryCAS, d *re.Digest, name, value string) *re.Digest {
+	t.Helper()
+	var a re.Action
+	if err := proto.Unmarshal(m.blobs[d.Hash], &a); err != nil {
+		t.Fatal(err)
+	}
+	a.Platform.Properties = append(a.Platform.Properties, &re.Platform_Property{Name: name, Value: value})
+	return m.message(t, &a)
+}
+
+func TestWorkerRunsOnlyInAVMOfTheRequestedSize(t *testing.T) {
+	for _, test := range []struct {
+		name, value string
+		vm          int
+		code        codes.Code
+	}{
+		{"default VM is the smallest size", "4", 0, codes.OK},
+		{"larger VM", "8", 8, codes.OK},
+		{"smaller VM than requested", "8", 4, codes.FailedPrecondition},
+		{"default VM for a larger request", "16", 0, codes.FailedPrecondition},
+		{"unoffered size", "6", 16, codes.InvalidArgument},
+		{"non-canonical size", "08", 16, codes.InvalidArgument},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w, m := harness(t)
+			w.MemoryGB = test.vm
+			d := withProperty(t, m, action(t, m, "touch executed", &re.Directory{}, nil), MemoryProperty, test.value)
+			r, _ := w.Execute(context.Background(), d)
+			if r.Status.Code != int32(test.code) {
+				t.Fatalf("response: %v", r)
+			}
+			if _, err := os.Stat(filepath.Join(w.Root, "executed")); (err == nil) != (test.code == codes.OK) {
+				t.Fatalf("executed: %v", err)
+			}
+		})
+	}
+	w, m := harness(t)
+	d := withProperty(t, m, action(t, m, "true", &re.Directory{}, nil), "other", "x")
+	if r, _ := w.Execute(context.Background(), d); r.Status.Code != int32(codes.FailedPrecondition) {
+		t.Fatalf("unknown property: %v", r)
+	}
+}
+
+func TestWorkerExplainsOOMKillsAndSignals(t *testing.T) {
+	for _, test := range []struct {
+		name, cmd string
+		vm        int
+		kills     int64
+		exit      int32
+		stderr    string
+	}{
+		// A wrapper whose child the OOM killer ended, like rules_rust's process_wrapper.
+		{"oom kill behind a wrapper", "printf partial >&2; exit 1", 0, 2, 1, "partial\ntuist: this action ran out of memory: the kernel's OOM killer ended 2 of its processes in a remote execution VM with 4 GB. Run it in a larger VM by adding exec_properties = {\"tuist-memory-gb\": \"8\"} to its target.\n"},
+		{"oom kill in the largest VM", "exit 1", 16, 1, 1, "\ntuist: this action ran out of memory: the kernel's OOM killer ended 1 of its processes in a remote execution VM with 16 GB. That is the largest VM size.\n"},
+		{"oom kill without failure", "printf ok >&2", 0, 1, 0, "ok"},
+		{"signal", "kill -TERM $$", 0, 0, 128, "\ntuist: the action's command was killed by signal 15 (terminated).\n"},
+		{"plain failure", "printf failed >&2; exit 3", 0, 0, 3, "failed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			w, m := harness(t)
+			w.MemoryGB = test.vm
+			reads := int64(40)
+			w.OOMKills = func() (int64, bool) {
+				n := reads
+				reads += test.kills
+				return n, true
+			}
+			r, _ := w.Execute(context.Background(), action(t, m, test.cmd, &re.Directory{}, nil))
+			if r.Status.Code != 0 || r.Result.GetExitCode() != test.exit {
+				t.Fatalf("response: %v", r)
+			}
+			if got := string(m.blobs[r.Result.GetStderrDigest().GetHash()]); got != test.stderr {
+				t.Fatalf("stderr: %q, want %q", got, test.stderr)
+			}
+		})
+	}
+}
+
 func TestCASReadsOutputFromStart(t *testing.T) {
 	w, m := harness(t)
 	f, err := os.CreateTemp(t.TempDir(), "log")
@@ -430,6 +533,42 @@ func TestInputDownloadsAreBoundedAndCompleteBeforeExecution(t *testing.T) {
 	}
 	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != expected.String() {
 		t.Fatal("command ran before inputs were completely materialized")
+	}
+}
+
+func TestRepeatedInputBlobIsReadOnce(t *testing.T) {
+	w, m := harness(t)
+	shared := m.put(bytes.Repeat([]byte("libLLVM"), 100_000))
+	other := m.put([]byte("other\n"))
+	var reads sync.Map
+	m.beforeRead = func(_ context.Context, hash string) error {
+		n, _ := reads.LoadOrStore(hash, new(atomic.Int32))
+		n.(*atomic.Int32).Add(1)
+		return nil
+	}
+	lib := &re.Directory{Files: []*re.FileNode{{Name: "lib.so", Digest: shared, IsExecutable: true}}}
+	libDigest := m.message(t, lib)
+	// Two copies beside each other download concurrently; two more sit in sibling directories.
+	inputs := &re.Directory{
+		Files:       []*re.FileNode{{Name: "a.so", Digest: shared}, {Name: "b.so", Digest: shared, IsExecutable: true}, {Name: "other", Digest: other}},
+		Directories: []*re.DirectoryNode{{Name: "exec", Digest: libDigest}, {Name: "target", Digest: libDigest}},
+	}
+	response, _ := w.Execute(context.Background(), action(t, m, "cat a.so b.so exec/lib.so target/lib.so other > output", inputs, []string{"output"}))
+	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
+		t.Fatalf("execution: %v", response)
+	}
+	if n, _ := reads.Load(shared.Hash); n.(*atomic.Int32).Load() != 1 {
+		t.Fatalf("shared blob read %d times, want 1", n.(*atomic.Int32).Load())
+	}
+	want := strings.Repeat(string(m.blobs[shared.Hash]), 4) + "other\n"
+	if string(m.blobs[response.Result.OutputFiles[0].Digest.Hash]) != want {
+		t.Fatal("copied inputs differ from the blob")
+	}
+	for p, executable := range map[string]bool{"a.so": false, "b.so": true, "exec/lib.so": true, "target/lib.so": true} {
+		info, err := os.Stat(filepath.Join(w.Root, p))
+		if err != nil || (info.Mode()&0111 != 0) != executable {
+			t.Fatalf("mode of %s: %v %v", p, info, err)
+		}
 	}
 }
 

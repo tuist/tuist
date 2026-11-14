@@ -90,8 +90,7 @@ func (c *CustomVolumes) rememberCheckout(podUID string, task cachevolumes.Checko
 }
 
 // collectCheckout moves a finished job's export out of its share before the share
-// is removed, and queues a build from it. The guest wrote the export, so only a
-// real directory is taken, never a link out of the share.
+// is removed, and queues a build from it.
 func (c *CustomVolumes) collectCheckout(podUID string) {
 	c.checkoutMu.Lock()
 	task, ok := c.checkoutJobs[podUID]
@@ -100,11 +99,16 @@ func (c *CustomVolumes) collectCheckout(podUID string) {
 	if !ok || !c.Checkouts.Ready() {
 		return
 	}
-	src := filepath.Join(c.Root, "pods", podUID, cachevolumes.CheckoutExportDir)
+	c.queueExport(task, filepath.Join(c.Root, "pods", podUID, cachevolumes.CheckoutExportDir), podUID)
+}
+
+// queueExport moves an export out of a guest's share and queues a build from it.
+// The guest wrote it, so only a real directory is taken, never a link.
+func (c *CustomVolumes) queueExport(task cachevolumes.CheckoutTask, src, name string) {
 	if info, err := os.Lstat(src); err != nil || !info.IsDir() {
 		return
 	}
-	dst := c.Checkouts.Incoming(podUID)
+	dst := c.Checkouts.Incoming(name)
 	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
 		return
 	}

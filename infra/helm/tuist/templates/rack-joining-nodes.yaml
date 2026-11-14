@@ -1,6 +1,6 @@
 {{- with .Values.rackFleet.joiningNodes }}
-{{- if not (or $.Values.macosFleet.enabled $.Values.kuraFleet.enabled) }}
-{{- fail "rackFleet.joiningNodes needs the tart-kubelet ClusterRole, which this chart renders with macosFleet or kuraFleet enabled" }}
+{{- if not $.Values.macosFleet.enabled }}
+{{- fail "rackFleet.joiningNodes needs the tart-kubelet ClusterRole, which this chart renders with macosFleet enabled" }}
 {{- end }}
 {{- $role := include "tuist.componentName" (dict "root" $ "component" "tart-kubelet") }}
 {{- /*

@@ -1,6 +1,6 @@
 # Tuist: company and mission
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared infrastructure connects building, testing, and review so people and agents can work together with reliable feedback.
+Tuist is build infrastructure for engineering teams and coding agents. Shared infrastructure connects building, testing, and review so people and agents can work together with reliable feedback.
 
 ## Mission and approach
 

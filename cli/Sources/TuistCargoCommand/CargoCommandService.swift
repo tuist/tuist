@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistConfigLoader
 import TuistProcess
 import TuistREAPI
@@ -13,6 +14,7 @@ struct CargoExecutionContext {
     let environment: [String: String]
     let reporting: CargoReporting
     var shardOptions: [String: Int] = [:]
+    var coverage: CargoCoverage?
 }
 
 public struct CargoCommandService { // swiftlint:disable:this type_body_length
@@ -44,6 +46,10 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                 directory: directory,
                 native: arguments.first == "__native"
             )
+            return
+        }
+        if invocation.command == "coverage-complete" {
+            try await CargoCoverage.complete(arguments: invocation.arguments, environment: environment, directory: directory)
             return
         }
         let process = CargoProcess(runner: runner)
@@ -125,7 +131,10 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
             directory: directory,
             environment: environment,
             handle: handle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            uploadsCoverage: CargoCoverage.requested(
+                upload: config?.testInsights.coverage.upload ?? false, environment: environment
+            )
         )
         return CargoExecutionContext(
             executable: executable,
@@ -212,6 +221,15 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                     brokerReady = true
                 } catch { environment["TUIST_CARGO_CACHE_REMOTE_URL"] = nil }
             }
+            // Before the unit cache's key, which holds the flags coverage adds.
+            var coverage: CargoCoverage?
+            if context.reporting.uploadsCoverage, CargoCoverage.instruments(CargoInvocation(context.arguments)) {
+                (coverage, environment) = await CargoCoverage.prepare(
+                    invocation: CargoInvocation(context.arguments), environment: environment, directory: context.directory,
+                    root: root, cacheDirectory: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) },
+                    hooked: innerWrapper == nil, process: CargoProcess(runner: runner)
+                )
+            }
             let started = Date()
             environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
             // Like blaze's answers, the session resolves the toolchain and linker once, before Cargo starts its first
@@ -261,13 +279,30 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
             let prefetch = Task { await units?.prefetch(manifest) }
             let restored = await unitCache?.restore(manifest) ?? CargoUnitCache.Restored()
             await identities?.value
+            // The repository's crates Cargo sees as fresh may be the other coverage variant, which only Tuist knows.
+            if innerWrapper == nil {
+                var profile: URL?
+                if environment[CargoCoverage.rootVariable] != nil {
+                    profile = await CargoCoverage.profile(
+                        executable: context.executable, arguments: context.arguments, environment: environment,
+                        directory: context.directory, targetDirectory: unitCache?.targetDirectory,
+                        process: CargoProcess(runner: runner)
+                    )
+                }
+                CargoCoverage.reconcile(
+                    arguments: context.arguments, environment: environment, profile: profile,
+                    cacheDirectory: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) },
+                    directory: context.directory
+                )
+            }
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,
                 arguments: context.arguments,
                 environment: environment,
                 reporting: context.reporting,
-                shardOptions: context.shardOptions
+                shardOptions: context.shardOptions,
+                coverage: coverage
             )
             try await withThrowingTaskGroup(of: Void.self) { group in
                 if brokerReady {
@@ -388,11 +423,21 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                 testResult: cargoTests
             )
         }
-        if let nextest { await context.reporting.tests(run: nextest, metadata: metadata, failed: executionError != nil) }
+        if let nextest {
+            let modules = (try? NextestReport.read(nextest.junitURL))?.modules ?? []
+            let coverage = await coverageReport(
+                context, binaries: nextest.inventory?.binaries ?? [:], modules: modules, failed: executionError != nil,
+                remaps: nextest.inventory?.sourceRemaps ?? []
+            )
+            await context.reporting.tests(run: nextest, metadata: metadata, failed: executionError != nil, coverage: coverage)
+        }
         if let report = cargoTests?.report {
+            let coverage = await coverageReport(
+                context, binaries: report.binaries, modules: report.modules, failed: executionError != nil
+            )
             await context.reporting.tests(
                 report: report, metadata: metadata, failed: executionError != nil,
-                shardID: cargoTests?.shardID, shardIndex: cargoTests?.shardIndex
+                shardID: cargoTests?.shardID, shardIndex: cargoTests?.shardIndex, coverage: coverage
             )
         }
         if let executionError {
@@ -400,6 +445,71 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                 throw CargoTestSelectionError(message: executionError.localizedDescription)
             }
             throw executionError
+        }
+    }
+
+    /// What the test run says about coverage: off unless it was set up to collect it, and otherwise what it measured
+    /// over the test binaries it reported (`binaries`, by path, to their module) and what its caller left out.
+    private func coverageReport(
+        _ context: CargoExecutionContext, binaries: [String: String], modules: [[String: Any]], failed: Bool,
+        remaps: [(from: String, to: String)] = []
+    ) async -> CargoCoverage.Report {
+        guard let coverage = context.coverage else { return CargoCoverage.Report(enabled: false) }
+        var tests: [(module: String, suite: String, name: String)] = [] // swiftlint:disable:this large_tuple
+        var ran: [String] = []
+        for module in modules {
+            guard let moduleName = module["name"] as? String else { continue }
+            for test in module["test_cases"] as? [[String: Any]] ?? [] {
+                guard let name = test["name"] as? String else { continue }
+                let suite = test["test_suite_name"] as? String ?? ""
+                tests.append((moduleName, suite, name))
+                if test["status"] as? String != "skipped" {
+                    ran.append(CargoCoverage.identifier(module: moduleName, suite: suite, name: name))
+                }
+            }
+        }
+        let metadata = await context.reporting.process.packageMetadata(
+            executable: context.executable, arguments: context.arguments, directory: context.directory,
+            environment: context.environment
+        )
+        let repositoryRoot = (try? await context.reporting.process.capture(
+            "git", arguments: ["rev-parse", "--show-toplevel"], environment: context.environment, directory: context.directory
+        ))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let narrowed = CargoCoverage.narrowed(context.arguments)
+        var report = CargoCoverage.Report(
+            enabled: true,
+            onlyTestIdentifiers: narrowed ? ran : nil,
+            toolVersion: coverage.toolVersion, platform: coverage.platform, repositoryRoot: repositoryRoot
+        )
+        guard !repositoryRoot.isEmpty else {
+            AlertController.current
+                .warning(.alert("The run's code coverage was not collected: the project is not in a Git repository."))
+            return report
+        }
+        report.result = await coverage.collect(
+            binaries: binaries,
+            tests: tests,
+            packages: Self.coveragePackages(metadata),
+            workspaceRoot: metadata?["workspace_root"] as? String ?? context.directory.pathString,
+            repositoryRoot: repositoryRoot,
+            workingDirectory: context.directory.pathString,
+            remaps: remaps,
+            partial: CargoCoverage.partial(context.arguments, failed: failed)
+        )
+        return report
+    }
+
+    /// The packages of `cargo metadata`, with the sources of their test, bench and example targets.
+    private static func coveragePackages(_ metadata: [String: Any]?) -> [CargoCoverage.Package] {
+        (metadata?["packages"] as? [[String: Any]] ?? []).compactMap { package -> CargoCoverage.Package? in
+            guard let name = package["name"] as? String, let manifest = package["manifest_path"] as? String else { return nil }
+            let sources = (package["targets"] as? [[String: Any]] ?? []).compactMap { target -> String? in
+                let kinds = target["kind"] as? [String] ?? []
+                return kinds.contains(where: { ["test", "bench", "example"].contains($0) }) ? target["src_path"] as? String : nil
+            }
+            return CargoCoverage.Package(
+                name: name, directory: (manifest as NSString).deletingLastPathComponent, testSources: Set(sources)
+            )
         }
     }
 

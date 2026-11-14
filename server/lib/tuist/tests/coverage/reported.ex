@@ -225,11 +225,9 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp changes_tracked_files?(%{repository_id: repository_id}) when repository_id in [nil, 0], do: false
 
   defp changes_tracked_files?(context) do
-    with now when now != :unknown <- tracked(context, context.sha),
-         [_ | _] = parents <- GitHistory.parents(context.repository_id, context.sha) do
-      Enum.all?(parents, &(tracked(context, &1) not in [now, :unknown]))
-    else
-      _ -> false
+    case GitHistory.parents(context.repository_id, context.sha) do
+      [] -> false
+      parents -> Enum.all?(parents, &(validity(context, &1) == :tracked_file_changed))
     end
   end
 
@@ -600,29 +598,13 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp changes(_repository_id, _from_sha, _to_sha, []), do: %{changed: MapSet.new(), added: MapSet.new()}
 
   defp changes(repository_id, from_sha, to_sha, directories) do
-    if GitHistory.listing_complete?(repository_id, from_sha) and GitHistory.listing_complete?(repository_id, to_sha) do
-      before = repository_id |> GitHistory.files_in(from_sha, directories) |> Map.new(&{&1.path, &1.git_blob_id})
-      now = GitHistory.files_in(repository_id, to_sha, directories)
+    case GitHistory.changed_files(repository_id, from_sha, to_sha, directories: directories) do
+      :unknown ->
+        :unknown
 
-      then(
-        %{
-          changed:
-            for(
-              %{path: path, git_blob_id: blob} <- now,
-              Map.get(before, path) not in [nil, blob],
-              into: MapSet.new(),
-              do: path
-            ),
-          added: for(%{path: path} <- now, not Map.has_key?(before, path), into: MapSet.new(), do: path)
-        },
-        fn changes ->
-          kept = MapSet.new(now, & &1.path)
-          removed = for {path, _blob} <- before, not MapSet.member?(kept, path), into: MapSet.new(), do: path
-          %{changes | changed: MapSet.union(changes.changed, removed)}
-        end
-      )
-    else
-      :unknown
+      files ->
+        {added, changed} = Enum.split_with(files, &is_nil(&1.from))
+        %{changed: MapSet.new(changed, & &1.path), added: MapSet.new(added, & &1.path)}
     end
   end
 
@@ -835,7 +817,6 @@ defmodule Tuist.Tests.Coverage.Reported do
       |> Map.new(&{&1.test_run_id, %{sha: &1.git_commit_sha, depth: &1.depth, ran_at: &1.ran_at}})
       |> Map.merge(Map.new(context.indexed, fn {_module, source} -> {source.run_id, Map.delete(source, :run_id)} end))
 
-    tracked_now = tracked(context, context.sha)
     hashes = Map.new(context.hits, &{&1.name, &1.hash})
     {in_hits, others} = Enum.split_with(skipped, &Map.has_key?(hashes, &1.module_name))
 
@@ -843,12 +824,12 @@ defmodule Tuist.Tests.Coverage.Reported do
       in_hits
       |> Enum.group_by(& &1.module_name)
       |> target_units(context, hashes, source_runs)
-      |> check(context, tracked_now)
+      |> check(context)
 
     carried_modules = MapSet.new(target_units, & &1.module)
 
     {test_units, test_reasons} =
-      test_units(others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name)), context, tracked_now)
+      test_units(others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name)), context)
 
     {target_units ++ test_units, Map.merge(target_reasons, test_reasons)}
   end
@@ -909,9 +890,9 @@ defmodule Tuist.Tests.Coverage.Reported do
   # that counts. A test with versions none of which the commit reproduces
   # executed a file that changed since; one with none is explained by what
   # its ancestors collected (`missing_evidence_reasons/2`).
-  defp test_units([], _context, _tracked_now), do: {[], %{}}
+  defp test_units([], _context), do: {[], %{}}
 
-  defp test_units(tests, context, tracked_now) do
+  defp test_units(tests, context) do
     evidence =
       TestEvidence.lookup(context.project.id, context.repository_id, Enum.map(tests, & &1.test_case_id), fn paths ->
         missing = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
@@ -927,7 +908,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         acc
 
       {test, source}, {units, reasons, validity} ->
-        validity = remember_validity(validity, context, tracked_now, source)
+        validity = remember_validity(validity, context, source)
 
         case version_failure(context, source, validity) do
           nil -> {[test_unit(test, source, depths) | units], reasons, validity}
@@ -942,10 +923,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp source_version(nil), do: :none
   defp source_version(%{reproduced: reproduced}), do: reproduced
 
-  defp remember_validity(validity, _context, _tracked_now, nil), do: validity
+  defp remember_validity(validity, _context, nil), do: validity
 
-  defp remember_validity(validity, context, tracked_now, source),
-    do: Map.put_new_lazy(validity, source.sha, fn -> validity(context, tracked_now, source.sha) end)
+  defp remember_validity(validity, context, source),
+    do: Map.put_new_lazy(validity, source.sha, fn -> validity(context, source.sha) end)
 
   defp version_failure(_context, nil, _validity), do: :executed_file_changed
 
@@ -980,11 +961,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   # the evidence holds lines for every file that counts. The hash is trusted
   # for the rest: it covers the target's sources, its tests and every
   # dependency, so the files it executed are not compared blob by blob.
-  defp check([], _context, _tracked_now), do: {[], %{}}
+  defp check([], _context), do: {[], %{}}
 
-  defp check(units, context, tracked_now) do
+  defp check(units, context) do
     project_id = context.project.id
-    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, validity(context, tracked_now, &1)})
+    validity = units |> Enum.map(& &1.source.sha) |> Enum.uniq() |> Map.new(&{&1, validity(context, &1)})
     failed = failed_units(project_id, units)
     without_lines = unlined_scopes(context, units)
 
@@ -1189,21 +1170,19 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
-  defp validity(_context, :unknown, _sha), do: :listing_missing
+  # Whether evidence from `sha` holds at the commit as far as the tracked
+  # files go: none of them differs between the two.
+  defp validity(%{project: project, repository_id: repository_id} = context, sha) do
+    case GitHistory.settings(project).tracked_file_globs do
+      [] ->
+        :ok
 
-  defp validity(context, now, sha) do
-    case tracked(context, sha) do
-      ^now -> :ok
-      :unknown -> :listing_missing
-      _changed -> :tracked_file_changed
-    end
-  end
-
-  defp tracked(%{project: project, repository_id: repository_id}, sha) do
-    cond do
-      GitHistory.settings(project).tracked_file_globs == [] -> []
-      GitHistory.listing_complete?(repository_id, sha) -> GitHistory.tracked_files(project, repository_id, sha)
-      true -> :unknown
+      globs ->
+        case GitHistory.changed_files(repository_id, sha, context.sha, match: ExcludedPaths.pattern(globs)) do
+          [] -> :ok
+          :unknown -> :listing_missing
+          _changed -> :tracked_file_changed
+        end
     end
   end
 

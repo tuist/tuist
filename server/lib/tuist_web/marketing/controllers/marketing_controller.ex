@@ -36,7 +36,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+        "Tuist is build infrastructure for engineering teams and coding agents."
       )
     )
     |> assign(
@@ -484,7 +484,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         :head_description,
         dgettext(
           "marketing",
-          "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+          "Tuist is build infrastructure for engineering teams and coding agents."
         )
       )
       |> assign(:head_title, dgettext("marketing", "About Tuist: build infrastructure"))
@@ -617,7 +617,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> render(:newsletter, layout: false)
   end
 
-  def newsletter_signup(conn, %{"email" => email}) do
+  def newsletter_signup(conn, %{"email" => email}) when is_binary(email) do
     email = String.trim(email)
 
     verification_token = sign_newsletter_verification_token(email)
@@ -633,14 +633,21 @@ defmodule TuistWeb.Marketing.MarketingController do
         })
 
       {:error, _reason} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> put_status(400)
-        |> json(%{
-          success: false,
-          message: dgettext("marketing", "Something went wrong. Please try again.")
-        })
+        newsletter_signup_error(conn)
     end
+  end
+
+  # Automated submissions post without an email, or with a non-string one.
+  def newsletter_signup(conn, _params), do: newsletter_signup_error(conn)
+
+  defp newsletter_signup_error(conn) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> put_status(400)
+    |> json(%{
+      success: false,
+      message: dgettext("marketing", "Something went wrong. Please try again.")
+    })
   end
 
   def newsletter_verify(conn, %{"token" => token} = _params) do
@@ -863,7 +870,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     docs_entries =
       Enum.map(
-        Tuist.Docs.slugs(),
+        Tuist.Docs.indexable_slugs(),
         &sitemap_entry(Tuist.Docs.Paths.public_path_from_slug(&1), nil)
       )
 
@@ -1056,6 +1063,12 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def compute(conn, _params) do
+    description =
+      dgettext(
+        "marketing",
+        "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
+      )
+
     conn
     |> assign(:head_title, dgettext("marketing", "Compute for build work · Tuist"))
     |> assign(
@@ -1063,23 +1076,19 @@ defmodule TuistWeb.Marketing.MarketingController do
       SocialCards.image_url("compute")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
-      )
-    )
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
-      ])
-    )
+    |> assign(:head_description, description)
+    # Runners are billed per minute on every plan, so the node claims no free offer.
+    |> assign_feature_structured_data(dgettext("marketing", "Compute"), description, "/compute", free: false)
     |> render(:compute, layout: false)
   end
 
   def tests(conn, _params) do
+    description =
+      dgettext(
+        "marketing",
+        "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
+      )
+
     conn
     |> assign(:head_title, dgettext("marketing", "Test insights, sharding, and trustworthy feedback · Tuist"))
     |> assign(
@@ -1087,19 +1096,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       SocialCards.image_url("tests")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
-      )
-    )
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
-      ])
-    )
+    |> assign(:head_description, description)
+    |> assign_feature_structured_data(dgettext("marketing", "Tests"), description, "/tests")
     |> render(:tests, layout: false)
   end
 
@@ -1146,9 +1144,16 @@ defmodule TuistWeb.Marketing.MarketingController do
         if(parent, do: [{parent.title, parent.path}], else: []) ++ [{guide.title, guide.path}]
 
     template =
-      if guide.path in ["/compare", "/compare/develocity", "/compare/namespace", "/compare/buildkite"],
-        do: :comparison,
-        else: :page
+      if guide.path in [
+           "/compare",
+           "/compare/develocity",
+           "/compare/namespace",
+           "/compare/buildkite",
+           "/compare/xcodegen",
+           "/compare/nx"
+         ],
+         do: :comparison,
+         else: :page
 
     conn
     |> assign(:head_title, guide.title)
@@ -1161,6 +1166,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         Enum.map(breadcrumbs, fn {name, path} -> {name, Tuist.Environment.app_url(path: path)} end)
       )
     )
+    |> then(&if(guide.faqs == [], do: &1, else: assign_structured_data(&1, get_faq_structured_data(guide.faqs))))
     |> assign(:page, guide)
     |> assign(:breadcrumbs, breadcrumbs)
     |> render(template, layout: false)

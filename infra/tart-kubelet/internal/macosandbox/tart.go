@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,6 +63,11 @@ func BuildRuntime(ctx context.Context, root string) (string, error) {
 type TartRuntime struct {
 	Client                 *tart.Client
 	Image, Template, Tools string
+	// Checkouts gives each VM its checkout share; nil without the runner cache.
+	Checkouts Checkouts
+	// rootfs is the root disk ceiling diskRoom reserves per sandbox, as
+	// last seen on this host's sandbox VMs (see rootDisk). 0 until known.
+	rootfs atomic.Int64
 }
 
 func (t *TartRuntime) client(r *Record) *tart.Client {
@@ -77,7 +83,11 @@ func (t *TartRuntime) directory(r *Record) string {
 	return filepath.Join(t.Client.HomeDir, "vms", r.VMName())
 }
 func (t *TartRuntime) options(r *Record) tart.RunOptions {
-	return tart.RunOptions{Suspendable: true, DetachedLogs: true, SharedDirs: []string{"env:" + filepath.Join(t.Client.HomeDir, "env", r.envName()) + ":ro", "sandbox-tools:" + r.ToolsPath + ":ro"}}
+	shares := []string{"env:" + filepath.Join(t.Client.HomeDir, "env", r.envName()) + ":ro", "sandbox-tools:" + r.ToolsPath + ":ro"}
+	if r.CheckoutShare != "" {
+		shares = append(shares, checkoutShareName+":"+r.CheckoutShare)
+	}
+	return tart.RunOptions{Suspendable: true, DetachedLogs: true, SharedDirs: shares}
 }
 func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
 	if err := t.Warm(ctx, r); err != nil {
@@ -95,10 +105,24 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if r.RuntimePath == "" {
 		return errors.New("runtime must be pinned before create")
 	}
+	// Timed like a restore, so a slow cold create can be attributed.
+	start, mark := time.Now(), time.Now()
+	phases := []any{"vm", r.VMName(), "memory_mb", r.MemoryMB}
+	lap := func(name string) {
+		phases = append(phases, name+"_ms", time.Since(mark).Milliseconds())
+		mark = time.Now()
+	}
+	defer func() {
+		slog.Info("macOS sandbox boot phases", append(phases, "total_ms", time.Since(start).Milliseconds())...)
+	}()
 	c := t.client(r)
+	if err := t.roomForClone(ctx, c, r.MemoryMB); err != nil {
+		return err
+	}
 	if err := c.Clone(ctx, t.Image, r.VMName()); err != nil {
 		return err
 	}
+	lap("clone")
 	if err := c.Set(ctx, r.VMName(), r.VCPUs, r.MemoryMB); err != nil {
 		return err
 	}
@@ -115,29 +139,68 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if err := os.WriteFile(filepath.Join(env, "tuist.env"), []byte("TUIST_SANDBOX=1\n"), 0600); err != nil {
 		return err
 	}
+	// Without the cache the VM boots without a share, and its sessions clone.
+	if t.Checkouts != nil {
+		if share, err := t.Checkouts.SandboxShare(r.envName()); err == nil {
+			r.CheckoutShare = share
+		} else {
+			slog.Warn("macOS sandbox boots without a checkout share", "vm", r.VMName(), "error", err)
+		}
+	}
+	lap("configure")
 	h, err := c.StartWithOptions(ctx, r.VMName(), t.options(r))
 	if err != nil {
 		return err
 	}
-	_, err = t.waitGuestReady(ctx, r, h)
+	lap("start")
+	probes, err := t.waitGuestReady(ctx, r, h)
+	lap("guest_ready")
+	phases = append(phases, "probes", strings.Join(probes, ","))
+	if err != nil {
+		return err
+	}
+	// Adding the volume takes 1 to 2 s, so it happens before a claim waits.
+	err = t.addWorkspace(ctx, r)
+	lap("workspace")
 	return err
 }
 
 // Claim finishes a booted VM for its sandbox: the workspace quota is the
 // sandbox's own, and the status call pins the runtime instance and PID.
 func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
-	c := t.client(r)
-	// The image's sandbox boot mode disables runner dispatch before its halt
-	// trap is armed. No runner service-account credential is shared with it.
-	if _, err := c.Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
-container=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
-/usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
-/usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, r.WorkspaceGB)); err != nil {
-		return err
+	start := time.Now()
+	if r.WorkspaceVolumeGB != r.WorkspaceGB {
+		if err := t.addWorkspace(ctx, r); err != nil {
+			return err
+		}
 	}
+	workspace := time.Since(start)
 	_, err := t.control(ctx, r, "status")
+	slog.Info("macOS sandbox claim phases", "sandbox_id", r.SandboxID, "vm", r.VMName(), "workspace_ms", workspace.Milliseconds(), "status_ms", (time.Since(start) - workspace).Milliseconds())
 	return err
 }
+
+// addWorkspace mounts a volume with the sandbox's quota at the workspace.
+// APFS cannot change an existing volume's quota, so a VM that already has a
+// volume of another size replaces it.
+func (t *TartRuntime) addWorkspace(ctx context.Context, r *Record) error {
+	replace := ""
+	if r.WorkspaceVolumeGB != 0 {
+		replace = `/usr/bin/sudo -n /usr/sbin/diskutil apfs deleteVolume "$(/usr/sbin/diskutil info -plist /Users/runner/work | /usr/bin/plutil -extract DeviceIdentifier raw -o - -)"
+`
+	}
+	// The image's sandbox boot mode disables runner dispatch before its halt
+	// trap is armed. No runner service-account credential is shared with it.
+	if _, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
+%scontainer=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
+/usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
+/usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, replace, r.WorkspaceGB)); err != nil {
+		return err
+	}
+	r.WorkspaceVolumeGB = r.WorkspaceGB
+	return nil
+}
+
 func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	if r.Resident {
 		start := time.Now()
@@ -167,6 +230,12 @@ func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	c := t.client(r)
 	r.Instance = ""
 	r.PID = 0
+	// A restore needs every share it was saved with.
+	if r.CheckoutShare != "" {
+		if err := os.MkdirAll(r.CheckoutShare, 0o777); err != nil {
+			return err
+		}
+	}
 	h, err := c.Resume(ctx, r.VMName(), t.options(r))
 	if err != nil {
 		return err
@@ -330,6 +399,15 @@ func (t *TartRuntime) Delete(ctx context.Context, r *Record) error {
 	if err := os.RemoveAll(filepath.Join(c.HomeDir, "env", r.envName())); err != nil {
 		return err
 	}
+	if t.Checkouts != nil {
+		// The VM is gone, so the session's export can be taken.
+		if r.Checkout != nil && r.CheckoutShare != "" {
+			t.Checkouts.CollectSandbox(*r.Checkout, r.CheckoutShare)
+		}
+		if err := t.Checkouts.RemoveSandboxShare(r.envName()); err != nil {
+			return err
+		}
+	}
 	if err := os.Remove(filepath.Join(c.LogDir, r.VMName()+".log")); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -348,7 +426,7 @@ func (t *TartRuntime) Recover(ctx context.Context, r *Record) error {
 		return errors.New("deletion must be retried")
 	}
 	if vm == nil {
-		return errors.New("sandbox VM is missing; cold-boot fallback refused")
+		return fmt.Errorf("sandbox VM is missing; %w", ErrVMLost)
 	}
 	running, err := c.IsRunning(ctx, r.VMName())
 	if err != nil {
@@ -371,7 +449,7 @@ func (t *TartRuntime) Recover(ctx context.Context, r *Record) error {
 		return nil
 	}
 	if !strings.EqualFold(vm.State, "suspended") {
-		return errors.New("sandbox process lost without a checkpoint; cold-boot fallback refused")
+		return fmt.Errorf("sandbox process lost without a checkpoint; %w", ErrVMLost)
 	}
 	marker, err := os.ReadFile(filepath.Join(t.directory(r), "checkpoint-instance"))
 	if err != nil {

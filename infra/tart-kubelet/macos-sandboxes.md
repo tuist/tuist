@@ -77,8 +77,14 @@ Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
 CI can revoke admission between server placement and the host's final check.
+Work on a running VM (a command, a worker start, a hold, the server's lease)
+needs no grant, since the VM already holds its charge; work that has to resume
+a paused VM does. CI and sandboxes are served first come, first served: a grant
+gates only new capacity, and CI demand arriving later never takes a running
+VM's place.
 An explicit host capacity refusal returns HTTP 503 and leaves a saved environment
 paused for retry; its server charge stays conservative until the next host report.
+A create the host refuses for capacity moves on to the next host.
 Uncertain cleanup or fencing errors remain failures, not capacity retries.
 The kubelet refreshes host memory and process pressure on each heartbeat. macOS
 memory warning/critical levels and a process table at least 90% full report
@@ -90,28 +96,54 @@ grants without a concurrent grant update terminating the host service.
 Idle warm CI runners can yield to a pending sandbox reservation; active CI jobs
 are never selected for this preemption.
 
+A session's saved state is encrypted for the Mac that wrote it, so it resumes
+only there. The kubelet labels its Node `tuist.dev/macos-sandbox-sessions=true`
+while it holds a running or paused session, and CI keeps off those hosts while
+others are free: runner Pods prefer Nodes without the label (weight 50, between
+the golden image's 100 and a cache volume's 20), and a host reservation picks a
+host without it among hosts that converge equally soon and hold the image. Warm
+sandbox Pods do not carry the preference.
+
 Every native VM also owns a resource-requesting execution Pod. The host serializes
 final native and CI launches under one gate and rereads bound Pending, Running
 and Terminating Pods, enforcing CPU, RAM and Apple's two-VM limit. A resident
 pause retains the full Pod charge. The host repairs missing reservation Pods
 from its journals before CI launches; uncertain ownership fails closed.
 
-The background controller checkpoints idle residents when CI revokes admission,
-or after the bounded 30-second idle grace. Ownership reconciliation and eviction
+The background controller checkpoints idle residents after the bounded
+30-second idle grace; a revoked grant does not shorten it. Ownership reconciliation and eviction
 run independently of image downloads and control connection preparation, so a
 failed or slow image update cannot delay returning idle capacity to CI.
 It does not interrupt an active managed
-worker or exec command. CI may therefore wait for active native work to finish
+worker or exec command, nor a hold (`hold_residency`): an Amp Orb's turn, or
+the server's `commands` residency, which on macOS outlives the last command as
+a ten-minute session lease so an agent thinking between commands keeps its VM
+(`server/lib/tuist/sandboxes/commands.ex`). A hold with `hold_ms` ends that long after
+it was last renewed even if the server never releases it; the server sets it
+two minutes past the lease, so this only backstops a lost release. CI may therefore wait for active native work to finish
 and for the checkpoint to complete. A failed checkpoint or process fence retains
 its reservation. No capacity is released merely because a save was requested.
+A VM the runtime proves lost (its process gone with no checkpoint, or its VM
+missing) holds no CPU or memory and never cold-boots, so it releases its
+reservation once and stays in `error`, with its disk, until the server deletes it.
 Node hello/report frames always include the resident boolean, including false
 after eviction, so the server releases its reservation after the host's fence.
 
 The isolated disk budget counts complete writable root disks and two memory
 images per environment, including evicted environments, against half the host
 filesystem. Save/restore admission also leaves 20 GiB free beyond two memory
-images. A cold template pull requires 100 GiB beyond the CI preparation floor
-of 30% free disk. These are conservative admission checks on a shared filesystem,
+images. The host reports half its filesystem as `disk.budget_bytes`, its free
+space, and the template's root disk as `rootfs_bytes`, and server placement
+applies the same rule to the environments recorded on the host, so it skips a
+host whose disk is full instead of sending it a create to refuse. When the
+kubelet's CI store has already pulled the template image, as a CI pool on the
+same image does, preparation clones its cached record and the
+disk files it names into the isolated store (`seed.go`). The APFS clones share
+the CI copy's blocks, so the template costs no disk while CI holds the image,
+and they keep those blocks after CI collects its copy. Only otherwise does
+preparation pull, and a cold template pull requires 100 GiB beyond the CI
+preparation floor of 30% free disk, which a rack host filled to its planned
+cache and golden budgets never has. These are conservative admission checks on a shared filesystem,
 not a dedicated host filesystem quota. Guest workspaces have an APFS quota;
 root disks retain the image's fixed logical ceiling. Automatic Tart pruning is
 turned off in the isolated store so it cannot decide environment retention.
@@ -119,25 +151,45 @@ turned off in the isolated store so it cannot decide environment retention.
 ### Warm sandbox VMs
 
 `sandboxes.macos.warm.enabled` renders a darwin RunnerPool labelled
-`tuist.dev/macos-sandbox-warm=true` whose Pods are pre-booted 8 vCPU / 8 GiB
-sandbox VMs. The pool shares the CI warm-pool budget: the runners-controller
-preempts it and rolls its image like a CI pool's, and its idle
-Pods give up their slot to CI and to sandbox growth. Unlike an idle CI runner,
-a warm VM counts as reclaimable room in sandbox grants immediately, without the
-CI preemption grace. The server never routes a job to the pool. The pool keeps no
-always-on floor yet: the chart renders `minWarmPoolFloor: 0` explicitly, since
-the CRD defaults an absent floor to 1.
+`tuist.dev/macos-sandbox-warm=true` for each size in
+`sandboxes.macos.warm.memoryMB` (8192, 16384 or 24576; 8 vCPU each). Their Pods
+are pre-booted sandbox VMs. The pools share the CI warm-pool budget: the
+runners-controller preempts them and rolls their image like a CI pool's, and
+their idle Pods give up their slot to CI and to sandbox growth. Unlike an idle
+CI runner, a warm VM counts as reclaimable room in sandbox grants immediately,
+without the CI preemption grace. The server never routes a job to the pools, so
+each keeps only `sandboxes.macos.warm.minWarmPoolFloor` VMs (rendered
+explicitly, default 0, since the CRD defaults an absent floor to 1). Production
+keeps one 8 GiB VM on the BER1 rack: a cold create there took 17 to 19 s on a
+host with room, and a claim skips its clone and boot, leaving the workspace
+volume (`macOS sandbox boot phases` and `claim phases` in the kubelet log time
+each step). 8 GiB is the default of Claude Code, Amp Orbs and the tuist-mac
+plugin; larger shapes are explicit requests and cold-boot. On a 16 vCPU /
+48 GiB rack host every warm VM takes one of the host's two 8 vCPU slots
+whatever its memory, so a larger warm size would cost CI no more, only disk.
 
 tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
-only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
-named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
-instead of waiting when the host lacks room, the template or disk. A create of
-the same template, image and shape claims a ready VM under the same
+only on hosts advertising its size's label: `tuist.dev/macos-sandbox-warm-host=v1`
+for 8 GiB, `tuist.dev/macos-sandbox-warm-host-<MB>=v1` for the others. A host
+advertises a size only while its sandbox service is ready and its disk has room
+for one more VM of that size (checked every node heartbeat; a VM reserves its
+root disk and two memory images), so warm Pods are not scheduled onto a host
+that would refuse each one, and a warm boot checks the room before it clones.
+The VM is named `sbw-<pod UID>`, holds no credential and is not journalled; it
+fails instead of waiting when the host lacks room, the template or disk. A
+create of the same template, image and shape claims a ready VM under the same
 grant as a cold create: the host creates the execution Pod, deletes the warm
-Pod, and the VM keeps its name for life. Other shapes and hosts without a
+Pod, and the VM keeps its name for life. A warm VM already has a 10 GB
+workspace volume, the size Amp Orbs and agent environments request, so their
+claim runs no guest command. APFS cannot change a volume's quota, so a claim
+for another size replaces the volume. Other shapes and hosts without a
 ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those
 hosts first, and claimed creates record the `warm` boot source. A kubelet
-restart deletes unclaimed warm VMs and fails their Pods; the pool refills them.
+restart deletes unclaimed warm VMs and fails their Pods; the pools refill them.
+When the runners-controller retires an idle warm Pod for CI, the host deletes
+its VM and completes the Pod's deletion with a zero grace period, as it does
+for CI Pods; otherwise the Pod stayed Terminating and held the host for about
+six minutes until the controller force-reaped it.
 
 ## Runtime, identity and recovery
 
@@ -189,6 +241,23 @@ deletes retry after restart. The existing server 14-day cleanup applies; orphan
 VMs are deleted on reconnect when their server row no longer exists. Runtime/tool
 versions and template caches are deliberately retained for compatibility; reclaim
 those only after verifying no journal or checkpoint references them.
+
+## Cached checkouts
+
+With the runner cache enabled (`--custom-cache-url`), every sandbox VM, warm
+ones included, boots with a `sandbox-checkout` share at
+`<runner-cache-root>/custom/sandbox-checkouts/<VM>/`, recorded in the sandbox's
+journal and kept for the VM's life, since a restore needs the shares it was
+saved with. VMs booted before this keep booting without one and their sessions
+clone. A `start_worker` carrying the server's checkout grant
+(`protocol.CheckoutGrant`) puts a CoW clone of the CI checkout master in the
+share (`podagent.CustomVolumes.SeedSandbox`), or queues a restore of the
+volume's HEAD on a cold host, and ends the use; `sbx-worker` copies the tree to
+the runner's clone. The guest leaves its export in the share, and the host takes
+it only after an eviction's save or a delete has fenced the VM
+(`CollectSandbox`), then builds from it like a default-branch CI job's export.
+Not yet qualified on a host: attaching the clone from the share in a VM
+claimed from the warm pool.
 
 ## Acceptance and rollback
 
@@ -242,7 +311,12 @@ memory images and Apple's eager restore dominate that path.
 
 The target remains 1–2 seconds for retained environments. Extend the account API
 measurements to sustained CI demand, p95/p99, longer idle periods and checkpoint contention.
-Restoration after eviction still has no demonstrated 1–2 second path. Follow-up
+Restoration after eviction still has no demonstrated 1–2 second path. In
+production on 2026-11-12, resumes after an eviction (30 s idle, or sooner when
+CI revoked the grant) restored a checkpoint in 4–8 s at 8 GiB and 10–16 s at 24 GiB. A create or
+restore on a host whose freed slot CI had refilled also waited 5–12 s for the
+runners-controller to retire that idle runner, which made 22–26 s resumes; the
+reservation now reconciles only the pools with runners on its host. Follow-up
 work includes a supported demand-driven restore runtime, Anka evaluation when a
 Build license is available, snapshot-size reduction, and safer automatic collection
 of unreferenced runtime/template artifacts. Competitor latency claims are not

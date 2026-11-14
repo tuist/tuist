@@ -10,6 +10,11 @@ import TuistLogging
     import TuistProcess
 #endif
 
+#if canImport(TuistOIDC)
+    import TuistEnvironment
+    import TuistOIDC
+#endif
+
 #if canImport(TuistSupport)
     import TuistAlert
     import TuistConstants
@@ -223,6 +228,7 @@ private actor CredentialRefreshLock {
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let refreshOAuthTokenService: RefreshOAuthTokenServicing
+    private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     private let authenticationSession = ServerAuthenticationSession.current
@@ -243,12 +249,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -257,11 +265,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
@@ -291,6 +301,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 return environmentToken
             }
         #endif
+
+        try await signInWithWorkloadIdentityIfSignedOut(serverURL: serverURL)
 
         if !refreshIfNeeded {
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
@@ -685,8 +697,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .project:
                 upToDateToken = token
             case let .account(accessToken):
-                upToDateToken = token
-                expiresAt = cacheExpirationDate(for: accessToken)
+                let renewedAccessToken = await renewedWorkloadAccessToken(
+                    serverURL: serverURL,
+                    accessToken: accessToken,
+                    forceRefresh: forceRefresh
+                )
+                upToDateToken = .account(renewedAccessToken ?? accessToken)
+                expiresAt = cacheExpirationDate(for: renewedAccessToken ?? accessToken)
             case let .user(
                 accessToken, refreshToken
             ):
@@ -735,6 +752,69 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             return (value: upToDateToken, expiresAt: expiresAt)
         }
     }
+
+    /// Account tokens exchanged from an OIDC token have no refresh token. Where the environment can mint a
+    /// new workload identity, an expiring session is renewed by exchanging one, the way Amp's trust recipes
+    /// re-mint before a cloud credential expires. A failed renewal keeps the session it had.
+    private func renewedWorkloadAccessToken(
+        serverURL: URL,
+        accessToken: JWT,
+        forceRefresh: Bool
+    ) async -> JWT? {
+        #if canImport(TuistOIDC)
+            guard CIOIDCAuthenticator().hasWorkloadIdentity,
+                  forceRefresh || accessToken.expiryDate.timeIntervalSince(Date.now()) < 30
+            else { return nil }
+            Logger.current.debug("Renewing the workload identity session for \(serverURL)")
+            do {
+                return try JWT.parse(try await exchangeWorkloadIdentityToken(serverURL: serverURL))
+            } catch {
+                Logger.current.debug("Renewing the workload identity session for \(serverURL) failed: \(error)")
+                return nil
+            }
+        #else
+            return nil
+        #endif
+    }
+
+    /// Where the environment offers a workload identity (CI providers, Amp orbs, a supplied
+    /// `TUIST_OIDC_TOKEN`), a signed-out CLI signs in on its own by exchanging it, so CI needs no
+    /// `tuist auth login` step. A refused exchange, such as from a repository or workspace no account
+    /// connected, leaves the CLI signed out and is not retried in this process.
+    private func signInWithWorkloadIdentityIfSignedOut(serverURL: URL) async throws {
+        #if canImport(TuistOIDC)
+            guard CIOIDCAuthenticator().hasWorkloadIdentity else { return }
+            _ = try await cachedValueStore.getValue(
+                key: "workload-identity-sign-in-\(serverURL.absoluteString)\(sessionID.map { "-\($0)" } ?? "")"
+            ) { () -> (value: Bool, expiresAt: Date?)? in
+                guard try await ServerCredentialsStore.current.read(serverURL: serverURL) == nil else {
+                    return (value: true, expiresAt: nil)
+                }
+                do {
+                    _ = try await exchangeWorkloadIdentityToken(serverURL: serverURL)
+                    Logger.current.debug("Signed in to \(serverURL) with the workload identity")
+                    return (value: true, expiresAt: nil)
+                } catch {
+                    Logger.current.debug("Signing in to \(serverURL) with the workload identity failed: \(error)")
+                    return (value: false, expiresAt: nil)
+                }
+            }
+        #endif
+    }
+
+    #if canImport(TuistOIDC)
+        private func exchangeWorkloadIdentityToken(serverURL: URL) async throws -> String {
+            let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
+                serverURL: serverURL
+            )
+            try await ServerCredentialsStore.current.store(
+                credentials: ServerCredentials(accessToken: accessToken),
+                serverURL: serverURL
+            )
+            return accessToken
+        }
+    #endif
 
     #if canImport(TuistSupport)
         private func lockFilePath(serverURL: URL) -> AbsolutePath {

@@ -22,6 +22,21 @@ defmodule TuistWeb.PulseLiveTest do
     %{conn: log_in_user(conn, user), user: user, account: account, organization: organization}
   end
 
+  test "Greptime hides Errors and rejects direct issue and event pages", ctx do
+    stub(Environment, :pulse_config, fn -> [account_id: ctx.account.id, backend: :greptime] end)
+    stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
+    render_async(view)
+    refute has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
+    view |> element("#pulse-toggle-query") |> render_click()
+    assert has_element?(view, "#pulse-expression[value='*']")
+
+    for path <- ["errors", "errors/issues/issue", "errors/issues/issue/events/event"] do
+      assert_raise NotFoundError, fn -> live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{path}") end
+    end
+  end
+
   for signal <- ~w(metrics logs traces errors) do
     test "renders #{signal} with organization navigation and escaped telemetry", ctx do
       signal = unquote(signal)
@@ -260,7 +275,9 @@ defmodule TuistWeb.PulseLiveTest do
 
   test "signed-out visitors must authenticate", ctx do
     conn = Phoenix.ConnTest.build_conn()
-    assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(conn, "/#{ctx.account.name}/~/pulse/logs")
+    path = "/#{ctx.account.name}/~/pulse/logs"
+    assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+    assert destination == ~p"/users/log_in?#{%{return_to: path}}"
   end
 
   test "automatic refresh rechecks membership", ctx do

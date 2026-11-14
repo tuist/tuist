@@ -6,6 +6,7 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -16,6 +17,47 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
     %{user: user, account: user.account}
+  end
+
+  test "gets a runner job with what its machine stopped for running out of memory", %{
+    conn: conn,
+    user: user,
+    account: account
+  } do
+    account_id = account.id
+    stub(FeatureFlags, :runners_enabled?, fn _account -> true end)
+    stub(Jobs, :get_for_account, fn ^account_id, job_id -> {:ok, %{runner_job() | workflow_job_id: job_id}} end)
+
+    :ok =
+      JobMetrics.record(920_101, account_id, [
+        oom_sample(1_750_000_000.0, 0, ""),
+        oom_sample(1_750_000_015.0, 1, "java"),
+        oom_sample(1_750_000_030.0, 1, "java")
+      ])
+
+    :ok = JobMetrics.record(920_102, account_id, [oom_sample(1_750_000_000.0, 0, "")])
+
+    conn = Authentication.put_current_user(conn, user)
+
+    response = conn |> get(~p"/api/accounts/#{account.name}/runners/jobs/920101") |> json_response(:ok)
+
+    assert %{
+             "kill_count" => 1,
+             "first_kill_at" => "2025-06-15T15:06:55.000Z",
+             "victim" => %{
+               "process" => "java",
+               "memory_bytes" => 27_917_287_424,
+               "container" => "gradle-build",
+               "image" => "gradle:8-jdk21"
+             },
+             "description" => description
+           } = response["out_of_memory"]
+
+    assert description =~ "It stopped java, which was using 27.9 GB, in the container gradle-build (gradle:8-jdk21)."
+    assert description =~ "org.gradle.jvmargs"
+
+    assert %{"out_of_memory" => nil} =
+             conn |> get(~p"/api/accounts/#{account.name}/runners/jobs/920102") |> json_response(:ok)
   end
 
   test "lists account-scoped runner jobs without internal runtime identifiers", %{
@@ -419,6 +461,17 @@ defmodule TuistWeb.API.RunnersAndWebhooksControllerTest do
       refute Profiles.get_by_name(account, "new")
       assert Profiles.get_by_name(account, "ci")
     end
+  end
+
+  defp oom_sample(timestamp, kill_count, process) do
+    %{
+      timestamp: timestamp,
+      oom_kill_count: kill_count,
+      oom_victim_process: process,
+      oom_victim_memory_bytes: if(process == "", do: 0, else: 27_917_287_424),
+      oom_victim_container: if(process == "", do: "", else: "gradle-build"),
+      oom_victim_image: if(process == "", do: "", else: "gradle:8-jdk21")
+    }
   end
 
   defp runner_job do

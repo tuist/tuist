@@ -23,6 +23,7 @@ alias Tuist.Runners.Catalog
 # Initial Pulse enrollment is one stable organization account ID, never a handle
 # supplied by the browser. Leave unset outside the Tuist deployment.
 config :tuist, :pulse,
+  backend: Map.fetch!(%{"pulse" => :pulse, "greptime" => :greptime}, System.get_env("TUIST_PULSE_BACKEND", "pulse")),
   account_id:
     if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
   base_url: System.get_env("TUIST_PULSE_URL"),
@@ -786,7 +787,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Disk snapshot archive uploads each hold a slot for up to half an hour, so
 # they take turns on their own queue instead of filling :default.
 base_queues = [
-  jams: 10,
+  threads: 10,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
@@ -800,7 +801,8 @@ base_queues = [
   storage_retention: 1,
   kura_provisioning: 10,
   coverage_deltas: 2,
-  sandbox_archives: 2
+  sandbox_archives: 2,
+  sandbox_snapshot_copies: 1
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}

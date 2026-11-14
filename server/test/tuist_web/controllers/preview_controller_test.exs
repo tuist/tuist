@@ -482,7 +482,7 @@ defmodule TuistWeb.PreviewControllerTest do
     test "latest redirects signed-out visitors to log in instead of revealing the preview", %{base_path: base_path} do
       conn = get(build_conn(), "#{base_path}/latest")
 
-      assert redirected_to(conn) == ~p"/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "#{base_path}/latest"}}"
     end
 
     test "latest raises not found for signed-in users who cannot read the project", %{conn: conn, base_path: base_path} do
@@ -506,7 +506,7 @@ defmodule TuistWeb.PreviewControllerTest do
     } do
       conn = get(build_conn(), "#{base_path}/#{preview.id}/manifest.plist")
 
-      assert redirected_to(conn) == ~p"/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "#{base_path}/#{preview.id}/manifest.plist"}}"
     end
 
     test "manifest is served to signed-out visitors with a valid install token", %{
@@ -530,7 +530,8 @@ defmodule TuistWeb.PreviewControllerTest do
 
       conn = get(build_conn(), "#{base_path}/#{preview.id}/manifest.plist?token=#{token}")
 
-      assert redirected_to(conn) == ~p"/users/log_in"
+      assert redirected_to(conn) ==
+               ~p"/users/log_in?#{%{return_to: "#{base_path}/#{preview.id}/manifest.plist?token=#{token}"}}"
     end
 
     test "manifest raises not found for signed-in users who cannot read the project", %{
@@ -558,7 +559,7 @@ defmodule TuistWeb.PreviewControllerTest do
     } do
       conn = get(build_conn(), "#{base_path}/#{preview.id}/app.ipa")
 
-      assert redirected_to(conn) == ~p"/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "#{base_path}/#{preview.id}/app.ipa"}}"
     end
 
     test "app.apk redirects to the archive with a valid install token", %{project: project, base_path: base_path} do

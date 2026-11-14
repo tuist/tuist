@@ -78,7 +78,7 @@ let bundleId =
     default: "dev.tuist.app"
     }
 
-let jamRichUI = Environment.jamRichUi.getBoolean(default: false)
+let threadRichUI = Environment.threadRichUi.getBoolean(default: false)
 
 let project = Project(
     name: "TuistApp",
@@ -120,6 +120,8 @@ let project = Project(
                     "CFBundleShortVersionString": "0.25.3",
                     "CFBundleVersion": "14606",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                    "NSMicrophoneUsageDescription": "Tuist uses the microphone to transcribe a Thread message on this device.",
+                    "NSSpeechRecognitionUsageDescription": "Tuist uses on-device speech recognition to transcribe a Thread message.",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
                     ],
@@ -129,7 +131,7 @@ let project = Project(
             resources: .resources([
                 .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
                 .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
-            ] + (jamRichUI ? [.folderReference(path: "../.build/nsh-jams/ui", inclusionCondition: .when([.ios]))] : [])),
+            ] + (threadRichUI ? [.folderReference(path: "../.build/nsh-threads/ui", inclusionCondition: .when([.ios]))] : [])),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -151,8 +153,8 @@ let project = Project(
                 // and leaves the macOS build unable to resolve the module.
                 .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
-            ] + (jamRichUI ? [.xcframework(
-                path: "../.build/nsh-jams/nsh/embed/ios/NativeShell.xcframework",
+            ] + (threadRichUI ? [.xcframework(
+                path: "../.build/nsh-threads/nsh/embed/ios/NativeShell.xcframework",
                 condition: .when([.ios])
             )] : []),
             settings: .settings(

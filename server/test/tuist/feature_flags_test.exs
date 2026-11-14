@@ -9,6 +9,18 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "organization_ai_enabled?/1" do
+    test "requires the account flag in every environment, independently of personal AI" do
+      account = %Account{id: 42}
+
+      for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :ai, [for: ^account] -> enabled end)
+        assert FeatureFlags.organization_ai_enabled?(account) == enabled
+      end
+    end
+  end
+
   describe "pulse_enabled?/1" do
     test "requires explicit account enrollment in every environment" do
       account = %Account{id: 42}
@@ -82,37 +94,22 @@ defmodule Tuist.FeatureFlagsTest do
   end
 
   describe "immutable_shard_reports_enabled?/1" do
-    test "coverage-enabled accounts cannot create immutable plans" do
+    test "is off for every project and account, even when the account has the toggle" do
       account = %Account{id: 42, name: "tuist"}
-      stub(Environment, :env, fn -> :prod end)
+      reject(FunWithFlags, :enabled?, 2)
 
-      for coverage? <- [true, false] do
-        stub(FunWithFlags, :enabled?, fn
-          :immutable_shard_reports, [for: ^account] -> true
-          :xcode_coverage, [for: ^account] -> coverage?
-        end)
+      for env <- [:dev, :stag, :can, :prod] do
+        stub(Environment, :env, fn -> env end)
+        refute FeatureFlags.immutable_shard_reports_enabled?(account)
 
-        assert FeatureFlags.immutable_shard_reports_enabled?(account) == not coverage?
+        for build_system <- [:xcode, :mix, :cargo, :gradle, :bazel, :once] do
+          refute FeatureFlags.immutable_shard_reports_enabled?(%Project{
+                   id: 1,
+                   account: account,
+                   build_system: build_system
+                 })
+        end
       end
-    end
-
-    test "environments with coverage enabled by default remain on legacy plans" do
-      stub(Environment, :env, fn -> :stag end)
-      expect(FunWithFlags, :enabled?, fn :immutable_shard_reports, _ -> true end)
-      refute FeatureFlags.immutable_shard_reports_enabled?(%Account{id: 42, name: "tuist"})
-    end
-
-    test "Mix projects, which always have coverage, remain on legacy plans" do
-      account = %Account{id: 42, name: "tuist"}
-      stub(Environment, :env, fn -> :prod end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :immutable_shard_reports, [for: ^account] -> true
-        :xcode_coverage, [for: ^account] -> false
-      end)
-
-      refute FeatureFlags.immutable_shard_reports_enabled?(%Project{id: 1, account: account, build_system: :mix})
-      assert FeatureFlags.immutable_shard_reports_enabled?(%Project{id: 2, account: account, build_system: :xcode})
     end
   end
 

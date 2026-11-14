@@ -208,15 +208,28 @@ func (g *Gateway) Execute(r *re.ExecuteRequest, s grpc.ServerStreamingServer[lro
 	if r.ExecutionPolicy.GetPriority() != 0 || r.ResultsCachePolicy.GetPriority() != 0 {
 		return status.Error(codes.InvalidArgument, "execution priorities are not supported")
 	}
-	inputs := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
-	if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
-		path = "lease"
-		code, err = g.stream(s, account, r.InstanceName, auth, op, true)
+	if err = g.learnEndpoint(s.Context(), account, r.InstanceName, auth); err != nil {
 		return err
+	}
+	inputs, action := g.prefetch(s.Context(), account, r.InstanceName, auth, r.ActionDigest)
+	memory, err := g.memory(s.Context(), account, r.InstanceName, auth, r.ActionDigest, action)
+	if err != nil {
+		return err
+	}
+	// Leases hold VMs of the default size.
+	if memory == worker.DefaultMemoryGB {
+		if op, ok := g.direct(s.Context(), account, r.InstanceName, auth, r, inputs); ok {
+			path = "lease"
+			code, err = g.stream(s, account, r.InstanceName, auth, op, true)
+			return err
+		}
 	}
 	body := map[string]any{"hash": r.ActionDigest.Hash, "size": r.ActionDigest.SizeBytes, "skip_cache": r.SkipCacheLookup}
 	if inputs != "" {
 		body["inputs"] = inputs
+	}
+	if memory != worker.DefaultMemoryGB {
+		body["memory_gb"] = memory
 	}
 	op, err := g.call(s.Context(), http.MethodPost, account, r.InstanceName, "/operations", auth, body)
 	if err != nil {

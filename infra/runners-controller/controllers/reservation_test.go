@@ -421,6 +421,30 @@ func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
 	}
 }
 
+// Between hosts that converge equally soon and hold the image, the one with
+// no macOS sandbox session wins: a session resumes only on its own Mac.
+func TestReservation_PrefersAHostHoldingNoSandboxSession(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	held := m4Node("m4-a")
+	held.Labels[podtemplate.MacosSandboxSessionsLabel] = "true"
+
+	r := reservationReconciler(pool, smallPool(), held, m4Node("m4-b"), starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host holding no sandbox session")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host whose session can resume only there")
+	}
+}
+
 // Holding the image never outranks convergence: waiting on a customer job
 // can take longer than a pull.
 func TestReservation_PrefersConvergenceOverTheImage(t *testing.T) {
@@ -1522,5 +1546,49 @@ func TestReservation_KeepsAHostThatCanSeatAnotherOwnPod(t *testing.T) {
 	}
 	if isReserved(nodeByName(t, r, "ax-1")) {
 		t.Fatal("took a second reservation while the first is still useful")
+	}
+}
+
+// An exclusive-CPU runner carries its budget at Pod level, with no
+// container CPU or memory. Every capacity reader must still count the
+// whole budget, or reservations, preemption and sandbox admission would
+// see a running job as nearly free.
+func TestExclusiveCPURunnerCountsItsPodLevelBudget(t *testing.T) {
+	pool := &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "linux-4vcpu-16gb", Namespace: "tuist-runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			OS:            "linux",
+			RuntimeClass:  "kata-qemu",
+			FleetSelector: "runners-linux",
+			Image:         "ghcr.io/tuist/tuist-linux-runner:test",
+			PodCPUMilli:   4000,
+			PodMemoryMB:   16384,
+			ExclusiveCPUs: true,
+		},
+	}
+	pod, err := podtemplate.Build(pool, "runner-0", "runner-0", "http://dispatch", "http://internal-dispatch", "docker:28-dind", "", "", "")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	pod.Spec.Overhead = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("250m"),
+		corev1.ResourceMemory: resource.MustParse("1Gi"),
+	}
+
+	footprint := podFootprint(pod)
+	if got := footprint.Cpu().MilliValue(); got != 4250 {
+		t.Errorf("podFootprint cpu = %dm, want 4250m", got)
+	}
+	if got := footprint.Memory().Value(); got != 17*gib {
+		t.Errorf("podFootprint memory = %d, want 17Gi", got)
+	}
+	if got := podMemory(pod); got != 17*gib {
+		t.Errorf("podMemory = %d, want 17Gi", got)
+	}
+	if got := allocationPodMemory(pod); got != 17*gib {
+		t.Errorf("allocationPodMemory = %d, want 17Gi", got)
+	}
+	if got := fleetNodeSelector(pool)[podtemplate.PodLevelResourceManagersNodeLabel]; got != "true" {
+		t.Errorf("fleetNodeSelector reserves hosts without %s", podtemplate.PodLevelResourceManagersNodeLabel)
 	}
 }

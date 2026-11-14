@@ -26,10 +26,10 @@ defmodule TuistWeb.EndpointTest do
     assert request.headers == %{"accept" => "application/json"}
   end
 
-  test "keeps private jam request bodies out of Sentry" do
-    for collection <- ["jams", "threads"] do
+  test "keeps private thread request bodies out of Sentry" do
+    for collection <- ["threads", "jams"] do
       conn = %{
-        Plug.Test.conn(:post, "/api/accounts/account/#{collection}/jam/messages")
+        Plug.Test.conn(:post, "/api/accounts/account/#{collection}/thread/messages")
         | params: %{"content" => "Private conversation", "request_id" => "private-approval"}
       }
 
@@ -49,13 +49,16 @@ defmodule TuistWeb.EndpointTest do
     assert request.data == %{"recovery" => "true"}
   end
 
-  test "keeps subscription tokens and MCP tool arguments out of Sentry request bodies" do
+  test "keeps provider keys, subscription tokens and MCP tool arguments out of logs and Sentry request bodies" do
     params = %{
       "token" => "sk-ant-oat01-secret",
+      "route" => %{"provider" => "openai", "api_key" => "provider-secret"},
       "jsonrpc" => "2.0",
       "params" => %{"name" => "connect_claude_subscription", "arguments" => %{"token" => "sk-ant-oat01-secret"}},
       "batch" => [%{"params" => %{"arguments" => %{"token" => "sk-ant-oat01-secret"}}}]
     }
+
+    assert Phoenix.Logger.filter_values(params)["route"] == %{"provider" => "openai", "api_key" => "[FILTERED]"}
 
     conn = %{Plug.Test.conn(:post, "/mcp") | params: params}
 
@@ -64,6 +67,7 @@ defmodule TuistWeb.EndpointTest do
 
     assert request.data == %{
              "jsonrpc" => "2.0",
+             "route" => %{"provider" => "openai"},
              "params" => %{"name" => "connect_claude_subscription"},
              "batch" => [%{"params" => %{}}]
            }

@@ -57,7 +57,9 @@ The priority order is:
    CI shape, but CI queued elsewhere does not veto every sandbox grant.
 3. CI warm floors and recent-demand headroom. Idle, unclaimed warm runners can
    be retired for a deferred sandbox growth even while CI is queued. There is
-   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes.
+   no extra sandbox warm pool, p95 buffer or post-turn grace on shared nodes,
+   except 20 seconds after a sandbox's last command (see below), and on macOS
+   the commands session lease.
 
 Admission is opportunistic, not a global FIFO queue or a guaranteed resource
 split. Kubernetes arbitrates competing Pod requests. Keep sandbox demand
@@ -77,7 +79,13 @@ work. There is no sandbox count: the account's disk limit charges every sandbox
 on a node, paused ones included, with its workspace and memory image.
 
 A host reservation or unhealthy node revokes admission and reclaims eligible idle
-sandboxes. Reclaim page cache and request a shrink, but do not spend the released
+sandboxes. It also moves the node's paused sandboxes to object storage, one upload
+at a time, with their memory images, so their sessions resume warm on
+another node of the same snapshot compatibility (processes kept) instead of
+waiting for this one; a resume the node refuses for room does the same for
+that sandbox. CI waits on neither: a paused sandbox holds no memory, and its
+jail stays until the archive is readable. See the archive
+tier in `server/lib/tuist/sandboxes/AGENTS.md`. Reclaim page cache and request a shrink, but do not spend the released
 memory until the kubelet confirms it. Worker/exec guards remain authoritative if
 activity races a pause. Queue depth alone does not trigger fleet-wide reclamation.
 
@@ -107,8 +115,17 @@ must conflict if a newer resize or Pod replacement already landed.
 
 Every accepted observation transactionally queues an idempotent Oban reclaim job.
 Busy sandbox locks are skipped rather than waited on; the next observation retries
-them. Shared-node pauses have zero extra grace and enqueue a shrink immediately.
-There is no three-minute warm hold. Only an in-flight growth can retain its request
+them. Shared-node pauses have zero extra grace and enqueue a shrink immediately,
+except the pause after a sandbox's last command ends, which waits 20 seconds so
+the next command of a run (a sync, then a build) finds it running. The sandbox
+holds no residency meanwhile, so pressure from an observation pauses it at once.
+There is no three-minute warm hold on Linux. On macOS the commands
+residency is kept for ten minutes after the last command instead, as the
+agent session's turn: a checkpointed macOS VM can only resume on its own Mac,
+so a pause between an agent's commands often meant waiting for that Mac's CI
+job. The lease is an admitted turn, so CI pressure does not pause it, and it
+costs CI that VM's slot for at most ten idle minutes, like an idle Amp Orb's
+turn; it counts against the account's quota while it lasts. Only an in-flight growth can retain its request
 for up to 15 seconds while admission waits for it; a pause or CI reclaim bypasses
 that interval. The minute cron remains a recovery sweep. A failed shrink is
 reported to Oban for retry and remains charged by the controller.

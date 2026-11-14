@@ -7177,3 +7177,38 @@ struct GraphTraverserTargetsProcessingStaticXCFrameworkTests {
         }
     }
 }
+
+struct GraphTraverserOrphanExternalTargetsLinkingStatusTests {
+    @Test(arguments: [LinkingStatus.required, .optional, .none])
+    func theDependenciesOfAPackageProductAreNotOrphansWhateverTheStatusOfTheEdgeToIt(status: LinkingStatus) throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.mac], product: .app)
+        let project = Project.test(path: try AbsolutePath(validating: "/App"), targets: [app])
+        let product = Target.test(name: "MCP", destinations: [.mac], product: .framework)
+        let productDependency = Target.test(name: "Logging", destinations: [.mac], product: .framework)
+        let packageProject = Project.test(
+            path: try AbsolutePath(validating: "/Package"),
+            name: "Package",
+            targets: [product, productDependency],
+            type: .external(hash: nil)
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project, packageProject.path: packageProject],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: product.name, path: packageProject.path, status: status),
+                ],
+                .target(name: product.name, path: packageProject.path): [
+                    .target(name: productDependency.name, path: packageProject.path),
+                ],
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
+
+        // Then
+        #expect(got.isEmpty)
+    }
+}

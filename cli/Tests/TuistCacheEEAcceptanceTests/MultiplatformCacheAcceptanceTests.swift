@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import SwiftProtobuf
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistCache
@@ -20,6 +21,7 @@ import TuistTesting
 
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct MultiplatformCacheAcceptanceTests {
     // swiftlint:disable function_body_length
     @Test(

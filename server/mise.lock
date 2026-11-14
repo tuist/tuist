@@ -136,6 +136,11 @@ checksum = "sha256:4759080aeef7385aaceaac1131c30aaeb99605921553967dc6d3ef4e16ac6
 url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.darwin-amd64.RELEASE.2025-09-07T16-13-09Z"
 url_api = "https://api.github.com/repos/minio/minio/releases/assets/404656124"
 
+[tools."github:minio/minio"."platforms.windows-x64"]
+checksum = "sha256:af709e6ba68488404e85acdd22a3030d0f5e56a108d4b27d744f18ceb50861b4"
+url = "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.windows-amd64.RELEASE.2025-09-07T16-13-09Z.exe"
+url_api = "https://api.github.com/repos/minio/minio/releases/assets/404655799"
+
 [[tools.helm]]
 version = "3.16.3"
 backend = "aqua:helm/helm"
@@ -207,10 +212,6 @@ url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-x64.tar.gz"
 [tools.node."platforms.windows-x64"]
 checksum = "sha256:1054540bce22b54ec7e50ebc078ec5d090700a77657607a58f6a64df21f49fdd"
 url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-win-x64.zip"
-
-[[tools."npm:appium"]]
-version = "3.0.1"
-backend = "npm:appium"
 
 [[tools."npm:prettier"]]
 version = "3.4.2"

@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistCore
@@ -15,6 +16,7 @@ import TuistTesting
 @testable import TuistInspectCommand
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct InspectAcceptanceTests {
     @Test(
         .inTemporaryDirectory,

@@ -13,7 +13,9 @@ defmodule Atlas.TuistServer do
   Feature flag inspection and mutation use `/api/internal/atlas/flags`, a
   separate allowlisted, revision-checked and audited Tuist domain API. Writes
   never retry automatically; callers must retain the same change ID when
-  reconciling an ambiguous transport outcome.
+  reconciling an ambiguous transport outcome. Account lookup, runner
+  concurrency limits and plan changes under `/api/internal/atlas/accounts`
+  follow the same revision, change ID and no-retry rules.
 
   Each call reads the token fresh from disk because the kubelet rotates the
   projected token file in place.
@@ -115,6 +117,32 @@ defmodule Atlas.TuistServer do
   @doc "Update a flag with an expected revision, idempotent change ID and trusted actor metadata."
   def update_feature_flag(name, attrs, opts \\ []) when is_binary(name) and is_map(attrs) do
     request(:put, "/api/internal/atlas/flags/#{encode_segment(name)}", [json: attrs, retry: false], opts)
+  end
+
+  @doc "Resolve an organization or user handle to its Tuist account."
+  def lookup_account(handle, opts \\ []) when is_binary(handle) do
+    request(:get, "/api/internal/atlas/accounts/lookup", [params: %{"handle" => handle}], opts)
+  end
+
+  @doc "Read an account's runner concurrency limits, current usage, defaults and revision."
+  def get_runner_concurrency_limits(account_id, opts \\ []) when is_integer(account_id) do
+    request(:get, "/api/internal/atlas/accounts/#{account_id}/runner-concurrency-limits", [], opts)
+  end
+
+  @doc "Set one platform's runner concurrency limits with an expected revision, idempotent change ID and trusted actor metadata."
+  def update_runner_concurrency_limits(account_id, attrs, opts \\ []) when is_integer(account_id) and is_map(attrs) do
+    path = "/api/internal/atlas/accounts/#{account_id}/runner-concurrency-limits"
+    request(:put, path, [json: attrs, retry: false], opts)
+  end
+
+  @doc "Read an account's effective plan, live and recent subscriptions and plan revision."
+  def get_account_plan(account_id, opts \\ []) when is_integer(account_id) do
+    request(:get, "/api/internal/atlas/accounts/#{account_id}/plan", [], opts)
+  end
+
+  @doc "Change an account's plan in Stripe with an expected revision, idempotent change ID and trusted actor metadata."
+  def update_account_plan(account_id, attrs, opts \\ []) when is_integer(account_id) and is_map(attrs) do
+    request(:put, "/api/internal/atlas/accounts/#{account_id}/plan", [json: attrs, retry: false], opts)
   end
 
   defp clickhouse_limit(opts) do

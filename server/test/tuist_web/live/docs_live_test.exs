@@ -35,7 +35,7 @@ defmodule TuistWeb.DocsLiveTest do
     end)
 
     {:ok, view, _html} = live(conn, "/en/docs/cli/release/channels")
-    render_async(view)
+    render_async(view, 5000)
     assert has_element?(view, ~s(#docs-release-status [data-component="cli"]), "Unavailable")
 
     assert has_element?(
@@ -47,7 +47,7 @@ defmodule TuistWeb.DocsLiveTest do
     assert has_element?(view, "#the-channels")
 
     render_patch(view, "/en/docs/cli/release/calendar")
-    render_async(view)
+    render_async(view, 5000)
     assert has_element?(view, "h1", "Release calendar")
     assert has_element?(view, ~s(#docs-release-status [data-component="cli"]), "Unavailable")
     assert has_element?(view, ~s(main a[href="/en/docs/cli/release/channels"]), "Release channels")
@@ -55,7 +55,7 @@ defmodule TuistWeb.DocsLiveTest do
     refute has_element?(view, "#the-channels")
 
     render_patch(view, "/en/docs/guides/server/self-host/release/channels")
-    render_async(view)
+    render_async(view, 5000)
     refute has_element?(view, ~s(#docs-release-status [data-component="cli"]))
 
     for component <- [:server, :kura] do
@@ -63,7 +63,7 @@ defmodule TuistWeb.DocsLiveTest do
     end
 
     send(view.pid, :refresh_release_status)
-    render_async(view)
+    render_async(view, 5000)
 
     assert has_element?(
              view,
@@ -74,7 +74,7 @@ defmodule TuistWeb.DocsLiveTest do
     assert has_element?(view, "#the-channels")
 
     render_patch(view, "/en/docs/guides/server/self-host/release/calendar")
-    render_async(view)
+    render_async(view, 5000)
     assert has_element?(view, "h1", "Release calendar")
     assert has_element?(view, ~s(main a[href="/en/docs/guides/server/self-host/release/channels"]), "Release channels")
 
@@ -668,6 +668,34 @@ defmodule TuistWeb.DocsLiveTest do
                    [Tuist.Environment.app_url(path: "/#{target_locale}/docs/guides/language-metadata")]
         end
       end
+    end
+
+    test "near-empty translations stay readable but defer indexing to the English page", %{conn: conn} do
+      sitemap = conn |> get("/sitemap.xml") |> response(200)
+      english_url = Tuist.Environment.app_url(path: "/en/docs/guides/features/agentic-coding/mcp")
+      thin_url = Tuist.Environment.app_url(path: "/ar/docs/guides/features/agentic-coding/mcp")
+      translated_url = Tuist.Environment.app_url(path: "/ar/docs/guides/features/projects/manifests")
+
+      thin = conn |> get("/ar/docs/guides/features/agentic-coding/mcp") |> html_response(200) |> Floki.parse_document!()
+      assert Floki.attribute(thin, "link[rel='canonical']", "href") == [english_url]
+      assert Floki.attribute(thin, "meta[property='og:url']", "content") == [english_url]
+      assert Floki.attribute(thin, "html", "lang") == ["ar"]
+
+      english =
+        conn |> get("/en/docs/guides/features/agentic-coding/mcp") |> html_response(200) |> Floki.parse_document!()
+
+      assert Floki.attribute(english, "link[rel='canonical']", "href") == [english_url]
+      assert Floki.find(english, "link[hreflang='ar']") == []
+      assert Floki.attribute(english, "link[hreflang='es']", "href") != []
+
+      translated =
+        conn |> get("/ar/docs/guides/features/projects/manifests") |> html_response(200) |> Floki.parse_document!()
+
+      assert Floki.attribute(translated, "link[rel='canonical']", "href") == [translated_url]
+
+      refute sitemap =~ "<loc>#{thin_url}</loc>"
+      assert sitemap =~ "<loc>#{english_url}</loc>"
+      assert sitemap =~ "<loc>#{translated_url}</loc>"
     end
 
     test "overview alternates remain localized and use an English fallback", %{conn: conn} do

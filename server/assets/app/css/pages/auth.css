@@ -160,6 +160,21 @@
     }
   }
 
+  & [data-part="authentication-methods"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--noora-spacing-4);
+    width: 100%;
+
+    &:has([data-part="passkey"][hidden]) {
+      grid-template-columns: 1fr;
+    }
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
   & [data-part="form"] {
     display: flex;
     flex-direction: column;
@@ -449,7 +464,7 @@
   & [data-part="passkey"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-9);
+    gap: var(--noora-spacing-3);
     width: 100%;
 
     &[hidden] {
@@ -620,6 +635,7 @@
 
 #login,
 #sso-link,
+#authentication-settings,
 #user-security-settings {
   & [data-part="passkey-status"] {
     color: var(--noora-surface-label-secondary);
@@ -637,6 +653,10 @@
   gap: var(--noora-spacing-7);
   width: 100%;
   min-width: 0;
+
+  & [data-part="reauthentication-explanation"] {
+    text-align: center;
+  }
 
   & h2 {
     margin: 0;
@@ -683,30 +703,6 @@
     flex-wrap: wrap;
   }
 
-  & #passkey-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-
-    & > li {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-5);
-      padding-block: var(--noora-spacing-6);
-      overflow-wrap: anywhere;
-    }
-
-    & > li + li {
-      border-top: 1px solid var(--noora-surface-border-primary);
-    }
-
-    & [data-part="passkey-details"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-2);
-    }
-  }
-
   & .noora-modal [data-part="body"] form {
     padding: var(--noora-spacing-7);
   }
@@ -715,6 +711,14 @@
   & form > [data-part="actions"] > .noora-button,
   & > [data-part="section"] > form > .noora-button {
     width: 100%;
+  }
+
+  & > [data-part="recovery-actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
   }
 
   & #mfa-recovery-codes {
@@ -774,5 +778,24 @@
     height: 1px;
     overflow: hidden;
     white-space: nowrap;
+  }
+}
+
+#sso-link:has(#mfa-recovery-codes) {
+  & [data-part="dots"] {
+    display: none;
+  }
+
+  & [data-part="frame"] > [data-part="content"] {
+    gap: 0;
+  }
+
+  & [data-part="header"] {
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+    padding-bottom: var(--noora-spacing-7);
+  }
+
+  & #user-security-settings {
+    padding-top: var(--noora-spacing-7);
   }
 }

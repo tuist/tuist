@@ -1,3 +1,38 @@
+/* The box sits at the bottom of the page with the card over its opening: both
+   share one grid cell, aligned to the top, so the card's top meets the flaps
+   and its bottom the front rim. */
+#sandboxes-empty-state {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "stack";
+  align-content: safe end;
+  /* Reach into the page's bottom padding so the box meets the bottom edge. */
+  margin-bottom: calc(-1 * var(--layout-page-padding-block));
+  height: calc(100% + var(--layout-page-padding-block));
+  overflow: hidden;
+
+  & > [data-part="background"],
+  & > [data-part="terminal-card"] {
+    grid-area: stack;
+    align-self: start;
+    justify-self: center;
+  }
+
+  & > [data-part="background"] {
+    position: static;
+    width: min(1016px, 100%);
+
+    & > svg {
+      display: block;
+      height: auto;
+    }
+  }
+
+  & > [data-part="terminal-card"] {
+    margin-top: 0;
+  }
+}
+
 #sandboxes,
 #sandbox,
 #sandbox-instances {
@@ -45,7 +80,7 @@
 
   & [data-part="concurrency-charts"] {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--noora-spacing-6);
   }
 
@@ -114,113 +149,6 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="onboarding"] {
-    align-items: center;
-    gap: var(--noora-spacing-9);
-    padding-block: var(--noora-spacing-12);
-  }
-
-  & [data-part="hero"] {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--noora-spacing-4);
-    max-width: 560px;
-    text-align: center;
-  }
-
-  & [data-part="hero-icon"] {
-    border-radius: var(--noora-radius-4);
-    background: var(--noora-surface-background-secondary);
-    padding: var(--noora-spacing-4);
-    width: 32px;
-    height: 32px;
-    color: var(--noora-surface-label-secondary);
-
-    & svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  & [data-part="hero-title"] {
-    margin: 0;
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
-  }
-
-  & [data-part="hero-subtitle"] {
-    margin: 0;
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-  }
-
-  & [data-part="providers-title"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-  }
-
-  & [data-part="providers"] {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--noora-spacing-5);
-    width: 100%;
-  }
-
-  & [data-part="provider"] {
-    display: flex;
-    align-items: center;
-    gap: var(--noora-spacing-5);
-    border: 1px solid var(--noora-surface-border-primary);
-    border-radius: var(--noora-radius-6);
-    background: var(--noora-surface-background-primary);
-    padding: var(--noora-spacing-6);
-    min-width: 0;
-
-    &[data-disabled] [data-part="provider-icon"],
-    &[data-disabled] [data-part="provider-text"] {
-      opacity: 0.6;
-    }
-  }
-
-  & [data-part="provider-icon"] {
-    flex-shrink: 0;
-    border-radius: var(--noora-radius-4);
-    background: var(--noora-surface-background-secondary);
-    padding: var(--noora-spacing-3);
-    width: var(--noora-icon-size-large);
-    height: var(--noora-icon-size-large);
-    color: var(--noora-surface-label-secondary);
-
-    & svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  & [data-part="provider-text"] {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: var(--noora-spacing-1);
-    min-width: 0;
-  }
-
-  & [data-part="provider-title"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-  }
-
-  & [data-part="provider-subtitle"],
-  & [data-part="provider-note"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-  }
-
-  & [data-part="provider-action"] {
-    flex-shrink: 0;
-  }
-
   & > [data-part="back-button"] {
     align-self: flex-start;
   }
@@ -279,7 +207,6 @@
   }
 
   @media (max-width: 1024px) {
-    & [data-part="providers"],
     & [data-part="concurrency-charts"] {
       grid-template-columns: minmax(0, 1fr);
     }

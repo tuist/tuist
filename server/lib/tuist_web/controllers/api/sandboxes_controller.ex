@@ -5,9 +5,11 @@ defmodule TuistWeb.API.SandboxesController do
   alias OpenApiSpex.Schema
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Anthropic.Federation
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.Query
   alias Tuist.Sandboxes.Schemas, as: SandboxSchemas
+  alias Tuist.Sandboxes.Uploads
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -19,9 +21,10 @@ defmodule TuistWeb.API.SandboxesController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  # Members create sandboxes and run commands in them (`:sandboxes_use`).
-  # Sandboxes that serve an agent environment, an Amp integration or remote
-  # execution hold credentials or other people's work, so only admins reach
+  # Members, and account tokens with `account:sandboxes:write`, create
+  # sandboxes and run commands in them (`:sandboxes_write`). Sandboxes that
+  # serve an agent environment, an Amp integration or remote execution hold
+  # credentials or other people's work, so only admins reach
   # those, and everything else (agent environments, Orb dispatch, analytics,
   # archive) stays admin-only.
   @member_actions [
@@ -35,12 +38,13 @@ defmodule TuistWeb.API.SandboxesController do
     :stream_command_logs,
     :write_command_stdin,
     :cancel_command,
+    :create_upload,
     :pause,
     :resume,
     :delete
   ]
 
-  plug AuthorizationPlug, {:account, :sandboxes, :use} when action in @member_actions
+  plug AuthorizationPlug, {:account, :sandboxes, :write} when action in @member_actions
   plug AuthorizationPlug, {:account, :account, :update} when action not in @member_actions
   plug(TuistWeb.Plugs.RequireSandboxesPlug)
   plug :require_member_sandbox when action in @member_actions
@@ -50,7 +54,6 @@ defmodule TuistWeb.API.SandboxesController do
   @orb_admission_refusals [
     :no_capacity,
     :sandbox_concurrency_limit,
-    :sandbox_disk_limit,
     :sandbox_account_busy,
     :locked
   ]
@@ -75,7 +78,21 @@ defmodule TuistWeb.API.SandboxesController do
       enabled: %Schema{type: :boolean},
       has_api_key: %Schema{
         type: :boolean,
-        description: "Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions."
+        description:
+          "Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set."
+      },
+      anthropic_organization_id: %Schema{type: :string, nullable: true},
+      anthropic_workspace_id: %Schema{type: :string, nullable: true},
+      anthropic_service_account_id: %Schema{type: :string, nullable: true},
+      anthropic_federation_rule_id: %Schema{type: :string, nullable: true},
+      federation_issuer_url: %Schema{
+        type: :string,
+        description:
+          "The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console."
+      },
+      federation_subject: %Schema{
+        type: :string,
+        description: "The sub claim of the tokens Tuist signs for this environment."
       },
       anthropic_agent_id: %Schema{
         type: :string,
@@ -84,6 +101,7 @@ defmodule TuistWeb.API.SandboxesController do
       },
       agent_model: %Schema{type: :string},
       agent_system_prompt: %Schema{type: :string, nullable: true},
+      setup_script: %Schema{type: :string, nullable: true},
       inserted_at: %Schema{type: :string, format: "date-time"},
       updated_at: %Schema{type: :string, format: "date-time"}
     },
@@ -99,9 +117,16 @@ defmodule TuistWeb.API.SandboxesController do
       :pause_grace_seconds,
       :enabled,
       :has_api_key,
+      :anthropic_organization_id,
+      :anthropic_workspace_id,
+      :anthropic_service_account_id,
+      :anthropic_federation_rule_id,
+      :federation_issuer_url,
+      :federation_subject,
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
+      :setup_script,
       :inserted_at,
       :updated_at
     ]
@@ -112,12 +137,40 @@ defmodule TuistWeb.API.SandboxesController do
       type: :string,
       description: "An Anthropic API key with access to the environment's organization. Never returned."
     },
+    anthropic_organization_id: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key."
+    },
+    anthropic_workspace_id: %Schema{
+      type: :string,
+      nullable: true,
+      description: "Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to."
+    },
+    anthropic_service_account_id: %Schema{
+      type: :string,
+      nullable: true,
+      description: "Workload Identity Federation: the service account (svac_...) the tokens act as."
+    },
+    anthropic_federation_rule_id: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
+    },
     agent_model: %Schema{type: :string, minLength: 1, maxLength: 255, description: "The model agent sessions run."},
     agent_system_prompt: %Schema{
       type: :string,
       maxLength: 100_000,
       nullable: true,
       description: "System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt."
+    },
+    setup_script: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
     }
   }
 
@@ -272,6 +325,11 @@ defmodule TuistWeb.API.SandboxesController do
         :anthropic_api_key,
         :agent_model,
         :agent_system_prompt,
+        :setup_script,
+        :anthropic_organization_id,
+        :anthropic_workspace_id,
+        :anthropic_service_account_id,
+        :anthropic_federation_rule_id,
         :name,
         :platform,
         :template,
@@ -294,7 +352,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
@@ -318,7 +376,13 @@ defmodule TuistWeb.API.SandboxesController do
         } = conn,
         _params
       ) do
-    attrs = Map.take(body_params, [:anthropic_api_key, :agent_model, :agent_system_prompt])
+    attrs =
+      Map.take(body_params, [
+        :anthropic_api_key,
+        :agent_model,
+        :agent_system_prompt,
+        :setup_script | AgentEnvironment.federation_fields()
+      ])
 
     with {:ok, agent_environment} <- Sandboxes.get_agent_environment(account, agent_environment_id),
          {:ok, agent_environment} <- Sandboxes.update_agent_environment(agent_environment, attrs) do
@@ -396,7 +460,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:analytics,
     summary: "Get the account's sandbox analytics for a time range.",
     description:
-      "vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.",
+      "vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.",
     operation_id: "getSandboxAnalytics",
     parameters: SandboxSchemas.parameters(:analytics),
     responses:
@@ -570,6 +634,12 @@ defmodule TuistWeb.API.SandboxesController do
              minimum: 1,
              maximum: 21_600_000,
              description: "Kill the command after this many milliseconds (default one hour)."
+           },
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another."
            }
          },
          required: [:command]
@@ -589,7 +659,7 @@ defmodule TuistWeb.API.SandboxesController do
         _params
       ) do
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      params = Map.take(body_params, [:command, :args, :env, :cwd, :stdin, :timeout_ms])
+      params = Map.take(body_params, [:command, :args, :env, :cwd, :stdin, :timeout_ms, :id])
 
       case Commands.start(sandbox, params) do
         {:ok, command} -> conn |> put_status(:accepted) |> json(command)
@@ -762,7 +832,13 @@ defmodule TuistWeb.API.SandboxesController do
          type: :object,
          properties: %{
            data: %Schema{type: :string, format: :byte, description: "Base64-encoded bytes, at most 256 KiB decoded."},
-           close: %Schema{type: :boolean, description: "End the command's stdin after the data."}
+           close: %Schema{type: :boolean, description: "End the command's stdin after the data."},
+           offset: %Schema{
+             type: :integer,
+             minimum: 0,
+             description:
+               "The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409."
+           }
          }
        }},
     responses:
@@ -780,12 +856,18 @@ defmodule TuistWeb.API.SandboxesController do
           conn,
         _params
       ) do
+    # CastAndValidate has already decoded `data` (`format: :byte`) and answered 400 when it is not base64.
+    data = Map.get(body_params, :data) || ""
+
     with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      with {:ok, data} <- Base.decode64(Map.get(body_params, :data) || ""),
-           {:ok, command} <- Commands.write_stdin(sandbox, params.command_id, data, Map.get(body_params, :close) == true) do
-        json(conn, command)
-      else
-        :error -> sandbox_error(conn, :invalid_command)
+      case Commands.write_stdin(
+             sandbox,
+             params.command_id,
+             data,
+             Map.get(body_params, :close) == true,
+             Map.get(body_params, :offset)
+           ) do
+        {:ok, command} -> json(conn, command)
         {:error, :not_found} -> not_found(conn, "Command not found.")
         {:error, reason} -> sandbox_error(conn, reason)
       end
@@ -814,6 +896,34 @@ defmodule TuistWeb.API.SandboxesController do
         {:error, reason} -> sandbox_error(conn, reason)
       end
     end)
+  end
+
+  operation(:create_upload,
+    summary: "Create an upload for a sandbox.",
+    description:
+      "Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.",
+    operation_id: "createSandboxUpload",
+    parameters: @sandbox_parameters,
+    responses:
+      Map.merge(@error_responses, %{
+        ok:
+          {"Upload", "application/json",
+           %Schema{
+             title: "SandboxUpload",
+             type: :object,
+             properties: %{
+               upload_url: %Schema{type: :string, description: "Presigned URL to PUT the file to."},
+               download_url: %Schema{type: :string, description: "Presigned URL to GET the file from in the sandbox."},
+               expires_at: %Schema{type: :string, format: :"date-time"}
+             },
+             required: [:upload_url, :download_url, :expires_at]
+           }},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def create_upload(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
+    with_sandbox(conn, account, sandbox_id, &json(conn, Uploads.create(account, &1)))
   end
 
   operation(:pause,
@@ -908,14 +1018,16 @@ defmodule TuistWeb.API.SandboxesController do
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
 
   # A member reaches only the sandboxes they could have created: none that
-  # serves an agent environment, an Amp integration or remote execution.
+  # serves an agent environment, an Amp integration or remote execution. An
+  # account token is never an account administrator, so it is held to the
+  # same limit.
   defp require_member_sandbox(%{assigns: %{selected_account: account}} = conn, _opts) do
     subject = TuistWeb.Authentication.authenticated_subject(conn)
 
     with %{sandbox_id: sandbox_id} <- conn.params,
          false <- Tuist.Authorization.authorize(:account_update, subject, account) == :ok,
          {:ok, sandbox} <- Sandboxes.get_sandbox(account, sandbox_id),
-         false <- member_sandbox?(sandbox) do
+         false <- Sandboxes.member_sandbox?(sandbox) do
       conn
       |> put_status(:forbidden)
       |> json(%{message: "Only account administrators can use sandboxes that serve agents, Amp or remote execution."})
@@ -924,11 +1036,6 @@ defmodule TuistWeb.API.SandboxesController do
       _ -> conn
     end
   end
-
-  defp member_sandbox?(sandbox),
-    do:
-      is_nil(sandbox.agent_environment_id) and is_nil(sandbox.amp_integration_id) and
-        is_nil(sandbox.provider_environment_id) and sandbox.purpose == :agent
 
   # Every sandbox 503 comes after the server has already waited for a node or
   # for capacity, so an immediate retry only repeats that wait. The hint is
@@ -962,12 +1069,19 @@ defmodule TuistWeb.API.SandboxesController do
       :max_idle_seconds,
       :pause_grace_seconds,
       :enabled,
+      :anthropic_organization_id,
+      :anthropic_workspace_id,
+      :anthropic_service_account_id,
+      :anthropic_federation_rule_id,
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
+      :setup_script,
       :inserted_at,
       :updated_at
     ])
     |> Map.put(:has_api_key, is_binary(agent_environment.anthropic_api_key))
+    |> Map.put(:federation_issuer_url, Federation.issuer(agent_environment.account_id))
+    |> Map.put(:federation_subject, Federation.subject(agent_environment))
   end
 end

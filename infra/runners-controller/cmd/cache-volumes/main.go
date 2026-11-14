@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -55,6 +56,14 @@ type agent struct {
 	dockerHeads      func(cachevolumes.Slot) (cachevolumes.Identity, error)
 	exposeDockerHead func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error
 	executionWaits   cachevolumes.ExecutionWaits
+	// sandboxNamespace holds the sandboxd Pods that may seed and export
+	// sandbox checkouts; empty refuses them. sandboxSeeds bounds concurrent
+	// seeds, sandboxExports the export each use has in flight.
+	sandboxNamespace string
+	sandboxSeeds     chan struct{}
+	sandboxExports   sync.Map
+	// actions serves the GitHub Actions cache to runner Pods here; nil when off.
+	actions *cachevolumes.ActionsCache
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
 	// log receives server request retries; nil is slog.Default.
@@ -71,12 +80,22 @@ type request struct {
 }
 
 func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
+	if a.actions != nil && cachevolumes.ActionsCachePath(r.URL.Path) {
+		a.actions.ServeHTTP(w, r)
+		return
+	}
 	switch {
 	case r.Method == "POST" && r.URL.Path == "/checkout":
 		a.serveCheckout(w, r)
 		return
 	case r.Method == "POST" && r.URL.Path == "/checkout-export":
 		a.serveCheckoutExport(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/sandbox-checkout/seed":
+		a.serveSandboxSeed(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/sandbox-checkout/export":
+		a.serveSandboxExport(w, r)
 		return
 	case r.Method == "POST" && r.URL.Path == "/docker":
 		a.serveDocker(w, r)
@@ -241,6 +260,7 @@ func main() {
 	rootDevice := flag.String("host-root-device", "/host-root-device", "A read-only file on the host root filesystem")
 	url := flag.String("authorize-url", "", "Tuist cache-volume authorization URL")
 	namespace := flag.String("namespace", "tuist-runners", "Runner namespace")
+	sandboxNamespace := flag.String("sandboxes-namespace", "", "Namespace of the sandboxd Pods that may seed and export checkouts; empty refuses them")
 	node := flag.String("node", os.Getenv("NODE_NAME"), "Local node")
 	maxSlots := flag.Int("max-slots", 100, "Maximum active clones on this host")
 	minFreeGB := flag.Int("min-free-gb", 40, "Free filesystem reserve before creating a branch")
@@ -248,8 +268,10 @@ func main() {
 	maxGB := flag.Int("max-volume-gb", cachevolumes.DefaultMaxVolumeBytes/1_000_000_000, "Largest volume this host accepts, in decimal GB")
 	runtimeEndpoint := flag.String("runtime-endpoint", "unix:///run/host-containerd.sock", "Host CRI endpoint for writer teardown verification")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Storage agent token")
+	actionsCache := flag.Bool("actions-cache", false, "Serve the GitHub Actions cache to runner Pods on this host")
+	actionsStore := flag.String("actions-cache-store", "", "Endpoint of the store that holds GitHub Actions cache entries; the cache answers its health check only while the store does")
 	flag.Parse()
-	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB || *maxGB < *sizeGB {
+	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB || *maxGB < *sizeGB || (*actionsCache && *actionsStore == "") {
 		log.Fatal("invalid configuration")
 	}
 	maxBytes := int64(*maxGB) * 1_000_000_000
@@ -304,7 +326,25 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe, installed: metrics.installed}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, sandboxNamespace: *sandboxNamespace, sandboxSeeds: make(chan struct{}, 4), node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	if *actionsCache {
+		// Uploads are staged on the cache filesystem, above its reserve, until
+		// they are copied to the store.
+		actions := &cachevolumes.ActionsStore{Root: filepath.Join(*root, "actions-cache"), Reserve: backend.MinFreeBytes, Log: metrics.logger,
+			FreeBytes: func(root string) (uint64, error) { return space.free(context.Background(), root) }}
+		pods := &runnerPods{kube: kube, namespace: *namespace, node: *node}
+		index := &actionsIndex{url: strings.TrimSuffix(*url, "/authorize") + "/actions-cache", node: *node, tokenPath: *tokenPath, client: client, log: metrics.logger}
+		a.actions = &cachevolumes.ActionsCache{Index: index, Store: actions, StoreURL: *actionsStore, Caller: pods.caller, Client: &http.Client{}, Record: metrics.actionsCache, Log: metrics.logger}
+		go a.actions.Run(context.Background())
+		go func() {
+			for {
+				if err := actions.Maintain(); err != nil {
+					metrics.logger.Warn("actions cache maintenance failed", "error", err.Error())
+				}
+				time.Sleep(10 * time.Minute)
+			}
+		}()
+	}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -317,6 +357,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("runtime teardown verification unavailable: %v", err)
 	}
+	abandonSandboxSeeds(checkouts)
 	// Without git and git-lfs the worker logs why and retries; the host answers
 	// denied meanwhile, so runners export nothing.
 	go checkouts.Start(context.Background())

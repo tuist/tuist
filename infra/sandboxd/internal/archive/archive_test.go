@@ -255,3 +255,58 @@ func TestTransportErrorsNeverCarryTheSignedURL(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestSegmentedDownloadFetchesInParallelAndRetriesASegment(t *testing.T) {
+	segment, streams, backoff := downloadSegment, downloadStreams, getRetryBackoff
+	downloadSegment, downloadStreams, getRetryBackoff = 1000, 3, time.Millisecond
+	t.Cleanup(func() { downloadSegment, downloadStreams, getRetryBackoff = segment, streams, backoff })
+
+	object := make([]byte, 10_500)
+	for i := range object {
+		object[i] = byte(i * 7 / 3)
+	}
+	var mu sync.Mutex
+	inFlight, maxInFlight, failed := 0, 0, false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		inFlight++
+		maxInFlight = max(maxInFlight, inFlight)
+		fail := !failed && r.Header.Get("Range") == "bytes=4500-5499"
+		failed = failed || fail
+		mu.Unlock()
+		defer func() { mu.Lock(); inFlight--; mu.Unlock() }()
+		time.Sleep(20 * time.Millisecond)
+		if fail {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(object))
+	}))
+	defer server.Close()
+
+	tail := object[500:]
+	sum := sha256.Sum256(tail)
+	var got []byte
+	err := DownloadRange(context.Background(), server.Client(), server.URL, 500, int64(len(tail)), hex.EncodeToString(sum[:]), func(r io.Reader) error {
+		var err error
+		got, err = io.ReadAll(r)
+		return err
+	})
+	if err != nil || !bytes.Equal(got, tail) {
+		t.Fatalf("download: %v, %d bytes", err, len(got))
+	}
+	if !failed {
+		t.Fatal("the failing segment was never requested")
+	}
+	if maxInFlight < 2 || maxInFlight > 3 {
+		t.Fatalf("%d requests were in flight at once, want 2 or 3", maxInFlight)
+	}
+
+	err = DownloadRange(context.Background(), server.Client(), server.URL+"?X-Amz-Signature=secret", 500, int64(len(tail))+1000, hex.EncodeToString(sum[:]), func(r io.Reader) error {
+		_, err := io.Copy(io.Discard, r)
+		return err
+	})
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("a range past the object must fail without the signed URL, got %v", err)
+	}
+}

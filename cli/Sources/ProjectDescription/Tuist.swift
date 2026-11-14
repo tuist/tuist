@@ -125,9 +125,10 @@ public struct Tuist: Codable, Equatable, Sendable {
                 private let kind: Kind
 
                 /// Selects tests by the code coverage of earlier runs. Test targets whose hash already passed are
-                /// skipped as with the default; in the test targets left, the XCTest and XCUITest tests whose recorded
-                /// coverage doesn't include a changed file are skipped too. Swift Testing tests run whenever their
-                /// target runs. Without an earlier run close enough to compare with, every test in scope runs, so that
+                /// skipped as with the default; in the test targets left, the tests whose recorded coverage doesn't
+                /// include a changed file are skipped too. Swift Testing tests need TestCoverageAttribution's
+                /// `.coverageAttribution` trait on their suite; without it, they run whenever their target runs.
+                /// Without an earlier run close enough to compare with, every test in scope runs, so that
                 /// run can be compared with next time; when coverage can't decide otherwise, such as after a change to
                 /// a dependency or build setting, the run uses the default. Every branch selects: pass
                 /// `--no-selective-testing` where every test should run, such as on the default branch.

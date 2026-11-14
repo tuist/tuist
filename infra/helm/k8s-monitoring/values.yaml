@@ -60,10 +60,11 @@ hcloudLoadBalancerExporter:
       cpu: 250m
       memory: 192Mi
 
-# Pulse is an independent release in the observability namespace. Its chart
-# owns pulse-credentials, including the Basic auth keys used by the collectors.
-# The per-environment destinations below send the same telemetry to Pulse and
-# Grafana Cloud through independent queues; no backend runs in this release.
+# Pulse (the GreptimeDB fork) is the independent `pulse` release in the
+# observability namespace (infra/helm/greptimedb). Its
+# chart owns pulse-dashboard-auth, including the write-only Basic auth keys
+# the collectors use. Staging, canary and production write to it through queues
+# independent of Grafana Cloud; no backend runs in this release.
 
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
@@ -227,7 +228,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|volumes_thin_pool_.*|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state|migration_bridge_armed|migration_bridge_ready|migration_bridge_last_proof_age_seconds)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|lease_renew_time|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|volumes_thin_pool_.*|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state|migration_bridge_armed|migration_bridge_ready|migration_bridge_last_proof_age_seconds)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"
@@ -317,18 +318,24 @@ k8s-monitoring:
           action = "drop"
         }
 
-    # Share the exact write-time identity and filtering policy with Cloud.
-    # Environment overlays add env labels; the backend owns this Secret.
+    # Share the exact write-time identity and filtering policy with Cloud,
+    # written straight to the independently released Pulse (GreptimeDB) backend. Inert
+    # here: a `custom` destination without a config emits no component, so the
+    # management and pentest overlays never reference its Secret. Staging,
+    # canary and production set `type: prometheus` and their env label. The
+    # pulse release's pulse-dashboard-auth Secret carries the write-only user.
     pulse-metrics:
-      type: prometheus
-      url: http://pulse.observability.svc.cluster.local:4000/api/v1/write
+      type: custom
+      url: http://pulse.observability.svc.cluster.local:4000/v1/prometheus/write
+      extraHeaders:
+        X-Greptime-DB-Name: public
       auth:
         type: basic
-        usernameKey: pulse-username
-        passwordKey: pulse-password
+        usernameKey: ingest-username
+        passwordKey: ingest-password
       secret:
         create: false
-        name: pulse-credentials
+        name: pulse-dashboard-auth
         namespace: observability
       metricProcessingRules: *metricProcessingRules
 
@@ -488,14 +495,15 @@ k8s-monitoring:
   #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
   #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
   #     isn't ingested on this stack.
-  #   - kube-state-metrics: 96 `kube_*` metrics ingested. `kube_lease_*`,
+  #   - kube-state-metrics: 96 `kube_*` metrics originally ingested.
   #     `kube_endpointslice_*` and `kube_mutatingwebhookconfiguration_*` are
   #     absent as expected, but the default allow list does keep both
   #     `*_metadata_resource_version` gauges, so they are excluded explicitly
   #     below. None of them are referenced by any dashboard, alert, or
   #     recording rule.
   #
-  # `includeMetrics` therefore stays empty for all three. If a future
+  # Node Lease renewal timestamps are explicitly retained for kubelet
+  # heartbeat alerting, even when Node Ready is stale. If a future
   # dashboard needs a dropped metric, add it under
   # `<component>.metricsTuning.includeMetrics` — same pattern hostMetrics
   # already uses above.
@@ -578,6 +586,26 @@ k8s-monitoring:
       # and no dashboard reads this metric, so only Running/Pending/Unknown
       # are worth keeping.
       extraMetricProcessingRules: |
+        // Keep node heartbeats, not controller leader-election Leases.
+        // KSM already watches Leases; no new collector or RBAC is needed.
+        rule {
+          source_labels = ["__name__", "namespace"]
+          separator = ";"
+          regex = "kube_lease_renew_time;kube-node-lease"
+          target_label = "__tmp_node_lease"
+          replacement = "keep"
+          action = "replace"
+        }
+        rule {
+          source_labels = ["__name__", "__tmp_node_lease"]
+          separator = ";"
+          regex = "kube_lease_renew_time;"
+          action = "drop"
+        }
+        rule {
+          regex = "__tmp_node_lease"
+          action = "labeldrop"
+        }
         rule {
           source_labels = ["__name__", "namespace"]
           separator = ";"
@@ -606,6 +634,7 @@ k8s-monitoring:
         useDefaultAllowList: true
         includeMetrics:
           - kube_pod_status_unschedulable
+          - kube_lease_renew_time
           # KuraInstance status, from the customResourceState block below.
           # Custom-resource series are not in the default allow list and are
           # not named kube_<builtin>, so without this they are collected and
@@ -686,8 +715,7 @@ k8s-monitoring:
           - node_vmstat_oom_kill
           - node_load.*
           # Per-interface network counters (dropped by the default allow-list)
-          # so we can measure the Scaleway kura runner-cache node's PN
-          # throughput against the Hetzner kura nodes.
+          # so we can measure Kura and runner host throughput per NIC.
           - node_network_receive_bytes_total
           - node_network_transmit_bytes_total
           # Join runner vRack counters to the provider's MAC/block inventory.
@@ -1713,7 +1741,7 @@ k8s-monitoring:
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
-          // and Pulse metrics destinations (match the `destinations` keys in
+          // and GreptimeDB metrics destinations (match the `destinations` keys in
           // values.yaml, dashes to underscores per Alloy syntax).
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
@@ -1740,7 +1768,7 @@ k8s-monitoring:
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
-          // and Pulse metrics destinations (match the `destinations` keys in
+          // and GreptimeDB metrics destinations (match the `destinations` keys in
           // values.yaml — dashes → underscores per Alloy syntax).
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "tuist-macos-tart-kubelet"
@@ -2271,11 +2299,6 @@ k8s-monitoring:
             effect: NoSchedule
           # Keep tailing logs from the tainted stable-egress gateway nodes.
           - key: tuist.dev/stable-egress
-            operator: Exists
-            effect: NoSchedule
-          # Scaleway Elastic Metal cache pool (kura-scw-fr-par), which
-          # registers with tuist.dev/runner-cache=true:NoSchedule.
-          - key: tuist.dev/runner-cache
             operator: Exists
             effect: NoSchedule
     # Pod logs and Kura metrics from a rack's Linux nodes (its edges and

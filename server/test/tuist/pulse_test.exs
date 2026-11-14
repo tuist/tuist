@@ -17,6 +17,77 @@ defmodule Tuist.PulseTest do
     %{user: user, account: organization.account, organization: organization, config: config}
   end
 
+  test "Greptime uses readonly SQL rows and denies issue reads without HTTP", ctx do
+    config = Keyword.merge(ctx.config, backend: :greptime, tenant: "public")
+    stub(Environment, :pulse_config, fn -> config end)
+
+    columns = Enum.map(~w(timestamp service level message trace_id), &%{"name" => &1})
+
+    body = %{
+      "output" => [
+        %{
+          "records" => %{
+            "schema" => %{"column_schemas" => columns},
+            "rows" => [
+              [1_794_329_254_406_000_001, "worker", "WARN", "can't cache", "abc"],
+              [1_794_329_254_406_000_002, "server", "ERROR", "can't connect", "def"]
+            ]
+          }
+        }
+      ]
+    }
+
+    expect(Req, :request, fn request ->
+      assert request.url.path == "/v1/sql"
+      assert request.options[:auth] == {:basic, "dashboard:secret"}
+      assert request.headers["x-greptime-db-name"] == ["public"]
+      response(body)
+    end)
+
+    assert Pulse.default_query("logs") == "*"
+    assert Pulse.default_query("traces") == "*"
+
+    assert {:ok, %{rows: [%{"message" => "can't connect", "timestamp" => "1794329254406000002"}], meta: meta}} =
+             Pulse.query(ctx.user, ctx.account, "logs", %{"query" => "can't", "service" => "server"})
+
+    assert meta["total_count"] == 1
+
+    reject(Req, :request, 1)
+    assert {:error, :forbidden} = Pulse.query(ctx.user, ctx.account, "errors", %{})
+    assert {:error, :forbidden} = Pulse.analytics(ctx.user, ctx.account, "errors", %{})
+    assert {:error, :forbidden} = Pulse.error_issue(ctx.user, ctx.account, "issue", %{})
+    assert {:error, :forbidden} = Pulse.error_event(ctx.user, ctx.account, "issue", "event", %{})
+  end
+
+  test "Greptime metrics use its Prometheus API and spans retain measured milliseconds", ctx do
+    stub(Environment, :pulse_config, fn -> Keyword.merge(ctx.config, backend: :greptime, tenant: "public") end)
+
+    expect(Req, :request, fn request ->
+      assert request.url.path == "/v1/prometheus/api/v1/query"
+      response(scalar_body([1_794_329_254, "17"]))
+    end)
+
+    assert {:ok, %{rows: [%{"value" => 17.0}]}} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
+
+    columns = Enum.map(~w(timestamp service name duration_ms trace_id), &%{"name" => &1})
+
+    stub(Req, :request, fn _ ->
+      response(%{
+        "output" => [
+          %{
+            "records" => %{
+              "schema" => %{"column_schemas" => columns},
+              "rows" => [[1_794_329_254_406_000_001, "worker", "cache.get", 17.25, "abc"]]
+            }
+          }
+        ]
+      })
+    end)
+
+    assert {:ok, %{rows: [%{"name" => "cache.get", "duration_ms" => 17.25, "trace_id" => "abc"}]}} =
+             Pulse.query(ctx.user, ctx.account, "traces", %{})
+  end
+
   test "availability requires the configured account and its feature flag", %{account: account} do
     reject(Accounts, :get_account_by_id, 2)
     reject(Req, :request, 1)

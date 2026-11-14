@@ -13,19 +13,14 @@ defmodule Tuist.Kura.RunnerCache do
       that region, and
     * any other account should have none there.
 
-  Whose jobs run beside a region depends on the region. A site's region
-  (`Regions.site/1`) takes the accounts dispatch routes to the rack or the site
-  cache flag enables, once their cache traffic comes from the site: their node
-  there served hits in the last seven days, or a build in one of the CI runs of
-  their jobs claimed at the site (`runner_workflow_jobs.site`) hit the remote
-  cache in that window. A rack pool spans every site whose runners are on, so
-  the site a job was claimed at, not its pool, says where it ran. A region without a site
-  sits beside the rented fleet, and takes the accounts that claimed a job of
-  its platforms on a rented pool in the last seven days. Dispatch sends an account's job to the rented fleet
-  when it is not on a site, when the site racks no pool for the job, or when
-  the site is down, so only the jobs know which accounts the rented fleet
-  serves. An account whose jobs stopped coming has its node torn down, and
-  its next rented job provisions one again.
+  Every private region sits at a rack site (`Regions.site/1`). A site's region
+  takes the accounts dispatch routes to the rack or the site cache flag
+  enables, once their cache traffic comes from the site: their node there
+  served hits in the last seven days, or a build in one of the CI runs of their
+  jobs claimed at the site (`runner_workflow_jobs.site`) hit the remote cache in
+  that window. A rack pool spans every site whose runners are on, so the site a
+  job was claimed at, not its pool, says where it ran. Jobs at no site get the
+  public cache.
 
   Runner Profiles are auto-created for every account, so profiles identify the
   platform whose cache is needed rather than providing a second entitlement.
@@ -100,7 +95,6 @@ defmodule Tuist.Kura.RunnerCache do
   @max_teardowns_per_reconcile 100
   @max_unsettled_servers_per_region 10
   @retry_backoff_seconds [60, 300, 900, 3600]
-  @rented_job_window_days 7
   @site_traffic_window_days 7
 
   # Dispatch hands a job the node's endpoint when the job is claimed, and the
@@ -182,16 +176,11 @@ defmodule Tuist.Kura.RunnerCache do
     :ok
   end
 
-  # The private (runner-cache) regions available in this runtime —
-  # usually zero or one per environment, but an environment may run one
-  # region per fleet locality (e.g. a Linux-serving node pool in the
-  # umbrella cluster plus a macOS-serving pool in Scaleway fr-par).
-  # Multi-region went from unsupported-and-logged to a first-class
-  # shape when regions gained `runner_platforms`: each region now
-  # reconciles independently against the accounts whose profiles it
-  # serves, so none is ever silently un-reconciled. `available/0` is
-  # env-gated, so this stays empty until a private region is wired
-  # into `TUIST_KURA_AVAILABLE_REGIONS`.
+  # The private (runner-cache) regions available in this runtime, one per
+  # rack site. Each reconciles independently against the accounts whose
+  # profiles it serves, so none is ever silently un-reconciled.
+  # `available/0` is env-gated, so this stays empty until a private region is
+  # wired into `TUIST_KURA_AVAILABLE_REGIONS`.
   defp runner_cache_regions do
     Enum.filter(Regions.available(), &Regions.private?/1)
   end
@@ -204,29 +193,22 @@ defmodule Tuist.Kura.RunnerCache do
   # traffic from the site stops, has its node torn down. Operators override
   # the traffic rule per account: `:runner_site_cache_pinned` admits a site
   # account without traffic, and `:runner_site_cache_excluded` admits the
-  # account to no site's region. A region without a site serves the rented
-  # fleet, so it holds nodes for the accounts with recent jobs there.
-  defp admitted_account_ids(%Regions{} = region, account_ids) do
-    case Regions.site(region) do
-      nil ->
-        {:ok, MapSet.intersection(account_ids, rented_job_account_ids(region))}
+  # account to no site's region.
+  defp admitted_account_ids(%Regions{site: site} = region, account_ids) do
+    site_account_ids =
+      MapSet.filter(account_ids, fn account_id ->
+        account = %Account{id: account_id}
+        site_account?(account) and not FeatureFlags.runner_site_cache_excluded?(account)
+      end)
 
-      site ->
-        site_account_ids =
-          MapSet.filter(account_ids, fn account_id ->
-            account = %Account{id: account_id}
-            site_account?(account) and not FeatureFlags.runner_site_cache_excluded?(account)
-          end)
+    pinned = MapSet.filter(site_account_ids, &FeatureFlags.runner_site_cache_pinned?(%Account{id: &1}))
 
-        pinned = MapSet.filter(site_account_ids, &FeatureFlags.runner_site_cache_pinned?(%Account{id: &1}))
-
-        site_account_ids
-        |> MapSet.difference(pinned)
-        |> site_traffic_account_ids(region, site)
-        |> case do
-          {:ok, trafficked} -> {:ok, MapSet.union(pinned, trafficked)}
-          {:error, reason} -> {:error, reason}
-        end
+    site_account_ids
+    |> MapSet.difference(pinned)
+    |> site_traffic_account_ids(region, site)
+    |> case do
+      {:ok, trafficked} -> {:ok, MapSet.union(pinned, trafficked)}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -302,24 +284,6 @@ defmodule Tuist.Kura.RunnerCache do
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  # A job claimed in the window was also updated in it, so `updated_at`, which
-  # is indexed, bounds the scan to the window's jobs.
-  defp rented_job_account_ids(%Regions{} = region) do
-    since = DateTime.add(DateTime.utc_now(), -@rented_job_window_days * 86_400, :second)
-    platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
-    site_pools = Map.keys(Environment.runners_site_pools())
-
-    from(j in WorkflowJob,
-      where: j.updated_at >= ^since and j.claimed_at >= ^since,
-      where: j.platform in ^platforms,
-      where: j.fleet_name not in ^site_pools,
-      distinct: true,
-      select: j.account_id
-    )
-    |> Repo.all()
-    |> MapSet.new()
   end
 
   defp site_account?(account) do
@@ -524,7 +488,7 @@ defmodule Tuist.Kura.RunnerCache do
         where: j.status in ^@in_flight_job_statuses,
         where: j.platform in ^platforms,
         where: j.claimed_at <= parent_as(:server).drain_started_at,
-        where: ^region_pool_condition(region),
+        where: ^claimed_at_site(region.site),
         select: 1
       )
 
@@ -558,20 +522,6 @@ defmodule Tuist.Kura.RunnerCache do
       where: p.platform in ^platforms,
       select: 1
     )
-  end
-
-  # The jobs a claim handed the region's endpoint to: a site's region serves the
-  # jobs claimed at the site, a region without a site the jobs of every pool not
-  # racked at a site (`Tuist.Kura.runner_cache_endpoint_url/3`).
-  defp region_pool_condition(%Regions{} = region) do
-    case Regions.site(region) do
-      nil ->
-        pools = Map.keys(Environment.runners_site_pools())
-        dynamic([job: j], j.fleet_name not in ^pools)
-
-      site ->
-        claimed_at_site(site)
-    end
   end
 
   # A rack pool spans every site whose runners are on, so a job's site is the

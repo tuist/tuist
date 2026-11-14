@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,12 +17,9 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
-// linuxCloudInitOptions parameterizes the self-join bootstrap across the two
-// Linux machine kinds. The regular Instance kind uses the zero value
-// (root user, no PN VLAN bring-up), delivered as cloud-init user-data; the
-// Elastic Metal kind sets BootstrapUser ("ubuntu") and PrivateNetworkVLAN so
-// the rendered script escalates with sudo and materializes the tagged-VLAN
-// interface before kubelet starts, delivered over SSH.
+// linuxCloudInitOptions parameterizes the self-join bootstrap across the Linux
+// machine kinds. The zero value renders a root-user join; a non-root
+// BootstrapUser (OVH's "ubuntu") makes the rendered script escalate with sudo.
 type linuxCloudInitOptions struct {
 	// NodeName is the kubelet --hostname-override so the Node name matches
 	// the Machine.
@@ -42,15 +41,10 @@ type linuxCloudInitOptions struct {
 	// certificate-authority-data; the kubelet needs them as an on-disk file.
 	ClusterCAPEM []byte
 
-	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34").
-	//
-	// Moving this to v1.36 or later silently drops the memory-floor protection
-	// in kubeletMemoryGovernanceBlock: v1.36 gates it behind a new
-	// memoryReservationPolicy field that defaults to None, so MemoryQoS becomes
-	// a no-op here (memoryThrottlingFactor is already pinned to 1.0, which
-	// disables the other half). Add `memoryReservationPolicy: TieredReservation`
-	// in the same change — and not before, since an unknown field fails
-	// KubeletConfiguration's strict decode and the kubelet refuses to start.
+	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34"). The kubelet config
+	// is rendered for it: from v1.36 it carries `memoryReservationPolicy:
+	// TieredReservation` (kubeletMemoryGovernanceBlock), and Kata runner hosts
+	// also run the pod-level resource managers (podLevelResourceManagers).
 	K8sMinor string
 
 	// Taints are rendered into kubelet's --register-with-taints.
@@ -68,16 +62,10 @@ type linuxCloudInitOptions struct {
 
 	// BootstrapUser is the OS login user the install lands on. Empty (the
 	// Instance default) means the bootstrap runs directly as root with no
-	// privilege-escalation prefix. A non-root value (Elastic Metal's
-	// "ubuntu") prefixes every privileged command with sudo, since the
-	// bare-metal Ubuntu install logs in as that user.
+	// privilege-escalation prefix. A non-root value (OVH's "ubuntu")
+	// prefixes every privileged command with sudo, since the bare-metal
+	// Ubuntu install logs in as that user.
 	BootstrapUser string
-
-	// PrivateNetworkVLAN, when non-zero, makes the bootstrap bring up the
-	// Private Network as a tagged VLAN on the primary NIC and DHCP it before
-	// kubelet starts. Instances leave this 0: their PN arrives as an
-	// auto-DHCP'd second interface, so no host-side VLAN setup is needed.
-	PrivateNetworkVLAN uint32
 
 	// ClusterDNS is the workload cluster's kube-dns ClusterIP, set as the
 	// kubelet's clusterDNS so pods resolve in-cluster Services (e.g. the kura
@@ -230,7 +218,18 @@ const kubeletImageGCBlock = `imageMaximumGCAge: 24h
 //
 // The reservations themselves are written just before this block, from
 // kubeletReservationBlock, because their CPU half differs on Kata runner hosts.
-const kubeletMemoryGovernanceBlock = `evictionHard:
+//
+// v1.36 splits the protection out into memoryReservationPolicy, which defaults
+// to None: without TieredReservation MemoryQoS sets no memory.min or
+// memory.low at all there. TieredReservation gives Guaranteed Pods memory.min
+// and Burstable Pods the softer memory.low. The field is only rendered for
+// v1.36 and later, so older nodes keep their config byte for byte.
+//
+// podLevelResourceManagers adds its feature gate here because featureGates is
+// one map. A kubelet that does not know a gate panics at startup (v1.34 does
+// on PodLevelResourceManagers), so the gate is never rendered below v1.36.
+func kubeletMemoryGovernanceBlock(k8sMinor string, podLevelResourceManagers bool) string {
+	block := `evictionHard:
   memory.available: 5%
   nodefs.available: 10%
   nodefs.inodesFree: 5%
@@ -238,8 +237,47 @@ const kubeletMemoryGovernanceBlock = `evictionHard:
   imagefs.inodesFree: 5%
 featureGates:
   MemoryQoS: true
-memoryThrottlingFactor: 1.0
 `
+	if podLevelResourceManagers {
+		block += "  PodLevelResourceManagers: true\n"
+	}
+	block += "memoryThrottlingFactor: 1.0\n"
+	if kubeletMinorAtLeast(k8sMinor, 36) {
+		block += "memoryReservationPolicy: TieredReservation\n"
+	}
+	return block
+}
+
+// kubeletMinorAtLeast reports whether a pkgs.k8s.io channel or kubelet version
+// ("v1.36", "v1.36.6") is v1.<minor> or newer. Anything it cannot parse counts
+// as older, so a missing version renders the config every node has today.
+func kubeletMinorAtLeast(version string, minor int) bool {
+	m := kubeletMinorPattern.FindStringSubmatch(version)
+	if m == nil {
+		return false
+	}
+	got, err := strconv.Atoi(m[1])
+	return err == nil && got >= minor
+}
+
+var kubeletMinorPattern = regexp.MustCompile(`^v1\.(\d+)(\.|$)`)
+
+// kubeletMinor turns a kubelet or Machine version ("v1.36.6") into its
+// pkgs.k8s.io channel ("v1.36"), or returns fallback when it cannot.
+func kubeletMinor(version, fallback string) string {
+	if _, minor, ok := parseControlPlaneVersion(version); ok {
+		return minor
+	}
+	return fallback
+}
+
+// podLevelResourceManagers reports whether a host runs the kubelet's pod-level
+// resource managers: Kata runner hosts on v1.36 or later. There a Guaranteed
+// Pod's `.spec.resources` budget gets one exclusive set of whole cores that the
+// runner and its dind sidecar share (docs/exclusive-runner-cpus.md).
+func podLevelResourceManagers(k8sMinor string, kata bool) bool {
+	return kata && kubeletMinorAtLeast(k8sMinor, 36)
+}
 
 // reservedSystemCPUsPlaceholder stands in for the reserved CPU list in the
 // rendered config. Which logical CPUs share a physical core depends on the box
@@ -260,7 +298,15 @@ const reservedSystemCPUsPlaceholder = "__TUIST_RESERVED_SYSTEM_CPUS__"
 // kubeletCPUManagerSetup pins system.slice to that core so kubelet, containerd
 // and sshd stay off the cores Pods get. Allocatable CPU drops by one on a box
 // with two threads per core.
-func kubeletReservationBlock(exclusiveCPUs bool) string {
+//
+// podLevelResourceManagers adds the Topology Manager with pod scope, which is
+// what makes the CPU manager allocate a Pod's `.spec.resources` as one set
+// shared by its containers rather than per container. best-effort never
+// rejects a Pod for NUMA alignment, and these runner boxes have one NUMA node.
+// The Memory Manager stays at None: with one NUMA node it has nothing to
+// align, and its Static policy would need reservedMemory to match the
+// percentage eviction threshold to the byte on every box.
+func kubeletReservationBlock(exclusiveCPUs, podLevelResourceManagers bool) string {
 	if !exclusiveCPUs {
 		return `systemReserved:
   cpu: 500m
@@ -270,7 +316,7 @@ kubeReserved:
   memory: 1Gi
 `
 	}
-	return `systemReserved:
+	block := `systemReserved:
   memory: 1Gi
 kubeReserved:
   memory: 1Gi
@@ -279,6 +325,12 @@ cpuManagerPolicy: static
 cpuManagerPolicyOptions:
   full-pcpus-only: "true"
 `
+	if podLevelResourceManagers {
+		block += `topologyManagerPolicy: best-effort
+topologyManagerScope: pod
+`
+	}
+	return block
 }
 
 // kubeletCPUStatePath is the CPU manager checkpoint. The kubelet refuses to
@@ -326,7 +378,7 @@ func kubeletCPUSetupFor(sudo string, opts linuxCloudInitOptions) string {
 	if !opts.KataRuntime {
 		return ""
 	}
-	return kubeletCPUManagerSetup(sudo, kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), false))
+	return kubeletCPUManagerSetup(sudo, kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, false))
 }
 
 // kubeletConfigContent renders the KubeletConfiguration for the self-join
@@ -359,7 +411,10 @@ func kubeletCPUSetupFor(sudo string, opts linuxCloudInitOptions) string {
 //
 // exclusiveCPUs selects the static CPU manager (kubeletReservationBlock). Kata
 // runner hosts pass true; every other fleet renders byte-identically to before.
-func kubeletConfigContent(clusterDNS, clientCAFile string, exclusiveCPUs bool) string {
+// k8sMinor is the kubelet's minor ("v1.36"); the settings that only a newer
+// kubelet accepts are rendered from it (kubeletMemoryGovernanceBlock).
+func kubeletConfigContent(clusterDNS, clientCAFile, k8sMinor string, exclusiveCPUs bool) string {
+	podLevel := podLevelResourceManagers(k8sMinor, exclusiveCPUs)
 	x509Block := ""
 	if clientCAFile != "" {
 		x509Block = fmt.Sprintf("  x509:\n    clientCAFile: %s\n", clientCAFile)
@@ -376,7 +431,7 @@ authentication:
   mode: Webhook
 clusterDomain: cluster.local
 runtimeRequestTimeout: 5m
-` + kubeletImageGCBlock + kubeletReservationBlock(exclusiveCPUs) + kubeletMemoryGovernanceBlock
+` + kubeletImageGCBlock + kubeletReservationBlock(exclusiveCPUs, podLevel) + kubeletMemoryGovernanceBlock(k8sMinor, podLevel)
 	if clusterDNS != "" {
 		config += fmt.Sprintf("clusterDNS:\n  - %s\n", clusterDNS)
 	}
@@ -427,11 +482,10 @@ func instanceTypeOrDefault(t string) string {
 // bootstrapBody renders the post-write_files bootstrap steps (swap off, kernel
 // modules, containerd, kubelet install + enable), shared by the cloud-init and
 // SSH-script forms. sudo/sudoE are the privilege-escalation prefixes (empty for
-// root), writeFile redirects into root-owned paths, and vlanSetup optionally
-// brings the PN VLAN up first. The leading indent prefix is supplied by the
-// caller so it nests correctly under cloud-init's YAML block or stands alone in
-// a bare script.
-func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup, kataSetup, containerdQuota, kubeletCPUs string) string {
+// root), and writeFile redirects into root-owned paths. The leading indent
+// prefix is supplied by the caller so it nests correctly under cloud-init's YAML
+// block or stands alone in a bare script.
+func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, kataSetup, containerdQuota, kubeletCPUs string) string {
 	// Pipe `containerd config default` through sed so the rendered config sets
 	// the CRI registry config_path to /etc/containerd/certs.d. containerd v2
 	// emits an empty `[plugins."io.containerd.grpc.v1.cri".registry]` table, so
@@ -457,7 +511,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 		"printf '%s' "+shellSingleQuote(watchdogDropInContent),
 		"/etc/systemd/system.conf.d/10-tuist-watchdog.conf",
 	)
-	return fmt.Sprintf(`%[7]s%[2]sswapoff -a
+	return fmt.Sprintf(`%[2]sswapoff -a
 %[2]ssed -ri '/\sswap\s/s/^/#/' /etc/fstab
 %[2]smodprobe overlay
 %[2]smodprobe br_netfilter
@@ -474,10 +528,10 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 # watchdog resets the box if PID 1 itself wedges. Both are applied tolerantly (a
 # missing knob or absent watchdog device must never abort the self-join).
 %[2]smkdir -p /etc/sysctl.d /etc/systemd/system.conf.d
-%[8]s
+%[7]s
 %[2]ssysctl -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true
-%[9]s
-%[12]s%[2]ssystemctl daemon-reexec || true
+%[8]s
+%[11]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs lvm2
@@ -493,7 +547,7 @@ export DEBIAN_FRONTEND=noninteractive
 # mounted filesystem (single-partition Elastic Metal), and the trailing 'true'
 # keeps set -e happy regardless.
 %[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; }; true'
-%[10]s# The kura cache PVCs use a local-path StorageClass that carves each PV as a
+%[9]s# The kura cache PVCs use a local-path StorageClass that carves each PV as a
 # directory under /opt/local-path-provisioner. Bind that onto /data too, so the
 # cache volumes land on the big disk rather than the ~20G root: without it two
 # co-located replicas (replicas>=2 on a single box) fill the root and the second
@@ -501,7 +555,7 @@ export DEBIAN_FRONTEND=noninteractive
 # reboot. Same guard as containerd above: a no-op where /data is not its own
 # mounted filesystem, trailing 'true' keeps set -e happy.
 %[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/local-path-provisioner /opt/local-path-provisioner; mountpoint -q /opt/local-path-provisioner || { grep -q " /opt/local-path-provisioner " /etc/fstab || echo "/data/local-path-provisioner /opt/local-path-provisioner none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/local-path-provisioner /opt/local-path-provisioner; }; }; true'
-%[11]s%[2]ssystemctl restart containerd
+%[10]s%[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
 %[2]smkdir -p /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -509,9 +563,9 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[3]sapt-get update
 %[3]sapt-get install -y kubelet
 %[2]sapt-mark hold kubelet
-%[13]s%[2]ssystemctl daemon-reload
+%[12]s%[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
-		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
+		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, hardeningSysctl, watchdogDropIn,
 		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile), kubeletCPUs)
 }
 
@@ -526,89 +580,9 @@ func sshStartLimitDropIns(sudo string, writeFile func(producer, path string) str
 	)
 }
 
-// vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
-// VLAN id is set. Elastic Metal delivers the PN as a tagged VLAN on the primary
-// NIC that the host must bring up itself before kubelet starts. The primary NIC
-// name varies by hardware (e.g. enp65s0f0), so detect it at runtime: prefer the
-// default-route interface, else the first non-lo physical NIC. Empty (and
-// therefore a no-op) for the Instance kind, whose PN auto-DHCPs as a second
-// interface.
-//
-// The bring-up is installed as a supervised systemd unit, not run once inline. A
-// bare `ip link` + backgrounded `dhclient -nw` does not survive a reboot and is
-// never renewed if that dhclient process dies, so the node silently loses its PN
-// address (and with it the runner-cache NodePort) while still reporting Ready on
-// its public NIC — invisible to the control plane, since kubelet binds the
-// public InternalIP.
-//
-// The unit holds the address STATICALLY rather than leasing it for the life of
-// the node. Scaleway's PN DHCP has been observed to stop ACKing renewals: a
-// renew-forever dhclient (`dhclient -d` under Restart=always) keeps running, so
-// Restart never fires, yet the lease still expires and the kernel drops the
-// address — the exact silent-blackhole this unit exists to prevent. Instead the
-// script DHCPs once to discover the IPAM-assigned address (the PN allocates it
-// per attachment, so it is stable), caches it, and then re-asserts it as a
-// static address with no expiry. pn0 is re-created on every boot, and the cached
-// address re-applied, making the PN address durable across reboots, lease churn,
-// and a silent DHCP server. The heredocs keep this on the SSH (non-indented)
-// bootstrap path; the Instance/cloud-init path always passes vlan==0 and renders
-// nothing here.
-func vlanBringUp(sudo string, vlan uint32) string {
-	if vlan == 0 {
-		return ""
-	}
-	return fmt.Sprintf(`%[1]stee /usr/local/sbin/tuist-pn0-up.sh > /dev/null <<'TUIST_PN_EOF'
-#!/usr/bin/env bash
-set -eu
-PRIMARY_NIC="$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)"
-if [ -z "$PRIMARY_NIC" ]; then
-  PRIMARY_NIC="$(for n in /sys/class/net/*; do ifn="$(basename "$n")"; case "$ifn" in lo|pn*) continue;; esac; if [ -e "$n/device" ]; then echo "$ifn"; break; fi; done)"
-fi
-ip link show pn0 >/dev/null 2>&1 || ip link add link "$PRIMARY_NIC" name pn0 type vlan id %[2]d
-ip link set pn0 up
-CIDR_CACHE=/var/lib/tuist/pn0-cidr
-if [ ! -s "$CIDR_CACHE" ]; then
-  mkdir -p /var/lib/tuist
-  for _ in $(seq 1 30); do
-    timeout 15 dhclient -1 pn0 >/dev/null 2>&1 || true
-    discovered="$(ip -4 -o addr show pn0 2>/dev/null | awk '{print $4; exit}' || true)"
-    if [ -n "$discovered" ]; then printf '%%s\n' "$discovered" > "$CIDR_CACHE"; break; fi
-    sleep 10
-  done
-fi
-pkill -f 'dhclient.*pn0' >/dev/null 2>&1 || true
-cidr="$(cat "$CIDR_CACHE" 2>/dev/null || true)"
-if [ -z "$cidr" ]; then
-  echo "pn0: PN address not assigned yet (IPAM lag); will retry" >&2
-  exit 1
-fi
-while true; do
-  ip addr replace "$cidr" dev pn0 2>/dev/null || true
-  sleep 60
-done
-TUIST_PN_EOF
-%[1]schmod 0755 /usr/local/sbin/tuist-pn0-up.sh
-%[1]stee /etc/systemd/system/tuist-pn0.service > /dev/null <<'TUIST_PN_EOF'
-[Unit]
-Description=Tuist runner-cache Private Network VLAN (pn0)
-Wants=network-online.target
-After=network-online.target
-[Service]
-Type=exec
-ExecStart=/usr/local/sbin/tuist-pn0-up.sh
-Restart=always
-RestartSec=5
-[Install]
-WantedBy=multi-user.target
-TUIST_PN_EOF
-%[1]ssystemctl daemon-reload
-%[1]ssystemctl enable --now tuist-pn0.service || true
-`, sudo, vlan)
-}
-
 // escalation returns the (sudo, sudoE) prefixes for the bootstrap commands.
 // Empty for root (the Instance kind, byte-identical to the original); "sudo "
-// and "sudo -E " for a non-root install user (Elastic Metal's "ubuntu").
+// and "sudo -E " for a non-root install user (OVH's "ubuntu").
 func escalation(bootstrapUser string) (sudo, sudoE string) {
 	if bootstrapUser != "" && bootstrapUser != "root" {
 		return "sudo ", "sudo -E "
@@ -642,7 +616,7 @@ func writeFileFunc(sudo string) func(producer, path string) string {
 // nodeName is the --hostname-override so the Node name matches the Machine.
 //
 // This is the Instance-kind entry point and is byte-for-byte unchanged: it
-// delegates to renderLinuxCloudInitWithOptions with the root/no-VLAN defaults.
+// delegates to renderLinuxCloudInitWithOptions with the root-user defaults.
 func renderLinuxCloudInit(nodeName, kubeconfigYAML, k8sMinor string, taints []corev1.Taint) string {
 	return renderLinuxCloudInitWithOptions(linuxCloudInitOptions{
 		NodeName:       nodeName,
@@ -654,17 +628,17 @@ func renderLinuxCloudInit(nodeName, kubeconfigYAML, k8sMinor string, taints []co
 
 // renderLinuxCloudInitWithOptions is the parameterized cloud-init renderer both
 // Linux kinds can use. The Instance kind passes the zero value for
-// BootstrapUser and PrivateNetworkVLAN, which reproduces the original
-// root-user / no-VLAN output. (Elastic Metal has no cloud-init user-data
-// channel, so it uses renderLinuxBootstrapScript over SSH instead — but the
-// parameterization lives here so both forms share one source of truth.)
+// BootstrapUser, which reproduces the original root-user output. (The
+// bare-metal kinds have no cloud-init user-data channel, so they use
+// renderLinuxBootstrapScript over SSH instead — but the parameterization lives
+// here so both forms share one source of truth.)
 func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	kubelet := indent(opts.KubeconfigYAML, "      ")
 	taintArg := taintArgFor(opts.Taints)
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
-	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
+	podLevel := podLevelResourceManagers(opts.K8sMinor, opts.KataRuntime)
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
 
 	// Optional cluster-CA write_files entry: written so the kubelet's
 	// clientCAFile can verify the apiserver's client cert (see
@@ -712,24 +686,24 @@ runcmd:
 		kubelet,
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
-		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime)), "      "),
-		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime), "      "),
+		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel)), "      "),
+		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime), "      "),
 		body,
 		caEntry,
 	)
 }
 
 // renderLinuxBootstrapScript renders the same self-join as a standalone bash
-// script for delivery over SSH (Elastic Metal has no cloud-init user-data
-// channel). It writes the identical files via heredocs and then runs the shared
+// script for delivery over SSH (the bare-metal kinds have no cloud-init
+// user-data channel). It writes the identical files via heredocs and then runs the shared
 // bootstrap body. The script is meant to be piped to `bash` on the host as the
 // install user; commands escalate with sudo per BootstrapUser.
 func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	taintArg := taintArgFor(opts.Taints)
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
-	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
+	podLevel := podLevelResourceManagers(opts.K8sMinor, opts.KataRuntime)
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, kataSetup(sudo, sudoE, opts.KataRuntime, podLevel), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
 
 	heredoc := func(path, content string) string {
 		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
@@ -769,8 +743,8 @@ set -euxo pipefail
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
-		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime))),
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime)),
+		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime, podLevel))),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.K8sMinor, opts.KataRuntime)),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
@@ -834,7 +808,7 @@ const dataProjectQuotaPath = "/usr/local/sbin/tuist-data-prjquota.sh"
 // only visibly wrong once a tenant has already taken the box down. Failing the
 // join surfaces that as a Machine that never goes Ready.
 //
-// A box with no separate /data (the single-filesystem Elastic Metal shape) is
+// A box with no separate /data (a single-filesystem install) is
 // left alone: it has no /data for cache directories to land on, so there is
 // nothing here to enforce.
 const dataProjectQuotaScript = `#!/usr/bin/env bash
@@ -1020,8 +994,8 @@ func dataProjectQuotaSetup(sudo string, writeFile func(producer, path string) st
 // a separate /data disk (OVH: small root + large /data) the mount
 // doesn't shadow the freshly-written config.yaml + kubeconfig — the bug that left
 // the kubelet crash-looping on a missing config file. A no-op (the trailing `true`
-// keeps set -e happy) where /data is not its own filesystem (single-partition
-// Elastic Metal). containerd's /data root is still set later, in bootstrapBody.
+// keeps set -e happy) where /data is not its own filesystem (a
+// single-partition install). containerd's /data root is still set later, in bootstrapBody.
 func dataKubeletMount(sudo string) string {
 	return sudo + `sh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/kubelet /var/lib/kubelet; mountpoint -q /var/lib/kubelet || { grep -q " /var/lib/kubelet " /etc/fstab || echo "/data/kubelet /var/lib/kubelet none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/kubelet /var/lib/kubelet; }; }; true'`
 }
@@ -1056,9 +1030,16 @@ const kataVersionStampPath = "/opt/kata/.tuist-kata-version"
 // Ordering matters: this runs after the config is generated and after the
 // SystemdCgroup rewrite, but before containerd restarts, so the handler is
 // registered by the time kubelet first talks to it.
-func kataSetup(sudo, sudoE string, enabled bool) string {
+//
+// staticSandboxSizing adds the static-sizing drop-in that hosts running the
+// pod-level resource managers need (kataStaticSandboxSetup).
+func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 	if !enabled {
 		return ""
+	}
+	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo)
+	if staticSandboxSizing {
+		dropIns += kataStaticSandboxSetup(sudo)
 	}
 	return fmt.Sprintf(`# ---- Kata Containers %[3]s (runner fleets only) ----
 # Fail loud if containerd predates the v3 config syntax the handler below is
@@ -1095,7 +1076,7 @@ ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
 # cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo)+kataSandboxCgroupSetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, dropIns)
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs
@@ -1114,13 +1095,22 @@ var kataNodeLabels = []struct{ Key, Value string }{
 	{"tuist.dev/kata-runtime", "true"},
 }
 
-func kataNodeLabelsArg(enabled bool) string {
+// PodLevelResourceManagersLabel marks a Kata runner node that runs the
+// pod-level resource managers and sizes VMs statically. Only there may a runner
+// Pod carry a Pod-level budget: elsewhere Kata would size its VM from every
+// container's copy of that budget.
+const PodLevelResourceManagersLabel = "tuist.dev/pod-level-resource-managers"
+
+func kataNodeLabelsArg(enabled, podLevelResourceManagers bool) string {
 	if !enabled {
 		return ""
 	}
 	var arg strings.Builder
 	for _, label := range kataNodeLabels {
 		arg.WriteString("," + label.Key + "=" + label.Value)
+	}
+	if podLevelResourceManagers {
+		arg.WriteString("," + PodLevelResourceManagersLabel + "=true")
 	}
 	return arg.String()
 }

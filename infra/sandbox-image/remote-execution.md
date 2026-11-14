@@ -81,8 +81,9 @@ advertises leases in the capabilities response; nodes serve claims on
 
 The account's `remote_execution_vcpus_limit` and
 `remote_execution_memory_gb_limit` (16 vCPUs and 32 GB by default, set on the
-ops account page) bound its **VMs**, not its actions: every VM charges 2 vCPUs
-and 4 GB, so the defaults hold eight. Every VM has a
+ops account page) bound its **VMs**, not its actions: a default VM charges 2
+vCPUs and 4 GB, so the defaults hold eight, and a larger one charges its size
+(see "VM sizes"). Every VM has a
 `sandboxes` row (`purpose = remote_execution`) inserted under an account advisory
 lock before the VM is created and deleted only after the node acknowledges VM
 deletion. Creating, idle, busy and uncertain VMs therefore all occupy a slot
@@ -137,6 +138,33 @@ for that project's VMs while at least 13 minutes remain. Each VM is single-use
 and the credential has the same scope as the client's, so reuse does not widen
 what any action can reach.
 
+### VM sizes
+
+An action that needs more memory than the default 2 vCPU, 4 GB VM sets the
+`tuist-memory-gb` execution property to 8 or 16, which gives it a 4x8192 or
+8x16384 VM (two vCPUs per 4 GB); 4 is the default. Values are generic
+memory sizes, not per-toolchain pools, and the property is part of the action
+digest like the image.
+
+- The gateway reads the size from the action's platform. It uses the action
+  its prefetch read, or reads it again with a ten-second timeout; it fails the
+  call `UNAVAILABLE` when it cannot, because running the action in a smaller
+  VM would only fail it. It asks the server for the project's cache endpoint
+  when it no longer remembers one: clients check capabilities once per build.
+  Leases hold default VMs, so larger actions always go through the server,
+  which receives `memory_gb`.
+- The scheduler prepares a larger VM for each queued action that needs one;
+  only default VMs stay warm. Queued actions take ready VMs of their size,
+  oldest first, and the others keep their place. A size that does not fit the
+  account's limits yet waits for room instead of letting later, smaller VMs
+  take it, and ready VMs no queued action needs, warm ones included, are
+  retired for it. An action larger than the account's limits can ever hold
+  fails with `FAILED_PRECONDITION` without a VM.
+- Workers allow the three shapes and build the 2x4096 and 4x8192 snapshots at
+  startup; 8x16384 builds on its first action. Placement charges each VM its
+  own vCPUs and memory. The executor refuses an action whose size exceeds
+  its VM's (`memory_gb` in the request; leases send none, the default).
+
 ### Action cache
 
 Only successful, cacheable actions (exit code zero, `do_not_cache` unset) are
@@ -160,6 +188,12 @@ fork/exec; CAS waits must not move execution to a thread without
 host-CID vsock connections. This is VM isolation for untrusted code, not network
 hermeticity: the initial policy permits public HTTPS and the scoped cache and
 control services.
+
+The guest's `/tmp` is a tmpfs in VM memory, sized at half the VM. Unless an
+action sets `TMPDIR` itself, the executor points it at a private directory
+beside the input root on the workspace disk, removed after the action, so
+temporary files neither use the action's memory nor see a smaller filesystem
+than on a local build.
 
 The trusted Bazel template formats and unmounts an empty workspace once before
 snapshotting. Equal-size action workspaces are private reflinks of that image.
@@ -188,8 +222,38 @@ failure is an `ExecuteResponse` status. Only the small result protobuf crosses
 the control channel; sources, outputs and logs go directly between the guest and
 Kura. Empty logs have neither inline bytes nor a CAS digest.
 
-Supported execution properties are exactly `OSFamily=Linux`, `Arch=amd64` and
-`tuist-image=sha-<commit>`. The image property participates in the action digest
+When a failed command ended by a signal or the guest kernel's OOM killer, the
+executor appends a `tuist:` line to its stderr saying so. The OOM killer leaves
+no message of its own, and wrappers such as rules_rust's `process_wrapper`
+exit 1 when their child is killed, so without it such an action fails with
+empty output. The executor counts `oom_kill` in `/proc/vmstat` around the
+command; the line names the VM size and the next larger `tuist-memory-gb`.
+
+### Node blob cache
+
+An action's inputs repeat across actions: every Rust action of one build reads
+the same toolchain libraries, several hundred megabytes, so one Kura replica's
+egress limited how many could start. Workers with `workers.blobCacheGiB` (20 GiB
+by default) keep a node copy of the inputs the guest streams (anything not read
+in a batch). The guest asks sandboxd for each such blob over vsock; sandboxd
+downloads it once per node with the action's own scope and credential, verifies
+it and serves it, and the guest verifies it again while writing it to the
+workspace. A blob is kept per project CAS scope and is never served to another
+project. The cache comes out of the workers' disk budget and leaves 20% of
+the host's data filesystem free, evicting its own blobs first, so it never
+crowds out runner cache volumes or pushes kubelet into evictions. Any failure,
+or no room, falls back to reading that blob, and the rest of the action's
+inputs, from Kura.
+
+The host serves only while the action exec runs, only VMs of the template the
+worker is configured with, and only until the executor seals the channel
+before the command starts, so the build cannot read the project's CAS through
+the host. The protocol, with ranged reads for a later lazily mounted input
+tree, is in `infra/sandboxd/AGENTS.md` ("Guest to host: blob cache").
+
+Supported execution properties are exactly `OSFamily=Linux`, `Arch=amd64`,
+`tuist-image=sha-<commit>` and the optional `tuist-memory-gb` (see "VM sizes").
+The image property participates in the action digest
 and must match the template tag of the VM that runs it; actions pinned to a
 previous image fail with `FAILED_PRECONDITION` after the account's image changes.
 Use a Linux execution platform and compatible hermetic toolchains.
@@ -204,8 +268,11 @@ therefore always have capacity CI cannot take back, in one of two modes:
 - **Dedicated hosts** excluded from every CI RunnerPool, with the
   `tuist.dev/workload=remote-execution` label and matching `NoSchedule` taint.
   Each worker has a fixed CPU/memory reservation of `perNodeConcurrency` slots.
-- **Shared runner hosts** (`workers.sharedHosts`), named Linux runner hosts that
-  also run CI and the agent sandbox daemon. Each worker holds an elastic memory
+- **Shared runner hosts** (`workers.sharedHosts`), Linux runner hosts that also
+  run CI and the agent sandbox daemon, chosen by `nodeSelector` (production
+  selects the whole `runners-linux` pool, so a reinstalled or added host gets a
+  worker without a values change). Size the fleet's total, hosts times
+  `ceilingSlots`, against the memory CI leaves free at its peak. Each worker holds an elastic memory
   carve-out like the agent daemon's, bounded by a floor and a ceiling:
   - The Pod starts at `floorSlots` (request equals limit). Runner Pods never get
     that memory, and execution placement uses it, and anything the Pod has
@@ -258,8 +325,8 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
 ## Build and rollout
 
 1. Run the PostgreSQL migration and deploy the server with the flag off.
-2. Choose hosts as described above: provision dedicated hosts, or name shared
-   runner hosts in `workers.sharedHosts`. Confirm the environment's
+2. Choose hosts as described above: provision dedicated hosts, or select shared
+   runner hosts with `workers.sharedHosts.nodeSelector`. Confirm the environment's
    `values-managed-<env>.yaml` in the [chart](../helm/remote-execution/) names
    the right server namespace and gateway host. `enabled` in that file is the
    switch: the deployment workflow neither builds nor installs a release it
@@ -322,7 +389,9 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    run locally. Rerun setup after workers move to a new image; CI does this
    on every job. If a project's execution platform supplies `exec_properties`,
    put all three properties there: Bazel only uses default properties for
-   platforms without their own. Re-running setup without `--remote-execution`
+   platforms without their own. A target that needs a larger VM adds
+   `exec_properties = {"tuist-memory-gb": "8"}`; Bazel 8 and later merge it
+   with the default properties when the platform has none. Re-running setup without `--remote-execution`
    opts the workspace out.
 
 ## Observability
@@ -341,7 +410,7 @@ reads three sources, none labelled by account or project:
   `cas_reads` summary. The executor carries it in the result's
   `auxiliary_metadata`, and the gateway removes it before answering the client
   or publishing to the action cache, so it is never stored. It has input reads
-  per RPC (`batch`, `stream`, `seeded`) with
+  per RPC (`batch`, `stream`, `host` for the node blob cache, `seeded`) with
   calls, blobs, bytes and summed milliseconds, the five slowest reads with
   size, duration, time to first byte for streams, gRPC code and serving peer
   address, the CAS endpoint and whether the prepared connection was used. It

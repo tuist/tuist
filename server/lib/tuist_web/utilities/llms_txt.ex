@@ -19,7 +19,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   @locale "en"
 
-  @summary "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature."
+  @summary "Tuist is build infrastructure for engineering teams and coding agents. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature."
 
   @notes [
     "Every documentation page has a plain-Markdown twin: swap `/docs/` for `/docs-markdown/` in any documentation URL to get the Markdown source instead of the rendered HTML page.",

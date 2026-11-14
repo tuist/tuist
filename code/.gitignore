@@ -1,0 +1,4 @@
+/target/
+/native-dependencies/Cargo.*
+/native-dependencies/crates/
+/native-dependencies/vendor/

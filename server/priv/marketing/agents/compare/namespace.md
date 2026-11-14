@@ -8,7 +8,7 @@ Namespace provides cloud execution environments and build infrastructure, includ
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support people and agents around a code change. Tuist is not a CI replacement. You can adopt supported caching and reporting in existing workflows and evaluate compute as a separate choice.
+Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support people and agents around a code change. Tuist is not a CI replacement. You can adopt supported caching and reporting in existing workflows and evaluate compute as a separate choice.
 
 ## Compare the responsibilities
 
@@ -27,7 +27,7 @@ Choose Namespace when the execution environment is central to your decision: man
 
 ## Choose Tuist when
 
-Choose Tuist when your priority is a shared coding environment around build reuse and test evidence for engineers and agents. Start on the machines and CI you already use, verify the supported integration, and evaluate compute only if you need it. Compare [pricing](/marketing-markdown/pricing) with the complete workflow, not just execution time.
+Choose Tuist when your priority is shared build infrastructure around build reuse and test evidence for engineers and agents. Start on the machines and CI you already use, verify the supported integration, and evaluate compute only if you need it. Compare [pricing](/marketing-markdown/pricing) with the complete workflow, not just execution time.
 
 ## First experiment
 
