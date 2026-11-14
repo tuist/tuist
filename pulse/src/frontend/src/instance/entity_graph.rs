@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Frontend implementation of the [`EntityGraphProvider`]: the live connector that
-//! makes the computed `greptime_private.semantic_entities` /
+//! makes the computed `pulse_private.semantic_entities` /
 //! `semantic_relationships` tables produce rows.
 //!
 //! It enumerates the entity-identity declarations by iterating the catalog's
@@ -865,7 +867,7 @@ mod tests {
     fn prom_table_info(name: &str, tags: &[&str], extra: &[(&str, &str)]) -> TableInfo {
         let mut column_schemas = vec![
             ColumnSchema::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
@@ -959,7 +961,7 @@ mod tests {
             declarations[1].descriptive_columns,
             vec!["namespace", "pod", "node"]
         );
-        assert_eq!(declarations[1].time_index, "greptime_timestamp");
+        assert_eq!(declarations[1].time_index, "pulse_timestamp");
     }
 
     #[test]
@@ -1170,9 +1172,9 @@ mod tests {
     ];
 
     #[test]
-    fn greptime_otel_resource_info_gets_implicit_declarations() {
+    fn pulse_otel_resource_info_gets_implicit_declarations() {
         let info = prom_table_info(
-            "greptime_otel_resource_info",
+            "pulse_otel_resource_info",
             &[
                 "job",
                 "instance",
@@ -1232,7 +1234,7 @@ mod tests {
         // Nothing here can produce a k8s.container, so the generic one must
         // stand or the container disappears instead of changing type.
         let no_k8s = prom_table_info(
-            "greptime_otel_resource_info",
+            "pulse_otel_resource_info",
             &["job", "container.id", "k8s.pod.uid"],
             OTEL_STAMPS,
         );
@@ -1245,7 +1247,7 @@ mod tests {
         let mut stamps = OTEL_STAMPS.to_vec();
         stamps.push(("greptime.semantic.entity.k8s.container.id", "gone"));
         let broken_explicit = prom_table_info(
-            "greptime_otel_resource_info",
+            "pulse_otel_resource_info",
             &["job", "container.id", "k8s.pod.uid", "k8s.container.name"],
             &stamps,
         );
@@ -1258,7 +1260,7 @@ mod tests {
         assert!(declarations[0].superseded_by_columns.is_empty());
 
         let partial = prom_table_info(
-            "greptime_otel_resource_info",
+            "pulse_otel_resource_info",
             &["job", "service.name", "host.id"],
             OTEL_STAMPS,
         );
@@ -1274,7 +1276,7 @@ mod tests {
         let labels: &[&str] = &["job", "instance", "host.id"];
         assert!(
             sorted_declarations(&prom_table_info(
-                "greptime_otel_resource_info",
+                "pulse_otel_resource_info",
                 labels,
                 PROM_STAMPS
             ))
@@ -1284,7 +1286,7 @@ mod tests {
         stamps.push((PHYSICAL_TABLE_METADATA_KEY, "true"));
         assert!(
             sorted_declarations(&prom_table_info(
-                "greptime_otel_resource_info",
+                "pulse_otel_resource_info",
                 labels,
                 &stamps
             ))
@@ -1304,7 +1306,7 @@ mod tests {
         ];
         assert!(
             sorted_declarations(&prom_table_info(
-                "greptime_otel_resource_info",
+                "pulse_otel_resource_info",
                 labels,
                 &wrong_type
             ))

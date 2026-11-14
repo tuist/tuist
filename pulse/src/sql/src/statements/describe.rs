@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Display;
 
 use serde::Serialize;
@@ -46,7 +48,7 @@ impl Display for DescribeTable {
 mod tests {
     use std::assert_matches;
 
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
     use crate::util::format_raw_object_name;
@@ -55,7 +57,7 @@ mod tests {
     pub fn test_describe_table() {
         let sql = "DESCRIBE TABLE test";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DescribeTable { .. });
@@ -73,7 +75,7 @@ mod tests {
     pub fn test_describe_schema_table() {
         let sql = "DESCRIBE TABLE test_schema.test";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DescribeTable { .. });
@@ -91,7 +93,7 @@ mod tests {
     pub fn test_describe_catalog_schema_table() {
         let sql = "DESCRIBE TABLE test_catalog.test_schema.test";
         let stmts: Vec<Statement> =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DescribeTable { .. });
@@ -112,7 +114,7 @@ mod tests {
     pub fn test_describe_missing_table_name() {
         let sql = "DESCRIBE TABLE";
         assert!(
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .is_err()
         );
     }
@@ -121,7 +123,7 @@ mod tests {
     fn test_display_describe_table() {
         let sql = r"describe table monitor;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::DescribeTable { .. });

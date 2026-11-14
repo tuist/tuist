@@ -25,9 +25,9 @@ SHOW DATABASES;
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
 | information_schema |
 | public             |
+| pulse_private      |
 +--------------------+
 
 -- getTables(db, null, null, types) with backtick quoting
@@ -44,7 +44,7 @@ SHOW FULL TABLES FROM `public` LIKE '%';
 SHOW FULL COLUMNS FROM `test_partitions` FROM `public` LIKE '%';
 
 +-------+--------------+-----------+------+------------+---------+---------+---------------+-------+----------------------+
-| Field | Type         | Collation | Null | Key        | Default | Comment | Privileges    | Extra | Greptime_type        |
+| Field | Type         | Collation | Null | Key        | Default | Comment | Privileges    | Extra | Pulse_type           |
 +-------+--------------+-----------+------+------------+---------+---------+---------------+-------+----------------------+
 | host  | string       | utf8_bin  | YES  | PRI        |         |         | select,insert |       | String               |
 | ts    | timestamp(3) |           | NO   | TIME INDEX |         |         | select,insert |       | TimestampMillisecond |
@@ -59,12 +59,12 @@ SELECT catalog_name, schema_name FROM INFORMATION_SCHEMA.SCHEMATA
 WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
 ORDER BY schema_name;
 
-+--------------+------------------+
-| catalog_name | schema_name      |
-+--------------+------------------+
-| greptime     | greptime_private |
-| greptime     | public           |
-+--------------+------------------+
++--------------+---------------+
+| catalog_name | schema_name   |
++--------------+---------------+
+| pulse        | public        |
+| pulse        | pulse_private |
++--------------+---------------+
 
 -- Tables listing
 SELECT table_catalog, table_schema, table_name, table_type
@@ -74,7 +74,7 @@ WHERE TABLE_SCHEMA = 'public' AND TABLE_NAME = 'test_partitions';
 +---------------+--------------+-----------------+------------+
 | table_catalog | table_schema | table_name      | table_type |
 +---------------+--------------+-----------------+------------+
-| greptime      | public       | test_partitions | BASE TABLE |
+| pulse         | public       | test_partitions | BASE TABLE |
 +---------------+--------------+-----------------+------------+
 
 -- Columns listing
@@ -154,20 +154,20 @@ WHERE TABLE_SCHEMA = 'public' AND TABLE_NAME = 'test_partitions';
 
 -- ============================================
 -- Section 4: Raw PARTITIONS data inspection
--- Verify GreptimeDB returns appropriate partition metadata
+-- Verify Pulse returns appropriate partition metadata
 -- ============================================
--- Show what GreptimeDB returns for PARTITIONS
+-- Show what Pulse returns for PARTITIONS
 -- SQLNESS REPLACE (\d{13,}) REGION_ID
 SELECT table_schema, table_name, partition_name, partition_method,
-       partition_expression, partition_description, greptime_partition_id
+       partition_expression, partition_description, pulse_partition_id
 FROM INFORMATION_SCHEMA.PARTITIONS
 WHERE TABLE_SCHEMA = 'public' AND TABLE_NAME = 'test_partitions';
 
-+--------------+-----------------+----------------+------------------+----------------------+-----------------------+-----------------------+
-| table_schema | table_name      | partition_name | partition_method | partition_expression | partition_description | greptime_partition_id |
-+--------------+-----------------+----------------+------------------+----------------------+-----------------------+-----------------------+
-| public       | test_partitions | p0             | RANGE            | host                 |                       | REGION_ID         |
-+--------------+-----------------+----------------+------------------+----------------------+-----------------------+-----------------------+
++--------------+-----------------+----------------+------------------+----------------------+-----------------------+--------------------+
+| table_schema | table_name      | partition_name | partition_method | partition_expression | partition_description | pulse_partition_id |
++--------------+-----------------+----------------+------------------+----------------------+-----------------------+--------------------+
+| public       | test_partitions | p0             | RANGE            | host                 |                       | REGION_ID      |
++--------------+-----------------+----------------+------------------+----------------------+-----------------------+--------------------+
 
 -- ============================================
 -- Section 5: IF() function tests with timestamps

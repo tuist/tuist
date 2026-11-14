@@ -15,14 +15,14 @@ case.
 ## Case and data shape
 
 - Generator/case revision: `149b49de5f3`.
-- Base and candidate used the same release `greptime` binary. The only physical
+- Base and candidate used the same release `pulse` binary. The only physical
   table difference was `experimental_sst_float_field_encoding`: `default` versus
   `byte_stream_split`; base used dictionary encoding and candidate used BSS
   without dictionaries. This is not a dictionary-policy-held-constant comparison.
 - Each of three fresh post-flush runs wrote 1,000 series × 4,320 samples at
   60-second intervals: 4,320,000 rows per target. Three explicit flushes produced
   six SSTs per target: three × 1,105,920 rows and three × 334,080 rows, with 45
-  `greptime_value` row groups total. This is observed layout, not a layout
+  `pulse_value` row groups total. This is observed layout, not a layout
   guarantee.
 - `bounded_mixed` is a synthetic, uncalibrated design: a series hash selects its
   baseline and span band, and 60-sample anchor interpolation produces bounded
@@ -37,14 +37,14 @@ case.
 
 ## Initial SST inspection and value verification
 
-Inspection is limited to `data/greptime/public`; bytes exclude WAL, indexes,
+Inspection is limited to `data/pulse/public`; bytes exclude WAL, indexes,
 metadata, and internal/private-table storage. Each of the three runs had the
 same totals:
 
 | Measure | Default | BSS | BSS change |
 | --- | ---: | ---: | ---: |
 | Selected SST bytes | 20,443,131 | 8,884,743 | -56.5392% |
-| `greptime_value` compressed bytes | 20,201,188 | 8,643,964 | -57.2106% |
+| `pulse_value` compressed bytes | 20,201,188 | 8,643,964 | -57.2106% |
 | SST files / rows / value row groups | 6 / 4,320,000 / 45 | 6 / 4,320,000 / 45 | — |
 
 Footer inspection found `PLAIN`/`RLE`/`RLE_DICTIONARY` for the default value
@@ -95,7 +95,7 @@ iterations 2–8. Parquetbench reads every SST: sum the six per-file medians, th
 take the median of the eight round totals. Scanbench scans the whole region and
 reports the outer median of its eight warm medians. These are distinct metrics,
 not interchangeable whole-query latencies. Deltas are ratios of separately
-aggregated medians. Value projection selects `greptime_value`; all-column
+aggregated medians. Value projection selects `pulse_value`; all-column
 parquetbench returns five physical columns, while scanbench uses `{}` (all
 region columns). Projection order is fixed; target order alternates.
 
@@ -141,5 +141,5 @@ including `value-verification.json`, `verification.txt`, and each run's
 Warm artifacts are in sibling `warm-mixed-{1,2,3}/` directories;
 `mixed-warm-comparison.json` contains the table and per-round ranges.
 `mixed-file-composition.json` records integer/fractional counts for each SST.
-The shared release `greptime` SHA-256 is
+The shared release `pulse` SHA-256 is
 `2ce0ab1670cd4bdb0f60c87af3e1f494ee66c3c6ab83bce943a073638514eb2b`.

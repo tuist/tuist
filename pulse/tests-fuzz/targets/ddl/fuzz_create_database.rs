@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use common_telemetry::info;
@@ -31,15 +33,15 @@ use tests_fuzz::generator::create_expr::CreateDatabaseExprGeneratorBuilder;
 use tests_fuzz::ir::CreateDatabaseExpr;
 use tests_fuzz::translator::DslTranslator;
 use tests_fuzz::translator::mysql::create_expr::CreateDatabaseExprTranslator;
-use tests_fuzz::utils::{Connections, get_fuzz_override, init_greptime_connections_via_env};
+use tests_fuzz::utils::{Connections, get_fuzz_override, init_pulse_connections_via_env};
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -75,7 +77,7 @@ async fn execute_create_database(ctx: FuzzContext, input: FuzzInput) -> Result<(
     let translator = CreateDatabaseExprTranslator;
     let sql = translator.translate(&expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create database: {sql}, result: {result:?}");
@@ -83,7 +85,7 @@ async fn execute_create_database(ctx: FuzzContext, input: FuzzInput) -> Result<(
     // Cleans up
     let sql = format!("DROP DATABASE {}", expr.database_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!("Drop database: {}, result: {result:?}", expr.database_name);
@@ -95,9 +97,9 @@ async fn execute_create_database(ctx: FuzzContext, input: FuzzInput) -> Result<(
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_create_database(ctx, input)
             .await

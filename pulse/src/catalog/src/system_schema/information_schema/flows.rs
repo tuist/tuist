@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, Weak};
 
 use common_catalog::consts::INFORMATION_SCHEMA_FLOW_TABLE_ID;
@@ -38,7 +40,7 @@ use datatypes::vectors::{
 use futures::TryStreamExt;
 use snafu::{OptionExt, ResultExt};
 use sql::ast::Ident;
-use sql::dialect::GreptimeDbDialect;
+use sql::dialect::PulseDialect;
 use sql::parser::ParserContext;
 use sql::statements::create::{CreateFlow, SqlOrTql};
 use sql::statements::statement::Statement;
@@ -133,7 +135,7 @@ impl InformationSchemaFlows {
 
     /// Generates the CREATE FLOW statement for the flow_definition column
     pub(crate) fn generate_show_create_flow(flow_info: &FlowInfoValue) -> Result<String> {
-        let mut parser_ctx = ParserContext::new(&GreptimeDbDialect {}, flow_info.raw_sql())
+        let mut parser_ctx = ParserContext::new(&PulseDialect {}, flow_info.raw_sql())
             .map_err(BoxedError::new)
             .context(InternalSnafu)?;
 
@@ -498,9 +500,9 @@ mod tests {
             source_table_ids: vec![],
             all_source_table_names: vec![],
             unresolved_source_table_names: vec![],
-            sink_table_name: TableName::new("greptime", "public", "sink"),
+            sink_table_name: TableName::new("pulse", "public", "sink"),
             flownode_ids: BTreeMap::new(),
-            catalog_name: "greptime".to_string(),
+            catalog_name: "pulse".to_string(),
             query_context: None,
             flow_name: "my_flow".to_string(),
             raw_sql: raw_sql.to_string(),
@@ -536,12 +538,9 @@ mod tests {
             "internal key must be absent, got:\n{sql}"
         );
 
-        let stmts = ParserContext::create_with_dialect(
-            &sql,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let stmts =
+            ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
         let Statement::CreateFlow(reparsed) = &stmts[0] else {
             panic!("unexpected stmt: {:?}", stmts[0]);
         };
@@ -558,12 +557,9 @@ mod tests {
             !sql.contains("EVAL OFFSET"),
             "zero offset must be omitted, got:\n{sql}"
         );
-        let stmts = ParserContext::create_with_dialect(
-            &sql,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let stmts =
+            ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
         let Statement::CreateFlow(reparsed) = &stmts[0] else {
             panic!("unexpected stmt: {:?}", stmts[0]);
         };

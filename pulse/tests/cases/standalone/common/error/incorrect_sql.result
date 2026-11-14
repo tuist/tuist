@@ -49,12 +49,12 @@ Error: 1001(Unsupported), SQL statement is not supported, keyword: SELECT
 -- Non-existent table
 SELECT * FROM integers2;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.public.integers2
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.public.integers2
 
 -- Non-existent schema
 SELECT * FROM bla.integers2;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.bla.integers2
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.bla.integers2
 
 CREATE TABLE integers(integ INTEGER, ts TIMESTAMP TIME INDEX);
 

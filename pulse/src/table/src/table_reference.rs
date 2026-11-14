@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{self, Display};
 
 use datafusion_common::TableReference as DfTableReference;
@@ -63,11 +65,11 @@ mod tests {
     #[test]
     fn test_table_reference() {
         let table_ref = TableReference {
-            catalog: "greptime",
+            catalog: "pulse",
             schema: "public",
             table: "test",
         };
 
-        assert_eq!("greptime.public.test", table_ref.to_string());
+        assert_eq!("pulse.public.test", table_ref.to_string());
     }
 }

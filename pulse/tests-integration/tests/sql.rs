@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
@@ -107,7 +109,7 @@ macro_rules! sql_tests {
 
 pub async fn test_mysql_auth(store_type: StorageType) {
     let user_provider = user_provider_from_option(
-        "static_user_provider:cmd:greptime_user=greptime_pwd,readonly_user:ro=readonly_pwd,writeonly_user:wo=writeonly_pwd",
+        "static_user_provider:cmd:pulse_user=pulse_pwd,readonly_user:ro=readonly_pwd,writeonly_user:wo=writeonly_pwd",
     )
     .unwrap();
 
@@ -136,7 +138,7 @@ pub async fn test_mysql_auth(store_type: StorageType) {
     // 2. wrong pwd
     let conn_re = MySqlPoolOptions::new()
         .max_connections(2)
-        .connect(&format!("mysql://greptime_user:wrong_pwd@{addr}/public"))
+        .connect(&format!("mysql://pulse_user:wrong_pwd@{addr}/public"))
         .await;
 
     assert!(conn_re.is_err());
@@ -154,7 +156,7 @@ pub async fn test_mysql_auth(store_type: StorageType) {
     // 3. right pwd
     let conn_re = MySqlPoolOptions::new()
         .max_connections(2)
-        .connect(&format!("mysql://greptime_user:greptime_pwd@{addr}/public"))
+        .connect(&format!("mysql://pulse_user:pulse_pwd@{addr}/public"))
         .await;
 
     assert!(conn_re.is_ok());
@@ -492,7 +494,7 @@ pub async fn test_mysql_timezone(store_type: StorageType) {
 
 pub async fn test_postgres_auth(store_type: StorageType) {
     let user_provider = user_provider_from_option(
-        "static_user_provider:cmd:greptime_user=greptime_pwd,writeonly_user:wo=writeonly_pwd",
+        "static_user_provider:cmd:pulse_user=pulse_pwd,writeonly_user:wo=writeonly_pwd",
     )
     .unwrap();
 
@@ -521,7 +523,7 @@ pub async fn test_postgres_auth(store_type: StorageType) {
     // 2. wrong pwd
     let conn_re = PgPoolOptions::new()
         .max_connections(2)
-        .connect(&format!("postgres://greptime_user:wrong_pwd@{addr}/public"))
+        .connect(&format!("postgres://pulse_user:wrong_pwd@{addr}/public"))
         .await;
 
     assert!(conn_re.is_err());
@@ -539,9 +541,7 @@ pub async fn test_postgres_auth(store_type: StorageType) {
     // 2. right pwd
     let conn_re = PgPoolOptions::new()
         .max_connections(2)
-        .connect(&format!(
-            "postgres://greptime_user:greptime_pwd@{addr}/public"
-        ))
+        .connect(&format!("postgres://pulse_user:pulse_pwd@{addr}/public"))
         .await;
 
     assert!(conn_re.is_ok());
@@ -973,7 +973,7 @@ pub async fn test_postgres_native_histogram(store_type: StorageType) {
 
     let rows = client
         .simple_query(
-            "select greptime_native_histogram from pg_native_histogram_seconds order by greptime_timestamp",
+            "select pulse_native_histogram from pg_native_histogram_seconds order by pulse_timestamp",
         )
         .await
         .unwrap();
@@ -2001,7 +2001,7 @@ pub async fn test_postgres_extended_query_row_returning_statements(store_type: S
             "Key",
             "Default",
             "Extra",
-            "Greptime_type"
+            "Pulse_type"
         ],
         names
     );
@@ -2544,7 +2544,7 @@ pub async fn test_mysql_federated_prepare_stmt(store_type: StorageType) {
         .unwrap();
     assert_eq!(rows.len(), 1);
     let val: String = rows[0].get(0);
-    assert!(val.contains("GreptimeDB"));
+    assert!(val.contains("Pulse"));
 
     // "SET NAMES utf8" is another federated pattern
     sqlx::query("SET NAMES utf8").execute(&pool).await.unwrap();
@@ -2736,14 +2736,14 @@ async fn test_sql_batcher_alignment() {
     use frontend::service_config::BatcherOptions;
     use servers::batcher::BatchingProtocol;
     use servers::mysql::server::MYSQL_SERVER;
-    use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+    use tests_integration::standalone::PulseStandaloneBuilder;
 
     fn flushes() -> u64 {
         dump_metrics()
             .unwrap()
             .lines()
             .find_map(|line| {
-                line.strip_prefix("greptime_table_batcher_flush_total ")
+                line.strip_prefix("pulse_table_batcher_flush_total ")
                     .map(|value| value.parse().unwrap())
             })
             .unwrap_or(0)
@@ -2758,7 +2758,7 @@ async fn test_sql_batcher_alignment() {
     ] {
         let mysql_enabled = protocols.contains(&BatchingProtocol::Mysql);
         let pg_enabled = protocols.contains(&BatchingProtocol::Postgres);
-        let mut instance = GreptimeDbStandaloneBuilder::new("sql_batcher_alignment")
+        let mut instance = PulseStandaloneBuilder::new("sql_batcher_alignment")
             .with_table_batcher(BatcherOptions {
                 protocols,
                 pending_rows_flush_interval: Duration::from_millis(10),

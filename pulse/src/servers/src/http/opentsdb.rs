@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -226,7 +228,7 @@ mod test {
             let (status, Json(response)) = put(
                 State(handler.clone() as OpentsdbProtocolHandlerRef),
                 Query(params),
-                Extension(QueryContext::with("greptime", "public")),
+                Extension(QueryContext::with("pulse", "public")),
                 body,
             )
             .await

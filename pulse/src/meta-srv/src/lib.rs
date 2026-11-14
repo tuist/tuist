@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod bootstrap;
 pub mod cache_invalidator;
 pub mod cluster;
@@ -37,7 +39,7 @@ pub mod utils;
 
 pub use crate::error::Result;
 
-mod greptimedb_telemetry;
+mod pulse_telemetry;
 
 #[cfg(test)]
 mod test_util;

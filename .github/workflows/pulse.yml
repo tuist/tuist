@@ -40,21 +40,16 @@ jobs:
       fail-fast: false
       matrix:
         check:
-          # rustfmt follows every `mod`, even ones cfg'd out, so it needs the
-          # enterprise modules the import left out (FORK.md) to exist.
           - name: Format
             runner: tuist-linux
-            command: >-
-              sed -n 's/^ *- `\(src\/.*\.rs\)`$/\1/p' FORK.md | while read -r file; do
-              mkdir -p "$(dirname "$file")" && echo '// Not imported; see pulse/FORK.md.' > "$file"; done &&
-              cargo fmt --all -- --check
+            command: cargo fmt --all -- --check
           # The crates the fork changes. `nesting` holds the stack-overflow guards.
           - name: Test
             runner: tuist-linux-large
             command: cargo test --locked -p sql --lib
           - name: Build
             runner: tuist-linux-large
-            command: cargo check --locked --bin greptime
+            command: cargo check --locked --bin pulse
     steps:
       - uses: actions/checkout@v4
         with:

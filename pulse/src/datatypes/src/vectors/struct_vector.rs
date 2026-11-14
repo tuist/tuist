@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::sync::Arc;
 
@@ -33,7 +35,7 @@ use crate::value::{StructValue, StructValueRef, Value, ValueRef};
 use crate::vectors::operations::VectorOp;
 use crate::vectors::{self, Helper, MutableVector, Validity, Vector, VectorRef};
 
-/// A simple wrapper around `StructArray` to represent a vector of structs in GreptimeDB.
+/// A simple wrapper around `StructArray` to represent a vector of structs in Pulse.
 #[derive(Debug, PartialEq)]
 pub struct StructVector {
     array: StructArray,

@@ -1,5 +1,5 @@
 ## The working home directory.
-data_home = "./greptimedb_data"
+data_home = "./pulse_data"
 
 ## Store server address(es). The format depends on the selected backend.
 ##
@@ -13,7 +13,7 @@ data_home = "./greptimedb_data"
 ## The detail see: https://docs.rs/tokio-postgres/latest/tokio_postgres/config/struct.Config.html
 ##
 ## For mysql store, the format is a MySQL connection URL.
-## e.g. "mysql://user:password@localhost:3306/greptime_meta?ssl-mode=VERIFY_CA&ssl-ca=/path/to/ca.pem"
+## e.g. "mysql://user:password@localhost:3306/pulse_meta?ssl-mode=VERIFY_CA&ssl-ca=/path/to/ca.pem"
 store_addrs = ["127.0.0.1:2379"]
 
 ## If it's not empty, the metasrv will store all data with this key prefix.
@@ -29,15 +29,15 @@ backend = "etcd_store"
 
 ## Table name in RDS to store metadata. Effect when using a RDS kvbackend.
 ## **Only used when backend is `postgres_store`.**
-meta_table_name = "greptime_metakv"
+meta_table_name = "pulse_metakv"
 
 ## Optional PostgreSQL schema for metadata table and election table name qualification.
 ## When PostgreSQL public schema is not writable (e.g., PostgreSQL 15+ with restricted public),
-## set this to a writable schema. GreptimeDB will use `meta_schema_name`.`meta_table_name`.
+## set this to a writable schema. Pulse will use `meta_schema_name`.`meta_table_name`.
 ## **Only used when backend is `postgres_store`.**
-## Unset by default; this example sets it to `greptime_schema`.
+## Unset by default; this example sets it to `pulse_schema`.
 ## @toml2docs:none-default
-meta_schema_name = "greptime_schema"
+meta_schema_name = "pulse_schema"
 
 ## Automatically create PostgreSQL schema if it doesn't exist.
 ## When enabled, the system will execute `CREATE SCHEMA IF NOT EXISTS <schema_name>`
@@ -60,14 +60,14 @@ meta_election_lock_id = 1
 selector = "round_robin"
 
 ## Whether to enable region failover.
-## This feature is only available on GreptimeDB running on cluster mode and
+## This feature is only available on Pulse running on cluster mode and
 ## - Using Remote WAL
 ## - Using shared storage (e.g., s3).
 enable_region_failover = false
 
 ## The delay before starting region failure detection.
 ## This delay helps prevent Metasrv from triggering unnecessary region failovers before all Datanodes are fully started.
-## Especially useful when the cluster is not deployed with GreptimeDB Operator and maintenance mode is not enabled.
+## Especially useful when the cluster is not deployed with Pulse Operator and maintenance mode is not enabled.
 region_failure_detector_initialization_delay = '10m'
 
 ## Whether to allow region failover on local WAL.
@@ -84,7 +84,7 @@ node_max_idle_time = "24hours"
 ## Heartbeat intervals are negotiated from metasrv during handshake; local node configs do not override this.
 #+ heartbeat_interval = "3s"
 
-## Whether to enable greptimedb telemetry. Enabled by default.
+## Whether to enable pulse telemetry. Enabled by default.
 #+ enable_telemetry = true
 
 ## The runtime options.
@@ -181,7 +181,7 @@ max_retry_times = 12
 retry_delay = "500ms"
 
 ## Auto split large value
-## GreptimeDB procedure uses etcd as the default metadata storage backend.
+## Pulse procedure uses etcd as the default metadata storage backend.
 ## The etcd the maximum size of any request is 1.5 MiB
 ## 1500KiB = 1536KiB (1.5MiB) - 36KiB (reserved size of key)
 ## Comments out the `max_metadata_value_size`, for don't split large value (no limit).
@@ -193,7 +193,7 @@ max_metadata_value_size = "1500KiB"
 max_running_procedures = 128
 
 # Failure detectors options.
-# GreptimeDB uses the Phi Accrual Failure Detector algorithm to detect datanode failures.
+# Pulse uses the Phi Accrual Failure Detector algorithm to detect datanode failures.
 [failure_detector]
 ## Maximum acceptable φ before the peer is treated as failed.
 ## Lower values react faster but yield more false positives.
@@ -298,9 +298,9 @@ selector_type = "round_robin"
 ## A Kafka topic is constructed by concatenating `topic_name_prefix` and `topic_id`.
 ## Only accepts strings that match the following regular expression pattern:
 ## [a-zA-Z_:-][a-zA-Z0-9_:\-\.@#]*
-## i.g., greptimedb_wal_topic_0, greptimedb_wal_topic_1.
+## i.g., pulse_wal_topic_0, pulse_wal_topic_1.
 ## **It's only used when the provider is `kafka`**.
-topic_name_prefix = "greptimedb_wal_topic"
+topic_name_prefix = "pulse_wal_topic"
 
 ## Expected number of replicas of each partition.
 ## **It's only used when the provider is `kafka`**.
@@ -366,7 +366,7 @@ gc_cooldown_period = "5m"
 ## The logging options.
 [logging]
 ## The directory to store the log files. If set to empty, logs will not be written to files.
-dir = "./greptimedb_data/logs"
+dir = "./pulse_data/logs"
 
 ## The log level. Can be `info`/`debug`/`warn`/`error`.
 ## @toml2docs:none-default

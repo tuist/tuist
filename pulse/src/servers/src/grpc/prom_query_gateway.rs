@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! PrometheusGateway provides a gRPC interface to query Prometheus metrics
 //! by PromQL. The behavior is similar to the Prometheus HTTP API.
 
@@ -34,7 +36,7 @@ use tonic::{Request, Response};
 use crate::error::InvalidQuerySnafu;
 use crate::grpc::TonicResult;
 use crate::grpc::context_auth::auth;
-use crate::grpc::greptime_handler::create_query_context;
+use crate::grpc::pulse_handler::create_query_context;
 use crate::http::prometheus::{PrometheusJsonResponse, retrieve_metric_name_and_result_type};
 use crate::prometheus_handler::{ParsedPromQuery, PrometheusHandlerRef};
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use arrow_schema::{DataType, TimeUnit as ArrowTimeUnit};
@@ -1234,7 +1236,7 @@ mod tests {
             name: &'static str,
             fields: Vec<Field>,
             predicate: Expr,
-            expected_greptime: &'static str,
+            expected_pulse: &'static str,
             expected_datafusion: &'static str,
         }
 
@@ -1243,21 +1245,21 @@ mod tests {
                 name: "integer widening binary",
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: cast(col("v"), DataType::Int64).gt_eq(lit(42_i64)),
-                expected_greptime: "Filter: t.v >= Int16(42)\n  TableScan: t",
+                expected_pulse: "Filter: t.v >= Int16(42)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v >= Int16(42)\n  TableScan: t",
             },
             Case {
                 name: "swapped integer comparison",
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: lit(42_i64).lt_eq(cast(col("v"), DataType::Int64)),
-                expected_greptime: "Filter: t.v >= Int16(42)\n  TableScan: t",
+                expected_pulse: "Filter: t.v >= Int16(42)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v >= Int16(42)\n  TableScan: t",
             },
             Case {
                 name: "try_cast integer widening binary",
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: try_cast(col("v"), DataType::Int64).gt_eq(lit(42_i64)),
-                expected_greptime: "Filter: t.v >= Int16(42)\n  TableScan: t",
+                expected_pulse: "Filter: t.v >= Int16(42)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v >= Int16(42)\n  TableScan: t",
             },
             Case {
@@ -1265,14 +1267,14 @@ mod tests {
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: cast(col("v"), DataType::Int64)
                     .in_list(vec![lit(1_i64), lit(2_i64)], false),
-                expected_greptime: "Filter: t.v IN ([Int16(1), Int16(2)])\n  TableScan: t",
+                expected_pulse: "Filter: t.v IN ([Int16(1), Int16(2)])\n  TableScan: t",
                 expected_datafusion: "Filter: t.v = Int16(1) OR t.v = Int16(2)\n  TableScan: t",
             },
             Case {
                 name: "integer between",
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: cast(col("v"), DataType::Int64).between(lit(3_i64), lit(5_i64)),
-                expected_greptime: "Filter: t.v BETWEEN Int16(3) AND Int16(5)\n  TableScan: t",
+                expected_pulse: "Filter: t.v BETWEEN Int16(3) AND Int16(5)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v >= Int16(3) AND t.v <= Int16(5)\n  TableScan: t",
             },
             Case {
@@ -1284,21 +1286,21 @@ mod tests {
                     low: Box::new(lit(3_i64)),
                     high: Box::new(lit(5_i64)),
                 }),
-                expected_greptime: "Filter: t.v NOT BETWEEN Int16(3) AND Int16(5)\n  TableScan: t",
+                expected_pulse: "Filter: t.v NOT BETWEEN Int16(3) AND Int16(5)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v < Int16(3) OR t.v > Int16(5)\n  TableScan: t",
             },
             Case {
                 name: "plain literal",
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: col("v").gt_eq(lit(42_i64)),
-                expected_greptime: "Filter: t.v >= Int16(42)\n  TableScan: t",
+                expected_pulse: "Filter: t.v >= Int16(42)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v >= Int64(42)\n  TableScan: t",
             },
             Case {
                 name: "casted constant",
                 fields: vec![Field::new("v", DataType::Int16, false)],
                 predicate: col("v").gt_eq(cast(lit(42_i8), DataType::Int64)),
-                expected_greptime: "Filter: t.v >= Int16(42)\n  TableScan: t",
+                expected_pulse: "Filter: t.v >= Int16(42)\n  TableScan: t",
                 expected_datafusion: "Filter: t.v >= Int64(42)\n  TableScan: t",
             },
             Case {
@@ -1313,7 +1315,7 @@ mod tests {
                     DataType::Timestamp(ArrowTimeUnit::Millisecond, None),
                 )
                 .eq(ts_ms_literal(5000)),
-                expected_greptime: "Filter: CAST(t.ts_ns AS Timestamp(ms)) = TimestampMillisecond(5000, None)\n  TableScan: t",
+                expected_pulse: "Filter: CAST(t.ts_ns AS Timestamp(ms)) = TimestampMillisecond(5000, None)\n  TableScan: t",
                 expected_datafusion: "Filter: t.ts_ns >= TimestampNanosecond(5000000000, None) AND t.ts_ns < TimestampNanosecond(5001000000, None)\n  TableScan: t",
             },
             Case {
@@ -1331,7 +1333,7 @@ mod tests {
                     Some(5_000_000_000),
                     None,
                 ))),
-                expected_greptime: "Filter: CAST(t.ts_ms AS Timestamp(ns)) = TimestampNanosecond(5000000000, None)\n  TableScan: t",
+                expected_pulse: "Filter: CAST(t.ts_ms AS Timestamp(ns)) = TimestampNanosecond(5000000000, None)\n  TableScan: t",
                 expected_datafusion: "Filter: t.ts_ms = TimestampMillisecond(5000, None)\n  TableScan: t",
             },
             Case {
@@ -1349,16 +1351,15 @@ mod tests {
                     Some(5_000_000_000),
                     None,
                 ))),
-                expected_greptime: "Filter: TRY_CAST(t.ts_ms AS Timestamp(ns)) = TimestampNanosecond(5000000000, None)\n  TableScan: t",
+                expected_pulse: "Filter: TRY_CAST(t.ts_ms AS Timestamp(ns)) = TimestampNanosecond(5000000000, None)\n  TableScan: t",
                 expected_datafusion: "Filter: t.ts_ms = TimestampMillisecond(5000, None)\n  TableScan: t",
             },
         ];
 
         for case in cases {
-            let greptime =
-                greptime_const_normalized_filter(case.fields.clone(), case.predicate.clone());
+            let pulse = pulse_const_normalized_filter(case.fields.clone(), case.predicate.clone());
             let datafusion = datafusion_simplified_filter(case.fields, case.predicate);
-            assert_eq!(case.expected_greptime, greptime, "{} greptime", case.name);
+            assert_eq!(case.expected_pulse, pulse, "{} pulse", case.name);
             assert_eq!(
                 case.expected_datafusion, datafusion,
                 "{} datafusion",
@@ -1446,7 +1447,7 @@ mod tests {
         analyze_plan(build_filter_plan(test_schema(fields), predicate))
     }
 
-    fn greptime_const_normalized_filter(fields: Vec<Field>, predicate: Expr) -> String {
+    fn pulse_const_normalized_filter(fields: Vec<Field>, predicate: Expr) -> String {
         analyze_filter(fields, predicate).to_string()
     }
 

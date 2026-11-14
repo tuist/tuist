@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
@@ -31,7 +33,7 @@ use common_time::Timezone;
 use common_time::timezone::parse_timezone;
 use datafusion_common::config::ConfigOptions;
 use derive_builder::Builder;
-use sql::dialect::{Dialect, GenericDialect, GreptimeDbDialect, MySqlDialect, PostgreSqlDialect};
+use sql::dialect::{Dialect, GenericDialect, MySqlDialect, PostgreSqlDialect, PulseDialect};
 
 pub use crate::hints::{
     LIVE_ANALYZE_METRICS_EXTENSION_KEY, REMOTE_QUERY_ID_EXTENSION_KEY,
@@ -638,7 +640,7 @@ impl QueryContextBuilder {
             mutable_query_context_data: self.mutable_query_context_data.unwrap_or_default(),
             sql_dialect: self
                 .sql_dialect
-                .unwrap_or_else(|| Arc::new(GreptimeDbDialect {})),
+                .unwrap_or_else(|| Arc::new(PulseDialect {})),
             extensions,
             configuration_parameter: self
                 .configuration_parameter
@@ -774,7 +776,7 @@ mod test {
             100,
         );
         // test user_info
-        assert_eq!(session.user_info().username(), "greptime");
+        assert_eq!(session.user_info().username(), "pulse");
 
         // test channel
         assert_eq!(session.conn_info().channel, Channel::Mysql);
@@ -829,22 +831,20 @@ mod test {
 
     #[test]
     fn test_write_admission_is_local_and_database_scoped() {
-        let ctx = QueryContext::with_channel("greptime", "public", Channel::Otlp);
+        let ctx = QueryContext::with_channel("pulse", "public", Channel::Otlp);
         let admitted = ctx.with_write_admission();
-        assert_eq!(ctx.write_rows_to_admit("greptime", "public", 100), 100);
-        assert_eq!(admitted.write_rows_to_admit("greptime", "public", 100), 0);
-        assert_eq!(admitted.write_rows_to_admit("greptime", "other", 100), 100);
+        assert_eq!(ctx.write_rows_to_admit("pulse", "public", 100), 100);
+        assert_eq!(admitted.write_rows_to_admit("pulse", "public", 100), 0);
+        assert_eq!(admitted.write_rows_to_admit("pulse", "other", 100), 100);
         assert_eq!(admitted.write_rows_to_admit("other", "public", 100), 100);
         assert_eq!(admitted.channel(), Channel::Otlp);
         assert_eq!(
-            admitted
-                .fork()
-                .write_rows_to_admit("greptime", "public", 100),
+            admitted.fork().write_rows_to_admit("pulse", "public", 100),
             0
         );
         let wire: api::v1::QueryContext = admitted.into();
         let restored = QueryContext::from(wire);
-        assert_eq!(restored.write_rows_to_admit("greptime", "public", 100), 100);
+        assert_eq!(restored.write_rows_to_admit("pulse", "public", 100), 100);
     }
 
     #[test]

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -869,7 +871,7 @@ async fn cross_schema_query(instance: Arc<dyn MockInstance>) {
 
     ins.do_query(
         AGGREGATORS_CREATE_TABLE,
-        QueryContext::with_db_name(Some("greptime_private")).into(),
+        QueryContext::with_db_name(Some("pulse_private")).into(),
     )
     .await
     .into_iter()
@@ -878,7 +880,7 @@ async fn cross_schema_query(instance: Arc<dyn MockInstance>) {
     });
     ins.do_query(
         AGGREGATORS_INSERT_DATA,
-        QueryContext::with_db_name(Some("greptime_private")).into(),
+        QueryContext::with_db_name(Some("pulse_private")).into(),
     )
     .await
     .into_iter()
@@ -893,7 +895,7 @@ async fn cross_schema_query(instance: Arc<dyn MockInstance>) {
 
     let query_output = promql_query(
         ins.clone(),
-        r#"http_requests{__schema__="greptime_private"}"#,
+        r#"http_requests{__schema__="pulse_private"}"#,
         None,
         QueryContext::arc(),
         start,
@@ -921,7 +923,7 @@ async fn cross_schema_query(instance: Arc<dyn MockInstance>) {
 
     let query_output = promql_query(
         ins.clone(),
-        r#"http_requests{__database__="greptime_private"}"#,
+        r#"http_requests{__database__="pulse_private"}"#,
         None,
         QueryContext::arc(),
         start,
@@ -969,7 +971,7 @@ async fn cross_schema_query(instance: Arc<dyn MockInstance>) {
         ins.clone(),
         r#"http_requests"#,
         None,
-        QueryContext::with_db_name(Some("greptime_private")).into(),
+        QueryContext::with_db_name(Some("pulse_private")).into(),
         start,
         end,
         interval,

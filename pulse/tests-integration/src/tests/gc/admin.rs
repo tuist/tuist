@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Integration tests for `ADMIN GC_TABLE` and `ADMIN GC_REGIONS` functions.
 
 use client::OutputData;
@@ -220,7 +222,7 @@ async fn test_admin_gc_regions(store_type: &StorageType) {
     assert_eq!(sst_files_after_compaction.len(), 5); // 4 old + 1 new
 
     // Step 4: Get region id from information_schema
-    let region_id_sql = "SELECT greptime_partition_id FROM information_schema.partitions WHERE table_name = 'test_admin_gc_regions' ORDER BY greptime_partition_id LIMIT 1";
+    let region_id_sql = "SELECT pulse_partition_id FROM information_schema.partitions WHERE table_name = 'test_admin_gc_regions' ORDER BY pulse_partition_id LIMIT 1";
     let region_output = execute_sql(&instance, region_id_sql).await;
     info!("Region ID output: {:?}", region_output);
     let OutputData::Stream(region_stream) = region_output.data else {
@@ -471,7 +473,7 @@ async fn fetch_region_ids(
     table_name: &str,
 ) -> Vec<u64> {
     let region_id_sql = format!(
-        "SELECT greptime_partition_id FROM information_schema.partitions WHERE table_name = '{}' ORDER BY greptime_partition_id",
+        "SELECT pulse_partition_id FROM information_schema.partitions WHERE table_name = '{}' ORDER BY pulse_partition_id",
         table_name
     );
     let region_output = execute_sql(instance, &region_id_sql).await;
@@ -498,7 +500,7 @@ async fn get_table_id(
 ) -> table::metadata::TableId {
     let table = instance
         .catalog_manager()
-        .table("greptime", "public", table_name, None)
+        .table("pulse", "public", table_name, None)
         .await
         .unwrap()
         .unwrap();

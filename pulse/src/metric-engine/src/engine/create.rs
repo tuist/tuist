@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod extract_new_columns;
 
 use std::collections::{HashMap, HashSet};
@@ -658,7 +660,7 @@ mod test {
     use common_meta::ddl::test_util::assert_column_name_and_id;
     use common_meta::ddl::utils::{parse_column_metadatas, parse_manifest_infos_from_extensions};
     use common_query::native_histogram::native_histogram_value_type;
-    use common_query::prelude::{greptime_native_histogram, greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_native_histogram, pulse_timestamp, pulse_value};
     use store_api::metric_engine_consts::{METRIC_ENGINE_NAME, PHYSICAL_TABLE_METADATA_KEY};
     use store_api::region_request::{BatchRegionDdlRequest, RegionRequirements};
 
@@ -857,7 +859,7 @@ mod test {
                 column_id: 0,
                 semantic_type: SemanticType::Timestamp,
                 column_schema: ColumnSchema::new(
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     ConcreteDataType::timestamp_millisecond_datatype(),
                     false,
                 ),
@@ -871,7 +873,7 @@ mod test {
                 column_id: 2,
                 semantic_type: SemanticType::Field,
                 column_schema: ColumnSchema::new(
-                    greptime_native_histogram(),
+                    pulse_native_histogram(),
                     native_histogram_value_type().clone(),
                     true,
                 ),
@@ -900,7 +902,7 @@ mod test {
                     column_id: 0,
                     semantic_type: SemanticType::Timestamp,
                     column_schema: ColumnSchema::new(
-                        greptime_timestamp(),
+                        pulse_timestamp(),
                         ConcreteDataType::timestamp_millisecond_datatype(),
                         false,
                     ),
@@ -1146,8 +1148,8 @@ mod test {
         assert_column_name_and_id(
             &column_metadatas,
             &[
-                (greptime_timestamp(), 0),
-                (greptime_value(), 1),
+                (pulse_timestamp(), 0),
+                (pulse_value(), 1),
                 ("__table_id", ReservedColumnId::table_id()),
                 ("__tsid", ReservedColumnId::tsid()),
                 ("job", 2),

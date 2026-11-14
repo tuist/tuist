@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod catalog;
 mod registrations;
 mod remote_dyn_filter;
@@ -2700,7 +2702,7 @@ mod tests {
                                 (code as u32).to_string(),
                                 status
                                     .metadata()
-                                    .get(common_error::GREPTIME_DB_HEADER_ERROR_CODE)
+                                    .get(common_error::PULSE_DB_HEADER_ERROR_CODE)
                                     .unwrap()
                                     .to_str()
                                     .unwrap()
@@ -2709,7 +2711,7 @@ mod tests {
                                 RetryHint::RetryAfterRouteRefresh.as_str(),
                                 status
                                     .metadata()
-                                    .get(common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT)
+                                    .get(common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT)
                                     .unwrap()
                                     .to_str()
                                     .unwrap()
@@ -3362,7 +3364,7 @@ mod tests {
                     column_id: 0,
                     semantic_type: SemanticType::Timestamp,
                     column_schema: ColumnSchema::new(
-                        "greptime_timestamp",
+                        "pulse_timestamp",
                         ConcreteDataType::timestamp_millisecond_datatype(),
                         false,
                     ),
@@ -3371,7 +3373,7 @@ mod tests {
                     column_id: 1,
                     semantic_type: SemanticType::Field,
                     column_schema: ColumnSchema::new(
-                        "greptime_value",
+                        "pulse_value",
                         ConcreteDataType::float64_datatype(),
                         false,
                     ),

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::OpenOptions;
@@ -91,24 +93,24 @@ pub struct Env {
     server_addrs: ServerAddr,
     wal: WalConfig,
 
-    /// The path to the directory that contains the pre-built GreptimeDB binary.
+    /// The path to the directory that contains the pre-built Pulse binary.
     /// When running in CI, this is expected to be set.
-    /// If not set, this runner will build the GreptimeDB binary itself when needed, and set this field by then.
+    /// If not set, this runner will build the Pulse binary itself when needed, and set this field by then.
     bins_dir: Arc<Mutex<Option<PathBuf>>>,
-    /// The path to the directory that contains the old pre-built GreptimeDB binaries.
+    /// The path to the directory that contains the old pre-built Pulse binaries.
     versioned_bins_dirs: Arc<Mutex<HashMap<String, PathBuf>>>,
-    /// Pull different versions of GreptimeDB on need.
+    /// Pull different versions of Pulse on need.
     pull_version_on_need: bool,
     /// Store address for metasrv metadata
     store_config: StoreConfig,
-    /// Extra command line arguments when starting GreptimeDB binaries.
+    /// Extra command line arguments when starting Pulse binaries.
     extra_args: Vec<String>,
     /// Cache for the inferred gRPC argument style per `bins_dir`.
     grpc_arg_style_cache: Arc<Mutex<HashMap<PathBuf, GrpcArgStyle>>>,
     compat_config_stage: Arc<Mutex<CompatConfigStage>>,
 }
 
-/// Kills a process unless ownership has been transferred to [`GreptimeDB`].
+/// Kills a process unless ownership has been transferred to [`Pulse`].
 struct ChildGuard(Option<Child>);
 
 impl ChildGuard {
@@ -142,7 +144,7 @@ pub(crate) enum CompatConfigStage {
 
 #[async_trait]
 impl EnvController for Env {
-    type DB = GreptimeDB;
+    type DB = Pulse;
 
     async fn start(&self, mode: &str, id: usize, _config: Option<&Path>) -> Self::DB {
         if self.server_addrs.server_addr.is_some() && id > 0 {
@@ -210,7 +212,7 @@ impl Env {
         self.compat_config_stage.lock().unwrap().clone()
     }
 
-    async fn start_standalone(&self, id: usize) -> GreptimeDB {
+    async fn start_standalone(&self, id: usize) -> Pulse {
         println!("Starting standalone instance id: {id}");
 
         if self.server_addrs.server_addr.is_some() {
@@ -218,29 +220,28 @@ impl Env {
         } else {
             self.build_db();
             self.setup_wal();
-            let mut db_ctx = GreptimeDBContext::new(self.wal.clone(), self.store_config.clone());
+            let mut db_ctx = PulseContext::new(self.wal.clone(), self.store_config.clone());
 
             let server_mode = ServerMode::random_standalone();
             db_ctx.set_server_mode(server_mode.clone(), SERVER_MODE_STANDALONE_IDX);
             let server_addr = server_mode.server_addr().unwrap();
             let server_process = self.start_server(server_mode, &db_ctx, id, true).await;
 
-            let mut greptimedb = self.connect_db(&server_addr, id).await;
-            greptimedb.server_processes =
-                Some(Arc::new(Mutex::new(vec![server_process.into_inner()])));
-            greptimedb.is_standalone = true;
-            greptimedb.ctx = db_ctx;
+            let mut pulse = self.connect_db(&server_addr, id).await;
+            pulse.server_processes = Some(Arc::new(Mutex::new(vec![server_process.into_inner()])));
+            pulse.is_standalone = true;
+            pulse.ctx = db_ctx;
 
-            greptimedb
+            pulse
         }
     }
 
-    async fn start_distributed(&self, id: usize) -> GreptimeDB {
+    async fn start_distributed(&self, id: usize) -> Pulse {
         self.start_distributed_inner(id).await
     }
 
     /// Internal: start a distributed cluster with flownode.
-    async fn start_distributed_inner(&self, id: usize) -> GreptimeDB {
+    async fn start_distributed_inner(&self, id: usize) -> Pulse {
         if self.server_addrs.server_addr.is_some() {
             self.connect_db(&self.server_addrs, id).await
         } else {
@@ -249,9 +250,9 @@ impl Env {
             self.setup_etcd();
             self.setup_pg();
             self.setup_mysql().await;
-            let mut db_ctx = GreptimeDBContext::new(self.wal.clone(), self.store_config.clone());
+            let mut db_ctx = PulseContext::new(self.wal.clone(), self.store_config.clone());
 
-            // start a distributed GreptimeDB
+            // start a distributed Pulse
             let meta_server_mode = ServerMode::random_metasrv();
             let metasrv_port = match &meta_server_mode {
                 ServerMode::Metasrv {
@@ -286,36 +287,36 @@ impl Env {
             db_ctx.set_server_mode(flownode_mode.clone(), SERVER_MODE_FLOWNODE_IDX);
             let flownode = self.start_server(flownode_mode, &db_ctx, id, true).await;
 
-            let mut greptimedb = self.connect_db(&server_addr, id).await;
+            let mut pulse = self.connect_db(&server_addr, id).await;
 
-            greptimedb.metasrv_process = Some(meta_server.into_inner()).into();
-            greptimedb.server_processes = Some(Arc::new(Mutex::new(
+            pulse.metasrv_process = Some(meta_server.into_inner()).into();
+            pulse.server_processes = Some(Arc::new(Mutex::new(
                 datanodes.into_iter().map(ChildGuard::into_inner).collect(),
             )));
-            greptimedb.frontend_process = Some(frontend.into_inner()).into();
-            greptimedb.flownode_process = Some(flownode.into_inner()).into();
-            greptimedb.is_standalone = false;
-            greptimedb.ctx = db_ctx;
+            pulse.frontend_process = Some(frontend.into_inner()).into();
+            pulse.flownode_process = Some(flownode.into_inner()).into();
+            pulse.is_standalone = false;
+            pulse.ctx = db_ctx;
 
-            greptimedb
+            pulse
         }
     }
 
-    async fn connect_db(&self, server_addr: &ServerAddr, id: usize) -> GreptimeDB {
+    async fn connect_db(&self, server_addr: &ServerAddr, id: usize) -> Pulse {
         let grpc_server_addr = server_addr.server_addr.as_ref().unwrap();
         let pg_server_addr = server_addr.pg_server_addr.as_ref().unwrap();
         let mysql_server_addr = server_addr.mysql_server_addr.as_ref().unwrap();
 
         let client =
             MultiProtocolClient::connect(grpc_server_addr, pg_server_addr, mysql_server_addr).await;
-        GreptimeDB {
+        Pulse {
             client: TokioMutex::new(client),
             server_processes: None,
             metasrv_process: None.into(),
             frontend_process: None.into(),
             flownode_process: None.into(),
             active_bins_dir: Mutex::new(self.bins_dir.lock().unwrap().clone()),
-            ctx: GreptimeDBContext {
+            ctx: PulseContext {
                 time: 0,
                 datanode_id: Default::default(),
                 wal: self.wal.clone(),
@@ -361,12 +362,12 @@ impl Env {
     async fn start_server(
         &self,
         mode: ServerMode,
-        db_ctx: &GreptimeDBContext,
+        db_ctx: &PulseContext,
         id: usize,
         truncate_log: bool,
     ) -> ChildGuard {
         let bins_dir = self.bins_dir.lock().unwrap().clone().expect(
-            "GreptimeDB binary is not available. Please pass in the path to the directory that contains the pre-built GreptimeDB binary. Or you may call `self.build_db()` beforehand.",
+            "Pulse binary is not available. Please pass in the path to the directory that contains the pre-built Pulse binary. Or you may call `self.build_db()` beforehand.",
         );
 
         self.start_server_with_bins_dir(mode, db_ctx, id, truncate_log, bins_dir)
@@ -376,7 +377,7 @@ impl Env {
     async fn start_server_with_bins_dir(
         &self,
         mode: ServerMode,
-        db_ctx: &GreptimeDBContext,
+        db_ctx: &PulseContext,
         id: usize,
         truncate_log: bool,
         bins_dir: PathBuf,
@@ -384,12 +385,12 @@ impl Env {
         let log_file_name = match mode {
             ServerMode::Datanode { node_id, .. } => {
                 db_ctx.incr_datanode_id();
-                format!("greptime-{}-sqlness-datanode-{}.log", id, node_id)
+                format!("pulse-{}-sqlness-datanode-{}.log", id, node_id)
             }
-            ServerMode::Flownode { .. } => format!("greptime-{}-sqlness-flownode.log", id),
-            ServerMode::Frontend { .. } => format!("greptime-{}-sqlness-frontend.log", id),
-            ServerMode::Metasrv { .. } => format!("greptime-{}-sqlness-metasrv.log", id),
-            ServerMode::Standalone { .. } => format!("greptime-{}-sqlness-standalone.log", id),
+            ServerMode::Flownode { .. } => format!("pulse-{}-sqlness-flownode.log", id),
+            ServerMode::Frontend { .. } => format!("pulse-{}-sqlness-frontend.log", id),
+            ServerMode::Metasrv { .. } => format!("pulse-{}-sqlness-metasrv.log", id),
+            ServerMode::Standalone { .. } => format!("pulse-{}-sqlness-standalone.log", id),
         };
         let stdout_file_name = self.sqlness_home.join(log_file_name).display().to_string();
 
@@ -459,9 +460,9 @@ impl Env {
     }
 
     /// stop and restart the server process
-    pub(crate) async fn restart_server(&self, db: &GreptimeDB, is_full_restart: bool) {
+    pub(crate) async fn restart_server(&self, db: &Pulse, is_full_restart: bool) {
         let bins_dir = db.active_bins_dir.lock().unwrap().clone().expect(
-            "GreptimeDB binary is not available. Please pass in the path to the directory that contains the pre-built GreptimeDB binary. Or you may call `self.build_db()` beforehand.",
+            "Pulse binary is not available. Please pass in the path to the directory that contains the pre-built Pulse binary. Or you may call `self.build_db()` beforehand.",
         );
 
         {
@@ -628,7 +629,7 @@ impl Env {
         }
     }
 
-    /// Setup kafka wal cluster if needed. The counterpart is in [GreptimeDB::stop].
+    /// Setup kafka wal cluster if needed. The counterpart is in [Pulse::stop].
     fn setup_wal(&self) {
         if matches!(self.wal, WalConfig::Kafka { needs_kafka_cluster, .. } if needs_kafka_cluster) {
             util::setup_wal();
@@ -679,7 +680,7 @@ impl Env {
         }
     }
 
-    /// Build the DB with `cargo build --bin greptime`
+    /// Build the DB with `cargo build --bin pulse`
     fn build_db(&self) {
         let mut bins_dir = self.bins_dir.lock().unwrap();
         if bins_dir.is_some() {
@@ -692,14 +693,14 @@ impl Env {
             .args([
                 "build",
                 "--bin",
-                "greptime",
+                "pulse",
                 "--features",
                 "pg_kvbackend,mysql_kvbackend,ai_functions",
             ])
             .output()
-            .expect("Failed to start GreptimeDB");
+            .expect("Failed to start Pulse");
         if !output.status.success() {
-            println!("Failed to build GreptimeDB, {}", output.status);
+            println!("Failed to build Pulse, {}", output.status);
             println!("Cargo build stdout:");
             io::stdout().write_all(&output.stdout).unwrap();
             println!("Cargo build stderr:");
@@ -714,25 +715,25 @@ impl Env {
         &self.extra_args
     }
 
-    /// Start a distributed GreptimeDB cluster. Exposed for compat runner.
-    pub(crate) async fn compat_start_distributed(&self, id: usize) -> GreptimeDB {
+    /// Start a distributed Pulse cluster. Exposed for compat runner.
+    pub(crate) async fn compat_start_distributed(&self, id: usize) -> Pulse {
         self.start_distributed(id).await
     }
 
-    /// Start a standalone GreptimeDB instance. Exposed for compat runner.
-    pub(crate) async fn compat_start_standalone(&self, id: usize) -> GreptimeDB {
+    /// Start a standalone Pulse instance. Exposed for compat runner.
+    pub(crate) async fn compat_start_standalone(&self, id: usize) -> Pulse {
         self.start_standalone(id).await
     }
 
     /// Restart a compatibility instance with a new binary directory.
-    pub(crate) async fn compat_restart(&self, db: &GreptimeDB, bins_dir: PathBuf) {
+    pub(crate) async fn compat_restart(&self, db: &Pulse, bins_dir: PathBuf) {
         *db.active_bins_dir.lock().unwrap() = Some(bins_dir);
         self.restart_server(db, true).await;
         self.wait_query_ready(db).await;
     }
 
     /// Wait for the query endpoint to become ready after restart.
-    async fn wait_query_ready(&self, db: &GreptimeDB) {
+    async fn wait_query_ready(&self, db: &Pulse) {
         let server_mode_idx = if db.is_standalone {
             SERVER_MODE_STANDALONE_IDX
         } else {
@@ -758,20 +759,20 @@ impl Env {
     }
 }
 
-pub struct GreptimeDB {
+pub struct Pulse {
     server_processes: Option<Arc<Mutex<Vec<Child>>>>,
     metasrv_process: Mutex<Option<Child>>,
     frontend_process: Mutex<Option<Child>>,
     flownode_process: Mutex<Option<Child>>,
     client: TokioMutex<MultiProtocolClient>,
     active_bins_dir: Mutex<Option<PathBuf>>,
-    ctx: GreptimeDBContext,
+    ctx: PulseContext,
     is_standalone: bool,
     env: Env,
     id: usize,
 }
 
-impl GreptimeDB {
+impl Pulse {
     async fn postgres_query(&self, _ctx: QueryContext, query: String) -> Box<dyn Display> {
         let mut client = self.client.lock().await;
 
@@ -876,7 +877,7 @@ impl GreptimeDB {
 }
 
 #[async_trait]
-impl Database for GreptimeDB {
+impl Database for Pulse {
     async fn query(&self, ctx: QueryContext, query: String) -> Box<dyn Display> {
         if ctx.context.contains_key("restart") && self.env.server_addrs.server_addr.is_none() {
             self.env.restart_server(self, false).await;
@@ -921,7 +922,7 @@ impl Database for GreptimeDB {
     }
 }
 
-impl GreptimeDB {
+impl Pulse {
     fn stop(&mut self) {
         if let Some(server_processes) = self.server_processes.clone() {
             let mut server_processes = server_processes.lock().unwrap();
@@ -966,13 +967,13 @@ impl GreptimeDB {
         }
     }
 
-    /// Stop all processes managed by this GreptimeDB. Exposed for compat runner.
+    /// Stop all processes managed by this Pulse. Exposed for compat runner.
     pub(crate) fn compat_stop(&mut self) {
         self.stop();
     }
 }
 
-impl Drop for GreptimeDB {
+impl Drop for Pulse {
     fn drop(&mut self) {
         if self.env.server_addrs.server_addr.is_none() {
             self.stop();
@@ -980,7 +981,7 @@ impl Drop for GreptimeDB {
     }
 }
 
-pub struct GreptimeDBContext {
+pub struct PulseContext {
     /// Start time in millisecond
     time: i64,
     datanode_id: AtomicU32,
@@ -989,7 +990,7 @@ pub struct GreptimeDBContext {
     server_modes: Vec<ServerMode>,
 }
 
-impl GreptimeDBContext {
+impl PulseContext {
     pub fn new(wal: WalConfig, store_config: StoreConfig) -> Self {
         Self {
             time: common_time::util::current_time_millis(),

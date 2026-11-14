@@ -7,7 +7,7 @@ Repo-wide rules that apply here: [`.agents/architecture-invariants.md`](../../.a
 
 ## What this crate does
 
-Mito2 is GreptimeDB's primary time-series region storage engine. It owns the
+Mito2 is Pulse's primary time-series region storage engine. It owns the
 write path (memtable + WAL), flushing memtables to Parquet SST files,
 TWCS/windowed compaction, and the read path (multi-level merge + dedup with
 snapshot isolation). It implements the `RegionEngine` trait from `store-api`.

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use common_catalog::consts::{METRIC_ENGINE, MITO_ENGINE};
@@ -383,7 +385,7 @@ pub(super) fn get_schema_columns(table_name: &str) -> (SchemaRef, Vec<VectorRef>
             vec![],
         ),
 
-        // GreptimeDB has no pluggable components.
+        // Pulse has no pluggable components.
         PLUGINS => (
             string_columns(&[
                 "PLUGIN_NAME",

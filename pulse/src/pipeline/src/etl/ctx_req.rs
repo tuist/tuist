@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::hash_map::IntoIter;
 use std::sync::Arc;
 
@@ -24,13 +26,13 @@ use vrl::value::Value as VrlValue;
 use crate::error::{Result, ValueMustBeMapSnafu};
 use crate::tablesuffix::TableSuffixTemplate;
 
-const GREPTIME_AUTO_CREATE_TABLE: &str = "greptime_auto_create_table";
-const GREPTIME_TTL: &str = "greptime_ttl";
-const GREPTIME_APPEND_MODE: &str = "greptime_append_mode";
-const GREPTIME_MERGE_MODE: &str = "greptime_merge_mode";
-const GREPTIME_PHYSICAL_TABLE: &str = "greptime_physical_table";
-const GREPTIME_SKIP_WAL: &str = "greptime_skip_wal";
-const GREPTIME_TABLE_SUFFIX: &str = "greptime_table_suffix";
+const PULSE_AUTO_CREATE_TABLE: &str = "pulse_auto_create_table";
+const PULSE_TTL: &str = "pulse_ttl";
+const PULSE_APPEND_MODE: &str = "pulse_append_mode";
+const PULSE_MERGE_MODE: &str = "pulse_merge_mode";
+const PULSE_PHYSICAL_TABLE: &str = "pulse_physical_table";
+const PULSE_SKIP_WAL: &str = "pulse_skip_wal";
+const PULSE_TABLE_SUFFIX: &str = "pulse_table_suffix";
 
 pub(crate) const AUTO_CREATE_TABLE_KEY: &str = "auto_create_table";
 pub(crate) const TTL_KEY: &str = "ttl";
@@ -41,16 +43,16 @@ pub(crate) const SKIP_WAL_KEY: &str = "skip_wal";
 pub(crate) const TABLE_SUFFIX_KEY: &str = "table_suffix";
 
 pub const PIPELINE_HINT_KEYS: [&str; 7] = [
-    GREPTIME_AUTO_CREATE_TABLE,
-    GREPTIME_TTL,
-    GREPTIME_APPEND_MODE,
-    GREPTIME_MERGE_MODE,
-    GREPTIME_PHYSICAL_TABLE,
-    GREPTIME_SKIP_WAL,
-    GREPTIME_TABLE_SUFFIX,
+    PULSE_AUTO_CREATE_TABLE,
+    PULSE_TTL,
+    PULSE_APPEND_MODE,
+    PULSE_MERGE_MODE,
+    PULSE_PHYSICAL_TABLE,
+    PULSE_SKIP_WAL,
+    PULSE_TABLE_SUFFIX,
 ];
 
-const PIPELINE_HINT_PREFIX: &str = "greptime_";
+const PIPELINE_HINT_PREFIX: &str = "pulse_";
 
 /// ContextOpt is a collection of options(including table options and pipeline options)
 /// that should be extracted during the pipeline execution.
@@ -90,25 +92,25 @@ impl ContextOpt {
             if let Some(v) = map.remove(k) {
                 let v = v.to_string_lossy().to_string();
                 match k {
-                    GREPTIME_AUTO_CREATE_TABLE => {
+                    PULSE_AUTO_CREATE_TABLE => {
                         opt.auto_create_table = Some(v);
                     }
-                    GREPTIME_TTL => {
+                    PULSE_TTL => {
                         opt.ttl = Some(v);
                     }
-                    GREPTIME_APPEND_MODE => {
+                    PULSE_APPEND_MODE => {
                         opt.append_mode = Some(v);
                     }
-                    GREPTIME_MERGE_MODE => {
+                    PULSE_MERGE_MODE => {
                         opt.merge_mode = Some(v);
                     }
-                    GREPTIME_PHYSICAL_TABLE => {
+                    PULSE_PHYSICAL_TABLE => {
                         opt.physical_table = Some(v);
                     }
-                    GREPTIME_SKIP_WAL => {
+                    PULSE_SKIP_WAL => {
                         opt.skip_wal = Some(v);
                     }
-                    GREPTIME_TABLE_SUFFIX => {}
+                    PULSE_TABLE_SUFFIX => {}
                     _ => {}
                 }
             }
@@ -122,7 +124,7 @@ impl ContextOpt {
     ) -> Option<String> {
         pipeline_map
             .as_object()
-            .and_then(|map| map.get(GREPTIME_TABLE_SUFFIX))
+            .and_then(|map| map.get(PULSE_TABLE_SUFFIX))
             .map(|value| value.to_string_lossy().to_string())
             .or_else(|| table_suffix.and_then(|s| s.apply(pipeline_map)))
     }
@@ -271,7 +273,7 @@ mod tests {
             );
         }
 
-        let original = Arc::new(QueryContext::with("greptime", "public"));
+        let original = Arc::new(QueryContext::with("pulse", "public"));
         let batches = req.as_req_iter(original.clone()).collect::<Vec<_>>();
         let mut schemas = batches
             .iter()

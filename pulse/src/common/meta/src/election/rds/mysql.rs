@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -1026,7 +1028,7 @@ mod tests {
             execution_timeout,
             Duration::from_secs(1),
             wait_timeout,
-            table_name.unwrap_or("default_greptime_metakv-election"),
+            table_name.unwrap_or("default_pulse_metakv-election"),
         );
         client.maybe_init_client().await?;
         if table_name.is_some() {
@@ -1048,7 +1050,7 @@ mod tests {
         let value = "test_value".to_string();
 
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_mysql_crud_greptime-metakv";
+        let table_name = "test_mysql_crud_pulse-metakv";
         let candidate_lease_ttl = Duration::from_secs(10);
         let meta_lease_ttl = Duration::from_secs(2);
 
@@ -1198,7 +1200,7 @@ mod tests {
         let meta_lease_ttl = Duration::from_secs(2);
         let idle_session_timeout = Duration::from_secs(0);
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_candidate_registration_greptime-metakv";
+        let table_name = "test_candidate_registration_pulse-metakv";
         let mut handles = vec![];
         let client = create_mysql_client(Some(table_name), execution_timeout, idle_session_timeout)
             .await
@@ -1292,7 +1294,7 @@ mod tests {
         let execution_timeout = Duration::from_secs(10);
         let idle_session_timeout = Duration::from_secs(0);
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_elected_failed_greptime-metakv";
+        let table_name = "test_elected_failed_pulse-metakv";
         let client = create_mysql_client(Some(table_name), execution_timeout, idle_session_timeout)
             .await
             .unwrap();
@@ -1325,7 +1327,7 @@ mod tests {
         maybe_skip_mysql_integration_test!();
         let leader_value = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_reelection_greptime-metakv";
+        let table_name = "test_reelection_pulse-metakv";
         let candidate_lease_ttl = Duration::from_secs(5);
         let meta_lease_ttl = Duration::from_secs(5);
         let execution_timeout = Duration::from_secs(10);
@@ -1393,7 +1395,7 @@ mod tests {
         let execution_timeout = Duration::from_secs(10);
         let idle_session_timeout = Duration::from_secs(0);
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_elected_and_step_down_greptime-metakv";
+        let table_name = "test_elected_and_step_down_pulse-metakv";
         let client = create_mysql_client(Some(table_name), execution_timeout, idle_session_timeout)
             .await
             .unwrap();
@@ -1482,7 +1484,7 @@ mod tests {
         maybe_skip_mysql_integration_test!();
         let leader_value = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_leader_action_greptime-metakv";
+        let table_name = "test_leader_action_pulse-metakv";
         let candidate_lease_ttl = Duration::from_secs(5);
         let meta_lease_ttl = Duration::from_secs(2);
         let execution_timeout = Duration::from_secs(10);
@@ -1669,7 +1671,7 @@ mod tests {
         common_telemetry::init_default_ut_logging();
         let leader_value = "test_leader".to_string();
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_reset_campaign_greptime-metakv";
+        let table_name = "test_reset_campaign_pulse-metakv";
         let candidate_lease_ttl = Duration::from_secs(5);
         let meta_lease_ttl = Duration::from_secs(2);
         let execution_timeout = Duration::from_secs(10);
@@ -1707,7 +1709,7 @@ mod tests {
         let execution_timeout = Duration::from_secs(10);
         let idle_session_timeout = Duration::from_secs(0);
         let uuid = uuid::Uuid::new_v4().to_string();
-        let table_name = "test_follower_action_greptime-metakv";
+        let table_name = "test_follower_action_pulse-metakv";
 
         let follower_client =
             create_mysql_client(Some(table_name), execution_timeout, idle_session_timeout)

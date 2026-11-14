@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -71,7 +73,7 @@ impl PipelineOperator {
             catalog_name: catalog.to_string(),
             schema_name: DEFAULT_PRIVATE_SCHEMA_NAME.to_string(),
             table_name: PIPELINE_TABLE_NAME.to_string(),
-            desc: "GreptimeDB pipeline table for Log".to_string(),
+            desc: "Pulse pipeline table for Log".to_string(),
             column_defs,
             time_index,
             primary_keys,

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Shared native histogram field contract.
 //!
 //! Prom remote-write v2 stores these names as children of one Struct field, while
@@ -39,10 +41,10 @@ use datatypes::types::{StructField, StructType};
 pub use encoding::{NativeHistogramError, encode_native_histogram, native_histogram_column_schema};
 use once_cell::sync::Lazy;
 
-use crate::prelude::greptime_native_histogram;
+use crate::prelude::pulse_native_histogram;
 use crate::prometheus::format_prometheus_float;
 
-pub const NATIVE_HISTOGRAM_FIELD: &str = "greptime_native_histogram";
+pub const NATIVE_HISTOGRAM_FIELD: &str = "pulse_native_histogram";
 pub const SCHEMA_FIELD: &str = "schema";
 pub const ZERO_THRESHOLD_FIELD: &str = "zero_threshold";
 pub const SUM_FIELD: &str = "sum";
@@ -96,7 +98,7 @@ static NATIVE_HISTOGRAM_VALUE_TYPE: Lazy<ConcreteDataType> = Lazy::new(|| {
     ConcreteDataType::struct_datatype(StructType::new(Arc::new(fields)))
 });
 
-/// Returns the exact Greptime type for a persisted native histogram field.
+/// Returns the exact Pulse type for a persisted native histogram field.
 pub fn native_histogram_field_type(name: &str) -> Option<ConcreteDataType> {
     match name {
         SCHEMA_FIELD | RESET_HINT_FIELD => Some(ConcreteDataType::int32_datatype()),
@@ -121,7 +123,7 @@ pub fn native_histogram_field_type(name: &str) -> Option<ConcreteDataType> {
     }
 }
 
-/// Returns the exact Greptime type for a complete native histogram value.
+/// Returns the exact Pulse type for a complete native histogram value.
 pub fn native_histogram_value_type() -> &'static ConcreteDataType {
     &NATIVE_HISTOGRAM_VALUE_TYPE
 }
@@ -133,7 +135,7 @@ pub fn is_native_histogram_value_type(data_type: &ConcreteDataType) -> bool {
 
 /// Returns whether a named column matches the configured native histogram contract.
 pub fn is_native_histogram_value_schema(name: &str, data_type: &ConcreteDataType) -> bool {
-    name == greptime_native_histogram() && is_native_histogram_value_type(data_type)
+    name == pulse_native_histogram() && is_native_histogram_value_type(data_type)
 }
 
 /// Schema identifier for native histograms with explicit custom bucket bounds.

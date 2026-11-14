@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::env;
@@ -58,14 +60,14 @@ use tests_fuzz::utils::procedure::procedure_state as fetch_procedure_state_json;
 use tests_fuzz::utils::retry::retry_with_backoff;
 use tests_fuzz::utils::{
     Connections, GT_FUZZ_CLUSTER_NAME, GT_FUZZ_CLUSTER_NAMESPACE, get_fuzz_override,
-    get_gt_fuzz_input_max_rows, init_greptime_connections_via_env,
+    get_gt_fuzz_input_max_rows, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 use tests_fuzz::validator::row::count_values_all;
 
 #[derive(Clone)]
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
     kube: kube::client::Client,
     namespace: String,
     cluster_name: String,
@@ -79,7 +81,7 @@ const ROW_VALIDATION_MAX_BACKOFF: Duration = Duration::from_secs(2);
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -184,7 +186,7 @@ async fn execute_insert_with_retry(ctx: &FuzzContext, sql: &str) -> Result<()> {
     let mut attempt = 0;
     let max_attempts = 10;
     loop {
-        match ctx.greptime.execute(sqlx::AssertSqlSafe(sql)).await {
+        match ctx.pulse.execute(sqlx::AssertSqlSafe(sql)).await {
             Ok(_) => return Ok(()),
             Err(err) => {
                 tokio::time::sleep(delay).await;
@@ -202,7 +204,7 @@ async fn create_table(ctx: &FuzzContext, expr: &CreateTableExpr) -> Result<Table
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create table: {sql}, result: {result:?}");
@@ -234,7 +236,7 @@ async fn validate_table_rows(
     inserted_rows: u64,
 ) -> Result<()> {
     let count_sql = format!("SELECT COUNT(1) AS count FROM {}", table_ctx.name);
-    let counts = count_values_all(&ctx.greptime, &count_sql).await?;
+    let counts = count_values_all(&ctx.pulse, &count_sql).await?;
     info!("Validate table row count: sql={count_sql}, expected={inserted_rows}, counts={counts:?}");
     if counts.len() != 1 {
         return error::AssertSnafu {
@@ -259,7 +261,7 @@ async fn validate_table_rows(
         "SELECT COUNT(DISTINCT {}) AS count FROM {}",
         timestamp_column_name, table_ctx.name
     );
-    let distinct_counts = count_values_all(&ctx.greptime, &distinct_count_sql).await?;
+    let distinct_counts = count_values_all(&ctx.pulse, &distinct_count_sql).await?;
     info!(
         "Validate table distinct row count: sql={distinct_count_sql}, expected={inserted_rows}, counts={distinct_counts:?}"
     );
@@ -334,7 +336,7 @@ async fn submit_repartition_procedure(ctx: &FuzzContext, expr: &RepartitionExpr)
     let translator = RepartitionExprTranslator;
     let sql = translator.translate(expr)?;
     let (procedure_id,) = sqlx::query_as::<_, (String,)>(sqlx::AssertSqlSafe(sql.as_str()))
-        .fetch_one(&ctx.greptime)
+        .fetch_one(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Submit repartition procedure: {sql}, procedure_id: {procedure_id}");
@@ -345,7 +347,7 @@ async fn fetch_procedure_state(
     ctx: &FuzzContext,
     procedure_id: &str,
 ) -> Result<Option<ProcedureTerminalState>> {
-    let output = fetch_procedure_state_json(&ctx.greptime, procedure_id).await;
+    let output = fetch_procedure_state_json(&ctx.pulse, procedure_id).await;
 
     Ok(if output.contains("Done") {
         Some(ProcedureTerminalState::Done)
@@ -388,12 +390,9 @@ async fn validate_terminal_metadata(
     before_table_ctx: &TableContextRef,
     after_table_ctx: &TableContextRef,
 ) -> Result<()> {
-    let partition_entries = validator::partition::fetch_partitions_info_schema(
-        &ctx.greptime,
-        "public".into(),
-        table_name,
-    )
-    .await?;
+    let partition_entries =
+        validator::partition::fetch_partitions_info_schema(&ctx.pulse, "public".into(), table_name)
+            .await?;
 
     info!(
         "Validate terminal metadata: procedure_terminal_state={terminal:?}, partition_entries={partition_entries:?}"
@@ -419,7 +418,7 @@ async fn validate_terminal_metadata(
 async fn drop_table(ctx: &FuzzContext, table_name: &tests_fuzz::ir::Ident) -> Result<()> {
     let sql = format!("DROP TABLE {}", table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Drop table: {table_name}, result: {result:?}");
@@ -450,7 +449,7 @@ async fn execute_repartition_chaos(ctx: FuzzContext, input: FuzzInput) -> Result
     validate_table_rows(&ctx, &before_table_ctx, inserted_rows).await?;
 
     let before_entries = validator::partition::fetch_partitions_info_schema(
-        &ctx.greptime,
+        &ctx.pulse,
         "public".into(),
         &before_table_ctx.name,
     )
@@ -491,7 +490,7 @@ async fn execute_repartition_chaos(ctx: FuzzContext, input: FuzzInput) -> Result
             .unwrap();
     });
 
-    wait_for_all_datanode_offline(ctx.greptime.clone(), Duration::from_secs(30)).await;
+    wait_for_all_datanode_offline(ctx.pulse.clone(), Duration::from_secs(30)).await;
     info!(
         "Waiting for {} ms before submitting procedure",
         input.chaos_delay_ms
@@ -503,7 +502,7 @@ async fn execute_repartition_chaos(ctx: FuzzContext, input: FuzzInput) -> Result
         wait_for_procedure_terminal_state(&ctx, &procedure_id, PROCEDURE_TIMEOUT).await?;
     handle.await.unwrap();
 
-    wait_for_all_datanode_online(ctx.greptime.clone(), Duration::from_secs(30)).await;
+    wait_for_all_datanode_online(ctx.pulse.clone(), Duration::from_secs(30)).await;
     validate_terminal_metadata(
         &ctx,
         &before_table_ctx.name,
@@ -532,14 +531,14 @@ async fn execute_repartition_chaos(ctx: FuzzContext, input: FuzzInput) -> Result
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
             kube: kube::client::Client::try_default()
                 .await
                 .expect("init kube client"),
-            namespace: env::var(GT_FUZZ_CLUSTER_NAMESPACE).unwrap_or("my-greptimedb".to_string()),
-            cluster_name: env::var(GT_FUZZ_CLUSTER_NAME).unwrap_or("my-greptimedb".to_string()),
+            namespace: env::var(GT_FUZZ_CLUSTER_NAMESPACE).unwrap_or("my-pulse".to_string()),
+            cluster_name: env::var(GT_FUZZ_CLUSTER_NAME).unwrap_or("my-pulse".to_string()),
         };
         execute_repartition_chaos(ctx, input)
             .await

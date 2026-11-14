@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::env;
@@ -54,13 +56,13 @@ use tests_fuzz::utils::pod_failure::{inject_datanode_pod_failure, recover_pod_fa
 use tests_fuzz::utils::{
     Connections, GT_FUZZ_CLUSTER_NAME, GT_FUZZ_CLUSTER_NAMESPACE, compact_table, flush_memtable,
     get_fuzz_override, get_gt_fuzz_input_max_columns, get_gt_fuzz_input_max_insert_actions,
-    get_gt_fuzz_input_max_rows, get_gt_fuzz_input_max_tables, init_greptime_connections_via_env,
+    get_gt_fuzz_input_max_rows, get_gt_fuzz_input_max_tables, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator::row::count_values;
 use tokio::sync::Semaphore;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
     kube: kube::client::Client,
     namespace: String,
     cluster_name: String,
@@ -68,7 +70,7 @@ struct FuzzContext {
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -153,13 +155,13 @@ async fn execute_create_exprs(
 
     let tasks = exprs.iter().map(|expr| {
         let semaphore = semaphore.clone();
-        let greptime = ctx.greptime.clone();
+        let pulse = ctx.pulse.clone();
         async move {
             let _permit = semaphore.acquire().await.unwrap();
             let translator = CreateTableExprTranslator;
             let sql = translator.translate(expr).unwrap();
             sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-                .execute(&greptime)
+                .execute(&pulse)
                 .await
                 .context(error::ExecuteQuerySnafu { sql: &sql })
         }
@@ -215,7 +217,7 @@ async fn execute_insert_exprs<R: Rng + 'static>(
         let seed: u64 = rng.random();
 
         let semaphore = semaphore.clone();
-        let greptime = ctx.greptime.clone();
+        let pulse = ctx.pulse.clone();
         async move {
             let _permit = semaphore.acquire().await.unwrap();
             let mut total_affected = 0;
@@ -223,7 +225,7 @@ async fn execute_insert_exprs<R: Rng + 'static>(
             for insert_expr in inserts {
                 let translator = InsertIntoExprTranslator;
                 let sql = translator.translate(&insert_expr)?;
-                let result = greptime
+                let result = pulse
                     // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
                     .execute(sqlx::AssertSqlSafe(sql.as_str()))
                     .await
@@ -239,10 +241,10 @@ async fn execute_insert_exprs<R: Rng + 'static>(
                     }
                 );
                 if rng.random_bool(flush_probability) {
-                    flush_memtable(&greptime, &insert_expr.table_name).await?;
+                    flush_memtable(&pulse, &insert_expr.table_name).await?;
                 }
                 if rng.random_bool(compact_probability) {
-                    compact_table(&greptime, &insert_expr.table_name).await?;
+                    compact_table(&pulse, &insert_expr.table_name).await?;
                 }
                 total_affected += result.rows_affected();
             }
@@ -260,7 +262,7 @@ async fn collect_table_partitions(
 ) -> Result<Vec<Partition>> {
     let mut partitions = Vec::with_capacity(table_ctxs.len());
     for table_ctx in table_ctxs {
-        let table_partitions = fetch_partitions(&ctx.greptime, table_ctx.name.clone()).await?;
+        let table_partitions = fetch_partitions(&ctx.pulse, table_ctx.name.clone()).await?;
         info!(
             "table: {}, partitions: {:?}",
             table_ctx.name, table_partitions
@@ -312,7 +314,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
     // Waits for num of regions on `selected_datanode` become to 0.
     wait_for_all_regions_evicted(
-        ctx.greptime.clone(),
+        ctx.pulse.clone(),
         selected_datanode,
         Duration::from_secs(300),
     )
@@ -320,14 +322,14 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
     // Recovers pod failures
     recover_pod_failure(ctx.kube.clone(), &ctx.namespace, &chaos_name).await?;
-    wait_for_all_datanode_online(ctx.greptime.clone(), Duration::from_secs(180)).await;
+    wait_for_all_datanode_online(ctx.pulse.clone(), Duration::from_secs(180)).await;
 
     tokio::time::sleep(default_distributed_time_constants().region_lease).await;
     // Validates value rows
     info!("Validates num of rows");
     for (table_ctx, expected_rows) in table_ctxs.iter().zip(affected_rows) {
         let sql = format!("select count(1) as count from {}", table_ctx.name);
-        let values = count_values(&ctx.greptime, &sql).await?;
+        let values = count_values(&ctx.pulse, &sql).await?;
         assert_eq!(
             values.count as u64, expected_rows,
             "Expected rows: {}, got: {}, table: {}",
@@ -338,7 +340,7 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     for table_ctx in table_ctxs {
         let sql = format!("DROP TABLE {}", table_ctx.name);
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql })?;
         info!("Drop table: {}\n\nResult: {result:?}\n\n", table_ctx.name);
@@ -351,14 +353,14 @@ async fn execute_failover(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
             kube: kube::client::Client::try_default()
                 .await
                 .expect("init kube client"),
-            namespace: env::var(GT_FUZZ_CLUSTER_NAMESPACE).unwrap_or("my-greptimedb".to_string()),
-            cluster_name: env::var(GT_FUZZ_CLUSTER_NAME).unwrap_or("my-greptimedb".to_string()),
+            namespace: env::var(GT_FUZZ_CLUSTER_NAMESPACE).unwrap_or("my-pulse".to_string()),
+            cluster_name: env::var(GT_FUZZ_CLUSTER_NAME).unwrap_or("my-pulse".to_string()),
         };
         execute_failover(ctx, input)
             .await

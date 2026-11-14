@@ -29,7 +29,7 @@ use promql_parser::parser::value::ValueType;
 use promql_parser::parser::{EvalStmt, Expr};
 use session::context::QueryContextRef;
 use snafu::{OptionExt, ResultExt};
-use sql::dialect::GreptimeDbDialect;
+use sql::dialect::PulseDialect;
 use sql::parser::{ParseOptions, ParserContext};
 use sql::statements::statement::Statement;
 
@@ -118,14 +118,14 @@ impl Default for PromQuery {
 pub struct QueryLanguageParser {}
 
 impl QueryLanguageParser {
-    /// Try to parse SQL with GreptimeDB dialect, return the statement when success.
+    /// Try to parse SQL with Pulse dialect, return the statement when success.
     pub fn parse_sql(sql: &str, query_ctx: &QueryContextRef) -> Result<QueryStatement> {
         let _timer = PARSE_SQL_ELAPSED.start_timer();
         let scheduled_time =
             crate::options::parse_scheduled_time_datetime(&query_ctx.extensions())?;
         let mut statement = ParserContext::create_with_dialect(
             sql,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions { scheduled_time },
         )
         .map_err(BoxedError::new)

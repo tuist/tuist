@@ -45,7 +45,7 @@ WITH RECURSIVE t AS (
 	UNION ALL
 		SELECT t.depth + 1 AS depth
 		FROM t, information_schema.tables
-		WHERE table_catalog = 'greptime'
+		WHERE table_catalog = 'pulse'
 			AND table_schema = 'information_schema'
 			AND table_name = 'tables'
 			AND t.depth < 2

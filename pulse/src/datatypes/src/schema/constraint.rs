@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{Display, Formatter};
 
 use common_time::{Timestamp, util};
@@ -457,7 +459,7 @@ mod tests {
                 data_type.as_arrow_type(),
                 true,
             )]));
-            for value in [Value::from("greptime"), Value::Null] {
+            for value in [Value::from("pulse"), Value::Null] {
                 let vector = ColumnDefaultConstraint::Value(value.clone())
                     .create_default_vector(&data_type, true, 3)
                     .unwrap();

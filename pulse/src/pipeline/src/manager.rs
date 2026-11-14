@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::ColumnDataType;
@@ -31,7 +33,7 @@ use crate::error::{
 };
 use crate::etl::value::{MS_RESOLUTION, NS_RESOLUTION, S_RESOLUTION, US_RESOLUTION};
 use crate::table::PipelineTable;
-use crate::{GreptimePipelineParams, Pipeline};
+use crate::{Pipeline, PulsePipelineParams};
 
 mod pipeline_cache;
 pub mod pipeline_operator;
@@ -77,11 +79,11 @@ impl SelectInfo {
     }
 }
 
-pub const GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME: &str = "greptime_identity";
-pub const GREPTIME_INTERNAL_TRACE_PIPELINE_V0_NAME: &str = "greptime_trace_v0";
-pub const GREPTIME_INTERNAL_TRACE_PIPELINE_V1_NAME: &str = "greptime_trace_v1";
+pub const PULSE_INTERNAL_IDENTITY_PIPELINE_NAME: &str = "pulse_identity";
+pub const PULSE_INTERNAL_TRACE_PIPELINE_V0_NAME: &str = "pulse_trace_v0";
+pub const PULSE_INTERNAL_TRACE_PIPELINE_V1_NAME: &str = "pulse_trace_v1";
 /// Built-in OTLP trace pipeline that stores semi-structured fields as JSON2.
-pub const GREPTIME_INTERNAL_TRACE_PIPELINE_V2_NAME: &str = "greptime_trace_v2";
+pub const PULSE_INTERNAL_TRACE_PIPELINE_V2_NAME: &str = "pulse_trace_v2";
 
 /// Enum for holding information of a pipeline, which is either pipeline itself,
 /// or information that be used to retrieve a pipeline from `PipelineHandler`
@@ -89,7 +91,7 @@ pub const GREPTIME_INTERNAL_TRACE_PIPELINE_V2_NAME: &str = "greptime_trace_v2";
 pub enum PipelineDefinition {
     Resolved(Arc<Pipeline>),
     ByNameAndValue((String, PipelineVersion)),
-    GreptimeIdentityPipeline(Option<IdentityTimeIndex>),
+    PulseIdentityPipeline(Option<IdentityTimeIndex>),
 }
 
 impl PipelineDefinition {
@@ -98,8 +100,8 @@ impl PipelineDefinition {
         version: PipelineVersion,
         custom_time_index: Option<(String, bool)>,
     ) -> Result<Self> {
-        if name == GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME {
-            Ok(Self::GreptimeIdentityPipeline(
+        if name == PULSE_INTERNAL_IDENTITY_PIPELINE_NAME {
+            Ok(Self::PulseIdentityPipeline(
                 custom_time_index
                     .map(|(config, ignore_errors)| {
                         IdentityTimeIndex::from_config(config, ignore_errors)
@@ -112,11 +114,11 @@ impl PipelineDefinition {
     }
 
     pub fn is_identity(&self) -> bool {
-        matches!(self, Self::GreptimeIdentityPipeline(_))
+        matches!(self, Self::PulseIdentityPipeline(_))
     }
 
     pub fn get_custom_ts(&self) -> Option<&IdentityTimeIndex> {
-        if let Self::GreptimeIdentityPipeline(custom_ts) = self {
+        if let Self::PulseIdentityPipeline(custom_ts) = self {
             custom_ts.as_ref()
         } else {
             None
@@ -126,14 +128,14 @@ impl PipelineDefinition {
 
 pub struct PipelineContext<'a> {
     pub pipeline_definition: &'a PipelineDefinition,
-    pub pipeline_param: &'a GreptimePipelineParams,
+    pub pipeline_param: &'a PulsePipelineParams,
     pub channel: Channel,
 }
 
 impl<'a> PipelineContext<'a> {
     pub fn new(
         pipeline_definition: &'a PipelineDefinition,
-        pipeline_param: &'a GreptimePipelineParams,
+        pipeline_param: &'a PulsePipelineParams,
         channel: Channel,
     ) -> Self {
         Self {
@@ -158,11 +160,11 @@ impl PipelineWay {
         default_pipeline: Option<PipelineWay>,
     ) -> Result<PipelineWay> {
         if let Some(pipeline_name) = name {
-            if pipeline_name == GREPTIME_INTERNAL_TRACE_PIPELINE_V2_NAME {
+            if pipeline_name == PULSE_INTERNAL_TRACE_PIPELINE_V2_NAME {
                 Ok(PipelineWay::OtlpTraceDirectV2)
-            } else if pipeline_name == GREPTIME_INTERNAL_TRACE_PIPELINE_V1_NAME {
+            } else if pipeline_name == PULSE_INTERNAL_TRACE_PIPELINE_V1_NAME {
                 Ok(PipelineWay::OtlpTraceDirectV1)
-            } else if pipeline_name == GREPTIME_INTERNAL_TRACE_PIPELINE_V0_NAME {
+            } else if pipeline_name == PULSE_INTERNAL_TRACE_PIPELINE_V0_NAME {
                 Ok(PipelineWay::OtlpTraceDirectV0)
             } else {
                 Ok(PipelineWay::Pipeline(PipelineDefinition::from_name(

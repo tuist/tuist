@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -27,7 +29,7 @@ use tokio_stream::StreamExt;
 /// Check port every 0.1 second.
 const PORT_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
-pub const PROGRAM: &str = "greptime";
+pub const PROGRAM: &str = "pulse";
 
 fn http_proxy() -> Option<String> {
     for proxy in ["http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"] {
@@ -117,7 +119,7 @@ pub async fn pull_binary(version: &str) {
         "aarch64" => "arm64",
         _ => panic!("Unsupported arch: {}", std::env::consts::ARCH),
     };
-    let triple = format!("greptime-{}-{}-{}", os, arch, version);
+    let triple = format!("pulse-{}-{}-{}", os, arch, version);
     let filename = format!("{triple}.tar.gz");
 
     let url = format!(
@@ -166,8 +168,8 @@ pub async fn pull_binary(version: &str) {
 
     // move the binary to the version directory
     std::fs::rename(
-        PathBuf::from_iter([version, &triple, "greptime"]),
-        PathBuf::from_iter([version, "greptime"]),
+        PathBuf::from_iter([version, &triple, "pulse"]),
+        PathBuf::from_iter([version, "pulse"]),
     )
     .unwrap();
 
@@ -352,7 +354,7 @@ pub fn setup_pg(pg_port: u16, pg_version: Option<&str>) {
         "postgres:latest".to_string()
     };
     let pg_password = "admin";
-    let pg_user = "greptimedb";
+    let pg_user = "pulse";
 
     let mut arg_list = vec![];
     arg_list.extend(["run", "-d"]);
@@ -363,7 +365,7 @@ pub fn setup_pg(pg_port: u16, pg_version: Option<&str>) {
     arg_list.extend(["-e", &pg_password_env, "-e", &pg_user_env]);
     arg_list.extend(["-p", &pg_port_forward]);
 
-    arg_list.extend(["--name", "greptimedb_pg", &pg_image]);
+    arg_list.extend(["--name", "pulse_pg", &pg_image]);
 
     let mut cmd = std::process::Command::new("docker");
 
@@ -399,7 +401,7 @@ pub fn setup_mysql(mysql_port: u16, mysql_version: Option<&str>) {
         "greptime/mysql:5.7".to_string()
     };
     let mysql_password = "admin";
-    let mysql_user = "greptimedb";
+    let mysql_user = "pulse";
 
     let mut arg_list = vec![];
     arg_list.extend(["run", "-d"]);
@@ -420,7 +422,7 @@ pub fn setup_mysql(mysql_port: u16, mysql_version: Option<&str>) {
     ]);
     arg_list.extend(["-p", &mysql_port_forward]);
 
-    arg_list.extend(["--name", "greptimedb_mysql", &mysql_image]);
+    arg_list.extend(["--name", "pulse_mysql", &mysql_image]);
 
     let mut cmd = std::process::Command::new("docker");
 

@@ -2606,7 +2606,7 @@ mod tests {
     use common_query::native_histogram::{
         CounterResetHint, NativeHistogram, build_histogram_array, native_histogram_value_type,
     };
-    use common_query::prelude::greptime_native_histogram;
+    use common_query::prelude::pulse_native_histogram;
     use datatypes::prelude::ConcreteDataType;
     use datatypes::schema::{ColumnSchema, Schema};
     use datatypes::vectors::{StringVector, StructVector};
@@ -3547,7 +3547,7 @@ mod tests {
     async fn test_get_all_column_names_uses_tag_columns() {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
@@ -3589,7 +3589,7 @@ mod tests {
 
         let physical_schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
@@ -3768,7 +3768,7 @@ mod tests {
         ] {
             let schema = Arc::new(Schema::new(vec![
                 ColumnSchema::new(
-                    "greptime_timestamp",
+                    "pulse_timestamp",
                     ConcreteDataType::timestamp_millisecond_datatype(),
                     false,
                 )
@@ -3872,7 +3872,7 @@ mod tests {
         assert_eq!(
             (
                 PermissionTableTargets::Resolved(vec![PermissionTableTarget::new(
-                    "greptime", "public", "allowed",
+                    "pulse", "public", "allowed",
                 )]),
                 0,
             ),
@@ -3947,7 +3947,7 @@ mod tests {
 
         assert_eq!(queries.len(), 1);
         let expanded = queries[0].expr();
-        let ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let ctx = Arc::new(QueryContext::with("pulse", "public"));
         let (PermissionTableTargets::Resolved(mut targets), unresolved_selectors) =
             static_promql_targets(expanded, &ctx).unwrap()
         else {
@@ -3958,8 +3958,8 @@ mod tests {
         assert_eq!(
             targets,
             vec![
-                PermissionTableTarget::new("greptime", "public", "cpu_user"),
-                PermissionTableTarget::new("greptime", "public", "denied"),
+                PermissionTableTarget::new("pulse", "public", "cpu_user"),
+                PermissionTableTarget::new("pulse", "public", "denied"),
             ]
         );
     }
@@ -3970,13 +3970,13 @@ mod tests {
             r#"denied + {__name__=~"no_match_.*",__schema__="private"}"#,
         )
         .unwrap();
-        let ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let ctx = Arc::new(QueryContext::with("pulse", "public"));
 
         assert_eq!(
             static_promql_targets(&expr, &ctx).unwrap(),
             (
                 PermissionTableTargets::resolved(vec![PermissionTableTarget::new(
-                    "greptime", "public", "denied",
+                    "pulse", "public", "denied",
                 )]),
                 1,
             )
@@ -3987,7 +3987,7 @@ mod tests {
     fn test_static_promql_targets_count_unresolved_selectors() {
         let expr =
             promql_parser::parser::parse(r#"{__name__=~"no_such_metric"} or {job="api"}"#).unwrap();
-        let ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let ctx = Arc::new(QueryContext::with("pulse", "public"));
 
         assert_eq!(
             static_promql_targets(&expr, &ctx).unwrap(),
@@ -4000,7 +4000,7 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new("host", ConcreteDataType::string_datatype(), false),
             ColumnSchema::new(
-                greptime_native_histogram(),
+                pulse_native_histogram(),
                 native_histogram_value_type().clone(),
                 true,
             ),
@@ -4050,14 +4050,14 @@ mod tests {
 
         assert_eq!(
             labels,
-            HashSet::from(["host".to_string(), greptime_native_histogram().to_string(),])
+            HashSet::from(["host".to_string(), pulse_native_histogram().to_string(),])
         );
     }
 
     fn prometheus_metric_table_info(table_id: u32, name: &str) -> TableInfo {
         let schema = Arc::new(Schema::new(vec![
             ColumnSchema::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
@@ -4068,7 +4068,7 @@ mod tests {
         let mut options = TableOptions::default();
         options.extra_options.insert(
             LOGICAL_TABLE_METADATA_KEY.to_string(),
-            "greptime_physical_table".to_string(),
+            "pulse_physical_table".to_string(),
         );
         options
             .extra_options

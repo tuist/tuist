@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Debug;
@@ -86,7 +88,7 @@ const MAX_L1_L0_ROW_RATIO: usize = 2;
 /// Default maximum number of input SST files in one compaction input.
 const DEFAULT_MAX_INPUT_FILES: usize = 16;
 
-const MAX_INPUT_FILES_ENV: &str = "GREPTIME_TWCS_MAX_INPUT_FILES";
+const MAX_INPUT_FILES_ENV: &str = "PULSE_TWCS_MAX_INPUT_FILES";
 
 /// Maximum number of input SST files in one compaction input.
 /// Configurable via [`MAX_INPUT_FILES_ENV`].

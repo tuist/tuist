@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Duration;
 
 use client::{DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME, OutputData};
@@ -22,7 +24,7 @@ use common_recordbatch::util::collect_batches;
 use common_test_util::recordbatch::check_output_stream;
 use table::table_reference::TableReference;
 
-use crate::cluster::GreptimeDbClusterBuilder;
+use crate::cluster::PulseClusterBuilder;
 use crate::test_util::execute_sql;
 use crate::tests::test_util::{
     MockInstanceBuilder, RebuildableMockInstance, TestContext, dump_kvbackend, restore_kvbackend,
@@ -130,7 +132,7 @@ ALTER TABLE grpc_latencies DROP COLUMN env;
 
 #[tokio::test]
 async fn test_reconcile_dropped_column() {
-    let builder = GreptimeDbClusterBuilder::new("test_reconcile_dropped_column").await;
+    let builder = PulseClusterBuilder::new("test_reconcile_dropped_column").await;
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
 
     // Create the table.
@@ -221,7 +223,7 @@ async fn test_reconcile_dropped_column() {
 
 #[tokio::test]
 async fn test_reconcile_added_column() {
-    let builder = GreptimeDbClusterBuilder::new("test_reconcile_added_column").await;
+    let builder = PulseClusterBuilder::new("test_reconcile_added_column").await;
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
 
     // Create the table.
@@ -307,7 +309,7 @@ async fn test_reconcile_added_column() {
 
 #[tokio::test]
 async fn test_reconcile_modify_column_type() {
-    let builder = GreptimeDbClusterBuilder::new("test_reconcile_added_column").await;
+    let builder = PulseClusterBuilder::new("test_reconcile_added_column").await;
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
 
     // Create the table.
@@ -383,7 +385,7 @@ async fn test_reconcile_modify_column_type() {
 
 #[tokio::test]
 async fn test_recover_metadata_failed() {
-    let builder = GreptimeDbClusterBuilder::new("test_recover_metadata_failed")
+    let builder = PulseClusterBuilder::new("test_recover_metadata_failed")
         .await
         .with_datanodes(1);
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
@@ -426,7 +428,7 @@ async fn test_recover_metadata_failed() {
 
 #[tokio::test]
 async fn test_set_table_id() {
-    let builder = GreptimeDbClusterBuilder::new("test_set_table_id").await;
+    let builder = PulseClusterBuilder::new("test_set_table_id").await;
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
 
     let keyvalues = dump_kvbackend(test_context.metasrv().kv_backend()).await;
@@ -446,7 +448,7 @@ async fn test_set_table_id() {
 
 #[tokio::test]
 async fn test_dropped_table() {
-    let builder = GreptimeDbClusterBuilder::new("test_dropped_table").await;
+    let builder = PulseClusterBuilder::new("test_dropped_table").await;
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
 
     // Creates the table.
@@ -494,7 +496,7 @@ async fn test_dropped_table() {
 
 #[tokio::test]
 async fn test_renamed_table() {
-    let builder = GreptimeDbClusterBuilder::new("test_renamed_table").await;
+    let builder = PulseClusterBuilder::new("test_renamed_table").await;
     let mut test_context = TestContext::new(MockInstanceBuilder::Distributed(builder)).await;
 
     // Creates the table.

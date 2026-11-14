@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Duration;
 
 use common_telemetry::info;
@@ -45,13 +47,13 @@ pub async fn fetch_nodes(db: &MySqlPool) -> Result<Vec<NodeInfo>> {
 ///
 /// This function repeatedly checks the status of all datanodes and waits until all of them are online
 /// or the timeout period elapses. A datanode is considered online if its `active_time` is less than 3 seconds.
-pub async fn wait_for_all_datanode_online(greptime: MySqlPool, timeout: Duration) {
+pub async fn wait_for_all_datanode_online(pulse: MySqlPool, timeout: Duration) {
     wait_condition_fn(
         timeout,
         || {
-            let greptime = greptime.clone();
+            let pulse = pulse.clone();
             Box::pin(async move {
-                let nodes = fetch_nodes(&greptime)
+                let nodes = fetch_nodes(&pulse)
                     .await
                     .unwrap()
                     .into_iter()
@@ -78,13 +80,13 @@ pub async fn wait_for_all_datanode_online(greptime: MySqlPool, timeout: Duration
     .await
 }
 
-pub async fn wait_for_all_datanode_offline(greptime: MySqlPool, timeout: Duration) {
+pub async fn wait_for_all_datanode_offline(pulse: MySqlPool, timeout: Duration) {
     wait_condition_fn(
         timeout,
         || {
-            let greptime = greptime.clone();
+            let pulse = pulse.clone();
             Box::pin(async move {
-                let nodes = fetch_nodes(&greptime)
+                let nodes = fetch_nodes(&pulse)
                     .await
                     .unwrap()
                     .into_iter()

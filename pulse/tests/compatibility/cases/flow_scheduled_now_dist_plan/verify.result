@@ -2,11 +2,11 @@ SELECT flow_name, source_table_names
 FROM information_schema.flows
 WHERE flow_name = 'compat_flow_scheduled_now';
 
-+---------------------------+-------------------------------------------------------------+
-| flow_name                 | source_table_names                                          |
-+---------------------------+-------------------------------------------------------------+
-| compat_flow_scheduled_now | greptime.flow_scheduled_now_dist_plan.compat_flow_now_input |
-+---------------------------+-------------------------------------------------------------+
++---------------------------+----------------------------------------------------------+
+| flow_name                 | source_table_names                                       |
++---------------------------+----------------------------------------------------------+
+| compat_flow_scheduled_now | pulse.flow_scheduled_now_dist_plan.compat_flow_now_input |
++---------------------------+----------------------------------------------------------+
 
 SHOW CREATE FLOW compat_flow_scheduled_now;
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, Mutex};
 
 use common_catalog::consts::{METRIC_ENGINE, MITO_ENGINE, MITO2_ENGINE};
@@ -34,7 +36,7 @@ use store_api::storage::ScanRequest;
 use crate::error::TablesRecordBatchSnafu;
 use crate::table::{TableRef, TableType};
 
-/// Adapt greptime's [TableRef] to DataFusion's [TableProvider].
+/// Adapt pulse's [TableRef] to DataFusion's [TableProvider].
 pub struct DfTableProviderAdapter {
     table: TableRef,
     scan_req: Arc<Mutex<ScanRequest>>,

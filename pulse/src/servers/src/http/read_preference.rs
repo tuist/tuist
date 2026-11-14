@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::str::FromStr;
 
 use axum::body::Body;
@@ -21,13 +23,13 @@ use axum::response::Response;
 use session::ReadPreference;
 use session::context::QueryContext;
 
-use crate::http::header::GREPTIME_DB_HEADER_READ_PREFERENCE;
+use crate::http::header::PULSE_DB_HEADER_READ_PREFERENCE;
 
 /// Extract read preference from the request headers.
 pub async fn extract_read_preference(mut request: Request<Body>, next: Next) -> Response {
     let read_preference = request
         .headers()
-        .get(&GREPTIME_DB_HEADER_READ_PREFERENCE)
+        .get(&PULSE_DB_HEADER_READ_PREFERENCE)
         .and_then(|header| header.to_str().ok())
         .and_then(|s| ReadPreference::from_str(s).ok())
         .unwrap_or_default();

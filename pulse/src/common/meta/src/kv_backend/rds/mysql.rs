@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -647,7 +649,7 @@ impl MySqlStore {
         max_txn_ops: usize,
     ) -> Result<KvBackendRef> {
         // This step ensures the mysql metadata backend is ready to use.
-        // We check if greptime_metakv table exists, and we will create a new table
+        // We check if pulse_metakv table exists, and we will create a new table
         // if it does not exist.
         let sql_template_set = MySqlTemplateFactory::new(table_name).build();
         sqlx::query(AssertSqlSafe(
@@ -754,7 +756,7 @@ mod tests {
 
     #[test]
     fn test_parse_value_column_blob_type() {
-        let sql = r#"CREATE TABLE `greptime_metakv` (
+        let sql = r#"CREATE TABLE `pulse_metakv` (
   `k` varbinary(3072) NOT NULL,
   `v` MEDIUMBLOB,
   PRIMARY KEY (`k`)
@@ -764,44 +766,43 @@ mod tests {
             MySqlStore::parse_value_column_blob_type(sql)
         );
 
-        let sql = r#"CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, `v` blob, PRIMARY KEY (`k`))"#;
+        let sql = r#"CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, `v` blob, PRIMARY KEY (`k`))"#;
         assert_eq!(
             Some(ValueBlobType::Blob),
             MySqlStore::parse_value_column_blob_type(sql)
         );
 
-        let sql = r#"CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, `v` longblob, PRIMARY KEY (`k`))"#;
+        let sql = r#"CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, `v` longblob, PRIMARY KEY (`k`))"#;
         assert_eq!(
             Some(ValueBlobType::LongBlob),
             MySqlStore::parse_value_column_blob_type(sql)
         );
 
-        let sql = "CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, `v`    BLOB NOT NULL, PRIMARY KEY (`k`))";
+        let sql = "CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, `v`    BLOB NOT NULL, PRIMARY KEY (`k`))";
         assert_eq!(
             Some(ValueBlobType::Blob),
             MySqlStore::parse_value_column_blob_type(sql)
         );
 
-        let sql = "CREATE TABLE `greptime_metakv` (\n  `k` varbinary(3072) NOT NULL,\n  \"v\" MediumBlob,\n  PRIMARY KEY (`k`)\n)";
+        let sql = "CREATE TABLE `pulse_metakv` (\n  `k` varbinary(3072) NOT NULL,\n  \"v\" MediumBlob,\n  PRIMARY KEY (`k`)\n)";
         assert_eq!(
             Some(ValueBlobType::MediumBlob),
             MySqlStore::parse_value_column_blob_type(sql)
         );
 
-        let sql = "CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, vv blob, `v` longblob, PRIMARY KEY (`k`))";
+        let sql = "CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, vv blob, `v` longblob, PRIMARY KEY (`k`))";
         assert_eq!(
             Some(ValueBlobType::LongBlob),
             MySqlStore::parse_value_column_blob_type(sql)
         );
 
-        let sql = "CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, value blob, PRIMARY KEY (`k`))";
+        let sql = "CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, value blob, PRIMARY KEY (`k`))";
         assert_eq!(None, MySqlStore::parse_value_column_blob_type(sql));
 
-        let sql = "CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, `v` varchar(255), PRIMARY KEY (`k`))";
+        let sql = "CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, `v` varchar(255), PRIMARY KEY (`k`))";
         assert_eq!(None, MySqlStore::parse_value_column_blob_type(sql));
 
-        let sql =
-            "CREATE TABLE `greptime_metakv` (`k` varbinary(3072) NOT NULL, PRIMARY KEY (`k`))";
+        let sql = "CREATE TABLE `pulse_metakv` (`k` varbinary(3072) NOT NULL, PRIMARY KEY (`k`))";
         assert_eq!(None, MySqlStore::parse_value_column_blob_type(sql));
     }
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use ::auth::UserProviderRef;
 use api::v1::Basic;
 use axum::extract::{Request, State};
@@ -36,7 +38,7 @@ use crate::error::{
     NotFoundAuthHeaderSnafu, NotFoundInfluxAuthSnafu, Result, UnsupportedAuthSchemeSnafu,
     UrlDecodeSnafu,
 };
-use crate::http::header::{GREPTIME_TIMEZONE_HEADER_NAME, GreptimeDbName};
+use crate::http::header::{PULSE_TIMEZONE_HEADER_NAME, PulseName};
 use crate::http::result::error_result::ErrorResponse;
 use crate::http::splunk::is_splunk_request;
 use crate::http::{AUTHORIZATION_HEADER, HTTP_API_PREFIX, PUBLIC_API_PREFIX};
@@ -191,7 +193,7 @@ pub fn extract_catalog_and_schema<B>(request: &Request<B>) -> (String, String) {
     // parse database from header
     let dbname = request
         .headers()
-        .get(GreptimeDbName::name())
+        .get(PulseName::name())
         // eat this invalid ascii error and give user the final IllegalParam error
         .and_then(|header| header.to_str().ok())
         .or_else(|| {
@@ -211,7 +213,7 @@ fn extract_timezone<B>(request: &Request<B>) -> Timezone {
     // parse timezone from header
     let timezone = request
         .headers()
-        .get(&GREPTIME_TIMEZONE_HEADER_NAME)
+        .get(&PULSE_TIMEZONE_HEADER_NAME)
         // eat this invalid ascii error and give user the final IllegalParam error
         .and_then(|header| header.to_str().ok())
         .unwrap_or("");
@@ -337,7 +339,7 @@ impl From<AuthScheme> for api::v1::auth_header::AuthScheme {
 type Credential<'a> = &'a str;
 
 /// Extracts an opaque bearer token from an `Authorization: Bearer <token>`
-/// header (the standard or `x-greptime-auth` header).
+/// header (the standard or `x-pulse-auth` header).
 ///
 /// Returns `None` for any other scheme (`Basic`, influxdb `Token`, splunk
 /// `Splunk`, …) so the caller can fall through to the username/password path.
@@ -545,8 +547,7 @@ mod tests {
 
     #[test]
     fn test_inner_auth_assigns_remote_query_id() {
-        let req =
-            mock_http_request(None, Some("http://127.0.0.1/v1/sql?db=greptime-public")).unwrap();
+        let req = mock_http_request(None, Some("http://127.0.0.1/v1/sql?db=pulse-public")).unwrap();
         let req = futures::executor::block_on(inner_auth::<()>(None, req)).unwrap();
         let query_ctx = req
             .extensions()
@@ -605,12 +606,12 @@ mod tests {
         let http_api_version = crate::http::HTTP_API_VERSION;
         let req = Request::builder()
             .uri(format!("http://localhost/{http_api_version}/sql").as_str())
-            .header(GreptimeDbName::name(), "greptime-tomcat")
+            .header(PulseName::name(), "pulse-tomcat")
             .body(())
             .unwrap();
 
         let db = extract_catalog_and_schema(&req);
-        assert_eq!(db, ("greptime".to_string(), "tomcat".to_string()));
+        assert_eq!(db, ("pulse".to_string(), "tomcat".to_string()));
     }
 
     #[test]
@@ -683,11 +684,9 @@ mod tests {
         );
         assert_eq!(extract_bearer_token(&bearer("BeArEr", "tok")), Some("tok"));
         let mut req = mock_http_request(Some("Bearer xyz"), None).unwrap();
-        req.headers_mut().insert(
-            AUTHORIZATION_HEADER,
-            "Bearer from-x-greptime".parse().unwrap(),
-        );
-        assert_eq!(extract_bearer_token(&req), Some("from-x-greptime"));
+        req.headers_mut()
+            .insert(AUTHORIZATION_HEADER, "Bearer from-x-pulse".parse().unwrap());
+        assert_eq!(extract_bearer_token(&req), Some("from-x-pulse"));
 
         // Non-bearer schemes are ignored so the caller falls through to Basic.
         assert_eq!(extract_bearer_token(&bearer("Basic", "dXNlcjpwYXNz")), None);

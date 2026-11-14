@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Frontend client to run flow as batching task which is time-window-aware normal query triggered every tick set by user
 
 use std::collections::HashMap;
@@ -1123,7 +1125,7 @@ mod tests {
         let affected_rows = client
             .handle_insert_once(
                 Request::RowInserts(api::v1::RowInsertRequests { inserts: vec![] }),
-                "greptime",
+                "pulse",
                 "public",
                 &mut peer_desc,
             )
@@ -1144,7 +1146,7 @@ mod tests {
 
         let result = client
             .query_with_terminal_metrics(
-                "greptime",
+                "pulse",
                 "public",
                 QueryRequest {
                     query: Some(Query::Sql("select 1".to_string())),
@@ -1182,7 +1184,7 @@ mod tests {
 
         let result = client
             .query_with_terminal_metrics(
-                "greptime",
+                "pulse",
                 "public",
                 QueryRequest {
                     query: Some(Query::Sql("insert into t select 1".to_string())),
@@ -1208,7 +1210,7 @@ mod tests {
 
         let result = client
             .query_with_terminal_metrics(
-                "greptime",
+                "pulse",
                 "public",
                 QueryRequest {
                     query: Some(Query::Sql("insert into t select * from src".to_string())),
@@ -1234,7 +1236,7 @@ mod tests {
 
         let err = client
             .query_with_terminal_metrics(
-                "greptime",
+                "pulse",
                 "public",
                 QueryRequest {
                     query: Some(Query::Sql("select 1".to_string())),

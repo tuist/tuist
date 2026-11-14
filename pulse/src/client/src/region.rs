@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod codec;
 
 use std::borrow::Borrow;
@@ -791,7 +793,7 @@ mod tests {
         let server = RegionTestServer::start().await;
         let mut status = Status::unavailable("migrating");
         status.metadata_mut().insert(
-            common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+            common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
             RetryHint::Retryable.as_str().parse().unwrap(),
         );
         server
@@ -837,7 +839,7 @@ mod tests {
         ] {
             let mut status = Status::failed_precondition("region unavailable");
             status.metadata_mut().insert(
-                common_error::GREPTIME_DB_HEADER_ERROR_CODE,
+                common_error::PULSE_DB_HEADER_ERROR_CODE,
                 (StatusCode::RegionNotReady as u32)
                     .to_string()
                     .parse()
@@ -845,7 +847,7 @@ mod tests {
             );
             if let Some(hint) = wire_hint {
                 status.metadata_mut().insert(
-                    common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                    common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
                     hint.parse().unwrap(),
                 );
             }
@@ -871,11 +873,11 @@ mod tests {
         ] {
             let mut status = Status::failed_precondition("region unavailable");
             status.metadata_mut().insert(
-                common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
                 hint.as_str().parse().unwrap(),
             );
             status.metadata_mut().insert(
-                common_error::GREPTIME_DB_HEADER_ERROR_CODE,
+                common_error::PULSE_DB_HEADER_ERROR_CODE,
                 (StatusCode::RegionNotFound as u32)
                     .to_string()
                     .parse()
@@ -956,7 +958,7 @@ mod tests {
                 let mut status = Status::new(code, "request failed");
                 // Metadata status is deliberately different from the transport status.
                 status.metadata_mut().insert(
-                    common_error::GREPTIME_DB_HEADER_ERROR_CODE,
+                    common_error::PULSE_DB_HEADER_ERROR_CODE,
                     (StatusCode::RegionNotReady as u32)
                         .to_string()
                         .parse()
@@ -964,7 +966,7 @@ mod tests {
                 );
                 if let Some(hint) = hint {
                     status.metadata_mut().insert(
-                        common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                        common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
                         hint.as_str().parse().unwrap(),
                     );
                 }
@@ -1436,7 +1438,7 @@ mod tests {
         let request = Arc::new(build_insert_request());
         let mut business_error = Status::unimplemented("unsupported write");
         business_error.metadata_mut().insert(
-            common_error::GREPTIME_DB_HEADER_ERROR_CODE,
+            common_error::PULSE_DB_HEADER_ERROR_CODE,
             (StatusCode::Unsupported as u32)
                 .to_string()
                 .parse()

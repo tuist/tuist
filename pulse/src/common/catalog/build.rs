@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 fn main() {
     // Set DEFAULT_CATALOG_NAME from environment variable or use default value
     let default_catalog_name =
-        std::env::var("DEFAULT_CATALOG_NAME").unwrap_or_else(|_| "greptime".to_string());
+        std::env::var("DEFAULT_CATALOG_NAME").unwrap_or_else(|_| "pulse".to_string());
 
     println!(
         "cargo:rustc-env=DEFAULT_CATALOG_NAME={}",

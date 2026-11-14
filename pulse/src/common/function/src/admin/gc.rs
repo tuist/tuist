@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_error::ext::BoxedError;
 use common_macro::admin_fn;
 use common_meta::rpc::procedure::{GcRegionsRequest, GcTableRequest};
@@ -224,7 +226,7 @@ mod tests {
         let (catalog, schema, table, full_file_listing) =
             parse_gc_table_params(&params, &QueryContext::arc()).unwrap();
 
-        assert_eq!(catalog, "greptime");
+        assert_eq!(catalog, "pulse");
         assert_eq!(schema, "public");
         assert_eq!(table, "t");
         assert!(full_file_listing);
@@ -257,7 +259,7 @@ mod tests {
             .unwrap();
 
         let request = handler.gc_table_request.lock().unwrap().clone().unwrap();
-        assert_eq!(request.catalog_name, "greptime");
+        assert_eq!(request.catalog_name, "pulse");
         assert_eq!(request.schema_name, "public");
         assert_eq!(request.table_name, "t");
         assert!(request.full_file_listing);

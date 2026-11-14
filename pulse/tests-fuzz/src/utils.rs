@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod cluster_info;
 pub mod config;
 pub mod crd;
@@ -52,8 +54,8 @@ pub struct Connections {
 
 const GT_MYSQL_ADDR: &str = "GT_MYSQL_ADDR";
 
-/// Connects to GreptimeDB via env variables.
-pub async fn init_greptime_connections_via_env() -> Connections {
+/// Connects to Pulse via env variables.
+pub async fn init_pulse_connections_via_env() -> Connections {
     crate::install_rustls_crypto_provider();
 
     let _ = dotenv::dotenv();
@@ -64,11 +66,11 @@ pub async fn init_greptime_connections_via_env() -> Connections {
         None
     };
 
-    init_greptime_connections(mysql).await
+    init_pulse_connections(mysql).await
 }
 
-/// Connects to GreptimeDB.
-pub async fn init_greptime_connections(mysql: Option<String>) -> Connections {
+/// Connects to Pulse.
+pub async fn init_pulse_connections(mysql: Option<String>) -> Connections {
     let mysql = if let Some(addr) = mysql {
         let opts = format!("mysql://{addr}/public")
             .parse::<MySqlConnectOptions>()
@@ -159,7 +161,7 @@ where
 /// Returns CSV dump base directory.
 pub fn get_gt_fuzz_dump_dir() -> String {
     let _ = dotenv::dotenv();
-    env::var(GT_FUZZ_DUMP_DIR).unwrap_or_else(|_| "/tmp/greptime-fuzz-dumps".to_string())
+    env::var(GT_FUZZ_DUMP_DIR).unwrap_or_else(|_| "/tmp/pulse-fuzz-dumps".to_string())
 }
 
 /// Returns CSV dump directory suffix.

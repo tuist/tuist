@@ -12,19 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use client::OutputData;
 use common_recordbatch::util::collect_batches;
 use common_test_util::recordbatch::check_output_stream;
 use common_wal::config::{DatanodeWalConfig, MetasrvWalConfig};
 
-use crate::cluster::GreptimeDbClusterBuilder;
+use crate::cluster::PulseClusterBuilder;
 use crate::test_util::execute_sql;
 use crate::tests::test_util::{MockInstanceBuilder, RebuildableMockInstance, TestContext};
 
 pub(crate) async fn distributed_with_noop_wal() -> TestContext {
     common_telemetry::init_default_ut_logging();
     let test_name = uuid::Uuid::new_v4().to_string();
-    let builder = GreptimeDbClusterBuilder::new(&test_name)
+    let builder = PulseClusterBuilder::new(&test_name)
         .await
         .with_datanode_wal_config(DatanodeWalConfig::Noop)
         .with_metasrv_wal_config(MetasrvWalConfig::RaftEngine);

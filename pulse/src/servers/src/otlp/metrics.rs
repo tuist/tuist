@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use ahash::HashSet;
 use api::greptime_proto::io::prometheus::write::v2::histogram::{
     Count as PromCount, ResetHint, ZeroCount as PromZeroCount,
@@ -24,8 +26,8 @@ use common_query::native_histogram::{
     encode_native_histogram, native_histogram_column_schema, native_histogram_value_type,
 };
 use common_query::prelude::{
-    GREPTIME_COUNT, GREPTIME_TEMPORALITY_DELTA, OTLP_AGGREGATION_TEMPORALITY_LABEL,
-    greptime_timestamp, greptime_value,
+    OTLP_AGGREGATION_TEMPORALITY_LABEL, PULSE_COUNT, PULSE_TEMPORALITY_DELTA, pulse_timestamp,
+    pulse_value,
 };
 use common_query::prometheus::PROMETHEUS_STALE_NAN_BITS;
 use common_telemetry::warn;
@@ -120,7 +122,7 @@ pub struct MetricsConversion {
     pub outcome: MetricsIngestOutcome,
 }
 
-/// Convert OpenTelemetry metrics to GreptimeDB insert requests
+/// Convert OpenTelemetry metrics to Pulse insert requests
 ///
 /// See
 /// <https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto>
@@ -1010,7 +1012,7 @@ fn write_timestamp(
     if metric_ctx.is_legacy || metric_ctx.with_metric_engine {
         row_writer::write_ts_to_nanos(
             table,
-            greptime_timestamp(),
+            pulse_timestamp(),
             Some(time_nano),
             Precision::Nanosecond,
             row,
@@ -1018,7 +1020,7 @@ fn write_timestamp(
     } else {
         row_writer::write_ts_to_millis(
             table,
-            greptime_timestamp(),
+            pulse_timestamp(),
             Some(time_nano / 1000000),
             Precision::Millisecond,
             row,
@@ -1054,7 +1056,7 @@ fn write_temporality_tag(
         row_writer::write_tag(
             table,
             OTLP_AGGREGATION_TEMPORALITY_LABEL,
-            GREPTIME_TEMPORALITY_DELTA,
+            PULSE_TEMPORALITY_DELTA,
             row,
         )?;
     }
@@ -1144,7 +1146,7 @@ fn encode_gauge(
             metric_ctx,
         )?;
 
-        write_data_point_value(table, &mut row, greptime_value(), &data_point.value)?;
+        write_data_point_value(table, &mut row, pulse_value(), &data_point.value)?;
         table.add_row(row);
     }
 
@@ -1186,12 +1188,12 @@ fn encode_sum(
         if has_no_recorded_value(data_point.flags) {
             row_writer::write_f64(
                 table,
-                greptime_value(),
+                pulse_value(),
                 f64::from_bits(PROMETHEUS_STALE_NAN_BITS),
                 &mut row,
             )?;
         } else {
-            write_data_point_value(table, &mut row, greptime_value(), &data_point.value)?;
+            write_data_point_value(table, &mut row, pulse_value(), &data_point.value)?;
         }
         table.add_row(row);
     }
@@ -1205,8 +1207,8 @@ const HISTOGRAM_LE_COLUMN: &str = "le";
 ///
 /// The implementation has been following Prometheus histogram table format:
 ///
-/// - A `%metric%_bucket` table including `greptime_le` tag that stores bucket upper
-///   limit, and `greptime_value` for bucket count
+/// - A `%metric%_bucket` table including `pulse_le` tag that stores bucket upper
+///   limit, and `pulse_value` for bucket count
 /// - A `%metric%_sum` table storing sum of samples
 /// -  A `%metric%_count` table storing count of samples.
 ///
@@ -1298,7 +1300,7 @@ fn encode_histogram(
             )?;
             write_temporality_tag(bucket_table, &mut bucket_row, is_delta)?;
             row_writer::write_tag(bucket_table, HISTOGRAM_LE_COLUMN, bound, &mut bucket_row)?;
-            row_writer::write_f64(bucket_table, greptime_value(), value, &mut bucket_row)?;
+            row_writer::write_f64(bucket_table, pulse_value(), value, &mut bucket_row)?;
 
             bucket_table.add_row(bucket_row);
         }
@@ -1322,7 +1324,7 @@ fn encode_histogram(
             write_temporality_tag(sum_table, &mut sum_row, is_delta)?;
             row_writer::write_f64(
                 sum_table,
-                greptime_value(),
+                pulse_value(),
                 if no_recorded_value { stale_value } else { sum },
                 &mut sum_row,
             )?;
@@ -1347,7 +1349,7 @@ fn encode_histogram(
         write_temporality_tag(count_table, &mut count_row, is_delta)?;
         row_writer::write_f64(
             count_table,
-            greptime_value(),
+            pulse_value(),
             if no_recorded_value {
                 stale_value
             } else {
@@ -1445,13 +1447,13 @@ fn encode_summary(
             for quantile in &data_point.quantile_values {
                 row_writer::write_f64(
                     table,
-                    format!("greptime_p{:02}", quantile.quantile * 100f64),
+                    format!("pulse_p{:02}", quantile.quantile * 100f64),
                     quantile.value,
                     &mut row,
                 )?;
             }
 
-            row_writer::write_f64(table, GREPTIME_COUNT, data_point.count as f64, &mut row)?;
+            row_writer::write_f64(table, PULSE_COUNT, data_point.count as f64, &mut row)?;
             table.add_row(row);
         }
     } else {
@@ -1483,12 +1485,7 @@ fn encode_summary(
                         metric_ctx,
                     )?;
                     row_writer::write_tag(quantile_table, "quantile", quantile.quantile, &mut row)?;
-                    row_writer::write_f64(
-                        quantile_table,
-                        greptime_value(),
-                        quantile.value,
-                        &mut row,
-                    )?;
+                    row_writer::write_f64(quantile_table, pulse_value(), quantile.value, &mut row)?;
                     quantile_table.add_row(row);
                 }
             }
@@ -1511,7 +1508,7 @@ fn encode_summary(
 
                 row_writer::write_f64(
                     count_table,
-                    greptime_value(),
+                    pulse_value(),
                     data_point.count as f64,
                     &mut row,
                 )?;
@@ -1536,7 +1533,7 @@ fn encode_summary(
                     metric_ctx,
                 )?;
 
-                row_writer::write_f64(sum_table, greptime_value(), data_point.sum, &mut row)?;
+                row_writer::write_f64(sum_table, pulse_value(), data_point.sum, &mut row)?;
 
                 sum_table.add_row(row);
             }
@@ -1840,12 +1837,7 @@ mod tests {
                 .iter()
                 .map(|c| &c.column_name)
                 .collect::<Vec<&String>>(),
-            vec![
-                "otel_scope_scope",
-                "host",
-                greptime_timestamp(),
-                greptime_value()
-            ]
+            vec!["otel_scope_scope", "host", pulse_timestamp(), pulse_value()]
         );
     }
 
@@ -1890,12 +1882,7 @@ mod tests {
                 .iter()
                 .map(|c| &c.column_name)
                 .collect::<Vec<&String>>(),
-            vec![
-                "otel_scope_scope",
-                "host",
-                greptime_timestamp(),
-                greptime_value()
-            ]
+            vec!["otel_scope_scope", "host", pulse_timestamp(), pulse_value()]
         );
     }
 
@@ -1943,9 +1930,9 @@ mod tests {
             vec![
                 "otel_scope_scope",
                 "host",
-                greptime_timestamp(),
+                pulse_timestamp(),
                 "quantile",
-                greptime_value()
+                pulse_value()
             ]
         );
 
@@ -1958,12 +1945,7 @@ mod tests {
                 .iter()
                 .map(|c| &c.column_name)
                 .collect::<Vec<&String>>(),
-            vec![
-                "otel_scope_scope",
-                "host",
-                greptime_timestamp(),
-                greptime_value()
-            ]
+            vec!["otel_scope_scope", "host", pulse_timestamp(), pulse_value()]
         );
 
         let table = tables.get_or_default_table_data("datamon_sum", 0, 0);
@@ -1975,12 +1957,7 @@ mod tests {
                 .iter()
                 .map(|c| &c.column_name)
                 .collect::<Vec<&String>>(),
-            vec![
-                "otel_scope_scope",
-                "host",
-                greptime_timestamp(),
-                greptime_value()
-            ]
+            vec!["otel_scope_scope", "host", pulse_timestamp(), pulse_value()]
         );
     }
 
@@ -2021,7 +1998,7 @@ mod tests {
                 .iter()
                 .map(|column| column.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["host", "custom_timestamp", "greptime_p90", GREPTIME_COUNT,]
+            vec!["host", "custom_timestamp", "pulse_p90", PULSE_COUNT,]
         );
     }
 
@@ -2074,10 +2051,10 @@ mod tests {
             vec![
                 "otel_scope_scope",
                 "host",
-                greptime_timestamp(),
+                pulse_timestamp(),
                 OTLP_AGGREGATION_TEMPORALITY_LABEL,
                 "le",
-                greptime_value(),
+                pulse_value(),
             ]
         );
 
@@ -2093,9 +2070,9 @@ mod tests {
             vec![
                 "otel_scope_scope",
                 "host",
-                greptime_timestamp(),
+                pulse_timestamp(),
                 OTLP_AGGREGATION_TEMPORALITY_LABEL,
-                greptime_value()
+                pulse_value()
             ]
         );
 
@@ -2111,9 +2088,9 @@ mod tests {
             vec![
                 "otel_scope_scope",
                 "host",
-                greptime_timestamp(),
+                pulse_timestamp(),
                 OTLP_AGGREGATION_TEMPORALITY_LABEL,
-                greptime_value()
+                pulse_value()
             ]
         );
     }
@@ -2729,7 +2706,7 @@ mod tests {
         let ts_index = rows
             .schema
             .iter()
-            .position(|column| column.column_name == greptime_timestamp())
+            .position(|column| column.column_name == pulse_timestamp())
             .unwrap();
         assert_eq!(
             rows.schema[ts_index].datatype,
@@ -2763,7 +2740,7 @@ mod tests {
         let ts_index = rows
             .schema
             .iter()
-            .position(|column| column.column_name == greptime_timestamp())
+            .position(|column| column.column_name == pulse_timestamp())
             .unwrap();
         assert_eq!(
             rows.schema[ts_index].datatype,
@@ -2778,7 +2755,7 @@ mod tests {
     #[test]
     fn test_exponential_histogram_rejection_metrics() {
         // Other conversion tests update the same process-global counters.
-        const ISOLATED_ENV: &str = "GREPTIME_TEST_OTLP_REJECTION_METRICS_ISOLATED";
+        const ISOLATED_ENV: &str = "PULSE_TEST_OTLP_REJECTION_METRICS_ISOLATED";
         if std::env::var_os(ISOLATED_ENV).is_none() {
             let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
@@ -3036,7 +3013,7 @@ mod tests {
 
     #[test]
     fn test_exponential_histogram_legacy_and_new_modes_share_struct() {
-        use common_query::prelude::greptime_native_histogram;
+        use common_query::prelude::pulse_native_histogram;
 
         let mut point = exponential_point();
         point.sum = Some(42.0);
@@ -3063,7 +3040,7 @@ mod tests {
         assert_eq!(legacy_insert.table_name, "request_duration");
         let new_rows = new_insert.rows.as_ref().unwrap();
         let legacy_rows = legacy_insert.rows.as_ref().unwrap();
-        let field = greptime_native_histogram();
+        let field = pulse_native_histogram();
         let new_histogram = new_rows.rows[0].values[new_rows
             .schema
             .iter()
@@ -3081,7 +3058,7 @@ mod tests {
             new_rows.rows[0].values[new_rows
                 .schema
                 .iter()
-                .position(|column| column.column_name == greptime_timestamp())
+                .position(|column| column.column_name == pulse_timestamp())
                 .unwrap()]
             .value_data,
             Some(ValueData::TimestampMillisecondValue(2))
@@ -3090,7 +3067,7 @@ mod tests {
             legacy_rows.rows[0].values[legacy_rows
                 .schema
                 .iter()
-                .position(|column| column.column_name == greptime_timestamp())
+                .position(|column| column.column_name == pulse_timestamp())
                 .unwrap()]
             .value_data,
             Some(ValueData::TimestampNanosecondValue(2_000_000))

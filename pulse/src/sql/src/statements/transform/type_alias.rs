@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::ops::ControlFlow;
 
-use datatypes::data_type::DataType as GreptimeDataType;
+use datatypes::data_type::DataType as PulseDataType;
 use sqlparser::ast::{
     DataType, ExactNumberInfo, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArgumentList,
     Ident, ObjectName, Value,

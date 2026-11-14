@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod common;
 
-use common_query::prelude::greptime_timestamp;
+use common_query::prelude::pulse_timestamp;
 use greptime_proto::v1::value::ValueData;
 use greptime_proto::v1::{ColumnDataType, SemanticType};
 
@@ -55,7 +57,7 @@ transform:
             SemanticType::Field,
         ),
         common::make_column_schema(
-            greptime_timestamp().to_string(),
+            pulse_timestamp().to_string(),
             ColumnDataType::TimestampNanosecond,
             SemanticType::Timestamp,
         ),
@@ -101,7 +103,7 @@ transform:
             SemanticType::Field,
         ),
         common::make_column_schema(
-            greptime_timestamp().to_string(),
+            pulse_timestamp().to_string(),
             ColumnDataType::TimestampNanosecond,
             SemanticType::Timestamp,
         ),

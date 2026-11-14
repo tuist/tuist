@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -116,8 +118,8 @@ impl DfLogicalPlanner {
         }
     }
 
-    /// Basically the same with `explain_to_plan` in DataFusion, but adapted to Greptime's
-    /// `plan_sql` to support Greptime Statements.
+    /// Basically the same with `explain_to_plan` in DataFusion, but adapted to Pulse's
+    /// `plan_sql` to support Pulse Statements.
     async fn explain_to_plan(
         &self,
         explain: &ExplainStatement,
@@ -178,7 +180,7 @@ impl DfLogicalPlanner {
         let mut stmt = Cow::Borrowed(stmt);
         let mut is_tql_cte = false;
 
-        // handle explain before normal processing so we can explain Greptime Statements
+        // handle explain before normal processing so we can explain Pulse Statements
         if let Statement::Explain(explain) = stmt.as_ref() {
             return self.explain_to_plan(explain, query_ctx).await;
         }

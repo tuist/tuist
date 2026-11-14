@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::hint::black_box;
 use std::sync::Arc;
 
 use api::v1::SemanticType;
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use common_recordbatch::filter::SimpleFilterEvaluator;
 use criterion::{Criterion, criterion_group, criterion_main};
 use datafusion_common::Column;
@@ -59,7 +61,7 @@ fn setup_metadata() -> RegionMetadataRef {
         })
         .push_column_metadata(ColumnMetadata {
             column_schema: ColumnSchema::new(
-                greptime_value(),
+                pulse_value(),
                 ConcreteDataType::float64_datatype(),
                 false,
             ),
@@ -68,7 +70,7 @@ fn setup_metadata() -> RegionMetadataRef {
         })
         .push_column_metadata(ColumnMetadata {
             column_schema: ColumnSchema::new(
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ConcreteDataType::timestamp_nanosecond_datatype(),
                 false,
             ),
@@ -81,9 +83,9 @@ fn setup_metadata() -> RegionMetadataRef {
 
 fn create_test_row() -> Vec<(ColumnId, ValueRef<'static>)> {
     vec![
-        (1, ValueRef::String("greptime-frontend-6989d9899-22222")),
-        (2, ValueRef::String("greptime-cluster")),
-        (3, ValueRef::String("greptime-frontend-6989d9899-22222")),
+        (1, ValueRef::String("pulse-frontend-6989d9899-22222")),
+        (2, ValueRef::String("pulse-cluster")),
+        (3, ValueRef::String("pulse-frontend-6989d9899-22222")),
     ]
 }
 
@@ -217,10 +219,10 @@ fn bench_primary_key_filter(c: &mut Criterion) {
     let metadata = setup_metadata();
     let row = create_test_row();
 
-    let eq_filter = create_eq_filter("pod", "greptime-frontend-6989d9899-22222");
-    let gt_filter = create_filter_with_op("pod", Operator::Gt, "greptime-frontend-6989d9899-22221");
+    let eq_filter = create_eq_filter("pod", "pulse-frontend-6989d9899-22222");
+    let gt_filter = create_filter_with_op("pod", Operator::Gt, "pulse-frontend-6989d9899-22221");
     let lt_eq_filter =
-        create_filter_with_op("pod", Operator::LtEq, "greptime-frontend-6989d9899-22222");
+        create_filter_with_op("pod", Operator::LtEq, "pulse-frontend-6989d9899-22222");
     let or_filter = create_or_eq_filter(
         "pod",
         &[
@@ -231,7 +233,7 @@ fn bench_primary_key_filter(c: &mut Criterion) {
             "e",
             "f",
             "g",
-            "greptime-frontend-6989d9899-22222",
+            "pulse-frontend-6989d9899-22222",
         ],
     );
 

@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// For the given format: `x-greptime-hints: auto_create_table=true, ttl=7d`
-pub const HINTS_KEY: &str = "x-greptime-hints";
-/// Deprecated, use `HINTS_KEY` instead. Notes if "x-greptime-hints" is set, keys with this prefix will be ignored.
-pub const HINTS_KEY_PREFIX: &str = "x-greptime-hint-";
+// Modified by Tuist; see pulse/FORK.md.
+
+// For the given format: `x-pulse-hints: auto_create_table=true, ttl=7d`
+pub const HINTS_KEY: &str = "x-pulse-hints";
+/// Deprecated, use `HINTS_KEY` instead. Notes if "x-pulse-hints" is set, keys with this prefix will be ignored.
+pub const HINTS_KEY_PREFIX: &str = "x-pulse-hint-";
 pub const REMOTE_QUERY_ID_EXTENSION_KEY: &str = "remote_query_id";
 pub const INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY: &str =
     "initial_remote_dyn_filter_registrations";
@@ -36,13 +38,13 @@ pub const RESERVED_EXTENSION_KEYS: [&str; 4] = [
 
 /// Deprecated, use `HINTS_KEY` instead.
 pub const HINT_KEYS: [&str; 7] = [
-    "x-greptime-hint-auto_create_table",
-    "x-greptime-hint-ttl",
-    "x-greptime-hint-append_mode",
-    "x-greptime-hint-merge_mode",
-    "x-greptime-hint-physical_table",
-    "x-greptime-hint-skip_wal",
-    "x-greptime-hint-read_preference",
+    "x-pulse-hint-auto_create_table",
+    "x-pulse-hint-ttl",
+    "x-pulse-hint-append_mode",
+    "x-pulse-hint-merge_mode",
+    "x-pulse-hint-physical_table",
+    "x-pulse-hint-skip_wal",
+    "x-pulse-hint-read_preference",
 ];
 
 pub fn is_reserved_extension_key(key: &str) -> bool {

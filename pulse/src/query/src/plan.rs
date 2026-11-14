@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 
 use datafusion::datasource::DefaultTableSource;
@@ -230,7 +232,7 @@ pub(crate) mod tests {
         assert_dependencies(&table_names, &[(DEFAULT_CATALOG_NAME, "test", "devices")]);
 
         assert_eq!(
-            "Filter: devices.id > Int32(500)\n  TableScan: greptime.test.devices",
+            "Filter: devices.id > Int32(500)\n  TableScan: pulse.test.devices",
             plan.to_string()
         );
     }

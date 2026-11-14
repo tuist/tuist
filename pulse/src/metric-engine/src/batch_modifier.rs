@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::hash::Hasher;
 use std::sync::Arc;
 
@@ -224,8 +226,8 @@ mod tests {
 
     fn build_sparse_test_batch() -> RecordBatch {
         let schema = Arc::new(ArrowSchema::new(vec![
-            Field::new("greptime_timestamp", DataType::Int64, false),
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_timestamp", DataType::Int64, false),
+            Field::new("pulse_value", DataType::Float64, true),
             Field::new("namespace", DataType::Utf8, true),
             Field::new("host", DataType::Utf8, true),
         ]));
@@ -234,7 +236,7 @@ mod tests {
             vec![
                 Arc::new(Int64Array::from(vec![1000])),
                 Arc::new(datatypes::arrow::array::Float64Array::from(vec![42.0])),
-                Arc::new(StringArray::from(vec!["greptimedb"])),
+                Arc::new(StringArray::from(vec!["pulse"])),
                 Arc::new(StringArray::from(vec!["127.0.0.1"])),
             ],
         )
@@ -265,7 +267,7 @@ mod tests {
         let batch = RecordBatch::try_new(
             schema,
             vec![
-                Arc::new(StringArray::from(vec!["greptimedb"])),
+                Arc::new(StringArray::from(vec!["pulse"])),
                 Arc::new(StringArray::from(vec!["127.0.0.1"])),
             ],
         )
@@ -367,8 +369,8 @@ mod tests {
 
         assert_eq!(modified.num_columns(), 3);
         assert_eq!(modified.schema().field(0).name(), PRIMARY_KEY_COLUMN_NAME);
-        assert_eq!(modified.schema().field(1).name(), "greptime_timestamp");
-        assert_eq!(modified.schema().field(2).name(), "greptime_value");
+        assert_eq!(modified.schema().field(1).name(), "pulse_timestamp");
+        assert_eq!(modified.schema().field(2).name(), "pulse_value");
     }
 
     #[test]
@@ -391,10 +393,10 @@ mod tests {
         };
         let name_to_column_id: HashMap<String, ColumnMetadata> = [
             (
-                "greptime_timestamp".to_string(),
-                make_info("greptime_timestamp", 0),
+                "pulse_timestamp".to_string(),
+                make_info("pulse_timestamp", 0),
             ),
-            ("greptime_value".to_string(), make_info("greptime_value", 1)),
+            ("pulse_value".to_string(), make_info("pulse_value", 1)),
             ("namespace".to_string(), make_info("namespace", 2)),
             ("host".to_string(), make_info("host", 3)),
         ]
@@ -404,13 +406,13 @@ mod tests {
         let rows = Rows {
             schema: vec![
                 ColumnSchema {
-                    column_name: "greptime_timestamp".to_string(),
+                    column_name: "pulse_timestamp".to_string(),
                     datatype: ColumnDataType::TimestampMillisecond as i32,
                     semantic_type: SemanticType::Timestamp as i32,
                     ..Default::default()
                 },
                 ColumnSchema {
-                    column_name: "greptime_value".to_string(),
+                    column_name: "pulse_value".to_string(),
                     datatype: ColumnDataType::Float64 as i32,
                     semantic_type: SemanticType::Field as i32,
                     ..Default::default()
@@ -437,7 +439,7 @@ mod tests {
                         value_data: Some(ValueData::F64Value(42.0)),
                     },
                     Value {
-                        value_data: Some(ValueData::StringValue("greptimedb".to_string())),
+                        value_data: Some(ValueData::StringValue("pulse".to_string())),
                     },
                     Value {
                         value_data: Some(ValueData::StringValue("127.0.0.1".to_string())),
@@ -474,18 +476,18 @@ mod tests {
         // `LargeUtf8`, `Utf8View`, or dictionary-encoded). `modify_batch_sparse`
         // must not assume the tag columns are plain `StringArray`s.
         let tag_arrays: Vec<ArrayRef> = vec![
-            Arc::new(StringArray::from(vec!["greptimedb"])),
+            Arc::new(StringArray::from(vec!["pulse"])),
             Arc::new(datatypes::arrow::array::LargeStringArray::from(vec![
-                "greptimedb",
+                "pulse",
             ])),
             Arc::new(datatypes::arrow::array::StringViewArray::from(vec![
-                "greptimedb",
+                "pulse",
             ])),
             Arc::new(datatypes::arrow::array::DictionaryArray::<
                 datatypes::arrow::datatypes::UInt32Type,
             >::new(
                 datatypes::arrow::array::UInt32Array::from(vec![0]),
-                Arc::new(StringArray::from(vec!["greptimedb"])),
+                Arc::new(StringArray::from(vec!["pulse"])),
             )),
         ];
         let tag_columns = vec![TagColumnInfo {
@@ -499,8 +501,8 @@ mod tests {
             .into_iter()
             .map(|tag_array| {
                 let schema = Arc::new(ArrowSchema::new(vec![
-                    Field::new("greptime_timestamp", DataType::Int64, false),
-                    Field::new("greptime_value", DataType::Float64, true),
+                    Field::new("pulse_timestamp", DataType::Int64, false),
+                    Field::new("pulse_value", DataType::Float64, true),
                     Field::new("namespace", tag_array.data_type().clone(), true),
                 ]));
                 let batch = RecordBatch::try_new(
@@ -554,8 +556,8 @@ mod tests {
                 _ => unreachable!(),
             };
             let schema = Arc::new(ArrowSchema::new(vec![
-                Field::new("greptime_timestamp", DataType::Int64, false),
-                Field::new("greptime_value", DataType::Float64, true),
+                Field::new("pulse_timestamp", DataType::Int64, false),
+                Field::new("pulse_value", DataType::Float64, true),
                 Field::new("namespace", data_type.clone(), true),
                 Field::new("host", data_type, true),
             ]));

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use partition::expr::PartitionExpr;
 
 use crate::error::Result;
@@ -110,7 +112,7 @@ fn format_wait_clause(wait: bool) -> String {
 mod tests {
     use datatypes::value::Value;
     use partition::expr::col;
-    use sql::dialect::GreptimeDbDialect;
+    use sql::dialect::PulseDialect;
     use sql::parser::{ParseOptions, ParserContext};
 
     use super::RepartitionExprTranslator;
@@ -239,7 +241,7 @@ mod tests {
 
     fn assert_repartition_sql_parseable(sql: &str) {
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(statements.len(), 1);
     }

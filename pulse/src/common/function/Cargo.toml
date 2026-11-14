@@ -9,7 +9,6 @@ workspace = true
 
 [features]
 testing = []
-enterprise = []
 default = ["geo", "ai_functions"]
 geo = ["geohash", "h3o", "s2", "wkt", "geo-types", "dep:geo"]
 ai_functions = ["dep:futures", "dep:reqwest"]

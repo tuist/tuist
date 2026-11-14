@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 
 use common_datasource::packed_snapshot::{PACK_INDEX_FILE, PackIndex};
 use snafu::ResultExt;
-use sql::dialect::GreptimeDbDialect;
+use sql::dialect::PulseDialect;
 use sql::parser::{ParseOptions, ParserContext};
 use sql::statements::statement::Statement;
 
@@ -51,17 +53,14 @@ pub(crate) async fn validate_snapshot(
             .read_text(&ddl_path_for_schema(schema))
             .await
             .context(SnapshotStorageSnafu)?;
-        let statements = ParserContext::create_with_dialect(
-            &ddl,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .map_err(|e| {
-            InvalidPackedSnapshotSnafu {
-                reason: e.to_string(),
-            }
-            .build()
-        })?;
+        let statements =
+            ParserContext::create_with_dialect(&ddl, &PulseDialect {}, ParseOptions::default())
+                .map_err(|e| {
+                    InvalidPackedSnapshotSnafu {
+                        reason: e.to_string(),
+                    }
+                    .build()
+                })?;
         let mut names = HashSet::new();
         for statement in statements {
             if let Statement::CreateTable(create) = statement {
@@ -189,7 +188,7 @@ mod tests {
             .write_text("data/public/1/pack-0.bin", "abcdefghijkl")
             .await
             .unwrap();
-        let mut manifest = Manifest::new_schema_only("greptime".into(), vec!["public".into()]);
+        let mut manifest = Manifest::new_schema_only("pulse".into(), vec!["public".into()]);
         let mut chunk = ChunkMeta::new(1, TimeRange::unbounded());
         chunk.mark_completed(vec![path.into(), "data/public/1/pack-0.bin".into()], None);
         manifest.version = 2;

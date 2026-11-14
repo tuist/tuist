@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -27,7 +29,7 @@ use tokio_postgres::{Client as PgClient, SimpleQueryMessage as PgRow};
 
 use crate::util::retry_with_backoff;
 
-/// A client that can connect to GreptimeDB using multiple protocols.
+/// A client that can connect to Pulse using multiple protocols.
 pub struct MultiProtocolClient {
     grpc_client: Database,
     pg_client: PgClient,
@@ -41,11 +43,11 @@ pub enum MysqlSqlResult {
 }
 
 impl MultiProtocolClient {
-    /// Connect to the GreptimeDB server using multiple protocols.
+    /// Connect to the Pulse server using multiple protocols.
     ///
     /// # Arguments
     ///
-    /// * `grpc_server_addr` - The address of the GreptimeDB server.
+    /// * `grpc_server_addr` - The address of the Pulse server.
     /// * `pg_server_addr` - The address of the Postgres server.
     /// * `mysql_server_addr` - The address of the MySQL server.
     ///
@@ -123,7 +125,7 @@ impl MultiProtocolClient {
         }
     }
 
-    /// Execute a query on the GreptimeDB server.
+    /// Execute a query on the Pulse server.
     pub async fn grpc_query(&mut self, query: &str) -> Result<Output, client::Error> {
         let query_str = query.trim().to_lowercase();
         if query_str.starts_with("use ") {

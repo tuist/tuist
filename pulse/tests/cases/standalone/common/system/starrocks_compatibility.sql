@@ -86,13 +86,13 @@ WHERE TABLE_SCHEMA = 'public' AND TABLE_NAME = 'test_partitions';
 
 -- ============================================
 -- Section 4: Raw PARTITIONS data inspection
--- Verify GreptimeDB returns appropriate partition metadata
+-- Verify Pulse returns appropriate partition metadata
 -- ============================================
 
--- Show what GreptimeDB returns for PARTITIONS
+-- Show what Pulse returns for PARTITIONS
 -- SQLNESS REPLACE (\d{13,}) REGION_ID
 SELECT table_schema, table_name, partition_name, partition_method,
-       partition_expression, partition_description, greptime_partition_id
+       partition_expression, partition_description, pulse_partition_id
 FROM INFORMATION_SCHEMA.PARTITIONS
 WHERE TABLE_SCHEMA = 'public' AND TABLE_NAME = 'test_partitions';
 

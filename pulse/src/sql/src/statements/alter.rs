@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "enterprise")]
-pub mod trigger;
+// Modified by Tuist; see pulse/FORK.md.
 
 use std::fmt::{Debug, Display};
 
@@ -449,7 +448,7 @@ mod tests {
     use std::assert_matches;
 
     use super::AlterTableOperation;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::create::Json2Options;
     use crate::statements::statement::Statement;
@@ -458,7 +457,7 @@ mod tests {
     fn test_display_alter() {
         let sql = r"ALTER DATABASE db SET 'a' = 'b', 'c' = 'd'";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterDatabase { .. });
@@ -479,7 +478,7 @@ ALTER DATABASE db SET 'a'='b','c'='d'"#,
 
         let sql = r"ALTER DATABASE db UNSET 'a', 'c'";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
 
@@ -500,7 +499,7 @@ ALTER DATABASE db UNSET 'a','c'"#,
         let sql =
             r"alter table monitor add column app string default 'shop' primary key, add foo INT;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -521,7 +520,7 @@ ALTER TABLE monitor ADD COLUMN app STRING DEFAULT 'shop' PRIMARY KEY, ADD COLUMN
 
         let sql = r"alter table monitor modify column load_15 string;";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -561,7 +560,7 @@ ALTER TABLE monitor MODIFY COLUMN load_15 STRING"#,
 
         let sql = r"alter table monitor drop column load_15;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -582,7 +581,7 @@ ALTER TABLE monitor DROP COLUMN load_15"#,
 
         let sql = r"alter table monitor rename monitor_new;";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -603,7 +602,7 @@ ALTER TABLE monitor RENAME monitor_new"#,
 
         let sql = "ALTER TABLE monitor MODIFY COLUMN a SET FULLTEXT INDEX WITH(analyzer='English',case_sensitive='false',backend='bloom')";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -624,7 +623,7 @@ ALTER TABLE monitor MODIFY COLUMN a SET FULLTEXT INDEX WITH(analyzer=English, ca
 
         let sql = "ALTER TABLE monitor MODIFY COLUMN a UNSET FULLTEXT INDEX";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -645,7 +644,7 @@ ALTER TABLE monitor MODIFY COLUMN a UNSET FULLTEXT INDEX"#,
 
         let sql = "ALTER TABLE monitor MODIFY COLUMN a SET INVERTED INDEX";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -666,7 +665,7 @@ ALTER TABLE monitor MODIFY COLUMN a SET INVERTED INDEX"#,
 
         let sql = "ALTER TABLE monitor MODIFY COLUMN a DROP DEFAULT";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });
@@ -687,7 +686,7 @@ ALTER TABLE monitor MODIFY COLUMN a DROP DEFAULT"#,
 
         let sql = "ALTER TABLE monitor MODIFY COLUMN a SET DEFAULT 'default_for_a'";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::AlterTable { .. });

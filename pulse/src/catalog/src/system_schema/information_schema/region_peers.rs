@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use core::pin::pin;
 use std::sync::{Arc, Weak};
 
@@ -374,7 +376,7 @@ mod tests {
         let schema = InformationSchemaRegionPeers::schema();
         let mut builder = InformationSchemaRegionPeersBuilder::new(
             schema,
-            "greptime".to_string(),
+            "pulse".to_string(),
             Weak::<KvBackendCatalogManager>::new(),
         );
 
@@ -406,7 +408,7 @@ mod tests {
         let predicates = Predicates::from_scan_request(&Some(request));
 
         builder.add_region_peers(
-            "greptime",
+            "pulse",
             "public",
             "test_table",
             &predicates,

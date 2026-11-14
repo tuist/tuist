@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::io::BufRead;
 use std::sync::Arc;
 use std::{fs, io};
@@ -22,14 +24,14 @@ use http::StatusCode;
 use servers::http::test_helpers::TestClient;
 use servers::http::{HTTP_SERVER, HttpServer};
 use servers::server::ServerHandlers;
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 use tests_integration::test_util::execute_sql_and_expect;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_load_jsonbench_data_by_pipeline() -> io::Result<()> {
     common_telemetry::init_default_ut_logging();
 
-    let instance = GreptimeDbStandaloneBuilder::new("test_load_jsonbench_data_by_pipeline")
+    let instance = PulseStandaloneBuilder::new("test_load_jsonbench_data_by_pipeline")
         .build()
         .await;
     let frontend = instance.fe_instance();
@@ -125,7 +127,7 @@ transform:
 async fn test_load_jsonbench_data_by_sql() -> io::Result<()> {
     common_telemetry::init_default_ut_logging();
 
-    let instance = GreptimeDbStandaloneBuilder::new("test_load_jsonbench_data_by_sql")
+    let instance = PulseStandaloneBuilder::new("test_load_jsonbench_data_by_sql")
         .build()
         .await;
     let frontend = instance.fe_instance();

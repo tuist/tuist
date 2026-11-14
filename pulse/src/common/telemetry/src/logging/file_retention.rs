@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! File-log retention based on the total size of managed log files.
 
 use std::collections::hash_map::Entry;
@@ -39,17 +41,17 @@ pub(crate) enum LogFileKind {
 impl LogFileKind {
     fn prefix(self) -> &'static str {
         match self {
-            Self::Default => "greptimedb",
-            Self::Error => "greptimedb-err",
-            Self::SlowQuery => "greptimedb-slow-queries",
+            Self::Default => "pulse",
+            Self::Error => "pulse-err",
+            Self::SlowQuery => "pulse-slow-queries",
         }
     }
 
     fn current_link_name(self) -> &'static str {
         match self {
-            Self::Default => ".greptimedb.current",
-            Self::Error => ".greptimedb-err.current",
-            Self::SlowQuery => ".greptimedb-slow-queries.current",
+            Self::Default => ".pulse.current",
+            Self::Error => ".pulse-err.current",
+            Self::SlowQuery => ".pulse-slow-queries.current",
         }
     }
 
@@ -480,7 +482,7 @@ mod tests {
     #[cfg(unix)]
     fn register_default_kind(retention: &DirectoryRetention, directory: &Path, active: &Path) {
         retention.register(LogFileKind::Default);
-        symlink(active, directory.join(".greptimedb.current")).unwrap();
+        symlink(active, directory.join(".pulse.current")).unwrap();
     }
 
     #[test]
@@ -490,12 +492,10 @@ mod tests {
 
     #[test]
     fn test_recognizes_managed_file_name() {
-        assert!(LogFileKind::kind_from_file_name("greptimedb.2026-01-01-00").is_some());
-        assert!(LogFileKind::kind_from_file_name("greptimedb-err.2026-01-01-00").is_some());
-        assert!(
-            LogFileKind::kind_from_file_name("greptimedb-slow-queries.2026-01-01-00").is_some()
-        );
-        assert!(LogFileKind::kind_from_file_name("greptimedb.2026-01-01-00.1").is_none());
+        assert!(LogFileKind::kind_from_file_name("pulse.2026-01-01-00").is_some());
+        assert!(LogFileKind::kind_from_file_name("pulse-err.2026-01-01-00").is_some());
+        assert!(LogFileKind::kind_from_file_name("pulse-slow-queries.2026-01-01-00").is_some());
+        assert!(LogFileKind::kind_from_file_name("pulse.2026-01-01-00.1").is_none());
     }
 
     #[test]
@@ -519,7 +519,7 @@ mod tests {
 
         let _appender = build_file_appender(&opts, LogFileKind::Default, Some(&retention));
 
-        let symlink = directory.path().join(".greptimedb.current");
+        let symlink = directory.path().join(".pulse.current");
         assert!(symlink.is_symlink());
         assert!(fs::read_link(symlink).unwrap().exists());
     }
@@ -528,8 +528,8 @@ mod tests {
     #[test]
     fn test_file_appender_prunes_closed_files_by_size() {
         let directory = TempDir::new().unwrap();
-        let oldest = directory.path().join("greptimedb.2026-01-01-00");
-        let old = directory.path().join("greptimedb.2026-01-01-01");
+        let oldest = directory.path().join("pulse.2026-01-01-00");
+        let old = directory.path().join("pulse.2026-01-01-01");
         write_file(&oldest, &vec![b'a'; 2 * 1024]);
         write_file(&old, &vec![b'b'; 2 * 1024]);
 
@@ -546,7 +546,7 @@ mod tests {
         assert!(!oldest.exists());
         assert!(!old.exists());
         assert!(
-            fs::read_link(directory.path().join(".greptimedb.current"))
+            fs::read_link(directory.path().join(".pulse.current"))
                 .unwrap()
                 .exists()
         );
@@ -556,8 +556,8 @@ mod tests {
     #[test]
     fn test_file_appender_prunes_oldest_closed_file_by_size() {
         let directory = TempDir::new().unwrap();
-        let oldest = directory.path().join("greptimedb.2026-01-01-00");
-        let old = directory.path().join("greptimedb.2026-01-01-01");
+        let oldest = directory.path().join("pulse.2026-01-01-00");
+        let old = directory.path().join("pulse.2026-01-01-01");
         write_file(&oldest, &vec![b'a'; 2 * 1024]);
         write_file(&old, &vec![b'b'; 512]);
 
@@ -579,8 +579,8 @@ mod tests {
     #[test]
     fn test_file_appender_prunes_closed_files_by_count() {
         let directory = TempDir::new().unwrap();
-        let oldest = directory.path().join("greptimedb.2026-01-01-00");
-        let old = directory.path().join("greptimedb.2026-01-01-01");
+        let oldest = directory.path().join("pulse.2026-01-01-00");
+        let old = directory.path().join("pulse.2026-01-01-01");
         write_file(&oldest, b"oldest");
         write_file(&old, b"old");
 
@@ -597,7 +597,7 @@ mod tests {
         assert!(!oldest.exists());
         assert!(old.exists());
         assert!(
-            fs::read_link(directory.path().join(".greptimedb.current"))
+            fs::read_link(directory.path().join(".pulse.current"))
                 .unwrap()
                 .exists()
         );
@@ -617,7 +617,7 @@ mod tests {
         retention.initialize();
         appender.write_all(b"current").unwrap();
 
-        let active = fs::metadata(directory.path().join(".greptimedb.current")).unwrap();
+        let active = fs::metadata(directory.path().join(".pulse.current")).unwrap();
         assert!(active.len() > 1);
     }
 
@@ -625,8 +625,8 @@ mod tests {
     #[test]
     fn test_retention_removes_closed_files() {
         let directory = TempDir::new().unwrap();
-        let old = directory.path().join("greptimedb.2026-01-01-00");
-        let active = directory.path().join("greptimedb.2026-01-01-01");
+        let old = directory.path().join("pulse.2026-01-01-00");
+        let active = directory.path().join("pulse.2026-01-01-01");
         write_file(&old, b"old");
         write_file(&active, b"new");
 
@@ -642,7 +642,7 @@ mod tests {
     #[test]
     fn test_retention_keeps_active_file() {
         let directory = TempDir::new().unwrap();
-        let active = directory.path().join("greptimedb.2026-01-01-00");
+        let active = directory.path().join("pulse.2026-01-01-00");
         write_file(&active, b"active");
 
         let retention = DirectoryRetention::new(directory.path(), ReadableSize(1), 0).unwrap();
@@ -656,16 +656,16 @@ mod tests {
     #[test]
     fn test_retention_tracks_rotated_file_in_memory() {
         let directory = TempDir::new().unwrap();
-        let old = directory.path().join("greptimedb.2026-01-01-00");
-        let active = directory.path().join("greptimedb.2026-01-01-01");
+        let old = directory.path().join("pulse.2026-01-01-00");
+        let active = directory.path().join("pulse.2026-01-01-01");
         write_file(&old, b"old");
         write_file(&active, b"");
 
         let retention = DirectoryRetention::new(directory.path(), ReadableSize(3), 0).unwrap();
         register_default_kind(&retention, directory.path(), &old);
         retention.initialize();
-        fs::remove_file(directory.path().join(".greptimedb.current")).unwrap();
-        symlink(&active, directory.path().join(".greptimedb.current")).unwrap();
+        fs::remove_file(directory.path().join(".pulse.current")).unwrap();
+        symlink(&active, directory.path().join(".pulse.current")).unwrap();
         retention.track(LogFileKind::Default, 1);
 
         assert!(!old.exists());
@@ -676,8 +676,8 @@ mod tests {
     #[test]
     fn test_retention_retries_initialization() {
         let directory = TempDir::new().unwrap();
-        let old = directory.path().join("greptimedb.2026-01-01-00");
-        let active = directory.path().join("greptimedb.2026-01-01-01");
+        let old = directory.path().join("pulse.2026-01-01-00");
+        let active = directory.path().join("pulse.2026-01-01-01");
         let retention = DirectoryRetention::new(directory.path(), ReadableSize(5), 0).unwrap();
 
         retention.register(LogFileKind::Default);
@@ -686,7 +686,7 @@ mod tests {
 
         write_file(&old, b"old");
         write_file(&active, b"new");
-        symlink(&active, directory.path().join(".greptimedb.current")).unwrap();
+        symlink(&active, directory.path().join(".pulse.current")).unwrap();
         retention.reclaim(1);
 
         assert!(!old.exists());
@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn test_retention_track_retries_initialization() {
         let directory = TempDir::new().unwrap();
-        let active = directory.path().join("greptimedb.2026-01-01-00");
+        let active = directory.path().join("pulse.2026-01-01-00");
         let retention = DirectoryRetention::new(directory.path(), ReadableSize(1), 0).unwrap();
 
         retention.register(LogFileKind::Default);
@@ -706,7 +706,7 @@ mod tests {
         assert!(!retention.state.lock().initialized);
 
         write_file(&active, b"");
-        symlink(&active, directory.path().join(".greptimedb.current")).unwrap();
+        symlink(&active, directory.path().join(".pulse.current")).unwrap();
         retention.track(LogFileKind::Default, 0);
 
         let state = retention.state.lock();
@@ -718,8 +718,8 @@ mod tests {
     #[test]
     fn test_retention_reconciles_after_remove_failure() {
         let directory = TempDir::new().unwrap();
-        let old = directory.path().join("greptimedb.2026-01-01-00");
-        let active = directory.path().join("greptimedb.2026-01-01-01");
+        let old = directory.path().join("pulse.2026-01-01-00");
+        let active = directory.path().join("pulse.2026-01-01-01");
         write_file(&old, b"old");
         write_file(&active, b"new");
 
@@ -739,9 +739,9 @@ mod tests {
     #[test]
     fn test_retention_enforces_max_log_files() {
         let directory = TempDir::new().unwrap();
-        let oldest = directory.path().join("greptimedb.2026-01-01-00");
-        let old = directory.path().join("greptimedb.2026-01-01-01");
-        let active = directory.path().join("greptimedb.2026-01-01-02");
+        let oldest = directory.path().join("pulse.2026-01-01-00");
+        let old = directory.path().join("pulse.2026-01-01-01");
+        let active = directory.path().join("pulse.2026-01-01-02");
         write_file(&oldest, b"oldest");
         write_file(&old, b"old");
         write_file(&active, b"active");
@@ -759,9 +759,9 @@ mod tests {
     #[test]
     fn test_retention_enforces_max_log_files_after_rotation() {
         let directory = TempDir::new().unwrap();
-        let oldest = directory.path().join("greptimedb.2026-01-01-00");
-        let old = directory.path().join("greptimedb.2026-01-01-01");
-        let active = directory.path().join("greptimedb.2026-01-01-02");
+        let oldest = directory.path().join("pulse.2026-01-01-00");
+        let old = directory.path().join("pulse.2026-01-01-01");
+        let active = directory.path().join("pulse.2026-01-01-02");
         write_file(&oldest, b"oldest");
         write_file(&old, b"old");
 
@@ -769,8 +769,8 @@ mod tests {
         register_default_kind(&retention, directory.path(), &old);
         retention.initialize();
         write_file(&active, b"");
-        fs::remove_file(directory.path().join(".greptimedb.current")).unwrap();
-        symlink(&active, directory.path().join(".greptimedb.current")).unwrap();
+        fs::remove_file(directory.path().join(".pulse.current")).unwrap();
+        symlink(&active, directory.path().join(".pulse.current")).unwrap();
         retention.track(LogFileKind::Default, 1);
 
         assert!(!oldest.exists());
@@ -783,10 +783,7 @@ mod tests {
         let directory = TempDir::new().unwrap();
         let unmanaged = directory.path().join("keep-me");
         write_file(&unmanaged, b"unmanaged");
-        write_file(
-            &directory.path().join("greptimedb.2026-01-01-00"),
-            b"managed",
-        );
+        write_file(&directory.path().join("pulse.2026-01-01-00"), b"managed");
 
         let retention = DirectoryRetention::new(directory.path(), ReadableSize(1), 0).unwrap();
         retention.initialize();
@@ -801,7 +798,7 @@ mod tests {
         let target = directory.path().join("target");
         write_file(&target, b"target");
 
-        let link = directory.path().join("greptimedb.2026-01-01-00");
+        let link = directory.path().join("pulse.2026-01-01-00");
         symlink(&target, &link).unwrap();
 
         let retention = DirectoryRetention::new(directory.path(), ReadableSize(1), 0).unwrap();

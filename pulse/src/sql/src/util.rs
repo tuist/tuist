@@ -246,11 +246,6 @@ fn extract_tables_from_statement(stmt: &Statement, names: &mut HashSet<ObjectNam
             names.extend(drop.table_names().iter().cloned());
             true
         }
-        #[cfg(feature = "enterprise")]
-        Statement::UndropTable(undrop) => {
-            names.insert(undrop.table_name().clone());
-            true
-        }
         Statement::TruncateTable(truncate) => {
             names.insert(truncate.table_name().clone());
             true
@@ -267,15 +262,6 @@ fn extract_tables_from_statement(stmt: &Statement, names: &mut HashSet<ObjectNam
             names.insert(create.sink_table_name.clone());
             extract_tables_from_sql_or_tql(&create.query, names)
         }
-        #[cfg(feature = "enterprise")]
-        Statement::CreateTrigger(create) => {
-            extract_tables_from_sql_or_tql(&create.trigger_on.query, names)
-        }
-        #[cfg(feature = "enterprise")]
-        Statement::AlterTrigger(alter) => match &alter.operation.trigger_on {
-            Some(trigger_on) => extract_tables_from_sql_or_tql(&trigger_on.query, names),
-            None => true,
-        },
         Statement::DropView(drop) => {
             names.insert(drop.view_name.clone());
             true
@@ -349,10 +335,6 @@ fn extract_tables_from_statement(stmt: &Statement, names: &mut HashSet<ObjectNam
         | Statement::CloseCursor(_)
         | Statement::Kill(_)
         | Statement::ShowProcesslist(_) => true,
-        #[cfg(feature = "enterprise")]
-        Statement::DropTrigger(_)
-        | Statement::ShowCreateTrigger(_)
-        | Statement::ShowTriggers(_) => true,
     }
 }
 
@@ -672,7 +654,7 @@ mod tests {
     use sqlparser::tokenizer::Token;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
@@ -703,7 +685,7 @@ WHERE a =
         ];
 
         for sql in testcases {
-            let mut parser = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
+            let mut parser = ParserContext::new(&PulseDialect {}, sql).unwrap();
             loop {
                 let token = parser.parser.next_token();
                 if token == Token::EOF {
@@ -735,12 +717,9 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", {__n
         ];
 
         for (sql, expected_tables) in testcases {
-            let mut stmts = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let mut stmts =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             let Statement::CreateFlow(create_flow) = stmts.pop().unwrap() else {
                 unreachable!()
             };
@@ -774,12 +753,9 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", {__n
                 .map(str::to_string)
                 .collect_vec();
             let sql = format!("TQL EVAL (0, 10, '5s') {promql}");
-            let mut stmts = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let mut stmts =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             let Statement::Tql(tql) = stmts.pop().unwrap() else {
                 unreachable!()
             };
@@ -835,17 +811,12 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", {__n
                 vec!["physical_metric", "target"],
             ),
             ("ALTER TABLE old RENAME new", vec!["new", "old"]),
-            #[cfg(feature = "enterprise")]
-            ("UNDROP TABLE restored", vec!["restored"]),
             ("SHOW TABLES", vec![]),
         ] {
-            let stmt = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap()
-            .remove(0);
+            let stmt =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap()
+                    .remove(0);
             let mut tables = extract_tables_from_statement_checked(&stmt)
                 .unwrap()
                 .map(|table| format_raw_object_name(&table))
@@ -861,7 +832,7 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", {__n
                    leak AS (TQL EVAL (0, 10, '5s') denied) \
                    SELECT * FROM leak";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         let Statement::Query(query) = stmts.pop().unwrap() else {
             unreachable!()
@@ -894,7 +865,7 @@ LEFT JOIN (
 ) b ON a.symbol = b.symbol;
 "#;
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         let Statement::CreateFlow(create_flow) = stmts.pop().unwrap() else {
             unreachable!()
@@ -923,7 +894,7 @@ WHERE EXISTS (SELECT 1 FROM exists_source)
 ORDER BY (SELECT max(value) FROM order_source);
 "#;
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         let Statement::Query(query) = stmts.pop().unwrap() else {
             unreachable!()
@@ -997,12 +968,9 @@ SELECT * FROM (
         ];
 
         for (sql, expected_tables) in testcases {
-            let mut stmts = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let mut stmts =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             let Statement::Query(query) = stmts.pop().unwrap() else {
                 unreachable!()
             };
@@ -1025,12 +993,9 @@ SELECT * FROM (
             sql = format!("WITH cte_{depth} AS ({sql}) SELECT * FROM cte_{depth}");
         }
 
-        let mut stmts = ParserContext::create_with_dialect(
-            &sql,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let mut stmts =
+            ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
         let Statement::Query(query) = stmts.pop().unwrap() else {
             unreachable!()
         };
@@ -1056,9 +1021,9 @@ SELECT * FROM (
     fn test_extract_tables_from_tql_query_with_schema_matcher() {
         let sql = r#"
 CREATE FLOW calc_reqs SINK TO cnt_reqs AS
-TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests{__schema__="greptime_private"});"#;
+TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests{__schema__="pulse_private"});"#;
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         let Statement::CreateFlow(create_flow) = stmts.pop().unwrap() else {
             unreachable!()
@@ -1068,6 +1033,6 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http
             .map(|table| format_raw_object_name(&table))
             .collect_vec();
         tables.sort();
-        assert_eq!(vec!["greptime_private.http_requests".to_string()], tables);
+        assert_eq!(vec!["pulse_private.http_requests".to_string()], tables);
     }
 }

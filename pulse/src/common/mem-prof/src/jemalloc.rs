@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod error;
 
 use std::ffi::{CString, c_char};
@@ -44,7 +46,7 @@ pub async fn dump_profile() -> Result<Vec<u8>> {
     })?;
 
     let mut path_buf = PathBuf::from(tmp_path.path());
-    path_buf.push("greptimedb.hprof");
+    path_buf.push("pulse.hprof");
 
     let path = path_buf
         .to_str()

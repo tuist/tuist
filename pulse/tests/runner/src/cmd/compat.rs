@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -26,7 +28,7 @@ use crate::cmd::compat_case::{self, CompatCase, try_infer_version, version_match
 use crate::cmd::datanode_overlay::{
     DatanodeOverlay, DatanodeProtectionPolicy, PreparedDatanodeOverlay,
 };
-use crate::env::bare::{Env, GreptimeDB, StoreConfig, WalConfig};
+use crate::env::bare::{Env, Pulse, StoreConfig, WalConfig};
 use crate::protocol_interceptor::{self, POSTGRES, PROTOCOL_KEY};
 use crate::util;
 
@@ -60,22 +62,22 @@ impl CompatTopology {
 /// - The runner starts the full distributed topology, including flownode.
 #[derive(Debug, Parser)]
 pub struct CompatCommand {
-    /// Version of the "from" GreptimeDB binary (e.g. "v0.9.5") or "current".
+    /// Version of the "from" Pulse binary (e.g. "v0.9.5") or "current".
     /// If neither --from-version nor --from-bins-dir is specified, the
     /// current debug build is used for both from and to.
     #[clap(long)]
     from_version: Option<String>,
 
-    /// Path to the directory containing the "from" GreptimeDB binary.
+    /// Path to the directory containing the "from" Pulse binary.
     #[clap(long)]
     from_bins_dir: Option<PathBuf>,
 
-    /// Path to the directory containing the "to" GreptimeDB binary.
+    /// Path to the directory containing the "to" Pulse binary.
     /// Defaults to the current debug build.
     #[clap(long)]
     to_bins_dir: Option<PathBuf>,
 
-    /// Version of the "to" GreptimeDB binary (e.g. "v1.1.4") or "current".
+    /// Version of the "to" Pulse binary (e.g. "v1.1.4") or "current".
     /// Downloads the release binary when needed. Cannot be used with
     /// `--to-bins-dir`.
     #[clap(long)]
@@ -107,7 +109,7 @@ pub struct CompatCommand {
     #[clap(long, default_value = "false")]
     preserve_state: bool,
 
-    /// Pull different versions of GreptimeDB on need.
+    /// Pull different versions of Pulse on need.
     #[clap(long, default_value = "true")]
     pull_version_on_need: bool,
 
@@ -871,7 +873,7 @@ impl Drop for ProfileStateGuard {
 }
 
 async fn cleanup_profile(
-    mut db: GreptimeDB,
+    mut db: Pulse,
     mut etcd_guard: Option<EtcdGuard>,
     setup_etcd: bool,
     profile_state: ProfileStateGuard,
@@ -964,7 +966,7 @@ fn create_interceptor_registry() -> Registry {
 /// Resolve binary directory: explicit path takes priority, then version (pulls if needed),
 /// otherwise default to current debug build.
 ///
-/// Validates that `<dir>/greptime` exists after resolution and canonicalizes the path.
+/// Validates that `<dir>/pulse` exists after resolution and canonicalizes the path.
 async fn resolve_bins(
     bins_dir: Option<&PathBuf>,
     version: Option<&str>,
@@ -998,9 +1000,9 @@ async fn resolve_bins(
 
     if !dir.join(util::PROGRAM).is_file() {
         panic!(
-            "greptime binary not found in '{}'. \
+            "pulse binary not found in '{}'. \
              Use --from-bins-dir / --to-bins-dir to specify the correct directory, \
-             or build greptime first (e.g. `cargo build -p greptime`). \
+             or build pulse first (e.g. `cargo build -p pulse`). \
              Note: if you use a custom target-dir, the binary may be elsewhere; \
              pass the actual directory with --from-bins-dir or --to-bins-dir.",
             dir.display()
@@ -1023,7 +1025,7 @@ fn default_compat_case_dir() -> PathBuf {
 
 /// Run a single compat phase (setup or verify) for one case.
 async fn run_compat_phase(
-    db: &crate::env::bare::GreptimeDB,
+    db: &crate::env::bare::Pulse,
     case: &CompatCase,
     registry: &Registry,
     phase: CompatPhase,
@@ -1114,7 +1116,7 @@ fn trim_trailing_blank_lines(output: &mut String) {
 /// - For MySQL and default/gRPC statements, `USE <ns>` runs through the
 ///   statement's effective context.
 async fn run_namespace_prelude(
-    db: &crate::env::bare::GreptimeDB,
+    db: &crate::env::bare::Pulse,
     namespace: &str,
     query_ctx: &QueryContext,
 ) -> Result<(), String> {
@@ -1230,7 +1232,7 @@ impl ParsedStatement {
 
     async fn execute(
         &mut self,
-        db: &crate::env::bare::GreptimeDB,
+        db: &crate::env::bare::Pulse,
         namespace: &str,
     ) -> Result<(String, Vec<String>), String> {
         let display = self.display_text();

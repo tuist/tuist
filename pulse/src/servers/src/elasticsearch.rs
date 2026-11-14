@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,9 +27,7 @@ use common_error::ext::ErrorExt;
 use common_telemetry::{debug, error};
 use headers::ContentType;
 use once_cell::sync::Lazy;
-use pipeline::{
-    GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME, GreptimePipelineParams, PipelineDefinition,
-};
+use pipeline::{PULSE_INTERNAL_IDENTITY_PIPELINE_NAME, PipelineDefinition, PulsePipelineParams};
 use serde_json::{Deserializer, Value, json};
 use session::context::{Channel, QueryContext};
 use snafu::{ResultExt, ensure};
@@ -44,7 +44,7 @@ use crate::http::event::{
     LogIngesterQueryParams, LogState, PipelineIngestRequest,
     extract_pipeline_params_map_from_headers, ingest_logs_inner,
 };
-use crate::http::header::constants::GREPTIME_PIPELINE_NAME_HEADER_NAME;
+use crate::http::header::constants::PULSE_PIPELINE_NAME_HEADER_NAME;
 use crate::metrics::{
     METRIC_ELASTICSEARCH_LOGS_DOCS_COUNT, METRIC_ELASTICSEARCH_LOGS_INGESTION_ELAPSED,
 };
@@ -150,9 +150,9 @@ async fn do_handle_bulk_api(
     // If pipeline_name is not provided, use the internal pipeline.
     let pipeline_name = params.pipeline_name.as_deref().unwrap_or_else(|| {
         headers
-            .get(GREPTIME_PIPELINE_NAME_HEADER_NAME)
+            .get(PULSE_PIPELINE_NAME_HEADER_NAME)
             .and_then(|v| v.to_str().ok())
-            .unwrap_or(GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME)
+            .unwrap_or(PULSE_INTERNAL_IDENTITY_PIPELINE_NAME)
     });
 
     // Read the ndjson payload and convert it to a vector of Value.
@@ -191,7 +191,7 @@ async fn do_handle_bulk_api(
         }
     };
     let pipeline_params =
-        GreptimePipelineParams::from_map(extract_pipeline_params_map_from_headers(&headers));
+        PulsePipelineParams::from_map(extract_pipeline_params_map_from_headers(&headers));
     if let Err(e) = ingest_logs_inner(
         log_state.log_handler,
         pipeline,
@@ -231,7 +231,7 @@ async fn do_handle_bulk_api(
     )
 }
 
-// It will generate the following response when write _bulk request to GreptimeDB successfully:
+// It will generate the following response when write _bulk request to Pulse successfully:
 // {
 //     "took": 1000,
 //     "errors": false,
@@ -364,7 +364,7 @@ fn parse_bulk_request(
     Ok(requests)
 }
 
-// Get the index from the command. We will take index as the table name in GreptimeDB.
+// Get the index from the command. We will take index as the table name in Pulse.
 fn get_index_from_cmd(v: VrlValue) -> ServersResult<Option<String>> {
     let Some(index) = v.into_object().and_then(|mut m| m.remove("_index")) else {
         return Ok(None);

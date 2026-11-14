@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 
 use crate::error::Result;
@@ -90,7 +92,7 @@ mod tests {
         let topic_kvbackend_manager = KafkaTopicManager::new(kv_backend.clone());
 
         let all_topics = (0..16)
-            .map(|i| format!("greptimedb_wal_topic_{}", i))
+            .map(|i| format!("pulse_wal_topic_{}", i))
             .collect::<Vec<_>>();
 
         // No legacy topics.
@@ -104,7 +106,7 @@ mod tests {
         assert_eq!(expected, topics_to_be_created);
 
         // A topic pool with 16 topics stored in kvbackend in legacy format.
-        let topics = "[\"greptimedb_wal_topic_0\",\"greptimedb_wal_topic_1\",\"greptimedb_wal_topic_2\",\"greptimedb_wal_topic_3\",\"greptimedb_wal_topic_4\",\"greptimedb_wal_topic_5\",\"greptimedb_wal_topic_6\",\"greptimedb_wal_topic_7\",\"greptimedb_wal_topic_8\",\"greptimedb_wal_topic_9\",\"greptimedb_wal_topic_10\",\"greptimedb_wal_topic_11\",\"greptimedb_wal_topic_12\",\"greptimedb_wal_topic_13\",\"greptimedb_wal_topic_14\",\"greptimedb_wal_topic_15\"]";
+        let topics = "[\"pulse_wal_topic_0\",\"pulse_wal_topic_1\",\"pulse_wal_topic_2\",\"pulse_wal_topic_3\",\"pulse_wal_topic_4\",\"pulse_wal_topic_5\",\"pulse_wal_topic_6\",\"pulse_wal_topic_7\",\"pulse_wal_topic_8\",\"pulse_wal_topic_9\",\"pulse_wal_topic_10\",\"pulse_wal_topic_11\",\"pulse_wal_topic_12\",\"pulse_wal_topic_13\",\"pulse_wal_topic_14\",\"pulse_wal_topic_15\"]";
         let put_req = PutRequest {
             key: LEGACY_TOPIC_KEY_PREFIX.as_bytes().to_vec(),
             value: topics.as_bytes().to_vec(),
@@ -138,7 +140,7 @@ mod tests {
     #[tokio::test]
     async fn test_restore_persisted_topics() {
         let kv_backend = Arc::new(MemoryKvBackend::new()) as KvBackendRef;
-        let topic_name_prefix = "greptimedb_wal_topic";
+        let topic_name_prefix = "pulse_wal_topic";
         let num_topics = 16;
 
         let all_topics = (0..num_topics)

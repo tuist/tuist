@@ -1,4 +1,4 @@
-# Fuzz Test for GreptimeDB
+# Fuzz Test for Pulse
 
 ## Setup
 1. Install the [fuzz](https://rust-fuzz.github.io/book/cargo-fuzz/setup.html) cli first.
@@ -12,22 +12,22 @@ toolchain does not need to be nightly — `make fuzz` / `make fuzz-ls`
 invoke `cargo +nightly` for you; CI pins its own nightly in
 `FUZZ_RUST_TOOLCHAIN`).
 
-2. Start GreptimeDB
+2. Start Pulse
 3. Copy the `.env.example`, which is at project root, to `.env` and change the values on need.
 
 ### For stable fuzz tests
-Set the GreptimeDB MySQL address.
+Set the Pulse MySQL address.
 ```
 GT_MYSQL_ADDR = localhost:4002
 ```
 
 ### For unstable fuzz tests
-Set the binary path of the GreptimeDB:
+Set the binary path of the Pulse:
 ```
 GT_FUZZ_BINARY_PATH = /path/to/
 ```
 
-Change the instance root directory(the default value: `/tmp/unstable_greptime/`)
+Change the instance root directory(the default value: `/tmp/unstable_pulse/`)
 ```
 GT_FUZZ_INSTANCE_ROOT_DIR = /path/to/
 ```

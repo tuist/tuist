@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub use sqlparser::dialect::{Dialect, GenericDialect, MySqlDialect, PostgreSqlDialect};
 
-/// GreptimeDb dialect
+/// Pulse dialect
 #[derive(Debug, Clone)]
-pub struct GreptimeDbDialect {}
+pub struct PulseDialect {}
 
-impl Dialect for GreptimeDbDialect {
+impl Dialect for PulseDialect {
     fn is_identifier_start(&self, ch: char) -> bool {
         ch.is_alphabetic() || ch == '_' || ch == '#' || ch == '@'
     }

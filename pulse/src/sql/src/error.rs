@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 
 use common_error::ext::ErrorExt;
@@ -187,14 +189,6 @@ pub enum Error {
         location: Location,
     },
 
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Invalid trigger name: {}", name))]
-    InvalidTriggerName {
-        name: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
     #[snafu(display("Invalid flow query: {}", reason))]
     InvalidFlowQuery {
         reason: String,
@@ -304,40 +298,9 @@ pub enum Error {
         location: Location,
     },
 
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Missing `{}` clause", name))]
-    MissingClause {
-        name: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Unrecognized trigger webhook option key: {}", key))]
-    InvalidTriggerWebhookOption {
-        key: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Must specify at least one notify channel"))]
-    MissingNotifyChannel {
-        #[snafu(implicit)]
-        location: Location,
-    },
-
     #[snafu(display("Sql common error"))]
     SqlCommon {
         source: common_sql::error::Error,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Duplicate clauses `{}` in a statement", clause))]
-    DuplicateClause {
-        clause: String,
         #[snafu(implicit)]
         location: Location,
     },
@@ -368,11 +331,6 @@ impl ErrorExt for Error {
             | UnexpectedToken { .. }
             | InvalidDefault { .. } => StatusCode::InvalidSyntax,
 
-            #[cfg(feature = "enterprise")]
-            MissingClause { .. } | MissingNotifyChannel { .. } | DuplicateClause { .. } => {
-                StatusCode::InvalidSyntax
-            }
-
             InvalidColumnOption { .. }
             | InvalidExprAsOptionValue { .. }
             | InvalidDatabaseName { .. }
@@ -387,12 +345,6 @@ impl ErrorExt for Error {
             | Simplification { .. }
             | InvalidInterval { .. }
             | InvalidPartitionNumber { .. } => StatusCode::InvalidArguments,
-
-            #[cfg(feature = "enterprise")]
-            InvalidTriggerName { .. } => StatusCode::InvalidArguments,
-
-            #[cfg(feature = "enterprise")]
-            InvalidTriggerWebhookOption { .. } => StatusCode::InvalidArguments,
 
             SerializeColumnDefaultConstraint { source, .. } | Datatypes { source, .. } => {
                 source.status_code()

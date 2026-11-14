@@ -137,7 +137,7 @@ jobs:
           docker run --rm "$image" --version | tee "$RUNNER_TEMP/version.txt"
           grep -q "version: ${UPSTREAM}" "$RUNNER_TEMP/version.txt"
           docker run -d --name pulse-smoke -p 127.0.0.1:4000:4000 "$image" \
-            standalone start --http-addr 0.0.0.0:4000 --data-home /tmp/greptimedb >/dev/null
+            standalone start --http-addr 0.0.0.0:4000 --data-home /tmp/pulse >/dev/null
           trap 'docker logs --tail 50 pulse-smoke; docker rm -f pulse-smoke >/dev/null' EXIT
           for _ in $(seq 60); do curl -fsS http://127.0.0.1:4000/health >/dev/null && break; sleep 2; done
           rejected() {
@@ -174,7 +174,7 @@ jobs:
           range=HEAD
           if [[ -n "$PREVIOUS" ]]; then range="$PREVIOUS..HEAD"; fi
           {
-            echo "GreptimeDB ${UPSTREAM} with Tuist's changes (pulse/FORK.md)."
+            echo "Pulse ${VERSION}, Tuist's fork of GreptimeDB ${UPSTREAM} (pulse/FORK.md)."
             echo
             echo "Image: \`ghcr.io/tuist/pulse:${VERSION}@${IMAGE_DIGEST}\`"
             echo

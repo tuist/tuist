@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Table semantic layer vocabulary.
 //!
 //! A thin layer of semantic metadata attached to a table via `table_options`, so
@@ -61,7 +63,7 @@ pub const SEMANTIC_SIGNAL_TYPE: &str = "greptime.semantic.signal_type";
 pub const SEMANTIC_SOURCE: &str = "greptime.semantic.source";
 /// Source protocol version, e.g. Prometheus remote write `1.0` / `2.0`.
 pub const SEMANTIC_SOURCE_VERSION: &str = "greptime.semantic.source_version";
-/// Internal ingestion pipeline / data model, e.g. `greptime_trace_v1`. The
+/// Internal ingestion pipeline / data model, e.g. `pulse_trace_v1`. The
 /// signal-agnostic successor to the engine-specific `table_data_model` option.
 pub const SEMANTIC_PIPELINE: &str = "greptime.semantic.pipeline";
 
@@ -431,7 +433,7 @@ mod tests {
         assert!(!validate_semantic_option(SEMANTIC_METRIC_UNIT, ""));
         assert!(validate_semantic_option(
             SEMANTIC_PIPELINE,
-            "greptime_trace_v1"
+            "pulse_trace_v1"
         ));
 
         // A cut key validates to false regardless of value.

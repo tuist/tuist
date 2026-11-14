@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use clap::Parser;
@@ -44,7 +46,7 @@ pub struct KubeCommand {
     #[clap(short, long)]
     mysql_server_addr: String,
 
-    /// The namespace of the GreptimeDB.
+    /// The namespace of the Pulse.
     #[clap(short, long)]
     namespace: String,
 }

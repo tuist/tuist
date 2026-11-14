@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -42,13 +44,13 @@ mod tests {
     use servers::query_handler::sql::SqlQueryHandler;
     use session::context::QueryContext;
 
-    use crate::standalone::GreptimeDbStandaloneBuilder;
+    use crate::standalone::PulseStandaloneBuilder;
     use crate::tests;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_prom_store_remote_rw_default_physical_table() {
         common_telemetry::init_default_ut_logging();
-        let standalone = GreptimeDbStandaloneBuilder::new(
+        let standalone = PulseStandaloneBuilder::new(
             "test_standalone_prom_store_remote_rw_default_physical_table",
         )
         .build()
@@ -71,7 +73,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_prom_store_remote_rw_custom_physical_table() {
         common_telemetry::init_default_ut_logging();
-        let standalone = GreptimeDbStandaloneBuilder::new(
+        let standalone = PulseStandaloneBuilder::new(
             "test_standalone_prom_store_remote_rw_custom_physical_table",
         )
         .build()
@@ -98,10 +100,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_prom_store_remote_rw_microsecond_physical_table() {
         common_telemetry::init_default_ut_logging();
-        let standalone =
-            GreptimeDbStandaloneBuilder::new("test_prom_store_remote_rw_us_physical_table")
-                .build()
-                .await;
+        let standalone = PulseStandaloneBuilder::new("test_prom_store_remote_rw_us_physical_table")
+            .build()
+            .await;
         let instance = standalone.fe_instance();
 
         test_prom_store_remote_rw_non_millisecond_physical_table(
@@ -132,10 +133,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_prom_store_remote_rw_seconds_physical_table() {
         common_telemetry::init_default_ut_logging();
-        let standalone =
-            GreptimeDbStandaloneBuilder::new("test_prom_store_remote_rw_s_physical_table")
-                .build()
-                .await;
+        let standalone = PulseStandaloneBuilder::new("test_prom_store_remote_rw_s_physical_table")
+            .build()
+            .await;
         let instance = standalone.fe_instance();
 
         // Narrowing truncates: 1000ms/2000ms -> 1s/2s.
@@ -152,10 +152,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_prom_store_remote_rw_nanoseconds_physical_table() {
         common_telemetry::init_default_ut_logging();
-        let standalone =
-            GreptimeDbStandaloneBuilder::new("test_prom_store_remote_rw_ns_physical_table")
-                .build()
-                .await;
+        let standalone = PulseStandaloneBuilder::new("test_prom_store_remote_rw_ns_physical_table")
+            .build()
+            .await;
         let instance = standalone.fe_instance();
 
         // Lossless widening: 1000ms/2000ms -> 1e9ns/2e9ns.
@@ -198,10 +197,10 @@ mod tests {
         let mut output = instance
             .do_query(
                 &format!(
-                    "CREATE TABLE greptime_physical_table (\
-                 greptime_timestamp {sql_ts_type} NOT NULL, \
-                 greptime_value DOUBLE NULL, \
-                 TIME INDEX (greptime_timestamp)) \
+                    "CREATE TABLE pulse_physical_table (\
+                 pulse_timestamp {sql_ts_type} NOT NULL, \
+                 pulse_value DOUBLE NULL, \
+                 TIME INDEX (pulse_timestamp)) \
                  ENGINE = metric WITH ('physical_metric_table' = 'true')"
                 ),
                 ctx.clone(),
@@ -254,7 +253,7 @@ mod tests {
 
         // The stored timestamps keep the physical table's time index unit.
         let mut output = instance
-            .do_query("SELECT greptime_timestamp FROM metric1", ctx.clone())
+            .do_query("SELECT pulse_timestamp FROM metric1", ctx.clone())
             .await;
         let OutputData::Stream(stream) = output.remove(0).unwrap().data else {
             unreachable!()
@@ -306,14 +305,14 @@ mod tests {
                     rows: Some(Rows {
                         schema: vec![
                             api::v1::ColumnSchema {
-                                column_name: "greptime_timestamp".to_string(),
+                                column_name: "pulse_timestamp".to_string(),
                                 datatype: ts_datatype as i32,
                                 semantic_type: SemanticType::Timestamp as i32,
                                 datatype_extension: None,
                                 options: None,
                             },
                             api::v1::ColumnSchema {
-                                column_name: "greptime_value".to_string(),
+                                column_name: "pulse_value".to_string(),
                                 datatype: ColumnDataType::Float64 as i32,
                                 semantic_type: SemanticType::Field as i32,
                                 datatype_extension: None,
@@ -379,7 +378,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_prom_store_write_existing_logical_table_of_other_physical_unit() {
         common_telemetry::init_default_ut_logging();
-        let standalone = GreptimeDbStandaloneBuilder::new(
+        let standalone = PulseStandaloneBuilder::new(
             "test_prom_store_write_existing_logical_other_physical_unit",
         )
         .build()
@@ -402,8 +401,8 @@ mod tests {
         );
         let mut output = instance
             .do_query(
-                "CREATE TABLE phy_us (greptime_timestamp TIMESTAMP(6) NOT NULL, \
-                 greptime_value DOUBLE NULL, TIME INDEX (greptime_timestamp)) \
+                "CREATE TABLE phy_us (pulse_timestamp TIMESTAMP(6) NOT NULL, \
+                 pulse_value DOUBLE NULL, TIME INDEX (pulse_timestamp)) \
                  ENGINE = metric WITH ('physical_metric_table' = 'true')",
                 ctx.clone(),
             )
@@ -484,7 +483,7 @@ mod tests {
         // The existing table keeps its millisecond unit and precision.
         let mut output = instance
             .do_query(
-                "SELECT greptime_timestamp FROM shared_metric ORDER BY greptime_timestamp",
+                "SELECT pulse_timestamp FROM shared_metric ORDER BY pulse_timestamp",
                 ctx.clone(),
             )
             .await;
@@ -503,10 +502,7 @@ mod tests {
         // The new table is created on the selected physical table with the
         // microsecond unit.
         let mut output = instance
-            .do_query(
-                "SELECT greptime_timestamp FROM fresh_us_metric",
-                ctx.clone(),
-            )
+            .do_query("SELECT pulse_timestamp FROM fresh_us_metric", ctx.clone())
             .await;
         let OutputData::Stream(stream) = output.remove(0).unwrap().data else {
             unreachable!()
@@ -682,7 +678,7 @@ mod tests {
         for (selector, database) in [
             ("__schema__", "unknown_schema"),
             ("__database__", "unknown_catalog-prometheus"),
-            ("x_greptime_database", "unknown_catalog-information_schema"),
+            ("x_pulse_database", "unknown_catalog-information_schema"),
         ] {
             let mut query = remote_query("missing_metric");
             query.matchers.push(LabelMatcher {

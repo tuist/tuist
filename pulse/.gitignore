@@ -28,7 +28,6 @@ debug/
 # Logs
 **/__unittest_logs
 logs/
-!grafana/dashboards/logs/
 
 # cpython's generated python byte code
 **/__pycache__/
@@ -58,7 +57,7 @@ tests-fuzz/corpus/
 .envrc
 
 ## default data home
-greptimedb_data
+pulse_data
 
 # github
 !/.github
@@ -73,8 +72,6 @@ greptimedb_data
 .worktrees/
 .slim/deepwork/
 
-# local design docs
-docs/specs/
 .vs/
 
 # Claude Code personal/local overrides (keep shared .claude/ content tracked)

@@ -201,10 +201,10 @@ tql eval (2900, 3000, '100s') histogram_quantile(0.9, histogram4_bucket);
 drop table histogram4_bucket;
 
 -- SQLNESS SORT_RESULT 3 1
-tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fff) (rate(greptime_servers_postgres_query_elapsed_bucket{instance=~"xxx"}[1m])));
+tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fff) (rate(pulse_servers_postgres_query_elapsed_bucket{instance=~"xxx"}[1m])));
 
 -- test case where table exists but doesn't have 'le' column should raise error
-CREATE TABLE greptime_servers_postgres_query_elapsed_no_le (
+CREATE TABLE pulse_servers_postgres_query_elapsed_no_le (
     pod STRING,
     instance STRING,
     t TIMESTAMP TIME INDEX,
@@ -214,12 +214,12 @@ CREATE TABLE greptime_servers_postgres_query_elapsed_no_le (
 
 -- should return empty result instead of error when 'le' column is missin
 -- SQLNESS SORT_RESULT 3 1
-tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, le) (rate(greptime_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
+tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, le) (rate(pulse_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
 
 -- SQLNESS SORT_RESULT 3 1
-tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fbf) (rate(greptime_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
+tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fbf) (rate(pulse_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
 
-drop table greptime_servers_postgres_query_elapsed_no_le;
+drop table pulse_servers_postgres_query_elapsed_no_le;
 
 -- test case with some missing buckets
 create table histogram5_bucket (

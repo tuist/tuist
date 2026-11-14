@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::env;
 use std::sync::Arc;
 
@@ -52,7 +54,7 @@ async fn test_create_database_and_insert_query(instance: Arc<dyn MockInstance>) 
 
     let output = execute_sql(
         &instance,
-        r#"create table greptime.test.demo(
+        r#"create table pulse.test.demo(
              host STRING,
              cpu DOUBLE,
              memory DOUBLE,
@@ -122,7 +124,7 @@ async fn test_admin_discard_unflushed_data(instance: Arc<dyn MockInstance>) {
 
     let region_output = execute_sql(
         &instance,
-        "SELECT greptime_partition_id FROM information_schema.partitions \
+        "SELECT pulse_partition_id FROM information_schema.partitions \
          WHERE table_name = 'discard_unflushed_data_test' LIMIT 1",
     )
     .await;
@@ -183,8 +185,8 @@ CREATE TABLE cpu (
     rack STRING NULL,
     os STRING NULL,
     usage_user BIGINT NULL,
-    greptime_timestamp TIMESTAMP(9) NOT NULL,
-    TIME INDEX (greptime_timestamp)
+    pulse_timestamp TIMESTAMP(9) NOT NULL,
+    TIME INDEX (pulse_timestamp)
 )
 PARTITION ON COLUMNS (rack) (
     rack < '2',
@@ -218,12 +220,12 @@ INSERT INTO cpu VALUES
     .await;
 
     let latest_sql = r#"
-SELECT rack, os, greptime_timestamp
+SELECT rack, os, pulse_timestamp
 FROM cpu
-WHERE greptime_timestamp = (
-    SELECT greptime_timestamp
+WHERE pulse_timestamp = (
+    SELECT pulse_timestamp
     FROM cpu
-    ORDER BY greptime_timestamp DESC
+    ORDER BY pulse_timestamp DESC
     LIMIT 1
 )
 "#;
@@ -236,7 +238,7 @@ WHERE greptime_timestamp = (
     assert_eq!(
         result,
         r#"+------+---------+---------------------+
-| rack | os      | greptime_timestamp  |
+| rack | os      | pulse_timestamp  |
 +------+---------+---------------------+
 | 8    | windows | 2023-06-12T02:10:00 |
 +------+---------+---------------------+"#
@@ -1304,8 +1306,8 @@ async fn test_show_create_external_table(instance: Arc<dyn MockInstance>) {
   "c_bool" BOOLEAN NULL,
   "c_date" DATE NULL,
   "c_datetime" TIMESTAMP(0) NULL,
-  "greptime_timestamp" TIMESTAMP(3) NOT NULL DEFAULT '1970-01-01 00:00:00+0000',
-  TIME INDEX ("greptime_timestamp")
+  "pulse_timestamp" TIMESTAMP(3) NOT NULL DEFAULT '1970-01-01 00:00:00+0000',
+  TIME INDEX ("pulse_timestamp")
 )
 
 ENGINE=file
@@ -1546,7 +1548,7 @@ async fn test_execute_show_databases_tables(instance: Arc<dyn MockInstance>) {
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
+| pulse_private      |
 | information_schema |
 | public             |
 +--------------------+\
@@ -1836,17 +1838,17 @@ async fn test_execute_query_external_table_parquet(instance: Arc<dyn MockInstanc
         .await
         .data;
     let expect = "\
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| Column             | Type                 | Key | Null | Default                  | Semantic Type |
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| c_int              | Int64                |     | YES  |                          | FIELD         |
-| c_float            | Float64              |     | YES  |                          | FIELD         |
-| c_string           | Float64              |     | YES  |                          | FIELD         |
-| c_bool             | Boolean              |     | YES  |                          | FIELD         |
-| c_date             | Date                 |     | YES  |                          | FIELD         |
-| c_datetime         | TimestampSecond      |     | YES  |                          | FIELD         |
-| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
-+--------------------+----------------------+-----+------+--------------------------+---------------+";
++-----------------+----------------------+-----+------+--------------------------+---------------+
+| Column          | Type                 | Key | Null | Default                  | Semantic Type |
++-----------------+----------------------+-----+------+--------------------------+---------------+
+| c_int           | Int64                |     | YES  |                          | FIELD         |
+| c_float         | Float64              |     | YES  |                          | FIELD         |
+| c_string        | Float64              |     | YES  |                          | FIELD         |
+| c_bool          | Boolean              |     | YES  |                          | FIELD         |
+| c_date          | Date                 |     | YES  |                          | FIELD         |
+| c_datetime      | TimestampSecond      |     | YES  |                          | FIELD         |
+| pulse_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++-----------------+----------------------+-----+------+--------------------------+---------------+";
     check_output_stream(output, expect).await;
 
     let output = execute_sql(&instance, &format!("select * from {table_name};"))
@@ -1854,7 +1856,7 @@ async fn test_execute_query_external_table_parquet(instance: Arc<dyn MockInstanc
         .data;
     let expect = "\
 +-------+-----------+----------+--------+------------+---------------------+---------------------+
-| c_int | c_float   | c_string | c_bool | c_date     | c_datetime          | greptime_timestamp  |
+| c_int | c_float   | c_string | c_bool | c_date     | c_datetime          | pulse_timestamp     |
 +-------+-----------+----------+--------+------------+---------------------+---------------------+
 | 1     | 1.1       | 1.11     | true   | 1970-01-01 | 1970-01-01T00:00:00 | 1970-01-01T00:00:00 |
 | 2     | 2.2       | 2.22     | true   | 2020-11-08 | 2020-11-08T01:00:00 | 1970-01-01T00:00:00 |
@@ -1934,7 +1936,7 @@ async fn test_execute_query_external_table_orc(instance: Arc<dyn MockInstance>) 
 | utf8_decrease          | String               |     | YES  |                          | FIELD         |
 | timestamp_simple       | TimestampNanosecond  |     | YES  |                          | FIELD         |
 | date_simple            | Date                 |     | YES  |                          | FIELD         |
-| greptime_timestamp     | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
+| pulse_timestamp        | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
 +------------------------+----------------------+-----+------+--------------------------+---------------+";
     check_output_stream(output, expect).await;
 
@@ -1943,7 +1945,7 @@ async fn test_execute_query_external_table_orc(instance: Arc<dyn MockInstance>) 
         .data;
     let expect = "\
 +----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+---------------------+
-| double_a | a   | b     | str_direct | d   | e   | f     | int_short_repeated | int_neg_short_repeated | int_delta | int_neg_delta | int_direct | int_neg_direct | bigint_direct | bigint_neg_direct | bigint_other | utf8_increase | utf8_decrease | timestamp_simple           | date_simple | greptime_timestamp  |
+| double_a | a   | b     | str_direct | d   | e   | f     | int_short_repeated | int_neg_short_repeated | int_delta | int_neg_delta | int_direct | int_neg_direct | bigint_direct | bigint_neg_direct | bigint_other | utf8_increase | utf8_decrease | timestamp_simple           | date_simple | pulse_timestamp     |
 +----------+-----+-------+------------+-----+-----+-------+--------------------+------------------------+-----------+---------------+------------+----------------+---------------+-------------------+--------------+---------------+---------------+----------------------------+-------------+---------------------+
 | 1.0      | 1.0 | true  | a          | a   | ddd | aaaaa | 5                  | -5                     | 1         | 5             | 1          | -1             | 1             | -1                | 5            | a             | eeeee         | 2023-04-01T20:15:30.002    | 2023-04-01  | 1970-01-01T00:00:00 |
 | 2.0      | 2.0 | false | cccccc     | bb  | cc  | bbbbb | 5                  | -5                     | 2         | 4             | 6          | -6             | 6             | -6                | -5           | bb            | dddd          | 2021-08-22T07:26:44.525777 | 2023-03-01  | 1970-01-01T00:00:00 |
@@ -2054,17 +2056,17 @@ async fn test_execute_query_external_table_csv(instance: Arc<dyn MockInstance>) 
         .await
         .data;
     let expect = "\
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| Column             | Type                 | Key | Null | Default                  | Semantic Type |
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| c_int              | Int64                |     | YES  |                          | FIELD         |
-| c_float            | Float64              |     | YES  |                          | FIELD         |
-| c_string           | Float64              |     | YES  |                          | FIELD         |
-| c_bool             | Boolean              |     | YES  |                          | FIELD         |
-| c_date             | Date                 |     | YES  |                          | FIELD         |
-| c_datetime         | TimestampSecond      |     | YES  |                          | FIELD         |
-| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
-+--------------------+----------------------+-----+------+--------------------------+---------------+";
++-----------------+----------------------+-----+------+--------------------------+---------------+
+| Column          | Type                 | Key | Null | Default                  | Semantic Type |
++-----------------+----------------------+-----+------+--------------------------+---------------+
+| c_int           | Int64                |     | YES  |                          | FIELD         |
+| c_float         | Float64              |     | YES  |                          | FIELD         |
+| c_string        | Float64              |     | YES  |                          | FIELD         |
+| c_bool          | Boolean              |     | YES  |                          | FIELD         |
+| c_date          | Date                 |     | YES  |                          | FIELD         |
+| c_datetime      | TimestampSecond      |     | YES  |                          | FIELD         |
+| pulse_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++-----------------+----------------------+-----+------+--------------------------+---------------+";
     check_output_stream(output, expect).await;
 
     let output = execute_sql(&instance, &format!("select * from {table_name};"))
@@ -2072,7 +2074,7 @@ async fn test_execute_query_external_table_csv(instance: Arc<dyn MockInstance>) 
         .data;
     let expect = "\
 +-------+-----------+----------+--------+------------+---------------------+---------------------+
-| c_int | c_float   | c_string | c_bool | c_date     | c_datetime          | greptime_timestamp  |
+| c_int | c_float   | c_string | c_bool | c_date     | c_datetime          | pulse_timestamp     |
 +-------+-----------+----------+--------+------------+---------------------+---------------------+
 | 1     | 1.1       | 1.11     | true   | 1970-01-01 | 1970-01-01T00:00:00 | 1970-01-01T00:00:00 |
 | 2     | 2.2       | 2.22     | true   | 2020-11-08 | 2020-11-08T01:00:00 | 1970-01-01T00:00:00 |
@@ -2415,18 +2417,18 @@ async fn test_execute_query_external_table_json(instance: Arc<dyn MockInstance>)
         .await
         .data;
     let expect = "\
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| Column             | Type                 | Key | Null | Default                  | Semantic Type |
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| a                  | Int64                |     | YES  |                          | FIELD         |
-| b                  | Float64              |     | YES  |                          | FIELD         |
-| c                  | Boolean              |     | YES  |                          | FIELD         |
-| d                  | String               |     | YES  |                          | FIELD         |
-| e                  | Int64                |     | YES  |                          | FIELD         |
-| f                  | String               |     | YES  |                          | FIELD         |
-| g                  | String               |     | YES  |                          | FIELD         |
-| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
-+--------------------+----------------------+-----+------+--------------------------+---------------+";
++-----------------+----------------------+-----+------+--------------------------+---------------+
+| Column          | Type                 | Key | Null | Default                  | Semantic Type |
++-----------------+----------------------+-----+------+--------------------------+---------------+
+| a               | Int64                |     | YES  |                          | FIELD         |
+| b               | Float64              |     | YES  |                          | FIELD         |
+| c               | Boolean              |     | YES  |                          | FIELD         |
+| d               | String               |     | YES  |                          | FIELD         |
+| e               | Int64                |     | YES  |                          | FIELD         |
+| f               | String               |     | YES  |                          | FIELD         |
+| g               | String               |     | YES  |                          | FIELD         |
+| pulse_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
++-----------------+----------------------+-----+------+--------------------------+---------------+";
 
     check_output_stream(output, expect).await;
 
@@ -2435,7 +2437,7 @@ async fn test_execute_query_external_table_json(instance: Arc<dyn MockInstance>)
         .data;
     let expect = "\
 +-----------------+------+-------+------+------------+----------------+-------------------------+---------------------+
-| a               | b    | c     | d    | e          | f              | g                       | greptime_timestamp  |
+| a               | b    | c     | d    | e          | f              | g                       | pulse_timestamp     |
 +-----------------+------+-------+------+------------+----------------+-------------------------+---------------------+
 | 1               | 2.0  | false | 4    | 1681319393 | 1.02           | 2012-04-23T18:25:43.511 | 1970-01-01T00:00:00 |
 | -10             | -3.5 | true  | 4    | 1681356393 | -0.3           | 2016-04-23T18:25:43.511 | 1970-01-01T00:00:00 |
@@ -2623,23 +2625,23 @@ async fn test_execute_query_external_table_json_default_ts_column(instance: Arc<
         .await
         .data;
     let expect = "\
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| Column             | Type                 | Key | Null | Default                  | Semantic Type |
-+--------------------+----------------------+-----+------+--------------------------+---------------+
-| environment        | String               |     | YES  |                          | FIELD         |
-| greptime_timestamp | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
-| hostname           | String               |     | YES  |                          | FIELD         |
-| usage_guest        | Int64                |     | YES  |                          | FIELD         |
-| usage_guest_nice   | Int64                |     | YES  |                          | FIELD         |
-| usage_idle         | Int64                |     | YES  |                          | FIELD         |
-| usage_iowait       | Int64                |     | YES  |                          | FIELD         |
-| usage_irq          | Int64                |     | YES  |                          | FIELD         |
-| usage_nice         | Int64                |     | YES  |                          | FIELD         |
-| usage_softirq      | Int64                |     | YES  |                          | FIELD         |
-| usage_steal        | Int64                |     | YES  |                          | FIELD         |
-| usage_system       | Int64                |     | YES  |                          | FIELD         |
-| usage_user         | Int64                |     | YES  |                          | FIELD         |
-+--------------------+----------------------+-----+------+--------------------------+---------------+";
++------------------+----------------------+-----+------+--------------------------+---------------+
+| Column           | Type                 | Key | Null | Default                  | Semantic Type |
++------------------+----------------------+-----+------+--------------------------+---------------+
+| environment      | String               |     | YES  |                          | FIELD         |
+| pulse_timestamp  | TimestampMillisecond | PRI | NO   | 1970-01-01 00:00:00+0000 | TIMESTAMP     |
+| hostname         | String               |     | YES  |                          | FIELD         |
+| usage_guest      | Int64                |     | YES  |                          | FIELD         |
+| usage_guest_nice | Int64                |     | YES  |                          | FIELD         |
+| usage_idle       | Int64                |     | YES  |                          | FIELD         |
+| usage_iowait     | Int64                |     | YES  |                          | FIELD         |
+| usage_irq        | Int64                |     | YES  |                          | FIELD         |
+| usage_nice       | Int64                |     | YES  |                          | FIELD         |
+| usage_softirq    | Int64                |     | YES  |                          | FIELD         |
+| usage_steal      | Int64                |     | YES  |                          | FIELD         |
+| usage_system     | Int64                |     | YES  |                          | FIELD         |
+| usage_user       | Int64                |     | YES  |                          | FIELD         |
++------------------+----------------------+-----+------+--------------------------+---------------+";
     check_output_stream(output, expect).await;
 
     let output = execute_sql(&instance, &format!("select * from {table_name};"))
@@ -2647,7 +2649,7 @@ async fn test_execute_query_external_table_json_default_ts_column(instance: Arc<
         .data;
     let expect = "\
 +-------------+---------------------+----------+-------------+------------------+------------+--------------+-----------+------------+---------------+-------------+--------------+------------+
-| environment | greptime_timestamp  | hostname | usage_guest | usage_guest_nice | usage_idle | usage_iowait | usage_irq | usage_nice | usage_softirq | usage_steal | usage_system | usage_user |
+| environment | pulse_timestamp     | hostname | usage_guest | usage_guest_nice | usage_idle | usage_iowait | usage_irq | usage_nice | usage_softirq | usage_steal | usage_system | usage_user |
 +-------------+---------------------+----------+-------------+------------------+------------+--------------+-----------+------------+---------------+-------------+--------------+------------+
 | test        | 2023-04-01T00:00:00 | host_0   | 59          | 72               | 36         | 61           | 21        | 72         | 53            | 12          | 58           | 32         |
 | staging     | 2023-04-01T00:00:00 | host_1   | 72          | 2                | 50         | 19           | 73        | 84         | 38            | 37          | 32           | 12         |
@@ -3658,7 +3660,7 @@ async fn test_information_schema_dot_tables(instance: Arc<dyn MockInstance>) {
     assert!(matches!(output, OutputData::AffectedRows(0)));
 
     // User can only see information schema under current catalog.
-    // A necessary requirement to GreptimeCloud.
+    // Multi-tenant deployments rely on this.
     let sql = "select table_catalog, table_schema, table_name, table_type, table_id, engine from information_schema.tables where table_type != 'SYSTEM VIEW' and table_name in ('columns', 'numbers', 'tables', 'another_table') order by table_name";
 
     let output = execute_sql(&instance, sql).await.data;
@@ -3666,9 +3668,9 @@ async fn test_information_schema_dot_tables(instance: Arc<dyn MockInstance>) {
 +---------------+--------------------+------------+-----------------+----------+-------------+
 | table_catalog | table_schema       | table_name | table_type      | table_id | engine      |
 +---------------+--------------------+------------+-----------------+----------+-------------+
-| greptime      | information_schema | columns    | LOCAL TEMPORARY | 4        |             |
-| greptime      | public             | numbers    | LOCAL TEMPORARY | 2        | test_engine |
-| greptime      | information_schema | tables     | LOCAL TEMPORARY | 3        |             |
+| pulse         | information_schema | columns    | LOCAL TEMPORARY | 4        |             |
+| pulse         | public             | numbers    | LOCAL TEMPORARY | 2        | test_engine |
+| pulse         | information_schema | tables     | LOCAL TEMPORARY | 3        |             |
 +---------------+--------------------+------------+-----------------+----------+-------------+";
 
     check_output_stream(output, expected).await;
@@ -3703,7 +3705,7 @@ async fn test_show_databases(instance: Arc<dyn MockInstance>) {
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
+| pulse_private      |
 | information_schema |
 | public             |
 +--------------------+";
@@ -3735,7 +3737,7 @@ async fn test_information_schema_dot_columns(instance: Arc<dyn MockInstance>) {
     assert!(matches!(output, OutputData::AffectedRows(0)));
 
     // User can only see information schema under current catalog.
-    // A necessary requirement to GreptimeCloud.
+    // Multi-tenant deployments rely on this.
     let sql = "select table_catalog, table_schema, table_name, column_name, data_type, semantic_type from information_schema.columns where table_name in ('columns', 'numbers', 'tables', 'another_table') order by table_name, column_name";
 
     let output = execute_sql(&instance, sql).await.data;
@@ -3743,55 +3745,55 @@ async fn test_information_schema_dot_columns(instance: Arc<dyn MockInstance>) {
 +---------------+--------------------+------------+--------------------------+-----------------+---------------+
 | table_catalog | table_schema       | table_name | column_name              | data_type       | semantic_type |
 +---------------+--------------------+------------+--------------------------+-----------------+---------------+
-| greptime      | information_schema | columns    | character_maximum_length | bigint          | FIELD         |
-| greptime      | information_schema | columns    | character_octet_length   | bigint          | FIELD         |
-| greptime      | information_schema | columns    | character_set_name       | string          | FIELD         |
-| greptime      | information_schema | columns    | collation_name           | string          | FIELD         |
-| greptime      | information_schema | columns    | column_comment           | string          | FIELD         |
-| greptime      | information_schema | columns    | column_default           | string          | FIELD         |
-| greptime      | information_schema | columns    | column_key               | string          | FIELD         |
-| greptime      | information_schema | columns    | column_name              | string          | FIELD         |
-| greptime      | information_schema | columns    | column_type              | string          | FIELD         |
-| greptime      | information_schema | columns    | data_type                | string          | FIELD         |
-| greptime      | information_schema | columns    | datetime_precision       | bigint          | FIELD         |
-| greptime      | information_schema | columns    | extra                    | string          | FIELD         |
-| greptime      | information_schema | columns    | generation_expression    | string          | FIELD         |
-| greptime      | information_schema | columns    | greptime_data_type       | string          | FIELD         |
-| greptime      | information_schema | columns    | is_nullable              | string          | FIELD         |
-| greptime      | information_schema | columns    | numeric_precision        | bigint          | FIELD         |
-| greptime      | information_schema | columns    | numeric_scale            | bigint          | FIELD         |
-| greptime      | information_schema | columns    | ordinal_position         | bigint          | FIELD         |
-| greptime      | information_schema | columns    | privileges               | string          | FIELD         |
-| greptime      | information_schema | columns    | semantic_type            | string          | FIELD         |
-| greptime      | information_schema | columns    | srs_id                   | bigint          | FIELD         |
-| greptime      | information_schema | columns    | table_catalog            | string          | FIELD         |
-| greptime      | information_schema | columns    | table_name               | string          | FIELD         |
-| greptime      | information_schema | columns    | table_schema             | string          | FIELD         |
-| greptime      | public             | numbers    | number                   | int unsigned    | TAG           |
-| greptime      | information_schema | tables     | auto_increment           | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | avg_row_length           | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | check_time               | timestamp(0)    | FIELD         |
-| greptime      | information_schema | tables     | checksum                 | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | create_options           | string          | FIELD         |
-| greptime      | information_schema | tables     | create_time              | timestamp(0)    | FIELD         |
-| greptime      | information_schema | tables     | data_free                | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | data_length              | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | engine                   | string          | FIELD         |
-| greptime      | information_schema | tables     | index_length             | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | max_data_length          | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | max_index_length         | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | row_format               | string          | FIELD         |
-| greptime      | information_schema | tables     | table_catalog            | string          | FIELD         |
-| greptime      | information_schema | tables     | table_collation          | string          | FIELD         |
-| greptime      | information_schema | tables     | table_comment            | string          | FIELD         |
-| greptime      | information_schema | tables     | table_id                 | int unsigned    | FIELD         |
-| greptime      | information_schema | tables     | table_name               | string          | FIELD         |
-| greptime      | information_schema | tables     | table_rows               | bigint unsigned | FIELD         |
-| greptime      | information_schema | tables     | table_schema             | string          | FIELD         |
-| greptime      | information_schema | tables     | table_type               | string          | FIELD         |
-| greptime      | information_schema | tables     | temporary                | string          | FIELD         |
-| greptime      | information_schema | tables     | update_time              | timestamp(0)    | FIELD         |
-| greptime      | information_schema | tables     | version                  | bigint unsigned | FIELD         |
+| pulse         | information_schema | columns    | character_maximum_length | bigint          | FIELD         |
+| pulse         | information_schema | columns    | character_octet_length   | bigint          | FIELD         |
+| pulse         | information_schema | columns    | character_set_name       | string          | FIELD         |
+| pulse         | information_schema | columns    | collation_name           | string          | FIELD         |
+| pulse         | information_schema | columns    | column_comment           | string          | FIELD         |
+| pulse         | information_schema | columns    | column_default           | string          | FIELD         |
+| pulse         | information_schema | columns    | column_key               | string          | FIELD         |
+| pulse         | information_schema | columns    | column_name              | string          | FIELD         |
+| pulse         | information_schema | columns    | column_type              | string          | FIELD         |
+| pulse         | information_schema | columns    | data_type                | string          | FIELD         |
+| pulse         | information_schema | columns    | datetime_precision       | bigint          | FIELD         |
+| pulse         | information_schema | columns    | extra                    | string          | FIELD         |
+| pulse         | information_schema | columns    | generation_expression    | string          | FIELD         |
+| pulse         | information_schema | columns    | pulse_data_type          | string          | FIELD         |
+| pulse         | information_schema | columns    | is_nullable              | string          | FIELD         |
+| pulse         | information_schema | columns    | numeric_precision        | bigint          | FIELD         |
+| pulse         | information_schema | columns    | numeric_scale            | bigint          | FIELD         |
+| pulse         | information_schema | columns    | ordinal_position         | bigint          | FIELD         |
+| pulse         | information_schema | columns    | privileges               | string          | FIELD         |
+| pulse         | information_schema | columns    | semantic_type            | string          | FIELD         |
+| pulse         | information_schema | columns    | srs_id                   | bigint          | FIELD         |
+| pulse         | information_schema | columns    | table_catalog            | string          | FIELD         |
+| pulse         | information_schema | columns    | table_name               | string          | FIELD         |
+| pulse         | information_schema | columns    | table_schema             | string          | FIELD         |
+| pulse         | public             | numbers    | number                   | int unsigned    | TAG           |
+| pulse         | information_schema | tables     | auto_increment           | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | avg_row_length           | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | check_time               | timestamp(0)    | FIELD         |
+| pulse         | information_schema | tables     | checksum                 | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | create_options           | string          | FIELD         |
+| pulse         | information_schema | tables     | create_time              | timestamp(0)    | FIELD         |
+| pulse         | information_schema | tables     | data_free                | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | data_length              | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | engine                   | string          | FIELD         |
+| pulse         | information_schema | tables     | index_length             | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | max_data_length          | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | max_index_length         | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | row_format               | string          | FIELD         |
+| pulse         | information_schema | tables     | table_catalog            | string          | FIELD         |
+| pulse         | information_schema | tables     | table_collation          | string          | FIELD         |
+| pulse         | information_schema | tables     | table_comment            | string          | FIELD         |
+| pulse         | information_schema | tables     | table_id                 | int unsigned    | FIELD         |
+| pulse         | information_schema | tables     | table_name               | string          | FIELD         |
+| pulse         | information_schema | tables     | table_rows               | bigint unsigned | FIELD         |
+| pulse         | information_schema | tables     | table_schema             | string          | FIELD         |
+| pulse         | information_schema | tables     | table_type               | string          | FIELD         |
+| pulse         | information_schema | tables     | temporary                | string          | FIELD         |
+| pulse         | information_schema | tables     | update_time              | timestamp(0)    | FIELD         |
+| pulse         | information_schema | tables     | version                  | bigint unsigned | FIELD         |
 +---------------+--------------------+------------+--------------------------+-----------------+---------------+";
 
     check_output_stream(output, expected).await;
@@ -3815,7 +3817,7 @@ async fn test_information_schema_dot_columns(instance: Arc<dyn MockInstance>) {
 | another_catalog | information_schema | columns       | datetime_precision       | bigint          | FIELD         |
 | another_catalog | information_schema | columns       | extra                    | string          | FIELD         |
 | another_catalog | information_schema | columns       | generation_expression    | string          | FIELD         |
-| another_catalog | information_schema | columns       | greptime_data_type       | string          | FIELD         |
+| another_catalog | information_schema | columns       | pulse_data_type          | string          | FIELD         |
 | another_catalog | information_schema | columns       | is_nullable              | string          | FIELD         |
 | another_catalog | information_schema | columns       | numeric_precision        | bigint          | FIELD         |
 | another_catalog | information_schema | columns       | numeric_scale            | bigint          | FIELD         |
@@ -4189,13 +4191,13 @@ async fn test_histogram_ingestion_storage_lifecycle(#[case] metric_engine: bool)
     use servers::prom_store::snappy_compress;
     use tower::ServiceExt;
 
-    use crate::cluster::GreptimeDbClusterBuilder;
+    use crate::cluster::PulseClusterBuilder;
     use crate::test_util::build_test_prom_server;
     use crate::tests::test_util::{MockInstanceBuilder, RebuildableMockInstance, TestContext};
 
     common_telemetry::init_default_ut_logging();
     let builder = MockInstanceBuilder::Distributed(
-        GreptimeDbClusterBuilder::new(&format!("histogram_lifecycle_{metric_engine}"))
+        PulseClusterBuilder::new(&format!("histogram_lifecycle_{metric_engine}"))
             .await
             .with_datanodes(3),
     );
@@ -4223,7 +4225,7 @@ async fn test_histogram_ingestion_storage_lifecycle(#[case] metric_engine: bool)
         for table in ["lifecycle_sample", "lifecycle_histogram"] {
             let output = execute_sql(
                 &frontend,
-                &format!("select * from {table} order by greptime_timestamp"),
+                &format!("select * from {table} order by pulse_timestamp"),
             )
             .await;
             let OutputData::Stream(stream) = output.data else {
@@ -4307,7 +4309,7 @@ async fn test_histogram_ingestion_storage_lifecycle(#[case] metric_engine: bool)
         router = make_router(context.frontend());
         assert_eq!(snapshot(context.frontend()).await, expected, "WAL recovery");
         let storage_tables = if metric_engine {
-            vec!["greptime_physical_table"]
+            vec!["pulse_physical_table"]
         } else {
             vec!["lifecycle_sample", "lifecycle_histogram"]
         };

@@ -3,7 +3,7 @@
 
 CREATE SCHEMA s;
 
--- Create table with TIME INDEX for GreptimeDB
+-- Create table with TIME INDEX for Pulse
 CREATE TABLE s.a(col1 STRING, ts TIMESTAMP TIME INDEX);
 
 INSERT INTO s.a VALUES ('hello', 1000);

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Runtime metrics
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -29,13 +31,13 @@ pub const THREAD_NAME_LABEL: &str = "thread_name";
 
 lazy_static! {
     pub static ref METRIC_RUNTIME_THREADS_ALIVE: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_runtime_threads_alive",
+        "pulse_runtime_threads_alive",
         "runtime threads alive",
         &[THREAD_NAME_LABEL]
     )
     .unwrap();
     pub static ref METRIC_RUNTIME_THREADS_IDLE: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_runtime_threads_idle",
+        "pulse_runtime_threads_idle",
         "runtime threads idle",
         &[THREAD_NAME_LABEL]
     )
@@ -65,18 +67,18 @@ impl WorkloadSchedulerCollector {
         Self {
             scheduler,
             enabled: IntGauge::new(
-                "greptime_workload_scheduler_enabled",
+                "pulse_workload_scheduler_enabled",
                 "Whether the workload scheduler is enabled",
             )
             .unwrap(),
             active: IntGauge::new(
-                "greptime_workload_scheduler_active_polls",
+                "pulse_workload_scheduler_active_polls",
                 "Task polls admitted to Tokio but not yet completed",
             )
             .unwrap(),
             weight: IntGaugeVec::new(
                 Opts::new(
-                    "greptime_workload_scheduler_weight",
+                    "pulse_workload_scheduler_weight",
                     "Configured workload scheduler weight",
                 ),
                 workload_label,
@@ -84,7 +86,7 @@ impl WorkloadSchedulerCollector {
             .unwrap(),
             queued: IntGaugeVec::new(
                 Opts::new(
-                    "greptime_workload_scheduler_queued_tasks",
+                    "pulse_workload_scheduler_queued_tasks",
                     "Tasks queued in the workload scheduler",
                 ),
                 workload_label,
@@ -92,7 +94,7 @@ impl WorkloadSchedulerCollector {
             .unwrap(),
             polls: IntCounterVec::new(
                 Opts::new(
-                    "greptime_workload_scheduler_polls_total",
+                    "pulse_workload_scheduler_polls_total",
                     "Cumulative task polls admitted by the workload scheduler",
                 ),
                 workload_label,
@@ -100,7 +102,7 @@ impl WorkloadSchedulerCollector {
             .unwrap(),
             total_admission_wait: CounterVec::new(
                 Opts::new(
-                    "greptime_workload_scheduler_admission_wait_seconds_total",
+                    "pulse_workload_scheduler_admission_wait_seconds_total",
                     "Cumulative workload scheduler admission wait time in seconds",
                 ),
                 workload_label,
@@ -199,8 +201,8 @@ mod tests {
 
     fn counter_values(families: &[MetricFamily]) -> BTreeMap<String, BTreeMap<String, f64>> {
         [
-            "greptime_workload_scheduler_polls_total",
-            "greptime_workload_scheduler_admission_wait_seconds_total",
+            "pulse_workload_scheduler_polls_total",
+            "pulse_workload_scheduler_admission_wait_seconds_total",
         ]
         .into_iter()
         .map(|name| {
@@ -231,33 +233,25 @@ mod tests {
 
         let first = collector.collect();
         let expected = [
+            ("pulse_workload_scheduler_enabled", MetricType::GAUGE, false),
             (
-                "greptime_workload_scheduler_enabled",
+                "pulse_workload_scheduler_active_polls",
                 MetricType::GAUGE,
                 false,
             ),
+            ("pulse_workload_scheduler_weight", MetricType::GAUGE, true),
             (
-                "greptime_workload_scheduler_active_polls",
-                MetricType::GAUGE,
-                false,
-            ),
-            (
-                "greptime_workload_scheduler_weight",
+                "pulse_workload_scheduler_queued_tasks",
                 MetricType::GAUGE,
                 true,
             ),
             (
-                "greptime_workload_scheduler_queued_tasks",
-                MetricType::GAUGE,
-                true,
-            ),
-            (
-                "greptime_workload_scheduler_polls_total",
+                "pulse_workload_scheduler_polls_total",
                 MetricType::COUNTER,
                 true,
             ),
             (
-                "greptime_workload_scheduler_admission_wait_seconds_total",
+                "pulse_workload_scheduler_admission_wait_seconds_total",
                 MetricType::COUNTER,
                 true,
             ),
@@ -317,7 +311,7 @@ mod tests {
         let before = counter_values(&second);
         let after = counter_values(&third);
         for workload in ["query", "write"] {
-            let metric = "greptime_workload_scheduler_polls_total";
+            let metric = "pulse_workload_scheduler_polls_total";
             assert!(
                 after[metric][workload] > before[metric][workload],
                 "{metric} did not increase for {workload}"

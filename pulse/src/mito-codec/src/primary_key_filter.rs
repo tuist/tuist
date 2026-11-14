@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::SemanticType;
@@ -345,7 +347,7 @@ mod tests {
     use std::sync::Arc;
 
     use api::v1::SemanticType;
-    use common_query::prelude::{greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_timestamp, pulse_value};
     use datafusion_common::Column;
     use datafusion_expr::{BinaryExpr, Expr, Literal, Operator};
     use datatypes::prelude::ConcreteDataType;
@@ -386,7 +388,7 @@ mod tests {
             })
             .push_column_metadata(ColumnMetadata {
                 column_schema: ColumnSchema::new(
-                    greptime_value(),
+                    pulse_value(),
                     ConcreteDataType::float64_datatype(),
                     false,
                 ),
@@ -395,7 +397,7 @@ mod tests {
             })
             .push_column_metadata(ColumnMetadata {
                 column_schema: ColumnSchema::new(
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     ConcreteDataType::timestamp_nanosecond_datatype(),
                     false,
                 ),
@@ -426,7 +428,7 @@ mod tests {
             })
             .push_column_metadata(ColumnMetadata {
                 column_schema: ColumnSchema::new(
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     ConcreteDataType::timestamp_nanosecond_datatype(),
                     false,
                 ),
@@ -439,9 +441,9 @@ mod tests {
 
     fn create_test_row() -> Vec<(ColumnId, ValueRef<'static>)> {
         vec![
-            (1, ValueRef::String("greptime-frontend-6989d9899-22222")),
-            (2, ValueRef::String("greptime-cluster")),
-            (3, ValueRef::String("greptime-frontend-6989d9899-22222")),
+            (1, ValueRef::String("pulse-frontend-6989d9899-22222")),
+            (2, ValueRef::String("pulse-cluster")),
+            (3, ValueRef::String("pulse-frontend-6989d9899-22222")),
         ]
     }
 
@@ -490,10 +492,7 @@ mod tests {
     #[test]
     fn test_sparse_primary_key_filter_matches() {
         let metadata = setup_metadata();
-        let filters = Arc::new(vec![create_filter(
-            "pod",
-            "greptime-frontend-6989d9899-22222",
-        )]);
+        let filters = Arc::new(vec![create_filter("pod", "pulse-frontend-6989d9899-22222")]);
         let pk = encode_sparse_pk(&metadata, 1, 0, create_test_row());
         let codec = SparsePrimaryKeyCodec::new(&metadata);
         let mut filter = SparsePrimaryKeyFilter::new(metadata, filters, codec);
@@ -503,10 +502,7 @@ mod tests {
     #[test]
     fn test_sparse_primary_key_filter_not_matches() {
         let metadata = setup_metadata();
-        let filters = Arc::new(vec![create_filter(
-            "pod",
-            "greptime-frontend-6989d9899-22223",
-        )]);
+        let filters = Arc::new(vec![create_filter("pod", "pulse-frontend-6989d9899-22223")]);
         let pk = encode_sparse_pk(&metadata, 1, 0, create_test_row());
         let codec = SparsePrimaryKeyCodec::new(&metadata);
         let mut filter = SparsePrimaryKeyFilter::new(metadata, filters, codec);
@@ -518,7 +514,7 @@ mod tests {
         let metadata = setup_metadata();
         let filters = Arc::new(vec![create_filter(
             "non-exist-label",
-            "greptime-frontend-6989d9899-22222",
+            "pulse-frontend-6989d9899-22222",
         )]);
         let pk = encode_sparse_pk(&metadata, 1, 0, create_test_row());
         let codec = SparsePrimaryKeyCodec::new(&metadata);
@@ -529,10 +525,7 @@ mod tests {
     #[test]
     fn test_dense_primary_key_filter_matches() {
         let metadata = setup_metadata();
-        let filters = Arc::new(vec![create_filter(
-            "pod",
-            "greptime-frontend-6989d9899-22222",
-        )]);
+        let filters = Arc::new(vec![create_filter("pod", "pulse-frontend-6989d9899-22222")]);
         let pk = encode_dense_pk(&metadata, create_test_row());
         let codec = DensePrimaryKeyCodec::new(&metadata);
         let mut filter = DensePrimaryKeyFilter::new(metadata, filters, codec);
@@ -542,10 +535,7 @@ mod tests {
     #[test]
     fn test_dense_primary_key_filter_not_matches() {
         let metadata = setup_metadata();
-        let filters = Arc::new(vec![create_filter(
-            "pod",
-            "greptime-frontend-6989d9899-22223",
-        )]);
+        let filters = Arc::new(vec![create_filter("pod", "pulse-frontend-6989d9899-22223")]);
         let pk = encode_dense_pk(&metadata, create_test_row());
         let codec = DensePrimaryKeyCodec::new(&metadata);
         let mut filter = DensePrimaryKeyFilter::new(metadata, filters, codec);
@@ -557,7 +547,7 @@ mod tests {
         let metadata = setup_metadata();
         let filters = Arc::new(vec![create_filter(
             "non-exist-label",
-            "greptime-frontend-6989d9899-22222",
+            "pulse-frontend-6989d9899-22222",
         )]);
         let pk = encode_dense_pk(&metadata, create_test_row());
         let codec = DensePrimaryKeyCodec::new(&metadata);
@@ -572,10 +562,10 @@ mod tests {
         let codec = DensePrimaryKeyCodec::new(&metadata);
 
         let cases = [
-            (Operator::Gt, "greptime-frontend-6989d9899-22221", true),
-            (Operator::GtEq, "greptime-frontend-6989d9899-22222", true),
-            (Operator::Lt, "greptime-frontend-6989d9899-22223", true),
-            (Operator::LtEq, "greptime-frontend-6989d9899-22221", false),
+            (Operator::Gt, "pulse-frontend-6989d9899-22221", true),
+            (Operator::GtEq, "pulse-frontend-6989d9899-22222", true),
+            (Operator::Lt, "pulse-frontend-6989d9899-22223", true),
+            (Operator::LtEq, "pulse-frontend-6989d9899-22221", false),
         ];
 
         for (op, value, expected) in cases {
@@ -592,10 +582,10 @@ mod tests {
         let codec = SparsePrimaryKeyCodec::new(&metadata);
 
         let cases = [
-            (Operator::Gt, "greptime-frontend-6989d9899-22221", true),
-            (Operator::GtEq, "greptime-frontend-6989d9899-22222", true),
-            (Operator::Lt, "greptime-frontend-6989d9899-22223", true),
-            (Operator::LtEq, "greptime-frontend-6989d9899-22221", false),
+            (Operator::Gt, "pulse-frontend-6989d9899-22221", true),
+            (Operator::GtEq, "pulse-frontend-6989d9899-22222", true),
+            (Operator::Lt, "pulse-frontend-6989d9899-22223", true),
+            (Operator::LtEq, "pulse-frontend-6989d9899-22221", false),
         ];
 
         for (op, value, expected) in cases {
@@ -616,7 +606,7 @@ mod tests {
             })
             .push_column_metadata(ColumnMetadata {
                 column_schema: ColumnSchema::new(
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     ConcreteDataType::timestamp_nanosecond_datatype(),
                     false,
                 ),

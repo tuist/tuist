@@ -10,7 +10,7 @@ PARTITION ON COLUMNS (a) (
 );
 
 -- SQLNESS REPLACE (\d{13}) ID
-SELECT table_catalog, table_schema, table_name, partition_name, partition_expression, partition_description, greptime_partition_id from information_schema.partitions WHERE table_name = 'my_table' ORDER BY table_catalog, table_schema, table_name, partition_name;
+SELECT table_catalog, table_schema, table_name, partition_name, partition_expression, partition_description, pulse_partition_id from information_schema.partitions WHERE table_name = 'my_table' ORDER BY table_catalog, table_schema, table_name, partition_name;
 
 -- SQLNESS REPLACE (\d{13}) REGION_ID
 -- SQLNESS REPLACE (\d{1}) PEER_ID
@@ -53,7 +53,7 @@ CREATE TABLE my_table (
 PARTITION ON COLUMNS (a) ();
 
 -- SQLNESS REPLACE (\d{13}) ID
-SELECT table_catalog, table_schema, table_name, partition_name, partition_expression, greptime_partition_id from information_schema.partitions WHERE table_name = 'my_table' ORDER BY table_catalog, table_schema, table_name, partition_name;
+SELECT table_catalog, table_schema, table_name, partition_name, partition_expression, pulse_partition_id from information_schema.partitions WHERE table_name = 'my_table' ORDER BY table_catalog, table_schema, table_name, partition_name;
 
 -- SQLNESS REPLACE (\d{13}) REGION_ID
 -- SQLNESS REPLACE (\d{1}) PEER_ID

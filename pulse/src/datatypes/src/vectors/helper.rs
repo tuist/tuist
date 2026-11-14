@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Vector helper functions, inspired by databend Series mod
 
 use std::any::Any;
@@ -106,7 +108,7 @@ impl Helper {
     ///
     /// With a type hint, casts the array to the requested representation and returns
     /// an error if the vector cannot preserve that concrete type. Without a hint,
-    /// normalizes the scalar to a supported GreptimeDB representation.
+    /// normalizes the scalar to a supported Pulse representation.
     pub fn try_from_scalar_value(
         value: ScalarValue,
         length: usize,
@@ -134,13 +136,13 @@ impl Helper {
         }
 
         let value = match value {
-            // GreptimeDB doesn't support Float16 vectors.
+            // Pulse doesn't support Float16 vectors.
             ScalarValue::Float16(v) => ScalarValue::Float32(v.map(f32::from)),
             ScalarValue::LargeUtf8(v) => ScalarValue::Utf8(v),
             ScalarValue::LargeBinary(v) | ScalarValue::FixedSizeBinary(_, v) => {
                 ScalarValue::Binary(v)
             }
-            // Timezones are not supported by GreptimeDB vectors.
+            // Timezones are not supported by Pulse vectors.
             ScalarValue::TimestampSecond(v, _) => ScalarValue::TimestampSecond(v, None),
             ScalarValue::TimestampMillisecond(v, _) => ScalarValue::TimestampMillisecond(v, None),
             ScalarValue::TimestampMicrosecond(v, _) => ScalarValue::TimestampMicrosecond(v, None),
@@ -512,7 +514,7 @@ mod tests {
             fields.clone(),
             vec![
                 ScalarValue::Int32(Some(7)).to_array().unwrap(),
-                ScalarValue::Utf8(Some("greptime".to_string()))
+                ScalarValue::Utf8(Some("pulse".to_string()))
                     .to_array()
                     .unwrap(),
             ],
@@ -530,7 +532,7 @@ mod tests {
                 panic!("expected struct value");
             };
             assert_eq!(
-                &[Value::Int32(7), Value::String("greptime".into())],
+                &[Value::Int32(7), Value::String("pulse".into())],
                 value.items()
             );
         }
@@ -546,7 +548,7 @@ mod tests {
     #[test]
     fn test_try_from_scalar_value_normalizes_arrow_types() {
         let string = Helper::try_from_scalar_value(
-            ScalarValue::LargeUtf8(Some("greptime".to_string())),
+            ScalarValue::LargeUtf8(Some("pulse".to_string())),
             2,
             None,
         )
@@ -582,7 +584,7 @@ mod tests {
             assert_eq!(*actual, StringVector::from(expected));
         }
 
-        let names: Vec<String> = vec!["greptime", "hello", "public", "world"]
+        let names: Vec<String> = vec!["pulse", "hello", "public", "world"]
             .into_iter()
             .map(|x| x.to_string())
             .collect();
@@ -590,14 +592,14 @@ mod tests {
         let ret = Helper::like_utf8(names.clone(), "%ll%").unwrap();
         assert_vector(vec!["hello"], &ret);
 
-        let ret = Helper::like_utf8(names.clone(), "%time").unwrap();
-        assert_vector(vec!["greptime"], &ret);
+        let ret = Helper::like_utf8(names.clone(), "%lse").unwrap();
+        assert_vector(vec!["pulse"], &ret);
 
         let ret = Helper::like_utf8(names.clone(), "%ld").unwrap();
         assert_vector(vec!["world"], &ret);
 
         let ret = Helper::like_utf8(names, "%").unwrap();
-        assert_vector(vec!["greptime", "hello", "public", "world"], &ret);
+        assert_vector(vec!["pulse", "hello", "public", "world"], &ret);
     }
 
     #[test]
@@ -614,14 +616,14 @@ mod tests {
             assert_eq!(BooleanVector::from(actual_filter), *expected_filter);
         }
 
-        let names: Vec<String> = vec!["greptime", "timeseries", "cloud", "database"]
+        let names: Vec<String> = vec!["pulse", "timeseries", "cloud", "database"]
             .into_iter()
             .map(|x| x.to_string())
             .collect();
 
-        let (table, filter) = Helper::like_utf8_filter(names.clone(), "%ti%").unwrap();
-        assert_vector(vec!["greptime", "timeseries"], &table);
-        assert_filter(names.clone(), "%ti%", &filter);
+        let (table, filter) = Helper::like_utf8_filter(names.clone(), "%u%").unwrap();
+        assert_vector(vec!["pulse", "cloud"], &table);
+        assert_filter(names.clone(), "%u%", &filter);
 
         let (tables, filter) = Helper::like_utf8_filter(names.clone(), "%lou").unwrap();
         assert_vector(vec![], &tables);

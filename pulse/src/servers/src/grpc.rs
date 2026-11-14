@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod builder;
 mod cancellation;
 pub mod context_auth;
 mod database;
 pub mod flight;
 pub mod frontend_grpc_handler;
-pub mod greptime_handler;
 pub mod memory_limit;
 pub mod prom_query_gateway;
+pub mod pulse_handler;
 pub mod region_server;
 
 use std::any::Any;
@@ -435,7 +437,7 @@ mod tests {
         assert_eq!(3002, port_from_bind_addr("[::]:3002"));
         assert_eq!(
             3002,
-            port_from_bind_addr("greptimedb-metasrv.default.svc.cluster.local:3002")
+            port_from_bind_addr("pulse-metasrv.default.svc.cluster.local:3002")
         );
         assert_eq!(
             DEFAULT_GRPC_ADDR_PORT,

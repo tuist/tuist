@@ -13,7 +13,7 @@ encoding experiments that explicitly compare `plain`/dictionary,
 
 Phase 1 should generate data by writing readable Mito SST files and matching
 manifest checkpoints directly. This follows the `gc_readable_sst_fixture` lab
-approach from `~/greptimedb-gc-huge-stress`: use Mito's SST writer to create
+approach from `~/pulse-gc-huge-stress`: use Mito's SST writer to create
 queryable files, then write a checkpoint and `_last_checkpoint` that reference
 those files.
 
@@ -24,7 +24,7 @@ into readable SST fixtures.
 
 The intended flow for each case is:
 
-1. Start a GreptimeDB build and create an empty table to seed catalog/table
+1. Start a Pulse build and create an empty table to seed catalog/table
    metadata.
 2. Stop the process.
 3. Use the seed region metadata/manifest to generate deterministic readable SSTs
@@ -60,7 +60,7 @@ kind = "prom_remote_write_then_query"
 [scenario.remote_write]
 database = "public"
 metric = "prom_remote_write_seeded_random"
-physical_table = "greptime_physical_table"
+physical_table = "pulse_physical_table"
 series_count = 512
 samples_per_series = 1440
 sample_chunk_size = 480
@@ -147,10 +147,10 @@ Parquet footers directly; it does not require Python `pyarrow`.
 ```toml
 [scenario.remote_write.storage]
 inspect = true
-column = "greptime_value"
+column = "pulse_value"
 include_metadata_files = false
 # Optional: inspect below datanode data home instead of the whole fresh data dir.
-# root_suffix = "greptime/public/<table_id>"
+# root_suffix = "pulse/public/<table_id>"
 min_files = 1
 min_files_with_column = 1
 require_encodings = ["BYTE_STREAM_SPLIT"]
@@ -247,7 +247,7 @@ and calls Rust `finalize-otlp` to aggregate metrics, thresholds, and the final
 report. The case is intentionally outside the default set until its variance is
 known.
 
-Build base/candidate `greptime` binaries with the same profile and build the
+Build base/candidate `pulse` binaries with the same profile and build the
 candidate `query_perf_fixture` and `query_regression_runner`, then run the outer
 driver explicitly:
 
@@ -255,8 +255,8 @@ driver explicitly:
 WORK_DIR="$(mktemp -d /tmp/query-perf-otlp.XXXXXX)"
 uv run --no-project python .github/scripts/query-regression-run.py \
   --cases tests/perf/query_cases/otlp_trace_load/case.toml \
-  --base-bin /path/to/base/target/nightly/greptime \
-  --candidate-bin /path/to/candidate/target/nightly/greptime \
+  --base-bin /path/to/base/target/nightly/pulse \
+  --candidate-bin /path/to/candidate/target/nightly/pulse \
   --fixture-generator /path/to/candidate/target/nightly/query_perf_fixture \
   --runner /path/to/candidate/target/nightly/query_regression_runner \
   --otelgen-bin /path/to/otelgen \
@@ -365,7 +365,7 @@ main pass/fail signal.
 ## Runner lifecycle
 
 `.github/scripts/query-regression-run.py` is the outer CI driver. It resolves the
-base and candidate `greptime` binaries, candidate `query_perf_fixture`, and
+base and candidate `pulse` binaries, candidate `query_perf_fixture`, and
 candidate `query_regression_runner`; allocates disjoint localhost
 meta/datanode/frontend HTTP, gRPC, MySQL, and Postgres ports for each target; and
 writes component logs below `<work-dir>/<target>/logs/`.
@@ -390,8 +390,8 @@ driver directly:
 ```bash
 uv run --no-project python .github/scripts/query-regression-run.py \
   --cases tests/perf/query_cases/smoke_direct_sst/case.toml \
-  --base-bin /path/to/base/greptime \
-  --candidate-bin /path/to/candidate/greptime \
+  --base-bin /path/to/base/pulse \
+  --candidate-bin /path/to/candidate/pulse \
   --fixture-generator /path/to/query_perf_fixture \
   --runner /path/to/query_regression_runner \
   --work-dir /tmp/query-regression-work
@@ -416,14 +416,14 @@ the host is idle (not merely this agent), record load throughout, and avoid
 concurrent builds. CPU affinity alone does not isolate memory or I/O contention.
 The historical unique-integer workload is preserved only in Git history and does
 not apply to this case.
-Both targets must use the exact same release `greptime` binary; only the
+Both targets must use the exact same release `pulse` binary; only the
 per-target table setup SQL differs. Run the existing driver from a checkout
 containing that binary, with absolute paths and fresh data directories for every
 run:
 
 ```bash
 REPO="$(pwd -P)"
-RELEASE_GREPTIME="/absolute/path/to/release/greptime"
+RELEASE_PULSE="/absolute/path/to/release/pulse"
 FIXTURE_GENERATOR="/absolute/path/to/release/query_perf_fixture"
 RUNNER="/absolute/path/to/release/query_regression_runner"
 WORK_DIR="/absolute/path/to/fresh/sst-float-bss-run-1"
@@ -432,8 +432,8 @@ uv run --no-project python "$REPO/.github/scripts/query-regression-run.py" \
   --cases "$REPO/tests/perf/query_cases/sst_float_bss/case.toml" \
   --base-src "$REPO" \
   --candidate-src . \
-  --base-bin "$RELEASE_GREPTIME" \
-  --candidate-bin "$RELEASE_GREPTIME" \
+  --base-bin "$RELEASE_PULSE" \
+  --candidate-bin "$RELEASE_PULSE" \
   --fixture-generator "$FIXTURE_GENERATOR" \
   --runner "$RUNNER" \
   --work-dir "$WORK_DIR" \
@@ -450,7 +450,7 @@ query latency percentage is
 The configured three warmups occur after the initial query validation and before
 that query's 15 measured endpoint requests, so query latency is a warmed
 frontend/cache measurement. The case restricts storage inspection to
-`data/greptime/public`, excluding `greptime_private` SSTs. After the datanodes
+`data/pulse/public`, excluding `pulse_private` SSTs. After the datanodes
 stop, it also runs seven iterations of value-only `parquetbench` for all
 inspected SST files and sequential `scanbench` over the corresponding regions,
 with parallelism one. The three explicit flushes yielded six SSTs in the observed
@@ -497,14 +497,14 @@ query_regression_runner measure --case <case.toml> --fixture-generator <fixture>
 `.github/workflows/query-regression.yml` provides an opt-in CI entrypoint for
 query regression runs. It builds its own binaries for now:
 
-- base `greptime` from the PR base commit, or `workflow_dispatch` `base_ref`
-- candidate `greptime`, `query_perf_fixture`, and `query_regression_runner` from
+- base `pulse` from the PR base commit, or `workflow_dispatch` `base_ref`
+- candidate `pulse`, `query_perf_fixture`, and `query_regression_runner` from
   the PR merge ref/current candidate checkout
 - outer driver and summary formatter from the candidate checkout
 
-The workflow builds base and candidate `greptime` as normal release-equivalent
+The workflow builds base and candidate `pulse` as normal release-equivalent
 binaries. Candidate `query_perf_fixture` and `query_regression_runner` are the
-extra head-side helpers; `finalize-remote` uses candidate `greptime datanode
+extra head-side helpers; `finalize-remote` uses candidate `pulse datanode
 parquetbench/scanbench` as the read-bench tool against each target's data directory.
 
 The workflow runs when an allowlisted repository admin comments

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! How to query table information from database
 
 use common_error::ext::BoxedError;
@@ -258,7 +260,7 @@ pub(crate) mod test {
                 (
                     1024,
                     [
-                        "greptime".to_string(),
+                        "pulse".to_string(),
                         "public".to_string(),
                         "numbers".to_string(),
                     ],
@@ -270,7 +272,7 @@ pub(crate) mod test {
                 (
                     1025,
                     [
-                        "greptime".to_string(),
+                        "pulse".to_string(),
                         "public".to_string(),
                         "numbers_with_ts".to_string(),
                     ],

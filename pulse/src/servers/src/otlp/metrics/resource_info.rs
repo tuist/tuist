@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Resource descriptor synthesized from OTLP metrics requests, so the entity
 //! graph reads one table instead of scanning every logical metric table for
 //! attributes the promote filter may have dropped.
@@ -25,7 +27,7 @@ use std::collections::BTreeMap;
 use api::v1::RowInsertRequests;
 use common_catalog::consts::SEMANTIC_GRAPH_WINDOW_NANOS;
 use common_grpc::precision::Precision;
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use otel_arrow_rust::proto::opentelemetry::common::v1::KeyValue;
 use otel_arrow_rust::proto::opentelemetry::metrics::v1::{
     AggregationTemporality, ResourceMetrics, metric,
@@ -46,7 +48,7 @@ use crate::row_writer::{self, MultiTableData};
 
 /// Prefixed like the other engine-managed tables, so a user metric is
 /// unlikely to claim the name.
-pub const OTEL_RESOURCE_INFO_TABLE_NAME: &str = "greptime_otel_resource_info";
+pub const OTEL_RESOURCE_INFO_TABLE_NAME: &str = "pulse_otel_resource_info";
 
 /// Attributes projected under their raw OTel keys. `service.instance.id` is
 /// absent on purpose: it lands in `instance`.
@@ -150,10 +152,10 @@ impl ResourceInfoData {
             for ts_nanos in windows.values().copied() {
                 let mut row = table.alloc_one_row();
                 row_writer::write_tags(table, tags.iter().cloned(), &mut row)?;
-                row_writer::write_f64(table, greptime_value(), 1.0, &mut row)?;
+                row_writer::write_f64(table, pulse_value(), 1.0, &mut row)?;
                 row_writer::write_ts_to_millis(
                     table,
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     Some(ts_nanos),
                     Precision::Nanosecond,
                     &mut row,
@@ -369,8 +371,8 @@ mod tests {
                 "host.id",
                 "job",
                 "service.name",
-                greptime_value(),
-                greptime_timestamp()
+                pulse_value(),
+                pulse_timestamp()
             ]
         );
         for column in &rows.schema[..3] {

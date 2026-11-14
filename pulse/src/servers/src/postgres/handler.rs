@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -605,23 +607,6 @@ fn describe_fields(
                 format.format_for(1),
             ),
         ]),
-        #[cfg(feature = "enterprise")]
-        SqlPlan::Statement(Statement::ShowCreateTrigger(_), _) => Ok(vec![
-            FieldInfo::new(
-                "name".to_string(),
-                None,
-                None,
-                Type::TEXT,
-                format.format_for(0),
-            ),
-            FieldInfo::new(
-                "create_statement".to_string(),
-                None,
-                None,
-                Type::TEXT,
-                format.format_for(1),
-            ),
-        ]),
         // SHOW FLOW STATUS returns six columns; return their descriptions so
         // prepared/extended-protocol clients receive the correct row description.
         SqlPlan::Statement(Statement::ShowFlowStatus(_), _) => Ok(vec![
@@ -669,14 +654,6 @@ fn describe_fields(
             ),
         ]),
 
-        #[cfg(feature = "enterprise")]
-        SqlPlan::Statement(Statement::ShowTriggers(_), _) => Ok(vec![FieldInfo::new(
-            "name".to_string(),
-            None,
-            None,
-            Type::TEXT,
-            format.format_for(0),
-        )]),
         // we will not support other show statements for extended query protocol at least for now.
         // because the return columns is not predictable at this stage
         SqlPlan::Shortcut(query) => {

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -367,7 +369,7 @@ mod tests {
         memory_kv
             .put(PutRequest {
                 key: TableNameKey {
-                    catalog: "greptime",
+                    catalog: "pulse",
                     schema: "👉",
                     table: "t",
                 }
@@ -380,7 +382,7 @@ mod tests {
         memory_kv
             .put(PutRequest {
                 key: TableNameKey {
-                    catalog: "greptime",
+                    catalog: "pulse",
                     schema: "👉👈",
                     table: "t",
                 }
@@ -392,7 +394,7 @@ mod tests {
             .unwrap();
 
         let manager = TableNameManager::new(memory_kv);
-        let items = manager.tables("greptime", "👉").collect::<Vec<_>>().await;
+        let items = manager.tables("pulse", "👉").collect::<Vec<_>>().await;
         assert_eq!(items.len(), 1);
     }
 }

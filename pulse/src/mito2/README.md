@@ -1,6 +1,6 @@
 # Mito
 
-Mito is GreptimeDB's default region engine.
+Mito is Pulse's default region engine.
 
 ## About Mito
 The Alfa Romeo [MiTo](https://en.wikipedia.org/wiki/Alfa_Romeo_MiTo) is a front-wheel drive, three-door supermini designed by Centro Stile Alfa Romeo.

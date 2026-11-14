@@ -12,30 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
 
 lazy_static! {
     pub static ref METRIC_PIPELINE_CREATE_HISTOGRAM: HistogramVec = register_histogram_vec!(
-        "greptime_pipeline_create_duration_seconds",
+        "pulse_pipeline_create_duration_seconds",
         "Histogram of the pipeline creation duration",
         &["success"]
     )
     .unwrap();
     pub static ref METRIC_PIPELINE_DELETE_HISTOGRAM: HistogramVec = register_histogram_vec!(
-        "greptime_pipeline_delete_duration_seconds",
+        "pulse_pipeline_delete_duration_seconds",
         "Histogram of the pipeline deletion duration",
         &["success"]
     )
     .unwrap();
     pub static ref METRIC_PIPELINE_RETRIEVE_HISTOGRAM: HistogramVec = register_histogram_vec!(
-        "greptime_pipeline_retrieve_duration_seconds",
+        "pulse_pipeline_retrieve_duration_seconds",
         "Histogram of the pipeline retrieval duration",
         &["success"]
     )
     .unwrap();
     pub static ref METRIC_PIPELINE_TABLE_FIND_COUNT: CounterVec = register_counter_vec!(
-        "greptime_pipeline_table_find_count",
+        "pulse_pipeline_table_find_count",
         "Count of pipeline table find operations",
         &["success"]
     )

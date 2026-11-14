@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod export;
 pub mod export_v2;
 mod import;
@@ -34,7 +36,7 @@ use crate::data::import_v2::ImportV2Command;
 
 pub(crate) const COPY_PATH_PLACEHOLDER: &str = "<PATH/TO/FILES>";
 
-/// Command for data operations including exporting data from and importing data into GreptimeDB.
+/// Command for data operations including exporting data from and importing data into Pulse.
 #[derive(Subcommand)]
 pub enum DataCommand {
     /// Export data (V1 - legacy).

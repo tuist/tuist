@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub(crate) mod end;
 pub(crate) mod reconcile_logical_tables;
 pub(crate) mod reconcile_tables;
@@ -536,7 +538,7 @@ mod tests {
     fn test_procedure(is_subprocedure: bool) -> ReconcileDatabaseProcedure {
         ReconcileDatabaseProcedure::new(
             test_context(),
-            "greptime".to_string(),
+            "pulse".to_string(),
             "public".to_string(),
             false,
             8,

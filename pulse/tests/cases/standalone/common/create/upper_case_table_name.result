@@ -16,7 +16,7 @@ Affected Rows: 2
 
 select * from system_Metric;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.upper_case_table_name.system_metric
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.upper_case_table_name.system_metric
 
 select * from "system_Metric";
 

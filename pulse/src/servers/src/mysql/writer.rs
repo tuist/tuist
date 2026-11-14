@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Write as FmtWrite;
 use std::io;
 use std::time::Duration;
@@ -151,7 +153,7 @@ pub async fn write_output<W: AsyncWrite + Send + Sync + Unpin>(
     Ok(())
 }
 
-/// Handle GreptimeDB error, convert it to MySQL error
+/// Handle Pulse error, convert it to MySQL error
 pub fn handle_err(e: impl ErrorExt, query_ctx: QueryContextRef) -> (ErrorKind, String) {
     let status_code = e.status_code();
     let kind = mysql_error_kind(&status_code);

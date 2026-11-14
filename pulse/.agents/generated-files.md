@@ -21,33 +21,6 @@ Note: `tests/cases/distributed/common` is a **symlink** to
 `tests/cases/standalone/common`. They are the same files — editing one changes
 both, and there is no need to diff standalone vs distributed.
 
-## Configuration docs — `config/config.md`
-
-Generated from the `config/*.example.toml` files and
-`config/config-docs-template.md`.
-
-```bash
-make config-docs
-```
-
-Edit the example TOMLs and/or the template, then regenerate. Do not edit
-`config/config.md` directly.
-
-## Grafana dashboards
-
-For the metrics dashboards, edit
-`grafana/dashboards/metrics/cluster/dashboard.json`. The generator derives the
-standalone `dashboard.json` by removing instance filters, then produces
-`dashboard.yaml` and `dashboard.md` for both cluster and standalone variants.
-Do not hand-edit those five derived files.
-
-`grafana/dashboards/events/dashboard.json` and
-`grafana/dashboards/logs/dashboard.json` are not outputs of this generator.
-
-```bash
-make dashboards
-```
-
 ## `build.rs`-generated code
 
 Some crates generate code at build time into the Cargo `OUT_DIR` (e.g.
@@ -60,9 +33,3 @@ change the corresponding `build.rs` or its inputs instead.
 Generated from the external `greptime-proto` crate, not from sources in this
 repo. To change the wire format, change `greptime-proto` upstream and bump the
 dependency.
-
-## License headers
-
-License headers are checked by `korandoru/hawkeye@v5` in
-`.github/workflows/checks.yml`. For enterprise-gated files, also update both
-license lists and run `make check-enterprise-license`.

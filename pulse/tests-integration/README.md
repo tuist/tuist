@@ -57,7 +57,7 @@ docker compose -f docker-compose.yml up kafka
 
 ## Setup tests with etcd TLS
 
-This guide explains how to set up and test TLS-enabled etcd connections in GreptimeDB integration tests.
+This guide explains how to set up and test TLS-enabled etcd connections in Pulse integration tests.
 
 ### Quick Start
 

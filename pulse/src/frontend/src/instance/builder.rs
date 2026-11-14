@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -38,8 +40,6 @@ use operator::flow::FlowServiceOperator;
 use operator::insert::Inserter;
 use operator::procedure::ProcedureServiceOperator;
 use operator::request::Requester;
-#[cfg(feature = "enterprise")]
-use operator::statement::CreateDatabaseHandlerRef;
 use operator::statement::{
     AdminEventRecorderHandle, AdminFunctionRecordingLayer, ExecutorConfigureContext,
     StatementExecutor, StatementExecutorConfiguratorRef, StatementExecutorRef,
@@ -328,7 +328,7 @@ impl FrontendBuilder {
         .query_engine();
 
         // Inject the entity-graph provider now that the query engine exists, so the
-        // computed `greptime_private.semantic_entities` / `semantic_relationships`
+        // computed `pulse_private.semantic_entities` / `semantic_relationships`
         // tables can derive rows. Late binding here breaks the `catalog -> query`
         // dependency cycle.
         if let Some(kv_catalog) = self
@@ -370,13 +370,6 @@ impl FrontendBuilder {
             } else {
                 statement_executor
             };
-
-        #[cfg(feature = "enterprise")]
-        let statement_executor = if let Some(handler) = plugins.get::<CreateDatabaseHandlerRef>() {
-            statement_executor.with_create_database_handler(handler)
-        } else {
-            statement_executor
-        };
 
         let admin_event_recorder = AdminEventRecorderHandle::default();
         let statement_executor = statement_executor.with_admin_function_layer(Arc::new(

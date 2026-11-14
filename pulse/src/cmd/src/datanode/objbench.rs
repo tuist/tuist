@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -577,39 +579,40 @@ mod tests {
 
     #[test]
     fn test_parse_dir() {
-        let meta_path = "data/greptime/public/1024/1024_0000000000/metadata/00020380-009c-426d-953e-b4e34c15af34.parquet";
+        let meta_path = "data/pulse/public/1024/1024_0000000000/metadata/00020380-009c-426d-953e-b4e34c15af34.parquet";
         let c = parse_file_dir_components(meta_path).unwrap();
         assert_eq!(
             c.file_id.to_string(),
             "00020380-009c-426d-953e-b4e34c15af34"
         );
-        assert_eq!(c.catalog, "greptime");
+        assert_eq!(c.catalog, "pulse");
         assert_eq!(c.schema, "public");
         assert_eq!(c.table_id, 1024);
         assert_eq!(c.region_sequence, 0);
         assert_eq!(c.path_type, PathType::Metadata);
 
         let c = parse_file_dir_components(
-            "data/greptime/public/1024/1024_0000000000/data/00020380-009c-426d-953e-b4e34c15af34.parquet",
+            "data/pulse/public/1024/1024_0000000000/data/00020380-009c-426d-953e-b4e34c15af34.parquet",
         ).unwrap();
         assert_eq!(
             c.file_id.to_string(),
             "00020380-009c-426d-953e-b4e34c15af34"
         );
-        assert_eq!(c.catalog, "greptime");
+        assert_eq!(c.catalog, "pulse");
         assert_eq!(c.schema, "public");
         assert_eq!(c.table_id, 1024);
         assert_eq!(c.region_sequence, 0);
         assert_eq!(c.path_type, PathType::Data);
 
         let c = parse_file_dir_components(
-            "data/greptime/public/1024/1024_0000000000/00020380-009c-426d-953e-b4e34c15af34.parquet",
-        ).unwrap();
+            "data/pulse/public/1024/1024_0000000000/00020380-009c-426d-953e-b4e34c15af34.parquet",
+        )
+        .unwrap();
         assert_eq!(
             c.file_id.to_string(),
             "00020380-009c-426d-953e-b4e34c15af34"
         );
-        assert_eq!(c.catalog, "greptime");
+        assert_eq!(c.catalog, "pulse");
         assert_eq!(c.schema, "public");
         assert_eq!(c.table_id, 1024);
         assert_eq!(c.region_sequence, 0);
@@ -620,7 +623,7 @@ mod tests {
     fn test_parse_config() {
         let path = "../../config/datanode.example.toml";
         let (storage, engine, _wal) = parse_config(&PathBuf::from_str(path).unwrap()).unwrap();
-        assert_eq!(storage.data_home, "./greptimedb_data");
+        assert_eq!(storage.data_home, "./pulse_data");
         assert_eq!(engine.index.staging_size, ReadableSize::gb(2));
     }
 }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,7 +43,7 @@ pub(crate) async fn assert_procedure_actor_by_table<F, Fut>(
     let query = format!(
         "SELECT count(DISTINCT json_get_string(procedure_trigger, 'type')) = 2 \
          AND count(*) = count(CASE WHEN actor = '{actor}' THEN 1 END) AS actor_matches \
-         FROM greptime_private.events \
+         FROM pulse_private.events \
          WHERE type = '{event_type}' AND table_name = '{table_name}' \
          AND json_get_string(procedure_trigger, 'type') IN ('Submitted', 'Succeeded')"
     );
@@ -70,7 +72,7 @@ pub(crate) async fn assert_procedure_actor(
         assert_eventually_eq(
             instance,
             &format!(
-                "SELECT count(*) > 0 AND {actor_predicate} AS actor_matches FROM greptime_private.events WHERE procedure_id = '{procedure_id}' AND json_get_string(procedure_trigger, 'type') = '{trigger}'"
+                "SELECT count(*) > 0 AND {actor_predicate} AS actor_matches FROM pulse_private.events WHERE procedure_id = '{procedure_id}' AND json_get_string(procedure_trigger, 'type') = '{trigger}'"
             ),
             "\
 +---------------+

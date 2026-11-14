@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use session::context::QueryContextRef;
 use snafu::ensure;
 
@@ -50,16 +52,16 @@ mod tests {
 
     #[test]
     fn test_validate_catalog_and_schema() {
-        let context = Arc::new(QueryContext::with("greptime", "public"));
+        let context = Arc::new(QueryContext::with("pulse", "public"));
 
-        validate_catalog_and_schema("greptime", "public", &context).unwrap();
-        let re = validate_catalog_and_schema("greptime", "private_schema", &context);
+        validate_catalog_and_schema("pulse", "public", &context).unwrap();
+        let re = validate_catalog_and_schema("pulse", "private_schema", &context);
         assert!(re.is_ok());
         let re = validate_catalog_and_schema("wrong_catalog", "public", &context);
         assert!(re.is_err());
         let re = validate_catalog_and_schema("wrong_catalog", "wrong_schema", &context);
         assert!(re.is_err());
 
-        validate_catalog_and_schema("greptime", "information_schema", &context).unwrap();
+        validate_catalog_and_schema("pulse", "information_schema", &context).unwrap();
     }
 }

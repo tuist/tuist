@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::str::FromStr;
@@ -1176,7 +1178,7 @@ fn check_schema(records: &HttpRecordsOutput, expected_schema: &[(&str, &str)]) -
     Ok(())
 }
 
-// By default, the span kind is stored as `SPAN_KIND_<kind>` in GreptimeDB.
+// By default, the span kind is stored as `SPAN_KIND_<kind>` in Pulse.
 // However, in Jaeger API, the span kind is returned as `<kind>` which is the lowercase of the span kind and without the `SPAN_KIND_` prefix.
 fn normalize_span_kind(span_kind: &str) -> String {
     // If the span_kind starts with `SPAN_KIND_` prefix, remove it and convert to lowercase.
@@ -1188,7 +1190,7 @@ fn normalize_span_kind(span_kind: &str) -> String {
     }
 }
 
-// By default, the status code is stored as `STATUS_CODE_<code>` in GreptimeDB.
+// By default, the status code is stored as `STATUS_CODE_<code>` in Pulse.
 // However, in Jaeger API, the status code is returned as `<code>` without the `STATUS_CODE_` prefix.
 fn normalize_status_code(status_code: &str) -> String {
     // If the span_kind starts with `SPAN_KIND_` prefix, remove it and convert to lowercase.

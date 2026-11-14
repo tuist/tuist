@@ -14,7 +14,7 @@ The handler is `loki_ingest`. It receives the authenticated `QueryContext`, mark
 the channel and semantic source as Loki log ingestion, resolves the target table,
 and converts the request body into a `ContextReq`.
 
-The target table is selected by `x-greptime-log-table-name`. If the header is
+The target table is selected by `x-pulse-log-table-name`. If the header is
 absent, Loki writes to `loki_logs`.
 
 ## Supported Payloads
@@ -52,7 +52,7 @@ The initial schema is:
 
 | Column | Type | Semantic type |
 | --- | --- | --- |
-| `greptime_timestamp()` | timestamp nanosecond | timestamp |
+| `pulse_timestamp()` | timestamp nanosecond | timestamp |
 | `line` | string | field |
 | `structured_metadata` | JSON binary | field |
 
@@ -65,7 +65,7 @@ Structured metadata is stored as one JSON binary value in the
 
 ## Pipeline Ingestion
 
-When `x-greptime-log-pipeline-name` or `x-greptime-pipeline-name` is present,
+When `x-pulse-log-pipeline-name` or `x-pulse-pipeline-name` is present,
 Loki uses the pipeline path:
 
 ```text
@@ -76,14 +76,14 @@ Pipeline version and parameters come from the shared pipeline headers:
 
 | Header | Meaning |
 | --- | --- |
-| `x-greptime-log-pipeline-version` / `x-greptime-pipeline-version` | Pipeline version. |
-| `x-greptime-pipeline-params` | Pipeline parameters. |
+| `x-pulse-log-pipeline-version` / `x-pulse-pipeline-version` | Pipeline version. |
+| `x-pulse-pipeline-params` | Pipeline parameters. |
 
 Each Loki entry is converted into a VRL object before pipeline execution:
 
 | Source | Pipeline field |
 | --- | --- |
-| Entry timestamp | `greptime_timestamp()` |
+| Entry timestamp | `pulse_timestamp()` |
 | Entry line | `loki_line` |
 | Structured metadata key `k` | `loki_metadata_k` |
 | Label key `k` | `loki_label_k` |
@@ -92,7 +92,7 @@ Each Loki entry is converted into a VRL object before pipeline execution:
 
 Both direct and pipeline paths produce a `ContextReq`. The shared
 `execute_log_context_req` helper performs inserts through `PipelineHandler::insert`,
-collects all outputs, builds a `GreptimedbV1Response`, and records aggregate
+collects all outputs, builds a `PulseV1Response`, and records aggregate
 Loki ingestion metrics.
 
 The elapsed timer starts before payload conversion, so it includes parsing,

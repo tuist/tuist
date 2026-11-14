@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use core::pin::pin;
 use std::sync::{Arc, Weak};
 
@@ -55,12 +57,12 @@ const TABLE_NAME: &str = "table_name";
 const PARTITION_NAME: &str = "partition_name";
 const PARTITION_EXPRESSION: &str = "partition_expression";
 /// The region id
-const GREPTIME_PARTITION_ID: &str = "greptime_partition_id";
+const PULSE_PARTITION_ID: &str = "pulse_partition_id";
 const INIT_CAPACITY: usize = 42;
 
 /// The `PARTITIONS` table provides information about partitioned tables.
 /// See https://dev.mysql.com/doc/refman/8.0/en/information-schema-partitions-table.html
-/// We provide an extral column `greptime_partition_id` for GreptimeDB region id.
+/// We provide an extral column `pulse_partition_id` for Pulse region id.
 #[derive(Debug)]
 pub(super) struct InformationSchemaPartitions {
     schema: SchemaRef,
@@ -153,7 +155,7 @@ impl InformationSchemaPartitions {
             ColumnSchema::new("nodegroup", ConcreteDataType::string_datatype(), true),
             ColumnSchema::new("tablespace_name", ConcreteDataType::string_datatype(), true),
             ColumnSchema::new(
-                GREPTIME_PARTITION_ID,
+                PULSE_PARTITION_ID,
                 ConcreteDataType::uint64_datatype(),
                 true,
             ),

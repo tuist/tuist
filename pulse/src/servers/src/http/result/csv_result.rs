@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use common_error::status_code::StatusCode;
@@ -20,13 +22,13 @@ use mime_guess::mime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 use crate::http::result::error_result::ErrorResponse;
-use crate::http::{GreptimeQueryOutput, HttpResponse, ResponseFormat, handler, process_with_limit};
+use crate::http::{HttpResponse, PulseQueryOutput, ResponseFormat, handler, process_with_limit};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CsvResponse {
-    output: Vec<GreptimeQueryOutput>,
+    output: Vec<PulseQueryOutput>,
     execution_time_ms: u64,
     with_names: bool,
     with_types: bool,
@@ -60,7 +62,7 @@ impl CsvResponse {
         }
     }
 
-    pub fn output(&self) -> &[GreptimeQueryOutput] {
+    pub fn output(&self) -> &[PulseQueryOutput] {
         &self.output
     }
 
@@ -121,10 +123,10 @@ impl IntoResponse for CsvResponse {
         let execution_time = self.execution_time_ms;
         let payload = match self.output.pop() {
             None => String::default(),
-            Some(GreptimeQueryOutput::AffectedRows(n)) => {
+            Some(PulseQueryOutput::AffectedRows(n)) => {
                 format!("{n}\n")
             }
-            Some(GreptimeQueryOutput::Records(records)) => {
+            Some(PulseQueryOutput::Records(records)) => {
                 let mut wtr = csv::WriterBuilder::new()
                     .terminator(csv::Terminator::CRLF) // RFC 4180
                     .from_writer(Vec::new());
@@ -185,13 +187,13 @@ impl IntoResponse for CsvResponse {
         )
             .into_response();
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_FORMAT,
+            &PULSE_DB_HEADER_FORMAT,
             HeaderValue::from_static(
                 ResponseFormat::Csv(self.with_names, self.with_types).as_str(),
             ),
         );
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_EXECUTION_TIME,
+            &PULSE_DB_HEADER_EXECUTION_TIME,
             HeaderValue::from(execution_time),
         );
         resp

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::value::ValueData;
@@ -40,7 +42,7 @@ use crate::test_util::{MockFlownodeManager, new_ddl_context};
 #[test]
 fn test_flow_submitted_event_contracts() {
     let create = FlowDdlEvent::create_submitted(
-        "greptime",
+        "pulse",
         "metrics",
         CreateFlowEventIntent {
             or_replace: true,
@@ -55,7 +57,7 @@ fn test_flow_submitted_event_contracts() {
         &flow_schema(),
         &[Row {
             values: vec![
-                ValueData::StringValue("greptime".to_string()).into(),
+                ValueData::StringValue("pulse".to_string()).into(),
                 ValueData::StringValue("metrics".to_string()).into(),
                 Value { value_data: None },
             ],
@@ -72,14 +74,14 @@ fn test_flow_submitted_event_contracts() {
         })
     );
 
-    let drop = FlowDdlEvent::drop_submitted("greptime", "metrics", 42, true);
+    let drop = FlowDdlEvent::drop_submitted("pulse", "metrics", 42, true);
     assert_event_contract(
         &drop,
         DROP_FLOW_EVENT_TYPE,
         &flow_schema(),
         &[Row {
             values: vec![
-                ValueData::StringValue("greptime".to_string()).into(),
+                ValueData::StringValue("pulse".to_string()).into(),
                 ValueData::StringValue("metrics".to_string()).into(),
                 ValueData::U32Value(42).into(),
             ],
@@ -95,15 +97,15 @@ fn test_flow_submitted_event_contracts() {
 fn test_flow_lifecycle_events_have_fixed_schema_and_null_intent() {
     for (event, event_type) in [
         (
-            FlowDdlEvent::create_lifecycle("greptime", "metrics"),
+            FlowDdlEvent::create_lifecycle("pulse", "metrics"),
             CREATE_FLOW_EVENT_TYPE,
         ),
         (
-            FlowDdlEvent::create_succeeded("greptime", "metrics", None),
+            FlowDdlEvent::create_succeeded("pulse", "metrics", None),
             CREATE_FLOW_EVENT_TYPE,
         ),
         (
-            FlowDdlEvent::drop_lifecycle("greptime", "metrics", 42),
+            FlowDdlEvent::drop_lifecycle("pulse", "metrics", 42),
             DROP_FLOW_EVENT_TYPE,
         ),
     ] {
@@ -113,7 +115,7 @@ fn test_flow_lifecycle_events_have_fixed_schema_and_null_intent() {
             &flow_schema(),
             &[Row {
                 values: vec![
-                    ValueData::StringValue("greptime".to_string()).into(),
+                    ValueData::StringValue("pulse".to_string()).into(),
                     ValueData::StringValue("metrics".to_string()).into(),
                     if event_type == DROP_FLOW_EVENT_TYPE {
                         ValueData::U32Value(42).into()
@@ -126,14 +128,14 @@ fn test_flow_lifecycle_events_have_fixed_schema_and_null_intent() {
         assert_eq!(event.json_payload().unwrap(), serde_json::Value::Null);
     }
 
-    let event = FlowDdlEvent::create_succeeded("greptime", "metrics", Some(42));
+    let event = FlowDdlEvent::create_succeeded("pulse", "metrics", Some(42));
     assert_event_contract(
         &event,
         CREATE_FLOW_EVENT_TYPE,
         &flow_schema(),
         &[Row {
             values: vec![
-                ValueData::StringValue("greptime".to_string()).into(),
+                ValueData::StringValue("pulse".to_string()).into(),
                 ValueData::StringValue("metrics".to_string()).into(),
                 ValueData::U32Value(42).into(),
             ],
@@ -147,7 +149,7 @@ fn test_flow_events_preserve_procedure_envelope_contract() {
     let submitted = ProcedureEvent::new(
         procedure_id,
         Box::new(FlowDdlEvent::create_submitted(
-            "greptime",
+            "pulse",
             "metrics",
             CreateFlowEventIntent {
                 or_replace: false,
@@ -161,11 +163,7 @@ fn test_flow_events_preserve_procedure_envelope_contract() {
     );
     let succeeded = ProcedureEvent::new(
         procedure_id,
-        Box::new(FlowDdlEvent::create_succeeded(
-            "greptime",
-            "metrics",
-            Some(42),
-        )),
+        Box::new(FlowDdlEvent::create_succeeded("pulse", "metrics", Some(42))),
         ProcedureState::Done { output: None },
         EventTrigger::Succeeded,
     );
@@ -176,7 +174,7 @@ fn test_flow_events_preserve_procedure_envelope_contract() {
         "Running",
         "Submitted",
         FlowEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             flow_name: Some("metrics"),
             flow_id: None,
         },
@@ -187,7 +185,7 @@ fn test_flow_events_preserve_procedure_envelope_contract() {
         "Done",
         "Succeeded",
         FlowEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             flow_name: Some("metrics"),
             flow_id: Some(42),
         },

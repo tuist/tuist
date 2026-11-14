@@ -60,7 +60,7 @@ def pull_payload(**overrides: object) -> dict:
         },
         "head": {
             "sha": HEAD,
-            "repo": {"full_name": "alice/greptimedb"},
+            "repo": {"full_name": "alice/pulse"},
         },
     }
     payload.update(overrides)
@@ -332,7 +332,7 @@ class AdmitPullTest(unittest.TestCase):
         self.assertEqual(decision.head_sha, HEAD)
         self.assertEqual(decision.base_sha, BASE)
         self.assertEqual(decision.pr_number, "42")
-        self.assertEqual(decision.head_repo, "alice/greptimedb")
+        self.assertEqual(decision.head_repo, "alice/pulse")
         self.assertEqual(decision.reply, "")
 
     def test_unknown_commenter_is_denied(self) -> None:
@@ -393,7 +393,7 @@ class AdmissionMarkerTest(unittest.TestCase):
             "run_id": 123,
             "pr_number": 42,
             "head_sha": HEAD,
-            "head_repo": "alice/greptimedb",
+            "head_repo": "alice/pulse",
             "base_repo": "GreptimeTeam/greptimedb",
             "candidate_sha": MERGE,
             "base_sha": BASE,

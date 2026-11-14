@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -25,12 +27,12 @@ mod tests {
     use servers::query_handler::sql::SqlQueryHandler;
     use session::context::QueryContext;
 
-    use crate::standalone::GreptimeDbStandaloneBuilder;
+    use crate::standalone::PulseStandaloneBuilder;
     use crate::tests;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_exec() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_exec")
+        let standalone = PulseStandaloneBuilder::new("test_standalone_exec")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -77,7 +79,7 @@ mod tests {
 
         let output = instance
             .do_query(
-                "select * from my_metric_1 order by greptime_timestamp",
+                "select * from my_metric_1 order by pulse_timestamp",
                 QueryContext::arc(),
             )
             .await
@@ -89,7 +91,7 @@ mod tests {
                 let pretty_print = recordbatches.pretty_print().unwrap();
                 let expected = vec![
                     "+-------+-------+----------------+---------------------+-------+",
-                    "| tagk1 | tagk2 | greptime_value | greptime_timestamp  | tagk3 |",
+                    "| tagk1 | tagk2 | pulse_value | pulse_timestamp  | tagk3 |",
                     "+-------+-------+----------------+---------------------+-------+",
                     "| tagv1 | tagv2 | 1.0            | 1970-01-01T00:00:01 |       |",
                     "|       | tagv2 | 2.0            | 1970-01-01T00:00:02 | tagv3 |",

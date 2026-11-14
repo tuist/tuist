@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 use std::time::Instant;
@@ -19,14 +21,14 @@ use std::time::Instant;
 use api::v1::value::ValueData;
 use api::v1::{
     ColumnDataType, ColumnDataTypeExtension, ColumnSchema, JsonTypeExtension, Row,
-    RowInsertRequest, Rows, SemanticType, Value as GreptimeValue,
+    RowInsertRequest, Rows, SemanticType, Value as PulseValue,
 };
 use axum::Extension;
 use axum::extract::State;
 use axum_extra::TypedHeader;
 use bytes::Bytes;
 use chrono::DateTime;
-use common_query::prelude::greptime_timestamp;
+use common_query::prelude::pulse_timestamp;
 use common_telemetry::{error, warn};
 use headers::ContentType;
 use jsonb::Value;
@@ -34,9 +36,7 @@ use lazy_static::lazy_static;
 use loki_proto::logproto::LabelPairAdapter;
 use loki_proto::prost_types::Timestamp as LokiTimestamp;
 use pipeline::util::to_pipeline_version;
-use pipeline::{
-    ContextReq, GreptimePipelineParams, PipelineContext, PipelineDefinition, SchemaInfo,
-};
+use pipeline::{ContextReq, PipelineContext, PipelineDefinition, PulsePipelineParams, SchemaInfo};
 use prost::Message;
 use quoted_string::test_utils::TestSpec;
 use session::context::{Channel, QueryContext, QueryContextRef};
@@ -74,7 +74,7 @@ const LINES_KEY: &str = "values";
 lazy_static! {
     static ref LOKI_INIT_SCHEMAS: Vec<ColumnSchema> = vec![
         ColumnSchema {
-            column_name: greptime_timestamp().to_string(),
+            column_name: pulse_timestamp().to_string(),
             datatype: ColumnDataType::TimestampNanosecond.into(),
             semantic_type: SemanticType::Timestamp.into(),
             datatype_extension: None,
@@ -173,7 +173,7 @@ struct LokiPipelineContextReq {
     table_name: String,
     pipeline_name: String,
     pipeline_version: Option<String>,
-    pipeline_params: GreptimePipelineParams,
+    pipeline_params: PulsePipelineParams,
     bytes: Bytes,
 }
 
@@ -265,7 +265,7 @@ async fn build_loki_raw_insert_request(
     let schemas = schema_info.column_schemas()?;
     // Labels can introduce new tag columns after earlier rows were built.
     for row in rows.iter_mut() {
-        row.resize(schemas.len(), GreptimeValue::default());
+        row.resize(schemas.len(), PulseValue::default());
     }
     let rows = Rows {
         rows: rows.into_iter().map(|values| Row { values }).collect(),
@@ -480,7 +480,7 @@ fn label_pair_metadata_to_jsonb(structured_metadata: Option<Vec<LabelPairAdapter
 fn new_loki_pipeline_map(ts: i64, line: String) -> LokiPipelineMap {
     let mut map = BTreeMap::new();
     map.insert(
-        KeyString::from(greptime_timestamp()),
+        KeyString::from(pulse_timestamp()),
         VrlValue::Timestamp(DateTime::from_timestamp_nanos(ts)),
     );
     map.insert(
@@ -787,28 +787,28 @@ fn init_row(
     ts: i64,
     line: String,
     structured_metadata: Vec<u8>,
-) -> Vec<GreptimeValue> {
+) -> Vec<PulseValue> {
     // create and init row
     let mut row = Vec::with_capacity(schema_len);
     // set ts and line
-    row.push(GreptimeValue {
+    row.push(PulseValue {
         value_data: Some(ValueData::TimestampNanosecondValue(ts)),
     });
-    row.push(GreptimeValue {
+    row.push(PulseValue {
         value_data: Some(ValueData::StringValue(line)),
     });
-    row.push(GreptimeValue {
+    row.push(PulseValue {
         value_data: Some(ValueData::BinaryValue(structured_metadata)),
     });
     for _ in 0..(schema_len - 3) {
-        row.push(GreptimeValue { value_data: None });
+        row.push(PulseValue { value_data: None });
     }
     row
 }
 
 fn process_labels(
     schema_info: &mut SchemaInfo,
-    row: &mut Vec<GreptimeValue>,
+    row: &mut Vec<PulseValue>,
     labels: Option<BTreeMap<String, String>>,
 ) {
     let Some(labels) = labels else {
@@ -823,7 +823,7 @@ fn process_labels(
         if let Some(index) = column_indexer.get(&k) {
             // exist in schema
             // insert value using index
-            row[*index] = GreptimeValue {
+            row[*index] = PulseValue {
                 value_data: Some(ValueData::StringValue(v)),
             };
         } else {
@@ -841,7 +841,7 @@ fn process_labels(
             );
             column_indexer.insert(k, schemas.len() - 1);
 
-            row.push(GreptimeValue {
+            row.push(PulseValue {
                 value_data: Some(ValueData::StringValue(v)),
             });
         }
@@ -932,7 +932,7 @@ mod tests {
         assert_eq!(
             column_names,
             vec![
-                greptime_timestamp(),
+                pulse_timestamp(),
                 LOKI_LINE_COLUMN,
                 LOKI_STRUCTURED_METADATA_COLUMN,
                 "job",
@@ -976,7 +976,7 @@ mod tests {
             panic!("expected pipeline object");
         };
         assert!(matches!(
-            map.get(&KeyString::from(greptime_timestamp())),
+            map.get(&KeyString::from(pulse_timestamp())),
             Some(VrlValue::Timestamp(_))
         ));
         assert_eq!(

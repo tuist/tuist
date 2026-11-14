@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 
 use api::helper::ColumnDataTypeWrapper;
@@ -791,7 +793,7 @@ mod tests {
     use common_error::ext::ErrorExt;
     use common_error::status_code::StatusCode;
     use common_function::utils::partition_expr_version;
-    use common_query::prelude::{greptime_native_histogram, greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_native_histogram, pulse_timestamp, pulse_value};
     use common_recordbatch::RecordBatches;
     use datatypes::arrow::array::{
         Float64Array, TimestampMicrosecondArray, TimestampMillisecondArray,
@@ -827,8 +829,8 @@ mod tests {
         let mut rows = Vec::new();
         for batch in batches.iter() {
             let batch = batch.df_record_batch();
-            let timestamp_index = batch.schema().index_of(greptime_timestamp()).unwrap();
-            let value_index = batch.schema().index_of(greptime_value()).unwrap();
+            let timestamp_index = batch.schema().index_of(pulse_timestamp()).unwrap();
+            let value_index = batch.schema().index_of(pulse_value()).unwrap();
             let timestamps = batch
                 .column(timestamp_index)
                 .as_any()
@@ -1202,12 +1204,12 @@ mod tests {
         for batch in batches.iter() {
             let batch = batch.df_record_batch();
             let timestamps = batch
-                .column(batch.schema().index_of(greptime_timestamp()).unwrap())
+                .column(batch.schema().index_of(pulse_timestamp()).unwrap())
                 .as_any()
                 .downcast_ref::<TimestampMicrosecondArray>()
                 .unwrap();
             let values = batch
-                .column(batch.schema().index_of(greptime_value()).unwrap())
+                .column(batch.schema().index_of(pulse_value()).unwrap())
                 .as_any()
                 .downcast_ref::<Float64Array>()
                 .unwrap();
@@ -1426,21 +1428,21 @@ mod tests {
             options: None,
         };
         let timestamp = PbColumnSchema {
-            column_name: greptime_timestamp().to_string(),
+            column_name: pulse_timestamp().to_string(),
             datatype: ColumnDataType::TimestampMillisecond as i32,
             semantic_type: SemanticType::Timestamp as _,
             datatype_extension: None,
             options: None,
         };
         let value = PbColumnSchema {
-            column_name: greptime_value().to_string(),
+            column_name: pulse_value().to_string(),
             datatype: ColumnDataType::Float64 as i32,
             semantic_type: SemanticType::Field as _,
             datatype_extension: None,
             options: None,
         };
         let histogram = PbColumnSchema {
-            column_name: greptime_native_histogram().to_string(),
+            column_name: pulse_native_histogram().to_string(),
             datatype: ColumnDataType::Struct as i32,
             semantic_type: SemanticType::Field as _,
             datatype_extension: None,
@@ -1491,8 +1493,8 @@ mod tests {
             rows: merged_rows,
         };
 
-        let value_idx = column_index(&merged_request, greptime_value());
-        let histogram_idx = column_index(&merged_request, greptime_native_histogram());
+        let value_idx = column_index(&merged_request, pulse_value());
+        let histogram_idx = column_index(&merged_request, pulse_native_histogram());
         assert!(matches!(
             merged_request.rows[0].values[value_idx].value_data,
             Some(ValueData::F64Value(_))
@@ -1547,15 +1549,15 @@ mod tests {
             .unwrap();
         let batches = RecordBatches::try_collect(stream).await.unwrap();
         let expected = "\
-+-------------------------+----------------+------------+---------------------+-------+
-| greptime_timestamp      | greptime_value | __table_id | __tsid              | job   |
-+-------------------------+----------------+------------+---------------------+-------+
-| 1970-01-01T00:00:00     | 0.0            | 3          | 2955007454552897459 | tag_0 |
-| 1970-01-01T00:00:00.001 | 1.0            | 3          | 2955007454552897459 | tag_0 |
-| 1970-01-01T00:00:00.002 | 2.0            | 3          | 2955007454552897459 | tag_0 |
-| 1970-01-01T00:00:00.003 | 3.0            | 3          | 2955007454552897459 | tag_0 |
-| 1970-01-01T00:00:00.004 | 4.0            | 3          | 2955007454552897459 | tag_0 |
-+-------------------------+----------------+------------+---------------------+-------+";
++-------------------------+-------------+------------+---------------------+-------+
+| pulse_timestamp         | pulse_value | __table_id | __tsid              | job   |
++-------------------------+-------------+------------+---------------------+-------+
+| 1970-01-01T00:00:00     | 0.0         | 3          | 2955007454552897459 | tag_0 |
+| 1970-01-01T00:00:00.001 | 1.0         | 3          | 2955007454552897459 | tag_0 |
+| 1970-01-01T00:00:00.002 | 2.0         | 3          | 2955007454552897459 | tag_0 |
+| 1970-01-01T00:00:00.003 | 3.0         | 3          | 2955007454552897459 | tag_0 |
+| 1970-01-01T00:00:00.004 | 4.0         | 3          | 2955007454552897459 | tag_0 |
++-------------------------+-------------+------------+---------------------+-------+";
         assert_eq!(expected, batches.pretty_print().unwrap(), "physical region");
 
         // read data from logical region
@@ -1567,15 +1569,15 @@ mod tests {
             .unwrap();
         let batches = RecordBatches::try_collect(stream).await.unwrap();
         let expected = "\
-+-------------------------+----------------+-------+
-| greptime_timestamp      | greptime_value | job   |
-+-------------------------+----------------+-------+
-| 1970-01-01T00:00:00     | 0.0            | tag_0 |
-| 1970-01-01T00:00:00.001 | 1.0            | tag_0 |
-| 1970-01-01T00:00:00.002 | 2.0            | tag_0 |
-| 1970-01-01T00:00:00.003 | 3.0            | tag_0 |
-| 1970-01-01T00:00:00.004 | 4.0            | tag_0 |
-+-------------------------+----------------+-------+";
++-------------------------+-------------+-------+
+| pulse_timestamp         | pulse_value | job   |
++-------------------------+-------------+-------+
+| 1970-01-01T00:00:00     | 0.0         | tag_0 |
+| 1970-01-01T00:00:00.001 | 1.0         | tag_0 |
+| 1970-01-01T00:00:00.002 | 2.0         | tag_0 |
+| 1970-01-01T00:00:00.003 | 3.0         | tag_0 |
+| 1970-01-01T00:00:00.004 | 4.0         | tag_0 |
++-------------------------+-------------+-------+";
         assert_eq!(expected, batches.pretty_print().unwrap(), "logical region");
     }
 
@@ -2088,7 +2090,7 @@ mod tests {
     async fn test_verify_rows_rejects_wrong_type() {
         use api::v1::value::ValueData;
         use api::v1::{ColumnDataType, ColumnSchema as PbColumnSchema, SemanticType};
-        use common_query::prelude::{greptime_timestamp, greptime_value};
+        use common_query::prelude::{pulse_timestamp, pulse_value};
 
         let env = TestEnv::new().await;
         env.init_metric_region().await;
@@ -2099,14 +2101,14 @@ mod tests {
         // caused #7990. It should surface a typed error rather than panic.
         let schema = vec![
             PbColumnSchema {
-                column_name: greptime_timestamp().to_string(),
+                column_name: pulse_timestamp().to_string(),
                 datatype: ColumnDataType::String as i32,
                 semantic_type: SemanticType::Timestamp as _,
                 datatype_extension: None,
                 options: None,
             },
             PbColumnSchema {
-                column_name: greptime_value().to_string(),
+                column_name: pulse_value().to_string(),
                 datatype: ColumnDataType::Float64 as i32,
                 semantic_type: SemanticType::Field as _,
                 datatype_extension: None,
@@ -2156,7 +2158,7 @@ mod tests {
     #[tokio::test]
     async fn test_verify_rows_rejects_missing_time_index() {
         use api::v1::{ColumnDataType, ColumnSchema as PbColumnSchema, SemanticType};
-        use common_query::prelude::greptime_value;
+        use common_query::prelude::pulse_value;
 
         let env = TestEnv::new().await;
         env.init_metric_region().await;
@@ -2166,7 +2168,7 @@ mod tests {
         // Payload only carries the field and a tag — no timestamp column.
         let schema = vec![
             PbColumnSchema {
-                column_name: greptime_value().to_string(),
+                column_name: pulse_value().to_string(),
                 datatype: ColumnDataType::Float64 as i32,
                 semantic_type: SemanticType::Field as _,
                 datatype_extension: None,
@@ -2211,7 +2213,7 @@ mod tests {
     async fn test_verify_rows_rejects_missing_field() {
         use api::v1::value::ValueData;
         use api::v1::{ColumnDataType, ColumnSchema as PbColumnSchema, SemanticType};
-        use common_query::prelude::greptime_timestamp;
+        use common_query::prelude::pulse_timestamp;
 
         let env = TestEnv::new().await;
         env.init_metric_region().await;
@@ -2221,7 +2223,7 @@ mod tests {
         // Schema has timestamp + tag but no field column.
         let schema = vec![
             PbColumnSchema {
-                column_name: greptime_timestamp().to_string(),
+                column_name: pulse_timestamp().to_string(),
                 datatype: ColumnDataType::TimestampMillisecond as i32,
                 semantic_type: SemanticType::Timestamp as _,
                 datatype_extension: None,
@@ -2273,7 +2275,7 @@ mod tests {
             column_id: 1,
             semantic_type: SemanticType::Field,
             column_schema: ColumnSchema::new(
-                "greptime_value".to_string(),
+                "pulse_value".to_string(),
                 ConcreteDataType::float64_datatype(),
                 true, // nullable, no default
             ),
@@ -2295,14 +2297,14 @@ mod tests {
 
         MetricEngineInner::fill_missing_field_column(
             RegionId::new(1, 1),
-            "greptime_value",
+            "pulse_value",
             &field_meta,
             &mut rows,
         )
         .unwrap();
 
         assert_eq!(rows.schema.len(), 2);
-        assert_eq!(rows.schema[1].column_name, "greptime_value");
+        assert_eq!(rows.schema[1].column_name, "pulse_value");
         assert_eq!(rows.rows[0].values.len(), 2);
         assert!(
             rows.rows[0].values[1].value_data.is_none(),
@@ -2316,7 +2318,7 @@ mod tests {
             column_id: 1,
             semantic_type: SemanticType::Field,
             column_schema: ColumnSchema::new(
-                "greptime_value".to_string(),
+                "pulse_value".to_string(),
                 ConcreteDataType::timestamp_millisecond_datatype(),
                 false,
             )
@@ -2340,7 +2342,7 @@ mod tests {
 
         let err = MetricEngineInner::fill_missing_field_column(
             RegionId::new(1, 1),
-            "greptime_value",
+            "pulse_value",
             &field_meta,
             &mut rows,
         )

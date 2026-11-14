@@ -38,4 +38,4 @@ layering, async runtimes, error handling, feature gating, the DataFusion fork).
 ## Generated files
 
 [`generated-files.md`](generated-files.md) lists tool-generated artifacts that
-must not be hand-edited (sqlness `.result`, `config.md`, dashboards, ...).
+must not be hand-edited (sqlness `.result`, generated code, ...).

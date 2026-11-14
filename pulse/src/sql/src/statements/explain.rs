@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{Display, Formatter};
 
 use serde::Serialize;
@@ -29,9 +31,9 @@ pub struct ExplainStatement {
     pub verbose: bool,
     /// `EXPLAIN .. FORMAT `
     pub format: Option<AnalyzeFormat>,
-    /// The statement to analyze. Note this is a Greptime [`Statement`] (not a
+    /// The statement to analyze. Note this is a Pulse [`Statement`] (not a
     /// [`sqlparser::ast::Statement`] so that we can use
-    /// Greptime specific statements
+    /// Pulse specific statements
     pub statement: Box<Statement>,
 }
 

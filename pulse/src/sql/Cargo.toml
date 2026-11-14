@@ -8,9 +8,6 @@ license.workspace = true
 [lints]
 workspace = true
 
-[features]
-enterprise = []
-
 [dependencies]
 api.workspace = true
 arrow-buffer.workspace = true

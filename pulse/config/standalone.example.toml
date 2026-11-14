@@ -3,9 +3,9 @@
 default_timezone = "UTC"
 
 ## The default column prefix for auto-created time index, value, and native histogram columns.
-## Legacy OTLP summary columns keep their historical `greptime_` prefix.
+## Legacy OTLP summary columns keep their historical `pulse_` prefix.
 ## @toml2docs:none-default
-default_column_prefix = "greptime"
+default_column_prefix = "pulse"
 
 ## Server-side global switch for auto table creation on write.
 ## When `false`, a missing table is never auto-created even if the request sets the `auto_create_table` hint to `true`. Default: `true`.
@@ -16,7 +16,7 @@ default_column_prefix = "greptime"
 #+ experimental_metric_export = false
 
 ## The user provider for authentication.
-## Examples: "static_user_provider:file:/path/to/users", "static_user_provider:cmd:greptime_user=greptime_pwd"
+## Examples: "static_user_provider:file:/path/to/users", "static_user_provider:cmd:pulse_user=pulse_pwd"
 ## Password verifier formats: "plain:<password>", "pbkdf2_sha256:<iterations>:<hex_salt>:<hex_hash>",
 ## "mysql_native_password:<hex_sha1_sha1_password>",
 ## "pg_scram_sha256:<iterations>:<hex_salt>:<hex_stored_key>:<hex_server_key>"
@@ -285,7 +285,7 @@ enable = true
 enable = true
 ## Maximum spans per trace ingest chunk. Set to 0 to disable splitting.
 trace_ingest_chunk_size = 512
-## Whether to synthesize the `greptime_otel_resource_info` table from OTLP metric
+## Whether to synthesize the `pulse_otel_resource_info` table from OTLP metric
 ## resource attributes, so metrics-only services reach the semantic graph.
 experimental_enable_resource_info = false
 
@@ -314,7 +314,7 @@ provider = "raft_engine"
 ## The directory to store the WAL files.
 ## **It's only used when the provider is `raft_engine`**.
 ## @toml2docs:none-default
-dir = "./greptimedb_data/wal"
+dir = "./pulse_data/wal"
 
 ## The size of the WAL segment file.
 ## **It's only used when the provider is `raft_engine`**.
@@ -380,9 +380,9 @@ num_topics = 64
 selector_type = "round_robin"
 
 ## A Kafka topic is constructed by concatenating `topic_name_prefix` and `topic_id`.
-## i.g., greptimedb_wal_topic_0, greptimedb_wal_topic_1.
+## i.g., pulse_wal_topic_0, pulse_wal_topic_1.
 ## **It's only used when the provider is `kafka`**.
-topic_name_prefix = "greptimedb_wal_topic"
+topic_name_prefix = "pulse_wal_topic"
 
 ## Expected number of replicas of each partition.
 ## **It's only used when the provider is `kafka`**.
@@ -490,7 +490,7 @@ max_running_procedures = 128
 # Example of using S3 as the storage.
 # [storage]
 # type = "S3"
-# bucket = "greptimedb"
+# bucket = "pulse"
 # root = "data"
 # access_key_id = "test"
 # secret_access_key = "123456"
@@ -502,7 +502,7 @@ max_running_procedures = 128
 # Example of using Oss as the storage.
 # [storage]
 # type = "Oss"
-# bucket = "greptimedb"
+# bucket = "pulse"
 # root = "data"
 # access_key_id = "test"
 # access_key_secret = "123456"
@@ -511,7 +511,7 @@ max_running_procedures = 128
 # Example of using Azblob as the storage.
 # [storage]
 # type = "Azblob"
-# container = "greptimedb"
+# container = "pulse"
 # root = "data"
 # account_name = "test"
 # account_key = "123456"
@@ -521,7 +521,7 @@ max_running_procedures = 128
 # Example of using Gcs as the storage.
 # [storage]
 # type = "Gcs"
-# bucket = "greptimedb"
+# bucket = "pulse"
 # root = "data"
 # scope = "test"
 # credential_path = "123456"
@@ -531,7 +531,7 @@ max_running_procedures = 128
 # Example of using HDFS as the storage with the native Rust client.
 # [storage]
 # type = "Hdfs"
-# root = "/greptimedb"
+# root = "/pulse"
 # name_node = "hdfs://127.0.0.1:9000"
 # options = { "dfs.client.block.write.replace-datanode-on-failure.enable" = "true" }
 
@@ -577,7 +577,7 @@ memory_pool_size = "50%"
 ## The data storage options.
 [storage]
 ## The working home directory.
-data_home = "./greptimedb_data"
+data_home = "./pulse_data"
 
 ## Root directory for standalone SQL access to local files.
 ## Relative SQL paths are resolved below this directory. Absolute paths are accepted only when
@@ -586,7 +586,7 @@ data_home = "./greptimedb_data"
 ## Upgrade note: COPY commands and existing external tables that reference paths outside this
 ## directory will fail. Move those files below the copy root, set this option to a dedicated
 ## directory containing them, or migrate the files to object storage before upgrading.
-#+ copy_root = "./greptimedb_data/copy"
+#+ copy_root = "./pulse_data/copy"
 
 ## The storage type used to store the data.
 ## - `File`: the data is stored in the local file system.
@@ -600,12 +600,12 @@ type = "File"
 ## The S3 bucket name.
 ## **It's only used when the storage type is `S3`, `Oss` and `Gcs`**.
 ## @toml2docs:none-default
-bucket = "greptimedb"
+bucket = "pulse"
 
 ## The directory or object prefix under which data is stored.
 ## **It's only used when the storage type is `S3`, `Oss`, `Gcs`, `Azblob` and `Hdfs`**.
 ## @toml2docs:none-default
-root = "greptimedb"
+root = "pulse"
 
 ## The HDFS NameNode URI, for example, `hdfs://127.0.0.1:9000`.
 ## **It's only used when the storage type is `Hdfs`**.
@@ -662,7 +662,7 @@ credential = "base64-credential"
 ## The container of the azure account.
 ## **It's only used when the storage type is `Azblob`**.
 ## @toml2docs:none-default
-container = "greptimedb"
+container = "pulse"
 
 ## The sas token of the azure account.
 ## **It's only used when the storage type is `Azblob`**.
@@ -704,7 +704,7 @@ skip_ssl_validation = false
 # [[storage.providers]]
 # name = "S3"
 # type = "S3"
-# bucket = "greptimedb"
+# bucket = "pulse"
 # root = "data"
 # access_key_id = "test"
 # secret_access_key = "123456"
@@ -713,7 +713,7 @@ skip_ssl_validation = false
 # [[storage.providers]]
 # name = "Gcs"
 # type = "Gcs"
-# bucket = "greptimedb"
+# bucket = "pulse"
 # root = "data"
 # scope = "test"
 # credential_path = "123456"
@@ -1036,7 +1036,7 @@ mem_threshold_on_create = "auto"
 ## The logging options.
 [logging]
 ## The directory to store the log files. If set to empty, logs will not be written to files.
-dir = "./greptimedb_data/logs"
+dir = "./pulse_data/logs"
 
 ## The log level. Can be `info`/`debug`/`warn`/`error`.
 ## @toml2docs:none-default
@@ -1090,9 +1090,9 @@ default_ratio = 1.0
 enable = true
 
 ## The record type of slow queries. It can be `system_table` or `log`.
-## If `system_table` is selected, the slow queries will be recorded in a system table `greptime_private.slow_queries`.
+## If `system_table` is selected, the slow queries will be recorded in a system table `pulse_private.slow_queries`.
 ## If `log` is selected, slow queries are logged to stdout when `logging.append_stdout` is enabled,
-## and to `greptimedb-slow-queries.*` when `logging.enable_file_logging` is enabled and `logging.dir` is nonempty.
+## and to `pulse-slow-queries.*` when `logging.enable_file_logging` is enabled and `logging.dir` is nonempty.
 ## Slow query logging is independent of `logging.level` and uses `logging.log_format` and the logging retention settings.
 record_type = "system_table"
 

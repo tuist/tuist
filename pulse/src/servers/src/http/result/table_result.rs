@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::cmp::max;
 use std::fmt::{Display, Write};
 
@@ -23,13 +25,13 @@ use itertools::Itertools;
 use mime_guess::mime;
 use serde::{Deserialize, Serialize};
 
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 use crate::http::result::error_result::ErrorResponse;
-use crate::http::{GreptimeQueryOutput, HttpResponse, ResponseFormat, handler, process_with_limit};
+use crate::http::{HttpResponse, PulseQueryOutput, ResponseFormat, handler, process_with_limit};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TableResponse {
-    output: Vec<GreptimeQueryOutput>,
+    output: Vec<PulseQueryOutput>,
     execution_time_ms: u64,
 }
 
@@ -53,7 +55,7 @@ impl TableResponse {
         }
     }
 
-    pub fn output(&self) -> &[GreptimeQueryOutput] {
+    pub fn output(&self) -> &[PulseQueryOutput] {
         &self.output
     }
 
@@ -76,10 +78,10 @@ impl Display for TableResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let payload = match self.output.first() {
             None => String::default(),
-            Some(GreptimeQueryOutput::AffectedRows(n)) => {
+            Some(PulseQueryOutput::AffectedRows(n)) => {
                 format!("{n}\n")
             }
-            Some(GreptimeQueryOutput::Records(records)) => {
+            Some(PulseQueryOutput::Records(records)) => {
                 let mut max_width = vec![0; records.num_cols()];
                 let mut result = String::new();
                 // Determine maximum width for each column
@@ -145,11 +147,11 @@ impl IntoResponse for TableResponse {
         )
             .into_response();
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_FORMAT,
+            &PULSE_DB_HEADER_FORMAT,
             HeaderValue::from_static(ResponseFormat::Table.as_str()),
         );
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_EXECUTION_TIME,
+            &PULSE_DB_HEADER_EXECUTION_TIME,
             HeaderValue::from(execution_time),
         );
         resp

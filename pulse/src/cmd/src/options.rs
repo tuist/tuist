@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use clap::Parser;
 use common_config::Configurable;
 use common_options::plugin_options::PluginOptionsDeserializer;
@@ -38,10 +40,10 @@ pub struct GlobalOptions {
 }
 
 // TODO(LFC): Move logging and tracing options into global options, like the runtime options.
-/// All the options of GreptimeDB.
+/// All the options of Pulse.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
-pub struct GreptimeOptions<T> {
+pub struct PulseOptions<T> {
     /// The runtime options.
     pub runtime: RuntimeOptions,
     /// The plugin options.
@@ -53,12 +55,12 @@ pub struct GreptimeOptions<T> {
     #[serde(default, deserialize_with = "deserialize_plugin_options")]
     pub plugins: Vec<PluginOptions>,
 
-    /// The options of each component (like Datanode or Standalone) of GreptimeDB.
+    /// The options of each component (like Datanode or Standalone) of Pulse.
     #[serde(flatten)]
     pub component: T,
 }
 
-impl<T> Configurable for GreptimeOptions<T>
+impl<T> Configurable for PulseOptions<T>
 where
     T: Configurable,
 {

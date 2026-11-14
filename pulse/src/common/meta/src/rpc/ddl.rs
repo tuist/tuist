@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "enterprise")]
-pub mod trigger;
+// Modified by Tuist; see pulse/FORK.md.
 
 use std::collections::{HashMap, HashSet};
 use std::result;
@@ -97,12 +96,8 @@ pub enum DdlTask {
     AlterDatabase(AlterDatabaseTask),
     CreateFlow(CreateFlowTask),
     DropFlow(DropFlowTask),
-    #[cfg(feature = "enterprise")]
-    DropTrigger(trigger::DropTriggerTask),
     CreateView(CreateViewTask),
     DropView(DropViewTask),
-    #[cfg(feature = "enterprise")]
-    CreateTrigger(trigger::CreateTriggerTask),
     CommentOn(CommentOnTask),
 }
 
@@ -304,28 +299,18 @@ impl TryFrom<Task> for DdlTask {
             Task::CreateViewTask(create_view) => Ok(DdlTask::CreateView(create_view.try_into()?)),
             Task::DropViewTask(drop_view) => Ok(DdlTask::DropView(drop_view.try_into()?)),
             Task::CreateTriggerTask(create_trigger) => {
-                #[cfg(feature = "enterprise")]
-                return Ok(DdlTask::CreateTrigger(create_trigger.try_into()?));
-                #[cfg(not(feature = "enterprise"))]
-                {
-                    let _ = create_trigger;
-                    crate::error::UnsupportedSnafu {
-                        operation: "create trigger",
-                    }
-                    .fail()
+                let _ = create_trigger;
+                crate::error::UnsupportedSnafu {
+                    operation: "create trigger",
                 }
+                .fail()
             }
             Task::DropTriggerTask(drop_trigger) => {
-                #[cfg(feature = "enterprise")]
-                return Ok(DdlTask::DropTrigger(drop_trigger.try_into()?));
-                #[cfg(not(feature = "enterprise"))]
-                {
-                    let _ = drop_trigger;
-                    crate::error::UnsupportedSnafu {
-                        operation: "drop trigger",
-                    }
-                    .fail()
+                let _ = drop_trigger;
+                crate::error::UnsupportedSnafu {
+                    operation: "drop trigger",
                 }
+                .fail()
             }
             Task::CommentOnTask(comment_on) => Ok(DdlTask::CommentOn(comment_on.try_into()?)),
         }
@@ -416,10 +401,6 @@ impl TryFrom<SubmitDdlTaskRequest> for PbDdlTaskRequest {
             DdlTask::DropFlow(task) => Task::DropFlowTask(task.into()),
             DdlTask::CreateView(task) => Task::CreateViewTask(task.try_into()?),
             DdlTask::DropView(task) => Task::DropViewTask(task.into()),
-            #[cfg(feature = "enterprise")]
-            DdlTask::CreateTrigger(task) => Task::CreateTriggerTask(task.try_into()?),
-            #[cfg(feature = "enterprise")]
-            DdlTask::DropTrigger(task) => Task::DropTriggerTask(task.into()),
             DdlTask::CommentOn(task) => Task::CommentOnTask(task.into()),
         };
 

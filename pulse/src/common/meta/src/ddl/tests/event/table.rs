@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::alter_table_expr::Kind as AlterTableKind;
@@ -40,21 +42,15 @@ use crate::ddl::event::table::{
     TABLE_DDL_PAYLOAD_VERSION, TableDdlEvent, TableDdlEventType, TableDdlLocator,
     alter_table_kind_name,
 };
-#[cfg(feature = "enterprise")]
-use crate::ddl::purge_dropped_table::PurgeDroppedTableProcedure;
 use crate::ddl::test_util::create_table::test_create_table_task as test_create_table_task_with_id;
 use crate::ddl::test_util::test_create_logical_table_task;
 use crate::ddl::tests::alter_logical_tables::make_alter_logical_table_add_column_task;
 use crate::ddl::tests::alter_table::test_alter_table_task;
 use crate::ddl::tests::create_table::test_create_table_task;
 use crate::ddl::truncate_table::TruncateTableProcedure;
-#[cfg(feature = "enterprise")]
-use crate::ddl::undrop_table::UndropTableProcedure;
 use crate::key::DeserializedValueWithBytes;
 use crate::key::table_info::TableInfoValue;
 use crate::rpc::ddl::{DropTableTask, TruncateTableTask};
-#[cfg(feature = "enterprise")]
-use crate::rpc::ddl::{PurgeDroppedTableTask, UndropTableTask};
 use crate::test_util::{MockDatanodeManager, new_ddl_context};
 
 struct EventCase {
@@ -334,20 +330,6 @@ fn event_cases() -> Vec<EventCase> {
             }),
             rows: vec![table_locator_values(Some("drop"), Some(12))],
         },
-        #[cfg(feature = "enterprise")]
-        EventCase {
-            event_type: TableDdlEventType::UndropTable,
-            event: TableDdlEvent::undrop_table_submitted(TableDdlLocator::from_table_id(13)),
-            payload: json!({"version": TABLE_DDL_PAYLOAD_VERSION}),
-            rows: vec![table_locator_values(None, Some(13))],
-        },
-        #[cfg(feature = "enterprise")]
-        EventCase {
-            event_type: TableDdlEventType::PurgeDroppedTable,
-            event: TableDdlEvent::purge_dropped_table_submitted(TableDdlLocator::from_table_id(14)),
-            payload: json!({"version": TABLE_DDL_PAYLOAD_VERSION}),
-            rows: vec![table_locator_values(None, Some(14))],
-        },
         EventCase {
             event_type: TableDdlEventType::TruncateTable,
             event: TableDdlEvent::truncate_table_submitted(
@@ -404,11 +386,6 @@ fn procedure_cases() -> Vec<ProcedureCase> {
         },
         test_context(),
     );
-    #[cfg(feature = "enterprise")]
-    let undrop_table = UndropTableProcedure::new(UndropTableTask { table_id: 45 }, test_context());
-    #[cfg(feature = "enterprise")]
-    let purge_dropped_table =
-        PurgeDroppedTableProcedure::new(PurgeDroppedTableTask { table_id: 46 }, test_context());
     let truncate_table = truncate_procedure(TruncateTableTask {
         catalog: DEFAULT_CATALOG_NAME.to_string(),
         schema: DEFAULT_SCHEMA_NAME.to_string(),
@@ -473,20 +450,6 @@ fn procedure_cases() -> Vec<ProcedureCase> {
                 "drop_if_exists": true,
             }),
             rows: vec![table_locator_values(Some("drop"), Some(44))],
-        },
-        #[cfg(feature = "enterprise")]
-        ProcedureCase {
-            procedure: Box::new(undrop_table),
-            event_type: "undrop_table",
-            payload: json!({"version": TABLE_DDL_PAYLOAD_VERSION}),
-            rows: vec![table_locator_values(None, Some(45))],
-        },
-        #[cfg(feature = "enterprise")]
-        ProcedureCase {
-            procedure: Box::new(purge_dropped_table),
-            event_type: "purge_dropped_table",
-            payload: json!({"version": TABLE_DDL_PAYLOAD_VERSION}),
-            rows: vec![table_locator_values(None, Some(46))],
         },
         ProcedureCase {
             procedure: Box::new(truncate_table),

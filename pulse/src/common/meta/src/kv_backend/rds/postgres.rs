@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fs::File;
 use std::io::BufReader;
 use std::marker::PhantomData;
@@ -1208,18 +1210,18 @@ mod tests {
 
     #[test]
     fn test_pg_template_with_schema() {
-        let factory = PgSqlTemplateFactory::new(Some("test_schema"), "greptime_metakv");
+        let factory = PgSqlTemplateFactory::new(Some("test_schema"), "pulse_metakv");
         let t = factory.build();
         assert!(
             t.create_table_statement
-                .contains("\"test_schema\".\"greptime_metakv\"")
+                .contains("\"test_schema\".\"pulse_metakv\"")
         );
         let upsert = t.generate_batch_upsert_query(1);
-        assert!(upsert.contains("\"test_schema\".\"greptime_metakv\""));
+        assert!(upsert.contains("\"test_schema\".\"pulse_metakv\""));
         let get = t.generate_batch_get_query(1);
-        assert!(get.contains("\"test_schema\".\"greptime_metakv\""));
+        assert!(get.contains("\"test_schema\".\"pulse_metakv\""));
         let del = t.generate_batch_delete_query(1);
-        assert!(del.contains("\"test_schema\".\"greptime_metakv\""));
+        assert!(del.contains("\"test_schema\".\"pulse_metakv\""));
     }
 
     #[test]

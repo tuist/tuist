@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -37,19 +39,19 @@ mod test {
         NumberDataPoint, ResourceMetrics, ScopeMetrics, Sum, metric,
     };
     use otel_arrow_rust::proto::opentelemetry::resource::v1::Resource;
-    use pipeline::{GreptimePipelineParams, PipelineWay};
+    use pipeline::{PipelineWay, PulsePipelineParams};
     use serde_json::json;
     use servers::query_handler::OpenTelemetryProtocolHandler;
     use servers::query_handler::sql::SqlQueryHandler;
     use session::context::QueryContext;
     use session::protocol_ctx::{OtlpMetricCtx, ProtocolCtx};
 
-    use crate::standalone::GreptimeDbStandaloneBuilder;
+    use crate::standalone::PulseStandaloneBuilder;
     use crate::tests;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_trace_v2_on_standalone() -> Result<(), Box<dyn std::error::Error>> {
-        let standalone = GreptimeDbStandaloneBuilder::new("trace_v2_standalone")
+        let standalone = PulseStandaloneBuilder::new("trace_v2_standalone")
             .build()
             .await;
         test_trace_v2(standalone.fe_instance()).await?;
@@ -119,7 +121,7 @@ mod test {
                 instance.clone(),
                 request.clone(),
                 PipelineWay::OtlpTraceDirectV2,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v2".to_string(),
                 ctx.clone(),
             )
@@ -192,11 +194,11 @@ WITH(
   'comment' = 'Created on insertion',
   append_mode = 'true',
   'greptime.semantic.entity.service.id' = 'service_name',
-  'greptime.semantic.pipeline' = 'greptime_trace_v2',
+  'greptime.semantic.pipeline' = 'pulse_trace_v2',
   'greptime.semantic.signal_type' = 'trace',
   'greptime.semantic.source' = 'opentelemetry',
   'greptime.semantic.trace.conventions' = 'unknown',
-  table_data_model = 'greptime_trace_v2'
+  table_data_model = 'pulse_trace_v2'
 )"#;
         let batches = batches.take();
         assert_eq!(batches.len(), 1);
@@ -314,7 +316,7 @@ WITH(
                 instance.clone(),
                 mixed,
                 PipelineWay::OtlpTraceDirectV2,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v2".to_string(),
                 ctx.clone(),
             )
@@ -365,7 +367,7 @@ WITH(
                 instance.clone(),
                 invalid,
                 PipelineWay::OtlpTraceDirectV2,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v2".to_string(),
                 ctx.clone(),
             )
@@ -378,7 +380,7 @@ WITH(
                 instance.clone(),
                 request.clone(),
                 PipelineWay::OtlpTraceDirectV1,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v2".to_string(),
                 ctx.clone(),
             )
@@ -387,7 +389,9 @@ WITH(
             .ok_or("Expected mixed trace models to be rejected")?;
         let error = format!("{error:?}");
         assert!(
-            error.contains("Trace table `trace_v2` uses greptime_trace_v2, but the request uses greptime_trace_v1"),
+            error.contains(
+                "Trace table `trace_v2` uses pulse_trace_v2, but the request uses pulse_trace_v1"
+            ),
             "{error}",
         );
         assert_trace_v2_query(
@@ -418,7 +422,7 @@ WITH(
                 instance.clone(),
                 v1_request,
                 PipelineWay::OtlpTraceDirectV1,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v1".to_string(),
                 v1_ctx.clone(),
             )
@@ -429,7 +433,7 @@ WITH(
                 instance.clone(),
                 request.clone(),
                 PipelineWay::OtlpTraceDirectV2,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v1".to_string(),
                 v1_ctx,
             )
@@ -438,7 +442,9 @@ WITH(
             .ok_or("Expected mixed trace models to be rejected")?;
         let error = format!("{error:?}");
         assert!(
-            error.contains("Trace table `trace_v1` uses greptime_trace_v1, but the request uses greptime_trace_v2"),
+            error.contains(
+                "Trace table `trace_v1` uses pulse_trace_v1, but the request uses pulse_trace_v2"
+            ),
             "{error}",
         );
 
@@ -467,7 +473,7 @@ WITH(
                 instance.clone(),
                 empty_request,
                 PipelineWay::OtlpTraceDirectV2,
-                GreptimePipelineParams::default(),
+                PulsePipelineParams::default(),
                 "trace_v2".to_string(),
                 ctx.clone(),
             )
@@ -549,15 +555,14 @@ WITH(
         use servers::http::test_helpers::TestClient;
         use session::protocol_ctx::{OtlpMetricCtx, ProtocolCtx};
 
-        let standalone =
-            GreptimeDbStandaloneBuilder::new(&format!("otlp_logical_{suite}_physical"))
-                .with_logical_batcher(BatcherOptions {
-                    protocols: vec![BatchingProtocol::Otlp],
-                    pending_rows_flush_interval: Duration::from_millis(5),
-                    ..Default::default()
-                })
-                .build()
-                .await;
+        let standalone = PulseStandaloneBuilder::new(&format!("otlp_logical_{suite}_physical"))
+            .with_logical_batcher(BatcherOptions {
+                protocols: vec![BatchingProtocol::Otlp],
+                pending_rows_flush_interval: Duration::from_millis(5),
+                ..Default::default()
+            })
+            .build()
+            .await;
         let instance = standalone.fe_instance();
         let options = standalone.opts.clone();
         let services = Services::new(options.clone(), instance.clone(), Plugins::default());
@@ -583,10 +588,10 @@ WITH(
         let mut output = instance
             .do_query(
                 &format!(
-                    "CREATE TABLE greptime_physical_table (\
-                 greptime_timestamp {sql_ts_type} NOT NULL, \
-                 greptime_value DOUBLE NULL, \
-                 TIME INDEX (greptime_timestamp)) \
+                    "CREATE TABLE pulse_physical_table (\
+                 pulse_timestamp {sql_ts_type} NOT NULL, \
+                 pulse_value DOUBLE NULL, \
+                 TIME INDEX (pulse_timestamp)) \
                  ENGINE = metric WITH ('physical_metric_table' = 'true')"
                 ),
                 ctx.clone(),
@@ -622,7 +627,7 @@ WITH(
 
         // The rows land on the non-millisecond physical table, converted
         // from the nanosecond encoding.
-        let sql = "SELECT greptime_timestamp, greptime_value FROM non_ms_alignment_total ORDER BY greptime_timestamp";
+        let sql = "SELECT pulse_timestamp, pulse_value FROM non_ms_alignment_total ORDER BY pulse_timestamp";
         let batches = tokio::time::timeout(Duration::from_secs(5), async {
             loop {
                 let output = instance.do_query(sql, ctx.clone()).await.remove(0).unwrap();
@@ -681,7 +686,7 @@ WITH(
         // rejects the destination binding), which converts the request to
         // the destination's unit. This covers the case previously guarded
         // by the removed OTLP pre-gate alignment.
-        let standalone = GreptimeDbStandaloneBuilder::new("otlp_logical_cross_physical")
+        let standalone = PulseStandaloneBuilder::new("otlp_logical_cross_physical")
             .with_logical_batcher(BatcherOptions {
                 protocols: vec![BatchingProtocol::Otlp],
                 pending_rows_flush_interval: Duration::from_millis(5),
@@ -713,12 +718,12 @@ WITH(
         // (millisecond) physical table, so the destination binding differs.
         for sql in [
             "CREATE TABLE phy_us (\
-             greptime_timestamp TIMESTAMP(6) NOT NULL, greptime_value DOUBLE NULL, \
-             TIME INDEX (greptime_timestamp)) \
+             pulse_timestamp TIMESTAMP(6) NOT NULL, pulse_value DOUBLE NULL, \
+             TIME INDEX (pulse_timestamp)) \
              ENGINE = metric WITH ('physical_metric_table' = 'true')",
             "CREATE TABLE cross_alignment_total (\
-             greptime_timestamp TIMESTAMP(6) NOT NULL, greptime_value DOUBLE NULL, \
-             \"stream\" STRING NULL, TIME INDEX (greptime_timestamp), PRIMARY KEY (\"stream\")) \
+             pulse_timestamp TIMESTAMP(6) NOT NULL, pulse_value DOUBLE NULL, \
+             \"stream\" STRING NULL, TIME INDEX (pulse_timestamp), PRIMARY KEY (\"stream\")) \
              ENGINE = metric WITH ('on_physical_table' = 'phy_us')",
         ] {
             let mut output = instance.do_query(sql, ctx.clone()).await;
@@ -750,7 +755,7 @@ WITH(
 
         // The row lands on the microsecond logical table, converted from the
         // nanosecond encoding: 60s -> 60_000_000us.
-        let sql = "SELECT greptime_timestamp, greptime_value FROM cross_alignment_total";
+        let sql = "SELECT pulse_timestamp, pulse_value FROM cross_alignment_total";
         let batches = tokio::time::timeout(Duration::from_secs(5), async {
             loop {
                 let output = instance.do_query(sql, ctx.clone()).await.remove(0).unwrap();
@@ -790,7 +795,7 @@ WITH(
         // schema evolution and visibility under the configured acknowledgement policy.
         let mut results = Vec::new();
         for enabled in [false, true] {
-            let standalone = GreptimeDbStandaloneBuilder::new(&format!("otlp_logical_{enabled}"))
+            let standalone = PulseStandaloneBuilder::new(&format!("otlp_logical_{enabled}"))
                 .with_logical_batcher(BatcherOptions {
                     protocols: if enabled {
                         vec![BatchingProtocol::Otlp]
@@ -853,7 +858,7 @@ WITH(
                     "logical submissions must follow the global acknowledgement policy"
                 );
             }
-            let sql = "SELECT greptime_timestamp, greptime_value, stream, extra FROM batch_alignment_total ORDER BY greptime_timestamp";
+            let sql = "SELECT pulse_timestamp, pulse_value, stream, extra FROM batch_alignment_total ORDER BY pulse_timestamp";
             let batches = tokio::time::timeout(Duration::from_secs(5), async {
                 loop {
                     let output = instance.do_query(sql, ctx.clone()).await.remove(0).unwrap();
@@ -924,11 +929,11 @@ WITH(
             assert_eq!(submissions.get_sample_count(), before_histograms);
             for (sql, expected_rows) in [
                 (
-                    "SELECT greptime_timestamp, greptime_native_histogram FROM batch_histogram ORDER BY greptime_timestamp",
+                    "SELECT pulse_timestamp, pulse_native_histogram FROM batch_histogram ORDER BY pulse_timestamp",
                     2,
                 ),
                 (
-                    "SELECT greptime_timestamp, greptime_value FROM batch_mixed_total ORDER BY greptime_timestamp",
+                    "SELECT pulse_timestamp, pulse_value FROM batch_mixed_total ORDER BY pulse_timestamp",
                     1,
                 ),
             ] {
@@ -947,8 +952,8 @@ WITH(
             // An existing metric attached to another physical table must use
             // the original routing, not the request's default physical table.
             for sql in [
-                "CREATE TABLE custom_physical (greptime_timestamp TIMESTAMP TIME INDEX, greptime_value DOUBLE) ENGINE=metric WITH ('physical_metric_table'='')",
-                "CREATE TABLE custom_total (greptime_timestamp TIMESTAMP(3) TIME INDEX, greptime_value DOUBLE, \"stream\" STRING PRIMARY KEY) ENGINE=metric WITH ('on_physical_table'='custom_physical')",
+                "CREATE TABLE custom_physical (pulse_timestamp TIMESTAMP TIME INDEX, pulse_value DOUBLE) ENGINE=metric WITH ('physical_metric_table'='')",
+                "CREATE TABLE custom_total (pulse_timestamp TIMESTAMP(3) TIME INDEX, pulse_value DOUBLE, \"stream\" STRING PRIMARY KEY) ENGINE=metric WITH ('on_physical_table'='custom_physical')",
             ] {
                 instance.do_query(sql, ctx.clone()).await.remove(0).unwrap();
             }
@@ -960,7 +965,7 @@ WITH(
                 .await
                 .unwrap();
             let output = instance
-                .do_query("SELECT greptime_value FROM custom_total", ctx.clone())
+                .do_query("SELECT pulse_value FROM custom_total", ctx.clone())
                 .await
                 .remove(0)
                 .unwrap();
@@ -998,7 +1003,7 @@ WITH(
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_otlp_on_standalone() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_otlp")
+        let standalone = PulseStandaloneBuilder::new("test_standalone_otlp")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -1015,7 +1020,7 @@ WITH(
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_otlp_fixed_schema_rejects_missing_temporality_tag() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_otlp_fixed_schema")
+        let standalone = PulseStandaloneBuilder::new("test_otlp_fixed_schema")
             .with_auto_create_table(false)
             .build()
             .await;
@@ -1024,8 +1029,8 @@ WITH(
         let mut output = instance
             .do_query(
                 "CREATE TABLE fixed_delta_total (\
-                 \"stream\" STRING, greptime_timestamp TIMESTAMP(3) NOT NULL, \
-                 greptime_value DOUBLE, TIME INDEX (greptime_timestamp), \
+                 \"stream\" STRING, pulse_timestamp TIMESTAMP(3) NOT NULL, \
+                 pulse_value DOUBLE, TIME INDEX (pulse_timestamp), \
                  PRIMARY KEY (\"stream\")) ENGINE=mito",
                 ctx.clone(),
             )
@@ -1081,8 +1086,8 @@ WITH(
         let mut output = instance
             .do_query(
                 "CREATE TABLE raw_delta_mito_total (\
-                 \"stream\" STRING, greptime_timestamp TIMESTAMP(3) NOT NULL, \
-                 greptime_value DOUBLE, TIME INDEX (greptime_timestamp), \
+                 \"stream\" STRING, pulse_timestamp TIMESTAMP(3) NOT NULL, \
+                 pulse_value DOUBLE, TIME INDEX (pulse_timestamp), \
                  PRIMARY KEY (\"stream\")) ENGINE=mito",
                 ctx.clone(),
             )
@@ -1111,7 +1116,7 @@ WITH(
                 .do_query(
                     &format!(
                         "SELECT COALESCE(otlp_aggregation_temporality, '') AS temporality, \
-                         COUNT(*) AS samples, SUM(greptime_value) AS total \
+                         COUNT(*) AS samples, SUM(pulse_value) AS total \
                          FROM {table} GROUP BY otlp_aggregation_temporality ORDER BY temporality"
                     ),
                     ctx.clone(),
@@ -1346,7 +1351,7 @@ WITH(
 
         let mut output = instance
             .do_query(
-                "SELECT * FROM my_test_metric_my_ignored_unit ORDER BY greptime_timestamp",
+                "SELECT * FROM my_test_metric_my_ignored_unit ORDER BY pulse_timestamp",
                 ctx.clone(),
             )
             .await;
@@ -1358,17 +1363,17 @@ WITH(
         assert_eq!(
             recordbatches.pretty_print().unwrap(),
             "\
-+----------------+---------------------+----------------+
-| container_name | greptime_timestamp  | greptime_value |
-+----------------+---------------------+----------------+
-| testserver     | 1970-01-01T00:00:00 | 105.0          |
-| testsevrer     | 1970-01-01T00:00:00 | 100.0          |
-+----------------+---------------------+----------------+",
++----------------+---------------------+-------------+
+| container_name | pulse_timestamp     | pulse_value |
++----------------+---------------------+-------------+
+| testserver     | 1970-01-01T00:00:00 | 105.0       |
+| testsevrer     | 1970-01-01T00:00:00 | 100.0       |
++----------------+---------------------+-------------+",
         );
 
         let mut output = instance
             .do_query(
-                "SELECT le, greptime_value FROM my_test_histo_my_ignored_unit_bucket order by le",
+                "SELECT le, pulse_value FROM my_test_histo_my_ignored_unit_bucket order by le",
                 ctx.clone(),
             )
             .await;
@@ -1380,13 +1385,13 @@ WITH(
         assert_eq!(
             recordbatches.pretty_print().unwrap(),
             "\
-+-----+----------------+
-| le  | greptime_value |
-+-----+----------------+
-| 1   | 1.0            |
-| 5   | 3.0            |
-| inf | 4.0            |
-+-----+----------------+",
++-----+-------------+
+| le  | pulse_value |
++-----+-------------+
+| 1   | 1.0         |
+| 5   | 3.0         |
+| inf | 4.0         |
++-----+-------------+",
         );
 
         let mut output = instance
@@ -1403,11 +1408,11 @@ WITH(
         assert_eq!(
             recordbatches.pretty_print().unwrap(),
             "\
-+------------+---------------------+----------------+
-| host       | greptime_timestamp  | greptime_value |
-+------------+---------------------+----------------+
-| testserver | 1970-01-01T00:00:00 | 51.0           |
-+------------+---------------------+----------------+",
++------------+---------------------+-------------+
+| host       | pulse_timestamp     | pulse_value |
++------------+---------------------+-------------+
+| testserver | 1970-01-01T00:00:00 | 51.0        |
++------------+---------------------+-------------+",
         );
 
         let mut output = instance
@@ -1424,17 +1429,17 @@ WITH(
         assert_eq!(
             recordbatches.pretty_print().unwrap(),
             "\
-+------------+---------------------+----------------+
-| host       | greptime_timestamp  | greptime_value |
-+------------+---------------------+----------------+
-| testserver | 1970-01-01T00:00:00 | 4.0            |
-+------------+---------------------+----------------+",
++------------+---------------------+-------------+
+| host       | pulse_timestamp     | pulse_value |
++------------+---------------------+-------------+
+| testserver | 1970-01-01T00:00:00 | 4.0         |
++------------+---------------------+-------------+",
         );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_otlp_metrics_into_microsecond_physical_table_on_standalone() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_otlp_us_physical")
+        let standalone = PulseStandaloneBuilder::new("test_otlp_us_physical")
             .build()
             .await;
 
@@ -1462,7 +1467,7 @@ WITH(
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_otlp_metrics_into_seconds_physical_table_on_standalone() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_otlp_s_physical")
+        let standalone = PulseStandaloneBuilder::new("test_otlp_s_physical")
             .build()
             .await;
 
@@ -1478,7 +1483,7 @@ WITH(
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_otlp_metrics_into_nanoseconds_physical_table_on_standalone() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_otlp_ns_physical")
+        let standalone = PulseStandaloneBuilder::new("test_otlp_ns_physical")
             .build()
             .await;
 
@@ -1527,10 +1532,10 @@ WITH(
         let mut output = instance
             .do_query(
                 &format!(
-                    "CREATE TABLE greptime_physical_table (\
-                 greptime_timestamp {sql_ts_type} NOT NULL, \
-                 greptime_value DOUBLE NULL, \
-                 TIME INDEX (greptime_timestamp)) \
+                    "CREATE TABLE pulse_physical_table (\
+                 pulse_timestamp {sql_ts_type} NOT NULL, \
+                 pulse_value DOUBLE NULL, \
+                 TIME INDEX (pulse_timestamp)) \
                  ENGINE = metric WITH ('physical_metric_table' = 'true')"
                 ),
                 ctx.clone(),
@@ -1561,7 +1566,7 @@ WITH(
         instance.metrics(request, ctx.clone()).await.unwrap();
 
         let mut output = instance
-            .do_query("SELECT greptime_timestamp FROM my_gauge", ctx.clone())
+            .do_query("SELECT pulse_timestamp FROM my_gauge", ctx.clone())
             .await;
         let OutputData::Stream(stream) = output.remove(0).unwrap().data else {
             unreachable!()
@@ -1649,7 +1654,7 @@ WITH(
                     ..Default::default()
                 }],
                 resource: Some(Resource {
-                    attributes: vec![keyvalue("resource", "greptimedb")],
+                    attributes: vec![keyvalue("resource", "pulse")],
                     dropped_attributes_count: 0,
                     entity_refs: vec![],
                 }),

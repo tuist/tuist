@@ -1,7 +1,7 @@
 # Prometheus Remote Write
 
 This module decodes Prometheus remote write requests and converts them into
-Greptime row insert requests.
+Pulse row insert requests.
 
 ## Remote Write V2
 
@@ -48,13 +48,13 @@ timestamp + Float64 value + string tags shape.
 
 Each histogram row stores one Struct field named
 `<default_column_prefix>_native_histogram`. The default name is
-`greptime_native_histogram`; an empty prefix produces `native_histogram`.
+`pulse_native_histogram`; an empty prefix produces `native_histogram`.
 
 - common scalar children: `schema`, `zero_threshold`, `sum`, `reset_hint`,
   `start_timestamp`;
 - count children: `count_i64` / `zero_count_i64` or `count_f64` / `zero_count_f64`;
 - list children for custom values, spans, and positive/negative buckets;
-- original Prometheus labels as Greptime tags.
+- original Prometheus labels as Pulse tags.
 
 The v2 response always reports written sample, histogram, and exemplar counts in
 Prometheus remote-write headers. Exemplars are currently ignored and reported as

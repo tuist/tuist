@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -56,9 +58,9 @@ pub async fn fetch_partition(db: &MySqlPool, region_id: u64) -> Result<Partition
 
 /// Returns all [Partition] of the specific `table`
 pub async fn fetch_partitions(db: &MySqlPool, table_name: Ident) -> Result<Vec<Partition>> {
-    let sql = "select b.peer_id as datanode_id, a.greptime_partition_id as region_id
+    let sql = "select b.peer_id as datanode_id, a.pulse_partition_id as region_id
 from information_schema.partitions a left join information_schema.region_peers b
-on a.greptime_partition_id = b.region_id where a.table_name= ? order by datanode_id asc;";
+on a.pulse_partition_id = b.region_id where a.table_name= ? order by datanode_id asc;";
     sqlx::query_as::<_, Partition>(sql)
         .bind(table_name.value.clone())
         .fetch_all(db)
@@ -95,18 +97,16 @@ pub fn pretty_print_region_distribution(distribution: &BTreeMap<u64, Vec<RegionI
 /// This function repeatedly checks the number of partitions on the specified datanode and waits until
 /// the count reaches zero or the timeout period elapses. It logs the number of partitions on each check.
 pub async fn wait_for_all_regions_evicted(
-    greptime: MySqlPool,
+    pulse: MySqlPool,
     selected_datanode: u64,
     timeout: Duration,
 ) {
     wait_condition_fn(
         timeout,
         || {
-            let greptime = greptime.clone();
+            let pulse = pulse.clone();
             Box::pin(async move {
-                let partition = count_partitions(&greptime, selected_datanode)
-                    .await
-                    .unwrap();
+                let partition = count_partitions(&pulse, selected_datanode).await.unwrap();
                 info!(
                     "Datanode: {selected_datanode}, num of partitions: {}",
                     partition.count

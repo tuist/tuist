@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Utilities for testing.
 
 use api::v1::value::ValueData;
 use api::v1::{ColumnDataType, ColumnSchema as PbColumnSchema, Row, SemanticType, Value};
 use common_meta::ddl::utils::parse_column_metadatas;
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use common_telemetry::debug;
 use datatypes::prelude::ConcreteDataType;
 use datatypes::schema::ColumnSchema;
@@ -194,13 +196,13 @@ impl TestEnv {
                 ColumnMetadata {
                     column_id: 0,
                     semantic_type: SemanticType::Timestamp,
-                    column_schema: ColumnSchema::new(greptime_timestamp(), ts_type, false),
+                    column_schema: ColumnSchema::new(pulse_timestamp(), ts_type, false),
                 },
                 ColumnMetadata {
                     column_id: 1,
                     semantic_type: SemanticType::Field,
                     column_schema: ColumnSchema::new(
-                        greptime_value(),
+                        pulse_value(),
                         ConcreteDataType::float64_datatype(),
                         false,
                     ),
@@ -265,8 +267,8 @@ impl TestEnv {
         assert_eq!(
             column_names,
             vec![
-                greptime_timestamp(),
-                greptime_value(),
+                pulse_timestamp(),
+                pulse_value(),
                 "__table_id",
                 "__tsid",
                 "job",
@@ -376,13 +378,13 @@ pub fn create_logical_region_request_with_ts_type(
         ColumnMetadata {
             column_id: 0,
             semantic_type: SemanticType::Timestamp,
-            column_schema: ColumnSchema::new(greptime_timestamp(), ts_type, false),
+            column_schema: ColumnSchema::new(pulse_timestamp(), ts_type, false),
         },
         ColumnMetadata {
             column_id: 1,
             semantic_type: SemanticType::Field,
             column_schema: ColumnSchema::new(
-                greptime_value(),
+                pulse_value(),
                 ConcreteDataType::float64_datatype(),
                 false,
             ),
@@ -456,14 +458,14 @@ pub fn row_schema_with_tags_and_ts_datatype(
 ) -> Vec<PbColumnSchema> {
     let mut schema = vec![
         PbColumnSchema {
-            column_name: greptime_timestamp().to_string(),
+            column_name: pulse_timestamp().to_string(),
             datatype: ts_datatype as i32,
             semantic_type: SemanticType::Timestamp as _,
             datatype_extension: None,
             options: None,
         },
         PbColumnSchema {
-            column_name: greptime_value().to_string(),
+            column_name: pulse_value().to_string(),
             datatype: ColumnDataType::Float64 as i32,
             semantic_type: SemanticType::Field as _,
             datatype_extension: None,

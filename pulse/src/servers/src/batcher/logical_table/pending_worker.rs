@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -429,7 +431,7 @@ mod tests {
     async fn test_remove_worker_if_same_channel_removes_matching_entry() {
         let workers = WorkerRegistry::new();
         let key = BatchKey {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             physical_table: "phy".to_string(),
             skip_wal: false,
@@ -446,7 +448,7 @@ mod tests {
     async fn test_remove_worker_if_same_channel_keeps_newer_entry() {
         let workers = WorkerRegistry::new();
         let key = BatchKey {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             physical_table: "phy".to_string(),
             skip_wal: false,
@@ -475,7 +477,7 @@ mod tests {
         let flush_interval = Duration::from_secs(10);
         let worker_idle_timeout = Duration::from_secs(30);
         let key = BatchKey {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             physical_table: "phy".to_string(),
             skip_wal: false,

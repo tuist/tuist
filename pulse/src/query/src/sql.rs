@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod show_create_table;
 
 use std::collections::HashMap;
@@ -37,7 +39,7 @@ use common_meta::SchemaOptions;
 use common_meta::ddl::create_flow::{FlowType, effective_eval_schedule_from_flow_info};
 use common_meta::key::flow::flow_info::FlowInfoValue;
 use common_query::Output;
-use common_query::prelude::greptime_timestamp;
+use common_query::prelude::pulse_timestamp;
 use common_recordbatch::RecordBatches;
 use common_recordbatch::adapter::RecordBatchStreamAdapter;
 use common_time::Timestamp;
@@ -82,7 +84,7 @@ const FIELD_COLUMN: &str = "Field";
 const TABLE_TYPE_COLUMN: &str = "Table_type";
 
 const COLUMN_NAME_COLUMN: &str = "Column";
-const COLUMN_GREPTIME_TYPE_COLUMN: &str = "Greptime_type";
+const COLUMN_PULSE_TYPE_COLUMN: &str = "Pulse_type";
 const COLUMN_TYPE_COLUMN: &str = "Type";
 const COLUMN_KEY_COLUMN: &str = "Key";
 const COLUMN_EXTRA_COLUMN: &str = "Extra";
@@ -435,7 +437,7 @@ pub async fn show_columns_dataframe(
             (columns::COLUMN_COMMENT, COLUMN_COMMENT_COLUMN),
             (columns::PRIVILEGES, COLUMN_PRIVILEGES_COLUMN),
             (columns::EXTRA, COLUMN_EXTRA_COLUMN),
-            (columns::GREPTIME_DATA_TYPE, COLUMN_GREPTIME_TYPE_COLUMN),
+            (columns::PULSE_DATA_TYPE, COLUMN_PULSE_TYPE_COLUMN),
         ]
     } else {
         vec![
@@ -445,7 +447,7 @@ pub async fn show_columns_dataframe(
             (columns::COLUMN_KEY, COLUMN_KEY_COLUMN),
             (columns::COLUMN_DEFAULT, COLUMN_DEFAULT_COLUMN),
             (columns::EXTRA, COLUMN_EXTRA_COLUMN),
-            (columns::GREPTIME_DATA_TYPE, COLUMN_GREPTIME_TYPE_COLUMN),
+            (columns::PULSE_DATA_TYPE, COLUMN_PULSE_TYPE_COLUMN),
         ]
     };
 
@@ -990,7 +992,7 @@ pub fn show_create_foreign_table_for_pg(
         r#"CREATE FOREIGN TABLE ft_{} (
   {}
 )
-SERVER greptimedb
+SERVER pulse
 OPTIONS (table_name '{}')"#,
         table_name, columns, table_name
     );
@@ -1153,35 +1155,6 @@ pub async fn show_flow_status(
         catalog_manager,
         query_ctx,
         FLOW_STATISTICS,
-        vec![],
-        projects,
-        vec![],
-        like_field,
-        sort,
-        stmt.kind,
-    )
-    .await
-}
-
-#[cfg(feature = "enterprise")]
-pub async fn show_triggers(
-    stmt: sql::statements::show::trigger::ShowTriggers,
-    query_engine: &QueryEngineRef,
-    catalog_manager: &CatalogManagerRef,
-    query_ctx: QueryContextRef,
-) -> Result<Output> {
-    const TRIGGER_NAME: &str = "trigger_name";
-    const TRIGGERS_COLUMN: &str = "Triggers";
-
-    let projects = vec![(TRIGGER_NAME, TRIGGERS_COLUMN)];
-    let like_field = Some(TRIGGER_NAME);
-    let sort = vec![col(TRIGGER_NAME).sort(true, true)];
-
-    query_from_information_schema_table(
-        query_engine,
-        catalog_manager,
-        query_ctx,
-        catalog::information_schema::TRIGGERS,
         vec![],
         projects,
         vec![],
@@ -1419,14 +1392,14 @@ pub fn file_column_schemas_to_table(
 
     let timestamp_type = ConcreteDataType::timestamp_millisecond_datatype();
     let default_zero = Value::Timestamp(Timestamp::new_millisecond(0));
-    let timestamp_column_schema = ColumnSchema::new(greptime_timestamp(), timestamp_type, false)
+    let timestamp_column_schema = ColumnSchema::new(pulse_timestamp(), timestamp_type, false)
         .with_time_index(true)
         .with_default_constraint(Some(ColumnDefaultConstraint::Value(default_zero)))
         .unwrap();
 
     if let Some(column_schema) = column_schemas
         .iter_mut()
-        .find(|column_schema| column_schema.name == greptime_timestamp())
+        .find(|column_schema| column_schema.name == pulse_timestamp())
     {
         // Replace the column schema with the default one
         *column_schema = timestamp_column_schema;
@@ -1434,7 +1407,7 @@ pub fn file_column_schemas_to_table(
         column_schemas.push(timestamp_column_schema);
     }
 
-    (column_schemas, greptime_timestamp().to_string())
+    (column_schemas, pulse_timestamp().to_string())
 }
 
 /// This function checks if the column schemas from a file can be matched with

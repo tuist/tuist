@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use arrow::datatypes::DataType as ArrowDataType;
 use common_error::ext::BoxedError;
 use common_macro::admin_fn;
@@ -157,7 +159,7 @@ mod test {
     #[test]
     fn test_parse_flow_args() {
         let testcases = [
-            ("flow_name", ("greptime", "flow_name")),
+            ("flow_name", ("pulse", "flow_name")),
             ("catalog.flow_name", ("catalog", "flow_name")),
         ];
         for (input, expected) in testcases.iter() {

@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Sorting enforcement that runs after GreptimeDB's custom physical rules.
+// Modified by Tuist; see pulse/FORK.md.
+
+//! Sorting enforcement that runs after Pulse's custom physical rules.
 //!
 //! DataFusion 55 moved the standalone `EnforceSorting` phases into
-//! `EnsureRequirements`. GreptimeDB still needs to rerun those phases after
+//! `EnsureRequirements`. Pulse still needs to rerun those phases after
 //! custom rules modify scan partitioning and distribution.
 
 use std::sync::Arc;

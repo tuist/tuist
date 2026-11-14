@@ -347,7 +347,7 @@ drop table histogram4_bucket;
 Affected Rows: 0
 
 -- SQLNESS SORT_RESULT 3 1
-tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fff) (rate(greptime_servers_postgres_query_elapsed_bucket{instance=~"xxx"}[1m])));
+tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fff) (rate(pulse_servers_postgres_query_elapsed_bucket{instance=~"xxx"}[1m])));
 
 +------+----------------------------------------------------+
 | time | sum(prom_rate(time_range,value,time,Int64(60000))) |
@@ -355,7 +355,7 @@ tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fff) (rate(
 +------+----------------------------------------------------+
 
 -- test case where table exists but doesn't have 'le' column should raise error
-CREATE TABLE greptime_servers_postgres_query_elapsed_no_le (
+CREATE TABLE pulse_servers_postgres_query_elapsed_no_le (
     pod STRING,
     instance STRING,
     t TIMESTAMP TIME INDEX,
@@ -367,7 +367,7 @@ Affected Rows: 0
 
 -- should return empty result instead of error when 'le' column is missin
 -- SQLNESS SORT_RESULT 3 1
-tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, le) (rate(greptime_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
+tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, le) (rate(pulse_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
 
 +-----+----------+---+------------------------------------------+
 | pod | instance | t | sum(prom_rate(t_range,v,t,Int64(60000))) |
@@ -375,14 +375,14 @@ tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, le) (rate(g
 +-----+----------+---+------------------------------------------+
 
 -- SQLNESS SORT_RESULT 3 1
-tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fbf) (rate(greptime_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
+tql eval(0, 10, '10s') histogram_quantile(0.99, sum by(pod,instance, fbf) (rate(pulse_servers_postgres_query_elapsed_no_le{instance=~"xxx"}[1m])));
 
 +-----+----------+---+------------------------------------------+
 | pod | instance | t | sum(prom_rate(t_range,v,t,Int64(60000))) |
 +-----+----------+---+------------------------------------------+
 +-----+----------+---+------------------------------------------+
 
-drop table greptime_servers_postgres_query_elapsed_no_le;
+drop table pulse_servers_postgres_query_elapsed_no_le;
 
 Affected Rows: 0
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::greptime_proto::io::prometheus::write::v2::histogram::{Count, ZeroCount};
 use api::greptime_proto::io::prometheus::write::v2::{BucketSpan, Histogram};
 use api::helper::ColumnDataTypeWrapper;
@@ -23,7 +25,7 @@ use crate::native_histogram::{
     CUSTOM_BUCKETS_SCHEMA, MAX_EXPONENTIAL_SCHEMA, NATIVE_HISTOGRAM_FIELD_NAMES,
     exponential_overflow_bucket_index, native_histogram_value_type,
 };
-use crate::prelude::greptime_native_histogram;
+use crate::prelude::pulse_native_histogram;
 
 const MAX_REDUCIBLE_NATIVE_HISTOGRAM_SCHEMA: i32 = 52;
 
@@ -46,7 +48,7 @@ pub fn native_histogram_column_schema() -> Result<ColumnSchema> {
             .into_parts();
 
     Ok(ColumnSchema {
-        column_name: greptime_native_histogram().to_string(),
+        column_name: pulse_native_histogram().to_string(),
         datatype: datatype as i32,
         semantic_type: SemanticType::Field as i32,
         datatype_extension,

@@ -54,7 +54,7 @@ Affected Rows: 0
 -- SELECT * FROM v1;
 CREATE VIEW v1 AS SELECT * FROM dontexist;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.public.dontexist
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.public.dontexist
 
 SHOW VIEWS;
 
@@ -65,16 +65,16 @@ SHOW VIEWS;
 
 DROP VIEW v1;
 
-Error: 4001(TableNotFound), Table not found: greptime.public.v1
+Error: 4001(TableNotFound), Table not found: pulse.public.v1
 
 SELECT * FROM v1;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.public.v1
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.public.v1
 
 --- view not exists ---
 DROP VIEW v2;
 
-Error: 4001(TableNotFound), Table not found: greptime.public.v2
+Error: 4001(TableNotFound), Table not found: pulse.public.v2
 
 DROP VIEW IF EXISTS v2;
 

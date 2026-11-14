@@ -1,36 +1,36 @@
--- The computed entity-graph tables under greptime_private are read-only
+-- The computed entity-graph tables under pulse_private are read-only
 -- virtual tables: readable, but rejecting every DDL/DML path.
-select observed_at, entity_type, entity_id, scope from greptime_private.semantic_entities;
+select observed_at, entity_type, entity_id, scope from pulse_private.semantic_entities;
 
-select observed_at, src_id, dst_id, rel_type from greptime_private.semantic_relationships;
+select observed_at, src_id, dst_id, rel_type from pulse_private.semantic_relationships;
 
-insert into greptime_private.semantic_entities (observed_at, entity_type, entity_id) values (now(), 'service', 'svc-a');
+insert into pulse_private.semantic_entities (observed_at, entity_type, entity_id) values (now(), 'service', 'svc-a');
 
 -- Plain-literal VALUES takes the direct region-insert path, not the query
 -- engine; the table-level guard must hold there too.
-insert into greptime_private.semantic_entities (observed_at, entity_type, entity_id) values (0, 'service', 'svc-b');
+insert into pulse_private.semantic_entities (observed_at, entity_type, entity_id) values (0, 'service', 'svc-b');
 
-create table greptime_private.semantic_entities (ts timestamp time index);
+create table pulse_private.semantic_entities (ts timestamp time index);
 
-create table greptime_private.semantic_relationships (ts timestamp time index);
+create table pulse_private.semantic_relationships (ts timestamp time index);
 
-alter table greptime_private.semantic_entities add column extra string;
+alter table pulse_private.semantic_entities add column extra string;
 
-truncate table greptime_private.semantic_entities;
+truncate table pulse_private.semantic_entities;
 
-drop table greptime_private.semantic_entities;
+drop table pulse_private.semantic_entities;
 
-drop table greptime_private.semantic_relationships;
+drop table pulse_private.semantic_relationships;
 
 -- Renaming a physical table INTO a reserved name would let the overlay shadow
 -- it (or squat the declared table's canonical schema), orphaning its data.
-create table greptime_private.graph_rename_probe (ts timestamp time index);
+create table pulse_private.graph_rename_probe (ts timestamp time index);
 
-alter table greptime_private.graph_rename_probe rename semantic_entities;
+alter table pulse_private.graph_rename_probe rename semantic_entities;
 
-alter table greptime_private.graph_rename_probe rename semantic_relationships_declared;
+alter table pulse_private.graph_rename_probe rename semantic_relationships_declared;
 
-drop table greptime_private.graph_rename_probe;
+drop table pulse_private.graph_rename_probe;
 
 -- Read-time derivation from one declaring metric table: entity identities in
 -- the computed registry (single-column and composite ids, scope and
@@ -57,11 +57,11 @@ insert into graph_app_metrics values (now(), 'cart', 'cart-0', 'h1', 'us-east', 
 
 -- SQLNESS PROTOCOL MYSQL
 select entity_type, entity_id, entity_id_attrs, scope, descriptive, source_tables
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 order by entity_type, entity_id;
 
 select src_type, src_id, dst_type, dst_id, rel_type, provenance, confidence
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 order by rel_type, src_id;
 
 drop table graph_app_metrics;
@@ -78,11 +78,11 @@ create table graph_late_metrics (
 
 insert into graph_late_metrics values (now(), 'checkout', 'eu-1', 1.5);
 
-select entity_type, entity_id from greptime_private.semantic_entities order by entity_type, entity_id;
+select entity_type, entity_id from pulse_private.semantic_entities order by entity_type, entity_id;
 
 alter table graph_late_metrics set 'greptime.semantic.entity.service.id' = 'svc', 'greptime.semantic.entity.service.scope' = 'env';
 
-select entity_type, entity_id, scope from greptime_private.semantic_entities order by entity_type, entity_id;
+select entity_type, entity_id, scope from pulse_private.semantic_entities order by entity_type, entity_id;
 
 -- A column referenced by a declaration must keep a string-renderable type.
 alter table graph_late_metrics modify column svc binary;
@@ -91,7 +91,7 @@ alter table graph_late_metrics unset 'greptime.semantic.entity.service.id';
 
 alter table graph_late_metrics unset 'greptime.semantic.entity.service.scope';
 
-select entity_type, entity_id from greptime_private.semantic_entities order by entity_type, entity_id;
+select entity_type, entity_id from pulse_private.semantic_entities order by entity_type, entity_id;
 
 drop table graph_late_metrics;
 
@@ -115,7 +115,7 @@ create table graph_traces_a (
   "span_attributes.peer.service" string,
   "span_attributes.db.name" string,
   primary key (service_name)
-) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true');
+) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true');
 
 create table graph_traces_b (
   "timestamp" timestamp(9) time index,
@@ -127,12 +127,12 @@ create table graph_traces_b (
   service_name string,
   duration_nano bigint unsigned,
   primary key (service_name)
-) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true');
+) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true');
 
 create table graph_traces_malformed (
   ts timestamp time index,
   note string
-) with ('table_data_model' = 'greptime_trace_v1');
+) with ('table_data_model' = 'pulse_trace_v1');
 
 insert into graph_traces_a values
   (now(), 't1', 'c1', NULL, 'SPAN_KIND_CLIENT', 'STATUS_CODE_UNSET', 'frontend', 0, NULL, NULL),
@@ -152,12 +152,12 @@ insert into graph_traces_malformed values (now(), 'not a trace');
 select src_id, dst_id, rel_type, provenance, confidence,
   request_count, unmatched_count, error_count,
   duration_sum, duration_count, duration_max, attributes
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 order by dst_id;
 
 -- SQLNESS PROTOCOL MYSQL
 select entity_type, entity_id, entity_id_attrs, scope, source_tables
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 order by entity_id;
 
 drop table graph_traces_a;
@@ -169,64 +169,64 @@ drop table graph_traces_malformed;
 -- Declared edges: the physical table is created by the system on the first
 -- INSERT with its canonical schema. Re-asserting an edge stores a new revision;
 -- reads keep only the latest one per edge key.
-insert into greptime_private.semantic_relationships_declared
+insert into pulse_private.semantic_relationships_declared
   (observed_at, src_type, src_id, rel_type, dst_type, dst_id, provenance, scope, generation_id, confidence)
 values (now() - interval '10 minute', 'service', 'frontend', 'depends_on', 'service', 'users-db', 'declared', '', '', 0.5);
 
-insert into greptime_private.semantic_relationships_declared
+insert into pulse_private.semantic_relationships_declared
   (observed_at, src_type, src_id, rel_type, dst_type, dst_id, provenance, scope, generation_id, confidence)
 values (now() - interval '5 minute', 'service', 'frontend', 'depends_on', 'service', 'users-db', 'declared', '', '', 1.0);
 
 -- An old open-ended declaration stays valid until its row expires; an edge
 -- retired in the past must not appear.
-insert into greptime_private.semantic_relationships_declared
+insert into pulse_private.semantic_relationships_declared
   (observed_at, src_type, src_id, rel_type, dst_type, dst_id, provenance, scope, generation_id, valid_until)
 values
   ('1970-01-01 00:00:01', 'service', 'legacy', 'depends_on', 'service', 'mainframe', 'declared', '', '', NULL),
   ('1970-01-01 00:00:01', 'service', 'retired', 'depends_on', 'service', 'oldsys', 'declared', '', '', '2000-01-01 00:00:00');
 
 select src_id, dst_id, rel_type, provenance, confidence
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 order by src_id;
 
 -- An explicit observed_at window replaces the default last hour; the emitted
 -- timestamps of declared edges are synthesized inside the queried window.
 select observed_at, window_start, fresh_until, src_id, dst_id
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 where observed_at >= '2001-01-01 00:00:00' and observed_at < '2001-01-02 00:00:00'
 order by src_id;
 
 -- A lower bound alone is fine (the upper bound defaults to now)...
 select src_id, dst_id, provenance
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 where observed_at >= now() - interval '30 minute'
 order by src_id;
 
 -- ...but an upper bound alone would scan unbounded history: explicit error.
-select src_id from greptime_private.semantic_relationships
+select src_id from pulse_private.semantic_relationships
 where observed_at < '2001-01-02 00:00:00';
 
 -- The declared-edge table's definition is system-owned: user CREATE/ALTER are
 -- rejected, while plain DML stays allowed.
-create table greptime_private.semantic_relationships_declared (ts timestamp time index);
+create table pulse_private.semantic_relationships_declared (ts timestamp time index);
 
-alter table greptime_private.semantic_relationships_declared add column extra string;
+alter table pulse_private.semantic_relationships_declared add column extra string;
 
-delete from greptime_private.semantic_relationships_declared;
+delete from pulse_private.semantic_relationships_declared;
 
-select src_id from greptime_private.semantic_relationships order by src_id;
+select src_id from pulse_private.semantic_relationships order by src_id;
 
 -- DROP is allowed (nothing structural is lost: the next INSERT recreates the
 -- canonical table) and cleans up after this test.
-drop table greptime_private.semantic_relationships_declared;
+drop table pulse_private.semantic_relationships_declared;
 
-insert into greptime_private.semantic_relationships_declared
+insert into pulse_private.semantic_relationships_declared
   (observed_at, src_type, src_id, rel_type, dst_type, dst_id, provenance, scope, generation_id)
 values (now(), 'service', 'reborn', 'depends_on', 'service', 'db', 'declared', '', '');
 
-select src_id from greptime_private.semantic_relationships order by src_id;
+select src_id from pulse_private.semantic_relationships order by src_id;
 
-drop table greptime_private.semantic_relationships_declared;
+drop table pulse_private.semantic_relationships_declared;
 
 -- Agent edges: span structure derives parent_agent calls agent, and span rows
 -- co-declaring gen_ai.agent+gen_ai.model / gen_ai.agent+gen_ai.tool witness
@@ -245,7 +245,7 @@ create table graph_agent_traces (
   tool_name string,
   primary key (service_name)
 ) with (
-  'table_data_model' = 'greptime_trace_v1',
+  'table_data_model' = 'pulse_trace_v1',
   'append_mode' = 'true',
   'greptime.semantic.entity.gen_ai.agent.id' = 'agent_id',
   'greptime.semantic.entity.gen_ai.model.id' = 'model_name',
@@ -258,7 +258,7 @@ insert into graph_agent_traces values
   (now(), 't1', 'a2', 'a1', 'SPAN_KIND_INTERNAL', 'STATUS_CODE_UNSET', 'app', 500000000, 'researcher', NULL, 'web_search');
 
 select src_type, src_id, dst_type, dst_id, rel_type, provenance
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 order by rel_type, dst_id;
 
 drop table graph_agent_traces;
@@ -271,12 +271,12 @@ drop table graph_agent_traces;
 -- pod's node, ownerless pod's owner_*) identify nothing. A non-whitelisted
 -- metric contributes nothing.
 create table kube_pod_info (
-  greptime_timestamp timestamp(3) time index,
+  pulse_timestamp timestamp(3) time index,
   uid string,
   namespace string,
   pod string,
   node string,
-  greptime_value double,
+  pulse_value double,
   primary key (uid, namespace, pod, node)
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -284,13 +284,13 @@ create table kube_pod_info (
 );
 
 create table kube_pod_owner (
-  greptime_timestamp timestamp(3) time index,
+  pulse_timestamp timestamp(3) time index,
   uid string,
   namespace string,
   pod string,
   owner_kind string,
   owner_name string,
-  greptime_value double,
+  pulse_value double,
   primary key (uid, namespace, pod, owner_kind, owner_name)
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -298,11 +298,11 @@ create table kube_pod_owner (
 );
 
 create table kube_pod_container_info (
-  greptime_timestamp timestamp(3) time index,
+  pulse_timestamp timestamp(3) time index,
   uid string,
   container string,
   image string,
-  greptime_value double,
+  pulse_value double,
   primary key (uid, container, image)
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -310,12 +310,12 @@ create table kube_pod_container_info (
 );
 
 create table kube_service_info (
-  greptime_timestamp timestamp(3) time index,
+  pulse_timestamp timestamp(3) time index,
   uid string,
   namespace string,
   "service" string,
   cluster_ip string,
-  greptime_value double,
+  pulse_value double,
   primary key (uid, namespace, "service", cluster_ip)
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -323,11 +323,11 @@ create table kube_service_info (
 );
 
 create table target_info (
-  greptime_timestamp timestamp(3) time index,
+  pulse_timestamp timestamp(3) time index,
   job string,
   instance string,
   k8s_cluster_name string,
-  greptime_value double,
+  pulse_value double,
   primary key (job, instance, k8s_cluster_name)
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -335,10 +335,10 @@ create table target_info (
 );
 
 create table http_requests_total (
-  greptime_timestamp timestamp(3) time index,
+  pulse_timestamp timestamp(3) time index,
   job string,
   instance string,
-  greptime_value double,
+  pulse_value double,
   primary key (job, instance)
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -369,12 +369,12 @@ insert into http_requests_total values
 
 -- SQLNESS PROTOCOL MYSQL
 select entity_type, entity_id, source_tables
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 order by entity_type, entity_id, source_tables;
 
 -- SQLNESS PROTOCOL MYSQL
 select src_type, src_id, dst_type, dst_id, rel_type, provenance
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 order by rel_type, src_id, dst_id;
 
 drop table kube_pod_info;
@@ -389,7 +389,7 @@ drop table target_info;
 
 drop table http_requests_total;
 
--- OTel conventions: the ingestion-synthesized greptime_otel_resource_info descriptor
+-- OTel conventions: the ingestion-synthesized pulse_otel_resource_info descriptor
 -- (stamped signal_type=metric + source=opentelemetry + metric.type=info) gets implicit
 -- declarations under the raw OTel column names. host/container identities are
 -- the stable ids only, so rows with an empty host.id / container.id link no
@@ -399,8 +399,8 @@ drop table http_requests_total;
 -- the k8s.container entity where the row names it, and stays a generic
 -- container where it does not — one node per container either way, with no
 -- kube-state-metrics deployed.
-create table greptime_otel_resource_info (
-  greptime_timestamp timestamp(3) time index,
+create table pulse_otel_resource_info (
+  pulse_timestamp timestamp(3) time index,
   job string,
   instance string,
   "service.name" string,
@@ -412,7 +412,7 @@ create table greptime_otel_resource_info (
   "k8s.pod.uid" string,
   "k8s.pod.name" string,
   "k8s.container.name" string,
-  greptime_value double,
+  pulse_value double,
   primary key (job, instance, "service.name", "service.namespace",
     "host.id", "host.name", "container.id", "container.name",
     "k8s.pod.uid", "k8s.pod.name", "k8s.container.name")
@@ -422,7 +422,7 @@ create table greptime_otel_resource_info (
   'greptime.semantic.metric.type' = 'info'
 );
 
-insert into greptime_otel_resource_info values
+insert into pulse_otel_resource_info values
   (now(), 'shop/api', 'inst-1', 'api', 'shop', 'h-1', 'node-a', 'c-1', 'api-ctr', '', '', '', 1),
   (now(), 'shop/api', 'inst-2', 'api', 'shop', '', 'laptop', '', '', '', '', '', 1),
   (now(), 'worker', '', 'worker', '', 'h-1', 'node-a', '', '', '', '', '', 1),
@@ -431,22 +431,22 @@ insert into greptime_otel_resource_info values
 
 -- SQLNESS PROTOCOL MYSQL
 select entity_type, entity_id, source_tables
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 order by entity_type, entity_id, source_tables;
 
 -- Superseding must not cost the row an attribute it carried: the runtime
 -- container id stays reachable as a descriptive attribute of k8s.container.
 -- SQLNESS PROTOCOL MYSQL
 select entity_id, descriptive
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 where entity_type = 'k8s.container';
 
 -- SQLNESS PROTOCOL MYSQL
 select src_type, src_id, dst_type, dst_id, rel_type, provenance
-from greptime_private.semantic_relationships
+from pulse_private.semantic_relationships
 order by rel_type, src_id, dst_id;
 
-drop table greptime_otel_resource_info;
+drop table pulse_otel_resource_info;
 
 -- Cross-signal identity: the same service reaches the graph as trace spans and
 -- as an ingestion-synthesized descriptor. The two sources name their identity
@@ -466,15 +466,15 @@ create table graph_xsignal_traces (
   "resource_attributes.service.instance.id" string,
   primary key (service_name, "resource_attributes.service.namespace",
     "resource_attributes.service.instance.id")
-) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true');
+) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true');
 
-create table greptime_otel_resource_info (
-  greptime_timestamp timestamp(3) time index,
+create table pulse_otel_resource_info (
+  pulse_timestamp timestamp(3) time index,
   job string,
   instance string,
   "service.name" string,
   "service.namespace" string,
-  greptime_value double,
+  pulse_value double,
   primary key (job, instance, "service.name", "service.namespace")
 ) with (
   'greptime.semantic.signal_type' = 'metric',
@@ -486,16 +486,16 @@ insert into graph_xsignal_traces values
   (now(), 't1', 's1', NULL, 'SPAN_KIND_SERVER', 'STATUS_CODE_UNSET', 'api', 100, 'shop', 'inst-1'),
   (now(), 't2', 's2', NULL, 'SPAN_KIND_SERVER', 'STATUS_CODE_UNSET', 'worker', 100, '', 'inst-2');
 
-insert into greptime_otel_resource_info values
+insert into pulse_otel_resource_info values
   (now(), 'shop/api', 'inst-1', 'api', 'shop', 1),
   (now(), 'worker', 'inst-2', 'worker', '', 1);
 
 -- SQLNESS PROTOCOL MYSQL
 select entity_type, entity_id, source_tables
-from greptime_private.semantic_entities
+from pulse_private.semantic_entities
 where entity_type in ('service', 'service.instance')
 order by entity_type, entity_id, source_tables;
 
 drop table graph_xsignal_traces;
 
-drop table greptime_otel_resource_info;
+drop table pulse_otel_resource_info;

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -114,11 +116,11 @@ fn make_physical_table_metadata(num_tags: usize) -> PhysicalTableMetadata {
     let mut columns = vec![
         DtColumnSchema::new("__primary_key", ConcreteDataType::binary_datatype(), false),
         DtColumnSchema::new(
-            "greptime_timestamp",
+            "pulse_timestamp",
             ConcreteDataType::timestamp_millisecond_datatype(),
             false,
         ),
-        DtColumnSchema::new("greptime_value", ConcreteDataType::float64_datatype(), true),
+        DtColumnSchema::new("pulse_value", ConcreteDataType::float64_datatype(), true),
     ];
 
     let mut name_to_ids = HashMap::new();
@@ -137,7 +139,7 @@ fn make_physical_table_metadata(num_tags: usize) -> PhysicalTableMetadata {
     }
 
     let schema = Arc::new(DtSchema::try_new(columns).unwrap());
-    let mut table_info = test_table_info(1, "phy", "public", "greptime", schema);
+    let mut table_info = test_table_info(1, "phy", "public", "pulse", schema);
     table_info.meta.column_ids = column_ids;
 
     PhysicalTableMetadata {
@@ -149,11 +151,11 @@ fn make_physical_table_metadata(num_tags: usize) -> PhysicalTableMetadata {
 fn make_tag_batch(tag_names: &[&str], num_rows: usize) -> RecordBatch {
     let mut fields = vec![
         Field::new(
-            "greptime_timestamp",
+            "pulse_timestamp",
             ArrowDataType::Timestamp(TimeUnit::Millisecond, None),
             false,
         ),
-        Field::new("greptime_value", ArrowDataType::Float64, true),
+        Field::new("pulse_value", ArrowDataType::Float64, true),
     ];
     for tag in tag_names {
         fields.push(Field::new(*tag, ArrowDataType::Utf8, true));

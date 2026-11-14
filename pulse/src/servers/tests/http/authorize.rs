@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use auth::UserProvider;
@@ -32,11 +34,10 @@ async fn check_http_auth(header_key: &str) {
     let default = auth::userinfo_by_name(None);
     assert_eq!(default.username(), user_info.username());
 
-    // In mock user provider, right username:password == "greptime:greptime"
+    // In mock user provider, right username:password == "pulse:pulse"
     let mock_user_provider = Some(Arc::new(MockUserProvider::default()) as Arc<dyn UserProvider>);
 
-    let req =
-        mock_http_request(header_key, Some(&basic_auth("greptime", "greptime")), None).unwrap();
+    let req = mock_http_request(header_key, Some(&basic_auth("pulse", "pulse")), None).unwrap();
     let req = inner_auth(mock_user_provider.clone(), req).await.unwrap();
     let ctx: &QueryContext = req.extensions().get().unwrap();
     let user_info = ctx.current_user();
@@ -75,14 +76,14 @@ async fn test_http_auth() {
 }
 
 async fn check_schema_validating(header: &str) {
-    // In mock user provider, right username:password == "greptime:greptime"
+    // In mock user provider, right username:password == "pulse:pulse"
     let mock_user_provider = Some(Arc::new(MockUserProvider::default()) as Arc<dyn UserProvider>);
 
-    // http://localhost/{http_api_version}/sql?db=greptime
+    // http://localhost/{http_api_version}/sql?db=pulse
     let version = servers::http::HTTP_API_VERSION;
     let req = mock_http_request(
         header,
-        Some(&basic_auth("greptime", "greptime")),
+        Some(&basic_auth("pulse", "pulse")),
         Some(format!("http://localhost/{version}/sql?db=public").as_str()),
     )
     .unwrap();
@@ -95,7 +96,7 @@ async fn check_schema_validating(header: &str) {
     // wrong database
     let req = mock_http_request(
         header,
-        Some(&basic_auth("greptime", "greptime")),
+        Some(&basic_auth("pulse", "pulse")),
         Some(format!("http://localhost/{version}/sql?db=wrong").as_str()),
     )
     .unwrap();
@@ -104,7 +105,7 @@ async fn check_schema_validating(header: &str) {
     let resp = result.unwrap_err();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
-        b"{\"code\":7005,\"error\":\"Access denied for user 'greptime' to database 'greptime-wrong'\",\"execution_time_ms\":0}",
+        b"{\"code\":7005,\"error\":\"Access denied for user 'pulse' to database 'pulse-wrong'\",\"execution_time_ms\":0}",
         axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap().as_ref()
     );
 }
@@ -116,7 +117,7 @@ async fn test_schema_validating() {
 }
 
 async fn check_auth_header(header_key: &str) {
-    // In mock user provider, right username:password == "greptime:greptime"
+    // In mock user provider, right username:password == "pulse:pulse"
     let mock_user_provider = Some(Arc::new(MockUserProvider::default()) as Arc<dyn UserProvider>);
 
     // try auth path first

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -31,10 +33,10 @@ use crate::query_regression_runner::sql::{
 };
 use crate::query_regression_runner::{FinalizeOtlpArgs, Result, RunOtlpTargetArgs};
 
-const OTLP_ROWS: &str = "greptime_frontend_otlp_traces_rows";
-const OTLP_FAILURES: &str = "greptime_frontend_otlp_traces_failure_count";
-const OTLP_ELAPSED_SUM: &str = "greptime_servers_http_otlp_traces_elapsed_sum";
-const OTLP_ELAPSED_COUNT: &str = "greptime_servers_http_otlp_traces_elapsed_count";
+const OTLP_ROWS: &str = "pulse_frontend_otlp_traces_rows";
+const OTLP_FAILURES: &str = "pulse_frontend_otlp_traces_failure_count";
+const OTLP_ELAPSED_SUM: &str = "pulse_servers_http_otlp_traces_elapsed_sum";
+const OTLP_ELAPSED_COUNT: &str = "pulse_servers_http_otlp_traces_elapsed_count";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct OtlpSnapshot {
@@ -140,11 +142,11 @@ fn otelgen_command(otelgen_bin: &Path, http_port: u16, load: &OtlpLoad) -> Vec<S
         "--otel-exporter-otlp-url-path".to_string(),
         "/v1/otlp/v1/traces".to_string(),
         "--header".to_string(),
-        format!("x-greptime-pipeline-name={}", load.pipeline),
+        format!("x-pulse-pipeline-name={}", load.pipeline),
         "--header".to_string(),
-        format!("x-greptime-db-name={}", load.database),
+        format!("x-pulse-db-name={}", load.database),
         "--header".to_string(),
-        format!("x-greptime-trace-table-name={}", load.table),
+        format!("x-pulse-trace-table-name={}", load.table),
         "--log-level".to_string(),
         "error".to_string(),
         "--insecure".to_string(),
@@ -468,7 +470,7 @@ mod tests {
         serde_json::from_value(json!({
             "database": "public",
             "table": "opentelemetry_traces",
-            "pipeline": "greptime_trace_v1",
+            "pipeline": "pulse_trace_v1",
             "duration_seconds": 120,
             "warmup_seconds": 60,
             "rate": 50000,
@@ -488,14 +490,14 @@ mod tests {
     #[test]
     fn parses_labeled_otlp_metrics_and_rejects_non_finite_samples() {
         let metrics = parse_prometheus_metrics(
-            "greptime_frontend_otlp_traces_rows 10\n\
-             greptime_frontend_otlp_traces_failure_count{kind=\"a\"} 1\n\
-             greptime_frontend_otlp_traces_failure_count{kind=\"b\"} 2\n",
+            "pulse_frontend_otlp_traces_rows 10\n\
+             pulse_frontend_otlp_traces_failure_count{kind=\"a\"} 1\n\
+             pulse_frontend_otlp_traces_failure_count{kind=\"b\"} 2\n",
         )
         .unwrap();
         assert_eq!(metrics[OTLP_ROWS], 10.0);
         assert_eq!(metrics[OTLP_FAILURES], 3.0);
-        assert!(parse_prometheus_metrics("greptime_frontend_otlp_traces_rows NaN").is_err());
+        assert!(parse_prometheus_metrics("pulse_frontend_otlp_traces_rows NaN").is_err());
         let before = OtlpSnapshot {
             captured_monotonic_seconds: 0.0,
             values: HashMap::from([(OTLP_ROWS.to_string(), 2.0)]),
@@ -565,11 +567,11 @@ mod tests {
                 "--otel-exporter-otlp-url-path",
                 "/v1/otlp/v1/traces",
                 "--header",
-                "x-greptime-pipeline-name=greptime_trace_v1",
+                "x-pulse-pipeline-name=pulse_trace_v1",
                 "--header",
-                "x-greptime-db-name=public",
+                "x-pulse-db-name=public",
                 "--header",
-                "x-greptime-trace-table-name=opentelemetry_traces",
+                "x-pulse-trace-table-name=opentelemetry_traces",
                 "--log-level",
                 "error",
                 "--insecure",

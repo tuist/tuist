@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Greptime preserved metrics prefix
-pub const GREPTIME_EXEC_PREFIX: &str = "greptime_exec_";
+// Modified by Tuist; see pulse/FORK.md.
+
+/// Pulse preserved metrics prefix
+pub const PULSE_EXEC_PREFIX: &str = "pulse_exec_";
 
 /// Execution cost metrics key
-pub const GREPTIME_EXEC_READ_COST: &str = "greptime_exec_read_cost";
-pub const GREPTIME_EXEC_WRITE_COST: &str = "greptime_exec_write_cost";
+pub const PULSE_EXEC_READ_COST: &str = "pulse_exec_read_cost";
+pub const PULSE_EXEC_WRITE_COST: &str = "pulse_exec_write_cost";

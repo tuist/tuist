@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::greptime_database_server::GreptimeDatabase;
 use api::v1::greptime_response::Response as RawResponse;
 use api::v1::{AffectedRows, GreptimeRequest, GreptimeResponse, ResponseHeader};
@@ -24,18 +26,18 @@ use prost::Message;
 use session::context::Channel;
 use tonic::{Request, Response, Status, Streaming};
 
-use crate::grpc::greptime_handler::GreptimeRequestHandler;
 use crate::grpc::memory_limit::PreDecodeMemoryReservation;
+use crate::grpc::pulse_handler::PulseRequestHandler;
 use crate::grpc::{TonicResult, cancellation};
 use crate::hint_headers;
 use crate::request_memory_limiter::ServerMemoryLimiter;
 
 pub(crate) struct DatabaseService {
-    handler: GreptimeRequestHandler,
+    handler: PulseRequestHandler,
 }
 
 impl DatabaseService {
-    pub(crate) fn new(handler: GreptimeRequestHandler) -> Self {
+    pub(crate) fn new(handler: PulseRequestHandler) -> Self {
         Self { handler }
     }
 }

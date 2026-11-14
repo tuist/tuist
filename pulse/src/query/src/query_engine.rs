@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod context;
 mod default_serializer;
 pub mod options;
@@ -210,7 +212,7 @@ impl QueryEngineFactory {
     }
 }
 
-/// Register all functions implemented by GreptimeDB
+/// Register all functions implemented by Pulse
 fn register_functions(query_engine: &Arc<DatafusionQueryEngine>) {
     for func in FUNCTION_REGISTRY.scalar_functions() {
         query_engine.register_scalar_function(func);

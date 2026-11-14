@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -50,14 +52,14 @@ enum ExportTarget {
     All,
 }
 
-/// Command for exporting data from the GreptimeDB.
+/// Command for exporting data from the Pulse.
 #[derive(Debug, Default, Parser)]
 pub struct ExportCommand {
     /// Server address to connect
     #[clap(long)]
     addr: String,
 
-    /// Directory to put the exported data. E.g.: /tmp/greptimedb-export
+    /// Directory to put the exported data. E.g.: /tmp/pulse-export
     /// for local export.
     #[clap(long)]
     output_dir: Option<String>,

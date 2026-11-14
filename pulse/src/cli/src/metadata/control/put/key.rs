@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use async_trait::async_trait;
 use clap::Parser;
 use common_error::ext::BoxedError;
@@ -265,8 +267,7 @@ mod tests {
     fn test_validate_supported_key_success() {
         let value = SchemaNameValue::default().try_as_raw_value().unwrap();
 
-        validate_metadata_value(&format!("{SCHEMA_NAME_KEY_PREFIX}/greptime/public"), &value)
-            .unwrap();
+        validate_metadata_value(&format!("{SCHEMA_NAME_KEY_PREFIX}/pulse/public"), &value).unwrap();
     }
 
     #[test]
@@ -305,11 +306,11 @@ mod tests {
     #[test]
     fn test_validate_invalid_supported_key_fails() {
         let value = SchemaNameValue::default().try_as_raw_value().unwrap();
-        let err = validate_metadata_value("__schema_name/greptime", &value).unwrap_err();
+        let err = validate_metadata_value("__schema_name/pulse", &value).unwrap_err();
 
         assert!(
             err.output_msg()
-                .contains("Invalid metadata key: __schema_name/greptime")
+                .contains("Invalid metadata key: __schema_name/pulse")
         );
     }
 
@@ -318,7 +319,7 @@ mod tests {
         let cases = [
             "__table_route/1024",
             "__table_info/1024",
-            "__table_name/greptime/public/demo",
+            "__table_name/pulse/public/demo",
             "__dn_table/1/1024",
             "__flow/route/1/1",
         ];

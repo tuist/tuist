@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Display;
 
 use serde::Serialize;
@@ -166,7 +168,7 @@ impl CopyTableArgument {
 mod tests {
     use std::assert_matches;
 
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
@@ -176,7 +178,7 @@ mod tests {
             with (format = 'parquet', pattern = '.*parquet.*')
             connection(region = 'us-west-2', secret_access_key = '12345678');";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::Copy { .. });
@@ -201,7 +203,7 @@ mod tests {
             with (format = 'parquet', pattern = '.*parquet.*')
             connection(region = 'us-west-2', secret_access_key = '12345678');";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::Copy { .. });
@@ -226,7 +228,7 @@ mod tests {
             with (format = 'parquet', pattern = '.*parquet.*')
             connection(region = 'us-west-2', secret_access_key = '12345678');";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::Copy { .. });
@@ -251,7 +253,7 @@ mod tests {
             with (format = 'parquet', pattern = '.*parquet.*')
             connection(region = 'us-west-2', secret_access_key = '12345678');";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::Copy { .. });
@@ -276,7 +278,7 @@ mod tests {
             with (format = 'parquet', pattern = '.*parquet.*')
             connection(region = 'us-west-2', secret_access_key = '12345678');";
         let stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, stmts.len());
         assert_matches!(&stmts[0], Statement::Copy { .. });

@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "enterprise")]
-pub mod trigger;
+// Modified by Tuist; see pulse/FORK.md.
 
 use std::collections::{HashMap, HashSet};
 
@@ -58,7 +57,7 @@ use snafu::{OptionExt, ResultExt, ensure};
 use sql::ast::{
     ColumnDef, ColumnOption, ColumnOptionDef, Expr, Ident, ObjectName, ObjectNamePartExt,
 };
-use sql::dialect::GreptimeDbDialect;
+use sql::dialect::PulseDialect;
 use sql::parser::ParserContext;
 use sql::statements::alter::{
     AlterDatabase, AlterDatabaseOperation, AlterTable, AlterTableOperation,
@@ -75,8 +74,6 @@ use sql::util::extract_tables_from_query;
 use store_api::mito_engine_options::{COMPACTION_OVERRIDE, COMPACTION_TYPE};
 use table::requests::{FILE_TABLE_META_KEY, TableOptions};
 use table::table_reference::TableReference;
-#[cfg(feature = "enterprise")]
-pub use trigger::to_create_trigger_task_expr;
 
 use crate::error::{
     BuildCreateExprOnInsertionSnafu, ColumnDataTypeSnafu, ConvertColumnDefaultConstraintSnafu,
@@ -136,10 +133,10 @@ pub fn extract_add_columns_expr(
 // ```
 // 1. If the TIME INDEX column can be inferred from metadata, use that column
 //    as the TIME INDEX. Otherwise,
-// 2. If a column named `greptime_timestamp` exists (with the requirement that
+// 2. If a column named `pulse_timestamp` exists (with the requirement that
 //    the column is with type TIMESTAMP, otherwise an error is thrown), use
 //    that column as the TIME INDEX. Otherwise,
-// 3. Automatically create the `greptime_timestamp` column and add a `DEFAULT 0`
+// 3. Automatically create the `pulse_timestamp` column and add a `DEFAULT 0`
 //    constraint.
 pub(crate) async fn create_external_expr(
     create: CreateExternalTable,
@@ -296,7 +293,7 @@ pub fn expr_to_create(expr: &CreateTableExpr, quote_style: Option<char>) -> Resu
                     Expr::Value(value_to_sql_value(v).context(ParseSqlValueSnafu)?.into())
                 }
                 ColumnDefaultConstraint::Function(func_expr) => {
-                    ParserContext::parse_function(func_expr, &GreptimeDbDialect {})
+                    ParserContext::parse_function(func_expr, &PulseDialect {})
                         .context(ParseSqlSnafu)?
                 }
             };
@@ -1193,7 +1190,7 @@ mod tests {
     use datatypes::extension::json::is_json2_extension_type;
     use datatypes::value::Value;
     use session::context::{QueryContext, QueryContextBuilder};
-    use sql::dialect::GreptimeDbDialect;
+    use sql::dialect::PulseDialect;
     use sql::parser::{ParseOptions, ParserContext};
     use sql::statements::statement::Statement;
     use store_api::storage::ColumnDefaultConstraint;
@@ -1204,7 +1201,7 @@ mod tests {
     fn test_to_alter_add_json2_column_preserves_extension() {
         let sql = "ALTER TABLE monitor ADD COLUMN payload JSON2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1227,7 +1224,7 @@ mod tests {
     fn test_to_alter_add_json2_column_preserves_settings() {
         let sql = "ALTER TABLE monitor ADD COLUMN payload JSON2(max_auto_expanded_paths = 0, service STRING, nested.value BIGINT)";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1255,7 +1252,7 @@ mod tests {
 CREATE FLOW calc_reqs SINK TO cnt_reqs AS
 TQL EVAL (0, 15, '5s') count_values("status_code", http_requests);"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         assert!(
             stmt.is_err(),
@@ -1267,7 +1264,7 @@ TQL EVAL (0, 15, '5s') count_values("status_code", http_requests);"#;
 CREATE FLOW calc_reqs SINK TO cnt_reqs AS
 TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests);"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1280,14 +1277,14 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http
         let to_dot_sep =
             |c: TableName| format!("{}.{}.{}", c.catalog_name, c.schema_name, c.table_name);
         assert_eq!("calc_reqs", expr.flow_name);
-        assert_eq!("greptime", expr.catalog_name);
+        assert_eq!("pulse", expr.catalog_name);
         assert_eq!(
-            "greptime.public.cnt_reqs",
+            "pulse.public.cnt_reqs",
             expr.sink_table_name.map(to_dot_sep).unwrap()
         );
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.public.http_requests",
+            "pulse.public.http_requests",
             to_dot_sep(expr.source_table_names[0].clone())
         );
         assert_eq!(
@@ -1297,9 +1294,9 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http
 
         let sql = r#"
 CREATE FLOW calc_reqs SINK TO cnt_reqs AS
-TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests{__schema__="greptime_private"});"#;
+TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests{__schema__="pulse_private"});"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1309,15 +1306,15 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http
         let expr = to_create_flow_task_expr(create_flow, &QueryContext::arc()).unwrap();
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.greptime_private.http_requests",
+            "pulse.pulse_private.http_requests",
             to_dot_sep(expr.source_table_names[0].clone())
         );
 
         let sql = r#"
 CREATE FLOW calc_reqs SINK TO cnt_reqs AS
-TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests{__database__="greptime_private"});"#;
+TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http_requests{__database__="pulse_private"});"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1327,7 +1324,7 @@ TQL EVAL (now() - '15s'::interval, now(), '5s') count_values("status_code", http
         let expr = to_create_flow_task_expr(create_flow, &QueryContext::arc()).unwrap();
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.greptime_private.http_requests",
+            "pulse.pulse_private.http_requests",
             to_dot_sep(expr.source_table_names[0].clone())
         );
     }
@@ -1346,7 +1343,7 @@ SELECT * FROM tql;
 "#;
 
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1360,7 +1357,7 @@ SELECT * FROM tql;
             |c: TableName| format!("{}.{}.{}", c.catalog_name, c.schema_name, c.table_name);
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.public.metric_cte",
+            "pulse.public.metric_cte",
             to_dot_sep(expr.source_table_names[0].clone())
         );
     }
@@ -1379,7 +1376,7 @@ SELECT * FROM "TQL";
 "#;
 
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1393,7 +1390,7 @@ SELECT * FROM "TQL";
             |c: TableName| format!("{}.{}.{}", c.catalog_name, c.schema_name, c.table_name);
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.public.metric_cte",
+            "pulse.public.metric_cte",
             to_dot_sep(expr.source_table_names[0].clone())
         );
     }
@@ -1412,7 +1409,7 @@ SELECT * FROM tql;
 "#;
 
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1426,7 +1423,7 @@ SELECT * FROM tql;
             |c: TableName| format!("{}.{}.{}", c.catalog_name, c.schema_name, c.table_name);
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.public.tql",
+            "pulse.public.tql",
             to_dot_sep(expr.source_table_names[0].clone())
         );
     }
@@ -1440,7 +1437,7 @@ SELECT
 FROM
     distinct_basic;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1453,14 +1450,14 @@ FROM
         let to_dot_sep =
             |c: TableName| format!("{}.{}.{}", c.catalog_name, c.schema_name, c.table_name);
         assert_eq!("test_distinct_basic", expr.flow_name);
-        assert_eq!("greptime", expr.catalog_name);
+        assert_eq!("pulse", expr.catalog_name);
         assert_eq!(
-            "greptime.public.out_distinct_basic",
+            "pulse.public.out_distinct_basic",
             expr.sink_table_name.map(to_dot_sep).unwrap()
         );
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.public.distinct_basic",
+            "pulse.public.distinct_basic",
             to_dot_sep(expr.source_table_names[0].clone())
         );
         assert_eq!(
@@ -1477,7 +1474,7 @@ SINK TO schema_1.table_1
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1490,14 +1487,14 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let to_dot_sep =
             |c: TableName| format!("{}.{}.{}", c.catalog_name, c.schema_name, c.table_name);
         assert_eq!("task_2", expr.flow_name);
-        assert_eq!("greptime", expr.catalog_name);
+        assert_eq!("pulse", expr.catalog_name);
         assert_eq!(
-            "greptime.schema_1.table_1",
+            "pulse.schema_1.table_1",
             expr.sink_table_name.map(to_dot_sep).unwrap()
         );
         assert_eq!(1, expr.source_table_names.len());
         assert_eq!(
-            "greptime.schema_2.table_2",
+            "pulse.schema_2.table_2",
             to_dot_sep(expr.source_table_names[0].clone())
         );
         assert_eq!("SELECT max(c1), min(c2) FROM schema_2.table_2", expr.sql);
@@ -1510,7 +1507,7 @@ WITH (defer_on_missing_source = 'true', foo = 'bar')
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1534,7 +1531,7 @@ WITH (defer_on_missing_source = true)
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1555,7 +1552,7 @@ WITH (defer_on_missing_source = [true])
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1577,7 +1574,7 @@ SINK TO schema_1.table_1
 AS
 SELECT max(c1), min(c2) FROM schema_2.table_2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1599,7 +1596,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
     fn test_create_to_expr() {
         let sql = "CREATE TABLE monitor (host STRING,ts TIMESTAMP,TIME INDEX (ts),PRIMARY KEY(host)) ENGINE=mito WITH(ttl='3days', write_buffer_size='1024KB');";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1616,7 +1613,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
 
         let sql = "CREATE TABLE monitor (ts TIMESTAMP TIME INDEX) WITH(skip_wal='false');";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1644,14 +1641,11 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         ];
 
         for sql in cases {
-            let stmt = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap()
-            .pop()
-            .unwrap();
+            let stmt =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap()
+                    .pop()
+                    .unwrap();
             let Statement::CreateTable(create_table) = stmt else {
                 unreachable!()
             };
@@ -1663,7 +1657,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
     fn test_create_to_expr_with_default_timestamp_value() {
         let sql = "CREATE TABLE monitor (v double,ts TIMESTAMP default '2024-01-30T00:01:01',TIME INDEX (ts)) engine=mito;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1708,9 +1702,9 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
 
     #[test]
     fn test_to_alter_expr() {
-        let sql = "ALTER DATABASE greptime SET key1='value1', key2='value2';";
+        let sql = "ALTER DATABASE pulse SET key1='value1', key2='value2';";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1735,9 +1729,9 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
         assert_eq!("key2", set_database_options[1].key);
         assert_eq!("value2", set_database_options[1].value);
 
-        let sql = "ALTER DATABASE greptime UNSET key1, key2;";
+        let sql = "ALTER DATABASE pulse UNSET key1, key2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1759,7 +1753,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
 
         let sql = "ALTER TABLE monitor add column ts TIMESTAMP default '2024-01-30T00:01:01';";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1810,7 +1804,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
     fn test_to_alter_modify_column_type_expr() {
         let sql = "ALTER TABLE monitor MODIFY COLUMN mem_usage STRING;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1845,7 +1839,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
     fn test_to_alter_set_json_settings_expr() {
         let sql = "ALTER TABLE monitor MODIFY COLUMN payload JSON2 (service STRING);";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1867,7 +1861,7 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
 
         let sql = "ALTER TABLE monitor MODIFY COLUMN payload JSON2;";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1896,7 +1890,7 @@ ALTER TABLE metrics REPARTITION (
   device_id < 100 AND area >= 'South'
 );"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1906,7 +1900,7 @@ ALTER TABLE metrics REPARTITION (
         };
 
         let request = to_repartition_request(alter_table, &QueryContext::arc()).unwrap();
-        assert_eq!("greptime", request.catalog_name);
+        assert_eq!("pulse", request.catalog_name);
         assert_eq!("public", request.schema_name);
         assert_eq!("metrics", request.table_name);
         let RepartitionSource::Partitions {
@@ -1947,7 +1941,7 @@ ALTER TABLE metrics REPARTITION (
   device_id < 100 AND area >= 'South'
 );"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1979,7 +1973,7 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
   device_id < 100 AND area >= 'South'
 );"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -1989,7 +1983,7 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
         };
 
         let request = to_repartition_request(alter_table, &QueryContext::arc()).unwrap();
-        assert_eq!("greptime", request.catalog_name);
+        assert_eq!("pulse", request.catalog_name);
         assert_eq!("public", request.schema_name);
         assert_eq!("metrics", request.table_name);
         let RepartitionSource::Unpartitioned { partition_columns } = request.source else {
@@ -2012,12 +2006,12 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
     fn new_test_table_names() -> Vec<TableName> {
         vec![
             TableName {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: "a_table".to_string(),
             },
             TableName {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: "b_table".to_string(),
             },
@@ -2028,7 +2022,7 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
     fn test_to_create_view_expr() {
         let sql = "CREATE VIEW test AS SELECT * FROM NUMBERS";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -2053,7 +2047,7 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
         )
         .unwrap();
 
-        assert_eq!("greptime", expr.catalog_name);
+        assert_eq!("pulse", expr.catalog_name);
         assert_eq!("public", expr.schema_name);
         assert_eq!("test", expr.view_name);
         assert!(!expr.create_if_not_exists);
@@ -2069,7 +2063,7 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
     fn test_to_create_view_expr_complex() {
         let sql = "CREATE OR REPLACE VIEW IF NOT EXISTS test.test_view AS SELECT * FROM NUMBERS";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -2094,7 +2088,7 @@ ALTER TABLE metrics PARTITION ON COLUMNS (device_id, area) (
         )
         .unwrap();
 
-        assert_eq!("greptime", expr.catalog_name);
+        assert_eq!("pulse", expr.catalog_name);
         assert_eq!("test", expr.schema_name);
         assert_eq!("test_view", expr.view_name);
         assert!(expr.create_if_not_exists);
@@ -2126,7 +2120,7 @@ WITH(
   append_mode = 'true'
 )"#;
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();

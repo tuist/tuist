@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! All table names in `information_schema`.
 
 pub const TABLES: &str = "tables";
@@ -57,6 +59,6 @@ pub const STATISTICS: &str = "statistics";
 pub const RECYCLE_BIN: &str = "recycle_bin";
 pub const PLUGINS: &str = "plugins";
 pub const USER_PRIVILEGES: &str = "user_privileges";
-/// MySQL's session list. GreptimeDB reports its own sessions through [`PROCESS_LIST`];
+/// MySQL's session list. Pulse reports its own sessions through [`PROCESS_LIST`];
 /// this table only exists so MySQL tooling finds the name and column shape it expects.
 pub const PROCESSLIST: &str = "processlist";
