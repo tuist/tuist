@@ -41,7 +41,7 @@ Pulse appears in organization navigation only for members of the configured orga
 | --- | --- |
 | `TUIST_PULSE_ACCOUNT_ID` | Stable Tuist organization account ID, not its handle. Leave unset to disable the pages. |
 | `TUIST_PULSE_URL` | Pulse base URL reachable from the server. The managed instance is private to the cluster. |
-| `TUIST_PULSE_TENANT` | Pulse database name (`public` in managed environments), sent as `x-greptime-db-name`. |
+| `TUIST_PULSE_TENANT` | Pulse database name (`public` in managed environments), sent as `x-pulse-db-name` (and `x-greptime-db-name` until every Pulse runs a renamed release). |
 | `TUIST_PULSE_TOKEN_FILE` | Preferred path to a mounted, rotating password for the `dashboard` user. Read on every request. |
 | `TUIST_PULSE_TOKEN` | `dashboard` password fallback when no token file is configured. |
 

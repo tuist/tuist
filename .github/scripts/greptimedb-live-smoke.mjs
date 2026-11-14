@@ -4,7 +4,7 @@ try {
   const token = readFileSync(process.env.GREPTIMEDB_DASHBOARD_AUTH_FILE, 'utf8').match(/^dashboard:ro=(.+)$/m)?.[1];
   if (!token) throw new Error();
   const base = process.env.GREPTIMEDB_URL;
-  const headers = {Authorization: `Basic ${Buffer.from(`dashboard:${token}`).toString('base64')}`, 'X-Greptime-DB-Name': 'public'};
+  const headers = {Authorization: `Basic ${Buffer.from(`dashboard:${token}`).toString('base64')}`, 'X-Pulse-DB-Name': 'public'};
   const deadline = Date.now() + 300000;
   const since = new Date(Date.now() - 600000).toISOString();
   const get = async path => {

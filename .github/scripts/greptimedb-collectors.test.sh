@@ -27,6 +27,7 @@ for environment in staging canary production; do
     block 'prometheus.remote_write "pulse_metrics"' "$tmp/$file.alloy" > "$tmp/writer.alloy"
     grep -Fq "url = \"$origin/v1/prometheus/write\"" "$tmp/writer.alloy"
     grep -Fq '"X-Greptime-DB-Name" = "public",' "$tmp/writer.alloy"
+    grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-username"]' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-password"]' "$tmp/writer.alloy"
     block 'remote.kubernetes.secret "pulse_metrics"' "$tmp/$file.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
@@ -44,11 +45,16 @@ for environment in staging canary production; do
   cmp "$tmp/grafana_cloud_metrics.rules" "$tmp/pulse_metrics.rules"
 
   # Logs: custom WAL-backed writer with the Loki pipeline headers and no tenant.
+  # Writers send GreptimeDB's and Pulse's header names until every backend runs
+  # a Pulse release that reads the X-Pulse-* names (pulse/FORK.md).
   block 'loki.write "pulse_logs"' "$tmp/receiver.alloy" > "$tmp/logs.alloy"
   grep -Fq "url = \"$origin/v1/loki/api/v1/push\"" "$tmp/logs.alloy"
   grep -Fq '"X-Greptime-DB-Name" = "public",' "$tmp/logs.alloy"
   grep -Fq '"X-Greptime-Pipeline-Name" = "loki_otlp",' "$tmp/logs.alloy"
   grep -Fq '"X-Greptime-Log-Table-Name" = "opentelemetry_logs",' "$tmp/logs.alloy"
+  grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/logs.alloy"
+  grep -Fq '"X-Pulse-Pipeline-Name" = "loki_otlp",' "$tmp/logs.alloy"
+  grep -Fq '"X-Pulse-Log-Table-Name" = "opentelemetry_logs",' "$tmp/logs.alloy"
   grep -Fq 'username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])' "$tmp/logs.alloy"
   grep -Fq 'password = remote.kubernetes.secret.pulse_logs.data["ingest-password"]' "$tmp/logs.alloy"
   grep -Fq 'enabled = true' "$tmp/logs.alloy"
@@ -63,6 +69,9 @@ for environment in staging canary production; do
   grep -Fq '"X-Greptime-DB-Name" = "public",' "$tmp/traces.alloy"
   grep -Fq '"X-Greptime-Pipeline-Name" = "greptime_trace_v1",' "$tmp/traces.alloy"
   grep -Fq '"X-Greptime-Trace-Table-Name" = "opentelemetry_traces",' "$tmp/traces.alloy"
+  grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/traces.alloy"
+  grep -Fq '"X-Pulse-Pipeline-Name" = "pulse_trace_v1",' "$tmp/traces.alloy"
+  grep -Fq '"X-Pulse-Trace-Table-Name" = "opentelemetry_traces",' "$tmp/traces.alloy"
   # The upstream OTLP and Prometheus destinations always read `tenantId` from an
   # external Secret; pulse-dashboard-auth has none, so Alloy sends an empty
   # X-Scope-OrgID (as for Grafana Cloud), which Greptime ignores.

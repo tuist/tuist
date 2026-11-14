@@ -534,8 +534,8 @@ jobs:
                 resources:{requests:{cpu:"50m",memory:"128Mi"},limits:{memory:"256Mi"}},
                 env:[{name:"HOME",value:"/tmp"},{name:"AWS_ENDPOINT_URL",value:"https://t3.storage.dev"},
                   {name:"AWS_DEFAULT_REGION",value:"auto"},{name:"AWS_REQUEST_CHECKSUM_CALCULATION",value:"when_required"},
-                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"GREPTIMEDB_STANDALONE__STORAGE__ACCESS_KEY_ID"}}},
-                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY"}}}]
+                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_STANDALONE__STORAGE__ACCESS_KEY_ID"}}},
+                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY"}}}]
               }]}}' > "$RUNNER_TEMP/purge.json"
           kubectl create -f "$RUNNER_TEMP/purge.json" > /dev/null
           deadline=$((SECONDS + 1200)); phase=Pending

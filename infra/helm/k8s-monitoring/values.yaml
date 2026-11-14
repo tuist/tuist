@@ -329,6 +329,7 @@ k8s-monitoring:
       url: http://pulse.observability.svc.cluster.local:4000/v1/prometheus/write
       extraHeaders:
         X-Greptime-DB-Name: public
+        X-Pulse-DB-Name: public
       auth:
         type: basic
         usernameKey: ingest-username

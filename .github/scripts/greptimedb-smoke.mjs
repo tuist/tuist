@@ -42,7 +42,7 @@ try {
   if (!base || !password || !/^[a-zA-Z0-9-]+$/.test(run ?? '')) throw new Error();
   const headers = {
     Authorization: `Basic ${Buffer.from(`pilot:${password}`).toString('base64')}`,
-    'X-Greptime-DB-Name': 'public',
+    'X-Pulse-DB-Name': 'public',
   };
   const request = async (path, body, extra = {}) => {
     const response = await fetch(`${base}${path}`, {
@@ -103,11 +103,11 @@ try {
       const response = await fetch(ingest ? `${ingest}${legacyPath}` : `${base}/v1/otlp/v1/${signal}`, {
         method: 'POST', body, signal: AbortSignal.timeout(10000),
         headers: { ...headers, 'Content-Type': 'application/x-protobuf', ...extra,
-          ...(ingest ? { 'X-Greptime-DB-Name': 'forbidden',
-            'X-Greptime-Log-Table-Name': 'forbidden',
-            'X-Greptime-Pipeline-Name': 'forbidden',
-            'X-Greptime-Pipeline-Version': 'forbidden',
-            'X-Greptime-Pipeline-Params': 'forbidden' } : {}),
+          ...(ingest ? { 'X-Pulse-DB-Name': 'forbidden',
+            'X-Pulse-Log-Table-Name': 'forbidden',
+            'X-Pulse-Pipeline-Name': 'forbidden',
+            'X-Pulse-Pipeline-Version': 'forbidden',
+            'X-Pulse-Pipeline-Params': 'forbidden' } : {}),
           ...(writerAuthorization ? { Authorization: writerAuthorization } : {}) },
       });
       if (![200, 204].includes(response.status)) throw new Error();
@@ -154,7 +154,7 @@ try {
     const span = concat(message(1, Buffer.from(trace, 'hex')), message(2, Buffer.from(trace.slice(0, 16), 'hex')),
       message(5, run), fixed(7, timestamp), fixed(8, timestamp + 17000000n), message(15, Buffer.from([0x18, 2])));
     await write('traces', message(1, concat(message(1, resource), message(2, message(2, span)))), {
-      'X-Greptime-Pipeline-Name': 'greptime_trace_v1',
+      'X-Pulse-Pipeline-Name': 'pulse_trace_v1',
     }, '/v1/traces');
   }
   if (readerAuthorization) headers.Authorization = readerAuthorization;
