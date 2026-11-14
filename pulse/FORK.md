@@ -72,11 +72,13 @@ covered by this list.
   it gated are gone, as is the license tooling for enterprise files. Undrop and
   purge of dropped tables, and `gc.experimental_soft_drop`, which needs them,
   are rejected as unsupported, as they were in the default build.
-- **No upstream docs or release tooling.** `docs/`, the Grafana dashboards, the
-  `cyborg` bot, upstream's README, contribution and security guides, changelog
-  and coverage configuration, the generated configuration reference, the
-  Docker builds other than `docker/buildx/ubuntu`, and the Makefile targets
-  that used them.
+- **No upstream docs or release tooling.** The code is the documentation:
+  `docs/`, the READMEs and other Markdown guides in the source and test trees,
+  the Grafana dashboards, the `cyborg` bot, upstream's README, contribution and
+  security guides, changelog and coverage configuration, the generated
+  configuration reference, the Docker builds other than `docker/buildx/ubuntu`,
+  and the Makefile targets that used them are gone. The `AGENTS.md` guides are
+  kept for agents working in those crates.
 
 - **Query nesting limits** ([`src/sql/src/nesting.rs`](src/sql/src/nesting.rs)).
   GreptimeDB v1.3.0 aborts the whole process with a stack overflow on short,
@@ -98,7 +100,7 @@ covered by this list.
   - SQL texts over 8 MiB. Parsing runs on a stack sized to the input, so a long
     statement cannot overflow the parser or its drop.
 - **Release image protoc** ([`docker/buildx/ubuntu/Dockerfile`](docker/buildx/ubuntu/Dockerfile)).
-  The image `pulse-release.yml` builds installed Ubuntu 22.04's protoc 3.12,
+  The image `pulse-build-publish.yml` builds installed Ubuntu 22.04's protoc 3.12,
   which cannot compile `substrait`'s proto3 optional fields. It now installs
   protoc 29.3 from GitHub, checksum-pinned, as upstream's dev-builder does.
 
@@ -107,12 +109,27 @@ covered by this list.
 - [`pulse.yml`](../.github/workflows/pulse.yml) checks formatting, runs the
   `sql` crate's tests (where the limits live), and type-checks the `pulse`
   binary, which covers the other changed crates.
-- [`pulse-release.yml`](../.github/workflows/pulse-release.yml) publishes
-  `ghcr.io/tuist/pulse:<version>` and the `pulse@<version>` tag when `pulse/`
-  changes on main. Versions are the upstream version plus a fork revision, such
-  as `1.3.0-1`. The image is built with upstream's
-  `docker/buildx/ubuntu/Dockerfile` and release profile (`nightly`), without
-  the embedded web dashboard (`servers/dashboard`).
+- Pulse owns its versions and releases through the same channels as Kura
+  (`kura-release.yml`, `kura-rc.yml`, `kura-promote.yml`): every `pulse/`
+  change on main publishes a canary `X.Y.0-canary.N`
+  ([`pulse-release.yml`](../.github/workflows/pulse-release.yml)); each Monday
+  [`pulse-promote.yml`](../.github/workflows/pulse-promote.yml) promotes the
+  previous week's `releases/pulse-X.Y.x` line to stable `X.Y.0`, and
+  [`pulse-rc.yml`](../.github/workflows/pulse-rc.yml) cuts the next line as
+  `X.Y.0-rc.1`. Versions continue the Elixir Pulse's line (`1.43.6`), so the
+  first canary is `1.44.0-canary.1`; the upstream GreptimeDB version stays in
+  `Cargo.toml`'s `[workspace.package]` and the [table above](#upstream-base).
+  The earlier `pulse@1.3.0-1` and `pulse@1.3.0-2` tags used the retired
+  `<upstream>-<n>` scheme.
+- [`pulse-build-publish.yml`](../.github/workflows/pulse-build-publish.yml)
+  does each build: it stamps the version into `[workspace.metadata.pulse]`
+  (what `pulse --version` and SQL `version()` report), builds the image with
+  upstream's `docker/buildx/ubuntu/Dockerfile` and release profile (`nightly`)
+  without the embedded web dashboard (`servers/dashboard`), smoke-tests it,
+  and publishes `ghcr.io/tuist/pulse:<version>` (stable releases also move
+  `:latest`), the `pulse@<version>` tag and a GitHub prerelease or release
+  with git-cliff notes ([`cliff.toml`](cliff.toml)). Pulse releases never take
+  the repository's GitHub "Latest" release, which the CLI, server and Kura use.
 - Publishing deploys nothing. In each cluster's `observability` namespace the
   `pulse` release ([`infra/helm/greptimedb`](../infra/helm/greptimedb), Service
   `pulse`) runs the fork release pinned in its `values.yaml`, and collectors
@@ -120,7 +137,7 @@ covered by this list.
   dispatched. Moving to a new release means changing that pin and the one in
   `infra/helm/greptimedb/test-managed.sh`, then dispatching the deployment.
   `.github/scripts/pulse-readiness.sh`, the gate every server deploy runs,
-  accepts any `ghcr.io/tuist/pulse:<version>-<n>` image.
+  accepts any published `ghcr.io/tuist/pulse` version.
 
 ## Rolling out the rename
 
@@ -147,8 +164,11 @@ first renamed release has to switch them too, or ingestion and queries fail:
 1. Import the new upstream tag's tree over `pulse/` with the same exclusions,
    using that version's `licenserc-enterprise.toml` for the enterprise list.
 2. Reapply the Tuist changes above (the commits touching `pulse/` since the
-   previous import), including the rename and the enterprise removal, and
-   update this file's upstream table.
+   previous import), including the rename, the enterprise removal and the
+   removed docs, and update this file's upstream table. Keep
+   `[workspace.metadata.pulse]` out of `Cargo.toml`: the release build stamps
+   it and refuses to run when it is already set. The Pulse version is not tied
+   to upstream's; the next canary continues the current line.
 3. Check that every PromQL parse still goes through `sql::nesting::parse_promql`
    (`rg 'promql_parser::parser::parse\(' src` outside tests), and repeat the
    overflow checks against the new planner before trusting the limits.

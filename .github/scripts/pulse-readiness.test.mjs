@@ -79,6 +79,9 @@ if (scenario === 'standalone unready' || scenario === 'cluster frontend unready'
 if (scenario === 'cluster kafka revision' && name === 'pulse-kafka' || scenario === 'standalone revision') value.status.currentRevision = 'r1';
 if (scenario === 'cluster metasrv upstream image' && name === 'pulse-metasrv' || scenario === 'standalone upstream image') image[0].image = 'docker.io/greptime/greptimedb:v1.3.0';
 if (scenario === 'standalone digest-only image') image[0].image = 'ghcr.io/tuist/pulse@sha256:' + 'a'.repeat(64);
+if (scenario === 'standalone canary image') image[0].image = 'ghcr.io/tuist/pulse:1.44.0-canary.3';
+if (scenario === 'cluster stable image') image[0].image = 'ghcr.io/tuist/pulse:1.44.0';
+if (scenario === 'standalone unknown prerelease') image[0].image = 'ghcr.io/tuist/pulse:1.44.0-beta.1';
 if (scenario === 'standalone sidecar') image.push({image:'busybox:1.37.0'});
 if (scenario === 'owner') value.metadata.annotations['meta.helm.sh/release-name'] = 'greptimedb';
 if (scenario === 'stale generation') value.status.observedGeneration = 1;
@@ -88,10 +91,11 @@ console.log(JSON.stringify(value));
     const step = execFileSync('yq', ['-r', '.jobs.observability-install.steps[] | select(.name == "Gate collectors on the currently deployed backend").run', '.github/workflows/server-deployment.yml'], {encoding:'utf8'});
     assert.ok(step.includes('pulse-readiness.sh'));
     const accepted = {none: /no Pulse backend installed/, 'old greptimedb release': /no Pulse backend installed/,
-      standalone: /Pulse standalone backend ready/, cluster: /Pulse cluster backend ready/};
+      standalone: /Pulse standalone backend ready/, cluster: /Pulse cluster backend ready/,
+      'standalone canary image': /Pulse standalone backend ready/, 'cluster stable image': /Pulse cluster backend ready/};
     for (const environment of ['staging', 'canary', 'production']) {
       for (const scenario of [...Object.keys(accepted), 'standalone unready', 'standalone scaled up', 'standalone revision',
-        'standalone upstream image', 'standalone digest-only image', 'standalone sidecar', 'owner', 'stale generation',
+        'standalone upstream image', 'standalone digest-only image', 'standalone unknown prerelease', 'standalone sidecar', 'owner', 'stale generation',
         'cluster frontend unready', 'cluster kafka revision', 'cluster metasrv upstream image',
         'cluster metasrv missing', 'cluster datanode scaled down']) {
         const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
