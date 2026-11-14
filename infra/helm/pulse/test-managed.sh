@@ -135,7 +135,7 @@ jq -e '
   (one("Deployment"; "pulse-metasrv") | .spec.replicas == 3 and spread("metasrv") and
     # Topic creation runs once per leader: wait for the WAL or every broker.
     .spec.template.spec.initContainers[0].name == "wait-for-wal" and
-    (.spec.template.spec.initContainers[0].args[0] | contains("greptimedb_wal_topic_", "-ge 3"))) and
+    (.spec.template.spec.initContainers[0].args[0] | contains("pulse_wal_topic_", "-ge 3"))) and
   # Production keeps its own sizing whatever the staging/canary defaults are.
   (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources.requests == {cpu:"1",memory:"2Gi"}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "20Gi" and

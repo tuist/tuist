@@ -8,9 +8,10 @@ private `pulse` release in namespace
 `observability`, behind Service `pulse` (`pulse.observability.svc.cluster.local:4000`).
 Every resource is named `pulse` or `pulse-*`, the default catalog is `pulse`,
 configuration variables use the `PULSE_STANDALONE__` and `PULSE_DATANODE__`
-prefixes, and clients select a database with `X-Pulse-DB-Name`. Only the Kafka
-WAL topics keep their pre-rename prefix (`pulse.walTopicPrefix` in
-`templates/_helpers.tpl`): the live topics hold unflushed writes.
+prefixes, and clients select a database with `X-Pulse-DB-Name`. Kafka WAL
+topics are `pulse_wal_topic_*`. Each region keeps the topic it was created
+with, so regions created before the rename keep their earlier topics until their
+tables are recreated.
 
 Every environment runs a renamed release. Releases before the rename
 (`1.3.0-1`) wrote into a catalog of their own, which stays in metadata and in

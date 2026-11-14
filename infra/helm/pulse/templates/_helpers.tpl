@@ -188,8 +188,8 @@ enable_file_logging = false
 [{{ join ", " $peers }}]
 {{- end }}
 
-{{/* Live WAL topics carry this pre-rename prefix; changing it orphans their
-unflushed writes. */}}
+{{/* Each region keeps the WAL topic it was created with, and metasrv keeps
+serving every topic it ever created, so changing this only moves new regions. */}}
 {{- define "pulse.walTopicPrefix" -}}
-greptimedb_wal_topic
+pulse_wal_topic
 {{- end }}
