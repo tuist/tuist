@@ -50,6 +50,20 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
   defp hours_ago(hours), do: DateTime.add(DateTime.utc_now(), -hours, :hour)
 
+  # `:global` drops a killed uploader's lock when its own monitor fires, which
+  # can come after `Task.yield/2` already saw the exit. Until then recovery
+  # snoozes, as it should; it must proceed once the lock is gone.
+  defp perform_once_owner_released(args, attempts \\ 50) do
+    case perform_job(RecoverArchiveUploadWorker, args) do
+      {:snooze, _} when attempts > 1 ->
+        Process.sleep(20)
+        perform_once_owner_released(args, attempts - 1)
+
+      result ->
+        result
+    end
+  end
+
   defp paused_orb(account, opts \\ []) do
     sandbox_fixture(
       Keyword.merge(
@@ -738,7 +752,9 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       end)
 
       task = Task.Supervisor.async_nolink(supervisor, fn -> Archives.archive(sandbox) end)
-      assert_receive :transferring
+      # The task claims the upload, enqueues its recovery and presigns every part
+      # before it reaches the node, which a loaded CI machine can take past 100ms.
+      assert_receive :transferring, 5_000
       assert %Sandbox{archive_upload_id: "upload-1", archive_attempted_at: %DateTime{}} = Repo.reload!(sandbox)
       assert [recovery] = all_enqueued(worker: RecoverArchiveUploadWorker)
       assert {:snooze, 60} = perform_job(RecoverArchiveUploadWorker, recovery.args)
@@ -746,7 +762,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Process.exit(task.pid, :kill)
       assert {:exit, :killed} = Task.yield(task, 1_000)
       expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
-      assert :ok = perform_job(RecoverArchiveUploadWorker, recovery.args)
+      assert :ok = perform_once_owner_released(recovery.args)
       assert %Sandbox{state: :paused, archive_upload_id: nil, archive_attempted_at: nil} = Repo.reload!(sandbox)
       assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
       assert id == sandbox.id
