@@ -18,9 +18,7 @@ defmodule TuistWeb.API.PulseController do
   @operations Map.new(
                 [
                   {:query, "queryPulse", "Query, filter, sort and paginate a Pulse signal."},
-                  {:analytics, "getPulseAnalytics", "Get fixed Pulse aggregate widgets, independent of table filters."},
-                  {:issue, "getPulseErrorIssue", "Get a grouped Pulse error issue and its paginated events."},
-                  {:event, "getPulseErrorEvent", "Get a projected event belonging to a Pulse error issue."}
+                  {:analytics, "getPulseAnalytics", "Get fixed Pulse aggregate widgets, independent of table filters."}
                 ],
                 fn {action, operation_id, summary} ->
                   {action,
@@ -33,7 +31,7 @@ defmodule TuistWeb.API.PulseController do
                        bad_request: {"Invalid parameters or query", "application/json", Error},
                        unauthorized: {"Authentication required", "application/json", Error},
                        forbidden: {"User membership and account read required", "application/json", Error},
-                       not_found: {"Account, issue or event not found", "application/json", Error},
+                       not_found: {"Account not found", "application/json", Error},
                        too_many_requests: {"Pulse rate limited", "application/json", Error},
                        service_unavailable:
                          {"Pulse unavailable or query result limit exceeded", "application/json", Error}
@@ -44,10 +42,8 @@ defmodule TuistWeb.API.PulseController do
 
   operation(:query, @operations[:query])
   operation(:analytics, @operations[:analytics])
-  operation(:issue, @operations[:issue])
-  operation(:event, @operations[:event])
 
-  for action <- [:query, :analytics, :issue, :event] do
+  for action <- [:query, :analytics] do
     def unquote(action)(conn, params) do
       params = Map.new(params, fn {key, value} -> {to_string(key), value} end)
 
@@ -55,14 +51,12 @@ defmodule TuistWeb.API.PulseController do
            account when not is_nil(account) <- Accounts.get_account_by_handle(params["account_handle"]),
            :ok <- Authorization.authorize(:account_dashboard_read, user, account),
            true <- Pulse.authorized?(user, account) do
-        options = Map.drop(params, ~w(account_handle signal issue_id event_id))
+        options = Map.drop(params, ~w(account_handle signal))
 
         result =
           case unquote(action) do
             :query -> Pulse.query(user, account, params["signal"], options)
             :analytics -> Pulse.analytics(user, account, params["signal"], options)
-            :issue -> Pulse.error_issue(user, account, params["issue_id"], options)
-            :event -> Pulse.error_event(user, account, params["issue_id"], params["event_id"], options)
           end
 
         respond(conn, result)
@@ -107,7 +101,7 @@ defmodule TuistWeb.API.PulseController do
            "Pulse requires a user credential with account-read access and current membership in the configured organization."}
 
         :not_found ->
-          {:not_found, "Pulse account, issue or event not found."}
+          {:not_found, "Pulse account not found."}
 
         :invalid_params ->
           {:bad_request, "Invalid Pulse parameters, filters, sorting or pagination."}
@@ -118,7 +112,7 @@ defmodule TuistWeb.API.PulseController do
         :rate_limited ->
           {:too_many_requests, "Pulse is rate limited. Try again later."}
 
-        reason when reason in [:query_limit, :query_result_limit] ->
+        :query_result_limit ->
           {:service_unavailable, "Pulse query exceeded its result limit. Narrow the query or time range."}
 
         _ ->

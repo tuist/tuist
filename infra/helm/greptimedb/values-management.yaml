@@ -1,0 +1,29 @@
+# The management cluster's own Pulse, installed by Flux (infra/flux/pulse), so
+# management's metrics never depend on a workload cluster. Only this file sets
+# persistence.hostPath, nodeSelector and tolerations; workload clusters keep
+# the chart's general-pool placement and volume claims.
+environment: management
+topology: standalone
+dashboard:
+  enabled: true
+storage:
+  bucket: tuist-pulse-management
+# Management has no volume provisioner (Talos, no CSI). Standalone keeps its
+# WAL and catalog on local disk, so the pod lives on one node's /var, which
+# Talos preserves across reboots and in-place upgrades. Replacing that node
+# loses the catalog: purge pulse/ in tuist-pulse-management before Pulse
+# starts on another node, or a fresh catalog may collide with the old regions.
+persistence:
+  hostPath: /var/lib/tuist-pulse
+nodeSelector:
+  kubernetes.io/hostname: tuist-mgmt
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi

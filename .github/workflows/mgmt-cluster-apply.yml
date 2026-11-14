@@ -405,6 +405,33 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/controller-pdbs.yaml
       - name: Verify etcd snapshots from every control-plane node
         run: infra/mise/tasks/mgmt/verify-etcd-snapshot.sh
+      - name: Remove the legacy Elixir Pulse release
+        run: |
+          set -euo pipefail
+          # Flux pruned its Kustomization (flux/pulse-management) but not the
+          # release. If Flux's `pulse` HelmRelease got there first it upgraded
+          # that release in place to chart tuist-pulse; otherwise remove it here
+          # and Flux installs cleanly.
+          chart=$(helm status pulse -n observability -o json 2>/dev/null | jq -r '.chart.metadata.name // empty') || chart=
+          if [[ "$chart" == pulse ]]; then
+            helm uninstall pulse -n observability --wait --timeout 5m
+            echo 'Uninstalled the legacy Elixir Pulse release.' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          kubectl -n flux-system delete --ignore-not-found \
+            helmreleases.helm.toolkit.fluxcd.io/pulse-management helmrepositories.source.toolkit.fluxcd.io/pulse
+          [[ -z "$(kubectl -n observability get deployment pulse --ignore-not-found -o name)" ]]
+      - name: Bootstrap Pulse pilot authentication without rotating it
+        run: |
+          set -euo pipefail
+          # Pulse (flux/pulse) mounts pulse-auth, its in-cluster admin login,
+          # which no vault holds; its pod waits for this Secret on first install.
+          umask 077
+          passwd="$RUNNER_TEMP/pulse-passwd"
+          trap 'rm -f "$passwd" "$passwd.log"' EXIT
+          printf 'pilot=%s\n' "$(openssl rand -hex 32)" > "$passwd"
+          if ! kubectl -n observability create secret generic pulse-auth --from-file=passwd="$passwd" > "$passwd.log" 2>&1; then
+            grep -q 'secrets "pulse-auth" already exists' "$passwd.log"
+          fi
       - name: Install management-cluster monitoring
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

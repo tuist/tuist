@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "02ed85b6af3698d9a6819c8f0981b1cfb77535081e05179402123877c3451a45",
+  "hash": "1d894c988a6a95c1a037ecb92a8f7dbd22889f59c93e6fed7a245964320cfeee",
   "hash_tree": {
     "root": {
       "children": [
@@ -38,10 +38,10 @@
                   "content_hash": "2754eafd8e752cb6dc5adb1feeb5ff92eef864da76417043cb52be4f4536c1b3"
                 },
                 "### Pulse": {
-                  "content_hash": "ba4efcb7a54e26ec4a575b0c1b9f5bef0da8ecd254c94704a93fb88c7f242301"
+                  "content_hash": "45bc44d4db9ba010c553b973a24a94cab92a7c9fb47ebc20614bbcabd7d41880"
                 },
                 "### Tools": {
-                  "content_hash": "375339b6975176eee068df783423d82cdfaf6465103fb1231e720c2ba17c59e2"
+                  "content_hash": "567e276366b6da045cf72bd96b8c61d9632bfbe119ec50ca1a4de292f531f06f"
                 },
                 "#### AI subscriptions": {
                   "content_hash": "07059a7a05eedab86d512f351b7792c74e90b9cb489a2c62029866037982d959"
@@ -134,11 +134,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "616cadbbd824bb9b5ac985771b6a6f7327d545172b1c8947aaf7e9ebd7ce2393",
+          "hash": "3ab9086cf11c3719a963a8addf7d7a1d535021fde59c5cbaa484ccc91c148562",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "e8fb364fa05b90376eb35c24dae1d166e479f35e9973b4ca96c43057a95a3fb7"
+            "content_hash": "4a887e298b79913577169f0c8c8a0dc40e70f5c6bbd533fca1d4321eba744052"
           }
         },
         {
@@ -313,6 +313,12 @@
                         "term_hash": "c2af27b2919bbf3d9320486d2b9f21315d59ed40d6666f0eb9efef7db35f8855",
                         "translation_hash": "2036b9c4f77767487b222fcf6744fa1ef2e9d84313d0a44ba77ad111440b6246"
                       },
+                      "entry:4d6732f147755858d10ddfac34b5c1a5bc141561149e435b4882a14d62293f0f": {
+                        "case_sensitive": false,
+                        "definition_hash": "cd65a78317278697eb1157d280c257dce0b376b325ab023a2836645be7e0fe98",
+                        "term_hash": "4037494891a78d3446771726a340742ed3140da6174c837a00621eda15527faa",
+                        "translation_hash": "f3b93a96d0c47359402fb9cb980277e799697cd9bbafc1d0c19e87944a85cf0e"
+                      },
                       "entry:7befb5c83871d2860b43aac39fddec101a2937f1a1d38a8801dce3af942ea274": {
                         "case_sensitive": false,
                         "definition_hash": "6d01681e776350994a52dbaa7e386d0eb5f92086e8f9169dcf9f36e59e3360c9",
@@ -339,16 +345,16 @@
                       }
                     }
                   },
-                  "hash": "938a63223631c39bc6dadad34b9c1402666df365bb90fcee6d5508ba7674f9da",
+                  "hash": "2080e7f60d040d575e01259c42ad7e30ff101441c48e88f5567b62c478a1de34",
                   "kind": "context",
                   "label": "terminology",
                   "metadata": {
-                    "content_hash": "440cbe655afbdd811f0d1dafc429ea1475e81a75a5efefedf1e43074c3786ba5"
+                    "content_hash": "2937403d63fa7c9f3d796fe61700e2e8920e3d959303dc467844dd363878b016"
                   }
                 }
               ],
               "details": {},
-              "hash": "d7cd744e60be7f867c7d6e85bb5409c19d9105c93e585dac9c34c544af969acd",
+              "hash": "2d5a1de45a3d24197baf69d99adcf29a051291a2dbaa88bc7ab279ad924f87a1",
               "kind": "server_context",
               "label": "organization",
               "metadata": {
@@ -358,21 +364,21 @@
             }
           ],
           "details": {},
-          "hash": "54c8ec969b0fd776778d6b233c162d78fd78afac2dc0e11e97a80c18277848c0",
+          "hash": "dc9aeb0deb713ef69a4e0b407a9344e58bf8b987c6e616ebcfa66c66070f0a4f",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "02ed85b6af3698d9a6819c8f0981b1cfb77535081e05179402123877c3451a45",
+      "hash": "1d894c988a6a95c1a037ecb92a8f7dbd22889f59c93e6fed7a245964320cfeee",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "58d4824758a216303c9da1fa4792480c245d98806583f328b51858491715f276",
+  "output_hash": "461cd0fc468fb11e6a3791d6e42577eb192bc6048bf95fbd9023d872411be339",
   "output_path": "server/priv/docs/zh_Hans/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -383,11 +389,12 @@
         "repo:cache-hit",
         "repo:features",
         "repo:flaky-tests",
+        "repo:selective-testing",
         "repo:test-case",
         "repo:test-run",
         "repo:tests"
       ],
-      "content_hash": "440cbe655afbdd811f0d1dafc429ea1475e81a75a5efefedf1e43074c3786ba5",
+      "content_hash": "2937403d63fa7c9f3d796fe61700e2e8920e3d959303dc467844dd363878b016",
       "shadowed": [],
       "version": null
     },
@@ -397,8 +404,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4f898204f78a918142651ad3d36e1bc912cb6c1f",
+  "source_commit_sha": "4404805cab9220c4cb9cbec1b1b05e92b0c795da",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-13T14:44:39.087601Z",
-  "translation_session_id": "01a1d55c-6b9e-78c1-b839-7703cf151f90"
+  "translated_at": "2026-11-14T08:45:53.870668Z",
+  "translation_session_id": "01a1d92b-f893-78d3-9ac4-4e89a10dcc5a"
 }

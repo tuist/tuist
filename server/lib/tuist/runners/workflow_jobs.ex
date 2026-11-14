@@ -518,6 +518,14 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  Whether `account_id` has ever had a job on Tuist Runners, through any
+  provider.
+  """
+  def any_for_account?(account_id) when is_integer(account_id) do
+    Repo.exists?(from(j in WorkflowJob, where: j.account_id == ^account_id))
+  end
+
+  @doc """
   `account_id`'s lifecycle row for `workflow_job_id`, or `nil` when the
   account has no such row.
   """

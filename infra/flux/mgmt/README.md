@@ -17,7 +17,7 @@ mechanism; a degraded control plane pages via Grafana Cloud.
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
 | tenants `hive-production`, `once-production`, `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
-| Cloudflare operator Helm release and `tuist.dev` rate-limit configuration | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
+| Cloudflare operator Helm release and `tuist.dev` rate-limit configuration; management's own Pulse and its Grafana PDC agent | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
 scoped to a single `workloads/<cluster>/` subdir. Key invariants:
@@ -57,6 +57,18 @@ To roll back, pin `HelmRelease.spec.chart.spec.version` to a known published
 version in a reviewed PR; restore the range only when resuming upgrades.
 Do not change the image independently of its chart or deploy another Helm
 release alongside the existing `cloudflare-operator` release.
+
+`pulse.yaml` installs management's own Pulse (`infra/flux/pulse`): the
+`infra/helm/greptimedb` chart read from this GitRepository at Flux's revision,
+with `values-management.yaml`, as release `pulse` in `observability`. It waits
+for the release, so a missing `tuist-k8s-mgmt` vault item fails only this
+child. `pulse-pdc.yaml` runs Grafana Cloud's PDC agent for it
+(`infra/flux/pulse-pdc`) without waiting, so a missing `PDC_AGENT` token never
+holds Pulse back. `mgmt-cluster-apply.yml` creates its in-cluster `pulse-auth`
+login and removes the legacy Elixir release. The chart is versioned by commit,
+so every main commit runs a no-op Helm upgrade; a failed one (for example while
+`tuist-mgmt` is down) only marks this release not Ready until the next commit.
+Roll back by reverting the chart or values in git.
 
 The adopted rate-limit resource starts in `read_only`. That mode deliberately
 reports `Ready=False`, so the configuration Kustomization does not wait on

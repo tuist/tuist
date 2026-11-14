@@ -23,7 +23,6 @@ alias Tuist.Runners.Catalog
 # Initial Pulse enrollment is one stable organization account ID, never a handle
 # supplied by the browser. Leave unset outside the Tuist deployment.
 config :tuist, :pulse,
-  backend: Map.fetch!(%{"pulse" => :pulse, "greptime" => :greptime}, System.get_env("TUIST_PULSE_BACKEND", "pulse")),
   account_id:
     if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
   base_url: System.get_env("TUIST_PULSE_URL"),

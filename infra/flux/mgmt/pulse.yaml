@@ -1,0 +1,19 @@
+# Management's own Pulse (Tuist's GreptimeDB fork), so its metrics never
+# depend on a workload cluster. Independent child: missing vault items or
+# bucket access fail only this, never Cluster reconciliation.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: pulse
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infra/flux/pulse
+  prune: true
+  wait: true
+  force: false

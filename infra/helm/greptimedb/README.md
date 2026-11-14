@@ -14,9 +14,8 @@ dispatching a deployment. Pushes and pull requests only validate; deploying
 needs a `Pulse GreptimeDB Replacement` dispatch from main, and canary/production
 dispatches need their protected-environment approval.
 
-The legacy Elixir Pulse release was uninstalled from every workload cluster
-before this release took over its name. The interim `greptimedb` release that
-ran upstream GreptimeDB in staging and canary is replaced, not migrated: see
+The interim `greptimedb` release that ran upstream GreptimeDB in staging and
+canary is replaced, not migrated: see
 [Uninstalling the old greptimedb release](#uninstalling-the-old-greptimedb-release).
 
 ## Bootstrap prerequisites
@@ -24,19 +23,25 @@ ran upstream GreptimeDB in staging and canary is replaced, not migrated: see
 These are desired configuration, **not a record of provisioned resources**:
 
 - Preserve `tuist-pulso-{staging,canary,production}` and their bucket-scoped
-  credentials. The historical bucket names are intentional; Greptime writes under
-  its own `pulse/` prefix and never rewrites legacy Pulse objects (under
-  `tenants/`, `auth/` and `.pulse/`). Only `purge_greptimedb` deletes the interim
+  credentials. The historical bucket names are intentional; Pulse writes under
+  its own `pulse/` prefix. Only `purge_greptimedb` deletes the interim
   release's `greptimedb/` objects.
 - In each environment's `onepassword` ClusterSecretStore vault, provide
-  `PULSE_TOKEN/password`, `PULSE_SECRET_KEY_BASE/password` and
-  `PULSE_S3_CREDENTIALS` fields `access_key_id` and `secret_access_key`. Keep the
-  existing values: collectors authenticate with the same token.
+  `PULSE_TOKEN/password` and `PULSE_S3_CREDENTIALS` fields `access_key_id` and
+  `secret_access_key`. Keep the existing values: collectors authenticate with
+  the same token.
 - Confirm the ESO store is ready, the CI environment has its usual
   `OP_SERVICE_ACCOUNT_TOKEN`, and the general pool has the requested capacity.
-- The management cluster runs no Pulse. Its last Elixir Pulse release was
-  removed with its Flux child; the private `tuist-pulse-management` bucket and
-  its **`tuist-k8s-mgmt`** vault items are kept as history.
+- The management cluster runs its own standalone Pulse, installed by Flux
+  (`infra/flux/pulse`) with `values-management.yaml`, so its metrics never
+  depend on a workload cluster. It writes `tuist-pulse-management/pulse/` with
+  the **`tuist-k8s-mgmt`** vault's `PULSE_TOKEN` and `PULSE_S3_CREDENTIALS`
+  (`mgmt-cluster-apply.yml` creates its `pulse-auth` Secret), and
+  keeps its WAL and catalog on `tuist-mgmt`'s `/var/lib/tuist-pulse` because
+  management has no volume provisioner. CI's TTL and storage checks do not run
+  there; it keeps data indefinitely. Grafana reaches it through its own PDC
+  agent (`infra/flux/pulse-pdc`), whose token is `PDC_AGENT/password` in the
+  same vault.
 
 ## Topologies
 
@@ -140,7 +145,7 @@ separately; Helm readiness is not evidence of it.
 only numeric IDs and booleans; raw RPC output is withheld.
 
 Product readers are configured declaratively in the `tuist` chart: staging and
-production read Greptime (`TUIST_PULSE_BACKEND=greptime`, database `public`,
+production read Pulse (database `public`,
 username `dashboard`); canary has no enrolled reader. Logs and traces support
 literal text search rather than LogQL/TraceQL.
 
@@ -150,8 +155,7 @@ The server's collector readiness gate (`pulse-readiness.sh`) follows the live
 workloads. With no `pulse` release installed it passes, and collectors still
 deploy to Grafana Cloud. Otherwise every workload of the installed topology must
 be Helm-owned by `pulse`, fully rolled out and Ready, and run a published
-`ghcr.io/tuist/pulse:<version>-<n>` image; legacy `pulso` writers still
-fail closed. The observability concurrency lane serializes these dispatches and
+`ghcr.io/tuist/pulse:<version>-<n>` image. The observability concurrency lane serializes these dispatches and
 routine collector upgrades.
 
 ## Authentication, schema and network
@@ -219,7 +223,7 @@ deliberately. It runs the uninstall above first, refuses while any pod mounts a
 Hetzner volume goes with it, deletes the claims and `greptimedb-auth`, then runs
 a pod with the `pulse-credentials` storage key that removes only
 `s3://tuist-pulso-<env>/greptimedb/` and fails unless the prefix ends empty.
-Pulse's `pulse/` data and legacy Pulse objects in the same bucket are untouched.
+Pulse's `pulse/` data in the same bucket is untouched.
 
 The backend deploy's storage probe does not depend on any release's Secret: it
 creates a run-scoped ExternalSecret from the rendered chart's

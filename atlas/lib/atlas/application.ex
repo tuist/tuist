@@ -15,7 +15,6 @@ defmodule Atlas.Application do
   alias Atlas.Engineering.Errors.IssueAccountCoalescer
   alias Atlas.Engineering.Errors.IssueCoalescer
   alias Atlas.Engineering.Errors.KeyTouches
-  alias Atlas.Engineering.Errors.PulseMirror
   alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
@@ -108,7 +107,7 @@ defmodule Atlas.Application do
         IssueAccountCoalescer,
         KeyTouches,
         Supervisor.child_spec({Task, &SelfMonitor.install/0}, id: SelfMonitor)
-      ] ++ PulseMirror.children()
+      ]
     else
       []
     end

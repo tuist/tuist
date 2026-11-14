@@ -4,25 +4,14 @@ defmodule Tuist.Pulse.Table do
   @sorts %{
     "metrics" => ~w(name value),
     "logs" => ~w(timestamp service level message trace_id),
-    "traces" => ~w(timestamp service name duration_ms trace_id),
-    "errors" => ~w(last_seen_ns first_seen_ns count title service project issue_id)
+    "traces" => ~w(timestamp service name duration_ms trace_id)
   }
 
-  def validate(signal, params, mode \\ :table)
-
-  def validate(signal, params, mode) when is_map(params) and is_map_key(@sorts, signal) do
-    filters =
-      case signal do
-        "metrics" -> ~w(service)
-        "logs" -> ~w(service level)
-        "traces" -> ~w(service)
-        "errors" -> ~w(project environment release service)
-      end
+  def validate(signal, params) when is_map(params) and is_map_key(@sorts, signal) do
+    filters = if signal == "logs", do: ~w(service level), else: ~w(service)
 
     keys =
-      ~w(range end_at page page_size) ++
-        filters ++
-        Enum.map(filters, &(&1 <> "_op")) ++ if(mode == :table, do: ~w(query search sort_by sort_order), else: [])
+      ~w(range end_at page page_size query search sort_by sort_order) ++ filters ++ Enum.map(filters, &(&1 <> "_op"))
 
     query = Map.get(params, "query", Tuist.Pulse.default_query(signal))
     sort = Map.get(params, "sort_by", default_sort(signal))
@@ -30,7 +19,7 @@ defmodule Tuist.Pulse.Table do
     range = Map.get(params, "range", "1h")
 
     with true <- Enum.all?(Map.keys(params), &(&1 in keys)),
-         true <- valid_query?(signal, query),
+         true <- valid_query?(query),
          true <- Enum.all?(filters ++ ["search"], &valid_text?(Map.get(params, &1, ""))),
          true <- Enum.all?(filters, &(Map.get(params, &1 <> "_op", "eq") in ~w(eq contains not_contains))),
          true <- valid_sort?(signal, sort, order),
@@ -57,9 +46,9 @@ defmodule Tuist.Pulse.Table do
     end
   end
 
-  def validate(_, _, _), do: {:error, :invalid_params}
+  def validate(_, _), do: {:error, :invalid_params}
 
-  defp valid_query?(signal, query), do: valid_text?(query) and (signal == "errors" or String.trim(query) != "")
+  defp valid_query?(query), do: valid_text?(query) and String.trim(query) != ""
   defp valid_sort?(signal, sort, order), do: sort in Map.fetch!(@sorts, signal) and order in ~w(asc desc)
   defp valid_range?(range), do: is_binary(range) and Map.has_key?(@ranges, range)
   defp valid_end?(params), do: not Map.has_key?(params, "end_at") or is_binary(params["end_at"])
@@ -68,7 +57,6 @@ defmodule Tuist.Pulse.Table do
     do: DateTime.to_unix(finish) >= @ranges[range] and DateTime.to_unix(finish) <= 9_223_372_036
 
   defp default_sort("metrics"), do: "name"
-  defp default_sort("errors"), do: "last_seen_ns"
   defp default_sort(_), do: "timestamp"
   defp valid_text?(value), do: is_binary(value) and byte_size(value) <= 4096 and String.valid?(value)
   defp integer(value, min, max) when is_integer(value) and value >= min and value <= max, do: {:ok, value}
@@ -113,8 +101,8 @@ defmodule Tuist.Pulse.Table do
     {Enum.slice(rows, (opts.page - 1) * opts.page_size, opts.page_size), meta}
   end
 
-  def filters?(row, params) do
-    Enum.all?(~w(service level project environment release), fn key ->
+  defp filters?(row, params) do
+    Enum.all?(~w(service level), fn key ->
       value = params[key]
       actual = row[key] || if(key == "service", do: get_in(row, ["labels", "service_name"])) || ""
 
@@ -129,13 +117,10 @@ defmodule Tuist.Pulse.Table do
 
   defp matches?(row, opts) do
     search = String.downcase(Map.get(opts.params, "search", ""))
-    title = String.downcase(opts.query)
-
-    filters?(row, opts.params) and String.contains?(String.downcase(JSON.encode!(row)), search) and
-      (not Map.has_key?(row, "issue_id") or String.contains?(String.downcase(row["title"] || ""), title))
+    filters?(row, opts.params) and String.contains?(String.downcase(JSON.encode!(row)), search)
   end
 
-  defp sort_value(row, key) when key in ~w(timestamp timestamp_ns first_seen_ns last_seen_ns) do
+  defp sort_value(row, "timestamp" = key) do
     case row[key] do
       value when is_binary(value) -> String.to_integer(value)
       value -> value

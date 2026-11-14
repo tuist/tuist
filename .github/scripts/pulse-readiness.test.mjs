@@ -22,7 +22,7 @@ test('managed product configuration scopes Greptime to each environment\'s Tuist
     // The tuist account is 2 in staging and 3 in production; canary has no reader.
     const accountID = {staging: '2', production: '3'}[environment];
     assert.deepEqual(connection, accountID ? {
-      TUIST_PULSE_BACKEND: 'greptime', TUIST_PULSE_ACCOUNT_ID: accountID,
+      TUIST_PULSE_ACCOUNT_ID: accountID,
       TUIST_PULSE_URL: 'http://pulse.observability.svc.cluster.local:4000', TUIST_PULSE_TENANT: 'public',
     } : {}, environment);
     const secret = objects.find(object => object.kind === 'ExternalSecret' &&
@@ -53,14 +53,6 @@ if (kind === 'externalsecret') {
   if (scenario === 'ingest login missing') process.exit(1);
   console.log(JSON.stringify({spec:{target:{template:{data:{passwd:'', 'ingest-username':'tuist', 'ingest-password':''}}}},
     status:{conditions:[{type:'Ready', status:scenario === 'ingest login unready' ? 'False' : 'True'}]}}));
-  process.exit(0);
-}
-if (kind === 'deployment' && name === 'pulso') {
-  if (scenario === 'legacy deployment') console.log(JSON.stringify({spec:{replicas:1}}));
-  process.exit(0);
-}
-if (kind === 'pods') {
-  console.log(JSON.stringify({items:scenario === 'legacy pod' ? [{spec:{containers:[{image:'ghcr.io/tuist/pulso@sha256:old'}]}}] : []}));
   process.exit(0);
 }
 const cluster = scenario.startsWith('cluster');
@@ -100,7 +92,7 @@ console.log(JSON.stringify(value));
     for (const environment of ['staging', 'canary', 'production']) {
       for (const scenario of [...Object.keys(accepted), 'standalone unready', 'standalone scaled up', 'standalone revision',
         'standalone upstream image', 'standalone digest-only image', 'standalone sidecar', 'owner', 'stale generation',
-        'legacy deployment', 'legacy pod', 'cluster frontend unready', 'cluster kafka revision', 'cluster metasrv upstream image',
+        'cluster frontend unready', 'cluster kafka revision', 'cluster metasrv upstream image',
         'cluster metasrv missing', 'cluster datanode scaled down']) {
         const result = spawnSync('bash', ['-c', step], {encoding:'utf8', env:{...process.env,
           PATH:`${work}:${process.env.PATH}`, SCENARIO:scenario, DEPLOY_ENV:environment,
@@ -140,7 +132,7 @@ if (args.includes('deployments')) {
   console.log('runtime startup ' + canary);
   console.error('runtime diagnostic ' + canary);
   if (scenario === 'RPC failure') process.exit(1);
-  const record = {account_id:11,enrolled_account_id:null,pulse_reader_available:false,greptime_adapter_available:false,greptime_backend:false,
+  const record = {account_id:11,enrolled_account_id:null,pulse_reader_available:false,greptime_adapter_available:false,
     expected_endpoint:false,expected_database:false,pulse_flag:true,password:canary,url:'https://user:'+canary+'@example.invalid'};
   if (scenario === 'untyped metadata') record.account_id=canary;
   console.log('STAGING_READER_INSPECTION=' + JSON.stringify(record));

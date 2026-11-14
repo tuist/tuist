@@ -1,70 +1,53 @@
 defmodule Tuist.Pulse do
   @moduledoc """
-  Authorized, read-only queries against one server-configured Pulse tenant.
+  Authorized, read-only queries against one server-configured Pulse database.
 
   String-keyed parameters accept `query`, `range` (15m, 1h, 6h, 24h), `search`,
   `page` (default 1), `page_size` (1..100, default 20), `sort_by`, `sort_order`
   (asc/desc), and an ISO8601 `end_at` (normalized to inclusive UTC seconds).
   Metrics sort by name/value; logs by timestamp/service/level/message/trace_id;
-  traces by timestamp/service/name/duration_ms/trace_id; issues by
-  last_seen_ns/first_seen_ns/count/title/service/project/issue_id. Missing
-  measurements sort last. Native expressions apply to metrics/logs/traces;
-  error `query` is a literal, case-insensitive title search, defaulting to empty.
-  With the Greptime backend, metrics retain PromQL; log bodies and span names
-  accept literal, case-insensitive text instead of LogQL/TraceQL (`*` selects
-  all). Errors are unavailable. Greptime trace rows represent individual spans.
+  traces by timestamp/service/name/duration_ms/trace_id. Missing measurements
+  sort last. Metrics accept PromQL; log bodies and span names accept literal,
+  case-insensitive text (`*` selects all). Trace rows represent individual spans.
 
-  Service filters apply to every signal, level to logs, and project/environment/
-  release to errors. Each has an optional `_op`: eq (default, case-sensitive),
-  contains or not_contains (case-insensitive literal). Filters are ANDed and
-  empty values ignored. Search is a literal case-insensitive projected-row search.
-  All filtering and sorting precedes pagination. Rows, series and metadata use
-  string keys; result envelope keys are atoms. Series follow the metric page.
+  Service filters apply to every signal and level to logs. Each has an optional
+  `_op`: eq (default, case-sensitive), contains or not_contains
+  (case-insensitive literal). Filters are ANDed and empty values ignored. Search
+  is a literal case-insensitive projected-row search. All filtering and sorting
+  precedes pagination. Rows, series and metadata use string keys; result
+  envelope keys are atoms. Series follow the metric page.
 
-  Logs and traces inspect up to 100 native-query matches. Filtering, sorting and
+  Logs and traces inspect up to 100 newest matches. Filtering, sorting and
   table totals cover only returned results, not the complete time window.
   Upstream warnings are preserved without generating a result-limit warning.
-  Logs always select newest first before local sorting.
   Metric tables evaluate an instant snapshot at end_at, not a
   historical grid; analytics provide history. Metrics allow at most 5000 series
   and 361 points per series;
   oversized metric cohorts fail whole. HTTP bodies cap at 8 MiB before JSON
-  decoding. Native error reads scan at most 5000 occurrences and 32 MiB, collect
-  all 2 MiB cursor pages under one snapshot (at most 32 pages), and cap collected
-  JSON at 32 MiB.
+  decoding.
   Pinned time bounds are not an ingestion watermark: later ingestion/retention
-  can change a subsequent numbered page's cohort. Native cursors reject changes
-  within a single collection. No snapshot state is retained on Tuist replicas.
+  can change a subsequent numbered page's cohort. No snapshot state is retained
+  on Tuist replicas.
 
-  Log/trace/event timestamps retain Unix nanoseconds as strings; issue bounds
-  are native integer nanoseconds, metric points Unix seconds. Error details
-  allowlist exception fields (10 exceptions, 100 frames each, 4096 characters
-  per text field) and bounded, sanitized tags, contexts, extra and modules.
-  Locals and request/auth/user payloads are not returned. `analytics/4` keeps
-  its independent aggregate contract.
+  Log/trace timestamps retain Unix nanoseconds as strings; metric points are
+  Unix seconds. `analytics/4` keeps its independent aggregate contract.
   """
 
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
-  alias Tuist.Pulse.Errors
   alias Tuist.Pulse.Greptime
   alias Tuist.Pulse.Table
   alias Tuist.Tasks
 
   @ranges %{"15m" => 900, "1h" => 3600, "6h" => 21_600, "24h" => 86_400}
-  @signals ~w(metrics logs traces errors)
+  @signals ~w(metrics logs traces)
   @limit 100
   @points 361
 
   def default_query("metrics"), do: "up"
-  def default_query("logs"), do: if(greptime?(), do: "*", else: ~s({service_name=~".+"}))
-  def default_query("traces"), do: if(greptime?(), do: "*", else: "{}")
-  def default_query("errors"), do: ""
+  def default_query(signal) when signal in ~w(logs traces), do: "*"
   def default_query(_signal), do: nil
-
-  def greptime?, do: Keyword.get(Environment.pulse_config(), :backend, :pulse) == :greptime
-  def errors_available?, do: not greptime?()
 
   def available?(%{id: id} = account) do
     account_id = Keyword.get(Environment.pulse_config(), :account_id)
@@ -83,7 +66,6 @@ defmodule Tuist.Pulse do
 
   def query(user, account, signal, params) do
     with true <- authorized?(user, account),
-         true <- signal != "errors" or errors_available?(),
          {:ok, opts} <- Table.validate(signal, params),
          {:ok, client} <- credentials() do
       execute(signal, opts, client)
@@ -91,38 +73,6 @@ defmodule Tuist.Pulse do
       false -> {:error, :forbidden}
       error -> error
     end
-  end
-
-  def error_issue(user, account, issue_id, params) do
-    with true <- errors_available?() and authorized?(user, account),
-         :ok <- valid_ids(issue_id),
-         {:ok, opts} <- Table.validate("errors", params, :detail),
-         {:ok, client} <- credentials() do
-      Errors.issue(issue_id, opts, &error_call(client, &1, &2))
-    else
-      false -> {:error, :forbidden}
-      error -> error
-    end
-  end
-
-  def error_event(user, account, issue_id, event_id, params) do
-    with true <- errors_available?() and authorized?(user, account),
-         :ok <- valid_ids(issue_id, event_id),
-         {:ok, opts} <- Table.validate("errors", params, :detail),
-         {:ok, client} <- credentials() do
-      Errors.event(issue_id, event_id, opts, &error_call(client, &1, &2))
-    else
-      false -> {:error, :forbidden}
-      error -> error
-    end
-  end
-
-  defp valid_ids(issue) do
-    if Errors.issue_id?(issue), do: :ok, else: {:error, :invalid_params}
-  end
-
-  defp valid_ids(issue, event) do
-    if Errors.issue_id?(issue) and Errors.event_id?(event), do: :ok, else: {:error, :invalid_params}
   end
 
   @doc """
@@ -133,21 +83,17 @@ defmodule Tuist.Pulse do
   window (the gauge at the current window's start for metrics). Missing values
   remain nil, independently in each period; only the current period has points.
 
-  One snapshot is aligned down to the chart step (at most 240 seconds) so Tempo's
-  epoch-aligned buckets cannot read outside the selected window. Log and error
+  One snapshot is aligned down to the chart step (at most 240 seconds). Log
   charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
-  at most 360 points, to use native log rollups. Full-window totals and distinct
-  service counts are independent instant queries, never sums of chart buckets.
-  Trace counts are spans, not traces. Duration quantiles are Pulse's approximate
-  duration buckets.
+  at most 360 points. Full-window totals are independent queries, never sums of
+  chart buckets. Trace counts are spans, not traces. Duration quantiles are
+  approximate.
   """
   def analytics(user, account, signal, params) do
     with true <- authorized?(user, account),
-         true <- signal != "errors" or errors_available?(),
          {:ok, seconds} <- analytics_range(signal, params),
          {:ok, client} <- credentials() do
-      # Minute multiples keep log/error buckets eligible for native rollups.
-      step = if signal in ~w(logs errors), do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
+      step = if signal == "logs", do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
       now = DateTime.to_unix(DateTime.utc_now(), :second)
       finish = now - rem(now, step)
       window = %{start: finish - seconds, finish: finish, seconds: seconds, step: step}
@@ -197,20 +143,21 @@ defmodule Tuist.Pulse do
     Enum.find_value(points, fn [timestamp, value] -> if timestamp == time, do: value end)
   end
 
-  defp analytics_sample(client, signal, {id, query, unit}, period, window) do
+  defp analytics_sample(client, "metrics", {id, query, unit}, :range, window) do
+    params = [query: query, start: window.start, end: window.finish, step: window.step]
+
+    with {:ok, body} <- request(client, "/api/v1/query_range", params),
+         {:ok, warnings} <- warnings(body),
+         {:ok, points} <- metric_points(body),
+         {:ok, points} <- aggregate_points(points, window) do
+      {:ok, {id, unit, :range, points, warnings}}
+    end
+  end
+
+  defp analytics_sample(client, signal, {id, unit}, period, window) do
     mode = if period == :previous, do: :instant, else: period
 
-    result =
-      if client.backend == :greptime and signal in ~w(logs traces) do
-        Greptime.aggregate(signal, id, mode, window, &request(client, "/v1/sql", &1))
-      else
-        {path, params} = analytics_request(signal, id, query, mode, window)
-
-        with {:ok, body} <- request(client, path, params),
-             do: analytics_result(signal, mode, body, window)
-      end
-
-    with {:ok, values, warnings} <- result do
+    with {:ok, values, warnings} <- Greptime.aggregate(signal, id, mode, window, &request(client, "/v1/sql", &1)) do
       {:ok, {id, unit, period, values, warnings}}
     end
   end
@@ -233,124 +180,24 @@ defmodule Tuist.Pulse do
     ]
   end
 
-  defp widget_queries("logs") do
-    [
-      {"entries", ~s({service_name=~".+"}), :count},
-      {"errors", ~s'{service_name=~".+",level=~"(?i)(error|fatal)"}', :count},
-      {"warnings", ~s'{service_name=~".+",level=~"(?i)(warning|warn)"}', :count}
-    ]
-  end
+  # Log and trace widget SQL is authored by Tuist.Pulse.Greptime from the id.
+  defp widget_queries("logs"), do: [{"entries", :count}, {"errors", :count}, {"warnings", :count}]
+  defp widget_queries("traces"), do: [{"spans", :count}, {"errors", :count}, {"duration_p95", :milliseconds}]
 
-  defp widget_queries("errors") do
-    [
-      {"events", ~s({error_source="sentry"}), :count},
-      {"fatal", ~s'{error_source="sentry",level=~"(?i)fatal"}', :count},
-      {"services", ~s({error_source="sentry",service_name=~".+"}), :count}
-    ]
-  end
+  defp metric_points(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => []}}), do: {:ok, []}
 
-  defp widget_queries("traces") do
-    [
-      {"spans", "{} | count_over_time()", :count},
-      {"errors", "{status=error} | count_over_time()", :count},
-      {"duration_p95", "{} | quantile_over_time(duration,0.95)", :milliseconds}
-    ]
-  end
-
-  defp analytics_request("metrics", _id, query, :instant, window),
-    do: {"/api/v1/query", [query: query, time: window.finish]}
-
-  defp analytics_request("metrics", _id, query, :range, window),
-    do: {"/api/v1/query_range", [query: query, start: window.start, end: window.finish, step: window.step]}
-
-  defp analytics_request("traces", _id, query, mode, window) do
-    path = if mode == :instant, do: "/api/metrics/query", else: "/api/metrics/query_range"
-    params = [q: query, start: window.start, end: window.finish]
-    {path, if(mode == :range, do: params ++ [step: "#{window.step}s"], else: params)}
-  end
-
-  defp analytics_request(signal, id, selector, mode, window) do
-    duration = if mode == :instant, do: window.seconds, else: window.step
-    counts = "count_over_time(#{selector}[#{duration}s])"
-
-    query =
-      if signal == "errors" and id == "services",
-        do: "count(sum by (service_name) (#{counts}))",
-        else: "sum(#{counts})"
-
-    if mode == :instant do
-      {"/loki/api/v1/query", [query: query, time: Integer.to_string(window.finish * 1_000_000_000)]}
-    else
-      # Each point counts (t-step, t], not a sliding full-period window.
-      {"/loki/api/v1/query_range",
-       [
-         query: query,
-         start: Integer.to_string((window.start + window.step) * 1_000_000_000),
-         end: Integer.to_string(window.finish * 1_000_000_000),
-         step: window.step
-       ]}
-    end
-  end
-
-  defp analytics_result(signal, mode, body, window) do
-    with {:ok, warnings} <- warnings(body),
-         {:ok, values} <- aggregate_values(signal, mode, body),
-         {:ok, values} <- aggregate_points(mode, values, window) do
-      # Tempo adds a leading interval ending at start. It is outside the
-      # requested period, not a truncated part of the selected analytics.
-      values =
-        if signal == "traces" and mode == :range,
-          do: Enum.reject(values, fn [timestamp, _] -> timestamp == window.start end),
-          else: values
-
-      {:ok, values, warnings}
-    end
-  end
-
-  defp aggregate_values("traces", :instant, %{"series" => []}), do: {:ok, nil}
-  defp aggregate_values("traces", :instant, %{"series" => [%{"value" => value}]}), do: analytics_number(value)
-  defp aggregate_values("traces", :range, %{"series" => []}), do: {:ok, []}
-
-  defp aggregate_values("traces", :range, %{"series" => [%{"samples" => samples}]})
-       when is_list(samples) and length(samples) <= @points do
-    collect(samples, fn
-      %{"timestampMs" => timestamp, "value" => value} when is_binary(timestamp) ->
-        with {millis, ""} when millis >= 0 <- Integer.parse(timestamp),
-             {:ok, number} <- analytics_number(value),
-             do: {:ok, [millis / 1000, number]}
+  defp metric_points(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => [%{"values" => values}]}})
+       when is_list(values) and length(values) <= @points do
+    collect(values, fn
+      [timestamp, value] when is_number(timestamp) and timestamp >= 0 ->
+        with {:ok, number} <- analytics_number(value), do: {:ok, [timestamp, number]}
 
       _ ->
         :error
     end)
   end
 
-  defp aggregate_values(signal, mode, %{"status" => "success", "data" => %{"resultType" => type, "result" => entries}})
-       when signal in ~w(metrics logs errors) and is_list(entries) do
-    case {mode, type, entries} do
-      {:instant, "vector", []} ->
-        {:ok, nil}
-
-      {:instant, "vector", [%{"value" => [_timestamp, value]}]} ->
-        analytics_number(value)
-
-      {:range, "matrix", []} ->
-        {:ok, []}
-
-      {:range, "matrix", [%{"values" => values}]} when is_list(values) and length(values) <= @points ->
-        collect(values, fn
-          [timestamp, value] when is_number(timestamp) and timestamp >= 0 ->
-            with {:ok, number} <- analytics_number(value), do: {:ok, [timestamp, number]}
-
-          _ ->
-            :error
-        end)
-
-      _ ->
-        {:error, :malformed_response}
-    end
-  end
-
-  defp aggregate_values(_signal, _mode, _body), do: {:error, :malformed_response}
+  defp metric_points(_body), do: {:error, :malformed_response}
 
   defp analytics_number(value) when is_number(value), do: {:ok, value}
   defp analytics_number(nil), do: {:ok, nil}
@@ -364,9 +211,8 @@ defmodule Tuist.Pulse do
   end
 
   defp analytics_number(_value), do: {:error, :malformed_response}
-  defp aggregate_points(:instant, value, _window), do: {:ok, value}
 
-  defp aggregate_points(:range, points, window) do
+  defp aggregate_points(points, window) do
     points = Enum.sort_by(points, &hd/1)
 
     if length(Enum.uniq_by(points, &hd/1)) == length(points) and
@@ -399,8 +245,8 @@ defmodule Tuist.Pulse do
             }
           end)
 
-        # Tempo emits zero-valued empty duration buckets. They are not measured
-        # zero durations; use the independently queried span counts as evidence.
+        # A duration without spans is not a measured zero duration; use the
+        # independently queried span counts as evidence.
         widgets = if signal == "traces", do: trace_duration_gaps(widgets), else: widgets
         warnings = Enum.flat_map(results, fn {:ok, {_, _, _, _, warnings}} -> warnings end)
         {:ok, %{widgets: widgets, warnings: warnings |> Enum.uniq() |> Enum.take(@limit)}}
@@ -429,6 +275,7 @@ defmodule Tuist.Pulse do
   defp credentials do
     config = Environment.pulse_config()
     url = Keyword.get(config, :base_url)
+    # Pulse's database name, sent as x-greptime-db-name.
     tenant = Keyword.get(config, :tenant)
 
     with true <- valid_url?(url) and header?(tenant),
@@ -437,7 +284,6 @@ defmodule Tuist.Pulse do
       {:ok,
        %{
          base_url: String.trim_trailing(url, "/"),
-         backend: Keyword.get(config, :backend, :pulse),
          tenant: tenant,
          token: token,
          token_file: Keyword.get(config, :token_file)
@@ -474,15 +320,13 @@ defmodule Tuist.Pulse do
 
   defp valid_url?(_url), do: false
 
-  defp execute("errors", opts, client), do: Errors.list(opts, &error_call(client, &1, &2))
-
   defp execute(signal, opts, client) do
     result =
-      if client.backend == :greptime and signal in ~w(logs traces) do
-        Greptime.query(signal, opts, &request(client, "/v1/sql", &1))
+      if signal == "metrics" do
+        with {:ok, body} <- request(client, "/api/v1/query", query: opts.query, time: opts.finish),
+             do: normalize(body)
       else
-        {path, params} = request_params(signal, opts.query, opts.finish - opts.seconds, opts.finish, opts.seconds)
-        with {:ok, body} <- request(client, path, params), do: normalize(signal, body)
+        Greptime.query(signal, opts, &request(client, "/v1/sql", &1))
       end
 
     with {:ok, result} <- result,
@@ -505,48 +349,25 @@ defmodule Tuist.Pulse do
   defp complete_result(_, %{rows: rows}) when length(rows) > 5000, do: {:error, :query_result_limit}
   defp complete_result(_, _), do: :ok
 
-  defp error_call(client, tool, args) do
-    # Configuration, not user parameters, is the sole tenant authority.
-    body = %{
-      "jsonrpc" => "2.0",
-      "id" => 1,
-      "method" => "tools/call",
-      "params" => %{
-        "name" => tool,
-        "arguments" => Map.put(args, "tenant", client.tenant),
-        "_meta" => %{
-          "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
-          "io.modelcontextprotocol/clientCapabilities" => %{},
-          "io.modelcontextprotocol/clientInfo" => %{"name" => "Tuist", "version" => Environment.version()}
-        }
-      }
-    }
-
-    request(client, "/mcp", [],
-      method: :post,
-      json: body,
-      headers: [{"mcp-protocol-version", "2026-07-28"}, {"mcp-method", "tools/call"}, {"mcp-name", tool}]
-    )
-  end
-
-  defp request(client, path, params, extra \\ []) do
+  defp request(client, path, params) do
     with {:ok, token} <- token(client.token_file, client.token),
          true <- header?(token) do
-      do_request(%{client | token: token}, path, params, extra)
+      do_request(%{client | token: token}, path, params)
     else
       _ -> {:error, :not_configured}
     end
   end
 
-  defp do_request(client, path, params, extra) do
-    {path, auth, headers} = request_target(client, path)
+  defp do_request(client, path, params) do
+    # Pulse serves its Prometheus-compatible API under /v1/prometheus.
+    path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
 
     request =
       Req.new(
-        method: Keyword.get(extra, :method, :get),
+        method: :get,
         url: client.base_url <> path,
-        auth: auth,
-        headers: [{"accept", "application/json"}] ++ headers ++ Keyword.get(extra, :headers, []),
+        auth: {:basic, "dashboard:" <> client.token},
+        headers: [{"accept", "application/json"}, {"x-greptime-db-name", client.tenant}],
         params: params,
         compressed: false,
         into: &bounded_body/2,
@@ -555,8 +376,6 @@ defmodule Tuist.Pulse do
         receive_timeout: 30_000,
         connect_options: [timeout: 10_000]
       )
-
-    request = if Keyword.has_key?(extra, :json), do: Req.merge(request, json: extra[:json]), else: request
 
     case Req.request(request) do
       {:ok, %Req.Response{body: :too_large}} -> {:error, :query_result_limit}
@@ -568,13 +387,6 @@ defmodule Tuist.Pulse do
       {:error, _reason} -> {:error, :unavailable}
     end
   end
-
-  defp request_target(%{backend: :greptime} = client, path) do
-    path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
-    {path, {:basic, "dashboard:" <> client.token}, [{"x-greptime-db-name", client.tenant}]}
-  end
-
-  defp request_target(client, path), do: {path, {:bearer, client.token}, [{"x-scope-orgid", client.tenant}]}
 
   defp bounded_body({:data, data}, {request, response}) do
     body = response.body || ""
@@ -598,28 +410,9 @@ defmodule Tuist.Pulse do
   defp decode_body(body) when is_binary(body), do: {:error, :query_result_limit}
   defp decode_body(_), do: {:error, :malformed_response}
 
-  defp request_params("metrics", query, _start, finish, _seconds) do
-    {"/api/v1/query", [query: query, time: finish]}
-  end
-
-  defp request_params("traces", query, start, finish, _seconds) do
-    {"/api/search", [q: query, start: start, end: finish, limit: @limit]}
-  end
-
-  defp request_params(_signal, query, start, finish, _seconds) do
-    {"/loki/api/v1/query_range",
-     [
-       query: query,
-       start: Integer.to_string(start * 1_000_000_000),
-       end: Integer.to_string(finish * 1_000_000_000),
-       limit: @limit,
-       direction: "backward"
-     ]}
-  end
-
-  defp normalize(signal, body) do
+  defp normalize(body) do
     with {:ok, warnings} <- warnings(body),
-         {:ok, rows, series} <- results(signal, body) do
+         {:ok, rows, series} <- results(body) do
       {:ok, %{rows: rows, series: series, warnings: warnings}}
     end
   end
@@ -634,14 +427,14 @@ defmodule Tuist.Pulse do
     end
   end
 
-  defp results("metrics", %{"status" => "success", "data" => %{"resultType" => "scalar", "result" => value}}) do
-    results("metrics", %{
+  defp results(%{"status" => "success", "data" => %{"resultType" => "scalar", "result" => value}}) do
+    results(%{
       "status" => "success",
       "data" => %{"resultType" => "vector", "result" => [%{"metric" => %{}, "value" => value}]}
     })
   end
 
-  defp results("metrics", %{"status" => "success", "data" => %{"resultType" => "vector", "result" => entries}})
+  defp results(%{"status" => "success", "data" => %{"resultType" => "vector", "result" => entries}})
        when is_list(entries) do
     entries =
       Enum.map(entries, fn
@@ -649,10 +442,10 @@ defmodule Tuist.Pulse do
         _ -> nil
       end)
 
-    results("metrics", %{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}})
+    results(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}})
   end
 
-  defp results("metrics", %{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}})
+  defp results(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}})
        when is_list(entries) do
     with {:ok, series} <- collect(entries, &metric/1) do
       rows =
@@ -665,18 +458,7 @@ defmodule Tuist.Pulse do
     end
   end
 
-  defp results(signal, %{"status" => "success", "data" => %{"resultType" => "streams", "result" => entries}})
-       when signal in ~w(logs errors) and is_list(entries) do
-    with {:ok, streams} <- collect(entries, &log_stream/1) do
-      {:ok, streams |> List.flatten() |> latest(), []}
-    end
-  end
-
-  defp results("traces", %{"traces" => traces}) when is_list(traces) do
-    with {:ok, rows} <- collect(traces, &trace/1), do: {:ok, latest(rows), []}
-  end
-
-  defp results(_signal, _body), do: {:error, :malformed_response}
+  defp results(_body), do: {:error, :malformed_response}
 
   defp collect(entries, fun) do
     entries
@@ -720,98 +502,4 @@ defmodule Tuist.Pulse do
   end
 
   defp point(_point), do: :error
-
-  defp log_stream(%{"stream" => labels, "values" => values}) when is_map(labels) and is_list(values) do
-    collect(values, &log_row(&1, labels))
-  end
-
-  defp log_stream(_stream), do: :error
-
-  defp log_row([timestamp, line | rest], labels) when is_binary(line) do
-    with {:ok, timestamp} <- nanoseconds(timestamp) do
-      metadata =
-        case rest do
-          [%{} = metadata] -> metadata
-          _ -> %{}
-        end
-
-      fields =
-        case JSON.decode(line) do
-          {:ok, %{} = fields} -> fields
-          _ -> %{}
-        end
-
-      {:ok,
-       %{
-         "timestamp" => timestamp,
-         "service" => text(labels["service_name"]) || "",
-         "level" => text(labels["level"]) || text(labels["severity_text"]) || text(fields["level"]) || "",
-         "message" => log_message(line, fields),
-         "trace_id" => log_trace_id(metadata, labels, fields)
-       }}
-    end
-  end
-
-  defp log_row(_entry, _labels), do: :error
-
-  defp log_trace_id(metadata, labels, fields) do
-    text(metadata["trace_id"]) || text(labels["trace_id"]) || text(fields["trace_id"]) ||
-      nested_text(fields, "contexts", "trace", "trace_id") || ""
-  end
-
-  defp log_message(line, fields) do
-    case JSON.decode(line) do
-      {:ok, %{} = event} ->
-        text(event["message"]) || nested_text(fields, "logentry", "formatted") ||
-          nested_text(fields, "logentry", "message") || exception_message(event) || "Structured log"
-
-      {:ok, _structured} ->
-        "Structured log"
-
-      {:error, _reason} ->
-        text(line)
-    end
-  end
-
-  defp exception_message(%{"exception" => %{"values" => values}}) when is_list(values) do
-    case List.last(values) do
-      %{"type" => type, "value" => value} when is_binary(type) and is_binary(value) -> text(type <> ": " <> value)
-      _ -> nil
-    end
-  end
-
-  defp exception_message(_event), do: nil
-
-  defp nested_text(map, key, child), do: if(is_map(map[key]), do: text(map[key][child]))
-  defp nested_text(map, key, child, field), do: if(is_map(map[key]), do: nested_text(map[key], child, field))
-  defp text(value) when is_binary(value), do: String.slice(value, 0, 4096)
-  defp text(_value), do: nil
-
-  defp trace(%{"traceID" => id, "startTimeUnixNano" => timestamp} = trace) when is_binary(id) and id != "" do
-    with {:ok, timestamp} <- nanoseconds(timestamp),
-         true <- is_nil(trace["durationMs"]) or is_number(trace["durationMs"]) do
-      {:ok,
-       %{
-         "trace_id" => id,
-         "service" => text(trace["rootServiceName"]),
-         "name" => text(trace["rootTraceName"]),
-         "duration_ms" => trace["durationMs"],
-         "timestamp" => timestamp
-       }}
-    end
-  end
-
-  defp trace(_trace), do: :error
-
-  defp nanoseconds(value) when is_integer(value) and value >= 0, do: {:ok, Integer.to_string(value)}
-
-  defp nanoseconds(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {number, ""} when number >= 0 -> {:ok, Integer.to_string(number)}
-      _ -> :error
-    end
-  end
-
-  defp nanoseconds(_value), do: :error
-  defp latest(rows), do: Enum.sort_by(rows, &String.to_integer(&1["timestamp"]), :desc)
 end

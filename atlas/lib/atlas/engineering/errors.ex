@@ -51,7 +51,6 @@ defmodule Atlas.Engineering.Errors do
   alias Atlas.Engineering.Errors.IssueCoalescer
   alias Atlas.Engineering.Errors.KeyTouches
   alias Atlas.Engineering.Errors.ProjectKey
-  alias Atlas.Engineering.Errors.PulseMirror
   alias Atlas.Engineering.Errors.SentryEvent
   alias Atlas.Engineering.Projects.Project
   alias Atlas.Repo
@@ -147,10 +146,6 @@ defmodule Atlas.Engineering.Errors do
 
       row = build_event_row(project, issue_id, event, fingerprint, domain_id)
       {:ok, _} = Event.Buffer.insert(row)
-
-      # Secondary admission follows primary event acceptance, before optional
-      # issue/account processing. It never waits for Pulse or propagates errors.
-      PulseMirror.offer(row)
 
       :ok =
         IssueCoalescer.observe(IssueCoalescer, project, fingerprint, event, domain_id: domain_id)

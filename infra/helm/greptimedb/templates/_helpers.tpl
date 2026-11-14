@@ -2,10 +2,10 @@
 {{- if ne .Release.Namespace "observability" }}
 {{- fail "pilot must be in observability" }}
 {{- end }}
-{{- if not (has .Values.environment (list "staging" "canary" "production")) }}
+{{- if not (has .Values.environment (list "staging" "canary" "production" "management")) }}
 {{- fail "GreptimeDB requires an explicit managed environment" }}
 {{- end }}
-{{- if or (ne .Values.storage.bucket (printf "tuist-pulso-%s" .Values.environment)) (ne .Values.storage.prefix "pulse/") }}
+{{- if or (ne .Values.storage.bucket (include "greptimedb.bucket" .)) (ne .Values.storage.prefix "pulse/") }}
 {{- fail "GreptimeDB must use the selected environment's isolated pulse/ prefix" }}
 {{- end }}
 {{- if not (has .Values.topology (list "standalone" "cluster")) }}
@@ -14,13 +14,22 @@
 {{- if and (eq .Values.environment "production") (ne .Values.topology "cluster") }}
 {{- fail "production GreptimeDB must use the distributed cluster topology" }}
 {{- end }}
+{{- if and (eq .Values.environment "management") (or (ne .Values.topology "standalone") (not .Values.persistence.hostPath) (not .Values.nodeSelector)) }}
+{{- fail "management Pulse is standalone on a hostPath volume pinned with nodeSelector" }}
+{{- end }}
 {{- if and (eq .Values.topology "cluster") (or (lt (int .Values.cluster.frontend.replicas) 2) (lt (int .Values.cluster.datanode.replicas) 3)) }}
 {{- fail "cluster topology needs at least 2 frontends and 3 datanodes" }}
 {{- end }}
 {{- end }}
 
+{{- define "greptimedb.bucket" -}}
+{{ ternary "tuist-pulse-management" (printf "tuist-pulso-%s" .Values.environment) (eq .Values.environment "management") }}
+{{- end }}
+
 {{- define "greptimedb.readerNamespace" -}}
-{{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
+{{- if eq .Values.environment "management" }}observability
+{{- else }}{{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
+{{- end }}
 {{- end }}
 
 {{- define "greptimedb.podSecurityContext" -}}
@@ -56,7 +65,6 @@ affinity:
 {{/* Combines the pilot and scoped dashboard identities into one passwd file. */}}
 {{- define "greptimedb.authInit" -}}
 {{- if .Values.dashboard.enabled }}
-initContainers:
   - name: combine-auth
     image: busybox:1.37.0
     command: [sh, -ec]
@@ -99,6 +107,7 @@ initContainers:
   ports:
     - {port: 4000, protocol: TCP}
 {{- if .Values.dashboard.enabled }}
+{{- if ne .Values.environment "management" }}
 - from:
     - namespaceSelector:
         matchLabels:
@@ -108,14 +117,21 @@ initContainers:
           app.kubernetes.io/component: server
   ports:
     - {port: 4000, protocol: TCP}
+{{- end }}
 - from:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: {{ include "greptimedb.readerNamespace" . }}
       podSelector:
         matchLabels:
+          {{- if eq .Values.environment "management" }}
+          # infra/flux/pulse-pdc: management has no Tuist server or chart.
+          app.kubernetes.io/name: pdc-agent
+          app.kubernetes.io/instance: pulse
+          {{- else }}
           app.kubernetes.io/name: tuist
           app.kubernetes.io/instance: tuist
+          {{- end }}
           app.kubernetes.io/component: pdc-agent
   ports:
     - {port: 4000, protocol: TCP}

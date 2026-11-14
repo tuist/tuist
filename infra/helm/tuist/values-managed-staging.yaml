@@ -186,8 +186,6 @@ server:
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     # Staging's tuist account ID is 2 (production uses 3). Membership and
     # the account-scoped pulse feature flag remain independently required.
-    - name: TUIST_PULSE_BACKEND
-      value: greptime
     - name: TUIST_PULSE_ACCOUNT_ID
       value: "2"
     - name: TUIST_PULSE_URL

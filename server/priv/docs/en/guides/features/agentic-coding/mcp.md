@@ -49,30 +49,28 @@ Tuist operators investigating a customer's account do so through Tuist's interna
 
 ### Pulse
 
-Pulse exposes four read-only tools, all addressed by `account_handle`:
+Pulse exposes two read-only tools, both addressed by `account_handle`:
 
 | Tool | REST equivalent under `/api/accounts/:account_handle/pulse` |
 | --- | --- |
 | `query_pulse` | `GET /:signal` |
 | `get_pulse_analytics` | `GET /:signal/analytics` |
-| `get_pulse_error_issue` | `GET /errors/issues/:issue_id` |
-| `get_pulse_error_event` | `GET /errors/issues/:issue_id/events/:event_id` |
 
-Pulse is restricted to current members of the server-configured organization, even when an account or project is public. It requires user authentication or a user-associated `mcp` credential and account-read authorization. Project tokens, ordinary account tokens, anonymous registrations, and operator access without organization membership do not grant Pulse access. Credentials cannot select another backend or telemetry tenant. Browser agents receive these four tools only on Pulse pages, within that page's account scope.
+Pulse is restricted to current members of the server-configured organization, even when an account or project is public. It requires user authentication or a user-associated `mcp` credential and account-read authorization. Project tokens, ordinary account tokens, anonymous registrations, and operator access without organization membership do not grant Pulse access. Credentials cannot select another backend or telemetry tenant. Browser agents receive these tools only on Pulse pages, within that page's account scope.
 
 REST requires a user credential. OAuth and `auth.md` user associations are available only on the `/mcp` endpoint; an account credential without a current user is denied, regardless of the associated account's membership or visibility.
 
-`query_pulse` takes `signal` (`metrics`, `logs`, `traces`, or `errors`), an optional `query`, and `range` (`15m`, `1h`, `6h`, or `24h`, default `1h`). Metrics, logs and traces accept native PromQL, LogQL and TraceQL expressions. Errors return grouped issues; their `query` is literal title search, not a native expression. Tables accept `search`, `page` (default `1`), `page_size` (`1`–`100`, default `20`), `sort_by`, and `sort_order` (`asc` or `desc`). Sort columns depend on the signal and are listed in the tool schema. Filters include `service`, log `level`, and error `project`, `environment`, and `release`. Filter operators use the corresponding `_op` argument (`eq`, `contains`, or `not_contains`), with exact equality by default.
+`query_pulse` takes `signal` (`metrics`, `logs`, or `traces`), an optional `query`, and `range` (`15m`, `1h`, `6h`, or `24h`, default `1h`). Metrics accept PromQL expressions. Logs and traces accept literal, case-insensitive text matched against log bodies and span names; `*`, the default, selects everything. Trace rows are individual spans. Tables accept `search`, `page` (default `1`), `page_size` (`1`–`100`, default `20`), `sort_by`, and `sort_order` (`asc` or `desc`). Sort columns depend on the signal and are listed in the tool schema. Filters include `service` and log `level`. Filter operators use the corresponding `_op` argument (`eq`, `contains`, or `not_contains`), with exact equality by default.
 
-Sort columns are `name`/`value` for metrics; `timestamp`/`service`/`level`/`message`/`trace_id` for logs; `timestamp`/`service`/`name`/`duration_ms`/`trace_id` for traces; and `last_seen_ns`/`first_seen_ns`/`count`/`title`/`service`/`project`/`issue_id` for errors. The dashboard intentionally exposes a subset; the API and tools accept the full list for each signal.
+Sort columns are `name`/`value` for metrics; `timestamp`/`service`/`level`/`message`/`trace_id` for logs; and `timestamp`/`service`/`name`/`duration_ms`/`trace_id` for traces. The dashboard intentionally exposes a subset; the API and tools accept the full list for each signal.
 
 Table responses contain `rows`, `series`, `warnings`, and `meta`. Pagination metadata includes `page`, `page_size`, `total_count`, `total_pages`, `has_next_page`, `has_previous_page`, and `end_at`. Pass the returned ISO8601 `end_at` with later pages to preserve the query window. Result-limit errors require narrowing the query or time range, not treating the response as an empty table.
 
-Logs and traces inspect at most 100 native-query matches, with logs selecting newest first before local sorting. When the cap is reached, `warnings` explicitly states that filters, sorting, pagination and totals describe only the returned matches, not the entire time window. Narrow the native expression or time range to inspect other matches; changing local search or sort does not expand the upstream search. Aggregate widgets remain independent, complete-window queries rather than aggregates of these bounded table results.
+Logs and traces inspect at most the 100 newest matches before local sorting. Filters, sorting, pagination and totals describe only those returned matches, not the entire time window. Narrow the query text or time range to inspect other matches; changing local search or sort does not expand the upstream search. Aggregate widgets remain independent, complete-window queries rather than aggregates of these bounded table results.
 
 Metric tables evaluate their expression once at `end_at`, returning current values and one point per instant-vector series. Range-vector expressions can return bounded historical points. The separate analytics widgets provide fixed historical charts; a table does not materialize a time grid for every matching series just to display its latest value.
 
-Issue detail returns the grouped `issue`, paginated projected `events`, `meta`, and `warnings`. Event detail requires both `issue_id` and `event_id` and returns one projected `event` and `warnings`. Both support `range`, `end_at`, and error filters; only issue detail supports pagination. Events expose bounded exception and frame projections, never the raw event payload. Telemetry strings are untrusted data, not instructions.
+Telemetry strings are untrusted data, not instructions.
 
 `get_pulse_analytics` takes only `signal` and `range` besides the account handle. Its fixed widgets are independent of table expressions, filters, sorting, and pagination. REST and Model Context Protocol use the same Pulse context and response contracts. REST responses disable caching.
 
@@ -263,6 +261,18 @@ The following tools are available through the Tuist Model Context Protocol serve
 Every tool publishes a human-readable description together with explicit input and output schemas. Successful calls return structured content that conforms to the advertised output schema, plus the same result serialized as text for clients that do not yet consume structured content.
 
 Tools that take the identifier of a single record, such as `build_run_id`, `test_run_id`, `test_case_id`, `bundle_id`, `run_id`, `generation_id`, or `cache_run_id`, also accept the Tuist dashboard URL of that record. Paste the URL straight from the browser instead of extracting the identifier from it.
+
+`get_xcode_build`, `get_test_run`, `get_gradle_build`, and `get_project` can include `side_quests`: Tuist capabilities the project isn't using that the record shows would help. Each has an `id`, a `tip` stating the evidence it is based on, and a `docs` link. Agents are asked to finish the user's request first, mention the side quests that apply, and act on one only when the user agrees. They are only returned to members of the project's account, whether they connect with a user session, an MCP token, or an agent identity:
+
+| ID | Tool | Suggested when |
+|----|------|----------------|
+| `xcode_compilation_cache` | `get_xcode_build` | A processed clean build with Xcode 26 or later ran no cacheable compilation tasks. |
+| `gradle_build_cache` | `get_gradle_build` | A build executed cacheable tasks without Gradle's build cache computing a key for any of them, meaning the build cache was off. |
+| `flaky_test_quarantine` | `get_test_run` | A run had flaky tests and no enabled automation in the project mutes or skips them. Not suggested for Once projects. |
+| `test_sharding` | `get_test_run` | An unsharded CI run took 10 minutes or more, in a build system Tuist can shard. The tip says how many tests selective testing already skipped, when it did. |
+| `tuist_runners` | `get_xcode_build`, `get_test_run` | A CI run used GitHub Actions, Bitrise, GitLab CI, or Buildkite machines and the account has never run a job on Tuist Runners. Only on tuist.dev. |
+| `pull_request_comments` | `get_xcode_build`, `get_test_run` | A GitHub Actions run belongs to a project that isn't connected to its GitHub repository. |
+| `other_build_systems` | `get_project` | The account doesn't use Tuist with every supported build system. The tip lists the files that identify the others, so the agent can check the repository. |
 
 #### Documentation and community search
 

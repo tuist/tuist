@@ -36,13 +36,16 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/cache", organization, nil) == nil
   end
 
-  test "all Pulse pages including issue and event detail offer the same four read tools" do
+  test "all Pulse pages offer the same two read tools" do
     organization = %{organization_id: 1}
-    pulse_tools = ~w(query_pulse get_pulse_analytics get_pulse_error_issue get_pulse_error_event)
+    pulse_tools = ~w(query_pulse get_pulse_analytics)
 
-    for path <- ~w(metrics logs traces errors errors/issues/issue errors/issues/issue/events/event) do
+    for path <- ~w(metrics logs traces) do
       assert WebMCP.dashboard_page("/acme/~/pulse/#{path}", organization, nil) == "pulse"
     end
+
+    assert WebMCP.dashboard_page("/acme/~/pulse/errors", organization, nil) == nil
+    refute Map.has_key?(WebMCP.account_server("pulse", nil).tools, "get_pulse_error_issue")
 
     assert pulse_tools -- Map.keys(WebMCP.account_server("pulse", nil).tools) == []
     assert Map.keys(WebMCP.public_server().tools) -- pulse_tools == Map.keys(WebMCP.public_server().tools)
