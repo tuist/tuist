@@ -541,6 +541,64 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
 }
 
 @Suite(.coverageAttribution)
+struct BuildAcceptanceTestSwiftPMPrebuiltMacroSupportLibrary {
+    @Test(
+        .withFixture("generated_ios_app_with_swiftpm_prebuilt_macro_support_library"),
+        .inTemporaryDirectory
+    )
+    func ios_app_with_macro_support_library_links_prebuilt_macro_support() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+        // See `app_with_swiftpm_prebuilt_macro_dependency_builds_with_host_only_prebuilt_macro_support`: SwiftPM falls
+        // back to source swift-syntax when it can't validate the prebuilt manifest.
+        let extractedPrebuiltModules = try await fileSystem.glob(
+            directory: fixtureDirectory.appending(components: "Tuist", ".build", "prebuilts"),
+            include: ["**/*-MacroSupport/**/*-apple-macos.*"]
+        ).collect()
+        guard !extractedPrebuiltModules.isEmpty else {
+            try Test.cancel("Prebuilt SwiftSyntax libraries are unavailable because the signed manifest could not be validated.")
+        }
+
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(
+                components: "Tuist", ".build", "tuist-derived", "Projects", "swift-case-paths", "swift-case-paths.xcodeproj"
+            ).pathString
+        )
+        #expect(!xcodeproj.pbxproj.fileReferences.contains(where: { $0.path?.hasPrefix("SwiftSyntax") == true }))
+        for targetName in ["CasePathsMacros", "CasePathsMacrosSupport"] {
+            let target = try TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj)
+            let buildSettings = try #require(target.buildConfigurationList?.configuration(name: "Debug")?.buildSettings)
+            #expect(buildSettings["OTHER_LDFLAGS"]?.arrayValue?.contains("-lMacroSupport") == true)
+        }
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "build",
+                "-workspace",
+                fixtureDirectory.appending(component: "App.xcworkspace").pathString,
+                "-scheme",
+                "App",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                derivedDataPath.pathString,
+                "-skipMacroValidation",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+}
+
+@Suite(.coverageAttribution)
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives {
     @Test(.disabled(), .withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {

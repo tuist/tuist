@@ -89,6 +89,7 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
             origin: .remote,
             artifactPaths: _,
             packagePrebuilts: packagePrebuilts,
+            hostOnlyProducts: _,
             derivedXCFrameworksPath: _
         ) = packageType,
             let prebuilt = packagePrebuilts[packageIdentity]?[productName]
@@ -844,6 +845,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                                 origin: .remote,
                                 artifactPaths: _,
                                 packagePrebuilts: _,
+                                hostOnlyProducts: _,
                                 derivedXCFrameworksPath: _
                             ) = packageType {
                                 return true
@@ -1227,6 +1229,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         origin: _,
                         artifactPaths: artifactPaths,
                         packagePrebuilts: _,
+                        hostOnlyProducts: _,
                         derivedXCFrameworksPath: derivedXCFrameworksPath
                     ) = packageType
                     else { return false }
@@ -1359,6 +1362,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                         origin: .local,
                         artifactPaths: _,
                         packagePrebuilts: _,
+                        hostOnlyProducts: _,
                         derivedXCFrameworksPath: _
                     ) = packageType {
                         return true

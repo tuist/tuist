@@ -271,6 +271,9 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             prebuilts: workspaceState.object.prebuilts,
             scratchDirectory: scratchDirectory
         )
+        let hostOnlyProducts = packagePrebuilts.isEmpty
+            ? [:]
+            : PackageInfoMapper.hostOnlyProducts(packageInfos: packageInfoDictionary)
 
         var mutablePackageModuleAliases: [String: [String: String]] = [:]
 
@@ -323,6 +326,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                         origin: Self.packageOrigin(for: packageInfo.kind),
                         artifactPaths: packageToTargetsToArtifactPaths[packageInfo.id] ?? [:],
                         packagePrebuilts: packagePrebuilts,
+                        hostOnlyProducts: hostOnlyProducts[packageInfo.id] ?? [],
                         derivedXCFrameworksPath: scratchDirectory.appending(
                             components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
                             Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
