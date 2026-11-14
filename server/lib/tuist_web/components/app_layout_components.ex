@@ -522,7 +522,7 @@ defmodule TuistWeb.AppLayoutComponents do
                   item.id == "sidebar-sandboxes" ->
                     String.starts_with?(@current_path, item.path <> "/")
 
-                  item.id == "sidebar-pulse" and not String.ends_with?(child.path, "/errors") ->
+                  item.id == "sidebar-pulse" ->
                     @current_path == child.path
 
                   true ->

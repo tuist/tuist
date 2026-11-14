@@ -36,11 +36,6 @@ if [[ -n "$topology" ]]; then
 else
   backend='no Pulse backend installed (Grafana Cloud only)'
 fi
-legacy=$(kubectl -n "$namespace" get deployment pulso --ignore-not-found -o json)
-if [[ -n "$legacy" ]]; then jq -e '.spec.replicas == 0' <<< "$legacy" >/dev/null; fi
-kubectl -n "$namespace" get pods -o json | jq -e '
-  all(.items[]; all(.spec.containers[];
-    (.image | test("^ghcr.io/tuist/pulso(:|@|$)")) | not))' >/dev/null
 # Alloy fails its whole config load, Grafana Cloud included, when a
 # referenced Secret is missing. Collectors that write to Pulse need its
 # ingest login to exist first; check its ExternalSecret, never the Secret.
@@ -53,4 +48,4 @@ if [[ -n "${OBSERVABILITY_CHART_PATH:-}" ]] && grep -q 'pulse-dashboard-auth' "$
     exit 1
   }
 fi
-echo "PASS: $backend; no legacy writers"
+echo "PASS: $backend"

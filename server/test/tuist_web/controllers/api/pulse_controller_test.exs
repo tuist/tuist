@@ -23,8 +23,8 @@ defmodule TuistWeb.API.PulseControllerTest do
   end
 
   defp call(action, params, assigns) do
-    path = Map.merge(%{"account_handle" => "acme"}, Map.take(params, ~w(signal issue_id event_id)))
-    query = Map.drop(params, ~w(signal issue_id event_id))
+    path = Map.merge(%{"account_handle" => "acme"}, Map.take(params, ~w(signal)))
+    query = Map.drop(params, ~w(signal))
     conn = Plug.Test.conn(:get, "/?" <> URI.encode_query(query))
     conn = %{conn | path_params: path, params: Map.merge(path, query), query_params: query, body_params: %{}}
     conn = Enum.reduce(assigns, conn, fn {key, value}, conn -> assign(conn, key, value) end)
@@ -44,7 +44,7 @@ defmodule TuistWeb.API.PulseControllerTest do
                "page_size" => 3,
                "range" => "6h",
                "end_at" => "2026-10-01T12:00:00Z",
-               "query" => "{service_name=\"server\"}",
+               "query" => "connection reset",
                "search" => "timeout",
                "service" => "server",
                "level" => "error",
@@ -65,7 +65,7 @@ defmodule TuistWeb.API.PulseControllerTest do
           "page_size" => "3",
           "range" => "6h",
           "end_at" => "2026-10-01T12:00:00Z",
-          "query" => "{service_name=\"server\"}",
+          "query" => "connection reset",
           "search" => "timeout",
           "service" => "server",
           "service_op" => "contains",
@@ -86,26 +86,6 @@ defmodule TuistWeb.API.PulseControllerTest do
     assert call(:analytics, %{"signal" => "metrics", "query" => "up"}, current_user: ctx.user).status == 400
   end
 
-  test "issue and event dispatch retain their scoped IDs and filter contracts", ctx do
-    expect(Pulse, :error_issue, fn _, _, "issue", params ->
-      assert params == %{"range" => "1h", "page" => 2, "page_size" => 20, "environment" => "production"}
-      {:ok, %{issue: %{}, events: [], warnings: [], meta: %{}}}
-    end)
-
-    assert call(:issue, %{"issue_id" => "issue", "page" => "2", "environment" => "production"}, current_user: ctx.user).status ==
-             200
-
-    expect(Pulse, :error_event, fn _, _, "issue", "event", %{"range" => "1h", "release" => "v1"} ->
-      {:ok, %{event: %{}, warnings: []}}
-    end)
-
-    assert call(:event, %{"issue_id" => "issue", "event_id" => "event", "release" => "v1"}, current_user: ctx.user).status ==
-             200
-
-    assert call(:event, %{"issue_id" => "issue", "event_id" => "event", "page" => "1"}, current_user: ctx.user).status ==
-             400
-  end
-
   test "rejects invalid and backend override parameters before querying", ctx do
     reject(&Pulse.query/4)
 
@@ -120,6 +100,10 @@ defmodule TuistWeb.API.PulseControllerTest do
       result = call(:query, Map.put(params, "signal", "logs"), current_user: ctx.user)
       assert result.status == 400
       assert get_resp_header(result, "cache-control") == ["private, no-store"]
+    end
+
+    for action <- [:query, :analytics] do
+      assert call(action, %{"signal" => "errors"}, current_user: ctx.user).status == 400
     end
   end
 
@@ -147,7 +131,6 @@ defmodule TuistWeb.API.PulseControllerTest do
           invalid_query: 400,
           not_found: 404,
           query_result_limit: 503,
-          query_limit: 503,
           rate_limited: 429,
           not_configured: 503,
           timeout: 503,
@@ -165,16 +148,15 @@ defmodule TuistWeb.API.PulseControllerTest do
     end
   end
 
-  test "explicit error and analytics routes resolve before signal routes" do
-    for {path, action} <- [
-          {"errors/issues/issue/events/event", :event},
-          {"errors/issues/issue", :issue},
-          {"errors/analytics", :analytics},
-          {"errors", :query}
-        ] do
+  test "analytics routes resolve before signal routes and error issue routes do not exist" do
+    for {path, action} <- [{"logs/analytics", :analytics}, {"logs", :query}] do
       route = Phoenix.Router.route_info(TuistWeb.Router, "GET", "/api/accounts/acme/pulse/" <> path, "localhost")
       assert route.plug == Controller
       assert route.plug_opts == action
+    end
+
+    for path <- ["errors/issues/issue/events/event", "errors/issues/issue"] do
+      assert Phoenix.Router.route_info(TuistWeb.Router, "GET", "/api/accounts/acme/pulse/" <> path, "localhost") == :error
     end
   end
 end

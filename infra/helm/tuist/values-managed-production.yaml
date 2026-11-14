@@ -248,8 +248,6 @@ server:
     # Production's tuist account ID is 3 (staging uses 2; production's
     # organization ID is 1). Membership and the account-scoped pulse feature
     # flag remain independently required.
-    - name: TUIST_PULSE_BACKEND
-      value: greptime
     - name: TUIST_PULSE_ACCOUNT_ID
       value: "3"
     - name: TUIST_PULSE_URL

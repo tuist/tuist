@@ -4,25 +4,12 @@ defmodule Tuist.Pulse.Schemas do
   alias OpenApiSpex.Schema
 
   def inputs(action) do
-    fields = Map.merge(%{account_handle: string()}, options(action))
-
     fields =
-      if action in [:query, :analytics],
-        do: Map.put(fields, :signal, %Schema{type: :string, enum: ~w(metrics logs traces errors)}),
-        else: fields
+      action
+      |> options()
+      |> Map.merge(%{account_handle: string(), signal: %Schema{type: :string, enum: ~w(metrics logs traces)}})
 
-    fields = if action in [:issue, :event], do: Map.put(fields, :issue_id, string()), else: fields
-    fields = if action == :event, do: Map.put(fields, :event_id, string()), else: fields
-
-    required =
-      [:account_handle] ++
-        case action do
-          action when action in [:query, :analytics] -> [:signal]
-          :issue -> [:issue_id]
-          :event -> [:issue_id, :event_id]
-        end
-
-    %{object("Pulse#{action}Input", fields) | required: required}
+    %{object("Pulse#{action}Input", fields) | required: [:account_handle, :signal]}
   end
 
   def parameters(action) do
@@ -37,75 +24,38 @@ defmodule Tuist.Pulse.Schemas do
 
   def options(:analytics), do: %{range: range()}
 
-  def options(action) do
-    fields = %{
+  def options(:query) do
+    %{
       range: range(),
       end_at: %Schema{
         type: :string,
         description: "ISO8601 pinned window end from the previous response's meta.end_at."
       },
       service: string(),
-      project: string(),
-      environment: string(),
-      release: string(),
       service_op: operator(),
-      project_op: operator(),
-      environment_op: operator(),
-      release_op: operator()
+      page: %Schema{type: :integer, minimum: 1, maximum: 2_147_483_647, default: 1},
+      page_size: %Schema{type: :integer, minimum: 1, maximum: 100, default: 20},
+      query: %Schema{
+        type: :string,
+        maxLength: 4096,
+        description:
+          "PromQL expression for metrics; literal, case-insensitive log body or span name text for logs and traces (* selects all)."
+      },
+      search: string(),
+      level: string(),
+      level_op: operator(),
+      sort_by: %Schema{
+        type: :string,
+        enum: ~w(name value timestamp service level message trace_id duration_ms),
+        description:
+          "Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id."
+      },
+      sort_order: %Schema{type: :string, enum: ~w(asc desc)}
     }
-
-    fields =
-      if action == :event,
-        do: fields,
-        else:
-          Map.merge(fields, %{
-            page: %Schema{type: :integer, minimum: 1, maximum: 2_147_483_647, default: 1},
-            page_size: %Schema{type: :integer, minimum: 1, maximum: 100, default: 20}
-          })
-
-    if action == :query do
-      Map.merge(fields, %{
-        query: %Schema{
-          type: :string,
-          maxLength: 4096,
-          description: "Native PromQL, LogQL or TraceQL expression; literal title search for grouped errors."
-        },
-        search: string(),
-        level: string(),
-        level_op: operator(),
-        sort_by: %Schema{
-          type: :string,
-          enum:
-            ~w(name value timestamp service level message trace_id duration_ms last_seen_ns first_seen_ns count title project issue_id),
-          description:
-            "Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen_ns/first_seen_ns/count/title/service/project/issue_id."
-        },
-        sort_order: %Schema{type: :string, enum: ~w(asc desc)}
-      })
-    else
-      fields
-    end
   end
 
   def response(:query),
     do: object("PulseQuery", %{rows: array(row()), series: array(series()), warnings: warnings(), meta: meta()})
-
-  def response(:issue),
-    do:
-      object("PulseErrorIssueDetail", %{
-        issue: issue(),
-        latest_event: event(),
-        occurrence_series: %{
-          occurrence_series()
-          | description:
-              "60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end."
-        },
-        events: array(event()),
-        meta: meta(),
-        warnings: warnings()
-      })
-
-  def response(:event), do: object("PulseErrorEventDetail", %{event: event(), warnings: warnings()})
 
   def response(:analytics) do
     object("PulseAnalytics", %{
@@ -123,110 +73,18 @@ defmodule Tuist.Pulse.Schemas do
     })
   end
 
-  def issue do
-    schema =
-      object("PulseErrorIssue", %{
-        issue_id: string(),
-        project: string(),
-        service: string(),
-        title: string(),
-        level: string(true),
-        platform: string(true),
-        culprit: culprit(),
-        occurrence_series: occurrence_series(),
-        count: %Schema{
-          type: :integer,
-          description: "Occurrence count in the complete filtered selected period, not lifetime or page count."
-        },
-        first_seen_ns: %Schema{type: :integer},
-        last_seen_ns: %Schema{type: :integer},
-        latest_event_id: string()
-      })
-
-    %{schema | required: schema.required -- [:level, :platform, :culprit, :occurrence_series]}
-  end
-
-  def event do
-    # Only projected event properties belong here, never raw Sentry payloads.
-    frame =
-      object("PulseErrorFrame", %{
-        filename: string(true),
-        module: string(true),
-        function: string(true),
-        lineno: %Schema{type: :integer, nullable: true},
-        in_app: %Schema{type: :boolean}
-      })
-
-    exception = object("PulseErrorException", %{type: string(true), value: string(true), frames: array(frame)})
-
-    %{
-      object("PulseErrorEvent", %{
-        event_id: string(),
-        issue_id: string(),
-        timestamp_ns: string(),
-        timestamp: string(),
-        project: string(),
-        service: string(),
-        environment: string(true),
-        release: string(true),
-        title: string(),
-        level: string(true),
-        platform: string(true),
-        culprit: culprit(),
-        tags: metadata(),
-        contexts: metadata(),
-        extra: metadata(),
-        modules: metadata(),
-        trace_id: string(true),
-        span_id: string(true),
-        exceptions: array(exception),
-        exception: %{exception | required: []}
-      })
-      | required: []
-    }
-  end
-
-  defp culprit do
-    %{
-      string(true)
-      | description:
-          "Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent."
-    }
-  end
-
-  defp occurrence_series do
-    %Schema{
-      type: :array,
-      minItems: 60,
-      maxItems: 60,
-      items: %Schema{type: :array, minItems: 2, maxItems: 2, items: %Schema{type: :integer, minimum: 0}},
-      description:
-        "60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event."
-    }
-  end
-
-  defp metadata do
-    %Schema{
-      type: :object,
-      additionalProperties: %Schema{},
-      description:
-        "Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers."
-    }
-  end
-
   defp row do
-    fields =
-      Map.merge(issue().properties, %{
-        name: string(true),
-        value: %Schema{anyOf: [%Schema{type: :number}, string(), %Schema{type: :string, nullable: true}]},
-        labels: %Schema{type: :object, additionalProperties: string()},
-        timestamp: string(),
-        service: string(true),
-        level: string(),
-        message: string(),
-        trace_id: string(),
-        duration_ms: %Schema{type: :number, nullable: true}
-      })
+    fields = %{
+      name: string(true),
+      value: %Schema{anyOf: [%Schema{type: :number}, string(), %Schema{type: :string, nullable: true}]},
+      labels: %Schema{type: :object, additionalProperties: string()},
+      timestamp: string(),
+      service: string(true),
+      level: string(),
+      message: string(),
+      trace_id: string(),
+      duration_ms: %Schema{type: :number, nullable: true}
+    }
 
     %{object("PulseRow", fields) | required: []}
   end

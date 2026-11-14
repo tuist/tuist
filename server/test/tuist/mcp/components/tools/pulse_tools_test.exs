@@ -7,8 +7,6 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.GetPulseAnalytics
-  alias Tuist.MCP.Components.Tools.GetPulseErrorEvent
-  alias Tuist.MCP.Components.Tools.GetPulseErrorIssue
   alias Tuist.MCP.Components.Tools.QueryPulse
   alias Tuist.Pulse
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -99,86 +97,6 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
              GetPulseAnalytics.call(ctx.conn, Map.put(ctx.args, "range", "6h"))
   end
 
-  test "detail tools preserve issue/event scoping and projected exception shapes", ctx do
-    issue = %{
-      "issue_id" => "issue",
-      "project" => "server",
-      "service" => "api",
-      "title" => "Error",
-      "count" => 1,
-      "first_seen_ns" => 123,
-      "last_seen_ns" => 123,
-      "latest_event_id" => "event"
-    }
-
-    event = %{
-      "event_id" => "event",
-      "issue_id" => "issue",
-      "timestamp_ns" => "123",
-      "timestamp" => "123",
-      "project" => "server",
-      "service" => "api",
-      "level" => nil,
-      "environment" => nil,
-      "release" => nil,
-      "title" => "Error",
-      "exception" => %{},
-      "exceptions" => [
-        %{
-          "type" => "RuntimeError",
-          "value" => "failed",
-          "frames" => [
-            %{
-              "filename" => "server.ex",
-              "module" => nil,
-              "function" => "run",
-              "lineno" => 42,
-              "in_app" => true
-            }
-          ]
-        }
-      ]
-    }
-
-    meta = result().meta
-    occurrence_series = Enum.map(0..59, fn bucket -> [bucket * 60, if(bucket == 0, do: 1, else: 0)] end)
-
-    args =
-      ctx.args
-      |> Map.delete("signal")
-      |> Map.merge(%{"issue_id" => "issue", "project" => "server", "environment" => "production", "page" => 2})
-
-    expect(Pulse, :error_issue, fn _, _, "issue", %{"project" => "server", "environment" => "production", "page" => 2} ->
-      {:ok,
-       %{
-         issue: issue,
-         latest_event: event,
-         occurrence_series: occurrence_series,
-         events: [event],
-         meta: meta,
-         warnings: []
-       }}
-    end)
-
-    assert %{
-             "structuredContent" => %{
-               "events" => [^event],
-               "latest_event" => ^event,
-               "occurrence_series" => ^occurrence_series
-             }
-           } =
-             GetPulseErrorIssue.call(ctx.conn, args)
-
-    args = args |> Map.delete("page") |> Map.put("event_id", "event")
-
-    expect(Pulse, :error_event, fn _, _, "issue", "event", %{"project" => "server", "environment" => "production"} ->
-      {:ok, %{event: event, warnings: []}}
-    end)
-
-    assert %{"structuredContent" => %{"event" => ^event}} = GetPulseErrorEvent.call(ctx.conn, args)
-    assert %{"isError" => true} = GetPulseErrorEvent.call(ctx.conn, Map.put(args, "page", 1))
-  end
-
   test "membership is persisted, rechecked after removal and independent of public visibility", ctx do
     {:ok, _account} = Accounts.update_account(ctx.account, %{visibility: :public})
     member = AccountsFixtures.user_fixture()
@@ -224,7 +142,6 @@ defmodule Tuist.MCP.Components.Tools.PulseToolsTest do
     for reason <- [
           :invalid_params,
           :invalid_query,
-          :not_found,
           :query_result_limit,
           :forbidden,
           :not_configured,

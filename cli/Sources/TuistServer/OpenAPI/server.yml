@@ -1043,8 +1043,8 @@ components:
           x-struct:
           x-validate:
       required:
-        - end_at
         - page
+        - end_at
         - page_size
         - total_count
         - total_pages
@@ -6405,8 +6405,8 @@ components:
               x-struct:
               x-validate:
           required:
-            - end_at
             - page
+            - end_at
             - page_size
             - total_count
             - total_pages
@@ -6420,29 +6420,9 @@ components:
           items:
             additionalProperties: false
             properties:
-              count:
-                description: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                type: integer
-                x-struct:
-                x-validate:
-              culprit:
-                description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
               duration_ms:
                 nullable: true
                 type: number
-                x-struct:
-                x-validate:
-              first_seen_ns:
-                type: integer
-                x-struct:
-                x-validate:
-              issue_id:
-                nullable: false
-                type: string
                 x-struct:
                 x-validate:
               labels:
@@ -6452,15 +6432,6 @@ components:
                   x-struct:
                   x-validate:
                 type: object
-                x-struct:
-                x-validate:
-              last_seen_ns:
-                type: integer
-                x-struct:
-                x-validate:
-              latest_event_id:
-                nullable: false
-                type: string
                 x-struct:
                 x-validate:
               level:
@@ -6478,45 +6449,12 @@ components:
                 type: string
                 x-struct:
                 x-validate:
-              occurrence_series:
-                description: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                items:
-                  items:
-                    minimum: 0
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  maxItems: 2
-                  minItems: 2
-                  type: array
-                  x-struct:
-                  x-validate:
-                maxItems: 60
-                minItems: 60
-                type: array
-                x-struct:
-                x-validate:
-              platform:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              project:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
               service:
                 nullable: true
                 type: string
                 x-struct:
                 x-validate:
               timestamp:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              title:
                 nullable: false
                 type: string
                 x-struct:
@@ -8329,6 +8267,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        setup_script:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         template:
           type: string
           x-struct:
@@ -8367,6 +8310,7 @@ components:
         - anthropic_agent_id
         - agent_model
         - agent_system_prompt
+        - setup_script
         - inserted_at
         - updated_at
       title: SandboxAgentEnvironment
@@ -9473,6 +9417,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        setup_script:
+          description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         template:
           description: Sandbox template name.
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9776,240 +9726,6 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
-      x-validate:
-    PulseErrorEvent:
-      additionalProperties: false
-      properties:
-        contexts:
-          additionalProperties:
-            x-struct:
-            x-validate:
-          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-          type: object
-          x-struct:
-          x-validate:
-        culprit:
-          description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        environment:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        event_id:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        exception:
-          additionalProperties: false
-          properties:
-            frames:
-              items:
-                additionalProperties: false
-                properties:
-                  filename:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  function:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  in_app:
-                    type: boolean
-                    x-struct:
-                    x-validate:
-                  lineno:
-                    nullable: true
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  module:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - function
-                  - module
-                  - filename
-                  - in_app
-                  - lineno
-                title: PulseErrorFrame
-                type: object
-                x-struct:
-                x-validate:
-              type: array
-              x-struct:
-              x-validate:
-            type:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            value:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-          title: PulseErrorException
-          type: object
-          x-struct:
-          x-validate:
-        exceptions:
-          items:
-            additionalProperties: false
-            properties:
-              frames:
-                items:
-                  additionalProperties: false
-                  properties:
-                    filename:
-                      nullable: true
-                      type: string
-                      x-struct:
-                      x-validate:
-                    function:
-                      nullable: true
-                      type: string
-                      x-struct:
-                      x-validate:
-                    in_app:
-                      type: boolean
-                      x-struct:
-                      x-validate:
-                    lineno:
-                      nullable: true
-                      type: integer
-                      x-struct:
-                      x-validate:
-                    module:
-                      nullable: true
-                      type: string
-                      x-struct:
-                      x-validate:
-                  required:
-                    - function
-                    - module
-                    - filename
-                    - in_app
-                    - lineno
-                  title: PulseErrorFrame
-                  type: object
-                  x-struct:
-                  x-validate:
-                type: array
-                x-struct:
-                x-validate:
-              type:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              value:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - type
-              - value
-              - frames
-            title: PulseErrorException
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-        extra:
-          additionalProperties:
-            x-struct:
-            x-validate:
-          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-          type: object
-          x-struct:
-          x-validate:
-        issue_id:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        level:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        modules:
-          additionalProperties:
-            x-struct:
-            x-validate:
-          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-          type: object
-          x-struct:
-          x-validate:
-        platform:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        project:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        release:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        service:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        span_id:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        tags:
-          additionalProperties:
-            x-struct:
-            x-validate:
-          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-          type: object
-          x-struct:
-          x-validate:
-        timestamp:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        timestamp_ns:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        title:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        trace_id:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-      title: PulseErrorEvent
-      type: object
-      x-struct:
       x-validate:
     UploadCommitsRequest:
       properties:
@@ -11269,68 +10985,6 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.DurationMetrics
       x-validate:
-    PulseErrorException:
-      additionalProperties: false
-      properties:
-        frames:
-          items:
-            additionalProperties: false
-            properties:
-              filename:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              function:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              in_app:
-                type: boolean
-                x-struct:
-                x-validate:
-              lineno:
-                nullable: true
-                type: integer
-                x-struct:
-                x-validate:
-              module:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - function
-              - module
-              - filename
-              - in_app
-              - lineno
-            title: PulseErrorFrame
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-        type:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        value:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - type
-        - value
-        - frames
-      title: PulseErrorException
-      type: object
-      x-struct:
-      x-validate:
     CacheAccess:
       description: Account-scoped and project-scoped cache access handles
       properties:
@@ -11428,29 +11082,9 @@ components:
     PulseRow:
       additionalProperties: false
       properties:
-        count:
-          description: Occurrence count in the complete filtered selected period, not lifetime or page count.
-          type: integer
-          x-struct:
-          x-validate:
-        culprit:
-          description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
         duration_ms:
           nullable: true
           type: number
-          x-struct:
-          x-validate:
-        first_seen_ns:
-          type: integer
-          x-struct:
-          x-validate:
-        issue_id:
-          nullable: false
-          type: string
           x-struct:
           x-validate:
         labels:
@@ -11460,15 +11094,6 @@ components:
             x-struct:
             x-validate:
           type: object
-          x-struct:
-          x-validate:
-        last_seen_ns:
-          type: integer
-          x-struct:
-          x-validate:
-        latest_event_id:
-          nullable: false
-          type: string
           x-struct:
           x-validate:
         level:
@@ -11486,45 +11111,12 @@ components:
           type: string
           x-struct:
           x-validate:
-        occurrence_series:
-          description: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-          items:
-            items:
-              minimum: 0
-              type: integer
-              x-struct:
-              x-validate:
-            maxItems: 2
-            minItems: 2
-            type: array
-            x-struct:
-            x-validate:
-          maxItems: 60
-          minItems: 60
-          type: array
-          x-struct:
-          x-validate:
-        platform:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        project:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
         service:
           nullable: true
           type: string
           x-struct:
           x-validate:
         timestamp:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        title:
           nullable: false
           type: string
           x-struct:
@@ -12636,94 +12228,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    PulseErrorIssue:
-      additionalProperties: false
-      properties:
-        count:
-          description: Occurrence count in the complete filtered selected period, not lifetime or page count.
-          type: integer
-          x-struct:
-          x-validate:
-        culprit:
-          description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        first_seen_ns:
-          type: integer
-          x-struct:
-          x-validate:
-        issue_id:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        last_seen_ns:
-          type: integer
-          x-struct:
-          x-validate:
-        latest_event_id:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        level:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        occurrence_series:
-          description: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-          items:
-            items:
-              minimum: 0
-              type: integer
-              x-struct:
-              x-validate:
-            maxItems: 2
-            minItems: 2
-            type: array
-            x-struct:
-            x-validate:
-          maxItems: 60
-          minItems: 60
-          type: array
-          x-struct:
-          x-validate:
-        platform:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        project:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        service:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-        title:
-          nullable: false
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - count
-        - service
-        - title
-        - project
-        - issue_id
-        - first_seen_ns
-        - last_seen_ns
-        - latest_event_id
-      title: PulseErrorIssue
-      type: object
-      x-struct:
-      x-validate:
     OnceRunStatus:
       enum:
         - success
@@ -12987,259 +12491,6 @@ components:
         - executable_lines
         - coverage
       title: CoverageTarget
-      type: object
-      x-struct:
-      x-validate:
-    PulseErrorEventDetail:
-      additionalProperties: false
-      properties:
-        event:
-          additionalProperties: false
-          properties:
-            contexts:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            culprit:
-              description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            environment:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            event_id:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            exception:
-              additionalProperties: false
-              properties:
-                frames:
-                  items:
-                    additionalProperties: false
-                    properties:
-                      filename:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      function:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      in_app:
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      lineno:
-                        nullable: true
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      module:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - function
-                      - module
-                      - filename
-                      - in_app
-                      - lineno
-                    title: PulseErrorFrame
-                    type: object
-                    x-struct:
-                    x-validate:
-                  type: array
-                  x-struct:
-                  x-validate:
-                type:
-                  nullable: true
-                  type: string
-                  x-struct:
-                  x-validate:
-                value:
-                  nullable: true
-                  type: string
-                  x-struct:
-                  x-validate:
-              title: PulseErrorException
-              type: object
-              x-struct:
-              x-validate:
-            exceptions:
-              items:
-                additionalProperties: false
-                properties:
-                  frames:
-                    items:
-                      additionalProperties: false
-                      properties:
-                        filename:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        function:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        in_app:
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        lineno:
-                          nullable: true
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        module:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - function
-                        - module
-                        - filename
-                        - in_app
-                        - lineno
-                      title: PulseErrorFrame
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  type:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  value:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - type
-                  - value
-                  - frames
-                title: PulseErrorException
-                type: object
-                x-struct:
-                x-validate:
-              type: array
-              x-struct:
-              x-validate:
-            extra:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            issue_id:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            level:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            modules:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            platform:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            project:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            release:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            service:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            span_id:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            tags:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            timestamp:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            timestamp_ns:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            title:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            trace_id:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-          title: PulseErrorEvent
-          type: object
-          x-struct:
-          x-validate:
-        warnings:
-          items:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-      required:
-        - warnings
-        - event
-      title: PulseErrorEventDetail
       type: object
       x-struct:
       x-validate:
@@ -15504,43 +14755,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    PulseErrorFrame:
-      additionalProperties: false
-      properties:
-        filename:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        function:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-        in_app:
-          type: boolean
-          x-struct:
-          x-validate:
-        lineno:
-          nullable: true
-          type: integer
-          x-struct:
-          x-validate:
-        module:
-          nullable: true
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - function
-        - module
-        - filename
-        - in_app
-        - lineno
-      title: PulseErrorFrame
-      type: object
-      x-struct:
-      x-validate:
     MissingCommitListingsResponse:
       properties:
         missing:
@@ -17605,6 +16819,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        setup_script:
+          description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
       title: UpdateSandboxAgentEnvironment
       type: object
       x-struct:
@@ -18749,651 +17969,6 @@ components:
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
-      x-validate:
-    PulseErrorIssueDetail:
-      additionalProperties: false
-      properties:
-        events:
-          items:
-            additionalProperties: false
-            properties:
-              contexts:
-                additionalProperties:
-                  x-struct:
-                  x-validate:
-                description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                type: object
-                x-struct:
-                x-validate:
-              culprit:
-                description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              environment:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              event_id:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              exception:
-                additionalProperties: false
-                properties:
-                  frames:
-                    items:
-                      additionalProperties: false
-                      properties:
-                        filename:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        function:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        in_app:
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        lineno:
-                          nullable: true
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        module:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - function
-                        - module
-                        - filename
-                        - in_app
-                        - lineno
-                      title: PulseErrorFrame
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  type:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  value:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                title: PulseErrorException
-                type: object
-                x-struct:
-                x-validate:
-              exceptions:
-                items:
-                  additionalProperties: false
-                  properties:
-                    frames:
-                      items:
-                        additionalProperties: false
-                        properties:
-                          filename:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                          function:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                          in_app:
-                            type: boolean
-                            x-struct:
-                            x-validate:
-                          lineno:
-                            nullable: true
-                            type: integer
-                            x-struct:
-                            x-validate:
-                          module:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                        required:
-                          - function
-                          - module
-                          - filename
-                          - in_app
-                          - lineno
-                        title: PulseErrorFrame
-                        type: object
-                        x-struct:
-                        x-validate:
-                      type: array
-                      x-struct:
-                      x-validate:
-                    type:
-                      nullable: true
-                      type: string
-                      x-struct:
-                      x-validate:
-                    value:
-                      nullable: true
-                      type: string
-                      x-struct:
-                      x-validate:
-                  required:
-                    - type
-                    - value
-                    - frames
-                  title: PulseErrorException
-                  type: object
-                  x-struct:
-                  x-validate:
-                type: array
-                x-struct:
-                x-validate:
-              extra:
-                additionalProperties:
-                  x-struct:
-                  x-validate:
-                description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                type: object
-                x-struct:
-                x-validate:
-              issue_id:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              level:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              modules:
-                additionalProperties:
-                  x-struct:
-                  x-validate:
-                description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                type: object
-                x-struct:
-                x-validate:
-              platform:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              project:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              release:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              service:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              span_id:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-              tags:
-                additionalProperties:
-                  x-struct:
-                  x-validate:
-                description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                type: object
-                x-struct:
-                x-validate:
-              timestamp:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              timestamp_ns:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              title:
-                nullable: false
-                type: string
-                x-struct:
-                x-validate:
-              trace_id:
-                nullable: true
-                type: string
-                x-struct:
-                x-validate:
-            title: PulseErrorEvent
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-        issue:
-          additionalProperties: false
-          properties:
-            count:
-              description: Occurrence count in the complete filtered selected period, not lifetime or page count.
-              type: integer
-              x-struct:
-              x-validate:
-            culprit:
-              description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            first_seen_ns:
-              type: integer
-              x-struct:
-              x-validate:
-            issue_id:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            last_seen_ns:
-              type: integer
-              x-struct:
-              x-validate:
-            latest_event_id:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            level:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            occurrence_series:
-              description: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-              items:
-                items:
-                  minimum: 0
-                  type: integer
-                  x-struct:
-                  x-validate:
-                maxItems: 2
-                minItems: 2
-                type: array
-                x-struct:
-                x-validate:
-              maxItems: 60
-              minItems: 60
-              type: array
-              x-struct:
-              x-validate:
-            platform:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            project:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            service:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            title:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-          required:
-            - count
-            - service
-            - title
-            - project
-            - issue_id
-            - first_seen_ns
-            - last_seen_ns
-            - latest_event_id
-          title: PulseErrorIssue
-          type: object
-          x-struct:
-          x-validate:
-        latest_event:
-          additionalProperties: false
-          properties:
-            contexts:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            culprit:
-              description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            environment:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            event_id:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            exception:
-              additionalProperties: false
-              properties:
-                frames:
-                  items:
-                    additionalProperties: false
-                    properties:
-                      filename:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      function:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      in_app:
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      lineno:
-                        nullable: true
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      module:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - function
-                      - module
-                      - filename
-                      - in_app
-                      - lineno
-                    title: PulseErrorFrame
-                    type: object
-                    x-struct:
-                    x-validate:
-                  type: array
-                  x-struct:
-                  x-validate:
-                type:
-                  nullable: true
-                  type: string
-                  x-struct:
-                  x-validate:
-                value:
-                  nullable: true
-                  type: string
-                  x-struct:
-                  x-validate:
-              title: PulseErrorException
-              type: object
-              x-struct:
-              x-validate:
-            exceptions:
-              items:
-                additionalProperties: false
-                properties:
-                  frames:
-                    items:
-                      additionalProperties: false
-                      properties:
-                        filename:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        function:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        in_app:
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        lineno:
-                          nullable: true
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        module:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - function
-                        - module
-                        - filename
-                        - in_app
-                        - lineno
-                      title: PulseErrorFrame
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  type:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  value:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - type
-                  - value
-                  - frames
-                title: PulseErrorException
-                type: object
-                x-struct:
-                x-validate:
-              type: array
-              x-struct:
-              x-validate:
-            extra:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            issue_id:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            level:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            modules:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            platform:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            project:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            release:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            service:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            span_id:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-            tags:
-              additionalProperties:
-                x-struct:
-                x-validate:
-              description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-              type: object
-              x-struct:
-              x-validate:
-            timestamp:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            timestamp_ns:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            title:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            trace_id:
-              nullable: true
-              type: string
-              x-struct:
-              x-validate:
-          title: PulseErrorEvent
-          type: object
-          x-struct:
-          x-validate:
-        meta:
-          additionalProperties: false
-          properties:
-            end_at:
-              nullable: false
-              type: string
-              x-struct:
-              x-validate:
-            has_next_page:
-              type: boolean
-              x-struct:
-              x-validate:
-            has_previous_page:
-              type: boolean
-              x-struct:
-              x-validate:
-            page:
-              type: integer
-              x-struct:
-              x-validate:
-            page_size:
-              type: integer
-              x-struct:
-              x-validate:
-            total_count:
-              type: integer
-              x-struct:
-              x-validate:
-            total_pages:
-              type: integer
-              x-struct:
-              x-validate:
-          required:
-            - end_at
-            - page
-            - page_size
-            - total_count
-            - total_pages
-            - has_next_page
-            - has_previous_page
-          title: PulsePagination
-          type: object
-          x-struct:
-          x-validate:
-        occurrence_series:
-          description: 60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end.
-          items:
-            items:
-              minimum: 0
-              type: integer
-              x-struct:
-              x-validate:
-            maxItems: 2
-            minItems: 2
-            type: array
-            x-struct:
-            x-validate:
-          maxItems: 60
-          minItems: 60
-          type: array
-          x-struct:
-          x-validate:
-        warnings:
-          items:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-      required:
-        - meta
-        - events
-        - warnings
-        - issue
-        - occurrence_series
-        - latest_event
-      title: PulseErrorIssueDetail
-      type: object
-      x-struct:
       x-validate:
     ArtifactMultipartUploadURL:
       description: The URL to upload a multipart part
@@ -28684,7 +27259,6 @@ paths:
               - metrics
               - logs
               - traces
-              - errors
             type: string
             x-struct:
             x-validate:
@@ -28806,7 +27380,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account, issue or event not found
+          description: Account not found
         '429':
           content:
             application/json:
@@ -41276,851 +39850,6 @@ paths:
       summary: Record a Cargo invocation and its observed rustc compilations.
       tags:
         - Cargo
-  /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}:
-    get:
-      callbacks: {}
-      operationId: getPulseErrorIssue
-      parameters:
-        - description: ''
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: path
-          name: issue_id
-          required: true
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: end_at
-          required: false
-          schema:
-            description: ISO8601 pinned window end from the previous response's meta.end_at.
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: environment
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: environment_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: page
-          required: false
-          schema:
-            default: 1
-            maximum: 2147483647
-            minimum: 1
-            type: integer
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: page_size
-          required: false
-          schema:
-            default: 20
-            maximum: 100
-            minimum: 1
-            type: integer
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: project
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: project_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: range
-          required: false
-          schema:
-            default: 1h
-            enum:
-              - 15m
-              - 1h
-              - 6h
-              - 24h
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: release
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: release_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: service
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: service_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: false
-                properties:
-                  events:
-                    items:
-                      additionalProperties: false
-                      properties:
-                        contexts:
-                          additionalProperties:
-                            x-struct:
-                            x-validate:
-                          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                          type: object
-                          x-struct:
-                          x-validate:
-                        culprit:
-                          description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        environment:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        event_id:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        exception:
-                          additionalProperties: false
-                          properties:
-                            frames:
-                              items:
-                                additionalProperties: false
-                                properties:
-                                  filename:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                  function:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                  in_app:
-                                    type: boolean
-                                    x-struct:
-                                    x-validate:
-                                  lineno:
-                                    nullable: true
-                                    type: integer
-                                    x-struct:
-                                    x-validate:
-                                  module:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                required:
-                                  - function
-                                  - module
-                                  - filename
-                                  - in_app
-                                  - lineno
-                                title: PulseErrorFrame
-                                type: object
-                                x-struct:
-                                x-validate:
-                              type: array
-                              x-struct:
-                              x-validate:
-                            type:
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                            value:
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                          title: PulseErrorException
-                          type: object
-                          x-struct:
-                          x-validate:
-                        exceptions:
-                          items:
-                            additionalProperties: false
-                            properties:
-                              frames:
-                                items:
-                                  additionalProperties: false
-                                  properties:
-                                    filename:
-                                      nullable: true
-                                      type: string
-                                      x-struct:
-                                      x-validate:
-                                    function:
-                                      nullable: true
-                                      type: string
-                                      x-struct:
-                                      x-validate:
-                                    in_app:
-                                      type: boolean
-                                      x-struct:
-                                      x-validate:
-                                    lineno:
-                                      nullable: true
-                                      type: integer
-                                      x-struct:
-                                      x-validate:
-                                    module:
-                                      nullable: true
-                                      type: string
-                                      x-struct:
-                                      x-validate:
-                                  required:
-                                    - function
-                                    - module
-                                    - filename
-                                    - in_app
-                                    - lineno
-                                  title: PulseErrorFrame
-                                  type: object
-                                  x-struct:
-                                  x-validate:
-                                type: array
-                                x-struct:
-                                x-validate:
-                              type:
-                                nullable: true
-                                type: string
-                                x-struct:
-                                x-validate:
-                              value:
-                                nullable: true
-                                type: string
-                                x-struct:
-                                x-validate:
-                            required:
-                              - type
-                              - value
-                              - frames
-                            title: PulseErrorException
-                            type: object
-                            x-struct:
-                            x-validate:
-                          type: array
-                          x-struct:
-                          x-validate:
-                        extra:
-                          additionalProperties:
-                            x-struct:
-                            x-validate:
-                          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                          type: object
-                          x-struct:
-                          x-validate:
-                        issue_id:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        level:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        modules:
-                          additionalProperties:
-                            x-struct:
-                            x-validate:
-                          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                          type: object
-                          x-struct:
-                          x-validate:
-                        platform:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        project:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        release:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        service:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        span_id:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        tags:
-                          additionalProperties:
-                            x-struct:
-                            x-validate:
-                          description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                          type: object
-                          x-struct:
-                          x-validate:
-                        timestamp:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        timestamp_ns:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        title:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        trace_id:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                      title: PulseErrorEvent
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  issue:
-                    additionalProperties: false
-                    properties:
-                      count:
-                        description: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      culprit:
-                        description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      first_seen_ns:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      issue_id:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      last_seen_ns:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      latest_event_id:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      level:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      occurrence_series:
-                        description: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                        items:
-                          items:
-                            minimum: 0
-                            type: integer
-                            x-struct:
-                            x-validate:
-                          maxItems: 2
-                          minItems: 2
-                          type: array
-                          x-struct:
-                          x-validate:
-                        maxItems: 60
-                        minItems: 60
-                        type: array
-                        x-struct:
-                        x-validate:
-                      platform:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      project:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      service:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      title:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - count
-                      - service
-                      - title
-                      - project
-                      - issue_id
-                      - first_seen_ns
-                      - last_seen_ns
-                      - latest_event_id
-                    title: PulseErrorIssue
-                    type: object
-                    x-struct:
-                    x-validate:
-                  latest_event:
-                    additionalProperties: false
-                    properties:
-                      contexts:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      culprit:
-                        description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      environment:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      event_id:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      exception:
-                        additionalProperties: false
-                        properties:
-                          frames:
-                            items:
-                              additionalProperties: false
-                              properties:
-                                filename:
-                                  nullable: true
-                                  type: string
-                                  x-struct:
-                                  x-validate:
-                                function:
-                                  nullable: true
-                                  type: string
-                                  x-struct:
-                                  x-validate:
-                                in_app:
-                                  type: boolean
-                                  x-struct:
-                                  x-validate:
-                                lineno:
-                                  nullable: true
-                                  type: integer
-                                  x-struct:
-                                  x-validate:
-                                module:
-                                  nullable: true
-                                  type: string
-                                  x-struct:
-                                  x-validate:
-                              required:
-                                - function
-                                - module
-                                - filename
-                                - in_app
-                                - lineno
-                              title: PulseErrorFrame
-                              type: object
-                              x-struct:
-                              x-validate:
-                            type: array
-                            x-struct:
-                            x-validate:
-                          type:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                          value:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                        title: PulseErrorException
-                        type: object
-                        x-struct:
-                        x-validate:
-                      exceptions:
-                        items:
-                          additionalProperties: false
-                          properties:
-                            frames:
-                              items:
-                                additionalProperties: false
-                                properties:
-                                  filename:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                  function:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                  in_app:
-                                    type: boolean
-                                    x-struct:
-                                    x-validate:
-                                  lineno:
-                                    nullable: true
-                                    type: integer
-                                    x-struct:
-                                    x-validate:
-                                  module:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                required:
-                                  - function
-                                  - module
-                                  - filename
-                                  - in_app
-                                  - lineno
-                                title: PulseErrorFrame
-                                type: object
-                                x-struct:
-                                x-validate:
-                              type: array
-                              x-struct:
-                              x-validate:
-                            type:
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                            value:
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                          required:
-                            - type
-                            - value
-                            - frames
-                          title: PulseErrorException
-                          type: object
-                          x-struct:
-                          x-validate:
-                        type: array
-                        x-struct:
-                        x-validate:
-                      extra:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      issue_id:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      level:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      modules:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      platform:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      project:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      release:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      service:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      span_id:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      tags:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      timestamp:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      timestamp_ns:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      title:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      trace_id:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                    title: PulseErrorEvent
-                    type: object
-                    x-struct:
-                    x-validate:
-                  meta:
-                    additionalProperties: false
-                    properties:
-                      end_at:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      has_next_page:
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      has_previous_page:
-                        type: boolean
-                        x-struct:
-                        x-validate:
-                      page:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      page_size:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      total_count:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      total_pages:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                    required:
-                      - end_at
-                      - page
-                      - page_size
-                      - total_count
-                      - total_pages
-                      - has_next_page
-                      - has_previous_page
-                    title: PulsePagination
-                    type: object
-                    x-struct:
-                    x-validate:
-                  occurrence_series:
-                    description: 60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end.
-                    items:
-                      items:
-                        minimum: 0
-                        type: integer
-                        x-struct:
-                        x-validate:
-                      maxItems: 2
-                      minItems: 2
-                      type: array
-                      x-struct:
-                      x-validate:
-                    maxItems: 60
-                    minItems: 60
-                    type: array
-                    x-struct:
-                    x-validate:
-                  warnings:
-                    items:
-                      nullable: false
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - meta
-                  - events
-                  - warnings
-                  - issue
-                  - occurrence_series
-                  - latest_event
-                title: PulseErrorIssueDetail
-                type: object
-                x-struct:
-                x-validate:
-          description: Pulse data
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid parameters or query
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Authentication required
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: User membership and account read required
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Account, issue or event not found
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Pulse rate limited
-        '503':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Pulse unavailable or query result limit exceeded
-      summary: Get a grouped Pulse error issue and its paginated events.
-      tags:
-        - Pulse
   /api/projects/{account_handle}/{project_handle}/xcode/builds:
     get:
       callbacks: {}
@@ -44507,6 +42236,11 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        setup_script:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         template:
                           type: string
                           x-struct:
@@ -44545,6 +42279,7 @@ paths:
                         - anthropic_agent_id
                         - agent_model
                         - agent_system_prompt
+                        - setup_script
                         - inserted_at
                         - updated_at
                       title: SandboxAgentEnvironment
@@ -44705,6 +42440,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                setup_script:
+                  description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
                 template:
                   description: Sandbox template name.
                   pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -44842,6 +42583,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  setup_script:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -44880,6 +42626,7 @@ paths:
                   - anthropic_agent_id
                   - agent_model
                   - agent_system_prompt
+                  - setup_script
                   - inserted_at
                   - updated_at
                 title: SandboxAgentEnvironment
@@ -45277,7 +43024,6 @@ paths:
               - metrics
               - logs
               - traces
-              - errors
             type: string
             x-struct:
             x-validate:
@@ -45287,28 +43033,6 @@ paths:
           required: false
           schema:
             description: ISO8601 pinned window end from the previous response's meta.end_at.
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: environment
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: environment_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
             type: string
             x-struct:
             x-validate:
@@ -45358,32 +43082,10 @@ paths:
             x-validate:
         - description: ''
           in: query
-          name: project
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: project_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
           name: query
           required: false
           schema:
-            description: Native PromQL, LogQL or TraceQL expression; literal title search for grouped errors.
+            description: PromQL expression for metrics; literal, case-insensitive log body or span name text for logs and traces (* selects all).
             maxLength: 4096
             type: string
             x-struct:
@@ -45399,28 +43101,6 @@ paths:
               - 1h
               - 6h
               - 24h
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: release
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: release_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
             type: string
             x-struct:
             x-validate:
@@ -45460,7 +43140,7 @@ paths:
           name: sort_by
           required: false
           schema:
-            description: 'Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen_ns/first_seen_ns/count/title/service/project/issue_id.'
+            description: 'Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id.'
             enum:
               - name
               - value
@@ -45470,12 +43150,6 @@ paths:
               - message
               - trace_id
               - duration_ms
-              - last_seen_ns
-              - first_seen_ns
-              - count
-              - title
-              - project
-              - issue_id
             type: string
             x-struct:
             x-validate:
@@ -45530,8 +43204,8 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - end_at
                       - page
+                      - end_at
                       - page_size
                       - total_count
                       - total_pages
@@ -45545,29 +43219,9 @@ paths:
                     items:
                       additionalProperties: false
                       properties:
-                        count:
-                          description: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        culprit:
-                          description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
                         duration_ms:
                           nullable: true
                           type: number
-                          x-struct:
-                          x-validate:
-                        first_seen_ns:
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        issue_id:
-                          nullable: false
-                          type: string
                           x-struct:
                           x-validate:
                         labels:
@@ -45577,15 +43231,6 @@ paths:
                             x-struct:
                             x-validate:
                           type: object
-                          x-struct:
-                          x-validate:
-                        last_seen_ns:
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        latest_event_id:
-                          nullable: false
-                          type: string
                           x-struct:
                           x-validate:
                         level:
@@ -45603,45 +43248,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
-                        occurrence_series:
-                          description: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                          items:
-                            items:
-                              minimum: 0
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            maxItems: 2
-                            minItems: 2
-                            type: array
-                            x-struct:
-                            x-validate:
-                          maxItems: 60
-                          minItems: 60
-                          type: array
-                          x-struct:
-                          x-validate:
-                        platform:
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        project:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
                         service:
                           nullable: true
                           type: string
                           x-struct:
                           x-validate:
                         timestamp:
-                          nullable: false
-                          type: string
-                          x-struct:
-                          x-validate:
-                        title:
                           nullable: false
                           type: string
                           x-struct:
@@ -45764,7 +43376,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account, issue or event not found
+          description: Account not found
         '429':
           content:
             application/json:
@@ -50630,7 +48242,7 @@ paths:
         - Sandboxes
     patch:
       callbacks: {}
-      description: Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+      description: Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.
       operationId: updateSandboxAgentEnvironment
       parameters:
         - description: The account handle.
@@ -50693,6 +48305,12 @@ paths:
                   x-validate:
                 anthropic_workspace_id:
                   description: 'Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.'
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                setup_script:
+                  description: "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
                   nullable: true
                   type: string
                   x-struct:
@@ -50810,6 +48428,11 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  setup_script:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -50848,6 +48471,7 @@ paths:
                   - anthropic_agent_id
                   - agent_model
                   - agent_system_prompt
+                  - setup_script
                   - inserted_at
                   - updated_at
                 title: SandboxAgentEnvironment
@@ -60418,446 +58042,6 @@ paths:
       summary: List targets for a test run.
       tags:
         - Tests
-  /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}:
-    get:
-      callbacks: {}
-      operationId: getPulseErrorEvent
-      parameters:
-        - description: ''
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: path
-          name: issue_id
-          required: true
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: path
-          name: event_id
-          required: true
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: end_at
-          required: false
-          schema:
-            description: ISO8601 pinned window end from the previous response's meta.end_at.
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: environment
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: environment_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: project
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: project_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: range
-          required: false
-          schema:
-            default: 1h
-            enum:
-              - 15m
-              - 1h
-              - 6h
-              - 24h
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: release
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: release_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: service
-          required: false
-          schema:
-            nullable: false
-            type: string
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: service_op
-          required: false
-          schema:
-            description: Filter operator; defaults to exact equality.
-            enum:
-              - eq
-              - contains
-              - not_contains
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                additionalProperties: false
-                properties:
-                  event:
-                    additionalProperties: false
-                    properties:
-                      contexts:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      culprit:
-                        description: 'Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.'
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      environment:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      event_id:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      exception:
-                        additionalProperties: false
-                        properties:
-                          frames:
-                            items:
-                              additionalProperties: false
-                              properties:
-                                filename:
-                                  nullable: true
-                                  type: string
-                                  x-struct:
-                                  x-validate:
-                                function:
-                                  nullable: true
-                                  type: string
-                                  x-struct:
-                                  x-validate:
-                                in_app:
-                                  type: boolean
-                                  x-struct:
-                                  x-validate:
-                                lineno:
-                                  nullable: true
-                                  type: integer
-                                  x-struct:
-                                  x-validate:
-                                module:
-                                  nullable: true
-                                  type: string
-                                  x-struct:
-                                  x-validate:
-                              required:
-                                - function
-                                - module
-                                - filename
-                                - in_app
-                                - lineno
-                              title: PulseErrorFrame
-                              type: object
-                              x-struct:
-                              x-validate:
-                            type: array
-                            x-struct:
-                            x-validate:
-                          type:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                          value:
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                        title: PulseErrorException
-                        type: object
-                        x-struct:
-                        x-validate:
-                      exceptions:
-                        items:
-                          additionalProperties: false
-                          properties:
-                            frames:
-                              items:
-                                additionalProperties: false
-                                properties:
-                                  filename:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                  function:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                  in_app:
-                                    type: boolean
-                                    x-struct:
-                                    x-validate:
-                                  lineno:
-                                    nullable: true
-                                    type: integer
-                                    x-struct:
-                                    x-validate:
-                                  module:
-                                    nullable: true
-                                    type: string
-                                    x-struct:
-                                    x-validate:
-                                required:
-                                  - function
-                                  - module
-                                  - filename
-                                  - in_app
-                                  - lineno
-                                title: PulseErrorFrame
-                                type: object
-                                x-struct:
-                                x-validate:
-                              type: array
-                              x-struct:
-                              x-validate:
-                            type:
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                            value:
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                          required:
-                            - type
-                            - value
-                            - frames
-                          title: PulseErrorException
-                          type: object
-                          x-struct:
-                          x-validate:
-                        type: array
-                        x-struct:
-                        x-validate:
-                      extra:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      issue_id:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      level:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      modules:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      platform:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      project:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      release:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      service:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      span_id:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      tags:
-                        additionalProperties:
-                          x-struct:
-                          x-validate:
-                        description: 'Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.'
-                        type: object
-                        x-struct:
-                        x-validate:
-                      timestamp:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      timestamp_ns:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      title:
-                        nullable: false
-                        type: string
-                        x-struct:
-                        x-validate:
-                      trace_id:
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                    title: PulseErrorEvent
-                    type: object
-                    x-struct:
-                    x-validate:
-                  warnings:
-                    items:
-                      nullable: false
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - warnings
-                  - event
-                title: PulseErrorEventDetail
-                type: object
-                x-struct:
-                x-validate:
-          description: Pulse data
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid parameters or query
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Authentication required
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: User membership and account read required
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Account, issue or event not found
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Pulse rate limited
-        '503':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Pulse unavailable or query result limit exceeded
-      summary: Get a projected event belonging to a Pulse error issue.
-      tags:
-        - Pulse
   /api/projects/{account_handle}/{project_handle}/generations:
     get:
       callbacks: {}

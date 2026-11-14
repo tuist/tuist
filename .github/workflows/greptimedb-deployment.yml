@@ -191,7 +191,6 @@ jobs:
               enrolled_account_id: Keyword.get(config, :account_id),
               pulse_reader_available: Code.ensure_loaded?(Tuist.Pulse) and function_exported?(Tuist.Pulse, :query, 4),
               greptime_adapter_available: Code.ensure_loaded?(Tuist.Pulse.Greptime),
-              greptime_backend: Keyword.get(config, :backend, :pulse) == :greptime,
               expected_endpoint: Keyword.get(config, :base_url) == "http://pulse.observability.svc.cluster.local:4000",
               expected_database: Keyword.get(config, :tenant) == "public",
               pulse_flag: FunWithFlags.enabled?(:pulse, for: account)
@@ -203,10 +202,10 @@ jobs:
             select(length == 1) | .[0] |
             select((.account_id | type) == "number" and
               (.enrolled_account_id == null or (.enrolled_account_id | type) == "number") and
-              ([.pulse_reader_available, .greptime_adapter_available, .greptime_backend,
+              ([.pulse_reader_available, .greptime_adapter_available,
                 .expected_endpoint, .expected_database, .pulse_flag] | all(type == "boolean"))) |
             {account_id, enrolled_account_id, pulse_reader_available, greptime_adapter_available,
-              greptime_backend, expected_endpoint, expected_database, pulse_flag}'
+              expected_endpoint, expected_database, pulse_flag}'
           rm -f "$inspection.out" "$inspection.err"
           helm history pulse -n observability -o json | jq '[.[] | {revision, chart, status}]'
       - name: Check prerequisites, ownership and capacity before creating backend resources
@@ -320,14 +319,7 @@ jobs:
           dir="$RUNNER_TEMP/greptimedb-deploy"
           values=()
           if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
-          # The legacy pulse release was uninstalled with --keep-history. Helm
-          # 4.2's upgrade --install reads that history unsorted, misses the
-          # uninstall record and fails; install --replace sorts by revision and
-          # installs a new revision on top of the kept history.
-          action=(upgrade --install)
-          last=$(helm history pulse -n observability -o json 2>/dev/null | jq -r 'max_by(.revision).status') || last=
-          if [[ "$last" == uninstalled ]]; then action=(install --replace); fi
-          if ! helm "${action[@]}" pulse "$dir/tuist-pulse-0.1.0.tgz" \
+          if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" \
             "${values[@]}" \
             --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" \
             -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
@@ -524,8 +516,7 @@ jobs:
             echo "Deleted $claim and its volume $pv" | tee -a "$GITHUB_STEP_SUMMARY"
           done
           kubectl -n observability delete secret greptimedb-auth --ignore-not-found
-          # Only the greptimedb/ prefix: Pulse's pulse/ data and legacy Pulse
-          # history (tenants/, auth/, .pulse/) share this bucket.
+          # Only the greptimedb/ prefix: Pulse's pulse/ data shares this bucket.
           jq -n --arg name "$PURGE_POD" --arg bucket "tuist-pulso-$DEPLOY_ENV" '
             {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
               restartPolicy:"Never",activeDeadlineSeconds:1200,automountServiceAccountToken:false,

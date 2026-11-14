@@ -59,7 +59,7 @@ try {
     if (!result.output) throw new Error();
     return result;
   };
-  // Preserve effective production retention (legacy Pulse only observed expiry).
+  // Production keeps its data indefinitely; staging and canary keep 7 days.
   // Never mistake HTTP 200 for SQL success or impose the trial TTL on production.
   phase = 'database TTL';
   if (process.env.SMOKE_READ_ONLY !== 'true') await sqlResult(`ALTER DATABASE public SET 'ttl' = '${ttl}'`);

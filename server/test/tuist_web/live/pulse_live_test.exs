@@ -22,22 +22,23 @@ defmodule TuistWeb.PulseLiveTest do
     %{conn: log_in_user(conn, user), user: user, account: account, organization: organization}
   end
 
-  test "Greptime hides Errors and rejects direct issue and event pages", ctx do
-    stub(Environment, :pulse_config, fn -> [account_id: ctx.account.id, backend: :greptime] end)
+  test "logs and traces offer literal text search, metrics PromQL", ctx do
     stub(Pulse, :query, fn _, _, signal, _ -> {:ok, result(signal)} end)
 
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/logs")
-    render_async(view)
-    refute has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
-    view |> element("#pulse-toggle-query") |> render_click()
-    assert has_element?(view, "#pulse-expression[value='*']")
-
-    for path <- ["errors", "errors/issues/issue", "errors/issues/issue/events/event"] do
-      assert_raise NotFoundError, fn -> live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{path}") end
+    for {signal, language, default} <- [
+          {"logs", "Text search (* for all)", "*"},
+          {"traces", "Text search (* for all)", "*"},
+          {"metrics", "PromQL", "up"}
+        ] do
+      {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/#{signal}")
+      render_async(view)
+      assert has_element?(view, "#pulse-toggle-query", language)
+      view |> element("#pulse-toggle-query") |> render_click()
+      assert has_element?(view, "#pulse-expression[value='#{default}']")
     end
   end
 
-  for signal <- ~w(metrics logs traces errors) do
+  for signal <- ~w(metrics logs traces) do
     test "renders #{signal} with organization navigation and escaped telemetry", ctx do
       signal = unquote(signal)
       stub(Pulse, :query, fn _, _, ^signal, _ -> {:ok, result(signal)} end)
@@ -45,7 +46,8 @@ defmodule TuistWeb.PulseLiveTest do
       html = render_async(view)
 
       assert has_element?(view, "#pulse[data-signal='#{signal}']")
-      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
+      assert has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/traces']")
+      refute has_element?(view, "#sidebar-pulse a[href='/#{ctx.account.name}/~/pulse/errors']")
       assert has_element?(view, "#pulse-table", "server")
 
       assert has_element?(
@@ -74,7 +76,7 @@ defmodule TuistWeb.PulseLiveTest do
       assert series["data"] == [[1_790_000_000_000, 0], [1_790_000_010_000, nil], [1_790_000_020_000, 12]]
       assert series["connectNulls"] == false
 
-      if signal not in ~w(metrics errors) do
+      if signal != "metrics" do
         assert has_element?(view, "#pulse-table", "2026-")
         if signal != "traces", do: assert(has_element?(view, "#pulse-table", "<script>not executable</script>"))
       end
@@ -92,13 +94,13 @@ defmodule TuistWeb.PulseLiveTest do
     render_patch(view, "/#{ctx.account.name}/~/pulse/logs?range=6h")
     render_async(view)
     view |> element("#pulse-toggle-query") |> render_click()
-    view |> form("#pulse-expression-form", pulse: %{query: "{service_name=\"server\"}"}) |> render_submit()
-    assert_patch(view, "/#{ctx.account.name}/~/pulse/logs?query=%7Bservice_name%3D%22server%22%7D&range=6h")
+    view |> form("#pulse-expression-form", pulse: %{query: "timeout"}) |> render_submit()
+    assert_patch(view, "/#{ctx.account.name}/~/pulse/logs?query=timeout&range=6h")
     render_async(view)
-    assert has_element?(view, "#pulse-table", "{service_name=\"server\"} 6h")
+    assert has_element?(view, "#pulse-table", "timeout 6h")
     send(view.pid, :refresh)
     render_async(view)
-    assert has_element?(view, "#pulse-table", "{service_name=\"server\"} 6h")
+    assert has_element?(view, "#pulse-table", "timeout 6h")
   end
 
   test "table search and widget selection reuse analytics; period and refresh reload it", ctx do
@@ -380,169 +382,6 @@ defmodule TuistWeb.PulseLiveTest do
     assert searched["range"] == "15m"
   end
 
-  test "error rows and trends preserve distinct project identity", ctx do
-    rows = [issue(), Map.merge(issue(), %{"project" => "tuist/cache", "service" => "cache"})]
-    stub(Pulse, :query, fn _, _, "errors", _ -> {:ok, %{result("errors") | rows: rows}} end)
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/errors")
-    document = view |> render_async() |> Floki.parse_document!()
-    row_ids = document |> Floki.find("#pulse-table tbody tr") |> Floki.attribute("id")
-    chart_ids = document |> Floki.find("#pulse-table .noora-chart") |> Floki.attribute("id")
-    assert length(Enum.uniq(row_ids)) == 2
-    assert length(Enum.uniq(chart_ids)) == 2
-    links = document |> Floki.find("#pulse-table [data-part='row-link']") |> Floki.attribute("href")
-    assert Enum.map(links, &URI.decode_query(URI.parse(&1).query)["project"]) == ["1", "tuist/cache"]
-  end
-
-  test "grouped errors link through issue and occurrence details without losing their window", ctx do
-    issue = issue()
-    test = self()
-
-    event = %{
-      "event_id" => issue["latest_event_id"],
-      "timestamp" => issue["last_seen_ns"],
-      "service" => "server",
-      "project" => "tuist/server",
-      "trace_id" => String.duplicate("a", 32),
-      "span_id" => String.duplicate("b", 16),
-      "title" => "ArgumentError: <script>bad</script>",
-      "level" => "error",
-      "environment" => "production",
-      "release" => "1.2.3",
-      "tags" => %{"deployment.region" => "eu-central", "worker" => "<script>tag</script>"},
-      "contexts" => %{"runtime" => %{"name" => "Elixir", "version" => "1.20.2", "jit" => true}},
-      "extra" => %{
-        "attempt" => 0,
-        "details" => %{"message" => "<script>extra</script>", "retried" => false, "missing" => nil}
-      },
-      "modules" => %{"phoenix" => "1.8.1", "ecto" => "3.13.0"},
-      "exception" => %{
-        "type" => "ArgumentError",
-        "value" => "<script>bad</script>",
-        "frames" => [
-          %{
-            "module" => "MyApp.Worker",
-            "function" => "run/1",
-            "filename" => "lib/worker.ex",
-            "lineno" => 42,
-            "in_app" => true
-          }
-        ]
-      }
-    }
-
-    event =
-      Map.put(event, "exceptions", [
-        %{"type" => "RootCause", "value" => "Original cause", "frames" => []},
-        event["exception"]
-      ])
-
-    stub(Pulse, :query, fn _, _, "errors", _ -> {:ok, result("errors")} end)
-
-    stub(Pulse, :error_issue, fn _, _, id, params ->
-      assert id == issue["issue_id"]
-      assert params["end_at"] == meta()["end_at"]
-      send(test, :issue_loaded)
-
-      {:ok,
-       %{
-         issue: issue,
-         events: [event],
-         latest_event: event,
-         occurrence_series: [[1_790_000_000, 40], [1_790_000_060, 0], [1_790_000_120, 3]],
-         meta: meta(),
-         warnings: []
-       }}
-    end)
-
-    stub(Pulse, :error_event, fn _, _, id, event_id, _ ->
-      assert id == issue["issue_id"]
-      assert event_id == event["event_id"]
-      {:ok, %{event: event, warnings: []}}
-    end)
-
-    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/errors")
-    html = render_async(view)
-    headers = html |> Floki.parse_document!() |> Floki.find("#pulse-table th") |> Enum.map(&Floki.text/1)
-    assert Enum.map(headers, &String.trim/1) == ["Issue", "Last seen", "First seen", "Trend", "Events"]
-    assert has_element?(view, "#pulse-table [data-part='issue-context']", "error")
-    assert has_element?(view, "#pulse-table [data-part='issue-culprit']", "MyApp.Worker.run/1")
-    assert has_element?(view, "#pulse-table [title='Elixir'] svg")
-    assert has_element?(view, "#pulse-table [title='2026-09-21 14:13:30.123456 UTC']")
-    assert has_element?(view, "#pulse-table [data-part='issue-trend'] .noora-chart")
-    link = view |> element("#pulse-table a", "<script>not executable</script>") |> render_click()
-    {:ok, detail, _} = follow_redirect(link, ctx.conn)
-    html = render_async(detail)
-    assert_receive :issue_loaded
-    assert has_element?(detail, "#pulse-error-back[data-part='back-button']")
-    assert has_element?(detail, "[data-part='metadata-grid']", "43")
-    assert has_element?(detail, "#pulse-issue-occurrences")
-    assert has_element?(detail, "#pulse-stacktrace", "Latest event")
-    assert has_element?(detail, "#pulse-stacktrace", "RootCause")
-    assert has_element?(detail, "#pulse-stacktrace [data-in-app='true']", "MyApp.Worker.run/1")
-    assert has_element?(detail, "#pulse-issue-overview", "Elixir")
-    assert has_element?(detail, "#pulse-issue-overview", "First seen in this period")
-    assert has_element?(detail, "#pulse-event-tags", "<script>tag</script>")
-    assert has_element?(detail, "#pulse-event-contexts", "1.20.2")
-    assert has_element?(detail, "#pulse-event-extra code.language-json .boolean", "false")
-    assert has_element?(detail, "#pulse-modules-table", "phoenix")
-    assert has_element?(detail, "#pulse-stack-frames-0 th", "File")
-    refute html =~ "<script>"
-    refute has_element?(detail, "[phx-click='resolve']")
-    detail |> element("#pulse-error-occurrences-tab") |> render_click()
-    render_async(detail)
-    refute_received :issue_loaded
-    assert has_element?(detail, "#pulse-error-events", event["event_id"])
-    link = detail |> element("#pulse-error-events a", "2026-") |> render_click()
-    {:ok, occurrence, _} = follow_redirect(link, ctx.conn)
-    html = render_async(occurrence)
-    assert has_element?(occurrence, "#pulse-stacktrace", "MyApp.Worker")
-    assert has_element?(occurrence, "#pulse-stacktrace", "lib/worker.ex:42")
-    assert has_element?(occurrence, "#pulse-stacktrace", "RootCause")
-    assert has_element?(occurrence, "[data-part='metadata-grid']", event["span_id"])
-    assert has_element?(occurrence, "#pulse-event-contexts", "true")
-    assert has_element?(occurrence, "#pulse-event-extra code.language-json .string", "<script>extra</script>")
-
-    details =
-      html
-      |> Floki.parse_document!()
-      |> Floki.find("#pulse-event-extra code.language-json")
-      |> Floki.text()
-      |> JSON.decode!()
-
-    assert details == %{"message" => "<script>extra</script>", "retried" => false, "missing" => nil}
-    assert has_element?(occurrence, "#pulse-event-modules", "3.13.0")
-    refute html =~ "<script>"
-  end
-
-  test "event details distinguish missing exceptions and missing stack frames", ctx do
-    event = %{"event_id" => issue()["latest_event_id"], "title" => "Message only", "exceptions" => [], "exception" => %{}}
-    stub(Pulse, :error_event, fn _, _, _, _, _ -> {:ok, %{event: event, warnings: []}} end)
-    path = "/#{ctx.account.name}/~/pulse/errors/issues/#{issue()["issue_id"]}/events/#{event["event_id"]}"
-    {:ok, view, _} = live(ctx.conn, path)
-    render_async(view)
-    assert has_element?(view, "#pulse-stacktrace", "No exception recorded")
-    refute has_element?(view, "#pulse-stacktrace [data-part='stack-frame']")
-    refute has_element?(view, "#pulse-event-tags")
-    refute has_element?(view, "#pulse-event-contexts")
-    refute has_element?(view, "#pulse-event-extra")
-    refute has_element?(view, "#pulse-event-modules")
-  end
-
-  test "error detail routes remain private and fail visibly", ctx do
-    stub(Pulse, :error_issue, fn _, _, _, _ -> {:error, :not_found} end)
-    path = "/#{ctx.account.name}/~/pulse/errors/issues/#{issue()["issue_id"]}"
-    {:ok, view, _} = live(ctx.conn, path)
-    render_async(view)
-    assert has_element?(view, "#pulse-detail-error", "not found")
-
-    outsider = AccountsFixtures.user_fixture()
-    reject(Pulse, :error_event, 5)
-
-    assert_raise NotFoundError, fn ->
-      live(log_in_user(ctx.conn, outsider), path <> "/events/#{issue()["latest_event_id"]}")
-    end
-  end
-
   defp chart_data(html) do
     html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> JSON.decode!()
   end
@@ -568,22 +407,12 @@ defmodule TuistWeb.PulseLiveTest do
   defp analytics_ids("metrics"), do: ~w(reporting healthy unhealthy)
   defp analytics_ids("logs"), do: ~w(entries errors warnings)
   defp analytics_ids("traces"), do: ~w(spans errors duration_p95)
-  defp analytics_ids("errors"), do: ~w(events fatal services)
 
   defp result("metrics") do
     %{
       rows: [%{"name" => "up", "labels" => %{"service_name" => "server"}, "value" => 2.5}],
       series: [%{"name" => "server", "points" => [[1_790_000_000, 0], [1_790_000_010, "NaN"], [1_790_000_020, 2.5]]}],
       warnings: [],
-      meta: meta()
-    }
-  end
-
-  defp result("errors") do
-    %{
-      rows: [issue()],
-      series: [],
-      warnings: ["Example warning"],
       meta: meta()
     }
   end
@@ -616,23 +445,6 @@ defmodule TuistWeb.PulseLiveTest do
       "end_at" => "2026-09-21T14:13:20Z",
       "has_previous_page" => false,
       "has_next_page" => false
-    }
-  end
-
-  defp issue do
-    %{
-      "issue_id" => "v1_" <> String.duplicate("a", 64),
-      "project" => "1",
-      "service" => "server",
-      "title" => "<script>not executable</script>",
-      "level" => "error",
-      "platform" => "elixir",
-      "culprit" => "MyApp.Worker.run/1",
-      "occurrence_series" => [[1_790_000_000, 40], [1_790_000_060, 0], [1_790_000_120, 3]],
-      "count" => 43,
-      "first_seen_ns" => "1790000000123456789",
-      "last_seen_ns" => "1790000010123456789",
-      "latest_event_id" => String.duplicate("b", 32)
     }
   end
 end
