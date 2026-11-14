@@ -1,5 +1,23 @@
 {{- include "greptimedb.validate" . }}
 {{- if ne .Values.environment "management" }}
+{{- if .Values.migration.standalone }}
+# Created before pulse-host-ingress narrows to the frontends (template order).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: pulse-standalone-host-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "greptimedb.standaloneSelector" . | nindent 6 }}
+  ingress:
+    - fromEntities: [host, remote-node]
+      toPorts:
+        - ports:
+            - port: "4000"
+              protocol: TCP
+{{- end }}
+---
 # k8s-monitoring's control-plane collector runs on the host network to scrape
 # the local kube-apiserver and etcd. Cilium gives its traffic the node's
 # identity, which Kubernetes podSelector/ipBlock rules never match, so its

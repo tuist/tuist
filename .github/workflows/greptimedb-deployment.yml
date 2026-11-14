@@ -125,6 +125,8 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/greptimedb-config
       STORAGE_POD: pulse-storage-${{ github.run_id }}-${{ github.run_attempt }}
       SMOKE_POD: pulse-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      # The chart arguments every render and upgrade below shares.
+      PULSE_CHART_ARGS: ${{ inputs.environment == 'production' && '-f infra/helm/greptimedb/values-production.yaml ' || '' }}--set environment=${{ inputs.environment }},storage.bucket=tuist-pulso-${{ inputs.environment }},dashboard.enabled=${{ inputs.dashboard }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -153,12 +155,15 @@ jobs:
             echo '::error::Telemetry verification reads with the dashboard identity.'
             exit 1
           fi
-          values=()
-          if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
-          helm template pulse "$dir/tuist-pulse-0.1.0.tgz" -n observability \
-            "${values[@]}" \
-            --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" > "$dir/rendered.yaml"
+          read -ra chart_args <<< "$PULSE_CHART_ARGS"
+          helm template pulse "$dir/tuist-pulse-0.1.0.tgz" -n observability "${chart_args[@]}" > "$dir/rendered.yaml"
           yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
+          # Staging and canary may still run the standalone backend; it moves to
+          # the cluster with both running side by side (see the install step).
+          if [[ "$DEPLOY_ENV" != production ]]; then
+            helm template pulse "$dir/tuist-pulse-0.1.0.tgz" -n observability "${chart_args[@]}" \
+              --set migration.standalone=serving | yq ea -o=json -I=0 '.' | jq -s 'map(select(. != null))' > "$dir/migration.json"
+          fi
       - uses: 1password/install-cli-action@v4
       - name: Load selected deployment identity in CI only
         env:
@@ -222,7 +227,26 @@ jobs:
             echo '::error::Cannot remove the identities collectors and readers use.'
             exit 1
           fi
-          jq -r '.[] | [.kind, .metadata.name] | @tsv' "$dir/resources.json" > "$dir/resources.tsv"
+          # Pulse reads only X-Pulse-* headers; collectors deployed before they
+          # sent them lose every log and trace pipeline. Deploy the server first.
+          if kubectl -n observability get configmaps -o json | jq -e '
+            any(.items[] | select(.metadata.name | startswith("k8s-monitoring")) | (.data // {})[];
+              test("pulse\\.observability") and (test("X-Pulse-DB-Name") | not))' > /dev/null; then
+            echo '::error::Live collectors write to Pulse without X-Pulse-* headers; deploy the server to this environment first.'
+            exit 1
+          fi
+          # A standalone backend stays up next to the new cluster until readers
+          # move; the side-by-side render covers both.
+          planned="$dir/resources.json"
+          if [[ -n "$(kubectl -n observability get statefulset pulse --ignore-not-found -o name)" ]]; then
+            if [[ ! -f "$dir/migration.json" ]]; then
+              echo '::error::Only staging and canary migrate from a standalone backend.'
+              exit 1
+            fi
+            planned="$dir/migration.json"
+            echo 'MIGRATE_STANDALONE=true' >> "$GITHUB_ENV"
+          fi
+          jq -r '.[] | [.kind, .metadata.name] | @tsv' "$planned" > "$dir/resources.tsv"
           while IFS=$'\t' read -r kind name; do
             case "$kind" in ConfigMap|Service|StatefulSet|Deployment|PodDisruptionBudget|ExternalSecret|NetworkPolicy|CiliumNetworkPolicy) ;; *) exit 1 ;; esac
             existing=$(kubectl -n observability get "$kind" "$name" --ignore-not-found \
@@ -238,23 +262,16 @@ jobs:
             all(.items[]; (.spec.target.name // .metadata.name) != "pulse-dashboard-auth" or
               .metadata.name == "pulse-dashboard-auth") and
             all(.items[]; (.spec.target.name // .metadata.name) != "pulse-auth")' > /dev/null
-          # Helm would delete the other topology's workloads (their PVCs are
-          # retained). Moving between topologies is a separate migration.
-          if jq -e 'any(.[]; .metadata.name == "pulse-datanode")' "$dir/resources.json" > /dev/null; then
-            topology=cluster; other=statefulset/pulse
-          else
-            topology=standalone; other=statefulset/pulse-datanode
-          fi
-          if [[ -n "$(kubectl -n observability get "$other" --ignore-not-found -o name)" ]]; then
-            echo "::error::Refusing to replace an existing $other with the $topology topology in place."
-            exit 1
-          fi
           kubectl get nodes -l node.cluster.x-k8s.io/pool=general -o json > "$dir/nodes.json"
           kubectl get pods -A -o json > "$dir/pods.json"
-          # The HA topology must stay schedulable after losing any one node.
-          if [[ "$topology" == cluster ]]; then export CAPACITY_TOLERATE_NODE_LOSS=1; fi
-          # An upgrade replaces this release's running pods; count them once.
-          CAPACITY_NAMESPACE=observability \
+          # An upgrade replaces this release's running pods: count them once.
+          export CAPACITY_NAMESPACE=observability
+          # The minutes-long side-by-side phase only has to fit now.
+          if [[ "$planned" != "$dir/resources.json" ]]; then
+            node .github/scripts/openobserve-capacity.mjs "$dir/nodes.json" "$dir/pods.json" "$planned"
+          fi
+          # The cluster must stay schedulable after losing any one node.
+          CAPACITY_TOLERATE_NODE_LOSS=1 \
             node .github/scripts/openobserve-capacity.mjs "$dir/nodes.json" "$dir/pods.json" "$dir/resources.json"
           rm -f "$dir/nodes.json" "$dir/pods.json"
       - name: Verify shared S3 lifecycle, privacy and isolated prefix access
@@ -313,26 +330,7 @@ jobs:
             grep -q 'secrets "pulse-auth" already exists' "$dir/auth.log"
           fi
           rm -f "$dir/passwd" "$dir/auth.log"
-      - name: Install private backend, retaining state on failure
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/greptimedb-deploy"
-          values=()
-          if [[ "$DEPLOY_ENV" == production ]]; then values=(-f infra/helm/greptimedb/values-production.yaml); fi
-          if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" \
-            "${values[@]}" \
-            --set "environment=$DEPLOY_ENV,storage.bucket=tuist-pulso-$DEPLOY_ENV,dashboard.enabled=$DASHBOARD_ENABLED" \
-            -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
-            # Helm's error line names the failing step, not rendered values.
-            grep -m1 '^Error' "$dir/helm.log" || true
-            echo '::error::Pulse rollout failed; state retained for diagnosis.'
-            exit 1
-          fi
-          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
-          if [[ "$DASHBOARD_ENABLED" == true ]]; then
-            kubectl -n observability wait --for=condition=Ready externalsecret/pulse-dashboard-auth --timeout=60s
-          fi
-      - name: Require OTLP metrics, error logs and traces, then reread after restart without rewriting
+      - name: Prepare the smoke probe
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/greptimedb-deploy"
@@ -356,6 +354,61 @@ jobs:
           ' > "$dir/native.json"
           jq --rawfile pipeline infra/helm/greptimedb/loki-otlp.yaml \
             '.spec.containers[0].env += [{name:"GREPTIMEDB_LOKI_PIPELINE",value:$pipeline}]' "$dir/native.json" > "$dir/smoke.json"
+      - name: Install private backend, retaining state on failure
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          read -ra chart_args <<< "$PULSE_CHART_ARGS"
+          upgrade() {
+            if ! helm upgrade --install pulse "$dir/tuist-pulse-0.1.0.tgz" "${chart_args[@]}" "$@" \
+              -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+              # Helm's error line names the failing step, not rendered values.
+              grep -m1 '^Error' "$dir/helm.log" || true
+              echo '::error::Pulse rollout failed; state retained for diagnosis.'
+              exit 1
+            fi
+          }
+          if [[ "${MIGRATE_STANDALONE:-}" != true ]]; then
+            upgrade
+          else
+            # 1. Start the cluster beside the standalone pod, which keeps serving
+            # Service `pulse`. The chart keeps that pod's template unchanged.
+            standalone() { kubectl -n observability get pod pulse-0 -o jsonpath='{.metadata.uid}/{.status.containerStatuses[0].restartCount}'; }
+            before=$(standalone)
+            upgrade --set migration.standalone=serving
+            if [[ "$(standalone)" != "$before" ]]; then
+              echo '::error::The standalone pod restarted while it still served readers.'
+              exit 1
+            fi
+            kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
+            # 2. Qualify the frontends through their own Service before readers move.
+            probe="$SMOKE_POD-cluster"
+            jq --arg name "$probe" --arg run "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$DEPLOY_ENV-cluster" '
+              .metadata.name = $name |
+              .spec.containers[0].env |= map(
+                if .name == "GREPTIMEDB_URL" then .value = "http://pulse-frontend.observability:4000"
+                elif .name == "SMOKE_RUN" then .value = $run else . end)' "$dir/smoke.json" > "$dir/cluster-smoke.json"
+            kubectl create -f "$dir/cluster-smoke.json" > /dev/null
+            kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$probe" --timeout=180s
+            kubectl -n observability logs "$probe"
+            kubectl -n observability delete pod "$probe" --wait=true --timeout=30s > /dev/null
+            # 3. Move Service `pulse` to the frontends. Standalone stays until the
+            # cluster passes the checks below; a failure moves readers back.
+            echo 'MIGRATION_PHASE=draining' >> "$GITHUB_ENV"
+            upgrade --set migration.standalone=draining
+            kubectl -n observability get endpointslices -l kubernetes.io/service-name=pulse -o json | jq -e '
+              [.items[].endpoints[]] | length >= 2 and
+              all(.[]; .targetRef.name | startswith("pulse-frontend-"))' > /dev/null
+            echo "Moved Service pulse from the standalone pod to the cluster frontends." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
+          if [[ "$DASHBOARD_ENABLED" == true ]]; then
+            kubectl -n observability wait --for=condition=Ready externalsecret/pulse-dashboard-auth --timeout=60s
+          fi
+      - name: Require OTLP metrics, error logs and traces, then reread after restart without rewriting
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
           kubectl create -f "$dir/smoke.json" > /dev/null
           kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
           kubectl -n observability logs "$SMOKE_POD"
@@ -386,6 +439,34 @@ jobs:
           kubectl create -f "$dir/live-smoke.json" > /dev/null
           kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=360s
           kubectl -n observability logs "$SMOKE_POD"
+      - name: Remove the standalone backend after the cluster qualified
+        if: env.MIGRATE_STANDALONE == 'true'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/greptimedb-deploy"
+          read -ra chart_args <<< "$PULSE_CHART_ARGS"
+          echo 'MIGRATION_PHASE=retiring' >> "$GITHUB_ENV"
+          if ! helm upgrade pulse "$dir/tuist-pulse-0.1.0.tgz" "${chart_args[@]}" \
+            -n observability --timeout 20m --wait > "$dir/helm.log" 2>&1; then
+            grep -m1 '^Error' "$dir/helm.log" || true
+            echo '::error::Removing the standalone backend failed; readers stay on the cluster.'
+            exit 1
+          fi
+          kubectl -n observability wait --for=delete pod/pulse-0 --timeout=120s
+          [[ -z "$(kubectl -n observability get statefulset pulse --ignore-not-found -o name)" ]]
+          # Helm never deletes a StatefulSet's claims; the old WAL volume stays.
+          kubectl -n observability get pvc data-pulse-0 -o name
+          echo 'Removed the standalone StatefulSet; kept its volume claim data-pulse-0.' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Move readers back to the standalone backend
+        if: failure() && env.MIGRATION_PHASE == 'draining'
+        run: |
+          set -euo pipefail
+          # The previous revision is the side-by-side one, with Service `pulse`
+          # on the standalone pod, which kept running throughout.
+          helm rollback pulse -n observability --wait --timeout 10m
+          kubectl -n observability get endpointslices -l kubernetes.io/service-name=pulse -o json | jq -e '
+            [.items[].endpoints[] | .targetRef.name] == ["pulse-0"]' > /dev/null
+          echo '::warning::Readers are back on the standalone backend; the cluster is retained for diagnosis.'
       - name: Install private staging Grafana after backend qualification
         if: inputs.dashboard && inputs.environment == 'staging'
         run: |
@@ -410,7 +491,7 @@ jobs:
           set -euo pipefail
           trap 'rm -rf "$RUNNER_TEMP/greptimedb-deploy"; rm -f "$KUBECONFIG"' EXIT
           if [[ -f "$KUBECONFIG" ]]; then
-            kubectl -n observability delete pod "$SMOKE_POD" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
+            kubectl -n observability delete pod "$SMOKE_POD" "$SMOKE_POD-cluster" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
             kubectl -n observability delete externalsecret "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
           fi
 
@@ -516,8 +597,14 @@ jobs:
             echo "Deleted $claim and its volume $pv" | tee -a "$GITHUB_STEP_SUMMARY"
           done
           kubectl -n observability delete secret greptimedb-auth --ignore-not-found
+          # Pulse's credentials Secret names its keys after the running topology.
+          if [[ -n "$(kubectl -n observability get statefulset pulse-datanode --ignore-not-found -o name)" ]]; then
+            key=PULSE_DATANODE__STORAGE__
+          else
+            key=PULSE_STANDALONE__STORAGE__
+          fi
           # Only the greptimedb/ prefix: Pulse's pulse/ data shares this bucket.
-          jq -n --arg name "$PURGE_POD" --arg bucket "tuist-pulso-$DEPLOY_ENV" '
+          jq -n --arg name "$PURGE_POD" --arg bucket "tuist-pulso-$DEPLOY_ENV" --arg key "$key" '
             {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
               restartPolicy:"Never",activeDeadlineSeconds:1200,automountServiceAccountToken:false,
               nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
@@ -534,8 +621,8 @@ jobs:
                 resources:{requests:{cpu:"50m",memory:"128Mi"},limits:{memory:"256Mi"}},
                 env:[{name:"HOME",value:"/tmp"},{name:"AWS_ENDPOINT_URL",value:"https://t3.storage.dev"},
                   {name:"AWS_DEFAULT_REGION",value:"auto"},{name:"AWS_REQUEST_CHECKSUM_CALCULATION",value:"when_required"},
-                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_STANDALONE__STORAGE__ACCESS_KEY_ID"}}},
-                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:"PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY"}}}]
+                  {name:"AWS_ACCESS_KEY_ID",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:($key + "ACCESS_KEY_ID")}}},
+                  {name:"AWS_SECRET_ACCESS_KEY",valueFrom:{secretKeyRef:{name:"pulse-credentials",key:($key + "SECRET_ACCESS_KEY")}}}]
               }]}}' > "$RUNNER_TEMP/purge.json"
           kubectl create -f "$RUNNER_TEMP/purge.json" > /dev/null
           deadline=$((SECONDS + 1200)); phase=Pending

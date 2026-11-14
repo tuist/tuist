@@ -52,6 +52,10 @@ spec:
       data:
         PULSE_DATANODE__STORAGE__ACCESS_KEY_ID: '{{ "{{ .accessKey | trim }}" }}'
         PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY: '{{ "{{ .secretKey | trim }}" }}'
+        {{- if .Values.migration.standalone }}
+        PULSE_STANDALONE__STORAGE__ACCESS_KEY_ID: '{{ "{{ .accessKey | trim }}" }}'
+        PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY: '{{ "{{ .secretKey | trim }}" }}'
+        {{- end }}
   data:
     - secretKey: accessKey
       remoteRef:
@@ -68,12 +72,33 @@ metadata:
 spec:
   type: ClusterIP
   selector:
+    {{- if eq .Values.migration.standalone "serving" }}
+    {{- include "greptimedb.standaloneSelector" . | nindent 4 }}
+    {{- else }}
+    app.kubernetes.io/instance: pulse
+    app.kubernetes.io/component: frontend
+    {{- end }}
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+{{- if .Values.migration.standalone }}
+---
+# Qualifies the frontends before Service `pulse` moves to them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulse-frontend
+spec:
+  type: ClusterIP
+  selector:
     app.kubernetes.io/instance: pulse
     app.kubernetes.io/component: frontend
   ports:
     - name: http
       port: 4000
       targetPort: http
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -465,6 +490,23 @@ spec:
         {{- include "greptimedb.authVolumes" . | nindent 8 }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
+{{- if .Values.migration.standalone }}
+---
+# Keeps the standalone pod's readers while it runs beside the cluster. Helm
+# applies policies in template order: this one exists before pulse-internal
+# selects that pod and pulse-private narrows to the frontends.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pulse-standalone
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "greptimedb.standaloneSelector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    {{- include "greptimedb.apiIngress" . | nindent 4 }}
+{{- end }}
 ---
 # Components talk only to each other; clients reach the frontends' HTTP API.
 apiVersion: networking.k8s.io/v1
