@@ -540,6 +540,163 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
     }
 }
 
+/// https://github.com/tuist/tuist/issues/15703: macro support libraries exported as library products, like
+/// swift-case-paths' `CasePathsMacrosSupport`, link the prebuilt swift-syntax on macOS, while apps on every platform,
+/// including macOS, still build and link the packages.
+@Suite(.coverageAttribution)
+struct BuildAcceptanceTestSwiftPMPrebuiltMacroSupportLibrary {
+    @Test(
+        .withFixture("generated_multiplatform_app_with_swiftpm_prebuilt_macro_support_library"),
+        .inTemporaryDirectory
+    )
+    func multiplatform_app_with_swiftpm_prebuilt_macro_support_library_builds_for_every_platform() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+        // See `BuildAcceptanceTestSwiftPMPrebuiltMacro`: SwiftPM only extracts the prebuilts when it can validate their
+        // signed manifest and download.swift.org publishes them for the toolchain.
+        let extractedPrebuiltModules = try await fileSystem.glob(
+            directory: fixtureDirectory.appending(components: "Tuist", ".build", "prebuilts"),
+            include: ["**/*-MacroSupport/**/*-apple-macos.*"]
+        ).collect()
+        guard !extractedPrebuiltModules.isEmpty else {
+            try Test.cancel("Prebuilt SwiftSyntax libraries are unavailable for this toolchain.")
+        }
+
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        let syntaxKit = try XcodeProj(
+            pathString: fixtureDirectory.appending(components: "SyntaxKit", "SyntaxKit.xcodeproj").pathString
+        )
+        let macroSettings = try #require(
+            try TuistAcceptanceTest.requireTarget("FormattingMacros", in: syntaxKit)
+                .buildConfigurationList?.configuration(name: "Debug")?.buildSettings
+        )
+        #expect(macroSettings["OTHER_LDFLAGS"]?.arrayValue?.contains("-lMacroSupport") == true)
+        let supportSettings = try #require(
+            try TuistAcceptanceTest.requireTarget("FormattingMacrosSupport", in: syntaxKit)
+                .buildConfigurationList?.configuration(name: "Debug")?.buildSettings
+        )
+        #expect(
+            supportSettings["OTHER_LDFLAGS"]?.arrayValue?
+                .contains("$(TUIST_SWIFTPM_PREBUILTS_OTHER_LDFLAGS_$(PLATFORM_NAME)_$(IS_MACCATALYST:default=NO))") == true
+        )
+        #expect(supportSettings["TUIST_SWIFTPM_PREBUILTS_OTHER_LDFLAGS_macosx_NO"]?.stringValue == "-lMacroSupport")
+
+        // `SyntaxHelpers` is also built into the apps, so Highlighting keeps source swift-syntax.
+        let highlighting = try XcodeProj(
+            pathString: fixtureDirectory.appending(components: "Highlighting", "Highlighting.xcodeproj").pathString
+        )
+        let highlightingLinkerFlags = highlighting.pbxproj.buildConfigurations.flatMap {
+            $0.buildSettings["OTHER_LDFLAGS"]?.arrayValue ?? []
+        }
+        #expect(!highlightingLinkerFlags.contains("-lMacroSupport"))
+
+        for (scheme, destination) in [
+            ("App", "generic/platform=iOS Simulator"),
+            ("App", "generic/platform=macOS,variant=Mac Catalyst"),
+            ("MacCLI", "generic/platform=macOS"),
+        ] {
+            try await TuistTest.run(
+                XcodeBuildBuildCommand.self,
+                [
+                    "build",
+                    "-workspace",
+                    fixtureDirectory.appending(component: "App.xcworkspace").pathString,
+                    "-scheme",
+                    scheme,
+                    "-destination",
+                    destination,
+                    "-derivedDataPath",
+                    derivedDataPath.pathString,
+                    "-skipMacroValidation",
+                    "CODE_SIGNING_ALLOWED=NO",
+                    "CODE_SIGNING_REQUIRED=NO",
+                    "CODE_SIGN_IDENTITY=",
+                ]
+            )
+        }
+    }
+
+    /// A project target that links the macro-only library itself gets neither the prebuilt's search paths nor its library,
+    /// so the package keeps source swift-syntax and the macOS tool still builds.
+    @Test(
+        .withFixture("generated_multiplatform_app_with_swiftpm_prebuilt_macro_support_library"),
+        .inTemporaryDirectory
+    )
+    func project_target_linking_the_macro_support_library_keeps_source_swift_syntax() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let projectManifestPath = fixtureDirectory.appending(component: "Project.swift")
+        var projectManifest = try await fileSystem.readTextFile(at: projectManifestPath)
+        // MacCLI is the last target, so its dependencies hold the last `Highlighting` dependency.
+        let macCLIDependency = try #require(projectManifest.range(of: #".external(name: "Highlighting"),"#, options: .backwards))
+        projectManifest.insert(
+            contentsOf: #" .external(name: "FormattingMacrosSupport"),"#,
+            at: macCLIDependency.upperBound
+        )
+        try await fileSystem.writeText(projectManifest, at: projectManifestPath, options: [.overwrite])
+        try await fileSystem.writeText(
+            """
+            import Formatting
+            import FormattingMacrosSupport
+            import Highlighting
+
+            print(formattedMessage, highlightedMessage, type(of: stringifiedExpression))
+            """,
+            at: fixtureDirectory.appending(components: "MacCLI", "Sources", "main.swift"),
+            options: [.overwrite]
+        )
+
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+        let extractedPrebuiltModules = try await fileSystem.glob(
+            directory: fixtureDirectory.appending(components: "Tuist", ".build", "prebuilts"),
+            include: ["**/*-MacroSupport/**/*-apple-macos.*"]
+        ).collect()
+        guard !extractedPrebuiltModules.isEmpty else {
+            try Test.cancel("Prebuilt SwiftSyntax libraries are unavailable for this toolchain.")
+        }
+
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+
+        let syntaxKit = try XcodeProj(
+            pathString: fixtureDirectory.appending(components: "SyntaxKit", "SyntaxKit.xcodeproj").pathString
+        )
+        let syntaxKitSettings = syntaxKit.pbxproj.buildConfigurations.map(\.buildSettings)
+        #expect(!syntaxKitSettings.contains { $0.keys.contains { $0.hasPrefix("TUIST_SWIFTPM_PREBUILTS_") } })
+        let syntaxKitLinkerFlags = syntaxKitSettings.flatMap { $0["OTHER_LDFLAGS"]?.arrayValue ?? [] }
+        #expect(!syntaxKitLinkerFlags.contains("-lMacroSupport"))
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "build",
+                "-workspace",
+                fixtureDirectory.appending(component: "App.xcworkspace").pathString,
+                "-scheme",
+                "MacCLI",
+                "-destination",
+                "generic/platform=macOS",
+                "-derivedDataPath",
+                derivedDataPath.pathString,
+                "-skipMacroValidation",
+                "CODE_SIGNING_ALLOWED=NO",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGN_IDENTITY=",
+            ]
+        )
+    }
+}
+
 @Suite(.coverageAttribution)
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives {
     @Test(.disabled(), .withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)

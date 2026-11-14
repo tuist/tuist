@@ -89,7 +89,8 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
             origin: .remote,
             artifactPaths: _,
             packagePrebuilts: packagePrebuilts,
-            derivedXCFrameworksPath: _
+            derivedXCFrameworksPath: _,
+            prebuiltTargets: _
         ) = packageType,
             let prebuilt = packagePrebuilts[packageIdentity]?[productName]
         {
@@ -104,7 +105,8 @@ private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked
 
         state.withLock {
             $0.mapCallCount += 1
-            $0.capturedPrebuilt = capturedPrebuilt
+            // Packages map concurrently, and only the one with the prebuilt captures it.
+            $0.capturedPrebuilt = $0.capturedPrebuilt ?? capturedPrebuilt
         }
 
         return ProjectDescription.Project(name: packageInfo.name, targets: [])
@@ -844,7 +846,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                                 origin: .remote,
                                 artifactPaths: _,
                                 packagePrebuilts: _,
-                                derivedXCFrameworksPath: _
+                                derivedXCFrameworksPath: _,
+                                prebuiltTargets: _
                             ) = packageType {
                                 return true
                             }
@@ -985,23 +988,47 @@ struct SwiftPackageManagerGraphLoaderTests {
         }
     }
 
-    @Test
-    func load_whenWorkspaceStateContainsPrebuilts_sanitizesPathsAndPassesPackagePrebuiltsToMapper() async throws {
+    /// SwiftPM names a prebuilt's directory after the compiler that `swift package resolve` ran with. Its binary modules
+    /// only load in that compiler, so when `swift` in `PATH` (swiftly's, for example) isn't the compiler Xcode builds with,
+    /// the package keeps its source products instead of failing the build with "found incompatible module".
+    /// When Xcode's compiler version can't be read, the prebuilts are kept, as before the check. So are those of SwiftPM
+    /// 6.1, whose directories only carry the language version, not the compiler's.
+    @Test(.withMockedSwiftVersionProvider, arguments: [
+        ("swiftlang-6.4.0.34.1-macosx27.2-MacroSupport", "6.4.0.34.1", true),
+        ("swift-6.3.2-RELEASE-macos_universal-MacroSupport", "6.4.0.34.1", false),
+        ("swiftlang-6.4.0.3-macosx27.2-MacroSupport", "6.4.0.34.1", false),
+        ("swiftlang-6.4.0.34.1-macosx27.2-MacroSupport", "6.4.0.3", false),
+        ("swift-6.3.2-RELEASE-macos_universal-MacroSupport", nil, true),
+        ("6.1-MacroSupport-macos_aarch64", "6.1.2.1.2", true),
+    ] as [(String, String?, Bool)])
+    func load_whenWorkspaceStateContainsPrebuilts_sanitizesPathsAndPassesPackagePrebuiltsToMapper(
+        prebuiltDirectoryName: String,
+        xcodeSwiftlangVersion: String?,
+        isBuiltByXcodeCompiler: Bool
+    ) async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
+                let swiftVersionProvider = try #require(SwiftVersionProvider.mocked)
+                if let xcodeSwiftlangVersion {
+                    given(swiftVersionProvider).swiftlangVersion().willReturn(xcodeSwiftlangVersion)
+                } else {
+                    given(swiftVersionProvider).swiftlangVersion().willThrow(
+                        NSError(domain: "SwiftVersionProvider", code: 1)
+                    )
+                }
                 let packageSettings = PackageSettings.test()
                 let workspacePath = temporaryDirectory.appending(components: [
                     ".build", "workspace-state.json",
                 ])
                 let prebuiltPath = temporaryDirectory.appending(components: [
-                    ".build", "prebuilts", "swift-syntax",
+                    ".build", "prebuilts", "swift-syntax", "601.0.0", prebuiltDirectoryName,
                 ])
                 let checkoutPath = temporaryDirectory.appending(components: [
                     ".build", "checkouts", "swift-syntax",
                 ])
-                let expectedPrebuiltPath = prebuiltPath.pathString.replacingOccurrences(of: "/private/var", with: "/var")
-                let expectedCheckoutPath = checkoutPath.pathString.replacingOccurrences(of: "/private/var", with: "/var")
+                let expectedPrebuiltPath = prebuiltPath.pathString
+                let expectedCheckoutPath = checkoutPath.pathString
 
                 try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
                 try await fileSystem.writeText(
@@ -1093,7 +1120,140 @@ struct SwiftPackageManagerGraphLoaderTests {
 
                 // Then
                 #expect(packageInfoMapper.mapCallCount == 1)
-                #expect(packageInfoMapper.capturedPrebuilt == expectedPrebuilt)
+                #expect(packageInfoMapper.capturedPrebuilt == (isBuiltByXcodeCompiler ? expectedPrebuilt : nil))
+            }
+        }
+    }
+
+    /// `/var` is a symlink to `/private/var`, so a temporary directory has two spellings, and workspace states can record
+    /// either: SwiftPM keeps the spelling it's given, while some paths, such as local binary targets, are real paths. Tuist
+    /// relativizes paths lexically, so a local package or prebuilt spelled differently from the checkouts directory gets
+    /// a relative path that crosses the symlink, which clang resolves to a directory that doesn't exist.
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .enabled(
+            if: ["/var/", "/private/var/"].contains { NSTemporaryDirectory().hasPrefix($0) },
+            "Temporary directories need a /var and a /private/var spelling"
+        ),
+        arguments: [true, false]
+    )
+    func load_whenWorkspaceStateSpellsVarDifferently_spellsPathsLikeTheScratchDirectory(
+        scratchDirectoryIsRealPath: Bool
+    ) async throws {
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                // Given
+                let swiftVersionProvider = try #require(SwiftVersionProvider.mocked)
+                given(swiftVersionProvider).swiftlangVersion().willReturn("6.4.0.34.1")
+                let realPath = temporaryDirectory.pathString.hasPrefix("/var/")
+                    ? "/private\(temporaryDirectory.pathString)" : temporaryDirectory.pathString
+                try #require(realPath.hasPrefix("/private/var/"))
+                let symlinkPath = String(realPath.dropFirst("/private".count))
+                let projectDirectory = try Path.AbsolutePath(validating: scratchDirectoryIsRealPath ? realPath : symlinkPath)
+                let recordedDirectory = scratchDirectoryIsRealPath ? symlinkPath : realPath
+                let prebuiltSubpath = ".build/prebuilts/swift-syntax/601.0.0/swiftlang-6.4.0.34.1-macosx27.2-MacroSupport"
+                let workspacePath = projectDirectory.appending(components: [".build", "workspace-state.json"])
+                try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "swift-syntax",
+                              "kind" : "remoteSourceControl",
+                              "location" : "https://github.com/swiftlang/swift-syntax.git",
+                              "name" : "swift-syntax"
+                            },
+                            "state" : {
+                              "checkoutState" : {
+                                "revision" : "revision",
+                                "version" : "601.0.0"
+                              },
+                              "name" : "sourceControlCheckout"
+                            },
+                            "subpath" : "swift-syntax"
+                          },
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "highlighting",
+                              "kind" : "fileSystem",
+                              "location" : "\(recordedDirectory)/Highlighting",
+                              "name" : "Highlighting"
+                            },
+                            "state" : {
+                              "name" : "fileSystem",
+                              "path" : "\(recordedDirectory)/Highlighting"
+                            },
+                            "subpath" : "highlighting"
+                          }
+                        ],
+                        "prebuilts" : [
+                          {
+                            "identity" : "swift-syntax",
+                            "version" : "601.0.0",
+                            "libraryName" : "MacroSupport",
+                            "path" : "\(recordedDirectory)/\(prebuiltSubpath)",
+                            "checkoutPath" : "\(recordedDirectory)/.build/checkouts/swift-syntax",
+                            "products" : ["SwiftSyntax"],
+                            "includePath" : ["Sources/_SwiftSyntaxCShims/include"],
+                            "cModules" : ["_SwiftSyntaxCShims"]
+                          }
+                        ]
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+                try await fileSystem.makeDirectory(at: projectDirectory.appending(components: [".build", "Derived"]))
+                try await fileSystem.touch(projectDirectory.appending(components: [".build", "Derived", "Package.resolved"]))
+                try await fileSystem.touch(projectDirectory.appending(component: "Package.resolved"))
+
+                let manifestLoader = MockManifestLoading()
+                given(manifestLoader)
+                    .loadPackage(at: .any, disableSandbox: .value(true))
+                    .willReturn(.test())
+                let contentHasher = MockContentHashing()
+                given(contentHasher)
+                    .hash(Parameter<[String]>.any)
+                    .willProduce { $0.joined(separator: "-") }
+                let packageInfoMapper = PackageInfoMapperPrebuiltSpy(
+                    packageIdentity: "swift-syntax",
+                    productName: "SwiftSyntax"
+                )
+                let subject = SwiftPackageManagerGraphLoader(
+                    swiftPackageManagerController: MockSwiftPackageManagerControlling(),
+                    packageInfoMapper: packageInfoMapper,
+                    manifestLoader: manifestLoader,
+                    fileSystem: fileSystem,
+                    contentHasher: contentHasher
+                )
+
+                // When
+                let (got, _) = try await subject.load(
+                    packagePath: projectDirectory.appending(component: "Package.swift"),
+                    packageSettings: .test(),
+                    disableSandbox: true
+                )
+
+                // Then
+                #expect(
+                    got.externalProjects.keys.map(\.pathString).sorted() == [
+                        projectDirectory.appending(components: ".build", "checkouts", "swift-syntax").pathString,
+                        projectDirectory.appending(component: "Highlighting").pathString,
+                    ].sorted()
+                )
+                #expect(
+                    packageInfoMapper.capturedPrebuilt == CapturedPackagePrebuilt(
+                        path: projectDirectory.appending(try Path.RelativePath(validating: prebuiltSubpath)).pathString,
+                        checkoutPath: projectDirectory.appending(components: ".build", "checkouts", "swift-syntax").pathString,
+                        includePaths: ["Sources/_SwiftSyntaxCShims/include"]
+                    )
+                )
             }
         }
     }
@@ -1227,7 +1387,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                         origin: _,
                         artifactPaths: artifactPaths,
                         packagePrebuilts: _,
-                        derivedXCFrameworksPath: derivedXCFrameworksPath
+                        derivedXCFrameworksPath: derivedXCFrameworksPath,
+                        prebuiltTargets: _
                     ) = packageType
                     else { return false }
                     return artifactPaths["Foo"] == expectedArtifactPath
@@ -1359,7 +1520,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                         origin: .local,
                         artifactPaths: _,
                         packagePrebuilts: _,
-                        derivedXCFrameworksPath: _
+                        derivedXCFrameworksPath: _,
+                        prebuiltTargets: _
                     ) = packageType {
                         return true
                     }
