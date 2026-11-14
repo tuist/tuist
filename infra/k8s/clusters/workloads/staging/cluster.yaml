@@ -72,6 +72,14 @@ spec:
       # ExternalIP first, so their behaviour is unchanged.
       - name: kubeletPreferredAddressTypes
         value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
+      # Collapse the labels the control-plane collector drops from the
+      # API-server request metrics to `unexpected` at the source, so the
+      # collector can stop producing duplicate samples. Rolls the control
+      # plane. See
+      # "API-server aggregation must happen before export" in
+      # infra/helm/k8s-monitoring/README.md.
+      - name: aggregateApiServerMetrics
+        value: true
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, system DaemonSets.
