@@ -579,18 +579,16 @@ kuraVolumesCSI:
   # qgdlc-v4x2c (lvm-v1 since 2026-11-13).
   # Only accounts on the kura_thin_volumes flag move; listing a region changes
   # no other manifest.
-  thinRegions: [eu-west, sa-west, us-central, us-east, eu-east, us-west, ber1-runners]
+  thinRegions: [eu-west, sa-west, us-central, us-east, eu-east, us-west]
   # Every account in these regions is on thin. sa-west and us-central were
   # converted host by host (2026-11-09) and us-east the same way (2026-11-13);
   # eu-east and us-west are converting through their landing boxes. New
   # instances land only on thin-ready nodes.
   #
-  # ber1-runners has one storage host and one replica per account, so it
-  # cannot drain host by host. Its instances are torn down
-  # (runner_site_cache_excluded) while ber1-store-a is reinstalled lvm-v1,
-  # and come back fresh on thin; BER1 jobs use the accounts' public caches
-  # meanwhile.
-  thinEnrolledRegions: [sa-west, us-central, us-east, eu-east, us-west, ber1-runners]
+  # ber1-runners stays off thin until ber1-store-a is reinstalled lvm-v1. Its
+  # firmware has no network boot entry and no install stick is plugged in, so
+  # the reinstall needs someone at the rack first.
+  thinEnrolledRegions: [sa-west, us-central, us-east, eu-east, us-west]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
