@@ -154,6 +154,32 @@ struct TargetImportsScannerTests {
         #expect(await sourceCodeReader.maxConcurrentReads <= 3)
     }
 
+    @Test func imports_limitsConcurrentFileScansAcrossTargetsAndScansSharedFilesOnce() async throws {
+        // Given
+        let sourceCodeReader = ConcurrentSourceCodeReader()
+        let sharedSource = SourceFile(path: try AbsolutePath(validating: "/Shared/Sources/Shared.swift"))
+        let targets = try (0 ..< 4).map { targetIndex in
+            let sources = try (0 ..< 5).map { index in
+                SourceFile(path: try AbsolutePath(validating: "/Target\(targetIndex)/Sources/File\(index).swift"))
+            }
+            return Target.test(name: "Target\(targetIndex)", sources: sources + [sharedSource])
+        }
+        let subject = TargetImportsScanner(
+            maxConcurrentFileScans: 3,
+            sourceCodeReader: sourceCodeReader.read(at:)
+        )
+
+        // When
+        let results = try await targets.concurrentMap(maxConcurrentTasks: targets.count) { target in
+            try await subject.imports(for: target)
+        }
+
+        // Then
+        #expect(results == Array(repeating: ["SecondTarget"], count: targets.count))
+        #expect(await sourceCodeReader.maxConcurrentReads <= 3)
+        #expect(await sourceCodeReader.reads == 21)
+    }
+
     @Test func imports_readsEachFileOnceAcrossDifferentReachableModules() async throws {
         // Given
         let sourceCodeReader = CountingSourceCodeReader(
@@ -220,8 +246,10 @@ private actor CountingSourceCodeReader {
 private actor ConcurrentSourceCodeReader {
     private var activeReads = 0
     private(set) var maxConcurrentReads = 0
+    private(set) var reads = 0
 
     func read(at _: AbsolutePath) async throws -> String? {
+        reads += 1
         activeReads += 1
         maxConcurrentReads = max(maxConcurrentReads, activeReads)
         defer { activeReads -= 1 }
