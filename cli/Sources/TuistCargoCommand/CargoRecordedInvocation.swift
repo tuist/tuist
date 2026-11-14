@@ -190,8 +190,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
         CargoReadRecorder.environment(environment, library: recorder, log: log, toolchain: toolchain.path)
     }
 
-    /// The inputs of a finished, successful recorded compilation, or `nil` when it cannot be cached.
-    func recorded(log: URL, started: Date) -> CargoRecordedInvocation? {
+    /// The inputs of a finished, successful recorded compilation, or `nil` when it cannot be cached, with the reason
+    /// passed to `explain`.
+    func recorded(log: URL, started: Date, explain: (String) -> Void = { _ in }) -> CargoRecordedInvocation? {
         let excluded = ["TUIST_CARGO_SESSION", "TUIST_CARGO_CACHE_DIR"].compactMap { environment[$0] }
             .map { URL(fileURLWithPath: $0).standardizedFileURL.path } + [log.path]
         let temporary = [NSTemporaryDirectory(), "/tmp", "/private/tmp", "/var/folders", "/private/var/folders"]
@@ -209,12 +210,16 @@ struct CargoRecordedInvocation: CargoCacheAction {
                 // rustc finds the SDK with `xcrun` and links with `cc`; both are keyed by `CargoToolchainIdentity.linker`.
                 return ["cc", "xcrun"].contains(program) || program == linker
             },
-            keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) }
+            keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) },
+            explain: explain
         ),
             let depInfo = try? String(contentsOf: output.appendingPathComponent(files.last!), encoding: .utf8)
         else { return nil }
         reads.addEnvironmentDependencies(depInfo, keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) })
-        guard reads.unchanged(since: started, relocation: relocation) else { return nil }
+        guard reads.unchanged(since: started, relocation: relocation) else {
+            explain("read an input that changed while it ran")
+            return nil
+        }
         // Outputs that name a root behave the same only at that root, so their key names it too.
         for file in (try? outputFiles()) ?? [] where !file.hasSuffix(".d") {
             guard let data = try? Data(contentsOf: output.appendingPathComponent(file)) else { return nil }

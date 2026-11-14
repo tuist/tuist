@@ -16,10 +16,17 @@ import TuistREAPI
 enum CargoReadRecorder { // swiftlint:disable:this type_body_length
     static let version = "tuist-cargo-recorder-v2"
 
+    /// Universal: macOS strips `DYLD_*` from its arm64e system programs (`/bin/sh`, `/usr/bin/cc`) only while System
+    /// Integrity Protection is on. With it off, as on many CI machines, they load the recorder too (which then stands
+    /// down in them), and dyld terminates a process whose inserted library has no slice for it.
+    static let compilerArguments = ["-dynamiclib", "-O2", "-arch", "arm64", "-arch", "arm64e"]
+
     /// Builds the recorder once per cache directory with the system C compiler. `nil` when unsupported or unavailable.
+    /// How it is compiled names the file, not `version`, which keys recorded runs: their reads do not depend on it.
     static func prepare(cacheDirectory: URL) -> URL? {
         #if os(macOS) && arch(arm64)
-            let identity = SHA256.hash(data: Data((version + source).utf8)).map { String(format: "%02x", $0) }.joined()
+            let identity = SHA256.hash(data: Data((version + compilerArguments.joined(separator: " ") + source).utf8))
+                .map { String(format: "%02x", $0) }.joined()
             let directory = cacheDirectory.appendingPathComponent("recorder")
             let library = directory.appendingPathComponent("\(identity.prefix(16)).dylib")
             if FileManager.default.isExecutableFile(atPath: library.path) { return library }
@@ -38,7 +45,7 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
                 let output = staging.appendingPathComponent("recorder.dylib")
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-                process.arguments = ["clang", "-dynamiclib", "-O2", "-arch", "arm64", "-o", output.path, file.path]
+                process.arguments = ["clang"] + compilerArguments + ["-o", output.path, file.path]
                 process.standardOutput = FileHandle.nullDevice
                 process.standardError = FileHandle.nullDevice
                 try process.run()
@@ -134,13 +141,35 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
     __attribute__((constructor)) static void start(void) {
         if (pthread_key_create(&depth_key, free) != 0) return;
         depth++;
+        char executable[MAXPATHLEN];
+        uint32_t size = sizeof executable;
+        int located = _NSGetExecutablePath(executable, &size) == 0;
+        /* System Integrity Protection strips `DYLD_*` from protected programs (`/bin/sh`, `/usr/bin/cc`, `xcrun`),
+           whose files carry the restricted flag, so they never load this library. With it off they do: such a process
+           records nothing and drops `DYLD_*` as SIP would, so runs are recorded the same way on every machine. */
+        struct stat status;
+        if (located && stat(executable, &status) == 0 && (status.st_flags & SF_RESTRICTED)) {
+            char **current = *_NSGetEnviron();
+            size_t count = 0;
+            while (current != NULL && current[count] != NULL) count++;
+            char **names = calloc(count + 1, sizeof(char *));
+            size_t found = 0;
+            for (size_t index = 0; names != NULL && index < count; index++) {
+                const char *equals = strchr(current[index], '=');
+                if (strncmp(current[index], "DYLD_", 5) == 0 && equals != NULL) {
+                    names[found++] = strndup(current[index], (size_t)(equals - current[index]));
+                }
+            }
+            for (size_t index = 0; index < found; index++) { unsetenv(names[index]); free(names[index]); }
+            free(names);
+            depth--;
+            return;
+        }
         const char *log = getenv("TUIST_CARGO_READ_LOG");
         if (log != NULL) log_fd = open(log, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0600);
         const char *root = getenv("TUIST_CARGO_READ_TOOLCHAIN");
         if (root != NULL) strlcpy(toolchain, root, sizeof toolchain);
-        char executable[MAXPATHLEN];
-        uint32_t size = sizeof executable;
-        emit('P', _NSGetExecutablePath(executable, &size) == 0 ? executable : "?");
+        emit('P', located ? executable : "?");
         /* The environment the process started with, which the key holds: a query's own is logged against it. */
         char **current = *_NSGetEnviron();
         size_t count = 0;

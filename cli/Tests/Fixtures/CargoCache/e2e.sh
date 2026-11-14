@@ -13,8 +13,11 @@ cp -R "$FIXTURE/src" "$ROOT/src"
 touch "$ROOT/not-a-state-directory"
 test "$(XDG_STATE_HOME="$ROOT/not-a-state-directory" "$TUIST_CLI_BINARY" cargo __compiler rustc --print sysroot)" = "$(rustc --print sysroot)"
 mkdir -p "$ROOT/cache"
+# Cargo passes loader variables such as DYLD_FALLBACK_LIBRARY_PATH, which bypass caching. SIP strips them from this
+# /bin/sh wrapper, but not on machines with SIP off, so drop them as `tuist cargo`'s hook client does.
 cat > "$ROOT/wrapper" <<'WRAPPER'
 #!/bin/sh
+for name in $(env | sed -n 's/^\(DYLD_[A-Za-z_]*\)=.*/\1/p'); do unset "$name"; done
 printf '%s\n' "$@" > "$TUIST_CARGO_SESSION/compiler-$$.args"
 printf '%s\n' "CARGO_HOME=${CARGO_HOME-}" "CARGO_MANIFEST_DIR=${CARGO_MANIFEST_DIR-}" "OUT_DIR=${OUT_DIR-}" > "$TUIST_CARGO_SESSION/compiler-$$.context"
 exec "$TUIST_CLI_BINARY" cargo __compiler "$@"
