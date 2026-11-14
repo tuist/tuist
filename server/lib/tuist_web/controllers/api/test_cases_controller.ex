@@ -661,11 +661,11 @@ defmodule TuistWeb.API.TestCasesController do
     end
   end
 
+  defp innermost_suite_cli?(_conn, _project), do: false
+
   defp first_whole_suite_path_version(%Version{major: major, minor: minor}) do
     Enum.find(@whole_suite_path_cli_versions, hd(@whole_suite_path_cli_versions), fn version ->
       version.major == major and version.minor == minor
     end)
   end
-
-  defp innermost_suite_cli?(_conn, _project), do: false
 end
