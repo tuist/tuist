@@ -2,7 +2,7 @@ name: Pulse Build & Publish
 
 # Reusable build+publish pipeline for Pulse, shared by the canary, RC and
 # promote workflows, like kura-build-publish.yml. The caller computes the
-# version and the exact commit to build; this workflow validates, builds,
+# version and the exact commit to build; this workflow builds,
 # smoke-tests and publishes ghcr.io/tuist/pulse:<version>, tags the commit
 # pulse@<version> and creates its GitHub release.
 #
@@ -44,15 +44,11 @@ defaults:
   run:
     shell: bash
 
+# Like Kura's, it runs no tests: pulse.yml checks every commit on main (the
+# canary workflow waits for it) and every pull request into a release branch.
 jobs:
-  validate:
-    uses: ./.github/workflows/pulse.yml
-    with:
-      ref: ${{ inputs.ref }}
-
   publish:
     name: Publish Pulse ${{ inputs.version }}
-    needs: validate
     runs-on: tuist-linux-large
     timeout-minutes: 240
     permissions:

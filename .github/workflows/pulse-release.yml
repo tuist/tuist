@@ -65,9 +65,14 @@ jobs:
           echo "should_publish=true" >> "$GITHUB_OUTPUT"
           mise run --no-deps --skip-tools pulse:release:channel-version -- canary
 
+  validate:
+    needs: resolve
+    if: needs.resolve.outputs.should_publish == 'true'
+    uses: ./.github/workflows/pulse.yml
+
   build-publish:
     name: Build and publish canary
-    needs: resolve
+    needs: [resolve, validate]
     if: needs.resolve.outputs.should_publish == 'true'
     uses: ./.github/workflows/pulse-build-publish.yml
     with:
