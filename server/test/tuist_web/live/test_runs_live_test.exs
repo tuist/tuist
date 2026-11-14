@@ -11,6 +11,28 @@ defmodule TuistWeb.TestRunsLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  # The analytics task runs several sequential ClickHouse queries for durations,
+  # which can outlast the render_async timeouts on a loaded CI runner.
+  setup do
+    stub(TestsAnalytics, :test_run_duration_analytics, fn _, _ ->
+      %{
+        trend: nil,
+        total_average_duration: 0,
+        p50: 0,
+        p90: 0,
+        p99: 0,
+        average_durations: [],
+        dates: [],
+        values: [],
+        p50_values: [],
+        p90_values: [],
+        p99_values: []
+      }
+    end)
+
+    :ok
+  end
+
   describe "lists latest test runs" do
     setup do
       copy(RunsAnalytics)
