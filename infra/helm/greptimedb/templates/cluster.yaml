@@ -504,6 +504,11 @@ spec:
             {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.cluster.frontend.resources | nindent 12 }}
+          # Keep serving until Service `pulse` drops this endpoint; without it a
+          # rollout refuses the requests routed here before the removal lands.
+          lifecycle:
+            preStop:
+              sleep: {seconds: 10}
           readinessProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
