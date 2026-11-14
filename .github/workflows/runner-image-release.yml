@@ -19,6 +19,7 @@ on:
       - infra/runner-image/**
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
+      - infra/certificate-trust/macos-guest-trust.sh
       - infra/certificate-trust/controls/**
       - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/actions/build-runner-image-binaries/**
@@ -29,6 +30,7 @@ on:
       - infra/runner-image/**
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
+      - infra/certificate-trust/macos-guest-trust.sh
       - infra/certificate-trust/controls/**
       - .github/workflows/runner-image-release.yml
       - .github/scripts/runner-image-staging-gate*
