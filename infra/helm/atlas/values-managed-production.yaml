@@ -45,11 +45,6 @@ tuistOps:
   tokenMountPath: /var/run/secrets/tuist-ops
   tokenExpirationSeconds: 3600
 
-# The old Pulse releases that served these MCP endpoints were uninstalled,
-# and GreptimeDB, which replaces them, does not serve MCP.
-pulse:
-  upstreams: []
-
 image:
   repository: ghcr.io/tuist/atlas
   # Tag is set per-deploy by the GitHub Actions workflow (`--set image.tag=…`).

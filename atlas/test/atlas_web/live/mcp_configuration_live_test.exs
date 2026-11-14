@@ -113,22 +113,22 @@ defmodule AtlasWeb.MCPConfigurationLiveTest do
   test "lists servers that authenticate as Atlas's service account", %{conn: conn} do
     configured = Application.get_env(:atlas, :mcp_proxy, [])
 
-    pulse = %{
-      name: "pulse",
-      url: "https://pulse.example.org/mcp",
+    service_account_server = %{
+      name: "service-account",
+      url: "https://service-account.example.org/mcp",
       auth_type: "service_account_token",
       token_path: "/tmp/token"
     }
 
     Mimic.stub(Config, :get, fn ->
-      Keyword.update(configured, :servers, [pulse], &[pulse | &1])
+      Keyword.update(configured, :servers, [service_account_server], &[service_account_server | &1])
     end)
 
     {conn, _user} = log_in_user(conn, %{scopes: ["admin:read"]})
     {:ok, view, _html} = live(conn, ~p"/admin/mcps")
 
-    assert view |> element("#mcp-auth-pulse") |> render() =~ "Service account"
-    refute has_portal_element?(view, "#mcp-connect-pulse")
+    assert view |> element("#mcp-auth-service-account") |> render() =~ "Service account"
+    refute has_portal_element?(view, "#mcp-connect-service-account")
   end
 
   test "read-only administrators cannot create or delete servers", %{conn: conn} do

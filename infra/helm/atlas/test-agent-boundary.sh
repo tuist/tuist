@@ -48,10 +48,6 @@ jq --exit-status '
       select(has("serviceAccountToken")) | .serviceAccountToken.audience ] ==
     ["tuist-server", "ops.tuist.dev"]) and
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
-      .spec.template.spec.volumes[]? | select(.name == "pulse-token") ] == []) and
-  ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
-      .spec.template.spec.containers[] | .env[] | select(.name == "PULSE_MCP_UPSTREAMS") ] == []) and
-  ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
       .spec.template.spec.containers[] | .env[] |
       select(.name == "TUIST_SERVER_TOKEN_PATH") | .value ] == ["/var/run/secrets/tuist/token"]) and
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
