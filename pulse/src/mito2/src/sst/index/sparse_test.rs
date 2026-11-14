@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -156,7 +158,7 @@ async fn sparse_and_materialized_tags_produce_identical_indexes() {
         assert_eq!(output.bloom_filter.columns.len(), 4);
 
         let reader = puffin.reader(&RegionIndexId::new(file, 0)).await.unwrap();
-        let blob = reader.blob("greptime-inverted-index-v1").await.unwrap();
+        let blob = reader.blob("pulse-inverted-index-v1").await.unwrap();
         let inverted = InvertedIndexBlobReader::new(blob.reader().await.unwrap());
         let metas = inverted.metadata(None).await.unwrap();
         let mut index_bytes = BTreeMap::new();
@@ -172,7 +174,7 @@ async fn sparse_and_materialized_tags_produce_identical_indexes() {
         }
         for id in &metadata.primary_key {
             let blob = reader
-                .blob(&format!("greptime-bloom-filter-v1-{id}"))
+                .blob(&format!("pulse-bloom-filter-v1-{id}"))
                 .await
                 .unwrap();
             let bloom = BloomFilterReaderImpl::new(blob.reader().await.unwrap());

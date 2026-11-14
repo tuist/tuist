@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub(crate) mod applier;
 pub(crate) mod creator;
 
-pub(crate) const INDEX_BLOB_TYPE: &str = "greptime-inverted-index-v1";
+pub(crate) const INDEX_BLOB_TYPE: &str = "pulse-inverted-index-v1";

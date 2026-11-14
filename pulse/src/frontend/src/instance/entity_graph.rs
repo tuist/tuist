@@ -19,7 +19,7 @@
 //! `semantic_relationships` tables produce rows.
 //!
 //! It enumerates the entity-identity declarations by iterating the catalog's
-//! `TableInfo` options (`greptime.semantic.entity.*`), builds the read-time
+//! `TableInfo` options (`pulse.semantic.entity.*`), builds the read-time
 //! derivation plans as typed DataFusion `Expr`s over the declaring tables'
 //! DataFrames (`operator::statement::semantic_graph`), and executes them through
 //! the query engine. Injected into the catalog manager after the engine is built,
@@ -132,7 +132,7 @@ impl EntityGraphProviderImpl {
         }
     }
 
-    /// Parses `greptime.semantic.entity.<type>.{id|descriptive|scope}` options of
+    /// Parses `pulse.semantic.entity.<type>.{id|descriptive|scope}` options of
     /// one table into per-type declarations. A type with no `id` columns is skipped.
     fn parse_declarations(table_info: &TableInfo) -> Vec<EntityDeclaration> {
         // entity_type -> (id_columns, descriptive_columns, scope_columns)
@@ -384,7 +384,7 @@ impl EntityGraphProviderImpl {
     /// Enumerates entity declarations and trace tables across a catalog. Trace
     /// tables are keyed off the engine-native `table_data_model` option (same
     /// check as the Jaeger query path) so pre-existing trace tables without the
-    /// newer `greptime.semantic.*` stamps are recognized too.
+    /// newer `pulse.semantic.*` stamps are recognized too.
     async fn enumerate(
         &self,
         catalog: &str,
@@ -910,8 +910,8 @@ mod tests {
         let info = table_info(
             &["service_name"],
             &[
-                ("greptime.semantic.entity.service.id", "service_name"),
-                ("greptime.semantic.entity.host.id", "gone"),
+                ("pulse.semantic.entity.service.id", "service_name"),
+                ("pulse.semantic.entity.host.id", "gone"),
             ],
         );
         let declarations = EntityGraphProviderImpl::declarations_for(&info, conventions().unwrap());
@@ -921,8 +921,8 @@ mod tests {
         let info = table_info(
             &["service_name"],
             &[
-                ("greptime.semantic.entity.service.id", "service_name"),
-                ("greptime.semantic.entity.service.descriptive", "gone"),
+                ("pulse.semantic.entity.service.id", "service_name"),
+                ("pulse.semantic.entity.service.descriptive", "gone"),
             ],
         );
         assert!(
@@ -1037,7 +1037,7 @@ mod tests {
             &["service_name"],
             &[
                 (TABLE_DATA_MODEL, TABLE_DATA_MODEL_TRACE_V1),
-                ("greptime.semantic.entity.service.id", "gone"),
+                ("pulse.semantic.entity.service.id", "gone"),
             ],
         );
         assert!(sorted_declarations(&invalid_explicit).is_empty());
@@ -1155,7 +1155,7 @@ mod tests {
     #[test]
     fn explicit_declaration_suppresses_the_implicit_one() {
         let mut stamps = PROM_STAMPS.to_vec();
-        stamps.push(("greptime.semantic.entity.k8s.pod.id", "pod"));
+        stamps.push(("pulse.semantic.entity.k8s.pod.id", "pod"));
         let info = prom_table_info("kube_pod_info", &["namespace", "pod", "node"], &stamps);
         let declarations = sorted_declarations(&info);
         assert_eq!(declarations.len(), 2);
@@ -1245,7 +1245,7 @@ mod tests {
         // Same rule when a skipped explicit declaration blocks the implicit
         // one: nothing declares the type, so nothing may yield to it.
         let mut stamps = OTEL_STAMPS.to_vec();
-        stamps.push(("greptime.semantic.entity.k8s.container.id", "gone"));
+        stamps.push(("pulse.semantic.entity.k8s.container.id", "gone"));
         let broken_explicit = prom_table_info(
             "pulse_otel_resource_info",
             &["job", "container.id", "k8s.pod.uid", "k8s.container.name"],

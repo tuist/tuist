@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -316,7 +318,7 @@ async fn materialized_runs_match_legacy_index_bytes_and_bloom_lookups() {
         assert_eq!(output.inverted_index.row_count, batch.num_rows(), "{mode}");
         assert_eq!(output.bloom_filter.row_count, batch.num_rows(), "{mode}");
         let reader = puffin.reader(&RegionIndexId::new(file, 0)).await.unwrap();
-        let blob = reader.blob("greptime-inverted-index-v1").await.unwrap();
+        let blob = reader.blob("pulse-inverted-index-v1").await.unwrap();
         let inverted = InvertedIndexBlobReader::new(blob.reader().await.unwrap());
         let metas = inverted.metadata(None).await.unwrap();
         assert_eq!(metas.metas.len(), 3);
@@ -359,7 +361,7 @@ async fn materialized_runs_match_legacy_index_bytes_and_bloom_lookups() {
         }
         for id in 0..3 {
             let blob = reader
-                .blob(&format!("greptime-bloom-filter-v1-{id}"))
+                .blob(&format!("pulse-bloom-filter-v1-{id}"))
                 .await
                 .unwrap();
             let bloom = BloomFilterReaderImpl::new(blob.reader().await.unwrap());

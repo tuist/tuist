@@ -188,7 +188,6 @@ WHERE a = 10 OR (ts > 1 AND b ='h');
 
 DROP TABLE valid_rule;
 
--- Issue https://github.com/GreptimeTeam/greptimedb/issues/4247
 -- Partition rule with unary operator
 CREATE TABLE `molestiAe` (
   `sImiLiQUE` FLOAT NOT NULL,

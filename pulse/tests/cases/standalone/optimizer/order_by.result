@@ -10,7 +10,7 @@ explain select * from numbers;
 |               | ]]                                                                                                                                                                 |
 | physical_plan | CooperativeExec                                                                                                                                                    |
 |               |   RepartitionExec: partitioning=REDACTED
-|               |     StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"greptime:version": "0"} }] |
+|               |     StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"pulse:version": "0"} }] |
 |               |                                                                                                                                                                    |
 +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
@@ -29,7 +29,7 @@ explain select * from numbers order by number desc;
 |               |   CooperativeExec                                                                                                                                                      |
 |               |     SortExec: expr=[number@0 DESC], preserve_partitioning=[true]                                                                                                       |
 |               |       RepartitionExec: partitioning=REDACTED
-|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"greptime:version": "0"} }] |
+|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"pulse:version": "0"} }] |
 |               |                                                                                                                                                                        |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
@@ -48,7 +48,7 @@ explain select * from numbers order by number asc;
 |               |   CooperativeExec                                                                                                                                                      |
 |               |     SortExec: expr=[number@0 ASC NULLS LAST], preserve_partitioning=[true]                                                                                             |
 |               |       RepartitionExec: partitioning=REDACTED
-|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"greptime:version": "0"} }] |
+|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"pulse:version": "0"} }] |
 |               |                                                                                                                                                                        |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
@@ -68,7 +68,7 @@ explain select * from numbers order by number desc limit 10;
 |               |   CooperativeExec                                                                                                                                                      |
 |               |     RepartitionExec: partitioning=REDACTED
 |               |       SortExec: TopK(fetch=10), expr=[number@0 DESC], preserve_partitioning=[false]                                                                                    |
-|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"greptime:version": "0"} }] |
+|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"pulse:version": "0"} }] |
 |               |                                                                                                                                                                        |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
@@ -88,7 +88,7 @@ explain select * from numbers order by number asc limit 10;
 |               |   CooperativeExec                                                                                                                                                      |
 |               |     RepartitionExec: partitioning=REDACTED
 |               |       SortExec: TopK(fetch=10), expr=[number@0 ASC NULLS LAST], preserve_partitioning=[false]                                                                          |
-|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"greptime:version": "0"} }] |
+|               |         StreamScanAdapter: [<SendableRecordBatchStream>], schema: [Schema { fields: [Field { name: "number", data_type: UInt32 }], metadata: {"pulse:version": "0"} }] |
 |               |                                                                                                                                                                        |
 +---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 

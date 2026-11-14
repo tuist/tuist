@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -135,7 +137,7 @@ fn concretize_json2_schema(
 
             changed = true;
 
-            // Before type hints, JSON2 used the `greptime.json` marker together with
+            // Before type hints, JSON2 used the `pulse.json` marker together with
             // `json_structure_settings`. Once concretized to `Binary`, that field no longer
             // matches the legacy JSON2 shape and could be mistaken for JSONB, so upgrade its
             // marker. Do not replace modern markers because that would discard their JSON

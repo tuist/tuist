@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::assert_matches;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -1398,7 +1400,7 @@ async fn test_on_submit_alter_request_with_exist_poison() {
 #[tokio::test]
 async fn test_annotation_alter_is_metadata_only() {
     for (key, value) in [
-        ("greptime.semantic.signal_type", "metric"),
+        ("pulse.semantic.signal_type", "metric"),
         (table::requests::REPARTITION_PARTITION_NUM_HINT_KEY, "8"),
     ] {
         let (tx, mut rx) = mpsc::channel(8);

@@ -188,7 +188,7 @@ async fn execute_insert_with_retry(ctx: &FuzzContext, sql: &str) -> Result<()> {
     loop {
         match ctx
             .pulse
-            // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
+            // unprepared query
             .execute(sqlx::AssertSqlSafe(sql))
             .await
         {

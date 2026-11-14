@@ -21,13 +21,13 @@ CREATE TABLE metrics_tagged (
   val DOUBLE,
 )
 WITH (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'opentelemetry',
-  'greptime.semantic.source_version' = '2.0',
-  'greptime.semantic.pipeline' = 'pulse_metric_v1',
-  'greptime.semantic.metric.metadata_quality' = 'declared',
-  'greptime.semantic.metric.type' = 'counter',
-  'greptime.semantic.metric.unit' = 'By'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'opentelemetry',
+  'pulse.semantic.source_version' = '2.0',
+  'pulse.semantic.pipeline' = 'pulse_metric_v1',
+  'pulse.semantic.metric.metadata_quality' = 'declared',
+  'pulse.semantic.metric.type' = 'counter',
+  'pulse.semantic.metric.unit' = 'By'
 );
 
 Affected Rows: 0
@@ -37,9 +37,9 @@ CREATE TABLE traces_tagged (
   span_name STRING,
 )
 WITH (
-  'greptime.semantic.signal_type' = 'trace',
-  'greptime.semantic.source' = 'opentelemetry',
-  'greptime.semantic.trace.conventions' = 'https://opentelemetry.io/schemas/1.27.0'
+  'pulse.semantic.signal_type' = 'trace',
+  'pulse.semantic.source' = 'opentelemetry',
+  'pulse.semantic.trace.conventions' = 'https://opentelemetry.io/schemas/1.27.0'
 );
 
 Affected Rows: 0
@@ -115,7 +115,7 @@ CREATE TABLE altered_semantics (
 
 Affected Rows: 0
 
-ALTER TABLE altered_semantics SET 'greptime.semantic.signal_type' = 'metric', 'greptime.semantic.entity.service.id' = 'svc';
+ALTER TABLE altered_semantics SET 'pulse.semantic.signal_type' = 'metric', 'pulse.semantic.entity.service.id' = 'svc';
 
 Affected Rows: 0
 
@@ -130,31 +130,31 @@ WHERE table_name = 'altered_semantics';
 +-------------------+-------------+-----------------------------+
 
 -- Semantic options never share a statement with regular table options.
-ALTER TABLE altered_semantics SET 'greptime.semantic.source' = 'prometheus', 'ttl' = '7d';
+ALTER TABLE altered_semantics SET 'pulse.semantic.source' = 'prometheus', 'ttl' = '7d';
 
-Error: 1004(InvalidArguments), Invalid table option request: `greptime.semantic.*` options must be altered separately from other table options
+Error: 1004(InvalidArguments), Invalid table option request: `pulse.semantic.*` options must be altered separately from other table options
 
 -- Unknown semantic keys are rejected on SET.
-ALTER TABLE altered_semantics SET 'greptime.semantic.nonsense' = 'x';
+ALTER TABLE altered_semantics SET 'pulse.semantic.nonsense' = 'x';
 
-Error: 1004(InvalidArguments), Invalid alter table(altered_semantics) request: unknown semantic option `greptime.semantic.nonsense`
+Error: 1004(InvalidArguments), Invalid alter table(altered_semantics) request: unknown semantic option `pulse.semantic.nonsense`
 
 -- Values outside the key's domain are rejected.
-ALTER TABLE altered_semantics SET 'greptime.semantic.signal_type' = 'garbage';
+ALTER TABLE altered_semantics SET 'pulse.semantic.signal_type' = 'garbage';
 
-Error: 1004(InvalidArguments), Invalid alter table(altered_semantics) request: invalid value `garbage` for semantic option `greptime.semantic.signal_type`
+Error: 1004(InvalidArguments), Invalid alter table(altered_semantics) request: invalid value `garbage` for semantic option `pulse.semantic.signal_type`
 
 -- Entity columns must exist.
-ALTER TABLE altered_semantics SET 'greptime.semantic.entity.host.id' = 'no_such_column';
+ALTER TABLE altered_semantics SET 'pulse.semantic.entity.host.id' = 'no_such_column';
 
 Error: 4002(TableColumnNotFound), Column no_such_column not exists in table altered_semantics
 
 -- Entity columns must render as strings.
-ALTER TABLE altered_semantics SET 'greptime.semantic.entity.host.id' = 'payload';
+ALTER TABLE altered_semantics SET 'pulse.semantic.entity.host.id' = 'payload';
 
-Error: 1004(InvalidArguments), Invalid alter table(altered_semantics) request: entity column `payload` (option `greptime.semantic.entity.host.id`) has type `Binary`, which cannot render as a string
+Error: 1004(InvalidArguments), Invalid alter table(altered_semantics) request: entity column `payload` (option `pulse.semantic.entity.host.id`) has type `Binary`, which cannot render as a string
 
-ALTER TABLE altered_semantics UNSET 'greptime.semantic.entity.service.id';
+ALTER TABLE altered_semantics UNSET 'pulse.semantic.entity.service.id';
 
 Affected Rows: 0
 
@@ -181,7 +181,7 @@ CREATE TABLE logical_sem (ts TIMESTAMP TIME INDEX, val DOUBLE, host STRING PRIMA
 
 Affected Rows: 0
 
-ALTER TABLE logical_sem SET 'greptime.semantic.signal_type' = 'metric', 'greptime.semantic.entity.host.id' = 'host';
+ALTER TABLE logical_sem SET 'pulse.semantic.signal_type' = 'metric', 'pulse.semantic.entity.host.id' = 'host';
 
 Affected Rows: 0
 
@@ -200,7 +200,7 @@ ALTER TABLE logical_sem SET 'ttl' = '7d';
 
 Error: 1004(InvalidArguments), Alter logical tables invalid arguments: Only support add columns operation
 
-ALTER TABLE logical_sem UNSET 'greptime.semantic.entity.host.id';
+ALTER TABLE logical_sem UNSET 'pulse.semantic.entity.host.id';
 
 Affected Rows: 0
 
@@ -241,9 +241,9 @@ CREATE TABLE pulse_otel_resource_info (
   PRIMARY KEY ("job", "instance", "service.name", "host.id", "container.id", "container.name", "k8s.pod.uid", "k8s.pod.name", "k8s.container.name")
 )
 WITH (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'opentelemetry',
-  'greptime.semantic.metric.type' = 'info'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'opentelemetry',
+  'pulse.semantic.metric.type' = 'info'
 );
 
 Affected Rows: 0
@@ -270,8 +270,8 @@ CREATE TABLE kube_pod_info (
   PRIMARY KEY ("namespace", "pod", "uid", "node")
 )
 WITH (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'influxdb'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'influxdb'
 );
 
 Affected Rows: 0
@@ -286,7 +286,7 @@ WHERE table_name = 'kube_pod_info';
 | kube_pod_info | influxdb |                     |
 +---------------+----------+---------------------+
 
-ALTER TABLE kube_pod_info SET 'greptime.semantic.source' = 'prometheus';
+ALTER TABLE kube_pod_info SET 'pulse.semantic.source' = 'prometheus';
 
 Affected Rows: 0
 
@@ -319,8 +319,8 @@ CREATE TABLE kube_pod_info (
   PRIMARY KEY ("namespace", "pod", "node")
 )
 WITH (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 Affected Rows: 0

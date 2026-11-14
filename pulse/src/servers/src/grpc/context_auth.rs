@@ -195,7 +195,7 @@ mod tests {
     fn test_channel_comes_from_server_extensions() {
         let mut headers = MetadataMap::new();
         headers.insert(
-            "x-greptime-flow-extensions",
+            "x-pulse-flow-extensions",
             r#"[["flow.return_region_seq","true"]]"#.parse().unwrap(),
         );
         headers.insert(HINTS_KEY, "channel=internal".parse().unwrap());

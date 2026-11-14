@@ -3220,7 +3220,7 @@ mod tests {
         //     table_type: TableType::Base,
         // }))
         // ```
-        let serialized = r#"{"ident":{"table_id":1024,"version":1},"name":"foo","desc":"my table","catalog_name":"pulse","schema_name":"public","meta":{"schema":{"column_schemas":[{"name":"col1","data_type":{"Int32":{}},"is_nullable":true,"is_time_index":false,"default_constraint":null,"metadata":{}},{"name":"ts","data_type":{"Timestamp":{"Millisecond":null}},"is_nullable":false,"is_time_index":true,"default_constraint":null,"metadata":{"greptime:time_index":"true"}},{"name":"col2","data_type":{"Int32":{}},"is_nullable":true,"is_time_index":false,"default_constraint":null,"metadata":{}}],"timestamp_index":1,"version":123},"primary_key_indices":[0],"value_indices":[1,2],"engine":"mito","next_column_id":3,"options":{"write_buffer_size":null,"ttl":"1h","skip_wal":false,"extra_options":{}},"created_on":"-262143-01-01T00:00:00Z","updated_on":"+262142-12-31T23:59:59.999999999Z","partition_key_indices":[2],"column_ids":[0,1,2]},"table_type":"Base"}"#;
+        let serialized = r#"{"ident":{"table_id":1024,"version":1},"name":"foo","desc":"my table","catalog_name":"pulse","schema_name":"public","meta":{"schema":{"column_schemas":[{"name":"col1","data_type":{"Int32":{}},"is_nullable":true,"is_time_index":false,"default_constraint":null,"metadata":{}},{"name":"ts","data_type":{"Timestamp":{"Millisecond":null}},"is_nullable":false,"is_time_index":true,"default_constraint":null,"metadata":{"pulse:time_index":"true"}},{"name":"col2","data_type":{"Int32":{}},"is_nullable":true,"is_time_index":false,"default_constraint":null,"metadata":{}}],"timestamp_index":1,"version":123},"primary_key_indices":[0],"value_indices":[1,2],"engine":"mito","next_column_id":3,"options":{"write_buffer_size":null,"ttl":"1h","skip_wal":false,"extra_options":{}},"created_on":"-262143-01-01T00:00:00Z","updated_on":"+262142-12-31T23:59:59.999999999Z","partition_key_indices":[2],"column_ids":[0,1,2]},"table_type":"Base"}"#;
 
         let actual: TableInfo = serde_json::from_str(serialized).unwrap();
         let expected = TableInfo {
@@ -3295,7 +3295,7 @@ mod tests {
             options: vec![
                 (SEMANTIC_SIGNAL_TYPE.to_string(), "trace".to_string()),
                 (
-                    "greptime.semantic.entity.service.id".to_string(),
+                    "pulse.semantic.entity.service.id".to_string(),
                     "service".to_string(),
                 ),
             ],
@@ -3313,7 +3313,7 @@ mod tests {
             new_meta
                 .options
                 .extra_options
-                .get("greptime.semantic.entity.service.id"),
+                .get("pulse.semantic.entity.service.id"),
             Some(&"service".to_string())
         );
     }
@@ -3367,19 +3367,15 @@ mod tests {
     fn test_set_semantic_annotations_rejects_invalid() {
         let meta = semantic_test_meta();
         let cases = [
-            (
-                "greptime.semantic.unknown_key",
-                "x",
-                "unknown semantic option",
-            ),
+            ("pulse.semantic.unknown_key", "x", "unknown semantic option"),
             (SEMANTIC_SIGNAL_TYPE, "garbage", "invalid value"),
             (
-                "greptime.semantic.entity.host.id",
+                "pulse.semantic.entity.host.id",
                 "no_such_column",
                 "no_such_column",
             ),
             (
-                "greptime.semantic.entity.host.id",
+                "pulse.semantic.entity.host.id",
                 "payload",
                 "cannot render as a string",
             ),
@@ -3407,7 +3403,7 @@ mod tests {
                 &AlterKind::SetAnnotations {
                     family: AnnotationFamily::Semantic,
                     options: vec![(
-                        "greptime.semantic.entity.host.id".to_string(),
+                        "pulse.semantic.entity.host.id".to_string(),
                         "no_such_column".to_string(),
                     )],
                 },
@@ -3429,13 +3425,13 @@ mod tests {
         // A key this version does not recognise, still inside the namespace.
         meta.options
             .extra_options
-            .insert("greptime.semantic.future_key".to_string(), "x".to_string());
+            .insert("pulse.semantic.future_key".to_string(), "x".to_string());
 
         let alter_kind = AlterKind::UnsetAnnotations {
             family: AnnotationFamily::Semantic,
             keys: vec![
                 SEMANTIC_SIGNAL_TYPE.to_string(),
-                "greptime.semantic.future_key".to_string(),
+                "pulse.semantic.future_key".to_string(),
                 // Absent key: removal is a no-op, not an error.
                 SEMANTIC_METRIC_UNIT.to_string(),
             ],
@@ -3455,7 +3451,7 @@ mod tests {
             !new_meta
                 .options
                 .extra_options
-                .contains_key("greptime.semantic.future_key")
+                .contains_key("pulse.semantic.future_key")
         );
 
         let outside = AlterKind::UnsetAnnotations {
@@ -3473,7 +3469,7 @@ mod tests {
     fn test_modify_entity_column_type_keeps_string_form() {
         let mut meta = semantic_test_meta();
         meta.options.extra_options.insert(
-            "greptime.semantic.entity.service.id".to_string(),
+            "pulse.semantic.entity.service.id".to_string(),
             "service".to_string(),
         );
 
@@ -3509,7 +3505,7 @@ mod tests {
         // A stale declaration: `gone` was dropped after being declared.
         let mut meta = semantic_test_meta();
         meta.options.extra_options.insert(
-            "greptime.semantic.entity.service.id".to_string(),
+            "pulse.semantic.entity.service.id".to_string(),
             "gone".to_string(),
         );
 

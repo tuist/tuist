@@ -66,12 +66,12 @@ use crate::key::flow::flow_name::FlowNameManager;
 use crate::key::table_name::{TableNameKey, TableNameManager};
 
 /// Reserved query-context extension key for the frontend peer address that submitted a DDL request.
-pub const ORIGIN_FRONTEND_ADDR_EXTENSION_KEY: &str = "__greptime_origin_frontend.addr";
+pub const ORIGIN_FRONTEND_ADDR_EXTENSION_KEY: &str = "__pulse_origin_frontend.addr";
 /// Reserved query-context extension key for the authenticated database creator.
-pub const CREATE_DATABASE_CREATOR_EXTENSION_KEY: &str = "__greptime_create_database.creator";
+pub const CREATE_DATABASE_CREATOR_EXTENSION_KEY: &str = "__pulse_create_database.creator";
 /// Internal gRPC metadata key for the authenticated database creator.
 pub const CREATE_DATABASE_CREATOR_METADATA_KEY: &str =
-    "x-greptime-internal-create-database-creator-bin";
+    "x-pulse-internal-create-database-creator-bin";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatorGrantIntent {

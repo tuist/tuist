@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Index catalog persistence, coverage metadata, and file paths.
 
 use std::collections::BTreeMap;
@@ -35,7 +37,7 @@ pub(crate) use crate::sst::range_index::range_index_path;
 const SERIES_DIR: &str = "series";
 const RANGE_CATALOG: &str = "range-index.json";
 const SERIES_CATALOG: &str = "series-index.json";
-const SERIES_METADATA_KEY: &str = "greptime.series_index";
+const SERIES_METADATA_KEY: &str = "pulse.series_index";
 
 /// Summary of SSTs sharing a compaction-window-aligned start.
 ///

@@ -772,15 +772,15 @@ ENGINE=mito
                 format!("create table demo(host string, ts timestamp time index) with({with});");
             ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
         };
-        assert!(semantic("'greptime.semantic.signal_type'='metric'").is_ok());
+        assert!(semantic("'pulse.semantic.signal_type'='metric'").is_ok());
         // An out-of-domain value is rejected.
         assert_matches!(
-            semantic("'greptime.semantic.signal_type'='spans'"),
+            semantic("'pulse.semantic.signal_type'='spans'"),
             Err(Error::InvalidTableOption { .. })
         );
         // An unknown key under the semantic prefix is rejected.
         assert_matches!(
-            semantic("'greptime.semantic.bogus'='x'"),
+            semantic("'pulse.semantic.bogus'='x'"),
             Err(Error::InvalidTableOption { .. })
         );
     }

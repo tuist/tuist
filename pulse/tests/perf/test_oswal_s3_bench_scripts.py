@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 """Offline tests of the object store WAL S3 benchmark plan and summary."""
 
 import importlib.util
@@ -98,10 +100,10 @@ class PlanTest(unittest.TestCase):
 
     def test_manifest_takes_the_sha256_digest(self):
         plan = bench.build_plan("1,8", "2000000", "1000", "2", smoke=False)
-        inspect = [{"RepoDigests": ["greptime/greptimedb@sha256:" + "a" * 64]}]
+        inspect = [{"RepoDigests": ["ghcr.io/tuist/pulse@sha256:" + "a" * 64]}]
         manifest = bench.build_manifest(plan, inspect, "runtime@sha256:" + "b" * 64, "c6id.2xlarge",
                                         "ap-southeast-1", "oswal-bench/1-1")
-        self.assertEqual(manifest["pulse_image"], "greptime/greptimedb@sha256:" + "a" * 64)
+        self.assertEqual(manifest["pulse_image"], "ghcr.io/tuist/pulse@sha256:" + "a" * 64)
         self.assertEqual((manifest["rows"], manifest["rounds"], manifest["concurrency"]), (2_000_000, 2, [1, 8]))
         with self.assertRaises(ValueError):
             bench.build_manifest(plan, [{"RepoDigests": []}], "", "", "", "")

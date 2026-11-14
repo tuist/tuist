@@ -28,8 +28,9 @@ use common_version::build_info;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 
-/// The URL to report telemetry data.
-pub const TELEMETRY_URL: &str = "https://telemetry.greptimestats.com/db/otel/statistics";
+/// The URL to report telemetry data. Pulse has no telemetry collector, so it is
+/// empty and every report fails before it leaves the process.
+pub const TELEMETRY_URL: &str = "";
 /// The local installation uuid cache file
 const UUID_FILE_NAME: &str = ".pulse-telemetry-uuid";
 
@@ -175,10 +176,7 @@ fn print_anonymous_usage_data_disclaimer() {
     info!(
         "Attention: Pulse now collects anonymous usage data to help improve its roadmap and prioritize features."
     );
-    info!(
-        "To learn more about this anonymous program and how to deactivate it if you don't want to participate, please visit the following URL: "
-    );
-    info!("https://docs.greptime.com/reference/telemetry");
+    info!("To deactivate it, set `enable_telemetry = false`.");
 }
 
 /// Format uptime duration into a general time range string

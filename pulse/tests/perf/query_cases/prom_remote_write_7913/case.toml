@@ -6,7 +6,6 @@
 [case]
 name = "prom_remote_write_7913"
 description = "Multi-day high-cardinality Prometheus remote-write ingestion followed by PromQL/TQL selectors"
-issue = "https://github.com/GreptimeTeam/greptimedb/issues/7913"
 
 [scenario]
 kind = "prom_remote_write_then_query"

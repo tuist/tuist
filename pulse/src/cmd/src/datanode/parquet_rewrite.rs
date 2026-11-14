@@ -517,7 +517,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let input = dir.path().join("input.parquet");
         let output = dir.path().join("output.parquet");
-        write_test_parquet(&input, true, Some("greptime:test"));
+        write_test_parquet(&input, true, Some("pulse:test"));
 
         let metadata = load_local_parquet_metadata(&input).unwrap();
         let mut properties = infer_rewrite_properties(&metadata);
@@ -544,7 +544,7 @@ mod tests {
             .key_value_metadata()
             .cloned()
             .unwrap_or_default();
-        assert!(key_values.iter().any(|kv| kv.key == "greptime:test"));
+        assert!(key_values.iter().any(|kv| kv.key == "pulse:test"));
         assert!(
             rewritten
                 .row_groups()

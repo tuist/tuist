@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! # SST Files with Inverted Index Format Specification
 //!
 //! ## File Structure
@@ -43,12 +45,7 @@
 //! - `footer_payload_size`: Size in bytes of the `footer_payload`, displayed as a `u32` integer.
 //! - The footer aids in the interpretation of the inverted indices, providing necessary offset and count information.
 //!
-//! ## Reference
-//!
-//! More detailed information regarding the encoding of the inverted indices can be found in the [RFC].
-//!
 //! [`InvertedIndexMetas`]: https://github.com/GreptimeTeam/greptime-proto/blob/2aaee38de81047537dfa42af9df63bcfb866e06c/proto/greptime/v1/index/inverted_index.proto#L32-L64
-//! [RFC]: https://github.com/GreptimeTeam/greptimedb/blob/main/docs/rfcs/2023-11-03-inverted-index.md
 
 pub mod reader;
 pub mod writer;

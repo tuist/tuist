@@ -5136,8 +5136,7 @@ async fn count_over_time_subquery() {
 }
 
 /// `offset` on a subquery must shift the inner evaluation window back and be
-/// carried into the outer range manipulation. See
-/// <https://github.com/GreptimeTeam/greptimedb/issues/9330>.
+/// carried into the outer range manipulation.
 #[tokio::test]
 async fn count_over_time_subquery_with_offset() {
     let query = "count_over_time(some_metric[10m:1m] offset 5m)";
@@ -5751,7 +5750,6 @@ async fn subquery_rejects_a_child_window_out_of_the_representable_range() {
 /// `@` on a subquery pins its evaluation instant, like `@` on a range selector: Prometheus folds
 /// the anchor into the subquery offset (`setOffsetForAtModifier`) and treats the subquery as
 /// step-invariant, so every step reports the window `(anchor - offset - range, anchor - offset]`.
-/// See <https://github.com/GreptimeTeam/greptimedb/issues/9411>.
 ///
 /// The probe samples are at 0s..60s every 10s with values 1..7, on the 10s subquery grid.
 #[tokio::test]
@@ -8813,7 +8811,6 @@ fn assert_unique_label_set_per_timestamp(batches: &[RecordBatch], label: &str) {
 
 #[tokio::test]
 async fn test_count_values_generated_label_survives_enclosing_expr() {
-    // https://github.com/GreptimeTeam/greptimedb/issues/9181
     for (case, label) in [
         (r#"count_values("v", prometheus_tsdb_head_series)"#, "v"),
         (
@@ -8883,7 +8880,6 @@ async fn test_count_values_generated_label_survives_enclosing_expr() {
 
 #[tokio::test]
 async fn test_count_values_generated_label_in_enclosing_expr_execute() {
-    // https://github.com/GreptimeTeam/greptimedb/issues/9181
     let state = build_query_engine_state();
     // (query, generated label, expected `(label value, aggregated value)` pairs)
     for (query, label, expected) in [

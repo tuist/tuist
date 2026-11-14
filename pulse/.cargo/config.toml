@@ -9,7 +9,7 @@ sqlness = "run --bin sqlness-runner --target-dir target/sqlness --"
 
 [registry]
 # Requires cargo 1.100+; older cargo ignores this key. Only registry crates
-# carry a publish time, so git dependencies (our GreptimeTeam forks) are exempt.
+# carry a publish time, so git dependencies (the GreptimeTeam forks) are exempt.
 global-min-publish-age = "7 days"
 
 [unstable.git]

@@ -843,7 +843,6 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_flight_bulk_widen_partitioned_time_index() {
-        // https://github.com/GreptimeTeam/greptimedb/issues/9747
         // Bulk writes route through `MultiDimPartitionRule::split_record_batch`,
         // which evaluates the persisted partition bounds against the batch. The
         // bounds keep the unit they were created with, so widening the time

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -377,7 +379,7 @@ mod tests {
         .unwrap();
         let mut props =
             WriterProperties::builder().set_key_value_metadata(Some(vec![KeyValue::new(
-                "greptime:test".to_string(),
+                "pulse:test".to_string(),
                 "value".to_string(),
             )]));
         if let Some(limit) = data_page_row_count_limit {

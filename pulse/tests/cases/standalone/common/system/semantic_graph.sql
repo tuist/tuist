@@ -45,12 +45,12 @@ create table graph_app_metrics (
   latency double,
   primary key (service_name, instance, host, env)
 ) with (
-  'greptime.semantic.entity.service.id' = 'service_name',
-  'greptime.semantic.entity.service.scope' = 'env',
-  'greptime.semantic.entity.service.instance.id' = 'instance',
-  'greptime.semantic.entity.host.id' = 'host',
-  'greptime.semantic.entity.process.id' = 'service_name,host',
-  'greptime.semantic.entity.process.descriptive' = 'env'
+  'pulse.semantic.entity.service.id' = 'service_name',
+  'pulse.semantic.entity.service.scope' = 'env',
+  'pulse.semantic.entity.service.instance.id' = 'instance',
+  'pulse.semantic.entity.host.id' = 'host',
+  'pulse.semantic.entity.process.id' = 'service_name,host',
+  'pulse.semantic.entity.process.descriptive' = 'env'
 );
 
 insert into graph_app_metrics values (now(), 'cart', 'cart-0', 'h1', 'us-east', 3.5);
@@ -80,16 +80,16 @@ insert into graph_late_metrics values (now(), 'checkout', 'eu-1', 1.5);
 
 select entity_type, entity_id from pulse_private.semantic_entities order by entity_type, entity_id;
 
-alter table graph_late_metrics set 'greptime.semantic.entity.service.id' = 'svc', 'greptime.semantic.entity.service.scope' = 'env';
+alter table graph_late_metrics set 'pulse.semantic.entity.service.id' = 'svc', 'pulse.semantic.entity.service.scope' = 'env';
 
 select entity_type, entity_id, scope from pulse_private.semantic_entities order by entity_type, entity_id;
 
 -- A column referenced by a declaration must keep a string-renderable type.
 alter table graph_late_metrics modify column svc binary;
 
-alter table graph_late_metrics unset 'greptime.semantic.entity.service.id';
+alter table graph_late_metrics unset 'pulse.semantic.entity.service.id';
 
-alter table graph_late_metrics unset 'greptime.semantic.entity.service.scope';
+alter table graph_late_metrics unset 'pulse.semantic.entity.service.scope';
 
 select entity_type, entity_id from pulse_private.semantic_entities order by entity_type, entity_id;
 
@@ -247,9 +247,9 @@ create table graph_agent_traces (
 ) with (
   'table_data_model' = 'pulse_trace_v1',
   'append_mode' = 'true',
-  'greptime.semantic.entity.gen_ai.agent.id' = 'agent_id',
-  'greptime.semantic.entity.gen_ai.model.id' = 'model_name',
-  'greptime.semantic.entity.gen_ai.tool.id' = 'tool_name'
+  'pulse.semantic.entity.gen_ai.agent.id' = 'agent_id',
+  'pulse.semantic.entity.gen_ai.model.id' = 'model_name',
+  'pulse.semantic.entity.gen_ai.tool.id' = 'tool_name'
 );
 
 insert into graph_agent_traces values
@@ -279,8 +279,8 @@ create table kube_pod_info (
   pulse_value double,
   primary key (uid, namespace, pod, node)
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 create table kube_pod_owner (
@@ -293,8 +293,8 @@ create table kube_pod_owner (
   pulse_value double,
   primary key (uid, namespace, pod, owner_kind, owner_name)
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 create table kube_pod_container_info (
@@ -305,8 +305,8 @@ create table kube_pod_container_info (
   pulse_value double,
   primary key (uid, container, image)
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 create table kube_service_info (
@@ -318,8 +318,8 @@ create table kube_service_info (
   pulse_value double,
   primary key (uid, namespace, "service", cluster_ip)
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 create table target_info (
@@ -330,8 +330,8 @@ create table target_info (
   pulse_value double,
   primary key (job, instance, k8s_cluster_name)
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 create table http_requests_total (
@@ -341,8 +341,8 @@ create table http_requests_total (
   pulse_value double,
   primary key (job, instance)
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'prometheus'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'prometheus'
 );
 
 insert into kube_pod_info values
@@ -417,9 +417,9 @@ create table pulse_otel_resource_info (
     "host.id", "host.name", "container.id", "container.name",
     "k8s.pod.uid", "k8s.pod.name", "k8s.container.name")
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'opentelemetry',
-  'greptime.semantic.metric.type' = 'info'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'opentelemetry',
+  'pulse.semantic.metric.type' = 'info'
 );
 
 insert into pulse_otel_resource_info values
@@ -477,9 +477,9 @@ create table pulse_otel_resource_info (
   pulse_value double,
   primary key (job, instance, "service.name", "service.namespace")
 ) with (
-  'greptime.semantic.signal_type' = 'metric',
-  'greptime.semantic.source' = 'opentelemetry',
-  'greptime.semantic.metric.type' = 'info'
+  'pulse.semantic.signal_type' = 'metric',
+  'pulse.semantic.source' = 'opentelemetry',
+  'pulse.semantic.metric.type' = 'info'
 );
 
 insert into graph_xsignal_traces values

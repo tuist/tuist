@@ -175,8 +175,8 @@ fn merge_scan_schema_error_count_for_test() -> u64 {
 }
 
 /// Returns true when the field is a JSON column, identified either by its
-/// Arrow extension type (`greptime.json` / `greptime.json2`) or by its
-/// `greptime:type=Json` marker.
+/// Arrow extension type (`pulse.json` / `pulse.json2`) or by its
+/// `pulse:type=Json` marker.
 fn is_json_field(field: &Field) -> bool {
     is_any_json_extension_type(field)
         || field
@@ -204,7 +204,7 @@ fn nullability_compatible(expected_field: &Field, actual_field: &Field) -> bool 
 /// Arrow `Field` metadata is auxiliary information (indexing, encoding,
 /// compression hints, ...) and does not participate in the comparison. This
 /// applies to every field, JSON columns included: JSON identity keys
-/// (`greptime:type`, `ARROW:extension:metadata`) are never compared here.
+/// (`pulse:type`, `ARROW:extension:metadata`) are never compared here.
 /// The wire/decoded physical-type difference of JSON columns is exempted
 /// separately by [`json_fields_compatible`].
 fn fields_semantically_equal(expected_field: &Field, actual_field: &Field) -> bool {
@@ -216,11 +216,11 @@ fn fields_semantically_equal(expected_field: &Field, actual_field: &Field) -> bo
 /// Returns true when two fields are semantically equivalent JSON columns.
 ///
 /// A JSON column is carried on the wire in its binary-encoded form (e.g.
-/// `Binary` + `ARROW:extension:name=greptime.json` / `greptime:type=Json`) and,
+/// `Binary` + `ARROW:extension:name=pulse.json` / `pulse:type=Json`) and,
 /// after decoding on the remote side, in a concretized structured form (e.g.
 /// `Struct(...)` / `List(...)` carrying the same extension metadata). Both forms
 /// describe the same column, so the raw arrow data type must not be compared
-/// directly. The JSON extension identity (`greptime:type`) and the JSON2
+/// directly. The JSON extension identity (`pulse:type`) and the JSON2
 /// settings (`ARROW:extension:metadata`, e.g. type hints) are the semantic
 /// parts of the field and must match.
 fn json_fields_compatible(expected_field: &Field, actual_field: &Field) -> bool {
@@ -2815,11 +2815,11 @@ mod tests {
         let fields = expected_int64_schema().fields().clone();
         let expected = ArrowSchema::new_with_metadata(
             fields.clone(),
-            StdHashMap::from([("greptime:version".to_string(), "1".to_string())]),
+            StdHashMap::from([("pulse:version".to_string(), "1".to_string())]),
         );
         let actual = ArrowSchema::new_with_metadata(
             fields,
-            StdHashMap::from([("greptime:version".to_string(), "0".to_string())]),
+            StdHashMap::from([("pulse:version".to_string(), "0".to_string())]),
         );
         assert!(validate_remote_schema(&expected, &actual, "test").is_ok());
     }
@@ -2838,7 +2838,7 @@ mod tests {
         if wire_form {
             metadata.insert(
                 arrow_schema::extension::EXTENSION_TYPE_NAME_KEY.to_string(),
-                "greptime.json".to_string(),
+                "pulse.json".to_string(),
             );
         }
         metadata
@@ -3011,11 +3011,11 @@ mod tests {
     #[test]
     fn merge_scan_remote_schema_identity_ignores_skipping_index_field_metadata() {
         // Regression: a remote stream may advertise auxiliary field metadata
-        // (e.g. `greptime:skipping_index`) that the expected schema does not
+        // (e.g. `pulse:skipping_index`) that the expected schema does not
         // carry. Field metadata is not part of the semantic field identity
         // (name + data type + nullability) and must not fail validation.
         let skipping_index_metadata = StdHashMap::from([(
-            "greptime:skipping_index".to_string(),
+            "pulse:skipping_index".to_string(),
             r#"{"granularity":1,"false-positive-rate-in-10000":100,"index-type":"BloomFilter"}"#
                 .to_string(),
         )]);
@@ -3118,12 +3118,12 @@ mod tests {
         let fields = expected_int64_schema().fields().clone();
         let expected = ArrowSchema::new_with_metadata(
             fields.clone(),
-            StdHashMap::from([("greptime:version".to_string(), "1".to_string())]),
+            StdHashMap::from([("pulse:version".to_string(), "1".to_string())]),
         );
         let remote_schema = Arc::new(
             Schema::try_from(Arc::new(ArrowSchema::new_with_metadata(
                 fields,
-                StdHashMap::from([("greptime:version".to_string(), "0".to_string())]),
+                StdHashMap::from([("pulse:version".to_string(), "0".to_string())]),
             )))
             .unwrap(),
         );

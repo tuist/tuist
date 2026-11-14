@@ -534,7 +534,7 @@ mod tests {
             "EVAL OFFSET must be emitted, got:\n{sql}"
         );
         assert!(
-            !sql.contains("__greptime_internal_eval_offset_secs"),
+            !sql.contains("__pulse_internal_eval_offset_secs"),
             "internal key must be absent, got:\n{sql}"
         );
 

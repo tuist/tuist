@@ -167,7 +167,7 @@ impl QueryEngineState {
                 });
         }
 
-        // todo(hl): This serves as a workaround for https://github.com/GreptimeTeam/greptimedb/issues/5659
+        // todo(hl): This serves as a workaround for DataFusion's physical aggregate schema check,
         // and we can add that check back once we upgrade datafusion.
         session_config
             .options_mut()

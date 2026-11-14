@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Prometheus remote write support.
 //!
 //! This module groups validation, row building, and protobuf decoding for
@@ -65,7 +67,6 @@ lazy_static! {
 /// produce a different outcome.
 ///
 /// see <https://github.com/VictoriaMetrics/VictoriaMetrics/issues/5301>
-/// see <https://github.com/GreptimeTeam/greptimedb/issues/3929>
 pub(crate) async fn decompress_remote_write_body(
     is_zstd: bool,
     body: &[u8],
