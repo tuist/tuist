@@ -61,14 +61,9 @@ These are desired configuration, **not a record of provisioned resources**:
 
 ## Topologies
 
-`topology: standalone` (staging and canary) is not HA: S3 contains flushed
-data/indexes; the retained 10 GiB `hcloud-volumes` PVC holds raft-engine WAL and
-standalone state. Restart qualification does not prove diskless restore or
-disaster recovery.
-
-`topology: cluster` is the only topology the chart renders for production
-(`values-production.yaml`). Every component runs one replica per general node
-with a `maxUnavailable: 1` disruption budget:
+`topology: cluster` is the only topology the chart renders for workload
+clusters (staging, canary and production). Every component runs one replica per
+general node with a `maxUnavailable: 1` disruption budget:
 
 | Component | Replicas | Role |
 | --- | --- | --- |
@@ -89,13 +84,38 @@ backend's objects in the same bucket. The target is surviving one general-node
 failure without losing acknowledged writes; every general node is in
 `fsn1-dc14`, so this is not datacenter resilience.
 
-Initial requests total 8.6 CPUs and 17 GiB. The install's capacity gate places
-every replica on a distinct host, keeps the server's 1-CPU surge slot, and with
-the cluster topology must still fit after losing any one general node
-(`CAPACITY_TOLERATE_NODE_LOSS=1`). The workflow refuses to switch an existing
-environment between topologies in place, because Helm would delete the other
-topology's workloads. Moving staging or canary to the cluster topology needs
-more capacity there and a separate data migration.
+Production's requests (`values-production.yaml`) total 8.6 CPUs and 17 GiB.
+The chart's defaults size staging and canary, whose whole standalone backend
+used about 600 MiB and 0.05 CPU, at 2 CPUs and 5.75 GiB. The install's capacity
+gate places every replica on a distinct host, keeps the server's 1-CPU surge
+slot, and must still fit after losing any one general node
+(`CAPACITY_TOLERATE_NODE_LOSS=1`).
+
+`topology: standalone` remains only for management, which has no volume
+provisioner: one StatefulSet with a raft-engine WAL on local disk. It is not HA.
+
+### Moving staging or canary off standalone
+
+Staging and canary first ran the standalone topology. A deployment that finds
+its `statefulset/pulse` moves it to the cluster without dropping reads or
+writes, in one run:
+
+1. It installs the cluster beside the standalone pod
+   (`migration.standalone=serving`). Service `pulse` stays on that pod, which
+   the chart renders unchanged so it does not restart; the run fails if its
+   UID or restart count changes. The side-by-side phase only has to fit now;
+   the cluster alone must still fit after losing a node.
+2. It smoke-tests the frontends through Service `pulse-frontend`.
+3. It moves Service `pulse` to the frontends (`migration.standalone=draining`)
+   and runs the usual smoke, restart and telemetry checks against it. If they
+   fail, it rolls back one revision, which moves readers back to the
+   standalone pod.
+4. It removes the standalone StatefulSet. Its `data-pulse-0` claim is
+   retained; delete it once nothing needs a rollback.
+
+The cluster starts empty: it writes under `pulse/distributed/` and does not
+read the standalone backend's `pulse/` data, so dashboards lose earlier
+history in that environment.
 
 The cluster topology was rehearsed outside Kubernetes with the rendered configs
 (only addresses rewritten), the real v1.3.0, etcd 3.6.16 and Kafka 4.3.2
@@ -109,13 +129,13 @@ outage was 15.8 s, and the ISR returned to three brokers. This is not a
 Kubernetes rehearsal: scheduling, volumes, probes and network policies are only
 exercised by the first real install.
 
-Production standalone sizing (CPU 1 / memory 2 GiB) no longer applies. The
-capacity gate runs before installation and counts this release's running pods
+The capacity gate runs before installation and counts this release's running pods
 once (as the planned replacement), so upgrading an installed cluster is not
 refused for needing its own capacity twice. `pulse-readiness.sh` follows the
 installed topology: it requires every cluster workload (etcd, Kafka, metasrv,
 datanodes, frontends) to be Helm-owned, fully rolled out and Ready at its
-minimum replica count, or the single standalone StatefulSet.
+minimum replica count, or the single standalone StatefulSet where a
+migration has not run yet.
 Each cluster workload restarts when its own rendered configuration changes, not
 on unrelated value changes.
 

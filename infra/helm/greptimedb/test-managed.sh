@@ -6,27 +6,21 @@ trap 'rm -rf "$tmp"' EXIT
 helm lint "$chart" --namespace observability
 helm template pulse "$chart" --namespace observability > "$tmp/rendered.yaml"
 yq ea -o=json -I=0 '.' "$tmp/rendered.yaml" | jq -s 'map(select(. != null))' > "$tmp/resources.json"
+# Every workload cluster runs the cluster topology; the defaults size it for
+# staging and canary.
 jq -e '
-  length == 6 and
+  def one(kind; name): [.[] | select(.kind == kind and .metadata.name == name)] | select(length == 1) | .[0];
   all(.[]; .kind != "Secret" and .kind != "Ingress" and .kind != "ClusterRole") and
-  any(.[]; .kind == "Service" and .spec.type == "ClusterIP" and (.spec.ports | length) == 1) and
-  any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
-    .spec.template.spec.nodeSelector["node.cluster.x-k8s.io/pool"] == "general" and
-    .spec.template.spec.automountServiceAccountToken == false and
-    .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"} and
-    .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and
-    .spec.template.spec.containers[0].readinessProbe.httpGet.path == "/health" and
-    .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
-  any(.[]; .kind == "ConfigMap" and
-    (.data["config.toml"] | contains("provider = \"raft_engine\"", "root = \"pulse/\"", "type = \"S3\"", "user_provider = \"static_user_provider:file:"))) and
-  any(.[]; .kind == "ExternalSecret" and
-    ([.spec.data[].remoteRef.key] | sort) == ["PULSE_S3_CREDENTIALS/access_key_id","PULSE_S3_CREDENTIALS/secret_access_key"]) and
-  any(.[]; .kind == "NetworkPolicy" and .spec.ingress[0].from == [{podSelector:{}}]) and
-  # The host-network control-plane collector reaches only the HTTP API.
-  any(.[]; .kind == "CiliumNetworkPolicy" and .metadata.name == "pulse-host-ingress" and
-    .spec.endpointSelector == {matchLabels:{"app.kubernetes.io/instance":"pulse"}} and
-    .spec.ingress == [{fromEntities:["host","remote-node"],toPorts:[{ports:[{port:"4000",protocol:"TCP"}]}]}])
+  ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment") | .metadata.name] | sort ==
+    ["pulse-datanode","pulse-etcd","pulse-frontend","pulse-kafka","pulse-metasrv"]) and
+  (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0] |
+    .image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and .resources.requests == {cpu:"250m",memory:"768Mi"}) and
+  (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
+    any(.spec.template.spec.containers[0].env[]; .name == "KAFKA_HEAP_OPTS" and .value == "-Xms512m -Xmx512m")) and
+  (one("Service"; "pulse").spec.selector == {"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"frontend"}) and
+  # Outside a migration there is no standalone backend or qualification Service.
+  all(.[]; .metadata.name != "pulse" or .kind == "Service") and
+  all(.[]; .metadata.name != "pulse-frontend" or .kind != "Service")
 ' "$tmp/resources.json" > /dev/null
 for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do
   if helm template pulse "$chart" -n observability --set "$setting" > "$tmp/refused.log" 2>&1; then
@@ -35,40 +29,83 @@ for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do
   fi
   grep -Fq "selected environment's bucket and isolated prefix" "$tmp/refused.log"
 done
-# Standalone remains for the staging/canary pilots; production is covered below.
 for environment in staging canary; do
   ns="tuist-$environment"
   helm template pulse "$chart" -n observability \
     --set "environment=$environment,storage.bucket=tuist-pulso-$environment,dashboard.enabled=true" > "$tmp/scoped.yaml"
   yq ea -o=json -I=0 '.' "$tmp/scoped.yaml" | jq -s --arg ns "$ns" '
+    def one(kind; name): [.[] | select(.kind == kind and .metadata.name == name)] | select(length == 1) | .[0];
     map(select(. != null)) |
-    length == 7 and
-    any(.[]; .kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth" and
+    (one("ExternalSecret"; "pulse-dashboard-auth") |
       .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
       (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo=")) and
       .spec.target.template.data["ingest-username"] == "tuist" and
       (.spec.target.template.data["ingest-password"] | contains(".token"))) and
-    any(.[]; .kind == "StatefulSet" and
-      .spec.template.spec.initContainers[0].name == "combine-auth" and
-      any(.spec.template.spec.volumes[]; .name == "auth-inputs" and (.projected.sources | length) == 2)) and
-    any(.[]; .kind == "NetworkPolicy" and
-      .spec.ingress[1].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
+    (one("Deployment"; "pulse-frontend").spec.template.spec |
+      .initContainers[0].name == "combine-auth" and
+      any(.volumes[]; .name == "auth-inputs" and (.projected.sources | length) == 2)) and
+    (one("NetworkPolicy"; "pulse-private").spec |
+      .ingress[1].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
         podSelector:{matchLabels:{"app.kubernetes.io/component":"server"}}}] and
-      .spec.ingress[2].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
+      .ingress[2].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
         podSelector:{matchLabels:{"app.kubernetes.io/name":"tuist","app.kubernetes.io/instance":"tuist","app.kubernetes.io/component":"pdc-agent"}}}] and
-      .spec.ingress[2].ports == [{port:4000,protocol:"TCP"}])
+      .ingress[2].ports == [{port:4000,protocol:"TCP"}])
   ' | grep -qx true
 done
+# Moving an installed standalone backend: both run side by side, the standalone
+# pod keeps serving Service `pulse` until it moves to the frontends, and no
+# cluster workload changes between phases.
+render() { helm template pulse "$chart" -n observability --set "environment=staging,dashboard.enabled=true$1" |
+  yq ea -o=json -I=0 '.' | jq -s 'map(select(. != null))'; }
+render "" > "$tmp/target.json"
+render ",migration.standalone=serving" > "$tmp/serving.json"
+render ",migration.standalone=draining" > "$tmp/draining.json"
+jq -e -n --slurpfile target "$tmp/target.json" --slurpfile serving "$tmp/serving.json" --slurpfile draining "$tmp/draining.json" '
+  def one(kind; name): [.[] | select(.kind == kind and .metadata.name == name)] | select(length == 1) | .[0];
+  def cluster: [.[] | select((.kind == "StatefulSet" or .kind == "Deployment") and .metadata.name != "pulse")];
+  {"app.kubernetes.io/instance":"pulse","statefulset.kubernetes.io/pod-name":"pulse-0"} as $standalone |
+  {"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"frontend"} as $frontends |
+  $target[0] as $target | $serving[0] as $serving | $draining[0] as $draining |
+  ($serving | one("StatefulSet"; "pulse") | .spec.replicas == 1 and
+    .spec.selector == {matchLabels:{"app.kubernetes.io/instance":"pulse"}} and
+    .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"} and
+    .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and
+    .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
+  ($serving | one("ConfigMap"; "pulse-config").data["config.toml"] |
+    contains("provider = \"raft_engine\"", "root = \"pulse/\"", "type = \"S3\"")) and
+  ($serving | one("Service"; "pulse").spec.selector == $standalone) and
+  ($draining | one("Service"; "pulse").spec.selector == $frontends) and
+  ([$serving, $draining] | all(one("Service"; "pulse-frontend").spec.selector == $frontends)) and
+  ($serving | one("ExternalSecret"; "pulse-credentials").spec.target.template.data | keys ==
+    ["PULSE_DATANODE__STORAGE__ACCESS_KEY_ID","PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY",
+     "PULSE_STANDALONE__STORAGE__ACCESS_KEY_ID","PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY"]) and
+  # The cluster admits only its own pods; the standalone pod keeps its readers.
+  ($serving | one("NetworkPolicy"; "pulse-standalone").spec |
+    .podSelector.matchLabels == $standalone and .ingress == ($serving | one("NetworkPolicy"; "pulse-private").spec.ingress)) and
+  ($serving | one("CiliumNetworkPolicy"; "pulse-standalone-host-ingress").spec.endpointSelector.matchLabels == $standalone) and
+  # Helm applies in this order: the standalone pod gains its own policies
+  # before the cluster ones select it or narrow to the frontends.
+  ($serving | [.[] | select(.kind | endswith("NetworkPolicy")) | .metadata.name] |
+    index("pulse-standalone") < index("pulse-internal") and index("pulse-internal") < index("pulse-private") and
+    index("pulse-standalone-host-ingress") < index("pulse-host-ingress")) and
+  ($serving | cluster) == ($target | cluster) and ($draining | cluster) == ($target | cluster)
+' > /dev/null
 if helm template pulse "$chart" -n observability --set environment=other > /dev/null 2>&1; then exit 1; fi
 if helm template pulse "$chart" -n default > /dev/null 2>&1; then exit 1; fi
-# Production must never render the single-node standalone backend.
-for refused in "--set environment=production,storage.bucket=tuist-pulso-production" \
+# Workload clusters never render the single-node standalone backend, and only
+# staging and canary migrate from one.
+for refused in "--set environment=production,storage.bucket=tuist-pulso-production,topology=standalone" \
+  "--set topology=standalone" \
+  "--set environment=canary,storage.bucket=tuist-pulso-canary,topology=standalone" \
+  "--set migration.standalone=yes" \
+  "-f $chart/values-production.yaml --set migration.standalone=serving" \
   "-f $chart/values-production.yaml --set topology=standalone" \
   "-f $chart/values-production.yaml --set cluster.datanode.replicas=2" \
   "-f $chart/values-production.yaml --set cluster.frontend.replicas=1"; do
   # shellcheck disable=SC2086
   if helm template pulse "$chart" -n observability $refused > /dev/null 2>&1; then
-    echo "FAIL: unsafe production topology accepted: $refused" >&2
+    echo "FAIL: unsafe topology accepted: $refused" >&2
     exit 1
   fi
 done
@@ -90,6 +127,10 @@ jq -e '
   (one("StatefulSet"; "pulse-kafka") | .spec.replicas == 3 and spread("kafka") and
     (.spec.template.spec.containers[0].image | test("^docker.io/apache/kafka:[0-9.]+@sha256:[0-9a-f]{64}$"))) and
   (one("Deployment"; "pulse-metasrv") | .spec.replicas == 3 and spread("metasrv")) and
+  # Production keeps its own sizing whatever the staging/canary defaults are.
+  (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources.requests == {cpu:"1",memory:"2Gi"}) and
+  (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "20Gi" and
+    any(.spec.template.spec.containers[0].env[]; .name == "KAFKA_HEAP_OPTS" and .value == "-Xms1g -Xmx1g")) and
   (one("StatefulSet"; "pulse-datanode") | .spec.replicas == 3 and spread("datanode") and
     .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
@@ -153,11 +194,11 @@ yq ea -o=json -I=0 '.' "$tmp/mgmt.yaml" | jq -s '
     .spec.ingress[1].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"observability"}},
       podSelector:{matchLabels:{"app.kubernetes.io/name":"pdc-agent","app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"pdc-agent"}}}])
 ' | grep -qx true
-for refused in topology=cluster persistence.hostPath= nodeSelector=null storage.prefix=pulse/ storage.bucket=tuist-pulso-staging; do
+for refused in topology=cluster migration.standalone=serving persistence.hostPath= nodeSelector=null storage.prefix=pulse/ storage.bucket=tuist-pulso-staging; do
   if helm template pulse "$chart" -n observability -f "$chart/values-management.yaml" --set "$refused" > /dev/null 2>&1; then
     echo "FAIL: unsafe management setting accepted: $refused" >&2
     exit 1
   fi
 done
 if helm template pulse "$chart" -n observability --set environment=management,storage.bucket=tuist-pulso-management > /dev/null 2>&1; then exit 1; fi
-echo 'PASS: per-environment private backend, scoped auth, isolated S3 prefix, retained WAL volume, HA production topology and hostPath management backend'
+echo 'PASS: per-environment private backend, scoped auth, isolated S3 prefix, HA topology on every workload cluster, side-by-side standalone migration and hostPath management backend'

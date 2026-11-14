@@ -11,8 +11,14 @@
 {{- if not (has .Values.topology (list "standalone" "cluster")) }}
 {{- fail "GreptimeDB topology must be standalone or cluster" }}
 {{- end }}
-{{- if and (eq .Values.environment "production") (ne .Values.topology "cluster") }}
-{{- fail "production GreptimeDB must use the distributed cluster topology" }}
+{{- if and (ne .Values.environment "management") (ne .Values.topology "cluster") }}
+{{- fail "workload-cluster Pulse must use the distributed cluster topology" }}
+{{- end }}
+{{- if not (has .Values.migration.standalone (list "" "serving" "draining")) }}
+{{- fail "migration.standalone must be empty, serving or draining" }}
+{{- end }}
+{{- if and .Values.migration.standalone (not (has .Values.environment (list "staging" "canary"))) }}
+{{- fail "only staging and canary migrate from a standalone backend" }}
 {{- end }}
 {{- if and (eq .Values.environment "management") (or (ne .Values.topology "standalone") (not .Values.persistence.hostPath) (not .Values.nodeSelector)) }}
 {{- fail "management Pulse is standalone on a hostPath volume pinned with nodeSelector" }}
@@ -26,6 +32,12 @@
 key's IAM policy is limited to; production's Pulse owns pulse/. */}}
 {{- define "greptimedb.bucket" -}}
 {{ printf "tuist-pulso-%s" (ternary "production" .Values.environment (eq .Values.environment "management")) }}
+{{- end }}
+
+{{/* The standalone StatefulSet's pod, apart from the cluster's pods. */}}
+{{- define "greptimedb.standaloneSelector" -}}
+app.kubernetes.io/instance: pulse
+statefulset.kubernetes.io/pod-name: pulse-0
 {{- end }}
 
 {{- define "greptimedb.prefix" -}}

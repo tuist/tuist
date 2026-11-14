@@ -1,5 +1,6 @@
 {{- include "greptimedb.validate" . }}
-{{- if eq .Values.topology "standalone" }}
+{{- $standalone := eq .Values.topology "standalone" }}
+{{- if or $standalone .Values.migration.standalone }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -35,6 +36,7 @@ data:
     level = "info"
     log_format = "json"
     only_log_to_stdout = true
+{{- if $standalone }}
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -73,6 +75,7 @@ spec:
     - name: http
       port: 4000
       targetPort: http
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -92,7 +95,15 @@ spec:
       labels:
         app.kubernetes.io/instance: pulse
       annotations:
+        {{- /* The checksum hashes every value, so the migration's own values
+        would restart the pod that still serves; keep the live one until it
+        is removed. */}}
+        {{- $live := lookup "apps/v1" "StatefulSet" .Release.Namespace "pulse" }}
+        {{- if and .Values.migration.standalone $live }}
+        checksum/config: {{ index $live.spec.template.metadata.annotations "checksum/config" | quote }}
+        {{- else }}
         checksum/config: {{ toJson .Values | sha256sum }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
@@ -176,6 +187,7 @@ spec:
           requests:
             storage: {{ .Values.persistence.size | quote }}
   {{- end }}
+{{- if $standalone }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -188,4 +200,5 @@ spec:
   policyTypes: [Ingress]
   ingress:
     {{- include "greptimedb.apiIngress" . | nindent 4 }}
+{{- end }}
 {{- end }}
