@@ -892,15 +892,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     passing = fn ran_at -> run_attrs(project.id, test_case_id, ran_at) end
     flaky = fn ran_at -> run_attrs(project.id, test_case_id, ran_at, git_branch: "experiment", is_flaky: true) end
 
-    # Runs are dated when they are reported, in order, so the trigger and the
-    # recovery, which are stamped with the clock, fall between the batches.
-    report = fn runs ->
-      now = NaiveDateTime.utc_now()
+    # Every read of the clock advances it, so each run is dated after the
+    # trigger or recovery stamped before it was reported and before the next.
+    clock = start_supervised!({Agent, fn -> NaiveDateTime.utc_now() end})
 
-      runs
-      |> Enum.with_index(fn build, index -> build.(NaiveDateTime.add(now, index - length(runs), :millisecond)) end)
-      |> insert_test_case_runs()
-    end
+    stub(NaiveDateTime, :utc_now, fn ->
+      Agent.get_and_update(clock, fn now ->
+        next = NaiveDateTime.add(now, 1, :millisecond)
+        {next, next}
+      end)
+    end)
+
+    report = fn runs -> runs |> Enum.map(& &1.(NaiveDateTime.utc_now())) |> insert_test_case_runs() end
 
     report.([passing, passing, flaky])
 
