@@ -28,6 +28,8 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
           "type" => "string",
           "description" =>
             "Test case identifier in Module/Suite/TestCase or Module/TestCase format. " <>
+              "A nested Swift Testing suite is its whole path (Module/Outer/Inner/TestCase); " <>
+              "a `/` or `%` inside the module or test name can be percent-encoded (%2F, %25). " <>
               "Required when not using test_case_id. Must be combined with account_handle and project_handle."
         },
         "state" => %{
@@ -150,13 +152,19 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
   defp maybe_put_is_flaky(_attrs, %{"is_flaky" => _invalid}), do: {:error, "`is_flaky` must be a boolean."}
   defp maybe_put_is_flaky(attrs, _args), do: {:ok, attrs}
 
+  # The module is the first part and the test the last; everything between is
+  # the suite, since a nested Swift Testing suite is recorded as `Outer/Inner`.
+  # A part can percent-encode a `/` or `%` it holds, as tuist_ex does for Mix
+  # describe names such as `create_order/2`.
   defp parse_identifier(identifier) do
-    case String.split(identifier, "/") do
-      [module_name, suite_name, name] -> {:ok, {module_name, suite_name, name}}
+    case identifier |> String.split("/") |> Enum.map(&decode_identifier_part/1) do
       [module_name, name] -> {:ok, {module_name, nil, name}}
+      [module_name | [_, _ | _] = rest] -> {:ok, {module_name, rest |> Enum.drop(-1) |> Enum.join("/"), List.last(rest)}}
       _ -> {:error, "Invalid identifier format. Use Module/Suite/TestCase or Module/TestCase."}
     end
   end
+
+  defp decode_identifier_part(part), do: Regex.replace(~r/%2F|%25/i, part, &if(&1 == "%25", do: "%", else: "/"))
 
   defp find_test_case_by_name(project_id, module_name, suite_name, name) do
     filters =

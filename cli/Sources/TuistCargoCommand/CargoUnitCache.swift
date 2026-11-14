@@ -373,7 +373,8 @@ extension CargoUnitCache {
                   REAPI.digest(data) == file.digest else { continue }
             var needed: [REAPI.Digest] = []
             if !file.path.hasPrefix("reads/") {
-                guard let result = try? REAPI.ActionResult(serializedBytes: data), result.outputFiles.count <= CargoCompilationCache.maximumOutputFiles,
+                guard let result = try? REAPI.ActionResult(serializedBytes: data),
+                      result.outputFiles.count <= CargoCompilationCache.maximumOutputFiles,
                       result.outputFiles
                       .allSatisfy({ (try? REAPI.validate($0.digest)) != nil && $0.digest.sizeBytes <= 100_000_000 })
                 else { continue }
@@ -1015,7 +1016,9 @@ extension CargoUnitCache {
                 guard end == bytes.count || bytes[end] == UInt8(ascii: ".") else { continue }
                 hashes.insert(String(decoding: bytes[index + 1 ..< end], as: UTF8.self))
             }
-            for hash in hashes { result[hash, default: []].append(name) }
+            for hash in hashes {
+                result[hash, default: []].append(name)
+            }
         }
         return result
     }

@@ -41,6 +41,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakinessEvidence
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
+  alias Tuist.Tests.LegacySuiteIdentity
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.RunSelections
   alias Tuist.Tests.StressNewTests
@@ -1267,6 +1268,7 @@ defmodule Tuist.Tests do
     test_run_id = Keyword.get(opts, :test_run_id)
     is_ci = Keyword.get(opts, :is_ci, false)
     record_durations = Keyword.get(opts, :record_durations, true)
+    build_system = Keyword.get(opts, :build_system, "xcode")
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -1342,6 +1344,17 @@ defmodule Tuist.Tests do
       |> MapSet.new()
 
     Batch.insert_all(TestCase, test_cases)
+
+    # A test case that inherits its legacy ID's ledger already has a history, so it
+    # gets no `first_run` event or `test_case.created` webhook of its own.
+    carried_over =
+      LegacySuiteIdentity.carry_over(
+        project_id,
+        build_system,
+        Enum.filter(test_cases, &MapSet.member?(new_test_case_ids, &1.id))
+      )
+
+    new_test_case_ids = MapSet.difference(new_test_case_ids, carried_over)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -2440,7 +2453,7 @@ defmodule Tuist.Tests do
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
-    test_case_data = check_new_test_cases(test_case_data, project)
+    test_case_data = check_new_test_cases(test_case_data, project, test.build_system)
 
     Map.new(test_case_data, fn data ->
       {data.identity_key,
@@ -2594,26 +2607,36 @@ defmodule Tuist.Tests do
 
   # A test case is new until it has run in CI on the default branch, or on a
   # commit the default branch has since reached (a merge queue's, typically).
-  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project)
+  # A test case in a nested suite is also known under the ID it had before
+  # nested suites were recorded whole (`LegacySuiteIdentity`).
+  defp check_new_test_cases(test_case_data, %Project{default_branch: default_branch} = project, build_system)
        when is_binary(default_branch) and default_branch != "" do
     existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(project.id, default_branch)
 
+    test_case_data =
+      Enum.map(test_case_data, fn %{identity_key: {name, module_name, suite_name}} = data ->
+        legacy_id = LegacySuiteIdentity.legacy_test_case_id(project.id, build_system, name, module_name, suite_name)
+        Map.put(data, :known_ids, Enum.reject([data.test_case_id, legacy_id], &is_nil/1))
+      end)
+
     landed =
       test_case_data
-      |> Enum.map(& &1.test_case_id)
+      |> Enum.flat_map(& &1.known_ids)
       |> Enum.reject(&MapSet.member?(existing_on_default_branch, &1))
       |> then(&test_case_ids_landed_on_default_branch(project, default_branch, &1))
 
     Enum.map(test_case_data, fn data ->
+      {known_ids, data} = Map.pop!(data, :known_ids)
+
       is_new =
-        not MapSet.member?(existing_on_default_branch, data.test_case_id) and
-          not MapSet.member?(landed, data.test_case_id)
+        not Enum.any?(known_ids, &(MapSet.member?(existing_on_default_branch, &1) or MapSet.member?(landed, &1)))
 
       Map.put(data, :is_new, is_new)
     end)
   end
 
-  defp check_new_test_cases(test_case_data, _project), do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
+  defp check_new_test_cases(test_case_data, _project, _build_system),
+    do: Enum.map(test_case_data, &Map.put(&1, :is_new, false))
 
   defp project_default_branch(project_id) do
     project = Tuist.Projects.get_project_by_id(project_id)
@@ -2840,6 +2863,7 @@ defmodule Tuist.Tests do
         create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
           test_run_id: test.id,
           is_ci: test.is_ci,
+          build_system: test.build_system,
           record_durations: not (test.scheme == "cargo test" or String.starts_with?(test.scheme || "", "cargo test · "))
         )
       end

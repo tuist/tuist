@@ -343,10 +343,10 @@ struct TestCaseUpdateCommandServiceTests {
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
 
         // When/Then
-        await #expect(throws: TestCaseIdentifierError.invalidIdentifier("a/b/c/d"), performing: {
+        await #expect(throws: TestCaseIdentifierError.invalidIdentifier("a/"), performing: {
             try await subject.run(
                 project: nil,
-                testCaseIdentifier: "a/b/c/d",
+                testCaseIdentifier: "a/",
                 state: .enabled,
                 isFlaky: nil,
                 path: nil,
