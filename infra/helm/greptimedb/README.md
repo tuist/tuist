@@ -6,19 +6,19 @@ every `pulse/` change on main, then release candidates and weekly stable
 releases (see `FORK.md`). In each workload cluster this chart runs it as the
 private `pulse` release in namespace
 `observability`, behind Service `pulse` (`pulse.observability.svc.cluster.local:4000`).
-Every resource is named `pulse` or `pulse-*`. From `1.3.0-2` the fork's
+Every resource is named `pulse` or `pulse-*`. From `1.3.0-2` on, the fork's
 internals are renamed too (see [Renamed to Pulse](../../../pulse/FORK.md)): the
 default catalog is `pulse`, configuration variables use the `PULSE_STANDALONE__`
 and `PULSE_DATANODE__` prefixes, and clients select a database with
 `X-Pulse-DB-Name`. The WAL topic prefix and data paths the chart sets explicitly
 are unchanged. The chart directory keeps its old name.
 
-Upgrading a release from `1.3.0-1` to `1.3.0-2` is in place but does not
+Upgrading from `1.3.0-1` to a renamed release (`1.3.0-2` or later) is in place but does not
 migrate data: the new binary creates the `pulse` catalog next to the old
 `greptime` one, the deployment re-uploads the `loki_otlp` pipeline into
 `pulse_private`, and collectors start writing into the new catalog. Tables in
 the `greptime` catalog stay in metadata and under `<prefix>data/greptime/` in
-the bucket but are no longer queried. Until every environment runs `1.3.0-2`,
+the bucket but are no longer queried. Until every environment runs a renamed release,
 collectors and the server send both the `X-Greptime-*` and `X-Pulse-*` headers;
 drop the old ones afterwards.
 
