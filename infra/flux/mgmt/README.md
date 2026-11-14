@@ -59,7 +59,7 @@ Do not change the image independently of its chart or deploy another Helm
 release alongside the existing `cloudflare-operator` release.
 
 `pulse.yaml` installs management's own Pulse (`infra/flux/pulse`): the
-`infra/helm/greptimedb` chart read from this GitRepository at Flux's revision,
+`infra/helm/pulse` chart read from this GitRepository at Flux's revision,
 with `values-management.yaml`, as release `pulse` in `observability`. It waits
 for the release, so a missing `tuist-k8s-mgmt` vault item fails only this
 child. `pulse-pdc.yaml` runs Grafana Cloud's PDC agent for it

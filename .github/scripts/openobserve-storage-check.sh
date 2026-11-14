@@ -4,7 +4,7 @@ set -eu
 case "$DEPLOY_ENV" in staging|canary) ;; *) exit 1 ;; esac
 case "$CHECK_RUN" in ''|*[!a-zA-Z0-9-]*) exit 1 ;; esac
 prefix="${STORAGE_PREFIX:-openobserve}"
-case "$prefix" in openobserve|greptimedb) ;; *) exit 1 ;; esac
+case "$prefix" in openobserve) ;; *) exit 1 ;; esac
 bucket="tuist-pulso-$DEPLOY_ENV"
 url="https://t3.storage.dev/$bucket"
 key="$prefix/ci-preflight/$CHECK_RUN"

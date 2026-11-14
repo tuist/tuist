@@ -11,7 +11,7 @@ name: Pulse Canary Release
 # main's canary advances to the following minor.
 #
 # Unlike Kura's, this runs on its own push trigger: nothing deploys the newest
-# canary. The clusters run the image pinned in infra/helm/greptimedb/values.yaml.
+# canary. The clusters run the image pinned in infra/helm/pulse/values.yaml.
 on:
   push:
     branches: [main]

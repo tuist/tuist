@@ -57,7 +57,7 @@ step="list $prefix/"
 code=$(request "$url?list-type=2&prefix=$prefix%2F&max-keys=1")
 [ "$code" = 200 ]
 grep -q 'ListBucketResult' "$work/response"
-printf 'greptimedb-preflight-17' > "$work/payload"
+printf 'pulse-preflight-17' > "$work/payload"
 created=true
 step="write the probe object"
 code=$(request -X PUT --data-binary "@$work/payload" "$url/$key")

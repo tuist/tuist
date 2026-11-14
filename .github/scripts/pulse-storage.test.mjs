@@ -8,8 +8,8 @@ import test from 'node:test';
 for (const environment of ['staging', 'canary', 'production']) {
   test(`storage safety scenarios for ${environment}`, () => {
     const source = readFileSync('.github/scripts/openobserve-preflight.test.mjs', 'utf8')
-      .replaceAll('.github/scripts/openobserve-storage-check.sh', '.github/scripts/greptimedb-storage-check.sh')
-      .replace("['openobserve', 'greptimedb']", "['pulse']")
+      .replaceAll('.github/scripts/openobserve-storage-check.sh', '.github/scripts/pulse-storage-check.sh')
+      .replace("['openobserve']", "['pulse']")
       .replaceAll('staging', environment);
     const result = spawnSync(process.execPath, ['--input-type=module', '-e', source], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stdout + result.stderr);

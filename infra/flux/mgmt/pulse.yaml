@@ -1,4 +1,4 @@
-# Management's own Pulse (Tuist's GreptimeDB fork), so its metrics never
+# Management's own Pulse, so its metrics never
 # depend on a workload cluster. Independent child: missing vault items or
 # bucket access fail only this, never Cluster reconciliation.
 apiVersion: kustomize.toolkit.fluxcd.io/v1

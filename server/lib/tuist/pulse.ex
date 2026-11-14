@@ -319,8 +319,7 @@ defmodule Tuist.Pulse do
   defp credentials do
     config = Environment.pulse_config()
     url = Keyword.get(config, :base_url)
-    # Pulse's database name, sent as x-pulse-db-name (and x-greptime-db-name for
-    # releases from before the rename; see pulse/FORK.md).
+    # Pulse's database name, sent as x-pulse-db-name.
     tenant = Keyword.get(config, :tenant)
 
     with true <- valid_url?(url) and header?(tenant),
@@ -414,8 +413,7 @@ defmodule Tuist.Pulse do
         auth: {:basic, "dashboard:" <> client.token},
         headers: [
           {"accept", "application/json"},
-          {"x-pulse-db-name", client.tenant},
-          {"x-greptime-db-name", client.tenant}
+          {"x-pulse-db-name", client.tenant}
         ],
         params: params,
         compressed: false,

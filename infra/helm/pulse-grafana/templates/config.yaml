@@ -6,8 +6,8 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      - name: GreptimeDB Staging Metrics
-        uid: greptime-staging-metrics
+      - name: Pulse Staging Metrics
+        uid: pulse-staging-metrics
         type: prometheus
         access: proxy
         url: {{ printf "%s/v1/prometheus" .Values.backend.url | quote }}
@@ -19,11 +19,11 @@ data:
           httpMethod: POST
           httpHeaderName1: x-pulse-db-name
         secureJsonData:
-          basicAuthPassword: $GREPTIME_DASHBOARD_PASSWORD
+          basicAuthPassword: $PULSE_DASHBOARD_PASSWORD
           httpHeaderValue1: public
-      - name: GreptimeDB Staging SQL Logs Traces
-        uid: greptime-staging-sql
-        type: info8fcc-greptimedb-datasource
+      - name: Pulse Staging SQL Logs Traces
+        uid: pulse-staging-sql
+        type: {{ .Values.plugin.id }}
         access: proxy
         url: {{ .Values.backend.url | quote }}
         basicAuth: true
@@ -55,7 +55,7 @@ data:
             durationColumn: duration_nano
             durationUnit: nanoseconds
         secureJsonData:
-          basicAuthPassword: $GREPTIME_DASHBOARD_PASSWORD
+          basicAuthPassword: $PULSE_DASHBOARD_PASSWORD
           httpHeaderValue1: public
   dashboards.yaml: |
     apiVersion: 1

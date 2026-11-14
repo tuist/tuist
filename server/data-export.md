@@ -84,15 +84,15 @@ data described below. No new customer collection or source retention is added.
 
 ## Exportable Data
 
-### GreptimeDB storage
+### Pulse storage
 
-Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
+Pulse (Helm release `pulse`) uses an independent `pulse/`
 prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
 production), and under `management/` in `tuist-pulso-production` for the
 management cluster's own Pulse, for database-managed data and indexes, and disposable
-`pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
-release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
-those objects and its PVC until a `purge_greptimedb` dispatch deletes both. Staging and canary use a retained 10 GiB Kubernetes PVC for local
+`pulse/ci-preflight/<run>` storage probes. The interim release that ran before
+Pulse in staging and canary has been uninstalled and its volumes and bucket
+objects deleted. Staging and canary use a retained 10 GiB Kubernetes PVC for local
 WAL and standalone state. Production's cluster topology stores data under
 `pulse/distributed/`; its WAL lives on replicated Kafka volumes until
 flushed, and its metadata in a dedicated etcd. Staging and canary
@@ -1229,10 +1229,10 @@ search those backends using selected/auth IDs and legacy handles, distinguish
 caller from target, and include retained matching flag observations. Process-local
 snapshots are ephemeral and disappear with their request, socket, task or job.
 
-### Managed GreptimeDB telemetry
+### Managed Pulse telemetry
 
 Staging, canary and production collectors write operational metrics, pod logs
-and OTLP spans to the private GreptimeDB `public` database through each cluster's
+and OTLP spans to the private Pulse `public` database through each cluster's
 in-cluster `pulse` Service. The management cluster runs its own `pulse`, but its
 collectors still send only to Grafana Cloud. Grafana Cloud destinations remain independent and unchanged. Logs live in `opentelemetry_logs`
 (nanosecond `timestamp`, `body`, severity, trace/span IDs and JSON log/resource
@@ -1273,7 +1273,7 @@ dashboard's latest-100-row view and literal text search are not a complete legal
 export; paginate the time/identity-scoped SQL result independently. There is no
 automated archive or per-subject erasure workflow for this backend; scoped deletion
 requires separate authorized operator handling. The SQL projections, nanosecond
-timestamps and aggregate queries have been exercised against GreptimeDB v1.3.0;
+timestamps and aggregate queries have been exercised against Pulse;
 this does not establish complete attribution for every collector or source.
 
 ## Bazel remote execution

@@ -131,33 +131,30 @@ covered by this list.
   with git-cliff notes ([`cliff.toml`](cliff.toml)). Pulse releases never take
   the repository's GitHub "Latest" release, which the CLI, server and Kura use.
 - Publishing deploys nothing. In each cluster's `observability` namespace the
-  `pulse` release ([`infra/helm/greptimedb`](../infra/helm/greptimedb), Service
+  `pulse` release ([`infra/helm/pulse`](../infra/helm/pulse), Service
   `pulse`) runs the fork release pinned in its `values.yaml`, and collectors
-  write to it directly. `greptimedb-deployment.yml` rolls it out when
+  write to it directly. `pulse-deployment.yml` rolls it out when
   dispatched. Moving to a new release means changing that pin and the one in
-  `infra/helm/greptimedb/test-managed.sh`, then dispatching the deployment.
+  `infra/helm/pulse/test-managed.sh`, then dispatching the deployment.
   `.github/scripts/pulse-readiness.sh`, the gate every server deploy runs,
   accepts any published `ghcr.io/tuist/pulse` version.
 
 ## Rolling out the rename
 
-The clusters run releases built before the rename, and the infrastructure
-around them still uses GreptimeDB's names. The change that moves the pin to the
-first renamed release has to switch them too, or ingestion and queries fail:
+Every environment runs a renamed release, and the infrastructure around it
+uses Pulse's names: the chart ([`infra/helm/pulse`](../infra/helm/pulse)), its
+deployment workflow (`pulse-deployment.yml`) and smoke scripts, the storage
+credentials (`PULSE_STANDALONE__*`, `PULSE_DATANODE__*`), and the `X-Pulse-*`
+headers and `pulse_trace_v1` pipeline the collectors in
+`infra/helm/k8s-monitoring` and the server's `Tuist.Pulse` send. Two names
+from before the rename remain because they name live data:
 
-- The chart's storage credentials: `GREPTIMEDB_STANDALONE__*` and
-  `GREPTIMEDB_DATANODE__*` become `PULSE_STANDALONE__*` and `PULSE_DATANODE__*`.
-- The collectors in `infra/helm/k8s-monitoring` and the server's `Tuist.Pulse`
-  deploy independently of the backend, so they send both the `X-Greptime-*`
-  and `X-Pulse-*` headers (and both trace pipeline names) until every
-  environment runs a renamed release. Each release ignores the other's names.
-- `infra/helm/greptimedb/loki-otlp.yaml` and the smoke scripts in
-  `.github/scripts`: headers and the `greptime_timestamp` column.
-- Storage: the upgrade is in place, without a migration and without wiping
-  anything, because the on-disk formats are unchanged. The renamed release
-  creates the `pulse` catalog next to the old `greptime` one, and collectors
-  write into it from then on; tables in the `greptime` catalog stay in
-  metadata and under `data/greptime/` in the bucket, unread.
+- The Kafka WAL topic prefix (`pulse.walTopicPrefix` in the chart): the topics
+  hold unflushed writes.
+- Storage: the upgrade to the first renamed release was in place, without a
+  migration, because the on-disk formats are unchanged. It created the `pulse`
+  catalog next to the old `greptime` one; tables in the `greptime` catalog stay
+  in metadata and under `data/greptime/` in the bucket, unread.
 
 ## Moving to a newer upstream version
 

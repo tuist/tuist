@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 test('live gate requires all recent real signals and excludes every CI run', () => {
-  const work = mkdtempSync(join(tmpdir(), 'greptime-live-'));
+  const work = mkdtempSync(join(tmpdir(), 'pulse-live-'));
   try {
     writeFileSync(join(work, 'dashboard'), 'dashboard:ro=synthetic-test-password\n');
     writeFileSync(join(work, 'preload.mjs'), String.raw`
@@ -24,7 +24,7 @@ globalThis.fetch = async (input, options) => {
   }
   const sql = url.searchParams.get('sql');
   assert.match(sql, /timestamp >= '20/);
-  assert.match(sql, /!= 'greptimedb-ci'/);
+  assert.match(sql, /!= 'pulse-ci'/);
   if (sql.includes('opentelemetry_logs')) {
     assert.match(sql, /json_get_string\(resource_attributes/);
     assert.match(sql, /service.name/);
@@ -37,10 +37,10 @@ globalThis.fetch = async (input, options) => {
 };
 `);
     for (const scenario of ['success', 'missing metrics', 'missing logs', 'missing traces', 'HTTP failure', 'SQL failure']) {
-      const result = spawnSync(process.execPath, ['--import', join(work, 'preload.mjs'), '.github/scripts/greptimedb-live-smoke.mjs'], {
+      const result = spawnSync(process.execPath, ['--import', join(work, 'preload.mjs'), '.github/scripts/pulse-live-smoke.mjs'], {
         encoding: 'utf8', timeout: 10000,
-        env: {...process.env, SCENARIO: scenario, GREPTIMEDB_URL: 'http://synthetic.invalid',
-          GREPTIMEDB_DASHBOARD_AUTH_FILE: join(work, 'dashboard')},
+        env: {...process.env, SCENARIO: scenario, PULSE_URL: 'http://synthetic.invalid',
+          PULSE_DASHBOARD_AUTH_FILE: join(work, 'dashboard')},
       });
       assert.equal(result.status, scenario === 'success' ? 0 : 1, `${scenario}: ${result.stdout}${result.stderr}`);
       assert.ok(!(result.stdout + result.stderr).includes('sensitive upstream body'));

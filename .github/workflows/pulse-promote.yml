@@ -11,7 +11,7 @@ name: Pulse Promote to Stable
 #
 # The cron is aligned with cli-promote.yml, server-promote.yml and
 # kura-promote.yml so the release trains fire in lockstep. Promoting deploys
-# nothing: the clusters run the image pinned in infra/helm/greptimedb/values.yaml.
+# nothing: the clusters run the image pinned in infra/helm/pulse/values.yaml.
 on:
   schedule:
     - cron: "0 6 * * 1" # Mondays 06:00 UTC

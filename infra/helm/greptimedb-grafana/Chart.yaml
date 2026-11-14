@@ -1,6 +1,0 @@
-apiVersion: v2
-name: greptimedb-grafana
-description: Private staging Grafana for the GreptimeDB integration
-type: application
-version: 0.1.0
-appVersion: "13.3.0"

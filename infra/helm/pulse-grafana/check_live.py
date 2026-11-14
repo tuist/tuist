@@ -20,14 +20,14 @@ user = request("/api/user")
 assert not user["isGrafanaAdmin"], "Expected a Viewer, not a Grafana admin"
 orgs = request("/api/user/orgs")
 assert orgs and all(org["role"] == "Viewer" for org in orgs), "Expected Viewer role only"
-for uid in ["greptime-staging-metrics", "greptime-staging-sql"]:
+for uid in ["pulse-staging-metrics", "pulse-staging-sql"]:
     health = request(f"/api/datasources/uid/{uid}/health")
     assert health["status"] == "OK", f"{uid}: {health.get('message')}"
     print(f"PASS: {uid} authenticated health")
 
 now = datetime.datetime.now(datetime.timezone.utc)
 start = now - datetime.timedelta(minutes=15)
-dashboard = request("/api/dashboards/uid/greptime-staging")["dashboard"]
+dashboard = request("/api/dashboards/uid/pulse-staging")["dashboard"]
 for panel in dashboard["panels"]:
     target = dict(panel["targets"][0])
     target["datasource"] = panel["datasource"]

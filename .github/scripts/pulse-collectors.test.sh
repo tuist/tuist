@@ -9,9 +9,9 @@ block() { awk -v start="$1" '$0 ~ "^ *" start " \\{$" { copying=1; indent=match(
 for environment in staging canary production; do
   helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
   helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
-  # Cloud and Pulse (the GreptimeDB fork) each keep every signal. Nothing reads
-  # the legacy pulse-credentials Secret or the retired interim greptimedb release.
-  if grep -Eq 'pulse-credentials|greptimedb\.observability|greptimedb-dashboard-auth|greptimedb[_-](metrics|logs|traces)' "$tmp/rendered.yaml"; then exit 1; fi
+  # Cloud and Pulse each keep every signal. Nothing reads the legacy
+  # pulse-credentials Secret.
+  if grep -q 'pulse-credentials' "$tmp/rendered.yaml"; then exit 1; fi
   for signal in metrics logs traces; do
     grep -q "Destination: grafana-cloud-$signal" "$tmp/rendered.yaml"
     grep -q "Destination: pulse-$signal" "$tmp/rendered.yaml"
@@ -26,7 +26,6 @@ for environment in staging canary production; do
   for file in metrics control-plane; do
     block 'prometheus.remote_write "pulse_metrics"' "$tmp/$file.alloy" > "$tmp/writer.alloy"
     grep -Fq "url = \"$origin/v1/prometheus/write\"" "$tmp/writer.alloy"
-    grep -Fq '"X-Greptime-DB-Name" = "public",' "$tmp/writer.alloy"
     grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-username"]' "$tmp/writer.alloy"
     grep -Fq 'remote.kubernetes.secret.pulse_metrics.data["ingest-password"]' "$tmp/writer.alloy"
@@ -45,13 +44,8 @@ for environment in staging canary production; do
   cmp "$tmp/grafana_cloud_metrics.rules" "$tmp/pulse_metrics.rules"
 
   # Logs: custom WAL-backed writer with the Loki pipeline headers and no tenant.
-  # Writers send GreptimeDB's and Pulse's header names until every backend runs
-  # a Pulse release that reads the X-Pulse-* names (pulse/FORK.md).
   block 'loki.write "pulse_logs"' "$tmp/receiver.alloy" > "$tmp/logs.alloy"
   grep -Fq "url = \"$origin/v1/loki/api/v1/push\"" "$tmp/logs.alloy"
-  grep -Fq '"X-Greptime-DB-Name" = "public",' "$tmp/logs.alloy"
-  grep -Fq '"X-Greptime-Pipeline-Name" = "loki_otlp",' "$tmp/logs.alloy"
-  grep -Fq '"X-Greptime-Log-Table-Name" = "opentelemetry_logs",' "$tmp/logs.alloy"
   grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/logs.alloy"
   grep -Fq '"X-Pulse-Pipeline-Name" = "loki_otlp",' "$tmp/logs.alloy"
   grep -Fq '"X-Pulse-Log-Table-Name" = "opentelemetry_logs",' "$tmp/logs.alloy"
@@ -66,15 +60,12 @@ for environment in staging canary production; do
   # Traces: unsampled OTLP/HTTP into the trace pipeline and table.
   block 'otelcol.exporter.otlphttp "pulse_traces"' "$tmp/receiver.alloy" > "$tmp/traces.alloy"
   grep -Fq "endpoint = \"$origin/v1/otlp\"" "$tmp/traces.alloy"
-  grep -Fq '"X-Greptime-DB-Name" = "public",' "$tmp/traces.alloy"
-  grep -Fq '"X-Greptime-Pipeline-Name" = "greptime_trace_v1",' "$tmp/traces.alloy"
-  grep -Fq '"X-Greptime-Trace-Table-Name" = "opentelemetry_traces",' "$tmp/traces.alloy"
   grep -Fq '"X-Pulse-DB-Name" = "public",' "$tmp/traces.alloy"
   grep -Fq '"X-Pulse-Pipeline-Name" = "pulse_trace_v1",' "$tmp/traces.alloy"
   grep -Fq '"X-Pulse-Trace-Table-Name" = "opentelemetry_traces",' "$tmp/traces.alloy"
   # The upstream OTLP and Prometheus destinations always read `tenantId` from an
   # external Secret; pulse-dashboard-auth has none, so Alloy sends an empty
-  # X-Scope-OrgID (as for Grafana Cloud), which Greptime ignores.
+  # X-Scope-OrgID (as for Grafana Cloud), which Pulse ignores.
   block 'otelcol.auth.basic "pulse_traces"' "$tmp/receiver.alloy" | grep -Fq 'data["ingest-password"]'
   block 'remote.kubernetes.secret "pulse_traces"' "$tmp/receiver.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
   # Pulse types the status-code column from its first write, so Bandit's "nil"
@@ -96,7 +87,7 @@ done
 for environment in management pentest; do
   helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
   helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
-  if grep -Eq 'pulse[-_](metrics|logs|traces)|pulse\.observability|pulse-credentials|greptimedb[_-](metrics|logs|traces)|greptimedb\.observability|pulse-dashboard-auth' "$tmp/rendered.yaml"; then exit 1; fi
+  if grep -Eq 'pulse[-_](metrics|logs|traces)|pulse\.observability|pulse-credentials|pulse-dashboard-auth' "$tmp/rendered.yaml"; then exit 1; fi
   grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
 done
-echo 'PASS: workload collectors write natively to Pulse (GreptimeDB) with gateway headers and the write-only pulse-dashboard-auth login; management and pentest stay Cloud-only; Cloud preserved'
+echo 'PASS: workload collectors write natively to Pulse with its headers and the write-only pulse-dashboard-auth login; management and pentest stay Cloud-only; Cloud preserved'

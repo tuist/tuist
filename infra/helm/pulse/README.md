@@ -1,38 +1,28 @@
-# Pulse on GreptimeDB
+# Pulse
 
-Pulse is Tuist's GreptimeDB fork: its source is in [`pulse/`](../../../pulse/FORK.md)
+Pulse is Tuist's observability database: its source is in [`pulse/`](../../../pulse/FORK.md)
 and its release workflows publish it as `ghcr.io/tuist/pulse`: a canary for
 every `pulse/` change on main, then release candidates and weekly stable
 releases (see `FORK.md`). In each workload cluster this chart runs it as the
 private `pulse` release in namespace
 `observability`, behind Service `pulse` (`pulse.observability.svc.cluster.local:4000`).
-Every resource is named `pulse` or `pulse-*`. From `1.3.0-2` on, the fork's
-internals are renamed too (see [Renamed to Pulse](../../../pulse/FORK.md)): the
-default catalog is `pulse`, configuration variables use the `PULSE_STANDALONE__`
-and `PULSE_DATANODE__` prefixes, and clients select a database with
-`X-Pulse-DB-Name`. The WAL topic prefix and data paths the chart sets explicitly
-are unchanged. The chart directory keeps its old name.
+Every resource is named `pulse` or `pulse-*`, the default catalog is `pulse`,
+configuration variables use the `PULSE_STANDALONE__` and `PULSE_DATANODE__`
+prefixes, and clients select a database with `X-Pulse-DB-Name`. Only the Kafka
+WAL topics keep their pre-rename prefix (`pulse.walTopicPrefix` in
+`templates/_helpers.tpl`): the live topics hold unflushed writes.
 
-Upgrading from `1.3.0-1` to a renamed release (`1.3.0-2` or later) is in place but does not
-migrate data: the new binary creates the `pulse` catalog next to the old
-`greptime` one, the deployment re-uploads the `loki_otlp` pipeline into
-`pulse_private`, and collectors start writing into the new catalog. Tables in
-the `greptime` catalog stay in metadata and under `<prefix>data/greptime/` in
-the bucket but are no longer queried. Until every environment runs a renamed release,
-collectors and the server send both the `X-Greptime-*` and `X-Pulse-*` headers;
-drop the old ones afterwards. A renamed release reads only `X-Pulse-*`, so the
-deployment refuses to run while live collectors that write to Pulse lack them:
-deploy the server to that environment first.
+Every environment runs a renamed release. Releases before the rename
+(`1.3.0-1`) wrote into a catalog of their own, which stays in metadata and in
+the bucket but is no longer queried. A renamed release reads only `X-Pulse-*`
+headers, so the deployment refuses to run while live collectors that write to
+Pulse lack them: deploy the server to that environment first.
 
 The chart pins the fork release in `values.yaml`, which must already be
 published: push `pulse/` to main and let `pulse-release.yml` finish before
 dispatching a deployment. Pushes and pull requests only validate; deploying
-needs a `Pulse GreptimeDB Replacement` dispatch from main, and canary/production
+needs a `Pulse Deployment` dispatch from main, and canary/production
 dispatches need their protected-environment approval.
-
-The interim `greptimedb` release that ran upstream GreptimeDB in staging and
-canary is replaced, not migrated: see
-[Uninstalling the old greptimedb release](#uninstalling-the-old-greptimedb-release).
 
 ## Bootstrap prerequisites
 
@@ -40,8 +30,7 @@ These are desired configuration, **not a record of provisioned resources**:
 
 - Preserve `tuist-pulso-{staging,canary,production}` and their bucket-scoped
   credentials. The historical bucket names are intentional; Pulse writes under
-  its own `pulse/` prefix. Only `purge_greptimedb` deletes the interim
-  release's `greptimedb/` objects.
+  its own `pulse/` prefix.
 - In each environment's `onepassword` ClusterSecretStore vault, provide
   `PULSE_TOKEN/password` and `PULSE_S3_CREDENTIALS` fields `access_key_id` and
   `secret_access_key`. Keep the existing values: collectors authenticate with
@@ -81,8 +70,8 @@ three brokers are registered. Otherwise a fresh install can create them before
 replication factor 3 is possible and fail every region creation.
 
 WAL topics use replication factor 3, `min.insync.replicas=2`, no unclean leader
-election and no time-based retention; Greptime prunes them after flushing to
-object storage. Greptime v1.3.0 produces WAL records with `acks=all` (its pinned
+election and no time-based retention; Pulse prunes them after flushing to
+object storage. Pulse produces WAL records with `acks=all` (its pinned
 rskafka client sends `acks=-1`), so an acknowledged write is on at least two
 brokers. Local-WAL failover (`allow_region_failover_on_local_wal`) stays off and
 missing WAL entries are an error (`overwrite_entry_start_id = false`). Cluster
@@ -131,7 +120,7 @@ history in that environment.
 The cluster topology was rehearsed outside Kubernetes with the rendered configs
 (only addresses rewritten), the real v1.3.0, etcd 3.6.16 and Kafka 4.3.2
 binaries and MinIO for object storage. The rehearsal ran
-`greptimedb-smoke.mjs` and read its data back through the other frontend. Under
+`pulse-smoke.mjs` and read its data back through the other frontend. Under
 continuous acknowledged writes across three partitions, it SIGKILLed and then
 restarted a datanode (automatic region failover), a Kafka broker, the metasrv
 leader, an etcd member, a frontend, and finally all three datanodes at once.
@@ -152,7 +141,7 @@ on unrelated value changes.
 
 ## Deployment order and gates
 
-`Pulse GreptimeDB Replacement` accepts `environment=staging`, `canary` or
+`Pulse Deployment` accepts `environment=staging`, `canary` or
 `production`; this selects the protected CI environment, kubeconfig vault, shared
 observability concurrency lane and isolated `tuist-pulso-<env>/pulse/`
 bucket/prefix. Namespace is always `observability`. Never read credentials into
@@ -161,8 +150,6 @@ credentials. Grafana Cloud destinations are never changed by any of these steps.
 
 Each environment moves in this order:
 
-0. **Remove the interim release** (staging and canary only). Dispatch with
-   `uninstall_greptimedb=true`; see below.
 1. **Install or qualify the backend.** Dispatch with `dashboard=true`. Ownership,
    storage class, capacity, ESO, S3 privacy, lifecycle and isolated-prefix gates
    must pass before the install. The `PULSE_S3_CREDENTIALS` key must have
@@ -175,7 +162,7 @@ Each environment moves in this order:
    tests dashboard reads, rejected dashboard mutation, rejected writer reads and
    unauthenticated rejection, then rereads the data after restarting every
    stateful component.
-2. **Write to Greptime.** Deploy `k8s-monitoring` with its Greptime destinations.
+2. **Write to Pulse.** Deploy `k8s-monitoring` with its Pulse destinations.
    Server deploys refuse this until `pulse-dashboard-auth` is Ready with its
    ingest keys, because Alloy drops its whole config, Grafana Cloud included,
    when a referenced Secret is missing. Then dispatch with
@@ -183,8 +170,8 @@ Each environment moves in this order:
    metrics, non-CI logs and non-CI traces. Idle workloads fail closed: generate
    traffic rather than accepting the synthetic smoke.
 
-Staging dispatches with `dashboard=true` also install `greptime-grafana-staging`
-from the `greptimedb-grafana` chart. Validate its tailnet/browser/data boundary
+Staging dispatches with `dashboard=true` also install `pulse-grafana-staging`
+from the `pulse-grafana` chart. Validate its tailnet/browser/data boundary
 separately; Helm readiness is not evidence of it.
 
 `inspect_readers=true` (staging only) also reports serving images, the live
@@ -249,28 +236,7 @@ Do not uninstall the backend or shrink its PVC as a rollback shortcut. Pulse
 data is not copied between releases, and historical objects are neither
 imported nor deleted.
 
-## Uninstalling the old greptimedb release
-
-Staging and canary ran upstream GreptimeDB as the interim `greptimedb` release.
-Dispatch with `environment` and `uninstall_greptimedb=true` to remove it. That
-runs only the `uninstall-greptimedb` job: no backend install and no collector
-rollout. It refuses while the environment's `k8s-monitoring` values or live
-`k8s-monitoring-*` ConfigMaps reference the release's Service or Secrets, or any
-pod outside the release mounts its Secrets, because Alloy drops its whole
-config, Grafana Cloud included, when a referenced Secret is missing. It then
-runs `helm uninstall greptimedb --keep-history`, checks that its
-`data-greptimedb-*` PVCs survived, and finishes with the routine readiness gate.
-The PVCs, the CI-created `greptimedb-auth` Secret and the bucket's `greptimedb/`
-objects stay; the staging reader loses the interim data, which only had a 7-day
-TTL.
-
-Dispatch with `purge_greptimedb=true` (staging and canary only) to delete them
-deliberately. It runs the uninstall above first, refuses while any pod mounts a
-`data-greptimedb-*` claim, switches each claim's Retain PV to Delete so the
-Hetzner volume goes with it, deletes the claims and `greptimedb-auth`, then runs
-a pod with the `pulse-credentials` storage key that removes only
-`s3://tuist-pulso-<env>/greptimedb/` and fails unless the prefix ends empty.
-Pulse's `pulse/` data in the same bucket is untouched.
+## Storage probe
 
 The backend deploy's storage probe does not depend on any release's Secret: it
 creates a run-scoped ExternalSecret from the rendered chart's
@@ -280,19 +246,15 @@ the first install.
 ## Validation
 
 ```bash
-bash infra/helm/greptimedb/test-managed.sh
-node --test .github/scripts/greptimedb-storage.test.mjs
+bash infra/helm/pulse/test-managed.sh
+node --test .github/scripts/pulse-storage.test.mjs
 node --test .github/scripts/pulse-readiness.test.mjs
 helm repo add grafana https://grafana.github.io/helm-charts
 helm dependency build infra/helm/k8s-monitoring
-bash .github/scripts/greptimedb-collectors.test.sh
+bash .github/scripts/pulse-collectors.test.sh
 ```
 
 CI also lint/renders the staging Grafana chart and runs its Python tests in an
 isolated venv with PyYAML; no dependency is added to Pulse runtime. Local binary
 protocol tests do not prove S3 behavior, capacity, live ingress/NetworkPolicy,
 browser/tailnet access, or any staging/canary/production rollout.
-
-Versioned references: [static permission modes](https://docs.greptime.com/1.3/user-guide/deployments-administration/authentication/static),
-[ALTER DATABASE TTL](https://docs.greptime.com/1.3/reference/sql/alter),
-[SHOW CREATE DATABASE](https://docs.greptime.com/1.3/reference/sql/show).

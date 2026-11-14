@@ -8,7 +8,7 @@ description: >
   (kube-state-metrics, node-exporter, kubelet, cAdvisor), events, pod
   logs, and OTLP receivers for managed workload traces so the Grafana Cloud
   Kubernetes app lights up. Workload clusters also write the same telemetry
-  directly to the independently deployed in-cluster Pulse (GreptimeDB fork).
+  directly to the independently deployed in-cluster Pulse.
 type: application
 version: 0.1.0
 appVersion: "4.0.3"

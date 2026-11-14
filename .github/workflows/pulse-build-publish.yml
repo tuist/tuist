@@ -7,7 +7,7 @@ name: Pulse Build & Publish
 # pulse@<version> and creates its GitHub release.
 #
 # Publishing deploys nothing: the clusters run the image pinned in
-# infra/helm/greptimedb/values.yaml, and greptimedb-deployment.yml rolls it
+# infra/helm/pulse/values.yaml, and pulse-deployment.yml rolls it
 # out on dispatch.
 on:
   workflow_call:
@@ -134,7 +134,7 @@ jobs:
             org.opencontainers.image.version=${{ inputs.version }}
             org.opencontainers.image.licenses=Apache-2.0
       # Before pushing: the image reports the stamped version and starts, and
-      # the queries that crashed GreptimeDB v1.3.0 with a stack overflow are
+      # the queries that crashed upstream v1.3.0 with a stack overflow are
       # rejected while it stays up.
       - name: Check the image survives deeply nested queries
         run: |
@@ -188,7 +188,7 @@ jobs:
           upstream=$(sed -nE '/^\[workspace\.package\]/,/^\[/ s/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' pulse/Cargo.toml)
           [[ "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           {
-            echo "Pulse ${VERSION}, based on GreptimeDB ${upstream} (pulse/FORK.md)."
+            echo "Pulse ${VERSION}, based on upstream ${upstream} (pulse/FORK.md)."
             echo
             echo "Image: \`ghcr.io/tuist/pulse:${VERSION}@${IMAGE_DIGEST}\`"
             cat "$RUNNER_TEMP/pulse-notes.md"

@@ -81,7 +81,7 @@ times out and rolls back. After
 changing this pool, wait for Flux to reconcile and the new worker to become
 Ready before retrying the deployment.
 
-Production's general pool includes capacity to qualify Greptime's distributed
+Production's general pool includes capacity to qualify Pulse's distributed
 backend while Pulse continues serving live traffic. The increase from five to
 eight ccx23 Hetzner Cloud VMs is preliminary qualification capacity, not a
 load-qualified minimum; it does not add bare-metal workers. Scale it down only after

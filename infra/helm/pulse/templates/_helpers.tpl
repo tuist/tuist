@@ -1,15 +1,15 @@
-{{- define "greptimedb.validate" -}}
+{{- define "pulse.validate" -}}
 {{- if ne .Release.Namespace "observability" }}
 {{- fail "pilot must be in observability" }}
 {{- end }}
 {{- if not (has .Values.environment (list "staging" "canary" "production" "management")) }}
-{{- fail "GreptimeDB requires an explicit managed environment" }}
+{{- fail "Pulse requires an explicit managed environment" }}
 {{- end }}
-{{- if or (ne .Values.storage.bucket (include "greptimedb.bucket" .)) (ne .Values.storage.prefix (include "greptimedb.prefix" .)) }}
-{{- fail "GreptimeDB must use the selected environment's bucket and isolated prefix" }}
+{{- if or (ne .Values.storage.bucket (include "pulse.bucket" .)) (ne .Values.storage.prefix (include "pulse.prefix" .)) }}
+{{- fail "Pulse must use the selected environment's bucket and isolated prefix" }}
 {{- end }}
 {{- if not (has .Values.topology (list "standalone" "cluster")) }}
-{{- fail "GreptimeDB topology must be standalone or cluster" }}
+{{- fail "Pulse topology must be standalone or cluster" }}
 {{- end }}
 {{- if and (ne .Values.environment "management") (ne .Values.topology "cluster") }}
 {{- fail "workload-cluster Pulse must use the distributed cluster topology" }}
@@ -30,13 +30,13 @@
 
 {{/* Management shares production's bucket under its own root, which its
 key's IAM policy is limited to; production's Pulse owns pulse/. */}}
-{{- define "greptimedb.bucket" -}}
+{{- define "pulse.bucket" -}}
 {{ printf "tuist-pulso-%s" (ternary "production" .Values.environment (eq .Values.environment "management")) }}
 {{- end }}
 
 {{/* The standalone StatefulSet's pod, apart from the cluster's pods, for
 Service `pulse`. Service selectors take plain labels only. */}}
-{{- define "greptimedb.standaloneSelector" -}}
+{{- define "pulse.standaloneSelector" -}}
 app.kubernetes.io/instance: pulse
 statefulset.kubernetes.io/pod-name: pulse-0
 {{- end }}
@@ -44,24 +44,24 @@ statefulset.kubernetes.io/pod-name: pulse-0
 {{/* The same pod for network policies: the only Pulse pod without a component.
 Cilium leaves statefulset.kubernetes.io/pod-name out of a pod's identity, so a
 policy selecting it never matches and the pod falls back to pulse-internal. */}}
-{{- define "greptimedb.standalonePolicySelector" -}}
+{{- define "pulse.standalonePolicySelector" -}}
 matchLabels:
   app.kubernetes.io/instance: pulse
 matchExpressions:
   - {key: app.kubernetes.io/component, operator: DoesNotExist}
 {{- end }}
 
-{{- define "greptimedb.prefix" -}}
+{{- define "pulse.prefix" -}}
 {{ ternary "management/" "pulse/" (eq .Values.environment "management") }}
 {{- end }}
 
-{{- define "greptimedb.readerNamespace" -}}
+{{- define "pulse.readerNamespace" -}}
 {{- if eq .Values.environment "management" }}observability
 {{- else }}{{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
 {{- end }}
 {{- end }}
 
-{{- define "greptimedb.podSecurityContext" -}}
+{{- define "pulse.podSecurityContext" -}}
 runAsNonRoot: true
 runAsUser: 1000
 runAsGroup: 1000
@@ -70,7 +70,7 @@ seccompProfile:
   type: RuntimeDefault
 {{- end }}
 
-{{- define "greptimedb.containerSecurityContext" -}}
+{{- define "pulse.containerSecurityContext" -}}
 allowPrivilegeEscalation: false
 readOnlyRootFilesystem: true
 capabilities:
@@ -78,7 +78,7 @@ capabilities:
 {{- end }}
 
 {{/* Spread replicas of one component across general nodes, never two per host. */}}
-{{- define "greptimedb.placement" -}}
+{{- define "pulse.placement" -}}
 nodeSelector:
   node.cluster.x-k8s.io/pool: general
 affinity:
@@ -92,7 +92,7 @@ affinity:
 {{- end }}
 
 {{/* Combines the pilot and scoped dashboard identities into one passwd file. */}}
-{{- define "greptimedb.authInit" -}}
+{{- define "pulse.authInit" -}}
 {{- if .Values.dashboard.enabled }}
   - name: combine-auth
     image: busybox:1.37.0
@@ -100,7 +100,7 @@ affinity:
     args:
       - 'umask 077; cat /inputs/pilot /inputs/dashboard > /auth/passwd'
     securityContext:
-      {{- include "greptimedb.containerSecurityContext" . | nindent 6 }}
+      {{- include "pulse.containerSecurityContext" . | nindent 6 }}
     resources:
       requests: {cpu: 10m, memory: 16Mi}
       limits: {memory: 32Mi}
@@ -110,7 +110,7 @@ affinity:
 {{- end }}
 {{- end }}
 
-{{- define "greptimedb.authVolumes" -}}
+{{- define "pulse.authVolumes" -}}
 - name: auth
   {{- if .Values.dashboard.enabled }}
   emptyDir: {medium: Memory, sizeLimit: 1Mi}
@@ -130,7 +130,7 @@ affinity:
 {{- end }}
 
 {{/* Who may reach the authenticated HTTP API on port 4000. */}}
-{{- define "greptimedb.apiIngress" -}}
+{{- define "pulse.apiIngress" -}}
 - from:
     - podSelector: {}
   ports:
@@ -140,7 +140,7 @@ affinity:
 - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: {{ include "greptimedb.readerNamespace" . }}
+          kubernetes.io/metadata.name: {{ include "pulse.readerNamespace" . }}
       podSelector:
         matchLabels:
           app.kubernetes.io/component: server
@@ -150,7 +150,7 @@ affinity:
 - from:
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: {{ include "greptimedb.readerNamespace" . }}
+          kubernetes.io/metadata.name: {{ include "pulse.readerNamespace" . }}
       podSelector:
         matchLabels:
           {{- if eq .Values.environment "management" }}
@@ -167,7 +167,7 @@ affinity:
 {{- end }}
 {{- end }}
 
-{{- define "greptimedb.logging" -}}
+{{- define "pulse.logging" -}}
 [logging]
 level = "info"
 log_format = "json"
@@ -175,15 +175,21 @@ append_stdout = true
 enable_file_logging = false
 {{- end }}
 
-{{- define "greptimedb.svc" -}}
+{{- define "pulse.svc" -}}
 {{ . }}.observability.svc.cluster.local
 {{- end }}
 
-{{- define "greptimedb.peers" -}}
+{{- define "pulse.peers" -}}
 {{- $name := index . 0 -}}{{- $port := index . 1 -}}
 {{- $peers := list -}}
 {{- range $i := until 3 -}}
 {{- $peers = append $peers (printf "\"%s-%d.%s.observability.svc.cluster.local:%d\"" $name $i $name (int $port)) -}}
 {{- end -}}
 [{{ join ", " $peers }}]
+{{- end }}
+
+{{/* Live WAL topics carry this pre-rename prefix; changing it orphans their
+unflushed writes. */}}
+{{- define "pulse.walTopicPrefix" -}}
+greptimedb_wal_topic
 {{- end }}

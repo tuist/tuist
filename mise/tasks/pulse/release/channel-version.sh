@@ -20,7 +20,7 @@ set -euo pipefail
 #
 # Versions continue the line the Elixir Pulse released up to pulse@1.43.6, so
 # the first canary is 1.44.0-canary.1. The pulse@<upstream>-<n> tags the
-# GreptimeDB fork used before (1.3.0-1, 1.3.0-2) match no channel pattern and
+# fork used before (1.3.0-1, 1.3.0-2) match no channel pattern and
 # are ignored.
 
 CHANNEL="${1:-}"
