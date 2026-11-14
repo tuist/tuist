@@ -96,8 +96,7 @@ final class CargoCompilerRun: CargoHookRun {
     }
 
     func settle(succeeded: Bool) async -> @Sendable () async -> Void {
-        let observer = CargoCompilerObserver(runner: runner)
-        observer.record(arguments, environment: hookEnvironment, started: started, failed: !succeeded, diagnostics: diagnostics)
+        let finished = Date()
         let publish = succeeded ? await admit() : nil
         let script = succeeded && !native
             && CargoCacheInputs.values("--crate-name", in: arguments).first?.hasPrefix("build_script_") == true
@@ -109,7 +108,13 @@ final class CargoCompilerRun: CargoHookRun {
                 arguments, environment: hookEnvironment, directory: directory, process: CargoProcess(runner: runner)
             )
         }
+        // Cargo starts dependents only once it hears the compiler exited, so files nothing reads before the build ends
+        // (the build report's compilation row, measurements) are written after.
         return { [self] in
+            CargoCompilerObserver(runner: runner).record(
+                arguments, environment: hookEnvironment, started: started, finished: finished, failed: !succeeded,
+                diagnostics: diagnostics
+            )
             if !script { await publish?() }
             measurement?.write()
             if let log { try? FileManager.default.removeItem(at: log) }
@@ -120,30 +125,45 @@ final class CargoCompilerRun: CargoHookRun {
     private func admit() async -> (() async -> Void)? {
         guard bounded, let root = hookEnvironment["TUIST_CARGO_CACHE_DIR"] else { return nil }
         var refreshed = strict ? invocation : nil
-        if let rust = refreshed as? CargoCacheInvocation { refreshed = await rust.refreshed(remote: remote) }
+        // A changed source list is remembered after Cargo hears the compiler exited: only later builds read it.
+        var remember: (@Sendable () async -> Void)?
+        if let rust = refreshed as? CargoCacheInvocation {
+            let (keyed, sources) = rust.refreshed()
+            refreshed = keyed
+            if let sources { remember = { [remote] in await rust.remember(sources, remote: remote) } }
+        }
         if var cache, let measurement, let refreshed {
             if refreshed.key != invocation?.key, let rekeyed = try? CargoCompilationCache(
                 invocation: refreshed, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
             ) { cache = rekeyed }
-            guard (try? await cache.admit(keyedAfterCompiling: refreshed.key != invocation?.key)) == true else { return nil }
-            return { [stdout, stderr] in try? await cache.publish(stdout: stdout, stderr: stderr) }
+            guard (try? await cache.admit(keyedAfterCompiling: refreshed.key != invocation?.key)) == true else { return remember }
+            return { [self, stdout, stderr] in
+                await remember?()
+                do { try await cache.publish(stdout: stdout, stderr: stderr) } catch {
+                    notStored(refreshed.name, "its outputs could not be stored (\(error))")
+                }
+            }
         }
         // Recorded outputs are never certified, so the whole publication can wait.
         return { [self] in
+            await remember?()
             guard let recorded, let log, let measurement else { return }
             var reason = "its reads were not fully recorded"
             guard let finished = recorded.recorded(log: log, started: started, explain: { reason = "it \($0)" }),
                   let reads = finished.reads, let index = finished.index
-            else {
-                if hookEnvironment["TUIST_DEBUG"] == "1" {
-                    FileHandle.standardError.write(Data("Tuist Cargo cache: \(recorded.name) was not stored: \(reason)\n".utf8))
-                }
-                return
-            }
+            else { return notStored(recorded.name, reason) }
             await index.put(reads, remote: remote, environment: hookEnvironment)
-            try? await CargoCompilationCache(
-                invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
-            ).store(stdout: stdout, stderr: stderr, keyedAfterCompiling: true)
+            do {
+                try await CargoCompilationCache(
+                    invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
+                ).store(stdout: stdout, stderr: stderr, keyedAfterCompiling: true)
+            } catch { notStored(recorded.name, "its outputs could not be stored (\(error))") }
+        }
+    }
+
+    private func notStored(_ name: String, _ reason: String) {
+        if hookEnvironment["TUIST_DEBUG"] == "1" {
+            FileHandle.standardError.write(Data("Tuist Cargo cache: \(name) was not stored: \(reason)\n".utf8))
         }
     }
 }

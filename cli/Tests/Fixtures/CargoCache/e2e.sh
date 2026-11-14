@@ -45,7 +45,10 @@ hits = sum(r['hits'] for r in reports)
 misses = sum(r['misses'] for r in reports)
 assert (hits, misses) == ((1, 0) if scenario == 'warm' else (0, 1)), (scenario, hits, misses)
 records = [json.loads(line) for p in Path(directory).glob('cache-details/*.ndjson') for line in p.read_text().splitlines()]
-tasks = [r for r in records if r['record'] == 'task']
+tasks = [r for r in records if r['record'] == 'task' and r['status'] != 'unconsulted']
+# The binary, which the per-crate cache does not take, still counts as a compilation that did not use it.
+unconsulted = [r['name'] for r in records if r['record'] == 'task' and r['status'] == 'unconsulted']
+assert unconsulted == ['tuist_cargo_cache_smoke'], records
 assert len(tasks) == 1 and tasks[0]['status'] == ('hit' if scenario == 'warm' else 'miss'), tasks
 observations = [json.loads(p.read_text()) for p in Path(directory).glob('*.json')]
 assert len(observations) == (1 if scenario == 'warm' else 2), (scenario, observations)

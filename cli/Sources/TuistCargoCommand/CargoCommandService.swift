@@ -315,26 +315,22 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                 defer { group.cancelAll() }
                 try Task.checkCancellation()
                 defer { prefetch.cancel() }
-                do {
-                    try await executeSession(child, root: root, started: started, drain: { [hookServer] in
-                        await hookServer?.drain()
-                    }, metadata: {
-                        var result = await metadata.value
-                        if let version = await toolchain?.value?.version.split(separator: "\n").first {
-                            result["rust_version"] = String(version)
-                        } else {
-                            result["rust_version"] = await context.reporting.rustVersion()
-                        }
-                        return result
-                    })
-                } catch {
+                try await executeSession(child, root: root, started: started, drain: { [hookServer] in
+                    await hookServer?.drain()
+                }, settle: { succeeded in
+                    prefetch.cancel()
+                    await prefetch.value
                     await Self.publishDeferred(root: root, units: units)
-                    throw error
-                }
-                prefetch.cancel()
-                await prefetch.value
-                await Self.publishDeferred(root: root, units: units)
-                await units?.store(reusing: restored, used: CargoCacheJournal.used(session: root))
+                    if succeeded { await units?.store(reusing: restored, used: CargoCacheJournal.used(session: root)) }
+                }, metadata: {
+                    var result = await metadata.value
+                    if let version = await toolchain?.value?.version.split(separator: "\n").first {
+                        result["rust_version"] = String(version)
+                    } else {
+                        result["rust_version"] = await context.reporting.rustVersion()
+                    }
+                    return result
+                })
             }
         }
     }
@@ -354,6 +350,7 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
         root: URL,
         started: Date,
         drain: () async -> Void,
+        settle: @escaping @Sendable (_ succeeded: Bool) async -> Void,
         metadata: () async -> [String: Any]
     ) async throws {
         let invocation = CargoInvocation(context.arguments)
@@ -411,6 +408,9 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
         // Hooks publish after reporting their compiler's exit; their measurements and stored entries are complete
         // once they are done.
         await drain()
+        // The cache's own work after the build (uploading what hooks left behind, collecting units) reads the blob store
+        // and the target directory, not the records reporting reads, so it runs alongside reporting.
+        let settling = Task { [succeeded = executionError == nil] in await settle(succeeded) }
         let metadata = await metadata()
         if context.shardOptions.isEmpty, invocation.reportsBuild, !invocation.executesTests || cargoTests != nil {
             await context.reporting.build(
@@ -440,6 +440,7 @@ public struct CargoCommandService { // swiftlint:disable:this type_body_length
                 shardID: cargoTests?.shardID, shardIndex: cargoTests?.shardIndex, coverage: coverage
             )
         }
+        await settling.value
         if let executionError {
             if selectsCargoTests, !(executionError is CommandError), !(executionError is CancellationError) {
                 throw CargoTestSelectionError(message: executionError.localizedDescription)

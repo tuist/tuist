@@ -80,6 +80,8 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         let allowed = Set([
             "embed-bitcode", "debuginfo", "metadata", "extra-filename", "opt-level", "debug-assertions",
             "overflow-checks", "codegen-units", "panic", "strip", "target-cpu", "target-feature", "split-debuginfo",
+            // Kept out of keys by `keyArguments`: it changes how rustc reaches its outputs, not what they mean.
+            "incremental",
             // Coverage instruments the repository's crates (`CargoCoverage.instruments`); the flag is in the key.
             "instrument-coverage",
         ])
@@ -217,16 +219,20 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         return keyed
     }
 
-    /// After a successful compilation, remembers the sources rustc actually read (a deferred compilation's first list,
-    /// or a new one after a module was added or removed) and returns the compilation keyed by them. `self` when the
-    /// remembered list was right; `nil` when the compilation cannot be keyed.
-    func refreshed(remote: (any REAPICacheStoring)?) async -> CargoCacheInvocation? {
-        guard let sourceIndex else { return self }
-        guard let sources = depInfoSources() else { return nil }
-        guard sources != compilerInputs?.sources else { return self }
+    /// After a successful compilation, the compilation keyed by the sources rustc actually read (`self` when the
+    /// remembered list was right, `nil` when it cannot be keyed), and those sources when they differ from the list (a
+    /// deferred compilation's first list, or a new one after a module was added or removed), for `remember`.
+    func refreshed() -> (keyed: CargoCacheInvocation?, sources: CargoReadSet?) {
+        guard sourceIndex != nil else { return (self, nil) }
+        guard let sources = depInfoSources() else { return (nil, nil) }
+        guard sources != compilerInputs?.sources else { return (self, nil) }
         let set = CargoReadSet(entries: sources.map { CargoReadSet.Entry(kind: "path", name: relocation.relative($0.path)) })
-        await sourceIndex.put(set, remote: remote, environment: environment)
-        return keyedFromDepInfo()
+        return (keyedFromDepInfo(), set)
+    }
+
+    /// Remembers the sources `refreshed` found, so later builds key the compilation without running rustc first.
+    func remember(_ sources: CargoReadSet, remote: (any REAPICacheStoring)?) async {
+        await sourceIndex?.put(sources, remote: remote, environment: environment)
     }
 
     func fingerprint() throws -> REAPI.Digest {
@@ -283,7 +289,7 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
 
     func storedOutput(_ data: Data) -> Data? { relocation.relative(data) }
 
-    func unkeyedRoots(in data: Data) -> [String] { relocation.boundRoots(in: data).map(\.path) }
+    func unkeyedRoots(in file: URL) throws -> [String] { try relocation.boundRoots(of: file).map(\.path) }
 
     func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
 
@@ -295,13 +301,14 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     }
 
     func outputFiles() throws -> [String] {
-        let additional = try FileManager.default.contentsOfDirectory(atPath: output.path)
+        let additional = try CargoCacheInputs.entries(of: output, prefix: String(files[2].dropLast(2)) + ".")
             .filter { !files.contains($0) && acceptsOutput($0) }.sorted()
-        guard files.count + additional.count <= 128 else { throw CacheError.unsupported }
+        guard files.count + additional.count <= CargoCompilationCache.maximumOutputFiles else { throw CacheError.unsupported }
         return files + additional
     }
 
     var keyArguments: [String] {
+        let arguments = CargoCacheInputs.withoutIncremental(arguments)
         var result: [String] = []
         var seen = false
         var index = 0

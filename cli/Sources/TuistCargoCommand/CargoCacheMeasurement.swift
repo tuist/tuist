@@ -48,25 +48,44 @@ final class CargoCacheMeasurement {
     }
 
     func write() {
-        guard let session = invocation.environment["TUIST_CARGO_SESSION"] else { return }
+        Self.write(counters: counters, records: records, environment: invocation.environment)
+    }
+
+    /// Records a crate compilation the cache could not take, such as a test harness: it compiled without consulting
+    /// the cache, so the summary's task misses and hit rate cover every crate that compiled, not only cacheable ones.
+    static func uncached(_ arguments: [String], environment: [String: String]) {
+        guard environment["TUIST_CARGO_CACHE_DIR"] != nil,
+              let name = CargoCacheInputs.values("--crate-name", in: arguments).first, !name.isEmpty,
+              !arguments.contains(where: { $0.hasPrefix("--print") }),
+              arguments.dropFirst().contains(where: { $0.hasSuffix(".rs") }),
+              let encoded = try? JSONSerialization.data(withJSONObject: Array(arguments.dropFirst()))
+        else { return }
+        var counters = Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map { ($0, UInt64(0)) })
+        counters["unconsulted"] = 1
+        let record: [String: Any] = [
+            "record": "task", "key": key(REAPI.digest(encoded)), "name": name, "kind": "rust", "status": "unconsulted",
+        ]
+        write(counters: counters, records: [record], environment: environment)
+    }
+
+    private static func write(counters: [String: UInt64], records: [[String: Any]], environment: [String: String]) {
+        guard let session = environment["TUIST_CARGO_SESSION"] else { return }
         let root = URL(fileURLWithPath: session)
         let id = UUID().uuidString
         let statistics = root.appendingPathComponent("cache-reports")
         let details = root.appendingPathComponent("cache-details")
         do {
-            try FileManager.default.createDirectory(at: statistics, withIntermediateDirectories: true)
-            try FileManager.default.createDirectory(at: details, withIntermediateDirectories: true)
             var payload: [String: Any] = counters.mapValues { $0 as Any }
             payload["version"] = 1
-            try JSONSerialization.data(withJSONObject: payload).write(
-                to: statistics.appendingPathComponent(id + ".json"), options: .atomic
+            try CargoBlobStore.write(
+                JSONSerialization.data(withJSONObject: payload), to: statistics.appendingPathComponent(id + ".json")
             )
             var data = Data()
             for record in records.prefix(500) {
                 data.append(try JSONSerialization.data(withJSONObject: record))
                 data.append(UInt8(10))
             }
-            try data.write(to: details.appendingPathComponent(id + ".ndjson"), options: .atomic)
+            try CargoBlobStore.write(data, to: details.appendingPathComponent(id + ".ndjson"))
         } catch {}
     }
 

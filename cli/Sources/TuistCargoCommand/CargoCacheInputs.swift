@@ -9,6 +9,26 @@ struct CargoCacheInputs {
     let sources: [URL]
     let externs: [URL]
 
+    /// The names in `directory` that start with `prefix`. `readdir` returns names alone, where `FileManager` also reads
+    /// every entry's attributes, and a target's `deps` holds tens of thousands of files, listed for every compilation
+    /// published: `FileManager` took 87 ms per listing there, `readdir` 10.
+    static func entries(of directory: URL, prefix: String) throws -> [String] {
+        guard let handle = opendir(directory.path) else { throw CargoCacheInvocation.CacheError.unsupported }
+        defer { closedir(handle) }
+        var names: [String] = []
+        errno = 0
+        while let entry = readdir(handle) {
+            let name = withUnsafePointer(to: entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: entry.pointee.d_name)) {
+                    String(cString: $0)
+                }
+            }
+            if name.hasPrefix(prefix) { names.append(name) }
+        }
+        guard errno == 0 else { throw CargoCacheInvocation.CacheError.unsupported }
+        return names
+    }
+
     static func resolveExterns(
         arguments: [String], environment: [String: String], directory: AbsolutePath,
         inputHasher: CargoInputHasher
@@ -118,6 +138,35 @@ struct CargoCacheInputs {
     }
 
     private static let servedProofs = Proofs()
+
+    /// The arguments without `-C incremental=<directory>`. Incremental compilation only reuses this machine's earlier
+    /// work towards equivalent outputs, so compilations with and without it share entries: Cargo enables it for
+    /// workspace crates in the `dev` profile, and keying it would cache none of them for builds without it, such as CI.
+    static func withoutIncremental(_ arguments: [String]) -> [String] {
+        var result: [String] = []
+        var index = 0
+        while index < arguments.count {
+            if arguments[index] == "-C", index + 1 < arguments.count, arguments[index + 1].hasPrefix("incremental=") {
+                index += 2
+            } else {
+                if !arguments[index].hasPrefix("-Cincremental=") { result.append(arguments[index]) }
+                index += 1
+            }
+        }
+        return result
+    }
+
+    /// The directory of `-C incremental=<directory>`, where rustc keeps its incremental session.
+    static func incrementalDirectory(_ arguments: [String], directory: AbsolutePath) -> URL? {
+        let codegen = arguments.enumerated().compactMap { index, value -> String? in
+            if value == "-C", index + 1 < arguments.count { return arguments[index + 1] }
+            return value.hasPrefix("-C") ? String(value.dropFirst(2)) : nil
+        }
+        return codegen.last(where: { $0.hasPrefix("incremental=") }).map {
+            URL(fileURLWithPath: String($0.dropFirst(12)), relativeTo: URL(fileURLWithPath: directory.pathString))
+                .standardizedFileURL
+        }
+    }
 
     static func values(_ name: String, in arguments: [String]) -> [String] {
         arguments.enumerated().compactMap { index, value in
