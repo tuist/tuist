@@ -84,28 +84,6 @@ data described below. No new customer collection or source retention is added.
 
 ## Exportable Data
 
-### Legacy Pulse objects
-
-The custom Elixir Pulse that preceded the GreptimeDB fork is uninstalled
-everywhere and nothing writes its format any more. Its objects are retained
-until deleted: below `tenants/<tenant>/` (logs, metric samples, traces, error
-events, service-graph series and their manifests, pages and backups), plus
-`system/tenants/v1/`, `usage/v1/`, `auth/` and `.pulse/`, in
-`tuist-pulso-canary` and `tuist-pulso-production`. Staging's were deleted, and
-the management and pentest buckets that held the rest no longer exist. They can contain
-identifiers, message bodies, attributes and stack traces supplied by producers,
-and an operational tenant can mix telemetry from several accounts. They are
-being deleted: the one-shot `pulse-legacy-purge.yml` removes those prefixes
-from each bucket. Until that has run for a bucket, its objects remain, with no
-time-based deletion.
-
-To export, an authorized storage operator lists and retrieves the verified
-tenant's objects and the manifests needed to interpret them, decodes the Parquet
-with the last legacy Pulse release from Git history, and filters out other
-subjects before disclosure. Never export `auth/`, token digests, application
-Secrets or storage credentials. Requests spanning the cutover must also cover
-the GreptimeDB storage below.
-
 ### GreptimeDB storage
 
 Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
@@ -124,8 +102,7 @@ Management's standalone WAL and catalog live on one node's
 is identified by its run ID and shares the database's retention policy. The
 storage probe deletes only its own run-scoped key. Failed rollouts preserve data
 and PVCs; qualification across a restart is not an exercised S3 disaster restore.
-The replacement does not import or delete legacy Pulse objects. Authentication and
-object-store credentials are excluded from exports. See the telemetry export
+Authentication and object-store credentials are excluded from exports. See the telemetry export
 procedure below for subject attribution and retention.
 
 ### Managed outbound email delivery
