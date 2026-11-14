@@ -102,10 +102,11 @@ spec:
             # in infra/k8s/clusters/README.md.
         - class: hcloud-worker
           name: md-0
-          # Holds the three CNPG instances (4Gi requests each) plus capacity
-          # for deploy hooks, such as the 512Mi ClickHouse schema-clone hook,
-          # and rolling-update surge pods.
-          replicas: 4
+          # Holds the three CNPG instances (4Gi requests each), Pulse's
+          # cluster topology (one etcd, Kafka, metasrv and datanode replica
+          # per node), plus capacity for deploy hooks, such as the 512Mi
+          # ClickHouse schema-clone hook, and rolling-update surge pods.
+          replicas: 5
           failureDomain: fsn1
           rollout:
             strategy:
