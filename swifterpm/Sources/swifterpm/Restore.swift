@@ -561,7 +561,7 @@ enum WorkspaceRestorer {
         } else {
             artifactPath = packagePath
                 .appendingPathComponent(path)
-                .standardizedFileURL
+                .syntacticallyStandardizedFileURL
         }
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
@@ -1396,8 +1396,8 @@ enum WorkspaceRestorer {
 
     private static func removeGitMetadata(in source: URL) async throws {
         for path in try await submodulePaths(in: source) {
-            let child = source.appendingPathComponent(path).standardizedFileURL
-            guard child.path.hasPrefix(source.standardizedFileURL.path + "/"),
+            let child = source.appendingPathComponent(path).syntacticallyStandardizedFileURL
+            guard child.path.hasPrefix(source.syntacticallyStandardizedFileURL.path + "/"),
                   fileSystem.isDirectoryAndNotSymlink(child) else { continue }
             try await removeGitMetadata(in: child)
         }

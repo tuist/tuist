@@ -75,11 +75,11 @@ enum PinnedSourceSnapshot {
             guard let metadata = tree.split(separator: "\t").first else { continue }
             let fields = metadata.split(separator: " ")
             guard fields.count == 3, fields[0] == "160000", fields[1] == "commit" else { continue }
-            let child = destination.appendingPathComponent(path).standardizedFileURL
-            let nativeChild = nativeDirectory.appendingPathComponent(path).standardizedFileURL
-            guard child.path.hasPrefix(destination.standardizedFileURL.path + "/"),
+            let child = destination.appendingPathComponent(path).syntacticallyStandardizedFileURL
+            let nativeChild = nativeDirectory.appendingPathComponent(path).syntacticallyStandardizedFileURL
+            guard child.path.hasPrefix(destination.syntacticallyStandardizedFileURL.path + "/"),
                   child.resolvingSymlinksInPath().path.hasPrefix(destination.resolvingSymlinksInPath().path + "/"),
-                  nativeChild.path.hasPrefix(nativeDirectory.standardizedFileURL.path + "/"),
+                  nativeChild.path.hasPrefix(nativeDirectory.syntacticallyStandardizedFileURL.path + "/"),
                   !fileSystem.existsIncludingSymlinks(child) || fileSystem.isDirectoryAndNotSymlink(child)
             else { throw ToolError.message("invalid submodule path \(path)") }
             let childGit: URL
@@ -93,8 +93,8 @@ enum PinnedSourceSnapshot {
                     "/usr/bin/git", ["rev-parse", "--path-format=absolute", "--git-common-dir"],
                     workingDirectory: destination, customEnvironment: environment
                 ).trimmingCharacters(in: .whitespacesAndNewlines)
-                let modules = URL(fileURLWithPath: common).appendingPathComponent("modules").standardizedFileURL
-                childGit = modules.appendingPathComponent(name).standardizedFileURL
+                let modules = URL(fileURLWithPath: common).appendingPathComponent("modules").syntacticallyStandardizedFileURL
+                childGit = modules.appendingPathComponent(name).syntacticallyStandardizedFileURL
                 guard childGit.path.hasPrefix(modules.path + "/") else {
                     throw ToolError.message("invalid submodule name \(name)")
                 }

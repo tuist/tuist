@@ -296,7 +296,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private func nativeWorkspaceDirectories(
         packagePath: AbsolutePath, arguments: [String]
     ) async throws -> (package: Foundation.URL, scratch: Foundation.URL?) {
-        let cwd = Foundation.URL(fileURLWithPath: try await fileSystem.currentWorkingDirectory().pathString, isDirectory: true)
+        let cwd = try await fileSystem.currentWorkingDirectory()
         var package = Foundation.URL(fileURLWithPath: packagePath.pathString, isDirectory: true)
         var scratch: Foundation.URL?
         var index = 0
@@ -312,7 +312,9 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
                 } else {
                     break
                 }
-                let url = Foundation.URL(fileURLWithPath: value, relativeTo: cwd).standardizedFileURL
+                // Syntactically, like SwiftPM's `AbsolutePath(argument:)`. `standardizedFileURL` would also drop a
+                // leading `/private`, so SwifterPM would record another spelling of the directory than Tuist uses.
+                let url = Foundation.URL(fileURLWithPath: try AbsolutePath(validating: value, relativeTo: cwd).pathString)
                 if parts[0] == "--package-path" { package = url } else { scratch = url }
             }
             index += 1

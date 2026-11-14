@@ -23,7 +23,7 @@ enum ResolvedFileValidation {
                 "swifterpm": swifterpmVersion,
                 "toolchain": toolchain,
                 "environment": await ManifestEnvironmentFingerprint.current(packageDir: packageDir),
-                "root": packageDir.standardizedFileURL.lastPathComponent,
+                "root": packageDir.syntacticallyStandardizedFileURL.lastPathComponent,
                 "manifests": try await manifestDigest(packageDir: packageDir),
                 "Package.resolved": try await Hashing.sha256Hex(
                     fileSystem.readFile(at: packageDir.appendingPathComponent("Package.resolved").absolutePath)

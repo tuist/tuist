@@ -468,6 +468,179 @@ struct ResolveTests {
         }
     }
 
+    /// The restoration path cannot fetch prebuilts, so a warm install into a fresh checkout records swift-syntax's
+    /// prebuilts only if SwiftPM runs against the restored workspace. Other graphs keep the restoration path SwiftPM-free.
+    @Test(.inTemporaryDirectory, arguments: [("swift-syntax", true), ("Dependency", false)])
+    func warmInstallRunsSwiftPMOnlyWhenSwiftSyntaxHasNoRecordedPrebuilts(
+        dependencyName: String,
+        runsSwiftPM: Bool
+    ) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let dependency = root.appendingPathComponent(dependencyName)
+        try await writeLibraryPackageManifest(at: dependency, name: dependencyName)
+        try await initGitDependency(at: dependency, tags: ["1.0.0"])
+        let cache = root.appendingPathComponent("cache")
+        let first = root.appendingPathComponent("first/App")
+        let second = root.appendingPathComponent("second/App")
+        for package in [first, second] {
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path, dependencyName: dependencyName)
+        }
+        _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+            packageDirectory: first, cacheDirectory: cache, disableSandbox: true, quiet: true
+        ))
+        let resolved = try await fileSystem.readTextFile(at: first.appendingPathComponent("Package.resolved").absolutePath)
+        try await fileSystem.atomicWrite(resolved, to: second.appendingPathComponent("Package.resolved"))
+
+        let messages = Mutex([String]())
+        try await SwifterPM.withDebugHandler({ message in messages.withLock { $0.append(message) } }) {
+            _ = try await SwifterPM().resolve(SwifterPMResolutionRequest(
+                packageDirectory: second, cacheDirectory: cache, disableSandbox: true, quiet: true
+            ))
+        }
+
+        let phases = messages.withLock { $0 }
+        #expect(phases.contains { $0.hasPrefix("writing workspace state took") })
+        #expect(phases.contains { $0.hasPrefix("validating Package.resolved with SwiftPM took") } == runsSwiftPM)
+    }
+
+    enum PreparedCheckout: CaseIterable {
+        /// A Git-free copy SwiftPM can use as is.
+        case privateCopy
+        /// A link into a legacy shared Git cache entry, which SwiftPM must fetch again.
+        case legacyGitLink
+    }
+
+    /// Recording prebuilts is an optimization, so a failed SwiftPM run only warns. Preparing the workspace for it detaches
+    /// links into legacy shared Git checkouts for SwiftPM to fetch again, so when it fails, the install links them again
+    /// rather than going on without them.
+    @Test(.inTemporaryDirectory, arguments: PreparedCheckout.allCases)
+    func failedPrebuiltRecordingWarnsAndKeepsRestoredCheckouts(_ checkout: PreparedCheckout) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let (package, scratch) = try await packageWhoseSwiftPMValidationFails(root: root)
+        let checkouts = scratch.appendingPathComponent("checkouts")
+        switch checkout {
+        case .privateCopy:
+            try await writeLibraryPackageManifest(at: checkouts.appendingPathComponent("swift-syntax"), name: "SwiftSyntax")
+        case .legacyGitLink:
+            let legacy = root.appendingPathComponent("legacy-cache/swift-syntax")
+            try await writeLibraryPackageManifest(at: legacy, name: "SwiftSyntax")
+            try await initGitDependency(at: legacy, tags: ["1.0.0"])
+            try await fileSystem.makeDirectory(at: checkouts.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.createSymbolicLink(
+                from: checkouts.appendingPathComponent("swift-syntax").absolutePath, to: legacy.absolutePath
+            )
+        }
+        let warnings = Mutex([String]())
+
+        try await Environment.$warningHandler.withValue({ message in warnings.withLock { $0.append(message) } }) {
+            try await recordMissingPrebuilts(package: package, scratch: scratch, cache: root.appendingPathComponent("cache"))
+        }
+
+        #expect(warnings.withLock { $0 }.contains { $0.contains("could not record SwiftPM's prebuilts") })
+        let swiftSyntax = checkouts.appendingPathComponent("swift-syntax")
+        #expect(try await fileSystem.exists(swiftSyntax.appendingPathComponent("Package.swift").absolutePath))
+        if checkout == .legacyGitLink {
+            #expect(fileSystem.isSymlink(swiftSyntax))
+            #expect(
+                swiftSyntax.resolvingSymlinksInPath().path
+                    == root.appendingPathComponent("legacy-cache/swift-syntax").resolvingSymlinksInPath().path
+            )
+        }
+    }
+
+    /// SwiftPM records prebuilts while it resolves, before the forced-lockfile check can fail, for example on a lockfile
+    /// another Xcode wrote. Then swift-syntax uses the prebuilt, so warning that it builds from source would be wrong.
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func failedPrebuiltRecordingWarnsOnlyWhenSwiftPMRecordedNoPrebuilts(swiftPMRecordsPrebuilts: Bool) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let (package, scratch) = try await packageWhoseSwiftPMValidationFails(root: root)
+        try await writeLibraryPackageManifest(
+            at: scratch.appendingPathComponent("checkouts/swift-syntax"), name: "SwiftSyntax"
+        )
+        let recordedState = root.appendingPathComponent("recorded")
+        try await writeWorkspaceState(
+            prebuilts: swiftPMRecordsPrebuilts
+                ? [swiftSyntaxPrebuilt(scratchDir: scratch, version: "1.0.0", name: "swiftlang-6.4.0.34.1-macosx27.2")] : [],
+            scratchDir: recordedState
+        )
+        let bin = root.appendingPathComponent("bin")
+        try await fileSystem.atomicWrite(
+            #"""
+            #!/bin/sh
+            case " $* " in
+              *" resolve "*)
+                cp "$SWIFTERPM_TEST_RECORDED_STATE" "$SWIFTERPM_TEST_SCRATCH/workspace-state.json"
+                echo "error: an out-of-date resolved file was detected" >&2
+                exit 1
+                ;;
+            esac
+            exec "$SWIFTERPM_TEST_NATIVE_SWIFT" "$@"
+            """#,
+            to: bin.appendingPathComponent("swift")
+        )
+        try await SystemProcess.run("/bin/chmod", ["+x", bin.appendingPathComponent("swift").path])
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "\(bin.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
+        environment["SWIFTERPM_TEST_NATIVE_SWIFT"] = try await SystemProcess.output("/usr/bin/which", ["swift"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        environment["SWIFTERPM_TEST_RECORDED_STATE"] = recordedState.appendingPathComponent("workspace-state.json").path
+        environment["SWIFTERPM_TEST_SCRATCH"] = scratch.path
+        let warnings = Mutex([String]())
+
+        try await Environment.$manifestValues.withValue(environment) {
+            try await Environment.$warningHandler.withValue({ message in warnings.withLock { $0.append(message) } }) {
+                try await recordMissingPrebuilts(package: package, scratch: scratch, cache: root.appendingPathComponent("cache"))
+            }
+        }
+
+        #expect(try await recordedPrebuiltPaths(scratchDir: scratch).count == (swiftPMRecordsPrebuilts ? 1 : 0))
+        #expect(warnings.withLock { $0 }.contains { $0.contains("builds from source") } == !swiftPMRecordsPrebuilts)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func cancelledPrebuiltRecordingThrowsInsteadOfWarning() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory).fileURL
+        let (package, scratch) = try await packageWhoseSwiftPMValidationFails(root: root)
+        try await writeLibraryPackageManifest(
+            at: scratch.appendingPathComponent("checkouts/swift-syntax"), name: "SwiftSyntax"
+        )
+        let warnings = Mutex([String]())
+
+        let recording = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await Environment.$warningHandler.withValue({ message in warnings.withLock { $0.append(message) } }) {
+                try await recordMissingPrebuilts(package: package, scratch: scratch, cache: root.appendingPathComponent("cache"))
+            }
+        }
+
+        await #expect(throws: CancellationError.self) { try await recording.value }
+        #expect(warnings.withLock { $0 }.isEmpty)
+    }
+
+    /// A package pinning swift-syntax without recorded prebuilts, so recording them runs SwiftPM, whose manifest SwiftPM
+    /// fails to load.
+    private func packageWhoseSwiftPMValidationFails(root: URL) async throws -> (package: URL, scratch: URL) {
+        let package = root.appendingPathComponent("App")
+        try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+        try await fileSystem.atomicWrite(
+            "// swift-tools-version:5.9\nthis is not a manifest\n", to: package.appendingPathComponent("Package.swift")
+        )
+        return (package, package.appendingPathComponent(".build"))
+    }
+
+    private func recordMissingPrebuilts(package: URL, scratch: URL, cache: URL) async throws {
+        try await PackageResolver.recordMissingPrebuilts(
+            resolved: ResolvedPins(originHash: nil, pins: [swiftSyntaxPin(version: "1.0.0")], version: 3),
+            packageDir: package,
+            scratchDir: scratch,
+            cacheDir: cache,
+            registryConfigurationPath: nil,
+            defaultRegistryURL: nil,
+            disableSandbox: true,
+            scmToRegistryTransformation: .disabled
+        )
+    }
+
     @Test(.inTemporaryDirectory)
     func forcedValidationIsReusedAcrossCheckoutsOfTheSameInputs() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory).fileURL

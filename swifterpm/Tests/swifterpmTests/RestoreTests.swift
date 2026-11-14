@@ -25,6 +25,62 @@ struct RestoreTests {
         }
     }
 
+    #if os(macOS)
+        /// `swift package dump-package` and `resolve` run from the package's real directory, so SwiftPM records local
+        /// packages under `/private/var` however the package directory is spelled, and normalizes paths syntactically
+        /// (`AbsolutePath`), never dropping `/private`. Foundation's `standardizedFileURL` drops it whenever the shorter
+        /// path exists, which recorded them under `/var` instead.
+        @Test(
+            .enabled(
+                if: ["/var/", "/tmp/", "/private/var/", "/private/tmp/"].contains { NSTemporaryDirectory().hasPrefix($0) },
+                "Temporary directories need a spelling with and without /private"
+            ),
+            arguments: [true, false]
+        )
+        func restoreRecordsLocalPackagesWhereSwiftPMDoes(underPrivate: Bool) async throws {
+            try await withTemporaryDirectory { temporaryDirectory in
+                let path = temporaryDirectory.path
+                let realPath = path.hasPrefix("/private/") ? path : "/private\(path)"
+                let root = URL(fileURLWithPath: underPrivate ? realPath : String(realPath.dropFirst("/private".count)))
+                let package = root.appendingPathComponent("App")
+                try await writeMinimalPackageManifest(at: root.appendingPathComponent("Local"), name: "Local")
+                try await fileSystem.makeDirectory(at: package.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+                    let package = Package(name: "App", dependencies: [.package(path: "../Local")])
+                    """,
+                    to: package.appendingPathComponent("Package.swift")
+                )
+                try await fileSystem.atomicWrite(
+                    #"{"pins":[],"version":3}"#, to: package.appendingPathComponent("Package.resolved")
+                )
+
+                try await SwifterPM().restore(
+                    SwifterPMRestoreRequest(
+                        packageDirectory: package,
+                        cacheDirectory: root.appendingPathComponent("cache"),
+                        disableSandbox: true,
+                        disablePackageInfoCache: true,
+                        quiet: true
+                    )
+                )
+
+                let data = try await fileSystem.readFile(
+                    at: URL(fileURLWithPath: "\(package.path)/.build/workspace-state.json").absolutePath
+                )
+                let object = try #require(
+                    (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["object"] as? [String: Any]
+                )
+                let locations = (object["dependencies"] as? [[String: Any]] ?? []).compactMap {
+                    ($0["packageRef"] as? [String: Any])?["location"] as? String
+                }
+                #expect(locations == ["\(realPath)/Local"])
+            }
+        }
+    #endif
+
     @Test
     func ensureSourceFallsBackWhenServerRejectsShallowFetch() async throws {
         try await withTemporaryDirectory { root in
@@ -853,8 +909,10 @@ struct RestoreTests {
             // the manifest declared, even when a link on the way in points somewhere else, so
             // a workspace state that recorded the resolved directory described the same
             // dependency by a directory SwiftPM never names.
+            // `../LocalTwo` resolves against LocalOne's real directory, where SwiftPM dumps LocalOne, so it is spelled
+            // `/private/var` under a `/var` temporary directory, as `swift package resolve` records it.
             let expectedLocalOne = localOne.path
-            let expectedLocalTwo = localTwo.path
+            let expectedLocalTwo = PathCanonicalizer.realpath(localTwo).path
             #expect(refsByIdentity["local-one"]?["location"] as? String == expectedLocalOne)
             #expect(refsByIdentity["local-two"]?["location"] as? String == expectedLocalTwo)
             #expect(
