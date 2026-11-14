@@ -20,7 +20,9 @@ migrate data: the new binary creates the `pulse` catalog next to the old
 the `greptime` catalog stay in metadata and under `<prefix>data/greptime/` in
 the bucket but are no longer queried. Until every environment runs a renamed release,
 collectors and the server send both the `X-Greptime-*` and `X-Pulse-*` headers;
-drop the old ones afterwards.
+drop the old ones afterwards. A renamed release reads only `X-Pulse-*`, so the
+deployment refuses to run while live collectors that write to Pulse lack them:
+deploy the server to that environment first.
 
 The chart pins the fork release in `values.yaml`, which must already be
 published: push `pulse/` to main and let `pulse-release.yml` finish before

@@ -227,6 +227,14 @@ jobs:
             echo '::error::Cannot remove the identities collectors and readers use.'
             exit 1
           fi
+          # Pulse reads only X-Pulse-* headers; collectors deployed before they
+          # sent them lose every log and trace pipeline. Deploy the server first.
+          if kubectl -n observability get configmaps -o json | jq -e '
+            any(.items[] | select(.metadata.name | startswith("k8s-monitoring")) | (.data // {})[];
+              test("pulse\\.observability") and (test("X-Pulse-DB-Name") | not))' > /dev/null; then
+            echo '::error::Live collectors write to Pulse without X-Pulse-* headers; deploy the server to this environment first.'
+            exit 1
+          fi
           # A standalone backend stays up next to the new cluster until readers
           # move; the side-by-side render covers both.
           planned="$dir/resources.json"
