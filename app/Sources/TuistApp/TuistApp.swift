@@ -61,7 +61,9 @@ import TuistServer
                 ServerCredentialsStore.$current.withValue(
                     ServerCredentialsStore(backend: .keychain)
                 ) {
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
+                    // File locks serialize Keychain session refreshes with Tuist Code, which takes
+                    // the same `credential-refresh-<hash>` lock under ~/.local/state/tuist.
+                    CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
                         MenuBarView(
                             appDelegate: appDelegate,
                             updaterController: updaterController
