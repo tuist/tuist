@@ -22,6 +22,9 @@ struct Vault {
     profiles: Vec<Profile>,
     active_profile_id: Option<String>,
     generation: u64,
+    /// Tuist app sessions the user signed out of here, by storage key and identity.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    unlinked: Vec<(String, String)>,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -39,6 +42,10 @@ struct Profile {
     rejected: bool,
     #[serde(default)]
     memberships_rejected: bool,
+    /// The Tuist app's Keychain storage key when this profile uses its
+    /// session. Those tokens are never written to this vault.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shared: Option<String>,
 }
 
 struct Attempt {
@@ -54,6 +61,11 @@ pub struct MobileClient {
     loaded: bool,
     dirty: bool,
     attempt: Option<Attempt>,
+    /// Tuist's state directory, for the refresh lock; the environment's by default.
+    #[cfg(target_os = "macos")]
+    state: Option<std::path::PathBuf>,
+    #[cfg(target_os = "macos")]
+    pending_shared: Option<shared::Pending>,
 }
 
 impl MobileClient {
@@ -76,6 +88,7 @@ impl MobileClient {
                     "id":p.id, "server":p.server, "handle":p.handle, "email":p.email,
                     "organization":p.organization, "organizations":p.organizations,
                     "rejected":p.rejected || p.memberships_rejected,
+                    "shared":p.shared.is_some(),
                 })
             })
             .collect();
@@ -110,10 +123,16 @@ impl MobileClient {
             write(host, &self.vault)?;
             self.dirty = false;
         }
+        #[cfg(target_os = "macos")]
+        self.flush_shared(host)?;
         let request: Value = serde_json::from_str(input).map_err(|_| "Invalid request")?;
         let args = &request["args"];
         match text(&request, "operation")? {
-            "snapshot" => Ok(Value::Null),
+            "snapshot" => {
+                #[cfg(target_os = "macos")]
+                self.sync_shared(host)?;
+                Ok(Value::Null)
+            }
             "cancel_sign_in" => {
                 self.attempt = None;
                 Ok(Value::Null)
@@ -243,6 +262,15 @@ impl MobileClient {
 
     fn remove_active(&mut self, host: &mut dyn Host) -> Result<()> {
         let mut next = self.vault.clone();
+        // Signing out of the Tuist app's session here leaves the Tuist app signed in.
+        if let Some(p) = next
+            .profiles
+            .iter()
+            .find(|p| Some(&p.id) == next.active_profile_id.as_ref())
+            && let Some(key) = &p.shared
+        {
+            next.unlinked.push((key.clone(), p.identity.clone()));
+        }
         next.profiles
             .retain(|p| Some(&p.id) != next.active_profile_id.as_ref());
         next.active_profile_id = next
@@ -364,13 +392,7 @@ impl MobileClient {
             json!({"Content-Type":"application/x-www-form-urlencoded"}),
             Some(body),
         )?)?;
-        let claims = Claims::parse(&access).map_err(|_| "Invalid token identity")?;
-        let identity = claims.identity().ok_or("Invalid token identity")?;
-        let handle = claims
-            .preferred_username
-            .filter(|v| segment(v))
-            .ok_or("Invalid token identity")?;
-        let email = claims.email.ok_or("Invalid token identity")?;
+        let (identity, handle, email) = identify(&access)?;
         let mut next = self.vault.clone();
         let server = attempt.server.to_string();
         let existing = next.profiles.iter().position(|p| {
@@ -394,6 +416,7 @@ impl MobileClient {
             organizations: old.map(|p| p.organizations).unwrap_or_default(),
             rejected: false,
             memberships_rejected: false,
+            shared: None,
         });
         next.active_profile_id = Some(id);
         self.commit(next, host)?;
@@ -405,12 +428,12 @@ impl MobileClient {
         if p.rejected {
             return Err("Sign in required");
         }
+        #[cfg(target_os = "macos")]
+        if let Some(key) = p.shared.clone() {
+            return self.refresh_shared(index, &key, host);
+        }
         let claims = Claims::parse(&p.access).map_err(|_| "Invalid token identity")?;
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| "Clock unavailable")?
-            .as_secs() as i64;
-        if claims.exp > now + 30 {
+        if claims.exp > now()? + 30 {
             return Ok(());
         }
         let body = form(&[
@@ -568,12 +591,37 @@ fn action(host: &mut dyn Host, value: Value) -> Result<Value> {
 }
 
 fn write(host: &mut dyn Host, vault: &Vault) -> Result<()> {
-    let response = action(host,json!({"type":"write","value":serde_json::to_string(vault).map_err(|_| "Could not encode private vault")?}))
+    let mut vault = vault.clone();
+    for p in vault.profiles.iter_mut().filter(|p| p.shared.is_some()) {
+        p.access.clear();
+        p.refresh.clear();
+        p.client_id.clear();
+    }
+    let response = action(host,json!({"type":"write","value":serde_json::to_string(&vault).map_err(|_| "Could not encode private vault")?}))
         .map_err(|_| "Could not save private vault")?;
     if response["ok"] != true {
         return Err("Could not save private vault");
     }
     Ok(())
+}
+
+fn now() -> Result<i64> {
+    Ok(SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "Clock unavailable")?
+        .as_secs() as i64)
+}
+
+/// The identity, handle, and email a profile shows for an access token.
+fn identify(access: &str) -> Result<(String, String, String)> {
+    let claims = Claims::parse(access).map_err(|_| "Invalid token identity")?;
+    let identity = claims.identity().ok_or("Invalid token identity")?;
+    let handle = claims
+        .preferred_username
+        .filter(|v| segment(v))
+        .ok_or("Invalid token identity")?;
+    let email = claims.email.ok_or("Invalid token identity")?;
+    Ok((identity, handle, email))
 }
 
 fn server_url(value: &str) -> Result<Url> {
@@ -730,5 +778,7 @@ fn scrub(value: &mut Value, profiles: &[Profile]) {
     }
 }
 
+#[cfg(target_os = "macos")]
+mod shared;
 #[cfg(test)]
 mod tests;

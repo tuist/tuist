@@ -15,6 +15,10 @@ url.workspace = true
 tuist-jwt.workspace = true
 tuist-oauth = { path = "../oauth", default-features = false }
 
+# Only macOS shares the Tuist app's Keychain session and refresh lock.
+[target.'cfg(target_os = "macos")'.dependencies]
+tuist-credentials.workspace = true
+
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 

@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use gpui::{
-    Context, EventEmitter, FocusHandle, FontWeight, IntoElement, Render, ScrollHandle,
-    SharedString, Subscription, Task, Window, div, img, prelude::*, px,
+    AnyElement, Context, EventEmitter, FocusHandle, FontWeight, IntoElement, Render, ScrollHandle,
+    SharedString, Subscription, Task, Window, div, img, prelude::*, px, svg,
 };
 use tuist_session::{Accounts, Provider, Session};
 
@@ -118,16 +118,34 @@ impl LogIn {
         cx.notify();
     }
 
-    fn button(
+    fn provider_button(
         &self,
         provider: Provider,
         label: &'static str,
         icon: &'static str,
-        theme: Theme,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let primary = provider == Provider::Tuist;
+        self.button(
+            label,
+            img(icon).size(px(18.)).into_any_element(),
+            provider == Provider::Tuist,
+            move |login, window, cx| login.sign_in(provider, window, cx),
+            window,
+            cx,
+        )
+    }
+
+    fn button(
+        &self,
+        label: &'static str,
+        icon: AnyElement,
+        primary: bool,
+        action: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + Clone + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = Theme::for_appearance(window.appearance(), cx);
         let busy = self.cancelled.is_some();
         div()
             .id(label)
@@ -157,6 +175,7 @@ impl LogIn {
                 })
             })
             .when(!busy, |button| {
+                let activate = action.clone();
                 button
                     .keyboard_control_focused(
                         label,
@@ -171,15 +190,12 @@ impl LogIn {
                     .on_a11y_action(gpui::AccessibleAction::Click, {
                         let login = cx.weak_entity();
                         move |_, window, cx| {
-                            let _ =
-                                login.update(cx, |login, cx| login.sign_in(provider, window, cx));
+                            let _ = login.update(cx, |login, cx| activate(login, window, cx));
                         }
                     })
-                    .on_click(
-                        cx.listener(move |this, _, window, cx| this.sign_in(provider, window, cx)),
-                    )
+                    .on_click(cx.listener(move |this, _, window, cx| action(this, window, cx)))
             })
-            .child(img(icon).size(px(18.)))
+            .child(icon)
             .child(label)
     }
 }
@@ -197,7 +213,7 @@ impl Render for LogIn {
         div()
             .id("login-scroll")
             .role(gpui::Role::Form)
-            .aria_label("Sign in to Tuist")
+            .aria_label("Sign in to Tuist Code")
             .flex()
             .flex_col()
             .items_center()
@@ -234,12 +250,12 @@ impl Render for LogIn {
                         div()
                             .id("login-heading")
                             .role(gpui::Role::Heading)
-                            .aria_label("Welcome to Tuist")
+                            .aria_label("Welcome to Tuist Code")
                             .aria_level(1)
                             .when(!compact, |heading| heading.pt_4())
                             .text_2xl()
                             .font_weight(FontWeight::MEDIUM)
-                            .child("Welcome to Tuist"),
+                            .child("Welcome to Tuist Code"),
                     )
                     .child(
                         div()
@@ -250,11 +266,10 @@ impl Render for LogIn {
                                 "Sign in to access your projects and collaborate with your team"
                             )),
                     )
-                    .child(self.button(
+                    .child(self.provider_button(
                         Provider::Tuist,
                         "Sign in with Tuist",
                         assets::TUIST_LOGO,
-                        theme,
                         window,
                         cx,
                     ))
@@ -262,27 +277,24 @@ impl Render for LogIn {
                         self.session.server().as_str() == "https://tuist.dev/",
                         |column| {
                             column
-                                .child(self.button(
+                                .child(self.provider_button(
                                     Provider::Apple,
                                     "Sign in with Apple",
                                     apple,
-                                    theme,
                                     window,
                                     cx,
                                 ))
-                                .child(self.button(
+                                .child(self.provider_button(
                                     Provider::Google,
                                     "Sign in with Google",
                                     assets::GOOGLE_LOGO,
-                                    theme,
                                     window,
                                     cx,
                                 ))
-                                .child(self.button(
+                                .child(self.provider_button(
                                     Provider::GitHub,
                                     "Sign in with GitHub",
                                     github,
-                                    theme,
                                     window,
                                     cx,
                                 ))
@@ -290,13 +302,77 @@ impl Render for LogIn {
                     )
                     .child(
                         div()
-                            .when(!compact, |label| label.pt_2())
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .w_full()
+                            .text_xs()
+                            .text_color(theme.text_muted)
+                            .child(div().flex_1().h(px(1.)).bg(theme.border))
+                            .child("or")
+                            .child(div().flex_1().h(px(1.)).bg(theme.border)),
+                    )
+                    .child(
+                        self.button(
+                            "Self-hosted server",
+                            svg()
+                                .path(assets::SERVER_ICON)
+                                .size(px(18.))
+                                .text_color(theme.text)
+                                .into_any_element(),
+                            false,
+                            |_, _, cx| cx.emit(LoginEvent::Accounts),
+                            window,
+                            cx,
+                        ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_1()
+                            .when(!compact, |row| row.pt_2())
                             .text_xs()
                             .text_color(theme.text_muted)
                             .child(gpui::text!(format!(
                                 "Server: {}",
                                 self.session.server().as_str().trim_end_matches('/')
-                            ))),
+                            )))
+                            // Self-hosted server opens the same panel to add a server; this
+                            // link switches to a login saved on this device. It shares the
+                            // server row so it stays visible without scrolling.
+                            .when(self.cancelled.is_none(), |row| {
+                                row.child("·").child(
+                                    div()
+                                        .id("login-accounts")
+                                        .px_1()
+                                        .rounded_md()
+                                        .text_color(theme.accent)
+                                        .cursor_pointer()
+                                        .hover(|button| button.bg(theme.row_hover))
+                                        .keyboard_control(
+                                            "Saved accounts",
+                                            theme,
+                                            Some(&self.scroll),
+                                            window,
+                                            cx,
+                                        )
+                                        .child("Saved accounts…")
+                                        .on_a11y_action(gpui::AccessibleAction::Click, {
+                                            let login = cx.weak_entity();
+                                            move |_, _, cx| {
+                                                let _ = login.update(cx, |_, cx| {
+                                                    cx.emit(LoginEvent::Accounts)
+                                                });
+                                            }
+                                        })
+                                        .on_click(
+                                            cx.listener(|_, _, _, cx| {
+                                                cx.emit(LoginEvent::Accounts)
+                                            }),
+                                        ),
+                                )
+                            }),
                     )
                     .when_some(self.cancelled.as_ref(), |column, _| {
                         column.child(
@@ -344,35 +420,6 @@ impl Render for LogIn {
                             crate::accessibility::announcement("login-error", error, true)
                                 .text_center()
                                 .text_color(theme.error),
-                        )
-                    })
-                    .when(self.cancelled.is_none(), |column| {
-                        column.child(
-                            div()
-                                .id("login-accounts")
-                                .when(!compact, |button| button.mt_2())
-                                .px_3()
-                                .py_2()
-                                .rounded_md()
-                                .text_color(theme.accent)
-                                .cursor_pointer()
-                                .hover(|button| button.bg(theme.row_hover))
-                                .keyboard_control(
-                                    "Accounts and servers",
-                                    theme,
-                                    Some(&self.scroll),
-                                    window,
-                                    cx,
-                                )
-                                .child("Accounts and servers…")
-                                .on_a11y_action(gpui::AccessibleAction::Click, {
-                                    let login = cx.weak_entity();
-                                    move |_, _, cx| {
-                                        let _ =
-                                            login.update(cx, |_, cx| cx.emit(LoginEvent::Accounts));
-                                    }
-                                })
-                                .on_click(cx.listener(|_, _, _, cx| cx.emit(LoginEvent::Accounts))),
                         )
                     }),
             )

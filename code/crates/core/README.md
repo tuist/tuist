@@ -2,7 +2,9 @@
 
 The Tuist Code native clients use this crate; it does not migrate or replace the
 shipping apps' credential stores. Keep its vault in a separate Tuist Code secure
-storage namespace. Never log host actions, HTTP authorization/body fields, or the
+storage namespace. On macOS only, it also uses the shipping Tuist app's Keychain
+session through the `shared_*` actions below, without copying its tokens into
+the vault. Never log host actions, HTTP authorization/body fields, or the
 vault. Run calls on a background thread; they are synchronous and serialized for
 the entire operation, including native callbacks. A callback must not reenter.
 
@@ -31,6 +33,18 @@ Rust callers can instantiate `MobileClient` and implement `Host` independently.
 | `{"type":"read"}` | `{"value":null}` or `{"value":"<opaque vault JSON>"}` |
 | `{"type":"write","value":"<opaque vault JSON>"}` | `{"ok":true}` |
 | `{"type":"http","method":"GET","url":"https://…","headers":{"Accept":"application/json",…},"body":"optional string"}` | `{"status":200,"body":"<response text>"}` |
+| macOS only: `{"type":"shared_list"}` | `{"servers":["https://tuist.dev",…]}`, the canonical URLs the Tuist app holds a refresh token for |
+| macOS only: `{"type":"shared_read","server":"https://tuist.dev"}` | `{"value":null}` or `{"value":{"access_token":"…","refresh_token":"…" or null,"oauth_client_id":"…" or null,"rejected":false}}` |
+| macOS only: `{"type":"shared_write","server":"…","access_token":"…","refresh_token":"…"}` | `{"ok":true}` after updating the existing refresh then access items in place |
+
+The `shared_*` actions use `ServerCredentialsStore`'s Keychain layout: internet
+passwords for the server's host, HTTPS, default authentication type, with
+accounts `<server>_access_token`, `_refresh_token`, `_oauth_client_id` and
+`_rejected`. Hosts must never create or delete those items. The core calls
+`shared_write`, and the reread that decides whether to refresh, only while it
+holds `<state>/cached_value_store/credential-refresh-<fnv1a64(server)>.lock`,
+the lock the Tuist app and CLI hold for the same storage key. iOS and Android
+hosts answer them with an error.
 
 Every action may instead return `{"error":"…"}`. The core deliberately does not
 display that message. Write success means durable completion, not a queued write.
@@ -48,7 +62,7 @@ Requests are `{"operation":"…","args":{…}}`. No-argument operations may omit
 ```json
 {
   "view": {
-    "profiles": [{"id":"opaque","server":"https://tuist.dev/","handle":"ana","email":"ana@example.com","organization":null,"organizations":[],"rejected":false}],
+    "profiles": [{"id":"opaque","server":"https://tuist.dev/","handle":"ana","email":"ana@example.com","organization":null,"organizations":[],"rejected":false,"shared":false}],
     "active_profile_id":"opaque",
     "generation":1
   },
@@ -106,3 +120,13 @@ in memory even if secure storage fails. Every subsequent operation first retries
 the pending durable write, and performs no other work until it succeeds. Native
 storage failure must remain visible; restarting the process before a failed write
 can be recovered cannot preserve memory-only credentials.
+
+On macOS, `snapshot` also adds a profile with `"shared":true` for each Tuist app
+session, unless the user signed out of it here or already has a profile for that
+identity, and drops shared profiles whose session is gone. Refreshing one holds
+the lock above, rereads the items, and uses a peer's pair when it is no longer
+expiring. Otherwise it refreshes with the stored client ID (the built-in Tuist
+app client when absent), or `/api/auth/refresh_token` for legacy tokens, and
+updates the items. A peer's newer pair wins over a replayed or rejected
+response. A rejection disables the profile here without marking the Tuist app's
+items. `sign_out` on a shared profile only unlinks it.

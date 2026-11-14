@@ -4,6 +4,9 @@ rust = "1.98.1"
 jq = "1.8.1"
 yq = "4.52.5"
 kotlin = "2.4.10"
+# Signed device and macOS preview publication only; CI installs them only in those jobs.
+"1password-cli" = "2.32.0"
+tuist = "4.216.6"
 
 # Desktop tool installation must not run the monorepo's CLI bootstrap hook.
 [hooks]
@@ -44,8 +47,13 @@ run = "once build TuistCodeIOS"
 
 [tasks."build:ios-device"]
 depends = ["prepare:native"]
-description = "Build an ad-hoc device app; installation still requires internal provisioning"
+description = "Build the ad-hoc signed iOS device app; bundle:ios-device signs an installable copy"
 run = "once build TuistCodeIOSDevice"
+
+# No build dependency: signing secrets must never be present while code builds or tools install.
+[tasks."bundle:ios-device"]
+description = "Sign a copy of the built device app with the Tuist Code ad-hoc profile and package an IPA (needs 1Password access)"
+run = "bash ios/distribution/bundle.sh"
 
 [tasks."build:macos"]
 depends = ["prepare:native"]
@@ -67,10 +75,20 @@ depends = ["prepare:native"]
 description = "Publish an internal iOS simulator preview to tuist/code"
 run = "once artifact publish TuistCodeIOS --track internal"
 
+[tasks."preview:ios-device"]
+description = "Publish the signed iOS device IPA to tuist/code's internal track"
+# CI exchanges its GitHub OIDC token; local runs reuse an existing `tuist auth login`.
+run = 'if [ "${CI:-}" = true ]; then tuist auth login; fi; tuist share delivery/ios-device/TuistCode.ipa --track internal'
+
+# No build dependency: signing secrets must never be present while code builds or tools install.
+[tasks."bundle:macos"]
+description = "Sign a copy of the built macOS app with Tuist's Developer ID and notarize it (needs 1Password access)"
+run = "bash macos/distribution/bundle.sh"
+
 [tasks."preview:macos"]
-depends = ["prepare:native"]
-description = "Publish an internal native macOS preview to tuist/code"
-run = "once artifact publish TuistCodeMacOS --track internal"
+description = "Publish the Developer ID signed macOS app to tuist/code's internal track"
+# A stable signature lets macOS remember Keychain access to the Tuist app's session.
+run = 'if [ "${CI:-}" = true ]; then tuist auth login; fi; tuist share delivery/macos/TuistCode.app --track internal'
 
 [tasks."preview:android"]
 depends = ["build:android"]

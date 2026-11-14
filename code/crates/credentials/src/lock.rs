@@ -33,7 +33,7 @@ impl std::error::Error for LockError {}
 /// writes one server's credentials.
 ///
 /// It is the same file the Swift clients lock:
-/// `<state>/cached_value_store/credential-refresh-<fnv1a64(credentials path)>.lock`.
+/// `<state>/cached_value_store/credential-refresh-<fnv1a64(storage key)>.lock`.
 /// `File::lock` is `flock(LOCK_EX)` on macOS and Linux, matching TSCBasic's
 /// `FileLock`, and `LockFileEx` on Windows. Dropping the guard releases it.
 #[derive(Debug)]
@@ -42,11 +42,15 @@ pub struct RefreshLock {
 }
 
 impl RefreshLock {
+    /// The lock for the CLI's credentials file, whose storage key is its path.
     pub fn path(state_directory: &Path, credentials_path: &Path) -> PathBuf {
-        let key = format!(
-            "credential-refresh-{}",
-            stable_hash(&credentials_path.to_string_lossy())
-        );
+        Self::path_for_key(state_directory, &credentials_path.to_string_lossy())
+    }
+
+    /// `ServerCredentialsStore.storageKey(serverURL:)`: the credentials file
+    /// path, or the canonical server URL for the Tuist app's Keychain items.
+    pub fn path_for_key(state_directory: &Path, storage_key: &str) -> PathBuf {
+        let key = format!("credential-refresh-{}", stable_hash(storage_key));
         state_directory
             .join("cached_value_store")
             .join(format!("{}.lock", sanitized(&key)))
@@ -113,6 +117,15 @@ mod tests {
             PathBuf::from(
                 "/Users/ana/.local/state/tuist/cached_value_store/credential-refresh-990d81e8c70e3d4c.lock"
             )
+        );
+    }
+
+    #[test]
+    fn keychain_lock_path_hashes_the_canonical_server_url() {
+        // fnv1a64("https://tuist.dev"), computed independently.
+        assert_eq!(
+            RefreshLock::path_for_key(Path::new("/s"), "https://tuist.dev"),
+            PathBuf::from("/s/cached_value_store/credential-refresh-d79fb54a63e03cb2.lock")
         );
     }
 

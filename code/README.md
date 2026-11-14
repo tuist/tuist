@@ -2,7 +2,7 @@
 
 Tuist Code is a client developed alongside the shipping apps in `../app/` and `../android/`, not a replacement or a store release. Its independent Once graph reports to [tuist/code](https://tuist.dev/tuist/code); GPUI provides the Linux/Windows UI, SwiftUI provides iOS/macOS interfaces, and Kotlin provides the Android interface. Native profiles, OAuth, session selection, and preview API operations are implemented in `crates/core`, reusing the existing Rust OAuth/PKCE and JWT logic.
 
-The native apps use bundle/package ID `dev.tuist.code`, display as **Tuist Code**, and register only `tuist-code://oauth-callback`, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. They do not read or modify shipping-client credentials. The GPUI client uses the `dev.tuist.code` application ID and retains its existing credential interoperability with the CLI.
+The native apps use bundle/package ID `dev.tuist.code`, display as **Tuist Code**, and register only `tuist-code://oauth-callback`, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. On iOS and Android they do not read or modify shipping-client credentials; on macOS they share the Tuist app's session (see [Tuist app session on macOS](#tuist-app-session-on-macos)). The GPUI client uses the `dev.tuist.code` application ID and retains its existing credential interoperability with the CLI.
 
 ## Build
 
@@ -24,13 +24,15 @@ mise run test
 
 These commands upload build/test insights and use the hosted `tuist/code` cache. Set `ONCE_CACHE_PROVIDER=local` for credential-free offline builds instead. Cache reuse requires the same platform, toolchain, and build inputs; warm local outputs alone do not demonstrate remote reuse.
 
-Apple builds require Apple Silicon macOS/Xcode and `rustup target add aarch64-apple-ios-sim aarch64-apple-ios`. Android needs Java 17+, Kotlin, compile SDK 36 (target SDK remains 35), build-tools 35.0.0, `ANDROID_HOME`, `ANDROID_NDK_HOME`, `rustup target add aarch64-linux-android`, and a local debug keystore. Once resolves the NDK linker from `ANDROID_NDK_HOME`. Python 3.11+ is required for preparation. Build products live under `.once/out/<target>/`: `TuistCodeIOS`, `TuistCodeIOSDevice`, `TuistCodeMacOS`, and `TuistCodeAndroid`. The iOS device output is ad-hoc signed and cannot install on hardware until separately provisioned/re-signed, including the appropriate application identity/Keychain entitlements; this change provisions no signing identities. Simulator-only entitlements give its separate preview sandbox Keychain access.
+Apple builds require Apple Silicon macOS/Xcode and `rustup target add aarch64-apple-ios-sim aarch64-apple-ios`. Android needs Java 17+, Kotlin, compile SDK 36 (target SDK remains 35), build-tools 35.0.0, `ANDROID_HOME`, `ANDROID_NDK_HOME`, `rustup target add aarch64-linux-android`, and a local debug keystore. Once resolves the NDK linker from `ANDROID_NDK_HOME`. Python 3.11+ is required for preparation. Build products live under `.once/out/<target>/`: `TuistCodeIOS`, `TuistCodeIOSDevice`, `TuistCodeMacOS`, and `TuistCodeAndroid`. The iOS device output is ad-hoc signed; `mise run bundle:ios-device` signs an installable copy for registered devices (see [Signed device previews](#signed-device-previews)). Simulator-only entitlements give its separate preview sandbox Keychain access.
 
 Swift imports the core's C module, Kotlin calls its JNI bridge, and the existing Rust navigation crate re-exports the same `Tab` type. GPUI and its dependency graph are not in the native frontend build closures. Platform code supplies localized presentation, browser callbacks, secure storage and ordinary platform-trusted HTTPS; Rust owns authentication, refresh and authorized API operations, without its own mobile HTTP/TLS stack. See [the bridge contract](crates/core/README.md).
 
 Mise runs `prepare-native.py` before graph loading. When invoking Once directly, run `python3 prepare-native.py` first. This derives an ignored metadata-only Cargo workspace and vendors its dependencies, avoiding desktop feature unification and generated-target collisions in Once 0.77 and later. Every external version/source/checksum must match the authoritative `Cargo.lock`; first-party compilation always uses the original `crates/` sources, never the metadata stubs. Preparation may download missing crates. For Android, additionally run `python3 android/dependencies.py prepare`; its checksum-locked AndroidX Browser closure and final-APK resource verification are documented in [Android dependencies](android/DEPENDENCIES.md).
 
 ## Native profiles, authentication and sessions
+
+Every client's signed-out screen copies the shipping app's `LogInView`, titled **Welcome to Tuist Code** (`../app/Sources/TuistOnboarding/LogInView.swift`, `../android/app/src/main/java/dev/tuist/app/ui/login/LoginScreen.kt`): Sign in with Tuist, Apple, Google and GitHub on Tuist-hosted, then **Self-hosted server**, which asks for an HTTPS server URL and prefills the last self-hosted server used. GPUI shows the social providers only while `https://tuist.dev` is selected, signs in with Tuist to the selected server, and opens its account/server form from **Self-hosted server**. Its artwork and brand assets are copied into `apple/Resources/Assets.xcassets` and `android/res/`; GPUI keeps its theme colors. On iOS, macOS and Android, adding a profile shows the same screen with Cancel; GPUI adds accounts from its account menu. The screen scrolls when a landscape phone or large text leaves too little height. Every client keeps several accounts, on one or more servers, and switches between them without signing in again.
 
 Both mobile interfaces support saved profiles, per-profile organizations, hosted/self-hosted sign-in, sign-out and confirmed account deletion. Previews include project selection, full-project track counts, server-side debounced search, pagination, detail metadata and full plain-text release notes. iOS offers confirmed IPA installation; Android offers a confirmed HTTPS APK handoff. Authentication uses an ephemeral system browser, exact single-use callback/state validation, public dynamic client registration and PKCE. Android requires an ephemeral-capable Custom Tabs provider and fails closed when none is available.
 
@@ -39,13 +41,31 @@ Session storage follows the existing platform boundaries, but not the shipping a
 - **iOS/macOS:** Keychain generic-password service `dev.tuist.code.profiles`, account `profiles-v1`, non-synchronizing `AfterFirstUnlockThisDeviceOnly`. No desktop session files are used.
 - **Android:** private `shared_prefs/tuist_secure_prefs.xml`, key `vault`, containing one AES-GCM encrypted record. The encryption key stays in Android Keystore under `tuist_code_vault`; backup and device transfer are disabled. The application sandbox locates the preferences file, never a hard-coded `/data` path.
 
-Rust treats the vault as private, never sends credentials in view snapshots, binds refreshes to the issuing origin/client, persists selection before publication, and retains rotated credentials in memory until a failed durable write can be retried. An interrupted process cannot preserve a memory-only rotation. Profile/organization changes discard stale native navigation and API results. There is no credential migration or sharing with current clients.
+Rust treats the vault as private, never sends credentials in view snapshots, binds refreshes to the issuing origin/client, persists selection before publication, and retains rotated credentials in memory until a failed durable write can be retried. An interrupted process cannot preserve a memory-only rotation. Profile/organization changes discard stale native navigation and API results. There is no credential migration from current clients.
+
+### Tuist app session on macOS
+
+The macOS client lists one profile, labeled **From the Tuist app**, for each server the shipping Tuist app is signed in to. It uses the Tuist app's Keychain items directly: internet passwords for the server's host with accounts `<canonical server URL>_access_token`, `_refresh_token`, `_oauth_client_id` and `_rejected` (`ServerCredentialsStore`'s Keychain backend). Their tokens never enter the Tuist Code vault. Before every refresh both apps take `~/.local/state/tuist/cached_value_store/credential-refresh-<fnv1a64(canonical server URL)>.lock` (for `https://tuist.dev`, `credential-refresh-d79fb54a63e03cb2.lock`), reread the items, and refresh only when no peer already did. Tuist Code updates the token items in place and never creates or deletes them. A rejected refresh disables the profile in Tuist Code only; the Tuist app marks its own items when it next refreshes. Signing out of that profile in Tuist Code unlinks it and leaves the Tuist app signed in; a different user signing in to the Tuist app is offered again.
+
+macOS asks for the login keychain password the first time Tuist Code reads those items. Choose **Always Allow**: a Developer ID signed build (`mise run bundle:macos`) keeps that permission across updates, while ad-hoc local builds change signature and ask again after each rebuild.
 
 CI authenticates trusted builds through GitHub OIDC for hosted caches and insights; forks use local caches without login. The isolated optimized Linux/Windows packaging step still uses a local cache. CI retains unsigned/unprovisioned workflow artifacts. There are no store uploads, public release jobs or enabled new-client updater keys. The private hosted project is linked to `tuist/tuist`.
 
 ## Internal previews
 
-After building, explicitly publish the simulator, native macOS or Android APK with `mise run preview:ios`, `mise run preview:macos`, or `mise run preview:android`. Each publishes to the private project's `internal` track. Builds and tests do not automatically publish previews. The **Tuist Code** workflow (`.github/workflows/code.yml`) can also publish these three artifacts when manually dispatched on `main` with `publish_previews` enabled; publication is off by default and never runs on pull requests. The existing shipping-client build workflow remains **App** (`app.yml`). The device bundle is deliberately excluded until internal signing is configured. macOS is ad-hoc signed, not notarized; Android uses a development debug key, not a stable distribution identity, so previews from different machines may require uninstalling the previous debug app.
+After building, explicitly publish the simulator, native macOS or Android APK with `mise run preview:ios`, `mise run preview:macos`, or `mise run preview:android`. Each publishes to the private project's `internal` track. Builds and tests do not automatically publish previews. The **Tuist Code** workflow (`.github/workflows/code.yml`) can also publish these three artifacts when manually dispatched on `main` with `publish_previews` enabled; publication is off by default and never runs on pull requests. The existing shipping-client build workflow remains **App** (`app.yml`). When dispatched that way, the iOS device job also signs and publishes an IPA; see below. The macOS job publishes a copy signed with Tuist's existing **Developer ID Application** certificate and notarized with its Apple account (`macos/distribution/bundle.sh`, then `mise run preview:macos`), reading both from the same 1Password items as Atlas; `mise run preview:macos` therefore needs `mise run bundle:macos` first. Android uses a development debug key, not a stable distribution identity, so previews from different machines may require uninstalling the previous debug app.
+
+### Signed device previews
+
+Device previews use ad-hoc distribution, like [Atlas](../atlas-native/README.md#signed-device-previews). `ios/distribution/bundle.sh` copies the Once device build, validates the Tuist Code ad-hoc profile, embeds it, signs the copy with the shared **Apple Distribution** certificate in a disposable keychain, and writes `delivery/ios-device/TuistCode.ipa`. `mise run preview:ios-device` publishes it with the Tuist CLI (configured by `tuist.toml`) to the `internal` track. Once's own outputs and cache never receive distribution signatures or keys.
+
+One-time setup in Apple Developer (Tuist GmbH, team `U6LC622NKF`):
+
+1. Register the explicit App ID `dev.tuist.code`. It needs no capabilities.
+2. Create an **Ad Hoc** profile named **Tuist Code Ad Hoc** for it, selecting the existing Apple Distribution certificate (the one in the `Distribution Certificate` 1Password item) and every registered team device.
+3. Store the downloaded profile as a document item named `Tuist Code Ad Hoc` with file name `Tuist_Code_Ad_Hoc.mobileprovision` in the `tuist` 1Password vault, which the CI service account already reads.
+
+Regenerate and replace the profile when adding devices or renewing the certificate; a device missing from the profile cannot install the IPA. Locally, with 1Password access: `mise run bundle:ios-device && mise run preview:ios-device`.
 
 Linux executables built through Once can be published with the Tuist CLI's `share` command using an isolated `tuist.toml` containing `project = "tuist/code"` and `--track internal`. Do not invoke `share` against the root `Tuist.swift`, which belongs to the shipping clients. Once's Rust binary target does not yet export native artifact metadata, so the native `once artifact publish` tasks do not cover GPUI. Windows packaging remains in CI; neither a local MSVC build nor hosted Windows preview publication has been verified. The server currently projects executable previews only for Linux and macOS.
 
@@ -70,8 +90,8 @@ Run `mise install` to install the published toolchain before building.
 Open the avatar at the top right of the application title bar to switch directly
 between saved profiles, view your profile, sign out, or open app settings. The
 menu shows the server alongside each account and marks the current profile.
-Use **Add account or server…** (also available as **Accounts and servers…** on
-the welcome screen). Enter `https://tuist.dev` or an HTTPS self-hosted
+Use **Add account or server…** (also available as **Self-hosted server** and
+**Saved accounts…** on the welcome screen). Enter `https://tuist.dev` or an HTTPS self-hosted
 server URL, then complete browser sign-in. Multiple logins on the same server
 and accounts on different servers are retained; selecting a saved account does
 not require another browser sign-in unless its credentials have expired or been
@@ -89,7 +109,7 @@ activate with Enter/Space, and dismiss with Escape, Tab, or an outside click.
 App settings describe system-following appearance and expose manual update checks.
 
 The avatar is intentionally absent from sign-in and account-entry screens.
-Saved accounts remain reachable through **Accounts and servers…** on sign-in.
+Saved accounts remain reachable through **Saved accounts…** on sign-in.
 
 ## Keyboard access and accessibility
 

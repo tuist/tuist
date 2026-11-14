@@ -1,6 +1,7 @@
 use super::*;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 struct Fake {
@@ -8,10 +9,17 @@ struct Fake {
     actions: Vec<Value>,
     responses: VecDeque<(u64, Value)>,
     fail_write: bool,
+    /// The Tuist app's Keychain items, by storage key.
+    shared: Arc<Mutex<BTreeMap<String, Value>>>,
+    fail_shared_write: bool,
+    /// A Tuist app without the shared lock rotating the pair while a refresh is in flight.
+    rotate_during_refresh: Option<Value>,
 }
 impl Host for Fake {
     fn perform(&mut self, action: Value) -> std::result::Result<Value, String> {
         self.actions.push(action.clone());
+        let mut shared = self.shared.lock().unwrap();
+        let server = action["server"].as_str().unwrap_or_default();
         match action["type"].as_str().unwrap() {
             "read" => Ok(json!({"value":self.vault})),
             "write" if self.fail_write => Ok(json!({"error":"sensitive host failure"})),
@@ -19,7 +27,25 @@ impl Host for Fake {
                 self.vault = Some(action["value"].as_str().unwrap().into());
                 Ok(json!({"ok":true}))
             }
+            "shared_list" => Ok(json!({"servers":shared.keys().collect::<Vec<_>>()})),
+            "shared_read" => Ok(json!({"value":shared.get(server)})),
+            "shared_write" if self.fail_shared_write => Ok(json!({"error":"keychain failure"})),
+            "shared_write" => {
+                let item = shared
+                    .get_mut(server)
+                    .expect("only existing items are updated");
+                item["access_token"] = action["access_token"].clone();
+                item["refresh_token"] = action["refresh_token"].clone();
+                Ok(json!({"ok":true}))
+            }
             "http" => {
+                if action["body"]
+                    .as_str()
+                    .is_some_and(|b| b.contains("grant_type=refresh_token"))
+                    && let Some(rotated) = self.rotate_during_refresh.take()
+                {
+                    shared.insert("https://tuist.dev".into(), rotated);
+                }
                 let (status, body) = self.responses.pop_front().expect("unexpected HTTP request");
                 Ok(json!({"status":status,"body":body.to_string()}))
             }
@@ -518,4 +544,210 @@ fn credential_fields_and_echoed_values_are_not_returned_to_frontends() {
     assert!(!result.to_string().contains(&access));
     assert!(result["data"].get("access_token").is_none());
     assert!(result["data"]["nested"].get("refresh_token").is_none());
+}
+
+#[cfg(target_os = "macos")]
+mod tuist_app_session {
+    use super::*;
+    use std::time::Duration;
+    use tuist_credentials::RefreshLock;
+
+    const KEY: &str = "https://tuist.dev";
+
+    fn setup(name: &str) -> (MobileClient, Fake) {
+        let state = std::env::temp_dir().join(format!("tuist-code-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&state);
+        let mut c = MobileClient::new();
+        c.state = Some(state);
+        (c, Fake::default())
+    }
+    fn refresh_token(n: u64) -> String {
+        format!(
+            "header.{}.sig",
+            URL_SAFE_NO_PAD.encode(json!({"exp":i64::MAX,"type":"account","jti":n}).to_string())
+        )
+    }
+    fn session(access: String, refresh: &str) -> Value {
+        json!({"access_token":access,"refresh_token":refresh,"oauth_client_id":"app-client","rejected":false})
+    }
+    fn token_requests(h: &Fake) -> Vec<&Value> {
+        h.actions
+            .iter()
+            .filter(|a| a["url"] == "https://tuist.dev/oauth2/token")
+            .collect()
+    }
+
+    #[test]
+    fn the_session_is_listed_refreshed_under_its_lock_and_never_stored() {
+        let (mut c, mut h) = setup("refresh");
+        let spent = refresh_token(1);
+        h.shared
+            .lock()
+            .unwrap()
+            .insert(KEY.into(), session(token(1, 1), &spent));
+        let view = call(&mut c, &mut h, "snapshot", json!({}))["view"].clone();
+        assert_eq!(view["profiles"][0]["shared"], true);
+        assert_eq!(view["profiles"][0]["server"], "https://tuist.dev/");
+        assert_eq!(view["active_profile_id"], view["profiles"][0]["id"]);
+
+        let rotated = refresh_token(2);
+        h.responses.extend([
+            (
+                200,
+                json!({"access_token":token(i64::MAX,1),"refresh_token":rotated}),
+            ),
+            (200, json!({"projects":[]})),
+        ]);
+        let result = call(&mut c, &mut h, "projects", json!({}));
+        assert!(result.get("error").is_none(), "{result}");
+        let body = token_requests(&h)[0]["body"].as_str().unwrap().to_string();
+        assert!(
+            body.contains(&format!("refresh_token={spent}"))
+                && body.contains("client_id=app-client")
+        );
+        assert_eq!(h.shared.lock().unwrap()[KEY]["refresh_token"], rotated);
+        // The lock the Tuist app takes for https://tuist.dev.
+        let lock = c
+            .state
+            .as_ref()
+            .unwrap()
+            .join("cached_value_store/credential-refresh-d79fb54a63e03cb2.lock");
+        assert!(lock.exists());
+        let vault = h.vault.clone().unwrap();
+        assert!(
+            !vault.contains(&spent) && !vault.contains(&rotated) && !vault.contains("app-client")
+        );
+
+        let mut restarted = MobileClient::new();
+        restarted.state = c.state.clone();
+        assert_eq!(
+            call(&mut restarted, &mut h, "snapshot", json!({}))["view"],
+            view
+        );
+    }
+
+    #[test]
+    fn a_rotation_by_the_lock_holder_is_used_without_another_refresh() {
+        let (mut c, mut h) = setup("waiting");
+        h.shared
+            .lock()
+            .unwrap()
+            .insert(KEY.into(), session(token(1, 1), &refresh_token(1)));
+        call(&mut c, &mut h, "snapshot", json!({}));
+        let held = RefreshLock::acquire(&RefreshLock::path_for_key(c.state.as_ref().unwrap(), KEY))
+            .unwrap();
+        let shared = h.shared.clone();
+        let peer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            shared
+                .lock()
+                .unwrap()
+                .insert(KEY.into(), session(token(i64::MAX, 1), &refresh_token(2)));
+            drop(held);
+        });
+        h.responses.push_back((200, json!({"projects":[]})));
+        let result = call(&mut c, &mut h, "projects", json!({}));
+        peer.join().unwrap();
+        assert!(result.get("error").is_none(), "{result}");
+        assert!(token_requests(&h).is_empty());
+        let projects = h
+            .actions
+            .iter()
+            .find(|a| {
+                a["url"]
+                    .as_str()
+                    .is_some_and(|u| u.contains("api/projects"))
+            })
+            .unwrap();
+        assert_eq!(
+            projects["headers"]["Authorization"],
+            format!("Bearer {}", token(i64::MAX, 1))
+        );
+    }
+
+    #[test]
+    fn a_rejected_refresh_rejects_only_here_unless_an_unlocked_peer_rotated() {
+        for peer_rotates in [false, true] {
+            let (mut c, mut h) = setup(&format!("rejected-{peer_rotates}"));
+            h.shared
+                .lock()
+                .unwrap()
+                .insert(KEY.into(), session(token(1, 1), &refresh_token(1)));
+            call(&mut c, &mut h, "snapshot", json!({}));
+            let peer = session(token(i64::MAX, 1), &refresh_token(2));
+            if peer_rotates {
+                h.rotate_during_refresh = Some(peer.clone());
+                h.responses
+                    .push_back((400, json!({"error":"invalid_grant"})));
+                h.responses.push_back((200, json!({"projects":[]})));
+            } else {
+                h.responses
+                    .push_back((400, json!({"error":"invalid_grant"})));
+            }
+            let result = call(&mut c, &mut h, "projects", json!({}));
+            assert_eq!(result.get("error").is_none(), peer_rotates, "{result}");
+            assert_eq!(c.vault.profiles[0].rejected, !peer_rotates);
+            assert!(!h.actions.iter().any(|a| a["type"] == "shared_write"));
+            let stored = h.shared.lock().unwrap()[KEY].clone();
+            assert_eq!(stored["rejected"], false);
+            if peer_rotates {
+                assert_eq!(stored, peer);
+            }
+        }
+    }
+
+    #[test]
+    fn signing_out_unlinks_the_session_and_leaves_the_tuist_app_signed_in() {
+        let (mut c, mut h) = setup("sign-out");
+        let app = session(token(i64::MAX, 1), &refresh_token(1));
+        h.shared.lock().unwrap().insert(KEY.into(), app.clone());
+        call(&mut c, &mut h, "snapshot", json!({}));
+        let result = call(&mut c, &mut h, "sign_out", json!({}));
+        assert_eq!(result["view"]["profiles"], json!([]));
+        assert_eq!(
+            call(&mut c, &mut h, "snapshot", json!({}))["view"]["profiles"],
+            json!([])
+        );
+        assert_eq!(h.shared.lock().unwrap()[KEY], app);
+        assert!(!h.actions.iter().any(|a| a["type"] == "shared_write"));
+
+        // A different user signing in to the Tuist app is offered again.
+        h.shared
+            .lock()
+            .unwrap()
+            .insert(KEY.into(), session(token(i64::MAX, 2), &refresh_token(3)));
+        let view = call(&mut c, &mut h, "snapshot", json!({}))["view"].clone();
+        assert_eq!(view["profiles"].as_array().unwrap().len(), 1);
+        assert_eq!(view["profiles"][0]["shared"], true);
+    }
+
+    #[test]
+    fn a_failed_keychain_update_is_retried_before_any_other_request() {
+        let (mut c, mut h) = setup("retry");
+        h.shared
+            .lock()
+            .unwrap()
+            .insert(KEY.into(), session(token(1, 1), &refresh_token(1)));
+        call(&mut c, &mut h, "snapshot", json!({}));
+        let rotated = refresh_token(2);
+        h.responses.push_back((
+            200,
+            json!({"access_token":token(i64::MAX,1),"refresh_token":rotated}),
+        ));
+        h.fail_shared_write = true;
+        assert!(call(&mut c, &mut h, "projects", json!({}))["error"].is_string());
+        h.fail_shared_write = false;
+        h.responses.push_back((200, json!({"projects":[]})));
+        let result = call(&mut c, &mut h, "projects", json!({}));
+        assert!(result.get("error").is_none(), "{result}");
+        assert_eq!(h.shared.lock().unwrap()[KEY]["refresh_token"], rotated);
+        assert_eq!(token_requests(&h).len(), 1);
+        let write = h
+            .actions
+            .iter()
+            .rposition(|a| a["type"] == "shared_write")
+            .unwrap();
+        let get = h.actions.iter().rposition(|a| a["type"] == "http").unwrap();
+        assert!(write < get);
+    }
 }

@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_previews:
-        description: Publish native previews to the private tuist/code internal track
+        description: Publish native previews, including the signed iOS device IPA and Developer ID macOS app, to the private tuist/code internal track
         type: boolean
         default: false
   pull_request:
@@ -144,15 +144,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `signed` names the bundle:<name> and preview:<name> mise tasks that sign
+          # and publish a delivery copy; unsigned builds publish through Once.
           - target: TuistCodeIOS
             rust-target: aarch64-apple-ios-sim
             artifact: ios-simulator
+            signed: ''
           - target: TuistCodeIOSDevice
             rust-target: aarch64-apple-ios
             artifact: ios-device-unprovisioned
+            signed: ios-device
           - target: TuistCodeMacOS
             rust-target: aarch64-apple-darwin
             artifact: macos-unsigned
+            signed: macos
+    env:
+      PUBLISH_PREVIEW: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_previews }}
+      PUBLISH_SIGNED_PREVIEW: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_previews && matrix.signed != '' }}
     defaults:
       run:
         shell: bash
@@ -167,7 +175,7 @@ jobs:
       - uses: ./.github/actions/mise
         with:
           working_directory: code
-          install_args: rust github:tuist/once
+          install_args: rust github:tuist/once${{ env.PUBLISH_SIGNED_PREVIEW == 'true' && ' 1password-cli tuist' || '' }}
           cache: "false"
       - name: Authenticate hosted cache and insights
         if: github.event.pull_request.head.repo.fork != true
@@ -184,7 +192,7 @@ jobs:
           once build "$TARGET"
           ditto -c -k --sequesterRsrc --keepParent ".once/out/$TARGET/TuistCode.app" "$RUNNER_TEMP/TuistCode.zip"
       - name: Publish internal Tuist preview
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_previews && matrix.target != 'TuistCodeIOSDevice'
+        if: env.PUBLISH_PREVIEW == 'true' && matrix.signed == ''
         env:
           TARGET: ${{ matrix.target }}
         run: once artifact publish "$TARGET" --track internal
@@ -194,6 +202,20 @@ jobs:
           path: ${{ runner.temp }}/TuistCode.zip
           if-no-files-found: error
           retention-days: 14
+      # Signing runs after the unsigned artifact upload and only reads the already built
+      # bundle; the 1Password token is never present while code builds or tools install.
+      - name: Sign internal Tuist preview
+        if: env.PUBLISH_SIGNED_PREVIEW == 'true'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SIGNED: ${{ matrix.signed }}
+        run: mise run --skip-tools "bundle:$SIGNED"
+      # Once publishes only its own outputs, so signed copies go through the Tuist CLI.
+      - name: Publish signed internal Tuist preview
+        if: env.PUBLISH_SIGNED_PREVIEW == 'true'
+        env:
+          SIGNED: ${{ matrix.signed }}
+        run: mise run --skip-tools "preview:$SIGNED"
   core:
     name: Independent Rust core tests
     runs-on: macos-15

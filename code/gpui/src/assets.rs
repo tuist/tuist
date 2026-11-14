@@ -12,6 +12,8 @@ pub const APPLE_LIGHT: &str = "logos/apple-light.png";
 pub const APPLE_DARK: &str = "logos/apple-dark.png";
 pub const GITHUB_LIGHT: &str = "logos/github-light.png";
 pub const GITHUB_DARK: &str = "logos/github-dark.png";
+/// The shipping app's `ServerIcon`, tinted in place.
+pub const SERVER_ICON: &str = "logos/server.svg";
 
 /// The app icon, flattened from the macOS app's `AppIcon.icon`.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -41,6 +43,7 @@ const EMBEDDED: &[(&str, &[u8])] = &[
         GITHUB_DARK,
         include_bytes!("../resources/logos/github-dark.png"),
     ),
+    (SERVER_ICON, include_bytes!("../resources/logos/server.svg")),
 ];
 
 /// Assets embedded in the binary, so it runs without a resources directory.

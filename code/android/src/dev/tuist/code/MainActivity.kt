@@ -3,16 +3,23 @@ package dev.tuist.code
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -28,6 +35,8 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var view = JSONObject()
     private var screen = "previews"
+    // Adding another profile shows the login screen over the signed-in workspace.
+    private var addingProfile = false
     private var ticket = 0L
     private var busy = false
     private var browserPending: Boolean
@@ -49,6 +58,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         host = AppHost(applicationContext)
         screen = savedInstanceState?.getString("screen") ?: "previews"
+        addingProfile = savedInstanceState?.getBoolean("adding_profile") ?: false
         call("snapshot") {
             render()
             if (!callback(intent)) {
@@ -60,6 +70,7 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("screen", screen)
+        outState.putBoolean("adding_profile", addingProfile)
         super.onSaveInstanceState(outState)
     }
 
@@ -83,7 +94,9 @@ class MainActivity : Activity() {
         intent.data = null
         if (uri.scheme != "tuist-code" || uri.host != "oauth-callback" || !uri.path.isNullOrEmpty()) return false
         browserPending = false
-        call("finish_sign_in", JSONObject().put("url", uri.toString())) { reset(); render(); loadProjects() }
+        call("finish_sign_in", JSONObject().put("url", uri.toString())) {
+            reset(); addingProfile = false; screen = "previews"; render(); loadProjects()
+        }
         return true
     }
 
@@ -121,7 +134,19 @@ class MainActivity : Activity() {
         projects = emptyList(); previews.clear(); tracks = null; detail = null
     }
 
+    @Deprecated("Activity predates OnBackPressedDispatcher")
+    override fun onBackPressed() {
+        if (addingProfile && active() != null) cancelAddingProfile()
+        else @Suppress("DEPRECATION") super.onBackPressed()
+    }
+
     private fun render() {
+        val login = active() == null || addingProfile
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        // Dark status bar icons, except over the login screen's dark artwork.
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = if (login && night) 0 else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        if (login) { setContentView(loginScreen(night)); return }
         val focusedSearch = (currentFocus as? EditText)?.takeIf { it.id == searchInputId }
         val selection = focusedSearch?.selectionStart ?: -1
         val root = LinearLayout(this).apply {
@@ -230,26 +255,171 @@ class MainActivity : Activity() {
     }
 
     private fun signIn() {
-        val input = EditText(this).apply {
-            hint = getString(R.string.server_url)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-            setText(active()?.optString("server") ?: "https://tuist.dev")
+        addingProfile = true
+        render()
+    }
+
+    private fun cancelAddingProfile() {
+        if (browserPending) {
+            browserPending = false
+            call("cancel_sign_in")
         }
-        AlertDialog.Builder(this).setTitle(R.string.add_profile).setView(input)
-            .setPositiveButton(R.string.continue_label) { _, _ ->
+        addingProfile = false
+        render()
+    }
+
+    private fun selfHostedSignIn() {
+        val input = EditText(this).apply {
+            hint = "https://example.com"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine(true)
+            // Like the shipping app, prefill the last self-hosted server the user signed in to.
+            view.optJSONArray("profiles").objects().map { it.optString("server") }
+                .lastOrNull { !it.startsWith("https://tuist.dev") }?.let(::setText)
+        }
+        AlertDialog.Builder(this).setTitle(R.string.self_hosted).setMessage(R.string.self_hosted_message).setView(input)
+            .setPositiveButton(R.string.sign_in) { _, _ ->
                 val server = input.text.toString().trim()
                 val uri = Uri.parse(server)
                 if (uri.scheme != "https" || uri.host.isNullOrBlank() || uri.userInfo != null) {
                     toast(R.string.https_required); return@setPositiveButton
                 }
-                val providers = arrayOf("tuist", "github", "google", "apple")
-                AlertDialog.Builder(this).setTitle(R.string.provider)
-                    .setItems(arrayOf(getString(R.string.provider_tuist), getString(R.string.provider_github),
-                        getString(R.string.provider_google), getString(R.string.provider_apple))) { _, index ->
-                        launchSignIn(server, providers[index])
-                    }.setNegativeButton(R.string.cancel, null).show()
+                launchSignIn(server, "tuist")
             }.setNegativeButton(R.string.cancel, null).show()
     }
+
+    /** The shipping app's `LoginScreen`, rebuilt with platform views. Social providers use Tuist-hosted. */
+    private fun loginScreen(dark: Boolean): View {
+        val labelPrimary = if (dark) 0xFFFDFDFD.toInt() else 0xFF171A1C.toInt()
+        val labelTertiary = if (dark) 0xFF696C72.toInt() else 0xFF9DA6AF.toInt()
+        val root = FrameLayout(this)
+        root.addView(ImageView(this).apply {
+            setImageResource(R.drawable.launch_background)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }, FrameLayout.LayoutParams(-1, -1))
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        // Scrolls when landscape or large font sizes leave too little height.
+        val scroll = ScrollView(this).apply { isFillViewport = true }
+        scroll.addView(column, FrameLayout.LayoutParams(-1, -1))
+        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        if (active() != null) column.addView(TextView(this).apply {
+            setText(R.string.cancel)
+            setTextColor(labelPrimary)
+            textSize = 16f
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setOnClickListener { cancelAddingProfile() }
+        }, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.START })
+        column.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
+        column.addView(ImageView(this).apply {
+            setImageResource(R.drawable.tuist_rounded_icon)
+            contentDescription = getString(R.string.app_name)
+        }, LinearLayout.LayoutParams(dp(80), dp(80)).apply { topMargin = dp(32); bottomMargin = dp(32) })
+        column.addView(TextView(this).apply {
+            setText(R.string.login_title)
+            textSize = 28f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(labelPrimary)
+        }, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(12) })
+        column.addView(TextView(this).apply {
+            setText(if (browserPending) R.string.continue_in_browser else R.string.login_subtitle)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(labelPrimary)
+        }, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(24); rightMargin = dp(24); bottomMargin = dp(32) })
+        column.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val radius = dp(32).toFloat()
+            background = GradientDrawable().apply {
+                cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+                setColor(if (dark) 0xCC16181C.toInt() else 0x99FFFFFF.toInt())
+                setStroke(dp(2), if (dark) 0xFF1F2126.toInt() else Color.WHITE)
+            }
+        }
+        column.addView(card, LinearLayout.LayoutParams(-1, -2))
+        if (browserPending) {
+            // Stays on the login screen so another provider can be chosen; the top Cancel leaves it.
+            card.addView(socialButton(getString(R.string.cancel_sign_in), null, false, dark) {
+                browserPending = false
+                call("cancel_sign_in")
+            })
+        } else {
+            card.addView(socialButton(getString(R.string.sign_in_tuist), R.drawable.tuist_logo, true, dark) {
+                launchSignIn("https://tuist.dev", "tuist")
+            })
+            card.addView(socialButton(getString(R.string.sign_in_apple), R.drawable.apple_logo, false, dark) {
+                launchSignIn("https://tuist.dev", "apple")
+            })
+            card.addView(socialButton(getString(R.string.sign_in_google), R.drawable.google_logo, false, dark) {
+                launchSignIn("https://tuist.dev", "google")
+            })
+            card.addView(socialButton(getString(R.string.sign_in_github), R.drawable.github_logo, false, dark) {
+                launchSignIn("https://tuist.dev", "github")
+            })
+            card.addView(LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                val line = { View(this@MainActivity).apply { setBackgroundColor(labelTertiary and 0x4DFFFFFF) } }
+                addView(line(), LinearLayout.LayoutParams(0, dp(1), 1f))
+                addView(TextView(this@MainActivity).apply {
+                    setText(R.string.or)
+                    textSize = 13f
+                    setTextColor(labelTertiary)
+                    setPadding(dp(8), 0, dp(8), 0)
+                })
+                addView(line(), LinearLayout.LayoutParams(0, dp(1), 1f))
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+            card.addView(socialButton(getString(R.string.self_hosted_server), R.drawable.server_icon, false, dark) {
+                selfHostedSignIn()
+            })
+        }
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            column.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, 0)
+            card.setPadding(dp(24), dp(20), dp(24), dp(32) + insets.systemWindowInsetBottom)
+            insets
+        }
+        return root
+    }
+
+    private fun socialButton(label: String, icon: Int?, primary: Boolean, dark: Boolean, action: () -> Unit): View {
+        val text = if (primary || dark) 0xFFFDFDFD.toInt() else 0xFF171A1C.toInt()
+        return LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            contentDescription = label
+            setPadding(0, dp(12), 0, dp(12))
+            elevation = dp(1).toFloat()
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, when {
+                primary -> intArrayOf(0xFF854DFF.toInt(), if (dark) 0xFF5F00E5.toInt() else 0xFF6F2CFF.toInt())
+                dark -> intArrayOf(0xFF1F2126.toInt(), 0xFF1F2126.toInt())
+                else -> intArrayOf(0xFFFDFDFD.toInt(), 0xFFF7F7F8.toInt())
+            }).apply {
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1), if (primary) 0xE55F00E5.toInt() else 0x14000000)
+            }
+            icon?.let {
+                addView(ImageView(this@MainActivity).apply {
+                    setImageResource(it)
+                    if (it == R.drawable.server_icon) setColorFilter(text)
+                }, LinearLayout.LayoutParams(dp(20), dp(20)).apply { rightMargin = dp(2) })
+            }
+            addView(TextView(this@MainActivity).apply {
+                this.text = label
+                textSize = 16f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(text)
+                setPadding(dp(4), 0, dp(4), 0)
+            })
+            setOnClickListener { if (!busy) action() }
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) }
+        }
+    }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     private fun launchSignIn(server: String, provider: String) {
         val browser = CustomTabsClient.getPackageName(this, null)
@@ -278,7 +448,6 @@ class MainActivity : Activity() {
             CustomTabsIntent.Builder().setEphemeralBrowsingEnabled(true).build().apply {
                 intent.setPackage(browser)
             }.launchUrl(this, uri)
-            screen = "profile"
             render()
         } catch (_: Exception) {
             browserPending = false
@@ -299,7 +468,7 @@ class MainActivity : Activity() {
     }
 
     private fun previewScreen() {
-        if (active() == null) { button(R.string.add_profile) { signIn() }; return }
+        if (active() == null) return
         if (project == null) {
             button(R.string.refresh) { loadProjects() }
             if (projects.isEmpty()) text(getString(R.string.no_projects))

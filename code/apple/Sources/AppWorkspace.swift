@@ -8,7 +8,7 @@ struct AppWorkspace: View {
     var body: some View {
         Group {
             if client.view.active == nil {
-                SignInView(client: client)
+                LogInView(client: client)
             } else {
                 #if os(macOS)
                     NavigationSplitView {
@@ -54,10 +54,13 @@ struct AppWorkspace: View {
         .task { await client.perform("snapshot") }
         .sheet(isPresented: $addingProfile) {
             NavigationStack {
-                SignInView(client: client)
+                LogInView(client: client)
                     .toolbar { Button("Cancel") { Task { await client.cancelSignIn(); addingProfile = false } } }
                     .onDisappear { Task { await client.cancelSignIn() } }
             }
+            #if os(macOS)
+            .frame(minWidth: 480, minHeight: 640)
+            #endif
         }
         .onChange(of: client.view.generation) { _, _ in addingProfile = false }
         .alert("Something went wrong", isPresented: Binding(
@@ -65,43 +68,6 @@ struct AppWorkspace: View {
         )) {
             Button("OK") { client.error = nil }
         } message: { Text(verbatim: client.error ?? "") }
-    }
-}
-
-private struct SignInView: View {
-    @ObservedObject var client: AppClient
-    @State private var server = "https://tuist.dev"
-    @State private var selfHosted = false
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Image(systemName: "square.stack.3d.up.fill").font(.system(size: 56)).foregroundStyle(.purple)
-            Text("Tuist Code").font(.largeTitle.bold())
-            Text("Your projects and previews, together.").foregroundStyle(.secondary)
-            if selfHosted {
-                TextField("Server URL", text: $server).textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                Button("Sign in") { signIn("tuist") }.buttonStyle(.borderedProminent)
-                Button("Use Tuist-hosted") { selfHosted = false; server = "https://tuist.dev" }
-            } else {
-                Button("Continue with Apple") { signIn("apple") }.buttonStyle(.bordered)
-                Button("Continue with GitHub") { signIn("github") }.buttonStyle(.bordered)
-                Button("Continue with Google") { signIn("google") }.buttonStyle(.bordered)
-                Button("Sign in with Tuist") { signIn("tuist") }.buttonStyle(.borderedProminent)
-                Button("Use a self-hosted server") { selfHosted = true }
-            }
-            if client.signingIn { ProgressView() }
-            Spacer()
-            Text("Internal preview · Your current Tuist app is unchanged.")
-                .font(.footnote).foregroundStyle(.secondary)
-        }
-        .padding(28).frame(maxWidth: 440).frame(maxWidth: .infinity)
-        .disabled(client.signingIn)
-    }
-
-    private func signIn(_ provider: String) {
-        Task { await client.signIn(server: server, provider: provider) }
     }
 }
 
@@ -130,6 +96,9 @@ private struct ProfileView: View {
                                 VStack(alignment: .leading) {
                                     Text(verbatim: profile.handle ?? profile.email ?? profile.server)
                                     Text(verbatim: profile.server).font(.caption).foregroundStyle(.secondary)
+                                    if profile.shared == true {
+                                        Text("From the Tuist app").font(.caption).foregroundStyle(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 if profile.id == client.view.active_profile_id { Image(systemName: "checkmark") }
