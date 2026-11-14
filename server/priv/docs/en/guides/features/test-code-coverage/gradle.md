@@ -15,11 +15,6 @@ Code coverage tells you which lines of your code your tests executed. The Tuist 
 > - The `dev.tuist` Gradle plugin applied, as described in <.localized_link href="/guides/get-started/gradle-project">Get started with a Gradle project</.localized_link>
 > - Your project in a Git repository: a run outside one uploads its test results but no coverage
 
-> [!NOTE]
-> **Early access**
->
-> Code coverage for Gradle projects is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account. Until then, Tuist doesn't store the coverage your runs upload.
-
 ## Setup {#setup}
 
 ### Turn coverage on {#turn-coverage-on}

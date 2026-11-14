@@ -263,14 +263,15 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether code coverage is ingested, processed and shown for a project of the
-  account. Mix and Cargo projects have it in every account. Every other build
-  system (Xcode's coverage and test selection) is in early access behind
+  account. Mix, Cargo and Gradle projects have it in every account. Every other
+  build system (Xcode's coverage and test selection) is in early access behind
   `xcode_coverage_enabled?/2`.
   """
   def coverage_enabled?(account, project, flags \\ nil)
 
   def coverage_enabled?(_account, %Project{build_system: :mix}, _flags), do: true
   def coverage_enabled?(_account, %Project{build_system: :cargo}, _flags), do: true
+  def coverage_enabled?(_account, %Project{build_system: :gradle}, _flags), do: true
   def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
 
   @doc """
@@ -291,7 +292,7 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether code coverage is ingested, processed and shown for the account's
-  projects other than Mix and Cargo ones (see `coverage_enabled?/3`). Canary and
+  projects other than Mix, Cargo and Gradle ones (see `coverage_enabled?/3`). Canary and
   production require an explicit `:xcode_coverage` FunWithFlags toggle for the
   account while the feature is in early access, so its data model and API can
   still change. Development, test, and staging default to enabled.

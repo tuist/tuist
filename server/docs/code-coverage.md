@@ -1,6 +1,6 @@
 # Code coverage
 
-How Tuist collects, stores and shows code coverage today. Mix and Cargo projects have it in every account; every other build system is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/2`. `Tuist.FeatureFlags.coverage_enabled?/3` decides per project.
+How Tuist collects, stores and shows code coverage today. Mix, Cargo and Gradle projects have it in every account; every other build system is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/2`. `Tuist.FeatureFlags.coverage_enabled?/3` decides per project.
 
 ## Immutable shard plans
 
@@ -254,7 +254,7 @@ Cargo has no binary cache and no selective-testing hashes, so `uninstrumented_co
 
 ## Gradle
 
-With coverage on (`tuist { coverage { enabled = true } }`, or `TUIST_TEST_COVERAGE=1`, which wins either way), the Tuist Gradle plugin applies JaCoCo to every JVM project, records each test task's execution data, and reports it with the run as the `coverage` block (`tool` `jacoco`). Like Xcode, it records `target`, `suite` and `test` evidence. A Gradle project (`:core`, or the root project's name) is a target, named as test insights names its module; a class is a suite. Gradle coverage is in early access behind `Tuist.FeatureFlags.xcode_coverage_enabled?/2`, like every build system but Mix.
+With coverage on (`tuist { coverage { enabled = true } }`, or `TUIST_TEST_COVERAGE=1`, which wins either way), the Tuist Gradle plugin applies JaCoCo to every JVM project, records each test task's execution data, and reports it with the run as the `coverage` block (`tool` `jacoco`). Like Xcode, it records `target`, `suite` and `test` evidence. A Gradle project (`:core`, or the root project's name) is a target, named as test insights names its module; a class is a suite. Like Mix and Cargo, Gradle projects have coverage in every account.
 
 | Scope | Source | Requirements |
 | --- | --- | --- |

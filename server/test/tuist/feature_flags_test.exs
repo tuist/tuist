@@ -114,15 +114,15 @@ defmodule Tuist.FeatureFlagsTest do
   end
 
   describe "coverage_enabled?/2" do
-    test "Mix projects have coverage in every account; other projects follow the account's flag" do
+    test "Mix, Cargo and Gradle projects have coverage in every account; other projects follow the account's flag" do
       account = %Account{id: 42, name: "tuist"}
       stub(Environment, :env, fn -> :prod end)
 
-      for flag? <- [true, false], build_system <- [:mix, :xcode, :gradle, :bazel] do
+      for flag? <- [true, false], build_system <- [:mix, :cargo, :gradle, :xcode, :bazel] do
         stub(FunWithFlags, :enabled?, fn :xcode_coverage, [for: ^account] -> flag? end)
 
         assert FeatureFlags.coverage_enabled?(account, %Project{build_system: build_system}) ==
-                 (flag? or build_system == :mix)
+                 (flag? or build_system in [:mix, :cargo, :gradle])
       end
     end
   end

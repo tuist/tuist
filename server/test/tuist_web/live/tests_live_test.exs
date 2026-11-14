@@ -200,7 +200,7 @@ defmodule TuistWeb.TestsLiveTest do
     end
   end
 
-  test "lists Code Coverage only for Mix projects while the account doesn't have the coverage flag", %{
+  test "lists Code Coverage only for Mix and Gradle projects while the account doesn't have the coverage flag", %{
     conn: conn,
     organization: organization
   } do
@@ -211,7 +211,7 @@ defmodule TuistWeb.TestsLiveTest do
       flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
     end)
 
-    for {build_system, visible?} <- [xcode: false, gradle: false, mix: true] do
+    for {build_system, visible?} <- [xcode: false, gradle: true, mix: true] do
       project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
       coverage_path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
 

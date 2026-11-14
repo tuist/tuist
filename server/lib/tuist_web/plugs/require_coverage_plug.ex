@@ -1,8 +1,8 @@
 defmodule TuistWeb.Plugs.RequireCoveragePlug do
   @moduledoc """
   Keeps the coverage and test selection API behind
-  `Tuist.FeatureFlags.coverage_enabled?/3`: open to Mix projects, behind the
-  account's early access flag for the others. Runs after
+  `Tuist.FeatureFlags.coverage_enabled?/3`: open to Mix, Cargo and Gradle
+  projects, behind the account's early access flag for the others. Runs after
   `TuistWeb.Plugs.LoaderPlug`, which assigns the account and the project.
   While coverage is off the endpoints answer 404, as if they did not exist.
   """
