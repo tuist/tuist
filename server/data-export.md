@@ -84,72 +84,47 @@ data described below. No new customer collection or source retention is added.
 
 ## Exportable Data
 
-### Pulse observability storage
+### Legacy Pulse objects
 
-Pulse is an independently deployed observability backend, not a new server
-database. Managed instances preserve the existing Tigris buckets
-`tuist-pulso-{staging,canary,production}` and tenant prefixes during the rename;
-collector cutover is a coordinated deployment, not an effect of importing the
-source. No Tuist account-to-Pulse-tenant mapping or
-customer provisioning is introduced by this import. Before exporting, establish
-the verified tenant and select records belonging to the requesting subject;
-an operational tenant can contain telemetry from multiple accounts.
+The custom Elixir Pulse that preceded the GreptimeDB fork is uninstalled
+everywhere and nothing writes its format any more. Its objects are retained
+until deleted: below `tenants/<tenant>/` (logs, metric samples, traces, error
+events, service-graph series and their manifests, pages and backups), plus
+`system/tenants/v1/`, `usage/v1/`, `auth/` and `.pulse/`, in
+`tuist-pulso-{staging,canary,production}`, `tuist-pulse-management` and, if the
+retired pentest cluster wrote any, `tuist-pulse-pentest`. They can contain
+identifiers, message bodies, attributes and stack traces supplied by producers,
+and an operational tenant can mix telemetry from several accounts. They are
+being deleted: the one-shot `pulse-legacy-purge.yml` removes those prefixes
+from each bucket, and `tuist-pulse-pentest` is deleted in Tigris. Until
+that has run for a bucket, its objects remain, with no time-based deletion.
 
-Management metrics in the independent `tuist-pulse-management` bucket (its
-Elixir Pulse release is uninstalled) and, if
-the legacy pentest cluster wrote any, telemetry in `tuist-pulse-pentest` are
-retained, but no collector writes to either any more. External NixOS cache
-hosts copy metrics/logs/traces into the matching workload environment's existing
-bucket while that environment's legacy `pulse` release is installed. Retained
-legacy objects, including service-graph counters/histograms derived from trace
-service relationships and timings, use the same tenant manifests/Parquet
-storage, observe-only retention and subject-filtered export process below. Trace sampling
-differs from Cloud, so a Cloud export is not a complete Pulse export. Include
-every verified environment/source relevant to the subject; these shared stores
-introduce no account-to-tenant mapping. Bootstrap/deployment and managed-bucket
-export remain unverified, not implied by checked-in configuration.
-
-Acknowledged logs, metric samples, traces and optional error events live below
-`tenants/<tenant>/` as Parquet segments and object-store manifests, including
-manifest pages, backups and retained alert definitions/history. Optional tenant
-registry state is at `system/tenants/v1/<tenant>.json`; optional usage records
-are below `usage/v1/` and must be filtered by the same verified tenant. These
-features remain disabled unless explicitly configured. Raw telemetry can contain
-identifiers, message bodies, attributes and stack traces supplied by producers.
-The managed overlay uses observe-only retention: no time-based deletion is
-enabled. Explicit retention enforcement or tenant purge changes availability;
-do not promise recovery of expired or deleted objects.
-
-An authorized storage operator can list and retrieve the selected tenant's
-retained objects, including the manifests/pages needed to interpret them. Decode
-Parquet using the matching Pulse release and filter shared-tenant contents before
-disclosure. Include related tenant/usage metadata only after redacting token
-digests and unrelated subjects. Do not export `auth/issuer/`, application Secrets,
-signing material or storage credentials. There is no automated complete legal
-export endpoint; the retained telemetry query paths are tested against local S3
-fixtures, but the managed bucket export has not been exercised before bootstrap.
-The namespace rename changes newly written rollup metadata and credential types;
-compatibility readers preserve historical rollups without rewriting objects.
-The legacy Pulse source was replaced by the GreptimeDB fork; decode historical
-objects with the last legacy release from Git history.
+To export, an authorized storage operator lists and retrieves the verified
+tenant's objects and the manifests needed to interpret them, decodes the Parquet
+with the last legacy Pulse release from Git history, and filters out other
+subjects before disclosure. Never export `auth/`, token digests, application
+Secrets or storage credentials. Requests spanning the cutover must also cover
+the GreptimeDB storage below.
 
 ### GreptimeDB storage
 
 Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
 prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
-production) for database-managed data and indexes, and disposable
+production), and in `tuist-pulse-management` for the management cluster's own
+Pulse, for database-managed data and indexes, and disposable
 `pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
 release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
 those objects and its PVC until a `purge_greptimedb` dispatch deletes both. Staging and canary use a retained 10 GiB Kubernetes PVC for local
 WAL and standalone state. Production's cluster topology stores data under
 `pulse/distributed/`; its WAL lives on replicated Kafka volumes until
 flushed, and its metadata in a dedicated etcd. Staging and canary
-apply a 7-day database TTL; production keeps data indefinitely. CI synthetic telemetry
+apply a 7-day database TTL; production and management keep data indefinitely.
+Management's standalone WAL and catalog live on one node's
+`/var/lib/tuist-pulse`. CI synthetic telemetry
 is identified by its run ID and shares the database's retention policy. The
 storage probe deletes only its own run-scoped key. Failed rollouts preserve data
 and PVCs; qualification across a restart is not an exercised S3 disaster restore.
-The replacement does not import or delete historical Pulse objects. Export
-requests spanning the cutover must cover both stores. Authentication and
+The replacement does not import or delete legacy Pulse objects. Authentication and
 object-store credentials are excluded from exports. See the telemetry export
 procedure below for subject attribution and retention.
 
@@ -1243,39 +1218,6 @@ Gradle custom metadata can also contain `tuist.cache_work_avoided_ms`, an automa
 
 ## Operational observability attribution
 
-Atlas offers disabled-by-default parallel collection of newly captured Sentry
-errors in Pulse; this does not change the server's SDK destination or any Grafana
-workload. Only operator-approved Atlas project/domain routes are copied, covering
-external envelopes and Atlas native logger capture at the shared recorder. Copies
-filter user/request/header objects, legacy Sentry User/Http interfaces and named
-credentials before bounded, volatile queueing; messages, exceptions, stack/source
-context, breadcrumbs, release/environment, tags, trace IDs and arbitrary extras
-can still contain personal data. Source Atlas project/domain UUIDs and normalized
-event ID/time are retained. No historical backfill or server database change occurs.
-
-If activated, Pulse's configured numeric project/key binds tenant/service, never
-SDK payload tenant claims. Copies are stored under
-`tenants/<tenant>/v4/signal=logs/` in Pulse's existing Parquet/manifest authority,
-plus any separately enabled error-index/evidence derivatives. Log retention is
-unlimited unless explicitly configured. Each Atlas replica queues at most 64
-128-KiB copies, including retries, expiring after 60 seconds plus in-flight cleanup;
-there is no durable spool. Drops/restarts and Pulse failures leave Atlas responses
-and primary capture unchanged. Neither Atlas acceptance nor a missing Pulse
-result proves durable receipt or absence of a source error.
-
-Include this separate backend in verified exports/erasure when approved routes
-cover the subject's events. Resolve the source → Pulse tenant/project mapping,
-query authorized `query_errors` in bounded occurrence-time windows and paginate
-all matching retained events, using event IDs and contextual selected/auth IDs
-or handles. Narrow windows on scan limits; a diagnostic page is not a complete
-export. Include retained derivatives separately. Disabling routes/deleting Atlas
-records does not erase Pulse objects/backups. Pulse has no per-event delete API;
-use coordinated retention or tenant purge under its existing procedure and redact
-unrelated subjects. No ingest/query credentials belong in exports. Activation
-requires explicit scope, endpoint/region, reader and retention approval; none is
-enabled here. See [Atlas's inventory](../atlas/data-export.md#optional-parallel-error-copies-in-pulse)
-and [the activation contract](../atlas/deploy/pulse-errors.md).
-
 Server logs, OpenTelemetry traces and Sentry error events can contain authenticated
 user/account/project IDs, selected account/project IDs and their existing account
 and project handles. Authentication identifies the caller; selected resources
@@ -1311,11 +1253,10 @@ snapshots are ephemeral and disappear with their request, socket, task or job.
 
 ### Managed GreptimeDB telemetry
 
-The opt-in replacement configuration routes staging operational
-metrics, pod logs and OTLP spans to the private GreptimeDB `public`
-database through the in-cluster `pulse` Service. Grafana Cloud destinations
-remain independent and unchanged. This describes the prepared configuration, not
-proof that any environment has completed its cutover. Logs live in `opentelemetry_logs`
+Staging, canary and production collectors write operational metrics, pod logs
+and OTLP spans to the private GreptimeDB `public` database through each cluster's
+in-cluster `pulse` Service. The management cluster runs its own `pulse`, but its
+collectors still send only to Grafana Cloud. Grafana Cloud destinations remain independent and unchanged. Logs live in `opentelemetry_logs`
 (nanosecond `timestamp`, `body`, severity, trace/span IDs and JSON log/resource
 attributes). Spans live in `opentelemetry_traces` (trace/span/parent IDs, service,
 operation, status, duration and JSON events/links). Prometheus metric tables retain
@@ -1327,10 +1268,9 @@ Staging stores its data under `tuist-pulso-staging/pulse/`
 in Tigris and on its standalone WAL/state PVC. The deployment verifies a seven-day
 database TTL before enabling ingestion; physical object reclamation can lag
 logical expiry. Canary uses the same layout in its own bucket; production
-stores data under `pulse/distributed/`. A production
-migration must preserve its effective retention: the old configured 30/14/90-day
-log/trace/metric periods were observation-only, not enforced. Switching an
-ingestion route stops new writes to the old backend but erases neither store.
+stores data under `pulse/distributed/` and management under
+`tuist-pulse-management/pulse/`, both without a TTL. Switching an ingestion route
+stops new writes to the old backend but erases neither store.
 
 Loki stream labels are retained in log `resource_attributes`, with `service_name`
 also promoted to `service.name` unless already present. Structured metadata is

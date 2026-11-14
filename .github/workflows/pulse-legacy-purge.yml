@@ -1,0 +1,70 @@
+# One-shot: deletes the custom Elixir Pulse's prefixes (tenants/, system/,
+# usage/, auth/ and .pulse/) from one Pulse bucket. Everything else stays:
+# Pulse (the GreptimeDB fork) under pulse/ and OpenObserve's openobserve/
+# shadow share these buckets. Remove this workflow once every target has run.
+name: Pulse Legacy Purge
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Bucket to purge (management is tuist-pulse-management, the rest tuist-pulso-<env>)
+        type: choice
+        options: [staging, canary, production, management]
+
+permissions: {}
+
+jobs:
+  purge:
+    if: github.ref == 'refs/heads/main' && github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # The same protected environments, and so approvals, as the deploys that
+    # own each bucket's credentials.
+    environment: ${{ inputs.target == 'management' && 'mgmt-cluster-apply' || format('server-k8s-{0}', inputs.target) }}
+    concurrency:
+      group: pulse-legacy-purge-${{ inputs.target }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ inputs.target }}
+      AWS_ENDPOINT_URL: https://t3.storage.dev
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+    steps:
+      - uses: 1password/install-cli-action@v4
+      - name: Delete the legacy Pulse prefixes
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            staging|canary|production) bucket="tuist-pulso-$TARGET" vault="tuist-k8s-$TARGET" ;;
+            management) bucket=tuist-pulse-management vault=tuist-k8s-mgmt ;;
+            *) exit 1 ;;
+          esac
+          # The bucket-scoped key Pulse itself uses; it cannot reach other buckets.
+          AWS_ACCESS_KEY_ID=$(op read "op://$vault/PULSE_S3_CREDENTIALS/access_key_id" | tr -d '[:space:]')
+          AWS_SECRET_ACCESS_KEY=$(op read "op://$vault/PULSE_S3_CREDENTIALS/secret_access_key" | tr -d '[:space:]')
+          echo "::add-mask::$AWS_SECRET_ACCESS_KEY"
+          export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+          top() { aws s3api list-objects-v2 --bucket "$bucket" --delimiter / --output json |
+            jq -r '(.CommonPrefixes // [])[].Prefix, (.Contents // [])[].Key'; }
+          # `aws s3 ls` exits 1 for an empty prefix.
+          count() { { aws s3 ls "s3://$bucket/$1" --recursive || true; } | wc -l; }
+          legacy='^(tenants|system|usage|auth|\.pulse)/$'
+          {
+            echo "### $bucket"
+            echo '| Prefix | Objects deleted |'
+            echo '|---|---|'
+          } >> "$GITHUB_STEP_SUMMARY"
+          while IFS= read -r prefix; do
+            objects=$(count "$prefix")
+            aws s3 rm "s3://$bucket/$prefix" --recursive --only-show-errors < /dev/null
+            echo "| \`$prefix\` | $objects |" | tee -a "$GITHUB_STEP_SUMMARY"
+          done < <(top | grep -E "$legacy" || true)
+          left=$(top)
+          if grep -Eq "$legacy" <<< "$left"; then
+            echo "::error::Legacy prefixes remain in $bucket"
+            exit 1
+          fi
+          echo "PASS: no legacy Pulse objects in $bucket. Kept: $(tr '\n' ' ' <<< "$left")" | tee -a "$GITHUB_STEP_SUMMARY"
