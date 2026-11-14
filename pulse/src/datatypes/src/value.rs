@@ -3329,8 +3329,8 @@ pub(crate) mod tests {
         check_value_ref_size_eq(&ValueRef::Int64(1), 8);
         check_value_ref_size_eq(&ValueRef::Float32(1.0.into()), 4);
         check_value_ref_size_eq(&ValueRef::Float64(1.0.into()), 8);
-        check_value_ref_size_eq(&ValueRef::String("pulse"), 10);
-        check_value_ref_size_eq(&ValueRef::Binary(b"pulse"), 10);
+        check_value_ref_size_eq(&ValueRef::String("pulse"), 5);
+        check_value_ref_size_eq(&ValueRef::Binary(b"pulse"), 5);
         check_value_ref_size_eq(&ValueRef::Date(Date::new(1)), 4);
         check_value_ref_size_eq(&ValueRef::Timestamp(Timestamp::new_millisecond(1)), 16);
         check_value_ref_size_eq(&ValueRef::Time(Time::new_millisecond(1)), 16);

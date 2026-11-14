@@ -592,7 +592,7 @@ mod tests {
         let ret = Helper::like_utf8(names.clone(), "%ll%").unwrap();
         assert_vector(vec!["hello"], &ret);
 
-        let ret = Helper::like_utf8(names.clone(), "%time").unwrap();
+        let ret = Helper::like_utf8(names.clone(), "%lse").unwrap();
         assert_vector(vec!["pulse"], &ret);
 
         let ret = Helper::like_utf8(names.clone(), "%ld").unwrap();
@@ -621,9 +621,9 @@ mod tests {
             .map(|x| x.to_string())
             .collect();
 
-        let (table, filter) = Helper::like_utf8_filter(names.clone(), "%ti%").unwrap();
-        assert_vector(vec!["pulse", "timeseries"], &table);
-        assert_filter(names.clone(), "%ti%", &filter);
+        let (table, filter) = Helper::like_utf8_filter(names.clone(), "%u%").unwrap();
+        assert_vector(vec!["pulse", "cloud"], &table);
+        assert_filter(names.clone(), "%u%", &filter);
 
         let (tables, filter) = Helper::like_utf8_filter(names.clone(), "%lou").unwrap();
         assert_vector(vec![], &tables);
