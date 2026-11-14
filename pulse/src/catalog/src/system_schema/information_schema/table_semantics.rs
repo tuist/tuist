@@ -23,7 +23,7 @@
 //! (`signal_type` / `source` / `source_version` / `pipeline` /
 //! `metadata_quality`); the remaining signal-specific keys are folded into a
 //! `semantic_options` JSON string, keyed by the option name with the
-//! `greptime.semantic.` prefix stripped.
+//! `pulse.semantic.` prefix stripped.
 //!
 //! `entity_declarations` reports the entities the table contributes to the
 //! graph, including the ones the conventions derive with no option set — so a
@@ -557,8 +557,8 @@ mod tests {
         // stripped, sorted) in the JSON tail with no code change to this table.
         let info = table_info(&[
             (SEMANTIC_SIGNAL_TYPE, "trace"),
-            ("greptime.semantic.entity.service.id", "service_name"),
-            ("greptime.semantic.entity.host.id", "host_id"),
+            ("pulse.semantic.entity.service.id", "service_name"),
+            ("pulse.semantic.entity.host.id", "host_id"),
         ]);
         let row = SemanticRow::extract(&info).unwrap();
         assert_eq!(row.signal_type, Some("trace"));

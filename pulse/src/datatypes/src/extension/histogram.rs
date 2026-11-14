@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Arrow extension type for native-histogram struct columns.
 
 use arrow_schema::extension::ExtensionType;
@@ -20,13 +22,13 @@ use arrow_schema::{ArrowError, DataType, FieldRef};
 /// Arrow extension type identifying a native-histogram struct column.
 ///
 /// Applied to the struct field at parquet-write time so that readers can
-/// identify native-histogram columns by extension (`greptime.histogram`) rather
+/// identify native-histogram columns by extension (`pulse.histogram`) rather
 /// than relying on the field name.
 #[derive(Debug, Clone, Default)]
 pub struct HistogramExtensionType;
 
 impl ExtensionType for HistogramExtensionType {
-    const NAME: &'static str = "greptime.histogram";
+    const NAME: &'static str = "pulse.histogram";
     type Metadata = ();
 
     fn metadata(&self) -> &Self::Metadata {
@@ -71,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_extension_name_and_detection() {
-        assert_eq!(HistogramExtensionType::NAME, "greptime.histogram");
+        assert_eq!(HistogramExtensionType::NAME, "pulse.histogram");
 
         // A plain struct field is not a histogram extension type.
         let empty: Fields = Vec::<Field>::new().into();

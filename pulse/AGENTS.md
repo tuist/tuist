@@ -1,9 +1,9 @@
 # AGENTS.md
 
-This directory is Pulse, Tuist's observability database. It began as a fork of
-GreptimeDB; [`FORK.md`](FORK.md) records the upstream base, every Tuist change
-(including the rename from GreptimeDB and the removal of its enterprise
-feature), how releases reach the clusters, and how to roll out the rename.
+This directory is Pulse, Tuist's observability database. [`FORK.md`](FORK.md)
+records the upstream it was forked from, every Tuist change (including the
+rename to Pulse and the removal of the upstream enterprise feature), how
+releases reach the clusters, and how to roll out the rename.
 
 ## Rules
 

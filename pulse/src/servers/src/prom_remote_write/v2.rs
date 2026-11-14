@@ -304,7 +304,7 @@ fn record_series_metadata(
     Ok(())
 }
 
-/// The `greptime.semantic.metric.type` value for a wire metric type; `None`
+/// The `pulse.semantic.metric.type` value for a wire metric type; `None`
 /// for `UNSPECIFIED` (nothing was declared) and out-of-range values.
 fn metric_type_value(wire_type: i32) -> Option<&'static str> {
     match metadata::MetricType::try_from(wire_type).ok()? {

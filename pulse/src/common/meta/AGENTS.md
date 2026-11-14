@@ -26,7 +26,7 @@ and durable DDL procedures. Metasrv process and service wiring live in
   invalidation.
 - Procedure changes must preserve persisted state and `TYPE_NAME`; new
   procedures need loader registration in `src/common/meta/src/ddl_manager.rs`.
-- Marker-style table options that no region consumes (`greptime.semantic.*`,
+- Marker-style table options that no region consumes (`pulse.semantic.*`,
   `repartition.column.hint`) go through `AnnotationFamily` in
   `src/table/src/requests.rs` — classification, validation, logical-table
   eligibility, and the metadata-only alter flow come with it. Do not add

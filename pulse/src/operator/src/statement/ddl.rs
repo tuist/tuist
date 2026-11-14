@@ -2802,32 +2802,29 @@ mod test {
 
         // Any existing column with a string form may be an id, tag or field.
         for pairs in [
-            &[(
-                "greptime.semantic.entity.process.id",
-                "service_name,host_id",
-            )][..],
-            &[("greptime.semantic.entity.service.id", "value")][..],
+            &[("pulse.semantic.entity.process.id", "service_name,host_id")][..],
+            &[("pulse.semantic.entity.service.id", "value")][..],
         ] {
             assert!(check(pairs).is_ok());
         }
 
         // Missing columns keep this crate's error variant and status code.
-        let missing = check(&[("greptime.semantic.entity.service.id", "nope")]).unwrap_err();
+        let missing = check(&[("pulse.semantic.entity.service.id", "nope")]).unwrap_err();
         assert!(matches!(missing, error::Error::ColumnNotFound { .. }));
         assert_eq!(
             common_error::status_code::StatusCode::InvalidArguments,
             common_error::ext::ErrorExt::status_code(&missing)
         );
 
-        let binary_id = check(&[("greptime.semantic.entity.service.id", "payload")]).unwrap_err();
+        let binary_id = check(&[("pulse.semantic.entity.service.id", "payload")]).unwrap_err();
         assert!(matches!(binary_id, error::Error::InvalidSql { .. }));
 
         // The SQL parser checks keys and value domains, but gRPC expressions
         // bypass it.
-        let bad_value = check(&[("greptime.semantic.signal_type", "garbage")]).unwrap_err();
+        let bad_value = check(&[("pulse.semantic.signal_type", "garbage")]).unwrap_err();
         assert!(matches!(bad_value, error::Error::InvalidSql { .. }));
 
-        let unknown_key = check(&[("greptime.semantic.nonsense", "x")]).unwrap_err();
+        let unknown_key = check(&[("pulse.semantic.nonsense", "x")]).unwrap_err();
         assert!(matches!(unknown_key, error::Error::InvalidSql { .. }));
     }
 
@@ -3061,8 +3058,8 @@ SELECT max(c1), min(c2) FROM schema_2.table_2;";
     #[test]
     fn test_internal_transport_keys_rejected_as_reserved() {
         for key in [
-            "__greptime_internal_eval_schedule",
-            "__greptime_internal_eval_offset_secs",
+            "__pulse_internal_eval_schedule",
+            "__pulse_internal_eval_offset_secs",
         ] {
             let err = validate_and_normalize_flow_options(
                 HashMap::from([(key.to_string(), "120".to_string())]),
@@ -3353,7 +3350,7 @@ WITH ('repartition.column.hint' = ' host ')",
     fn test_verify_alter_guards_entity_column_types() {
         let expr = create_expr_from_sql(
             "CREATE TABLE t (svc STRING, ts TIMESTAMP TIME INDEX) \
-             WITH ('greptime.semantic.entity.service.id'='svc');",
+             WITH ('pulse.semantic.entity.service.id'='svc');",
         );
         let table_info = Arc::new(create_table_info(&expr, vec![]).unwrap());
         let alter = |kind| AlterTableExpr {

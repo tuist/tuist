@@ -21,11 +21,11 @@ CREATE TABLE t_trace_v2 (
 ) WITH (
     'append_mode' = 'true',
     'table_data_model' = 'pulse_trace_v2',
-    'greptime.semantic.pipeline' = 'pulse_trace_v2',
-    'greptime.semantic.signal_type' = 'trace',
-    'greptime.semantic.source' = 'opentelemetry',
-    'greptime.semantic.entity.service.id' = 'service_name',
-    'greptime.semantic.trace.conventions' = 'unknown'
+    'pulse.semantic.pipeline' = 'pulse_trace_v2',
+    'pulse.semantic.signal_type' = 'trace',
+    'pulse.semantic.source' = 'opentelemetry',
+    'pulse.semantic.entity.service.id' = 'service_name',
+    'pulse.semantic.trace.conventions' = 'unknown'
 );
 
 INSERT INTO t_trace_v2 (

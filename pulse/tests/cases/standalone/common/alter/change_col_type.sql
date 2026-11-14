@@ -120,7 +120,7 @@ INSERT INTO ts_widen_part VALUES ("b", 2, "2024-01-02 00:00:00.000250");
 SELECT * FROM ts_widen_part ORDER BY ts;
 
 -- force the rows into SSTs so scans read old-unit data through the widened
--- schema of a time-index-partitioned table (https://github.com/GreptimeTeam/greptimedb/issues/9747)
+-- schema of a time-index-partitioned table
 ADMIN FLUSH_TABLE('ts_widen_part');
 
 SELECT * FROM ts_widen_part ORDER BY ts;

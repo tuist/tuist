@@ -41,7 +41,7 @@ drop table trigy;
 drop table trignan;
 
 
--- About irate. Related to issue https://github.com/GreptimeTeam/greptimedb/issues/5880
+-- About irate.
 CREATE TABLE t(
    pulse_timestamp TIMESTAMP(9) TIME INDEX,
    pulse_value DOUBLE

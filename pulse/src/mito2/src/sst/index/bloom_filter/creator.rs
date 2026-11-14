@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
@@ -626,10 +628,7 @@ pub(crate) mod tests {
 
         // tag_str
         {
-            let blob_guard = puffin_reader
-                .blob("greptime-bloom-filter-v1-1")
-                .await
-                .unwrap();
+            let blob_guard = puffin_reader.blob("pulse-bloom-filter-v1-1").await.unwrap();
             let reader = blob_guard.reader().await.unwrap();
             let bloom_filter = BloomFilterReaderImpl::new(reader);
             let metadata = bloom_filter.metadata(None).await.unwrap();
@@ -651,10 +650,7 @@ pub(crate) mod tests {
         {
             let sort_field = SortField::new(ConcreteDataType::uint64_datatype());
 
-            let blob_guard = puffin_reader
-                .blob("greptime-bloom-filter-v1-3")
-                .await
-                .unwrap();
+            let blob_guard = puffin_reader.blob("pulse-bloom-filter-v1-3").await.unwrap();
             let reader = blob_guard.reader().await.unwrap();
             let bloom_filter = BloomFilterReaderImpl::new(reader);
             let metadata = bloom_filter.metadata(None).await.unwrap();

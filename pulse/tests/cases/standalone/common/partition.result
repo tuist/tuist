@@ -432,7 +432,6 @@ DROP TABLE valid_rule;
 
 Affected Rows: 0
 
--- Issue https://github.com/GreptimeTeam/greptimedb/issues/4247
 -- Partition rule with unary operator
 CREATE TABLE `molestiAe` (
   `sImiLiQUE` FLOAT NOT NULL,

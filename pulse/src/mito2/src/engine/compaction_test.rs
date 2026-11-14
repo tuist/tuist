@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
@@ -542,8 +544,7 @@ async fn assert_partial_compaction_preserves_delete_order(flat_format: bool) {
     );
 }
 
-/// Real-engine regression for the tombstone resurrection chain described in
-/// https://greptime.feishu.cn/wiki/L2WYwIM40iG9tckowrnctyw8nQc.
+/// Real-engine regression for a tombstone resurrection chain.
 /// No synthetic file sizes, PK ranges, or manually selected compaction inputs.
 #[rstest::rstest]
 #[tokio::test]
@@ -2244,7 +2245,6 @@ async fn test_compaction_of_part_of_a_run_keeps_rows_deleted_with_format(flat_fo
     assert_eq!(3030, vec.len());
 }
 
-// For issue https://github.com/GreptimeTeam/greptimedb/issues/3633
 #[tokio::test]
 async fn test_readonly_during_compaction() {
     test_readonly_during_compaction_with_format(false).await;

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![allow(clippy::print_stdout)]
 mod bench;
 mod common;
@@ -50,6 +52,6 @@ pub(crate) struct AttachCommand {
 impl AttachCommand {
     #[allow(dead_code)]
     async fn build(self) -> Result<Box<dyn Tool>> {
-        unimplemented!("Wait for https://github.com/GreptimeTeam/greptimedb/issues/2373")
+        unimplemented!("the attach command is not implemented")
     }
 }

@@ -1,4 +1,3 @@
--- Reproduce https://github.com/GreptimeTeam/greptimedb/issues/8144
 -- Binary comparison/arithmetic applied to a histogram_quantile() result.
 
 create table http_request_duration_seconds_bucket (

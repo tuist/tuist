@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod column_schema;
 pub mod constraint;
 pub mod ext;
@@ -39,9 +41,9 @@ pub use crate::schema::column_schema::{
 pub use crate::schema::constraint::ColumnDefaultConstraint;
 
 /// Key used to store version number of the schema in metadata.
-pub const VERSION_KEY: &str = "greptime:version";
+pub const VERSION_KEY: &str = "pulse:version";
 /// Key used to store actual column type in field metadata.
-pub const TYPE_KEY: &str = "greptime:type";
+pub const TYPE_KEY: &str = "pulse:type";
 
 /// A common schema, should be immutable.
 #[derive(Clone, PartialEq, Eq, Serialize)]

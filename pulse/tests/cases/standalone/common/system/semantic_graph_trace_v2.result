@@ -24,13 +24,13 @@ create table graph_trace_v2 (
 ) with (
   'table_data_model' = 'pulse_trace_v2',
   'append_mode' = 'true',
-  'greptime.semantic.entity.gen_ai.agent.id' = 'span_attributes.gen_ai.agent.id',
-  'greptime.semantic.entity.gen_ai.agent.scope' = 'scope_attributes.environment',
-  'greptime.semantic.entity.gen_ai.model.id' = 'span_attributes.gen_ai.request.model',
-  'greptime.semantic.entity.literal_peer.id' = 'span_attributes.db.namespace',
-  'greptime.semantic.entity.literal_resource.id' = 'resource_attributes.host.name',
-  'greptime.semantic.entity.literal_span.id' = 'span_attributes.gen_ai.agent.id',
-  'greptime.semantic.entity.literal_scope.id' = 'scope_attributes.deployment.region.name'
+  'pulse.semantic.entity.gen_ai.agent.id' = 'span_attributes.gen_ai.agent.id',
+  'pulse.semantic.entity.gen_ai.agent.scope' = 'scope_attributes.environment',
+  'pulse.semantic.entity.gen_ai.model.id' = 'span_attributes.gen_ai.request.model',
+  'pulse.semantic.entity.literal_peer.id' = 'span_attributes.db.namespace',
+  'pulse.semantic.entity.literal_resource.id' = 'resource_attributes.host.name',
+  'pulse.semantic.entity.literal_span.id' = 'span_attributes.gen_ai.agent.id',
+  'pulse.semantic.entity.literal_scope.id' = 'scope_attributes.deployment.region.name'
 );
 
 Affected Rows: 0
@@ -71,7 +71,7 @@ create table graph_trace_v1_peer (
   "resource_attributes.host.name" string,
   primary key (service_name)
 ) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true',
-        'greptime.semantic.entity.literal_resource.id' = 'resource_attributes.host.name');
+        'pulse.semantic.entity.literal_resource.id' = 'resource_attributes.host.name');
 
 Affected Rows: 0
 
@@ -121,25 +121,25 @@ order by rel_type, src_type, src_id, dst_id;
 +------------------+-----------------------+--------------+---------------+----------+---------------+-------------+
 
 -- Empty components in the V1-compatible comma-separated list remain invalid.
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes.host.id,';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes.host.id,';
 
-Error: 1004(InvalidArguments), Invalid alter table(graph_trace_v2) request: invalid value `resource_attributes.host.id,` for semantic option `greptime.semantic.entity.invalid.id`
+Error: 1004(InvalidArguments), Invalid alter table(graph_trace_v2) request: invalid value `resource_attributes.host.id,` for semantic option `pulse.semantic.entity.invalid.id`
 
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes.host.id,,service_name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes.host.id,,service_name';
 
-Error: 1004(InvalidArguments), Invalid alter table(graph_trace_v2) request: invalid value `resource_attributes.host.id,,service_name` for semantic option `greptime.semantic.entity.invalid.id`
+Error: 1004(InvalidArguments), Invalid alter table(graph_trace_v2) request: invalid value `resource_attributes.host.id,,service_name` for semantic option `pulse.semantic.entity.invalid.id`
 
 -- ALTER accepts JSON2 references; a missing key simply yields no entity.
-alter table graph_trace_v2 set 'greptime.semantic.entity.custom.id' = 'scope_attributes.missing';
+alter table graph_trace_v2 set 'pulse.semantic.entity.custom.id' = 'scope_attributes.missing';
 
 Affected Rows: 0
 
-alter table graph_trace_v2 set 'greptime.semantic.entity.host.descriptive' = 'resource_attributes.host.name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.host.descriptive' = 'resource_attributes.host.name';
 
 Affected Rows: 0
 
 -- Preserve implicit host identity by explicitly declaring it as well.
-alter table graph_trace_v2 set 'greptime.semantic.entity.host.id' = 'resource_attributes.host.id';
+alter table graph_trace_v2 set 'pulse.semantic.entity.host.id' = 'resource_attributes.host.id';
 
 Affected Rows: 0
 
@@ -201,7 +201,7 @@ order by rel_type, src_type, src_id, dst_id;
 +------------------+-----------------------+--------------+---------------+----------+---------------+-------------+
 
 -- Quotes, backslashes and dots remain a literal key; numbers render as strings.
-alter table graph_trace_v2 set 'greptime.semantic.entity.custom.id' = 'scope_attributes.a"b\c.d';
+alter table graph_trace_v2 set 'pulse.semantic.entity.custom.id' = 'scope_attributes.a"b\c.d';
 
 Affected Rows: 0
 
@@ -218,35 +218,35 @@ where entity_type = 'custom'
 
 -- Path-looking suffixes are literal keys, not nested traversal or array access.
 -- These missing keys are valid declarations and produce no entities.
-alter table graph_trace_v2 set 'greptime.semantic.entity.literal_missing.id' = 'resource_attributes.host..name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.literal_missing.id' = 'resource_attributes.host..name';
 
 Affected Rows: 0
 
-alter table graph_trace_v2 set 'greptime.semantic.entity.literal_index.id' = 'resource_attributes.host[0]';
+alter table graph_trace_v2 set 'pulse.semantic.entity.literal_index.id' = 'resource_attributes.host[0]';
 
 Affected Rows: 0
 
 -- The root must exist and be one of the three JSON2 attribute columns.
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'span_events.name';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'span_events.name';
 
 Error: 4002(TableColumnNotFound), Column span_events.name not exists in table graph_trace_v2
 
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes.';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes.';
 
 Error: 4002(TableColumnNotFound), Column resource_attributes. not exists in table graph_trace_v2
 
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'missing.key';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'missing.key';
 
 Error: 4002(TableColumnNotFound), Column missing.key not exists in table graph_trace_v2
 
-alter table graph_trace_v2 set 'greptime.semantic.entity.invalid.id' = 'resource_attributes';
+alter table graph_trace_v2 set 'pulse.semantic.entity.invalid.id' = 'resource_attributes';
 
-Error: 1004(InvalidArguments), Invalid alter table(graph_trace_v2) request: entity column `resource_attributes` (option `greptime.semantic.entity.invalid.id`) has type `Json2"<Null>"`, which cannot render as a string
+Error: 1004(InvalidArguments), Invalid alter table(graph_trace_v2) request: entity column `resource_attributes` (option `pulse.semantic.entity.invalid.id`) has type `Json2"<Null>"`, which cannot render as a string
 
 create table graph_bad_v2 (
   ts timestamp time index, resource_attributes string
 ) with ('table_data_model' = 'pulse_trace_v2',
-        'greptime.semantic.entity.host.id' = 'resource_attributes.host.id');
+        'pulse.semantic.entity.host.id' = 'resource_attributes.host.id');
 
 Error: 1004(InvalidArguments), Cannot find column by name: resource_attributes.host.id
 
@@ -254,7 +254,7 @@ Error: 1004(InvalidArguments), Cannot find column by name: resource_attributes.h
 create table graph_not_trace (
   ts timestamp time index, resource_attributes json2
 ) with ('append_mode' = 'true',
-        'greptime.semantic.entity.host.id' = 'resource_attributes.host.id');
+        'pulse.semantic.entity.host.id' = 'resource_attributes.host.id');
 
 Error: 1004(InvalidArguments), Cannot find column by name: resource_attributes.host.id
 
@@ -272,11 +272,11 @@ alter table graph_trace_v2 add column "span_attributes.db.namespace" string;
 Affected Rows: 0
 
 -- Restore the implicit host declaration for the physical-column check.
-alter table graph_trace_v2 unset 'greptime.semantic.entity.host.id';
+alter table graph_trace_v2 unset 'pulse.semantic.entity.host.id';
 
 Affected Rows: 0
 
-alter table graph_trace_v2 unset 'greptime.semantic.entity.host.descriptive';
+alter table graph_trace_v2 unset 'pulse.semantic.entity.host.descriptive';
 
 Affected Rows: 0
 

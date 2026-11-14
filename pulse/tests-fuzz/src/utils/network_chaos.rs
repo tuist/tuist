@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 
 use kube::Api;
@@ -25,7 +27,7 @@ use crate::utils::crd::network::{
 fn build_datanode_selector(namespace: &str, cluster_name: &str) -> Selector {
     let mut selector = BTreeMap::new();
     selector.insert(
-        "app.greptime.io/component".into(),
+        "app.pulse.io/component".into(),
         format!("{cluster_name}-datanode"),
     );
 
@@ -39,7 +41,7 @@ fn build_datanode_selector(namespace: &str, cluster_name: &str) -> Selector {
 fn build_metasrv_selector(namespace: &str, cluster_name: &str) -> Selector {
     let mut selector = BTreeMap::new();
     selector.insert(
-        "app.greptime.io/component".into(),
+        "app.pulse.io/component".into(),
         format!("{cluster_name}-meta"),
     );
 

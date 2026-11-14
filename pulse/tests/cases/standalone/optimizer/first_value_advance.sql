@@ -26,7 +26,7 @@ from t
     group by host
     order by host;
 
--- repeat the query again, ref: https://github.com/GreptimeTeam/greptimedb/issues/4650
+-- repeat the query again
 select
         first_value(host order by ts),
         first_value(not_pk order by ts),

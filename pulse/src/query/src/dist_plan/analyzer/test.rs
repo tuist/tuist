@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeSet, HashSet};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -3174,7 +3176,7 @@ fn scheduled_none_falls_back_to_wall_clock() {
     );
 }
 
-/// Regression test for https://github.com/GreptimeTeam/greptimedb/issues/9260:
+/// Regression test:
 /// every scalar subquery level must get its own MergeScan, even when nested
 /// inside another scalar subquery.
 #[test]

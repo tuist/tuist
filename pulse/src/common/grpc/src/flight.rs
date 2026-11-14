@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod do_put;
 
 use std::collections::HashMap;
@@ -67,9 +69,9 @@ pub fn record_batch_to_ipc(
 }
 
 /// Flight metadata key used to carry flow query extensions as JSON pairs.
-pub const FLOW_EXTENSIONS_METADATA_KEY: &str = "x-greptime-flow-extensions";
+pub const FLOW_EXTENSIONS_METADATA_KEY: &str = "x-pulse-flow-extensions";
 /// Flight metadata key used to carry query snapshot read upper bounds as JSON.
-pub const SNAPSHOT_SEQS_METADATA_KEY: &str = "x-greptime-snapshot-seqs";
+pub const SNAPSHOT_SEQS_METADATA_KEY: &str = "x-pulse-snapshot-seqs";
 
 #[derive(Debug, Clone)]
 pub enum FlightMessage {

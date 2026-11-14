@@ -385,7 +385,7 @@ pub struct SetJsonSettingsRequest {
 /// `extra_options`, so the alter skips region dispatch entirely.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AnnotationFamily {
-    /// `greptime.semantic.*` options (see the [`semantic`] module).
+    /// `pulse.semantic.*` options (see the [`semantic`] module).
     Semantic,
     /// Column and partition count hints consumed by the auto-repartition planner.
     RepartitionHint,
@@ -875,7 +875,7 @@ mod tests {
             (vec![column, count], Some(AnnotationFamily::RepartitionHint)),
             (vec![count, column], Some(AnnotationFamily::RepartitionHint)),
             (
-                vec!["greptime.semantic.source", "greptime.semantic.source"],
+                vec!["pulse.semantic.source", "pulse.semantic.source"],
                 Some(AnnotationFamily::Semantic),
             ),
         ] {
@@ -894,7 +894,7 @@ mod tests {
         for keys in [
             vec![column, TTL_KEY],
             vec![TTL_KEY, count],
-            vec![column, "greptime.semantic.source"],
+            vec![column, "pulse.semantic.source"],
         ] {
             assert_eq!(
                 validate_annotation_keys(keys),
@@ -924,8 +924,8 @@ mod tests {
         assert!(validate_table_option(SEMANTIC_SIGNAL_TYPE));
         assert!(validate_table_option(SEMANTIC_METRIC_TYPE));
         // Unknown semantic key, near-miss, and the internal transport key are rejected.
-        assert!(!validate_table_option("greptime.semantic.future.key"));
-        assert!(!validate_table_option("greptime.semanticx"));
+        assert!(!validate_table_option("pulse.semantic.future.key"));
+        assert!(!validate_table_option("pulse.semanticx"));
         assert!(!validate_table_option(SEMANTIC_PER_TABLE_INDEX_KEY));
     }
 

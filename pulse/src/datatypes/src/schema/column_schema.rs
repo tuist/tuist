@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::{fmt, mem};
@@ -38,16 +40,16 @@ use crate::vectors::{MutableVector, VectorRef};
 pub type Metadata = HashMap<String, String>;
 
 /// Key used to store whether the column is time index in arrow field's metadata.
-pub const TIME_INDEX_KEY: &str = "greptime:time_index";
-pub const COMMENT_KEY: &str = "greptime:storage:comment";
+pub const TIME_INDEX_KEY: &str = "pulse:time_index";
+pub const COMMENT_KEY: &str = "pulse:storage:comment";
 /// Key used to store default constraint in arrow field's metadata.
-const DEFAULT_CONSTRAINT_KEY: &str = "greptime:default_constraint";
+const DEFAULT_CONSTRAINT_KEY: &str = "pulse:default_constraint";
 /// Key used to store fulltext options in arrow field's metadata.
-pub const FULLTEXT_KEY: &str = "greptime:fulltext";
+pub const FULLTEXT_KEY: &str = "pulse:fulltext";
 /// Key used to store whether the column has inverted index in arrow field's metadata.
-pub const INVERTED_INDEX_KEY: &str = "greptime:inverted_index";
+pub const INVERTED_INDEX_KEY: &str = "pulse:inverted_index";
 /// Key used to store skip options in arrow field's metadata.
-pub const SKIPPING_INDEX_KEY: &str = "greptime:skipping_index";
+pub const SKIPPING_INDEX_KEY: &str = "pulse:skipping_index";
 
 /// Keys used in fulltext options
 pub const COLUMN_FULLTEXT_CHANGE_OPT_KEY_ENABLE: &str = "enable";

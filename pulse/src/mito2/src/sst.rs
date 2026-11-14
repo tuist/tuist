@@ -85,7 +85,7 @@ pub fn with_field_id(mut field: Field, column_id: u32) -> Field {
     field
 }
 
-/// Stamps the `greptime.histogram` extension and reserved `PARQUET:field_id`s
+/// Stamps the `pulse.histogram` extension and reserved `PARQUET:field_id`s
 /// onto a native-histogram struct field (and its sub-fields / list element
 /// fields), so external readers can identify it by extension and resolve
 /// nested fields by id.
@@ -118,7 +118,7 @@ fn stamp_native_histogram_subfield_ids(field: &mut Field) -> crate::error::Resul
             }
             .build()
         })?;
-    // Tag the field with the greptime.histogram extension.
+    // Tag the field with the pulse.histogram extension.
     field.metadata_mut().insert(
         EXTENSION_TYPE_NAME_KEY.to_string(),
         HistogramExtensionType::NAME.to_string(),
@@ -707,7 +707,7 @@ mod tests {
     }
 
     /// Asserts `field` is a stamped native-histogram struct: it carries the
-    /// `greptime.histogram` extension and every sub-field (and list element)
+    /// `pulse.histogram` extension and every sub-field (and list element)
     /// carries its reserved `PARQUET:field_id` namespaced by `column_id`.
     fn assert_histogram_stamped(field: &Field, column_id: i32) {
         use arrow_schema::extension::ExtensionType;
@@ -722,7 +722,7 @@ mod tests {
                 .get(arrow_schema::extension::EXTENSION_TYPE_NAME_KEY)
                 .map(|s| s.as_str()),
             Some(HistogramExtensionType::NAME),
-            "histogram field must carry the greptime.histogram extension"
+            "histogram field must carry the pulse.histogram extension"
         );
         let ArrowDataType::Struct(children) = field.data_type() else {
             panic!("expected a struct, got {:?}", field.data_type());
@@ -867,7 +867,7 @@ mod tests {
 
     /// Writes `schema` through `maybe_wrap_schema` and a real parquet
     /// [`ArrowWriter`], then returns the arrow schema read back from the file
-    /// footer. This proves the `greptime.histogram` extension and the nested
+    /// footer. This proves the `pulse.histogram` extension and the nested
     /// `PARQUET:field_id`s actually land on disk, not just in memory.
     ///
     /// `maybe_wrap_schema` is exactly what the SST parquet writer hands to
@@ -899,7 +899,7 @@ mod tests {
     #[test]
     fn test_maybe_wrap_schema_survives_parquet_roundtrip() {
         // On-disk contract: after writing through the parquet writer path, the
-        // footer still carries the greptime.histogram extension and every
+        // footer still carries the pulse.histogram extension and every
         // nested (sub-field + list-element) PARQUET:field_id.
         let schema = Arc::new(Schema::new(vec![
             Field::new(

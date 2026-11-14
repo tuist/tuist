@@ -143,7 +143,7 @@ async fn execute_insert(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     let sql = translator.translate(&insert_expr)?;
     let result = ctx
         .pulse
-        // unprepared query, see <https://github.com/GreptimeTeam/greptimedb/issues/3500>
+        // unprepared query
         .execute(sqlx::AssertSqlSafe(sql.as_str()))
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;

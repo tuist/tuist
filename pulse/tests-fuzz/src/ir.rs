@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! The intermediate representation
 
 pub(crate) mod alter_expr;
@@ -108,7 +110,7 @@ pub struct MySQLTsColumnTypeGenerator;
 pub struct PartibleColumnTypeGenerator;
 pub struct StringColumnTypeGenerator;
 
-/// FIXME(weny): Waits for https://github.com/GreptimeTeam/greptimedb/issues/4247
+/// FIXME(weny): Waits for partition rules to support unary operators.
 macro_rules! generate_values {
     ($data_type:ty, $bounds:expr) => {{
         let base = 0 as $data_type;

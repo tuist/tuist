@@ -82,8 +82,7 @@ fn main() -> Result<()> {
     maybe_daemonize(&cli)?;
 
     // Set the stack size to 8MB for the thread so it wouldn't overflow on large stack usage in debug mode
-    // see https://github.com/GreptimeTeam/greptimedb/pull/4317
-    // and https://github.com/rust-lang/rust/issues/34283
+    // see https://github.com/rust-lang/rust/issues/34283
     std::thread::Builder::new()
         .name("main_spawn".to_string())
         .stack_size(8 * 1024 * 1024)
@@ -208,7 +207,7 @@ async fn start(cli: Command) -> Result<()> {
 fn setup_human_panic() {
     human_panic::setup_panic!(
         human_panic::Metadata::new(product_name(), version())
-            .homepage("https://github.com/GreptimeTeam/greptimedb/discussions")
+            .homepage("https://github.com/tuist/tuist")
     );
 
     common_telemetry::set_panic_hook();

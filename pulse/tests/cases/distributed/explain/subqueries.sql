@@ -203,7 +203,7 @@ DROP TABLE t;
 DROP TABLE t1;
 DROP TABLE t2;
 
--- Regression test for https://github.com/GreptimeTeam/greptimedb/issues/9260:
+-- Regression test:
 -- nested scalar subqueries must get a MergeScan inside every subquery level.
 CREATE TABLE nested_scalar (k INT, v BIGINT, ts TIMESTAMP TIME INDEX);
 

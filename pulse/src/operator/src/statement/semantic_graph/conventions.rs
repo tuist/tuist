@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! The built-in derivation conventions of the entity graph, embedded as
 //! [`conventions.yaml`](./conventions.yaml): the co-declared edge vocabulary,
 //! the virtual-destination candidates, and the implicit declarations of
 //! well-known Prometheus entity-descriptor metrics. The file is data shipped
 //! with the binary, not an operator-editable configuration surface; explicit
-//! `greptime.semantic.entity.*` declarations always override it.
+//! `pulse.semantic.entity.*` declarations always override it.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::LazyLock;

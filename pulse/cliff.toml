@@ -74,7 +74,7 @@ skip_tags = "beta|alpha"
 # fresh canary can be cut against the last stable instead of chasing the
 # previous canary, and so RCs on a soaking line don't freeze the next
 # stable bump computation.
-# The GreptimeDB fork's pulse@<upstream>-<n> tags (1.3.0-1, 1.3.0-2) came
+# The fork's first pulse@<upstream>-<n> tags (1.3.0-1, 1.3.0-2) came
 # before Pulse owned its versions; their commits belong to the next release.
 ignore_tags = "rc|canary|^pulse@1\\.3\\.0-[0-9]+$"
 topo_order = false

@@ -278,7 +278,7 @@ pub fn build_declared_relationships_expr(catalog: &str) -> CreateTableExpr {
 }
 
 /// A single table's entity-identity declaration, projected from
-/// `information_schema.table_semantics` (`greptime.semantic.entity.<type>.*`).
+/// `information_schema.table_semantics` (`pulse.semantic.entity.<type>.*`).
 #[derive(Debug, Clone)]
 pub struct EntityDeclaration {
     /// The declaring table's schema, for the qualified `source_tables` lineage.

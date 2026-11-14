@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -30,8 +32,8 @@ use crate::fulltext_index::error::{
 };
 use crate::fulltext_index::{Config, KEY_FULLTEXT_CONFIG};
 
-pub const TEXT_FIELD_NAME: &str = "greptime_fulltext_text";
-pub const ROWID_FIELD_NAME: &str = "greptime_fulltext_rowid";
+pub const TEXT_FIELD_NAME: &str = "pulse_fulltext_text";
+pub const ROWID_FIELD_NAME: &str = "pulse_fulltext_rowid";
 
 /// `TantivyFulltextIndexCreator` is a fulltext index creator using tantivy.
 pub struct TantivyFulltextIndexCreator {
