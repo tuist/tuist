@@ -7,7 +7,7 @@ helm lint "$chart" --namespace observability
 helm template pulse "$chart" --namespace observability > "$tmp/rendered.yaml"
 yq ea -o=json -I=0 '.' "$tmp/rendered.yaml" | jq -s 'map(select(. != null))' > "$tmp/resources.json"
 jq -e '
-  length == 5 and
+  length == 6 and
   all(.[]; .kind != "Secret" and .kind != "Ingress" and .kind != "ClusterRole") and
   any(.[]; .kind == "Service" and .spec.type == "ClusterIP" and (.spec.ports | length) == 1) and
   any(.[]; .kind == "StatefulSet" and .spec.replicas == 1 and
@@ -22,7 +22,11 @@ jq -e '
     (.data["config.toml"] | contains("provider = \"raft_engine\"", "root = \"pulse/\"", "type = \"S3\"", "user_provider = \"static_user_provider:file:"))) and
   any(.[]; .kind == "ExternalSecret" and
     ([.spec.data[].remoteRef.key] | sort) == ["PULSE_S3_CREDENTIALS/access_key_id","PULSE_S3_CREDENTIALS/secret_access_key"]) and
-  any(.[]; .kind == "NetworkPolicy" and .spec.ingress[0].from == [{podSelector:{}}])
+  any(.[]; .kind == "NetworkPolicy" and .spec.ingress[0].from == [{podSelector:{}}]) and
+  # The host-network control-plane collector reaches only the HTTP API.
+  any(.[]; .kind == "CiliumNetworkPolicy" and .metadata.name == "pulse-host-ingress" and
+    .spec.endpointSelector == {matchLabels:{"app.kubernetes.io/instance":"pulse"}} and
+    .spec.ingress == [{fromEntities:["host","remote-node"],toPorts:[{ports:[{port:"4000",protocol:"TCP"}]}]}])
 ' "$tmp/resources.json" > /dev/null
 for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do
   if helm template pulse "$chart" -n observability --set "$setting" > "$tmp/refused.log" 2>&1; then
@@ -38,7 +42,7 @@ for environment in staging canary; do
     --set "environment=$environment,storage.bucket=tuist-pulso-$environment,dashboard.enabled=true" > "$tmp/scoped.yaml"
   yq ea -o=json -I=0 '.' "$tmp/scoped.yaml" | jq -s --arg ns "$ns" '
     map(select(. != null)) |
-    length == 6 and
+    length == 7 and
     any(.[]; .kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth" and
       .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
       (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo=")) and
@@ -105,7 +109,10 @@ jq -e '
   (config("pulse-frontend-config") | contains("user_provider = \"static_user_provider:file:")) and
   (one("NetworkPolicy"; "pulse-internal").spec.ingress == [{from:[{podSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse"}}}]}]) and
   (one("NetworkPolicy"; "pulse-private") | .spec.podSelector.matchLabels["app.kubernetes.io/component"] == "frontend" and
-    .spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "tuist")
+    .spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "tuist") and
+  (one("CiliumNetworkPolicy"; "pulse-host-ingress") |
+    .spec.endpointSelector == {matchLabels:{"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"frontend"}} and
+    .spec.ingress == [{fromEntities:["host","remote-node"],toPorts:[{ports:[{port:"4000",protocol:"TCP"}]}]}])
 ' "$tmp/prod.json" > /dev/null
 # Each workload restarts exactly when its own rendered config changes.
 checksums() {

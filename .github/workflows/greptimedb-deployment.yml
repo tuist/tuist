@@ -225,7 +225,7 @@ jobs:
           fi
           jq -r '.[] | [.kind, .metadata.name] | @tsv' "$dir/resources.json" > "$dir/resources.tsv"
           while IFS=$'\t' read -r kind name; do
-            case "$kind" in ConfigMap|Service|StatefulSet|Deployment|PodDisruptionBudget|ExternalSecret|NetworkPolicy) ;; *) exit 1 ;; esac
+            case "$kind" in ConfigMap|Service|StatefulSet|Deployment|PodDisruptionBudget|ExternalSecret|NetworkPolicy|CiliumNetworkPolicy) ;; *) exit 1 ;; esac
             existing=$(kubectl -n observability get "$kind" "$name" --ignore-not-found \
               -o 'jsonpath={.metadata.name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-name}{"\t"}{.metadata.annotations.meta\.helm\.sh/release-namespace}{"\t"}{.metadata.labels.app\.kubernetes\.io/managed-by}')
             if [[ -n "$existing" && "$existing" != "$(printf '%s\tpulse\tobservability\tHelm' "$name")" ]]; then
