@@ -210,13 +210,24 @@ Plus the telemetry services themselves:
 named `hubble-metrics` port once per minute with clustered target ownership.
 It retains `hubble_drop_total`, `up`, and `scrape_samples_scraped`, labelled with
 `node`, `instance=<node>`, `namespace`, and `pod`. Source, destination, reason,
-and protocol labels on drop counters are preserved. Drops with reason
-`UNSUPPORTED_L3_PROTOCOL` are discarded, whatever their L4 protocol. Cilium runs
-IPv4-only, so these are IPv6 packets, mostly router and neighbour discovery from
-the hosting network. They are keyed by raw source address, so per-node
-collection turned them into an unbounded series count. Unready agents remain
-targets: `up=0` distinguishes a failed scrape from a missing discovery target.
-The existing Cilium-agent scrape is unchanged.
+and protocol labels on drop counters are preserved. Two reasons are discarded
+because they are keyed by the raw address of a sender outside the cluster, so
+per-node collection turned them into an unbounded series count:
+
+- `UNSUPPORTED_L3_PROTOCOL`, whatever the L4 protocol. Cilium runs IPv4-only, so
+  these are IPv6 packets, mostly router and neighbour discovery from the hosting
+  network.
+- `POLICY_DENY`: Internet scanners turned away by the `world` ingressDeny host
+  policies (the platform chart's `cluster-ports-no-world` and the tuist chart's
+  egress-tree-agent `*-metrics-no-world`). Per-agent volume remains in
+  `cilium_drop_count_total{reason="Policy denied by denylist"}`, keyed by Cilium
+  `pod`; join `kube_pod_info` on `pod` for the node. Use
+  `hubble observe --verdict DROPPED` on the node for live senders.
+
+`POLICY_DENIED`, the allow-list denial used by the Kura runbook, is kept.
+
+Unready agents remain targets: `up=0` distinguishes a failed scrape from a
+missing discovery target. The existing Cilium-agent scrape is unchanged.
 
 The annotated `kube-system/hubble-metrics` Service is excluded from autodiscovery.
 Its headless DNS name reaches individual agents, not an aggregate of all agents;
