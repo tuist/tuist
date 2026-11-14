@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use table::table_name::TableName;
@@ -21,7 +23,7 @@ use crate::error::{
     Result,
 };
 
-/// GreptimeDB's log query request.
+/// Pulse's log query request.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LogQuery {
     // Global query parameters

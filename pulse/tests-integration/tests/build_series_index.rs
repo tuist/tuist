@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,8 +21,8 @@ use std::time::Duration;
 use datanode::config::RegionEngineConfig;
 use frontend::instance::Instance;
 use mito2::config::MitoConfig;
-use tests_integration::cluster::GreptimeDbClusterBuilder;
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 use tests_integration::test_util::{
     StorageType, create_tmp_dir_and_datanode_opts, execute_sql, try_execute_sql,
 };
@@ -105,7 +107,7 @@ fn catalog_count(home: &str) -> usize {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_build_series_index_standalone() {
-    let standalone = GreptimeDbStandaloneBuilder::new("build-series-index")
+    let standalone = PulseStandaloneBuilder::new("build-series-index")
         .with_mito_config(config())
         .build()
         .await;
@@ -115,7 +117,7 @@ async fn test_build_series_index_standalone() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_build_series_index_distributed() {
-    let builder = GreptimeDbClusterBuilder::new("build-series-index").await;
+    let builder = PulseClusterBuilder::new("build-series-index").await;
     let mut options = Vec::new();
     let mut guards = Vec::new();
     for id in 1..=2 {

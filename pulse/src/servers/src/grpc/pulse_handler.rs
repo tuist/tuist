@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Handler for Greptime Database service. It's implemented by frontend.
+// Modified by Tuist; see pulse/FORK.md.
+
+//! Handler for Pulse Database service. It's implemented by frontend.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -51,14 +53,14 @@ use crate::metrics::{self, METRIC_SERVER_GRPC_DB_REQUEST_TIMER};
 use crate::query_handler::grpc::ServerGrpcQueryHandlerRef;
 
 #[derive(Clone)]
-pub struct GreptimeRequestHandler {
+pub struct PulseRequestHandler {
     handler: ServerGrpcQueryHandlerRef,
     pub(crate) user_provider: Option<UserProviderRef>,
     runtime: Option<Runtime>,
     pub(crate) flight_compression: FlightCompression,
 }
 
-impl GreptimeRequestHandler {
+impl PulseRequestHandler {
     pub fn new(
         handler: ServerGrpcQueryHandlerRef,
         user_provider: Option<UserProviderRef>,
@@ -117,7 +119,7 @@ impl GreptimeRequestHandler {
                 handler
                 .do_query(query, query_ctx)
                 .trace(tracing_context.attach(tracing::info_span!(
-                    "GreptimeRequestHandler::handle_request_runtime"
+                    "PulseRequestHandler::handle_request_runtime"
                 )))
                 .await
                 .map_err(|e| {
@@ -318,7 +320,7 @@ impl Drop for RequestTimer {
 mod tests {
     use chrono::FixedOffset;
     use common_error::ext::BoxedError;
-    use common_error::{GREPTIME_DB_HEADER_ERROR_CODE, GREPTIME_DB_HEADER_ERROR_RETRY_HINT};
+    use common_error::{PULSE_DB_HEADER_ERROR_CODE, PULSE_DB_HEADER_ERROR_RETRY_HINT};
     use common_time::Timezone;
     use query::options::FLOW_SCHEDULED_TIME_MILLIS;
     use session::hints::{
@@ -501,15 +503,11 @@ mod tests {
                 .message()
                 .contains("Invalid request parameter: Column not found")
         );
+        assert!(status.metadata().contains_key(PULSE_DB_HEADER_ERROR_CODE));
         assert!(
             status
                 .metadata()
-                .contains_key(GREPTIME_DB_HEADER_ERROR_CODE)
-        );
-        assert!(
-            status
-                .metadata()
-                .contains_key(GREPTIME_DB_HEADER_ERROR_RETRY_HINT)
+                .contains_key(PULSE_DB_HEADER_ERROR_RETRY_HINT)
         );
     }
 }

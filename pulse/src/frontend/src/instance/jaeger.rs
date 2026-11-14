@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -59,8 +61,8 @@ use table::table::adapter::DfTableProviderAdapter;
 use crate::instance::Instance;
 
 const DEFAULT_LIMIT: usize = 2000;
-const KEY_RN: &str = "greptime_rn";
-const KEY_LATEST_MATCH: &str = "greptime_latest_match";
+const KEY_RN: &str = "pulse_rn";
+const KEY_LATEST_MATCH: &str = "pulse_latest_match";
 
 impl Instance {
     async fn check_jaeger_query_permission(&self, ctx: &QueryContextRef) -> ServerResult<()> {

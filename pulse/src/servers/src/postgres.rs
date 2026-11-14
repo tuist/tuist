@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod auth_handler;
 mod fixtures;
 mod handler;
@@ -43,13 +45,13 @@ use self::auth_handler::PgLoginVerifier;
 use self::handler::DefaultQueryParser;
 use crate::query_handler::sql::ServerSqlQueryHandlerRef;
 
-pub(crate) struct GreptimeDBStartupParameters {
+pub(crate) struct PulseStartupParameters {
     version: String,
 }
 
-impl GreptimeDBStartupParameters {
-    fn new() -> GreptimeDBStartupParameters {
-        GreptimeDBStartupParameters {
+impl PulseStartupParameters {
+    fn new() -> PulseStartupParameters {
+        PulseStartupParameters {
             version: format!(
                 "16.3-{}-{}",
                 common_version::product_name(),
@@ -59,7 +61,7 @@ impl GreptimeDBStartupParameters {
     }
 }
 
-impl ServerParameterProvider for GreptimeDBStartupParameters {
+impl ServerParameterProvider for PulseStartupParameters {
     fn server_parameters<C>(&self, _client: &C) -> Option<HashMap<String, String>>
     where
         C: ClientInfo,
@@ -78,7 +80,7 @@ pub struct PostgresServerHandlerInner {
     query_handler: ServerSqlQueryHandlerRef,
     login_verifier: PgLoginVerifier,
     force_tls: bool,
-    param_provider: Arc<GreptimeDBStartupParameters>,
+    param_provider: Arc<PulseStartupParameters>,
 
     batching_enabled: bool,
     session: Arc<Session>,
@@ -89,8 +91,8 @@ pub struct PostgresServerHandlerInner {
 pub(crate) struct MakePostgresServerHandler {
     query_handler: ServerSqlQueryHandlerRef,
     user_provider: Option<UserProviderRef>,
-    #[builder(default = "Arc::new(GreptimeDBStartupParameters::new())")]
-    param_provider: Arc<GreptimeDBStartupParameters>,
+    #[builder(default = "Arc::new(PulseStartupParameters::new())")]
+    param_provider: Arc<PulseStartupParameters>,
     force_tls: bool,
 }
 

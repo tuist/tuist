@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
@@ -464,7 +466,7 @@ async fn delete_path(inner: &Servicer, context: &OperationContext, path: &str) -
 
 // TODO(fengjiachun): Clean up temporary files left behind after a process crash.
 fn temporary_path(path: &str) -> String {
-    let suffix = format!(".greptime-{}.tmp", Uuid::new_v4());
+    let suffix = format!(".pulse-{}.tmp", Uuid::new_v4());
     match path.rsplit_once('/') {
         Some((parent, name)) => format!("{parent}/.{name}{suffix}"),
         None => format!(".{path}{suffix}"),
@@ -536,7 +538,7 @@ mod tests {
                 .await
                 .unwrap()
                 .iter()
-                .all(|entry| !entry.path().contains(".greptime-"))
+                .all(|entry| !entry.path().contains(".pulse-"))
         );
     }
 
@@ -561,7 +563,7 @@ mod tests {
                 .await
                 .unwrap()
                 .iter()
-                .all(|entry| !entry.path().contains(".greptime-"))
+                .all(|entry| !entry.path().contains(".pulse-"))
         );
     }
 
@@ -618,7 +620,7 @@ mod tests {
     async fn test_atomic_write_cleans_up_temporary_file_after_write_error() {
         let directory = tempfile::tempdir().unwrap();
         let factory: MockWriterFactory = Arc::new(|path, _args, inner| {
-            if path.contains(".greptime-") {
+            if path.contains(".pulse-") {
                 Box::new(FailingWriter {
                     inner,
                     written: 0,
@@ -659,7 +661,7 @@ mod tests {
                 .await
                 .unwrap()
                 .iter()
-                .all(|entry| !entry.path().contains(".greptime-"))
+                .all(|entry| !entry.path().contains(".pulse-"))
         );
     }
 }

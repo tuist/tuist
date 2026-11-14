@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
@@ -1269,7 +1271,7 @@ impl TryFrom<ScalarValue> for Value {
 /// Converts the value at `index` of an arrow array into a [`Value`].
 ///
 /// Unlike the unchecked conversion in [`crate::vectors::StructVector`]'s `get`,
-/// this propagates conversion errors (for example arrow types greptimedb
+/// this propagates conversion errors (for example arrow types pulse
 /// cannot represent, such as `Decimal256`) instead of panicking, so callers
 /// can surface a proper error to the user.
 pub fn try_value_from_array(array: &dyn Array, index: usize) -> Result<Value> {
@@ -3327,8 +3329,8 @@ pub(crate) mod tests {
         check_value_ref_size_eq(&ValueRef::Int64(1), 8);
         check_value_ref_size_eq(&ValueRef::Float32(1.0.into()), 4);
         check_value_ref_size_eq(&ValueRef::Float64(1.0.into()), 8);
-        check_value_ref_size_eq(&ValueRef::String("greptimedb"), 10);
-        check_value_ref_size_eq(&ValueRef::Binary(b"greptimedb"), 10);
+        check_value_ref_size_eq(&ValueRef::String("pulse"), 10);
+        check_value_ref_size_eq(&ValueRef::Binary(b"pulse"), 10);
         check_value_ref_size_eq(&ValueRef::Date(Date::new(1)), 4);
         check_value_ref_size_eq(&ValueRef::Timestamp(Timestamp::new_millisecond(1)), 16);
         check_value_ref_size_eq(&ValueRef::Time(Time::new_millisecond(1)), 16);
@@ -3344,7 +3346,7 @@ pub(crate) mod tests {
                 val: &ListValue {
                     items: vec![
                         Value::String("hello world".into()),
-                        Value::String("greptimedb".into()),
+                        Value::String("pulse".into()),
                     ],
                     datatype: Arc::new(ConcreteDataType::string_datatype()),
                 },

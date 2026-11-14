@@ -126,11 +126,11 @@ ORDER BY
 DROP TABLE lightning;
 
 CREATE TABLE IF NOT EXISTS `instance_job_metrics` (
-  `greptime_timestamp` TIMESTAMP(3) NOT NULL,
-  `greptime_value` DOUBLE NULL,
+  `pulse_timestamp` TIMESTAMP(3) NOT NULL,
+  `pulse_value` DOUBLE NULL,
   `instance` STRING NULL,
   `job` STRING NULL,
-  TIME INDEX (`greptime_timestamp`),
+  TIME INDEX (`pulse_timestamp`),
   PRIMARY KEY (`instance`, `job`)
 );
 

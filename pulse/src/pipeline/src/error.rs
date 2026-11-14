@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 
 use common_error::ext::ErrorExt;
@@ -884,7 +886,7 @@ pub enum Error {
     },
 
     #[snafu(transparent)]
-    GreptimeProto {
+    PulseProto {
         source: api::error::Error,
         #[snafu(implicit)]
         location: Location,
@@ -1028,7 +1030,7 @@ impl ErrorExt for Error {
             | InvalidEpochForResolution { .. }
             | UnsupportedTypeInPipeline { .. } => StatusCode::InvalidArguments,
 
-            GreptimeProto { source, .. } => source.status_code(),
+            PulseProto { source, .. } => source.status_code(),
             Datatypes { source, .. } => source.status_code(),
         }
     }

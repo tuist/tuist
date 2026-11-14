@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use config::{Environment, File, FileFormat};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -32,7 +34,7 @@ pub trait Configurable: Serialize + DeserializeOwned + Default + Sized {
     /// `env_prefix` is the prefix of environment variables, e.g. "FRONTEND__xxx".
     /// The function will use dunder(double underscore) `__` as the separator for environment variables, for example:
     /// `DATANODE__STORAGE__MANIFEST__CHECKPOINT_MARGIN` will be mapped to `DatanodeOptions.storage.manifest.checkpoint_margin` field in the configuration.
-    /// `list_keys` is the list of keys that should be parsed as a list, for example, you can pass `Some(&["meta_client_options.metasrv_addrs"]` to parse `GREPTIMEDB_METASRV__META_CLIENT_OPTIONS__METASRV_ADDRS` as a list.
+    /// `list_keys` is the list of keys that should be parsed as a list, for example, you can pass `Some(&["meta_client_options.metasrv_addrs"]` to parse `PULSE_METASRV__META_CLIENT_OPTIONS__METASRV_ADDRS` as a list.
     /// The function will use comma `,` as the separator for list values, for example: `127.0.0.1:3001,127.0.0.1:3002,127.0.0.1:3003`.
     fn load_layered_options(config_file: Option<&str>, env_prefix: &str) -> Result<Self> {
         let default_opts = Self::default();
@@ -145,7 +147,7 @@ mod tests {
 
             [wal]
             provider = "raft_engine"
-            dir = "./greptimedb_data/wal"
+            dir = "./pulse_data/wal"
             file_size = "1GB"
             purge_threshold = "50GB"
             purge_interval = "10m"
@@ -154,7 +156,7 @@ mod tests {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
         write!(file, "{}", toml_str).unwrap();
 
@@ -230,7 +232,7 @@ mod tests {
                 let DatanodeWalConfig::RaftEngine(raft_engine_config) = opts.wal else {
                     unreachable!()
                 };
-                assert_eq!(raft_engine_config.dir.unwrap(), "./greptimedb_data/wal");
+                assert_eq!(raft_engine_config.dir.unwrap(), "./pulse_data/wal");
 
                 // Should be default values.
                 assert_eq!(opts.node_id, None);

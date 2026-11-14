@@ -1,6 +1,6 @@
 CREATE TABLE delta_temporality (
     ts TIMESTAMP TIME INDEX,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     series STRING,
     otlp_aggregation_temporality STRING,
     PRIMARY KEY (series, otlp_aggregation_temporality)
@@ -60,7 +60,7 @@ TQL EVAL (180, 180, '1m') round(sum(rate(delta_temporality[3m])), 0.000001);
 
 CREATE TABLE delta_marker_only (
     ts TIMESTAMP TIME INDEX,
-    greptime_value DOUBLE,
+    pulse_value DOUBLE,
     otlp_aggregation_temporality STRING PRIMARY KEY
 );
 
@@ -70,7 +70,7 @@ INSERT INTO delta_marker_only VALUES
 
 CREATE TABLE delta_tagless (
     ts TIMESTAMP TIME INDEX,
-    greptime_value DOUBLE
+    pulse_value DOUBLE
 );
 
 INSERT INTO delta_tagless VALUES (180000, 10);

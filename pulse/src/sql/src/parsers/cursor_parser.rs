@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::{ResultExt, ensure};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::Token;
@@ -100,14 +102,14 @@ impl ParserContext<'_> {
 mod tests {
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     #[test]
     fn test_parse_declare_cursor() {
         let sql = "DECLARE c1 CURSOR FOR\nSELECT * FROM numbers";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         if let Statement::DeclareCursor(dc) = &result[0] {
@@ -122,7 +124,7 @@ mod tests {
 
         let sql = "DECLARE c1 CURSOR FOR\nINSERT INTO numbers VALUES (1);";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
     }
 
@@ -130,7 +132,7 @@ mod tests {
     fn test_parese_fetch_cursor() {
         let sql = "FETCH 1000 FROM c1";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         if let Statement::FetchCursor(fc) = &result[0] {
@@ -146,7 +148,7 @@ mod tests {
     fn test_close_fetch_cursor() {
         let sql = "CLOSE c1";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         if let Statement::CloseCursor(cc) = &result[0] {

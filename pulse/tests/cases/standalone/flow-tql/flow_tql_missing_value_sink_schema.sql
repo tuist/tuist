@@ -9,9 +9,9 @@ USE source_schema;
 CREATE TABLE metric_input (
   namespace STRING NULL,
   app STRING NULL,
-  greptime_timestamp TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
-  TIME INDEX (greptime_timestamp),
+  pulse_timestamp TIMESTAMP(3) NOT NULL,
+  pulse_value DOUBLE NULL,
+  TIME INDEX (pulse_timestamp),
   PRIMARY KEY (namespace, app)
 );
 
@@ -21,12 +21,12 @@ INSERT INTO metric_input VALUES
 
 USE sink_schema;
 
--- Intentionally omit greptime_value DOUBLE from the pre-created sink table.
+-- Intentionally omit pulse_value DOUBLE from the pre-created sink table.
 CREATE TABLE missing_value_sink (
   namespace STRING NULL,
   app STRING NULL,
-  greptime_timestamp TIMESTAMP(3) NOT NULL,
-  TIME INDEX (greptime_timestamp),
+  pulse_timestamp TIMESTAMP(3) NOT NULL,
+  TIME INDEX (pulse_timestamp),
   PRIMARY KEY (namespace, app)
 )
 ENGINE=mito;

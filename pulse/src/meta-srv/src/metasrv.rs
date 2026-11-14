@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod builder;
 
 use std::fmt::{self, Display};
@@ -25,7 +27,6 @@ use common_base::Plugins;
 use common_base::readable_size::ReadableSize;
 use common_config::{Configurable, DEFAULT_DATA_HOME};
 use common_event_recorder::EventRecorderOptions;
-use common_greptimedb_telemetry::GreptimeDBTelemetryTask;
 use common_meta::cache_invalidator::CacheInvalidatorRef;
 use common_meta::ddl::allocator::resource_id::ResourceIdAllocatorRef;
 use common_meta::ddl_manager::DdlManagerRef;
@@ -51,6 +52,7 @@ use common_options::datanode::DatanodeClientOptions;
 use common_options::memory::MemoryOptions;
 use common_procedure::ProcedureManagerRef;
 use common_procedure::options::ProcedureConfig;
+use common_pulse_telemetry::PulseTelemetryTask;
 use common_stat::ResourceStatRef;
 use common_telemetry::logging::{LoggingOptions, TracingOptions};
 use common_telemetry::{error, info, warn};
@@ -233,7 +235,7 @@ pub struct MetasrvOptions {
     pub heartbeat_interval: Duration,
     /// The delay before starting region failure detection.
     /// This delay helps prevent Metasrv from triggering unnecessary region failovers before all Datanodes are fully started.
-    /// Especially useful when the cluster is not deployed with GreptimeDB Operator and maintenance mode is not enabled.
+    /// Especially useful when the cluster is not deployed with Pulse Operator and maintenance mode is not enabled.
     #[serde(with = "humantime_serde")]
     pub region_failure_detector_initialization_delay: Duration,
     /// Whether to allow region failover on local WAL.
@@ -516,7 +518,7 @@ pub type RegionStatAwareSelectorRef =
 
 pub struct MetaStateHandler {
     subscribe_manager: Option<SubscriptionManagerRef>,
-    greptimedb_telemetry_task: Arc<GreptimeDBTelemetryTask>,
+    pulse_telemetry_task: Arc<PulseTelemetryTask>,
     leader_cached_kv_backend: Arc<LeaderCachedKvBackend>,
     leadership_change_notifier: LeadershipChangeNotifier,
     state: StateRef,
@@ -536,7 +538,7 @@ impl MetaStateHandler {
             .notify_on_leader_start()
             .await;
 
-        self.greptimedb_telemetry_task.should_report(true);
+        self.pulse_telemetry_task.should_report(true);
     }
 
     pub async fn on_leader_stop(&self) {
@@ -547,7 +549,7 @@ impl MetaStateHandler {
             .await;
 
         // Suspends reporting.
-        self.greptimedb_telemetry_task.should_report(false);
+        self.pulse_telemetry_task.should_report(false);
 
         if let Some(sub_manager) = self.subscribe_manager.clone() {
             info!("Leader changed, un_subscribe all");
@@ -585,7 +587,7 @@ pub struct Metasrv {
     runtime_switch_manager: RuntimeSwitchManagerRef,
     repartition_gc_requirement_manager: RepartitionGcRequirementManagerRef,
     memory_region_keeper: MemoryRegionKeeperRef,
-    greptimedb_telemetry_task: Arc<GreptimeDBTelemetryTask>,
+    pulse_telemetry_task: Arc<PulseTelemetryTask>,
     region_migration_manager: RegionMigrationManagerRef,
     region_supervisor_ticker: Option<RegionSupervisorTickerRef>,
     cache_invalidator: CacheInvalidatorRef,
@@ -646,8 +648,8 @@ impl Metasrv {
             let leader_cached_kv_backend = self.leader_cached_kv_backend.clone();
             let subscribe_manager = self.subscription_manager();
             let mut rx = election.subscribe_leader_change();
-            let greptimedb_telemetry_task = self.greptimedb_telemetry_task.clone();
-            greptimedb_telemetry_task
+            let pulse_telemetry_task = self.pulse_telemetry_task.clone();
+            pulse_telemetry_task
                 .start()
                 .context(StartTelemetryTaskSnafu)?;
 
@@ -677,7 +679,7 @@ impl Metasrv {
             }
 
             let state_handler = MetaStateHandler {
-                greptimedb_telemetry_task,
+                pulse_telemetry_task,
                 subscribe_manager,
                 state: self.state.clone(),
                 leader_cached_kv_backend: leader_cached_kv_backend.clone(),

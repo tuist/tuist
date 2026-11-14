@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
@@ -40,8 +42,8 @@ use rstest_reuse::{self, template};
 use servers::query_handler::sql::SqlQueryHandler;
 use session::context::{QueryContext, QueryContextRef};
 
-use crate::cluster::{GreptimeDbCluster, GreptimeDbClusterBuilder};
-use crate::standalone::{GreptimeDbStandalone, GreptimeDbStandaloneBuilder};
+use crate::cluster::{PulseCluster, PulseClusterBuilder};
+use crate::standalone::{PulseStandalone, PulseStandaloneBuilder};
 pub(crate) use crate::test_util::MockInstanceImpl;
 use crate::test_util::StorageType;
 use crate::tests::{MockDistributedInstance, create_distributed_instance};
@@ -59,7 +61,7 @@ pub trait MockInstance: Sync + Send {
     fn is_distributed_mode(&self) -> bool;
 }
 
-impl MockInstance for GreptimeDbStandalone {
+impl MockInstance for PulseStandalone {
     fn frontend(&self) -> Arc<Instance> {
         self.fe_instance().clone()
     }
@@ -82,8 +84,8 @@ impl MockInstance for MockDistributedInstance {
 /// For test purpose.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum MockInstanceBuilder {
-    Standalone(GreptimeDbStandaloneBuilder),
-    Distributed(GreptimeDbClusterBuilder),
+    Standalone(PulseStandaloneBuilder),
+    Distributed(PulseClusterBuilder),
 }
 
 impl MockInstance for MockInstanceImpl {
@@ -114,7 +116,7 @@ impl MockInstanceBuilder {
                 let MockInstanceImpl::Standalone(instance) = instance else {
                     unreachable!()
                 };
-                let GreptimeDbStandalone {
+                let PulseStandalone {
                     opts,
                     guard,
                     kv_backend,
@@ -139,7 +141,7 @@ impl MockInstanceBuilder {
                 let MockInstanceImpl::Distributed(instance) = instance else {
                     unreachable!()
                 };
-                let GreptimeDbCluster {
+                let PulseCluster {
                     guards,
                     datanode_options,
                     mut datanode_instances,
@@ -210,7 +212,7 @@ impl MockInstance for TestContext {
 
 pub(crate) async fn standalone() -> Arc<dyn MockInstance> {
     let test_name = uuid::Uuid::new_v4().to_string();
-    let instance = GreptimeDbStandaloneBuilder::new(&test_name).build().await;
+    let instance = PulseStandaloneBuilder::new(&test_name).build().await;
     Arc::new(instance)
 }
 
@@ -227,7 +229,7 @@ pub(crate) async fn standalone_with_multiple_object_stores() -> Arc<dyn MockInst
     // File is the default storage, remove it to avoid panic
     storage_types.retain(|x| *x != StorageType::File);
 
-    let instance = GreptimeDbStandaloneBuilder::new(&test_name)
+    let instance = PulseStandaloneBuilder::new(&test_name)
         .with_store_providers(storage_types)
         .build()
         .await;
@@ -241,7 +243,7 @@ pub(crate) async fn distributed_with_multiple_object_stores() -> Arc<dyn MockIns
     // File is the default storage, remove it to avoid panic
     storage_types.retain(|x| *x != StorageType::File);
 
-    let cluster = GreptimeDbClusterBuilder::new(&test_name)
+    let cluster = PulseClusterBuilder::new(&test_name)
         .await
         .with_store_providers(storage_types)
         .build(false)
@@ -263,7 +265,7 @@ pub(crate) async fn standalone_with_kafka_wal() -> Option<Box<dyn RebuildableMoc
         .map(|s| s.trim().to_string())
         .collect::<Vec<_>>();
     let test_name = uuid::Uuid::new_v4().to_string();
-    let builder = GreptimeDbStandaloneBuilder::new(&test_name)
+    let builder = PulseStandaloneBuilder::new(&test_name)
         .with_datanode_wal_config(DatanodeWalConfig::Kafka(DatanodeKafkaConfig {
             connection: KafkaConnectionConfig {
                 broker_endpoints: endpoints.clone(),
@@ -301,7 +303,7 @@ pub(crate) async fn distributed_with_kafka_wal() -> Option<Box<dyn RebuildableMo
         .map(|s| s.trim().to_string())
         .collect::<Vec<_>>();
     let test_name = uuid::Uuid::new_v4().to_string();
-    let builder = GreptimeDbClusterBuilder::new(&test_name)
+    let builder = PulseClusterBuilder::new(&test_name)
         .await
         .with_datanode_wal_config(DatanodeWalConfig::Kafka(DatanodeKafkaConfig {
             connection: KafkaConnectionConfig {

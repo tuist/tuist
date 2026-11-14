@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -21,15 +23,15 @@ use common_time::range::TimestampRange;
 use frontend::instance::Instance;
 use operator::statement::export_logical_tables::{LogicalTableExport, LogicalTableExportLimits};
 use session::context::QueryContext;
-use tests_integration::cluster::GreptimeDbClusterBuilder;
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 use tests_integration::test_util::execute_sql as sql;
 use tokio_util::sync::CancellationToken;
 
 async fn table(instance: &Arc<Instance>, name: &str) -> table::TableRef {
     instance
         .catalog_manager()
-        .table("greptime", "public", name, Some(&QueryContext::arc()))
+        .table("pulse", "public", name, Some(&QueryContext::arc()))
         .await
         .unwrap()
         .unwrap()
@@ -110,7 +112,7 @@ async fn roundtrip(instance: &Arc<Instance>) {
         limits.writer.row_group_rows = 1;
         for partitions in [1, 2, 4] {
             let directory = destination.path().join(format!("{physical}_{partitions}"));
-            let mut ctx = QueryContext::with("greptime", "public");
+            let mut ctx = QueryContext::with("pulse", "public");
             ctx.set_extension(
                 query::datafusion::QUERY_PARALLELISM_HINT,
                 partitions.to_string(),
@@ -187,16 +189,14 @@ async fn roundtrip(instance: &Arc<Instance>) {
 #[tokio::test(flavor = "multi_thread")]
 async fn physical_export_standalone_roundtrip() {
     common_telemetry::init_default_ut_logging();
-    let standalone = GreptimeDbStandaloneBuilder::new("physical_export")
-        .build()
-        .await;
+    let standalone = PulseStandaloneBuilder::new("physical_export").build().await;
     roundtrip(standalone.fe_instance()).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn physical_export_distributed_roundtrip() {
     common_telemetry::init_default_ut_logging();
-    let cluster = GreptimeDbClusterBuilder::new("physical_export")
+    let cluster = PulseClusterBuilder::new("physical_export")
         .await
         .with_datanodes(2)
         .with_local_file_access(
@@ -212,7 +212,7 @@ async fn physical_export_distributed_roundtrip() {
 
 fn database_export_request(directory: &std::path::Path) -> table::requests::CopyDatabaseRequest {
     table::requests::CopyDatabaseRequest {
-        catalog_name: "greptime".into(),
+        catalog_name: "pulse".into(),
         schema_name: "public".into(),
         location: format!("{}/", directory.display()),
         with: [
@@ -447,15 +447,13 @@ async fn database_export_roundtrip(instance: &Arc<Instance>, parallelism: usize)
 
 #[tokio::test(flavor = "multi_thread")]
 async fn database_export_standalone_roundtrip() {
-    let standalone = GreptimeDbStandaloneBuilder::new("database_export")
-        .build()
-        .await;
+    let standalone = PulseStandaloneBuilder::new("database_export").build().await;
     database_export_roundtrip(standalone.fe_instance(), 1).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn database_export_distributed_roundtrip() {
-    let cluster = GreptimeDbClusterBuilder::new("database_export")
+    let cluster = PulseClusterBuilder::new("database_export")
         .await
         .with_datanodes(2)
         .with_local_file_access(
@@ -476,7 +474,7 @@ async fn database_export_rejects_invalid_members_before_output() {
     use common_meta::key::{MetadataKey, MetadataValue};
     use common_meta::rpc::store::PutRequest;
 
-    let standalone = GreptimeDbStandaloneBuilder::new("invalid_database_export")
+    let standalone = PulseStandaloneBuilder::new("invalid_database_export")
         .build()
         .await;
     let instance = standalone.fe_instance();
@@ -621,7 +619,7 @@ async fn database_export_rejects_invalid_members_before_output() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn database_export_preserves_valid_table_names() {
-    let standalone = GreptimeDbStandaloneBuilder::new("database_export_names")
+    let standalone = PulseStandaloneBuilder::new("database_export_names")
         .build()
         .await;
     let instance = standalone.fe_instance();
@@ -752,9 +750,7 @@ async fn database_export_preserves_valid_table_names() {
 #[tokio::test(flavor = "multi_thread")]
 async fn packed_copy_standalone_heterogeneous_streams() {
     use common_datasource::packed_snapshot::{ObjectKind, PackIndex, PackObject, PackTable};
-    let standalone = GreptimeDbStandaloneBuilder::new("packed_copy")
-        .build()
-        .await;
+    let standalone = PulseStandaloneBuilder::new("packed_copy").build().await;
     let instance = standalone.fe_instance();
     let destination = tempfile::tempdir_in(common_test_util::find_workspace_path(".")).unwrap();
     let data_directory = destination.path().join("data/public/1");
@@ -984,7 +980,7 @@ async fn packed_copy_standalone_heterogeneous_streams() {
     use clap::Parser;
     use cli::export_v2::manifest::{ChunkMeta, DataFormat, Manifest, TimeRange};
     let mut manifest = Manifest::new_full(
-        "greptime".into(),
+        "pulse".into(),
         vec!["public".into()],
         TimeRange::unbounded(),
         DataFormat::Parquet,
@@ -1055,10 +1051,8 @@ async fn packed_copy_standalone_heterogeneous_streams() {
     let importer = command.build().await.unwrap();
     std::fs::write(
         root.join("schema/schemas.json"),
-        serde_json::to_vec(
-            &serde_json::json!([{"catalog":"greptime","name":"public","options":{}}]),
-        )
-        .unwrap(),
+        serde_json::to_vec(&serde_json::json!([{"catalog":"pulse","name":"public","options":{}}]))
+            .unwrap(),
     )
     .unwrap();
     #[derive(clap::Parser)]
@@ -1304,7 +1298,7 @@ async fn packed_copy_large_column_in_middle_stream() {
     };
     use datatypes::arrow::datatypes::{Field, Schema};
     use datatypes::arrow::record_batch::RecordBatch;
-    let standalone = GreptimeDbStandaloneBuilder::new("packed_large_column")
+    let standalone = PulseStandaloneBuilder::new("packed_large_column")
         .build()
         .await;
     let instance = standalone.fe_instance();
@@ -1394,7 +1388,7 @@ struct ExportDataCli {
 
 async fn run_data_cli(args: &[&str]) -> Result<(), common_error::ext::BoxedError> {
     use clap::Parser;
-    ExportDataCli::try_parse_from(std::iter::once("greptime-data").chain(args.iter().copied()))
+    ExportDataCli::try_parse_from(std::iter::once("pulse-data").chain(args.iter().copied()))
         .unwrap()
         .command
         .build()
@@ -1516,7 +1510,7 @@ async fn metric_export_v2_cli_roundtrip(s3: bool, packed: bool) {
         copies: std::sync::atomic::AtomicUsize::new(0),
     });
     plugins.insert::<SqlQueryInterceptorRef<frontend::error::Error>>(faults.clone());
-    let source = GreptimeDbStandaloneBuilder::new("metric_v2_source")
+    let source = PulseStandaloneBuilder::new("metric_v2_source")
         .with_experimental_metric_export()
         .with_plugin(plugins)
         .build()
@@ -1825,7 +1819,7 @@ async fn metric_export_v2_cli_roundtrip(s3: bool, packed: bool) {
     let mut verify = vec!["export-v2", "verify", "--snapshot", &uri];
     verify.extend(storage_args.iter().map(String::as_str));
     run_data_cli(&verify).await.unwrap();
-    let target = GreptimeDbStandaloneBuilder::new("metric_v2_target")
+    let target = PulseStandaloneBuilder::new("metric_v2_target")
         .build()
         .await;
     for id in 0..24 {
@@ -1918,7 +1912,7 @@ async fn metric_export_v2_cli_roundtrip(s3: bool, packed: bool) {
 
 #[tokio::test]
 async fn metric_export_v2_disabled_and_legacy_cli() {
-    let source = GreptimeDbStandaloneBuilder::new("metric_v2_disabled")
+    let source = PulseStandaloneBuilder::new("metric_v2_disabled")
         .build()
         .await;
     let (addr, server) = export_http(source.fe_instance().clone()).await;

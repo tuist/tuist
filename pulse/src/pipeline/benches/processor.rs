@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::hint::black_box;
 use std::sync::Arc;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use pipeline::error::Result;
 use pipeline::{
-    Content, GreptimePipelineParams, Pipeline, PipelineContext, PipelineDefinition, SchemaInfo,
+    Content, Pipeline, PipelineContext, PipelineDefinition, PulsePipelineParams, SchemaInfo,
     identity_pipeline, parse, setup_pipeline,
 };
 use serde_json::Deserializer;
@@ -319,8 +321,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             .into()
         })
         .collect::<Vec<VrlValue>>();
-    let identity_pipeline_def = PipelineDefinition::GreptimeIdentityPipeline(None);
-    let identity_pipeline_param = GreptimePipelineParams::default();
+    let identity_pipeline_def = PipelineDefinition::PulseIdentityPipeline(None);
+    let identity_pipeline_param = PulsePipelineParams::default();
     let identity_pipeline_ctx = PipelineContext::new(
         &identity_pipeline_def,
         &identity_pipeline_param,

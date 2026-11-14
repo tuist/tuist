@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::prelude::*;
 
 use crate::error::{self, Result};
@@ -32,7 +34,7 @@ impl ParserContext<'_> {
 mod tests {
     use common_error::ext::ErrorExt;
 
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
 
     #[test]
@@ -42,16 +44,15 @@ mod tests {
            WHERE a > b AND b < 100 \
            ORDER BY a DESC, b";
 
-        let _ =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
-                .unwrap();
+        let _ = ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+            .unwrap();
     }
 
     #[test]
     pub fn test_parse_invalid_query() {
         let sql = "SELECT * FROM table_1 WHERE";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
         assert!(
             result

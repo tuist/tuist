@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::time::Duration;
 
 use common_telemetry::info;
@@ -34,16 +36,16 @@ pub async fn procedure_state(e: &Pool<MySql>, procedure_id: &str) -> String {
 
 /// Waits for a procedure to finish within a specified timeout period.
 pub async fn wait_for_procedure_finish(
-    greptime: &Pool<MySql>,
+    pulse: &Pool<MySql>,
     timeout: Duration,
     procedure_id: String,
 ) {
     wait_condition_fn(
         timeout,
         || {
-            let greptime = greptime.clone();
+            let pulse = pulse.clone();
             let procedure_id = procedure_id.clone();
-            Box::pin(async move { procedure_state(&greptime, &procedure_id).await })
+            Box::pin(async move { procedure_state(&pulse, &procedure_id).await })
         },
         |output| {
             info!("Procedure({procedure_id}) state: {:?}", output);

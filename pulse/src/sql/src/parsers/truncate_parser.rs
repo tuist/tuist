@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::{ResultExt, ensure};
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::Token;
@@ -138,14 +140,14 @@ mod tests {
     use sqlparser::ast::{Ident, ObjectName};
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     #[test]
     pub fn test_parse_truncate_with_ranges() {
         let sql = r#"TRUNCATE foo FILE RANGE (0, 20)"#;
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -160,7 +162,7 @@ mod tests {
 
         let sql = r#"TRUNCATE TABLE foo FILE RANGE ("2000-01-01 00:00:00+00:00", "2000-01-01 00:00:00+00:00"), (2,33)"#;
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -185,7 +187,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE my_schema.foo FILE RANGE (1, 2), (3, 4),";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -206,7 +208,7 @@ mod tests {
 
         let sql = "TRUNCATE my_schema.foo FILE RANGE (1,2),";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -221,7 +223,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE my_catalog.my_schema.foo FILE RANGE (1,2);";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -240,7 +242,7 @@ mod tests {
 
         let sql = "TRUNCATE drop FILE RANGE (1,2)";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -255,7 +257,7 @@ mod tests {
 
         let sql = "TRUNCATE `drop`";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -266,7 +268,7 @@ mod tests {
 
         let sql = "TRUNCATE \"drop\" FILE RANGE (\"1\", \"2\")";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -284,7 +286,7 @@ mod tests {
     pub fn test_parse_truncate() {
         let sql = "TRUNCATE foo";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -295,7 +297,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -306,7 +308,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE my_schema.foo";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -318,7 +320,7 @@ mod tests {
 
         let sql = "TRUNCATE my_schema.foo";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -330,7 +332,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE my_catalog.my_schema.foo";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -343,7 +345,7 @@ mod tests {
 
         let sql = "TRUNCATE drop";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -354,7 +356,7 @@ mod tests {
 
         let sql = "TRUNCATE `drop`";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -365,7 +367,7 @@ mod tests {
 
         let sql = "TRUNCATE \"drop\"";
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(
             stmts.pop().unwrap(),
@@ -379,17 +381,17 @@ mod tests {
     pub fn test_parse_invalid_truncate() {
         let sql = "TRUNCATE SCHEMA foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err(), "result is: {result:?}");
 
         let sql = "TRUNCATE";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err(), "result is: {result:?}");
 
         let sql = "TRUNCATE TABLE foo RANGE";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err()
                 && format!("{result:?}").contains("SQL statement is not supported, keyword: RANGE"),
@@ -398,7 +400,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err()
                 && format!("{result:?}").contains("SQL statement is not supported, keyword: FILE"),
@@ -407,7 +409,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err() && format!("{result:?}").contains("expected: 'a left parenthesis'"),
             "result is: {result:?}"
@@ -415,7 +417,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE (";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err() && format!("{result:?}").contains("expected: 'a timestamp value'"),
             "result is: {result:?}"
@@ -423,7 +425,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE ()";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err() && format!("{result:?}").contains("expected: 'a timestamp value'"),
             "result is: {result:?}"
@@ -431,7 +433,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE (1 2) (3 4)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err() && format!("{result:?}").contains("expected: 'a comma'"),
             "result is: {result:?}"
@@ -439,7 +441,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE (,),(3,4)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err() && format!("{result:?}").contains("Expected: a value, found: ,"),
             "result is: {result:?}"
@@ -447,7 +449,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE (1,2) (3,4)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err()
                 && format!("{result:?}")
@@ -457,7 +459,7 @@ mod tests {
 
         let sql = "TRUNCATE TABLE foo FILE RANGE (1,2),,,,,,,,,(3,4)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(
             result.is_err()
                 && format!("{result:?}").contains("expected: 'a left parenthesis', found: ,"),

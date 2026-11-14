@@ -24,10 +24,10 @@ visibility_timeout_seconds = 300
 # Omit the default encoding from base setup because older binaries do not recognize it.
 # The high shared TWCS trigger avoids compaction changing the three-flush layout.
 base_setup_sql = [
-  "CREATE TABLE sst_float_bss_physical (greptime_timestamp TIMESTAMP TIME INDEX, greptime_value DOUBLE) ENGINE=metric WITH ('physical_metric_table'='', 'compaction.twcs.trigger_file_num'='100')",
+  "CREATE TABLE sst_float_bss_physical (pulse_timestamp TIMESTAMP TIME INDEX, pulse_value DOUBLE) ENGINE=metric WITH ('physical_metric_table'='', 'compaction.twcs.trigger_file_num'='100')",
 ]
 candidate_setup_sql = [
-  "CREATE TABLE sst_float_bss_physical (greptime_timestamp TIMESTAMP TIME INDEX, greptime_value DOUBLE) ENGINE=metric WITH ('physical_metric_table'='', 'experimental_sst_float_field_encoding'='byte_stream_split', 'compaction.twcs.trigger_file_num'='100')",
+  "CREATE TABLE sst_float_bss_physical (pulse_timestamp TIMESTAMP TIME INDEX, pulse_value DOUBLE) ENGINE=metric WITH ('physical_metric_table'='', 'experimental_sst_float_field_encoding'='byte_stream_split', 'compaction.twcs.trigger_file_num'='100')",
 ]
 
 [scenario.remote_write.value]
@@ -46,8 +46,8 @@ pending_rows_flush_interval = "1s"
 max_batch_rows = 100000
 
 [scenario.remote_write.storage]
-root_suffix = "data/greptime/public"
-column = "greptime_value"
+root_suffix = "data/pulse/public"
+column = "pulse_value"
 min_files = 1
 min_files_with_column = 1
 max_candidate_total_file_size_regression_pct = -5.0
@@ -57,7 +57,7 @@ enabled = true
 parquetbench = true
 scanbench = true
 iterations = 7
-projection = ["greptime_value"]
+projection = ["pulse_value"]
 parquet_reader = "direct"
 scan_scanner = "seq"
 parallelism = 1
@@ -65,7 +65,7 @@ parallelism = 1
 [[scenario.queries]]
 name = "sum_all_values"
 kind = "sql"
-query = "SELECT sum(greptime_value) FROM sst_float_bss"
+query = "SELECT sum(pulse_value) FROM sst_float_bss"
 warmup = 3
 iterations = 15
 
@@ -75,7 +75,7 @@ max_candidate_latency_regression_pct = 25
 [[scenario.queries]]
 name = "hourly_sum_values"
 kind = "sql"
-query = "SELECT date_bin(INTERVAL '1 hour', greptime_timestamp) AS time_window, sum(greptime_value) FROM sst_float_bss WHERE greptime_timestamp >= TIMESTAMP '2024-01-01 00:00:00' AND greptime_timestamp < TIMESTAMP '2024-01-04 00:00:00' GROUP BY time_window ORDER BY time_window"
+query = "SELECT date_bin(INTERVAL '1 hour', pulse_timestamp) AS time_window, sum(pulse_value) FROM sst_float_bss WHERE pulse_timestamp >= TIMESTAMP '2024-01-01 00:00:00' AND pulse_timestamp < TIMESTAMP '2024-01-04 00:00:00' GROUP BY time_window ORDER BY time_window"
 warmup = 3
 iterations = 15
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Import V2 module.
 //!
 //! This module provides the V2 implementation of database import functionality,
@@ -23,13 +25,13 @@
 //!
 //! ```bash
 //! # Dry-run import (verify without executing)
-//! greptime cli data import-v2 \
+//! pulse cli data import-v2 \
 //!   --addr 127.0.0.1:4000 \
 //!   --from file:///tmp/snapshot \
 //!   --dry-run
 //!
 //! # Actual import
-//! greptime cli data import-v2 \
+//! pulse cli data import-v2 \
 //!   --addr 127.0.0.1:4000 \
 //!   --from s3://bucket/snapshots/prod-20250101
 //! ```

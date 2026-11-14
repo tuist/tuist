@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 
 use datatypes::data_type::ConcreteDataType;
@@ -295,7 +297,7 @@ impl<R: Rng + 'static> Generator<CreateTableExpr, R> for CreateLogicalTableExprG
     type Error = Error;
 
     fn generate(&self, rng: &mut R) -> Result<CreateTableExpr> {
-        // Currently we mock the usage of GreptimeDB as Prometheus' backend, the physical table must have ts and val.
+        // Currently we mock the usage of Pulse as Prometheus' backend, the physical table must have ts and val.
         ensure!(
             self.physical_table_ctx.columns.len() >= 2,
             error::UnexpectedSnafu {

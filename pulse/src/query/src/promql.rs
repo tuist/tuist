@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod error;
 pub mod label_values;
 pub mod planner;
@@ -96,7 +98,7 @@ mod tests {
             10_000,
             5_000,
             "ts".to_string(),
-            "greptime_value".to_string(),
+            "pulse_value".to_string(),
             None,
         )
         .unwrap();

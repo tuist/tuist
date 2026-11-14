@@ -20,8 +20,8 @@ CREATE TABLE t_trace_v2 (
     span_links JSON
 ) WITH (
     'append_mode' = 'true',
-    'table_data_model' = 'greptime_trace_v2',
-    'greptime.semantic.pipeline' = 'greptime_trace_v2',
+    'table_data_model' = 'pulse_trace_v2',
+    'greptime.semantic.pipeline' = 'pulse_trace_v2',
     'greptime.semantic.signal_type' = 'trace',
     'greptime.semantic.source' = 'opentelemetry',
     'greptime.semantic.entity.service.id' = 'service_name',

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Regression tests for the Prometheus HTTP API conversion of `count_values` results.
 //!
 //! `count_values` turns a sample value into a label, so the generated column must be a
@@ -24,7 +26,7 @@ use std::sync::Arc;
 use catalog::RegisterTableRequest;
 use catalog::memory::MemoryCatalogManager;
 use common_catalog::consts::{DEFAULT_CATALOG_NAME, DEFAULT_SCHEMA_NAME};
-use common_query::prelude::greptime_value;
+use common_query::prelude::pulse_value;
 use common_recordbatch::RecordBatch;
 use datatypes::prelude::ConcreteDataType;
 use datatypes::schema::{ColumnSchema, Schema};
@@ -53,7 +55,7 @@ fn metric_catalog_manager(values: &[f64]) -> Arc<MemoryCatalogManager> {
         )
         .with_time_index(true),
         ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ),

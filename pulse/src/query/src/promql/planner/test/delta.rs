@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_query::logical_plan::SubstraitPlanDecoder;
 use common_query::prelude::set_default_prefix;
 use datafusion::arrow::array::{DictionaryArray, UInt32Array};
@@ -35,13 +37,13 @@ fn delta_temporality_table_provider() -> (DfTableSourceProvider, QueryEngineStat
             true,
         ),
         ColumnSchema::new(
-            greptime_timestamp().to_string(),
+            pulse_timestamp().to_string(),
             ConcreteDataType::timestamp_millisecond_datatype(),
             false,
         )
         .with_time_index(true),
         ColumnSchema::new(
-            greptime_value().to_string(),
+            pulse_value().to_string(),
             ConcreteDataType::float64_datatype(),
             true,
         ),
@@ -61,12 +63,12 @@ fn delta_temporality_table_provider() -> (DfTableSourceProvider, QueryEngineStat
                 "cumulative",
             ])),
             Arc::new(StringArray::from(vec![
-                Some(GREPTIME_TEMPORALITY_DELTA),
-                Some(GREPTIME_TEMPORALITY_DELTA),
-                Some(GREPTIME_TEMPORALITY_DELTA),
-                Some(GREPTIME_TEMPORALITY_DELTA),
-                Some(GREPTIME_TEMPORALITY_DELTA),
-                Some(GREPTIME_TEMPORALITY_DELTA),
+                Some(PULSE_TEMPORALITY_DELTA),
+                Some(PULSE_TEMPORALITY_DELTA),
+                Some(PULSE_TEMPORALITY_DELTA),
+                Some(PULSE_TEMPORALITY_DELTA),
+                Some(PULSE_TEMPORALITY_DELTA),
+                Some(PULSE_TEMPORALITY_DELTA),
                 None,
                 None,
                 None,
@@ -104,9 +106,9 @@ fn delta_temporality_table_provider() -> (DfTableSourceProvider, QueryEngineStat
             .build()
             .unwrap(),
     );
-    let backing = GreptimeMemTable::new_with_catalog(
+    let backing = PulseMemTable::new_with_catalog(
         "delta_metric",
-        GreptimeRecordBatch::from_df_record_batch(schema, batch),
+        PulseRecordBatch::from_df_record_batch(schema, batch),
         4_001,
         DEFAULT_CATALOG_NAME.to_string(),
         DEFAULT_SCHEMA_NAME.to_string(),
@@ -239,21 +241,15 @@ async fn rate_and_increase_select_raw_delta_math_per_series() {
             }
         }
         assert_eq!(
-            Some(&(Some(GREPTIME_TEMPORALITY_DELTA.to_string()), expected_delta)),
+            Some(&(Some(PULSE_TEMPORALITY_DELTA.to_string()), expected_delta)),
             results.get("delta")
         );
         assert_eq!(
-            Some(&(
-                Some(GREPTIME_TEMPORALITY_DELTA.to_string()),
-                expected_single
-            )),
+            Some(&(Some(PULSE_TEMPORALITY_DELTA.to_string()), expected_single)),
             results.get("single")
         );
         assert_eq!(
-            Some(&(
-                Some(GREPTIME_TEMPORALITY_DELTA.to_string()),
-                expected_single
-            )),
+            Some(&(Some(PULSE_TEMPORALITY_DELTA.to_string()), expected_single)),
             results.get("stale")
         );
         assert!(results.contains_key("cumulative"));
@@ -327,12 +323,12 @@ async fn empty_metric_broadcasts_over_temporality_marker() {
         }
         assert_eq!(3, results.len(), "{query}");
         assert_eq!(
-            Some(&(Some(GREPTIME_TEMPORALITY_DELTA.to_string()), 30.0)),
+            Some(&(Some(PULSE_TEMPORALITY_DELTA.to_string()), 30.0)),
             results.get("delta"),
             "{query}"
         );
         assert_eq!(
-            Some(&(Some(GREPTIME_TEMPORALITY_DELTA.to_string()), 14.0)),
+            Some(&(Some(PULSE_TEMPORALITY_DELTA.to_string()), 14.0)),
             results.get("single"),
             "{query}"
         );
@@ -388,7 +384,7 @@ async fn delta_mixed_ranges_drop_and_float_ranges_sum() {
                 1_000,
                 vec![
                     ("job", Some("job")),
-                    (marker, Some(GREPTIME_TEMPORALITY_DELTA)),
+                    (marker, Some(PULSE_TEMPORALITY_DELTA)),
                 ],
                 DirectOrValue::Float64(1.0),
             );
@@ -398,7 +394,7 @@ async fn delta_mixed_ranges_drop_and_float_ranges_sum() {
                 2_000,
                 vec![
                     ("job", Some("job")),
-                    (marker, Some(GREPTIME_TEMPORALITY_DELTA)),
+                    (marker, Some(PULSE_TEMPORALITY_DELTA)),
                 ],
                 DirectOrValue::NativeHistogram(direct_or_histogram()),
             );
@@ -536,7 +532,7 @@ async fn matchers_read_absent_labels_as_empty() {
         vec![Arc::new(StringArray::from(vec![
             None,
             Some(""),
-            Some(GREPTIME_TEMPORALITY_DELTA),
+            Some(PULSE_TEMPORALITY_DELTA),
         ]))],
     )
     .unwrap();
@@ -547,16 +543,16 @@ async fn matchers_read_absent_labels_as_empty() {
         (r#"!="delta""#, vec![None, Some("")]),
         (
             r#"=~".*""#,
-            vec![None, Some(""), Some(GREPTIME_TEMPORALITY_DELTA)],
+            vec![None, Some(""), Some(PULSE_TEMPORALITY_DELTA)],
         ),
         (r#"!~"delta""#, vec![None, Some("")]),
-        (r#"!="""#, vec![Some(GREPTIME_TEMPORALITY_DELTA)]),
+        (r#"!="""#, vec![Some(PULSE_TEMPORALITY_DELTA)]),
         (
             r#"=~"delta|""#,
-            vec![None, Some(""), Some(GREPTIME_TEMPORALITY_DELTA)],
+            vec![None, Some(""), Some(PULSE_TEMPORALITY_DELTA)],
         ),
         (r#"!~"delta|""#, vec![]),
-        (r#"="delta""#, vec![Some(GREPTIME_TEMPORALITY_DELTA)]),
+        (r#"="delta""#, vec![Some(PULSE_TEMPORALITY_DELTA)]),
     ] {
         let query = format!(r#"metric{{{marker}{matcher}}}"#);
         let scan = LogicalPlanBuilder::scan("labels", provider_as_source(table.clone()), None)
@@ -687,7 +683,7 @@ async fn matchers_read_absent_labels_as_empty() {
 #[tokio::test]
 async fn binary_joins_align_only_the_temporality_marker() {
     let marker = OTLP_AGGREGATION_TEMPORALITY_LABEL;
-    for (left_marker, expected_rows) in [(Some(GREPTIME_TEMPORALITY_DELTA), 0), (None, 1)] {
+    for (left_marker, expected_rows) in [(Some(PULSE_TEMPORALITY_DELTA), 0), (None, 1)] {
         let left = source(
             "lhs",
             false,
@@ -868,10 +864,7 @@ async fn binary_joins_align_dictionary_temporality_marker_with_tagless_vector() 
                 } else {
                     vec![Some(0), Some(1)]
                 }),
-                Arc::new(StringArray::from(vec![
-                    Some(GREPTIME_TEMPORALITY_DELTA),
-                    None,
-                ])),
+                Arc::new(StringArray::from(vec![Some(PULSE_TEMPORALITY_DELTA), None])),
             )
             .unwrap(),
         );
@@ -1029,7 +1022,7 @@ async fn binary_joins_align_dictionary_temporality_marker_with_tagless_vector() 
             (
                 "lhs unless rhs",
                 if marker_on_left { &[1.0][..] } else { &[] },
-                marker_on_left.then_some(Some(GREPTIME_TEMPORALITY_DELTA)),
+                marker_on_left.then_some(Some(PULSE_TEMPORALITY_DELTA)),
             ),
         ] {
             let PromExpr::Binary(binary) = parser::parse(expression).unwrap() else {
@@ -1197,7 +1190,7 @@ async fn delta_offsets_survive_optimized_plan_serialization() {
                     .downcast_ref::<Float64Array>()
                     .unwrap();
                 let timestamps = batch
-                    .column_by_name(greptime_timestamp())
+                    .column_by_name(pulse_timestamp())
                     .unwrap()
                     .as_any()
                     .downcast_ref::<TimestampMillisecondArray>()

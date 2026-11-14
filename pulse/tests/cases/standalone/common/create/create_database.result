@@ -15,10 +15,10 @@ show databases;
 +--------------------+
 | Database           |
 +--------------------+
-| greptime_private   |
 | illegal-database   |
 | information_schema |
 | public             |
+| pulse_private      |
 +--------------------+
 
 drop database 'illegal-database';

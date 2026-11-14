@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -20,7 +22,7 @@ use meta_srv::gc::GcSchedulerOptions;
 use mito2::gc::GcConfig;
 use servers::query_handler::sql::SqlQueryHandler;
 use session::context::QueryContext;
-use tests_integration::cluster::{GreptimeDbCluster, GreptimeDbClusterBuilder};
+use tests_integration::cluster::{PulseCluster, PulseClusterBuilder};
 use tests_integration::test_util::{
     StorageType, get_test_store_config, setup_authenticated_grpc_database,
 };
@@ -46,7 +48,7 @@ async fn test_batch_gc_event() {
     // Keeps the production event-recorder flush interval: `assert_sst_count`
     // counts SST files across every table, so eagerly flushed event rows would
     // show up in the count.
-    let cluster = GreptimeDbClusterBuilder::new("test_batch_gc_event")
+    let cluster = PulseClusterBuilder::new("test_batch_gc_event")
         .await
         .with_datanodes(1)
         .with_store_config(store_config)
@@ -107,7 +109,7 @@ async fn test_batch_gc_event() {
 
     let table = instance
         .catalog_manager()
-        .table("greptime", "public", TABLE_NAME, None)
+        .table("pulse", "public", TABLE_NAME, None)
         .await
         .unwrap()
         .unwrap();
@@ -141,7 +143,7 @@ async fn test_batch_gc_event() {
     let procedure_id = find_eventually_string(
         instance,
         &format!(
-            "SELECT procedure_id FROM greptime_private.events WHERE type = 'batch_gc' AND actor = '{PROCEDURE_ACTOR}' AND json_get_string(procedure_trigger, 'type') = 'Submitted'"
+            "SELECT procedure_id FROM pulse_private.events WHERE type = 'batch_gc' AND actor = '{PROCEDURE_ACTOR}' AND json_get_string(procedure_trigger, 'type') = 'Submitted'"
         ),
         "procedure_id",
     )
@@ -150,7 +152,7 @@ async fn test_batch_gc_event() {
 
     let submitted = format!(
         r#"SELECT json_to_string(event_context) AS event_context
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'batch_gc'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Running'
@@ -163,7 +165,7 @@ WHERE type = 'batch_gc'
 
     let succeeded = format!(
         r#"SELECT json_to_string(gc_report) AS gc_report
-FROM greptime_private.events
+FROM pulse_private.events
 WHERE type = 'batch_gc'
   AND procedure_id = '{procedure_id}'
   AND procedure_state = 'Done'
@@ -195,7 +197,7 @@ async fn execute(instance: &Arc<frontend::instance::Instance>, sql: &str) {
         .unwrap();
 }
 
-async fn assert_sst_count(cluster: &GreptimeDbCluster, expected: usize) {
+async fn assert_sst_count(cluster: &PulseCluster, expected: usize) {
     let mut last_actual = 0;
     for _ in 0..MAX_ATTEMPTS {
         last_actual = cluster.list_sst_files_from_all_datanodes().await.len();

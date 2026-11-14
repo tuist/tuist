@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod checked;
 
 use std::collections::{HashMap, HashSet};
@@ -586,7 +588,7 @@ mod tests {
     use std::sync::Arc;
 
     use api::v1::SemanticType;
-    use common_query::prelude::{greptime_timestamp, greptime_value};
+    use common_query::prelude::{pulse_timestamp, pulse_value};
     use common_time::Timestamp;
     use common_time::timestamp::TimeUnit;
     use datatypes::schema::ColumnSchema;
@@ -663,7 +665,7 @@ mod tests {
             })
             .push_column_metadata(ColumnMetadata {
                 column_schema: ColumnSchema::new(
-                    greptime_value(),
+                    pulse_value(),
                     ConcreteDataType::float64_datatype(),
                     false,
                 ),
@@ -672,7 +674,7 @@ mod tests {
             })
             .push_column_metadata(ColumnMetadata {
                 column_schema: ColumnSchema::new(
-                    greptime_timestamp(),
+                    pulse_timestamp(),
                     ConcreteDataType::timestamp_nanosecond_datatype(),
                     false,
                 ),
@@ -717,18 +719,18 @@ mod tests {
                 ValueRef::UInt64(123843349035232323),
             ),
             // label: pod
-            (1, ValueRef::String("greptime-frontend-6989d9899-22222")),
+            (1, ValueRef::String("pulse-frontend-6989d9899-22222")),
             // label: namespace
-            (2, ValueRef::String("greptime-cluster")),
+            (2, ValueRef::String("pulse-cluster")),
             // label: container
-            (3, ValueRef::String("greptime-frontend-6989d9899-22222")),
+            (3, ValueRef::String("pulse-frontend-6989d9899-22222")),
             // label: pod_name
-            (4, ValueRef::String("greptime-frontend-6989d9899-22222")),
+            (4, ValueRef::String("pulse-frontend-6989d9899-22222")),
             // label: pod_ip
             (5, ValueRef::String("10.10.10.10")),
-            // field: greptime_value
+            // field: pulse_value
             (6, ValueRef::Float64(OrderedFloat(1.0))),
-            // field: greptime_timestamp
+            // field: pulse_timestamp
             (
                 7,
                 ValueRef::Timestamp(Timestamp::new(1618876800000000000, TimeUnit::Nanosecond)),
@@ -746,10 +748,10 @@ mod tests {
             (RESERVED_COLUMN_ID_TSID, ValueRef::UInt64(42)),
         ];
         let tags = [
-            (1, "greptime-frontend-6989d9899-22222"),
-            (2, "greptime-cluster"),
-            (3, "greptime-frontend-6989d9899-22222"),
-            (4, "greptime-frontend-6989d9899-22222"),
+            (1, "pulse-frontend-6989d9899-22222"),
+            (2, "pulse-cluster"),
+            (3, "pulse-frontend-6989d9899-22222"),
+            (4, "pulse-frontend-6989d9899-22222"),
             (5, "10.10.10.10"),
         ];
         codec
@@ -816,19 +818,19 @@ mod tests {
         );
         assert_eq!(
             sparse_value.get_or_null(1),
-            &Value::String("greptime-frontend-6989d9899-22222".into())
+            &Value::String("pulse-frontend-6989d9899-22222".into())
         );
         assert_eq!(
             sparse_value.get_or_null(2),
-            &Value::String("greptime-cluster".into())
+            &Value::String("pulse-cluster".into())
         );
         assert_eq!(
             sparse_value.get_or_null(3),
-            &Value::String("greptime-frontend-6989d9899-22222".into())
+            &Value::String("pulse-frontend-6989d9899-22222".into())
         );
         assert_eq!(
             sparse_value.get_or_null(4),
-            &Value::String("greptime-frontend-6989d9899-22222".into())
+            &Value::String("pulse-frontend-6989d9899-22222".into())
         );
         assert_eq!(
             sparse_value.get_or_null(5),

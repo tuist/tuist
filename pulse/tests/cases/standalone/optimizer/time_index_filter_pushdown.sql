@@ -6,8 +6,8 @@ CREATE TABLE
         `os` STRING NULL,
         `usage_small` SMALLINT NULL,
         `usage_user` BIGINT NULL,
-        `greptime_timestamp` TIMESTAMP(9) NOT NULL,
-        TIME INDEX (`greptime_timestamp`),
+        `pulse_timestamp` TIMESTAMP(9) NOT NULL,
+        TIME INDEX (`pulse_timestamp`),
     ) PARTITION ON COLUMNS (`rack`) (
         rack < '2',
         rack >= '2'
@@ -61,8 +61,8 @@ CREATE TABLE
     IF NOT EXISTS `cpu_single` (
         `rack` STRING NULL,
         `usage_small` SMALLINT NULL,
-        `greptime_timestamp` TIMESTAMP(9) NOT NULL,
-        TIME INDEX (`greptime_timestamp`),
+        `pulse_timestamp` TIMESTAMP(9) NOT NULL,
+        TIME INDEX (`pulse_timestamp`),
     ) ENGINE = mito
 WITH
     (append_mode = 'true', sst_format = 'flat');
@@ -97,7 +97,7 @@ select
 from
     public.cpu
 where
-    greptime_timestamp > '2023-06-12 01:05:00';
+    pulse_timestamp > '2023-06-12 01:05:00';
 
 -- SQLNESS SORT_RESULT 3 1
 select
@@ -106,7 +106,7 @@ select
 from
     public.cpu
 where
-    greptime_timestamp > '2023-06-12 01:05:00'
+    pulse_timestamp > '2023-06-12 01:05:00'
 group by
     os;
 
@@ -117,7 +117,7 @@ select
 from
     cpu
 where
-    greptime_timestamp > '2023-06-12 01:05:00'
+    pulse_timestamp > '2023-06-12 01:05:00'
 group by
     os;
 
@@ -125,17 +125,17 @@ group by
 SELECT
     rack,
     os,
-    greptime_timestamp
+    pulse_timestamp
 FROM
     cpu
 WHERE
-    greptime_timestamp = (
+    pulse_timestamp = (
         SELECT
-            greptime_timestamp
+            pulse_timestamp
         FROM
             cpu
         ORDER BY
-            greptime_timestamp DESC
+            pulse_timestamp DESC
         LIMIT
             1
     );
@@ -151,24 +151,24 @@ WHERE
 -- SQLNESS REPLACE (?m)^\|_\|_\|_SortExec:.*\n
 -- SQLNESS REPLACE FilterExec:\sDynamicFilter\s\[[^\]]*\] FilterExec: DynamicFilter [ REDACTED ]
 -- SQLNESS REPLACE "files":\s\[.*?\],\s
--- SQLNESS REPLACE IS\sNULL\sOR\sgreptime_timestamp@0\s>\s\d+ IS NULL OR greptime_timestamp@0 > REDACTED
+-- SQLNESS REPLACE IS\sNULL\sOR\spulse_timestamp@0\s>\s\d+ IS NULL OR pulse_timestamp@0 > REDACTED
 -- SQLNESS REPLACE (RoundRobinBatch.*) REDACTED
 -- SQLNESS REPLACE Total\s+rows:\s+\d+ Total rows: REDACTED
 -- SQLNESS REPLACE UnorderedScan:.*"dyn_filters":\s(\["DynamicFilter\s\[[^\]]*\]"\]).* UnorderedScan: REDACTED, "dyn_filters": $1
 EXPLAIN ANALYZE VERBOSE SELECT
     rack,
     os,
-    greptime_timestamp
+    pulse_timestamp
 FROM
     cpu
 WHERE
-    greptime_timestamp = (
+    pulse_timestamp = (
         SELECT
-            greptime_timestamp
+            pulse_timestamp
         FROM
             cpu
         ORDER BY
-            greptime_timestamp DESC
+            pulse_timestamp DESC
         LIMIT
             1
     );

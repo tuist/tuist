@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -43,7 +45,7 @@ pub struct SstReplaceCommand {
     #[clap(long)]
     region_id: String,
 
-    /// Table directory relative to data home (e.g. "data/greptime/public/1024/").
+    /// Table directory relative to data home (e.g. "data/pulse/public/1024/").
     #[clap(long)]
     table_dir: String,
 

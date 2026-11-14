@@ -3,12 +3,12 @@ FROM information_schema.flows
 WHERE flow_name IN ('compat_sql_eval_flow', 'compat_tql_eval_flow')
 ORDER BY flow_name;
 
-+----------------------+----------------------------------------------+
-| flow_name            | source_table_names                           |
-+----------------------+----------------------------------------------+
-| compat_sql_eval_flow | greptime.flow_eval_interval.compat_sql_input |
-| compat_tql_eval_flow | greptime.flow_eval_interval.compat_tql_input |
-+----------------------+----------------------------------------------+
++----------------------+-------------------------------------------+
+| flow_name            | source_table_names                        |
++----------------------+-------------------------------------------+
+| compat_sql_eval_flow | pulse.flow_eval_interval.compat_sql_input |
+| compat_tql_eval_flow | pulse.flow_eval_interval.compat_tql_input |
++----------------------+-------------------------------------------+
 
 SHOW CREATE FLOW compat_sql_eval_flow;
 

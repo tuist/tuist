@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -76,7 +78,7 @@ impl<'a> DatanodeServiceBuilder<'a> {
         if self.enable_http_service {
             let http_server = HttpServerBuilder::new(self.opts.http.clone())
                 .with_metrics_handler(MetricsHandler)
-                .with_greptime_config_options(self.opts.to_toml().context(TomlFormatSnafu)?)
+                .with_pulse_config_options(self.opts.to_toml().context(TomlFormatSnafu)?)
                 .build();
             let addr: SocketAddr = self.opts.http.addr.parse().context(ParseAddrSnafu {
                 addr: &self.opts.http.addr,

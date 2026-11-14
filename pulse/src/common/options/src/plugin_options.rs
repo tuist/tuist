@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, Mutex};
 
 use serde::de::DeserializeOwned;
@@ -47,8 +49,7 @@ pub struct StandaloneFlag;
 static DROPPED_PLUGIN_TAGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 /// Records a plugin option tag that was dropped because it is not recognized by
-/// this build (for example, an enterprise plugin option seen by an open-source
-/// build).
+/// this build (for example, an option for a plugin the build does not include).
 pub fn record_dropped_plugin(tag: &str) {
     if let Ok(mut tags) = DROPPED_PLUGIN_TAGS.lock() {
         tags.push(tag.to_string());
@@ -80,9 +81,8 @@ pub fn take_dropped_plugin_warnings() -> Vec<String> {
 /// unknown options are ignored. For privacy only the unrecognized variant *tag*
 /// is recorded, never the raw payload (which may contain secrets).
 ///
-/// This is generic over `T` so the open-source `plugins` crate and the
-/// enterprise `ent-plugins` crate share a single implementation without either
-/// having to enumerate its variants (see [`is_unknown_variant_tag`]).
+/// This is generic over `T` so plugin crates share a single implementation
+/// without having to enumerate its variants (see [`is_unknown_variant_tag`]).
 pub fn filter_known_plugin_options<T: DeserializeOwned>(
     values: Vec<Value>,
 ) -> Result<Vec<T>, serde_json::Error> {

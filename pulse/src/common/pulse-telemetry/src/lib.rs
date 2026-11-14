@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::env;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -29,30 +31,30 @@ use serde::{Deserialize, Serialize};
 /// The URL to report telemetry data.
 pub const TELEMETRY_URL: &str = "https://telemetry.greptimestats.com/db/otel/statistics";
 /// The local installation uuid cache file
-const UUID_FILE_NAME: &str = ".greptimedb-telemetry-uuid";
+const UUID_FILE_NAME: &str = ".pulse-telemetry-uuid";
 
 /// System start time for uptime calculation
 static START_TIME: LazyLock<SystemTime> = LazyLock::new(SystemTime::now);
 
-/// The default interval of reporting telemetry data to greptime cloud
+/// The default interval of reporting telemetry data to pulse cloud
 pub static TELEMETRY_INTERVAL: Duration = Duration::from_secs(60 * 30);
-/// The default connect timeout to greptime cloud.
-const GREPTIMEDB_TELEMETRY_CLIENT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// The default request timeout to greptime cloud.
-const GREPTIMEDB_TELEMETRY_CLIENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+/// The default connect timeout to pulse cloud.
+const PULSE_TELEMETRY_CLIENT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// The default request timeout to pulse cloud.
+const PULSE_TELEMETRY_CLIENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub enum GreptimeDBTelemetryTask {
+pub enum PulseTelemetryTask {
     Enable((RepeatedTask<Error>, Arc<AtomicBool>)),
     Disable,
 }
 
-impl GreptimeDBTelemetryTask {
+impl PulseTelemetryTask {
     pub fn should_report(&self, value: bool) {
         match self {
-            GreptimeDBTelemetryTask::Enable((_, should_report)) => {
+            PulseTelemetryTask::Enable((_, should_report)) => {
                 should_report.store(value, Ordering::Relaxed);
             }
-            GreptimeDBTelemetryTask::Disable => {}
+            PulseTelemetryTask::Disable => {}
         }
     }
 
@@ -61,30 +63,30 @@ impl GreptimeDBTelemetryTask {
         task_fn: BoxedTaskFunction<Error>,
         should_report: Arc<AtomicBool>,
     ) -> Self {
-        GreptimeDBTelemetryTask::Enable((
+        PulseTelemetryTask::Enable((
             RepeatedTask::new(interval, task_fn).with_initial_delay(Some(Duration::ZERO)),
             should_report,
         ))
     }
 
     pub fn disable() -> Self {
-        GreptimeDBTelemetryTask::Disable
+        PulseTelemetryTask::Disable
     }
 
     pub fn start(&self) -> Result<()> {
         match self {
-            GreptimeDBTelemetryTask::Enable((task, _)) => {
+            PulseTelemetryTask::Enable((task, _)) => {
                 print_anonymous_usage_data_disclaimer();
                 task.start(common_runtime::global_runtime())
             }
-            GreptimeDBTelemetryTask::Disable => Ok(()),
+            PulseTelemetryTask::Disable => Ok(()),
         }
     }
 
     pub async fn stop(&self) -> Result<()> {
         match self {
-            GreptimeDBTelemetryTask::Enable((task, _)) => task.stop().await,
-            GreptimeDBTelemetryTask::Disable => Ok(()),
+            PulseTelemetryTask::Enable((task, _)) => task.stop().await,
+            PulseTelemetryTask::Disable => Ok(()),
         }
     }
 }
@@ -94,13 +96,13 @@ impl GreptimeDBTelemetryTask {
 struct StatisticData {
     /// Operating system name, such as `linux`, `windows` etc.
     pub os: String,
-    /// The greptimedb version
+    /// The pulse version
     pub version: String,
     /// The architecture of the CPU, such as `x86`, `x86_64` etc.
     pub arch: String,
     /// The running mode, `standalone` or `distributed`.
     pub mode: Mode,
-    /// The git commit revision of greptimedb
+    /// The git commit revision of pulse
     pub git_commit: String,
     /// The node number
     pub nodes: Option<i32>,
@@ -171,7 +173,7 @@ pub trait Collector {
 
 fn print_anonymous_usage_data_disclaimer() {
     info!(
-        "Attention: GreptimeDB now collects anonymous usage data to help improve its roadmap and prioritize features."
+        "Attention: Pulse now collects anonymous usage data to help improve its roadmap and prioritize features."
     );
     info!(
         "To learn more about this anonymous program and how to deactivate it if you don't want to participate, please visit the following URL: "
@@ -225,15 +227,15 @@ pub fn default_get_uuid(working_home: &Option<String>) -> Option<String> {
     }
 }
 
-/// Report version info to GreptimeDB.
+/// Report version info to Pulse.
 ///
 /// We do not collect any identity-sensitive information.
 /// This task is scheduled to run every 30 minutes.
-/// The task will be disabled default. It can be enabled by setting the build feature `greptimedb-telemetry`
+/// The task will be disabled default. It can be enabled by setting the build feature `pulse-telemetry`
 /// Collector is used to collect the version info. It can be implemented by different components.
-/// client is used to send the HTTP request to GreptimeDB.
-/// telemetry_url is the GreptimeDB url.
-pub struct GreptimeDBTelemetry {
+/// client is used to send the HTTP request to Pulse.
+/// telemetry_url is the Pulse url.
+pub struct PulseTelemetry {
     statistics: Box<dyn Collector + Send + Sync>,
     client: Option<Client>,
     working_home: Option<String>,
@@ -243,9 +245,9 @@ pub struct GreptimeDBTelemetry {
 }
 
 #[async_trait::async_trait]
-impl TaskFunction<Error> for GreptimeDBTelemetry {
+impl TaskFunction<Error> for PulseTelemetry {
     fn name(&self) -> &str {
-        "Greptimedb-telemetry-task"
+        "Pulse-telemetry-task"
     }
 
     async fn call(&mut self) -> Result<()> {
@@ -256,15 +258,15 @@ impl TaskFunction<Error> for GreptimeDBTelemetry {
     }
 }
 
-impl GreptimeDBTelemetry {
+impl PulseTelemetry {
     pub fn new(
         working_home: Option<String>,
         statistics: Box<dyn Collector + Send + Sync>,
         should_report: Arc<AtomicBool>,
     ) -> Self {
         let client = Client::builder()
-            .connect_timeout(GREPTIMEDB_TELEMETRY_CLIENT_CONNECT_TIMEOUT)
-            .timeout(GREPTIMEDB_TELEMETRY_CLIENT_REQUEST_TIMEOUT)
+            .connect_timeout(PULSE_TELEMETRY_CLIENT_CONNECT_TIMEOUT)
+            .timeout(PULSE_TELEMETRY_CLIENT_REQUEST_TIMEOUT)
             .build();
         Self {
             working_home,
@@ -292,7 +294,7 @@ impl GreptimeDBTelemetry {
 
                 if let Some(client) = self.client.as_ref() {
                     if self.report_times == 0 {
-                        info!("reporting greptimedb version: {:?}", data);
+                        info!("reporting pulse version: {:?}", data);
                     }
                     let result = client.post(self.telemetry_url).json(&data).send().await;
                     self.report_times += 1;
@@ -322,9 +324,7 @@ mod tests {
     use reqwest::{Client, Response};
     use tokio::spawn;
 
-    use crate::{
-        Collector, GreptimeDBTelemetry, Mode, StatisticData, default_get_uuid, format_uptime,
-    };
+    use crate::{Collector, Mode, PulseTelemetry, StatisticData, default_get_uuid, format_uptime};
 
     static COUNT: AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
@@ -429,7 +429,7 @@ mod tests {
         }
 
         async fn get_telemetry_report(
-            mut report: GreptimeDBTelemetry,
+            mut report: PulseTelemetry,
             url: &'static str,
         ) -> Option<Response> {
             report.telemetry_url = url;
@@ -444,13 +444,13 @@ mod tests {
         }
 
         let working_home_temp = tempfile::Builder::new()
-            .prefix("greptimedb_telemetry")
+            .prefix("pulse_telemetry")
             .tempdir()
             .unwrap();
         let working_home = working_home_temp.path().to_str().unwrap().to_string();
 
         let test_statistic = Box::new(TestStatistic);
-        let test_report = GreptimeDBTelemetry::new(
+        let test_report = PulseTelemetry::new(
             Some(working_home.clone()),
             test_statistic,
             Arc::new(AtomicBool::new(true)),
@@ -471,7 +471,7 @@ mod tests {
         assert!(!body.uptime.is_empty());
 
         let failed_statistic = Box::new(FailedStatistic);
-        let failed_report = GreptimeDBTelemetry::new(
+        let failed_report = PulseTelemetry::new(
             Some(working_home),
             failed_statistic,
             Arc::new(AtomicBool::new(true)),
@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn test_get_uuid() {
         let working_home_temp = tempfile::Builder::new()
-            .prefix("greptimedb_telemetry")
+            .prefix("pulse_telemetry")
             .tempdir()
             .unwrap();
         let working_home = working_home_temp.path().to_str().unwrap().to_string();

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::auth_header::AuthScheme;
@@ -31,7 +33,7 @@ use crate::error::{AuthSnafu, InvalidParameterSnafu, NotFoundAuthHeaderSnafu, Re
 use crate::grpc::TonicResult;
 use crate::hint_headers;
 use crate::http::AUTHORIZATION_HEADER;
-use crate::http::header::constants::GREPTIME_DB_HEADER_NAME;
+use crate::http::header::constants::PULSE_DB_HEADER_NAME;
 use crate::metrics::METRIC_AUTH_FAILURE;
 
 /// Create a query context from gRPC metadata and server-owned request extensions.
@@ -39,7 +41,7 @@ pub fn create_query_context_from_grpc_metadata(
     headers: &MetadataMap,
     extensions: &http::Extensions,
 ) -> TonicResult<QueryContextRef> {
-    let (catalog, schema) = if let Some(db) = extract_header(headers, &[GREPTIME_DB_HEADER_NAME])? {
+    let (catalog, schema) = if let Some(db) = extract_header(headers, &[PULSE_DB_HEADER_NAME])? {
         parse_catalog_and_schema_from_db_string(db)
     } else {
         (

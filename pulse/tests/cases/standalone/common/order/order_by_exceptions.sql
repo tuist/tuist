@@ -6,14 +6,14 @@ SELECT a FROM test ORDER BY 2;
 
 SELECT a FROM test ORDER BY 'hello', a;
 
--- Ambiguous reference in union alias, give and error in duckdb, but works in greptimedb
+-- Ambiguous reference in union alias, give and error in duckdb, but works in pulse
 SELECT a AS k, b FROM test UNION SELECT a, b AS k FROM test ORDER BY k;
 
 SELECT a AS k, b FROM test UNION SELECT a AS k, b FROM test ORDER BY k;
 
 SELECT a % 2, b FROM test UNION SELECT b, a % 2 AS k ORDER BY a % 2;
 
--- Works duckdb, but not work in greptimedb
+-- Works duckdb, but not work in pulse
 SELECT a % 2, b FROM test UNION SELECT a % 2 AS k, b FROM test ORDER BY a % 2;
 
 SELECT a % 2, b FROM test UNION SELECT a % 2 AS k, b FROM test ORDER BY 3;

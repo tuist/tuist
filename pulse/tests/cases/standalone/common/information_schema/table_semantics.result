@@ -24,7 +24,7 @@ WITH (
   'greptime.semantic.signal_type' = 'metric',
   'greptime.semantic.source' = 'opentelemetry',
   'greptime.semantic.source_version' = '2.0',
-  'greptime.semantic.pipeline' = 'greptime_metric_v1',
+  'greptime.semantic.pipeline' = 'pulse_metric_v1',
   'greptime.semantic.metric.metadata_quality' = 'declared',
   'greptime.semantic.metric.type' = 'counter',
   'greptime.semantic.metric.unit' = 'By'
@@ -57,12 +57,12 @@ FROM information_schema.table_semantics
 WHERE table_schema = 'public'
 ORDER BY table_name;
 
-+--------------+----------------+-------------+---------------+----------------+--------------------+------------------+-----------------------------------------------------------------+
-| table_schema | table_name     | signal_type | source        | source_version | pipeline           | metadata_quality | semantic_options                                                |
-+--------------+----------------+-------------+---------------+----------------+--------------------+------------------+-----------------------------------------------------------------+
-| public       | metrics_tagged | metric      | opentelemetry | 2.0            | greptime_metric_v1 | declared         | {"metric.type":"counter","metric.unit":"By"}                    |
-| public       | traces_tagged  | trace       | opentelemetry |                |                    |                  | {"trace.conventions":"https://opentelemetry.io/schemas/1.27.0"} |
-+--------------+----------------+-------------+---------------+----------------+--------------------+------------------+-----------------------------------------------------------------+
++--------------+----------------+-------------+---------------+----------------+-----------------+------------------+-----------------------------------------------------------------+
+| table_schema | table_name     | signal_type | source        | source_version | pipeline        | metadata_quality | semantic_options                                                |
++--------------+----------------+-------------+---------------+----------------+-----------------+------------------+-----------------------------------------------------------------+
+| public       | metrics_tagged | metric      | opentelemetry | 2.0            | pulse_metric_v1 | declared         | {"metric.type":"counter","metric.unit":"By"}                    |
+| public       | traces_tagged  | trace       | opentelemetry |                |                 |                  | {"trace.conventions":"https://opentelemetry.io/schemas/1.27.0"} |
++--------------+----------------+-------------+---------------+----------------+-----------------+------------------+-----------------------------------------------------------------+
 
 -- System table scope is exposed without changing the view's columns.
 SELECT table_name, semantic_options
@@ -226,9 +226,9 @@ Affected Rows: 0
 -- including the declarations the built-in conventions derive. A whitelisted
 -- OTel descriptor table declares its entities without any entity option, and
 -- the generic container records the identity it yields to.
-CREATE TABLE greptime_otel_resource_info (
-  greptime_timestamp TIMESTAMP TIME INDEX,
-  greptime_value DOUBLE,
+CREATE TABLE pulse_otel_resource_info (
+  pulse_timestamp TIMESTAMP TIME INDEX,
+  pulse_value DOUBLE,
   "job" STRING,
   "instance" STRING,
   "service.name" STRING,
@@ -250,19 +250,19 @@ Affected Rows: 0
 
 SELECT table_name, entity_declarations
 FROM information_schema.table_semantics
-WHERE table_name = 'greptime_otel_resource_info';
+WHERE table_name = 'pulse_otel_resource_info';
 
-+-----------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| table_name                  | entity_declarations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-+-----------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| greptime_otel_resource_info | [{"entity_type":"container","origin":"convention","id":["container.id"],"superseded_by":["k8s.pod.uid","k8s.container.name"],"descriptive":["container.name"]},{"entity_type":"host","origin":"convention","id":["host.id"]},{"entity_type":"k8s.container","origin":"convention","id":["k8s.pod.uid","k8s.container.name"],"descriptive":["container.id","container.name"]},{"entity_type":"k8s.pod","origin":"convention","id":["k8s.pod.uid"],"descriptive":["k8s.pod.name"]},{"entity_type":"service","origin":"convention","id":["job"],"descriptive":["service.name"]},{"entity_type":"service.instance","origin":"convention","id":["job","instance"]}] |
-+-----------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++--------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| table_name               | entity_declarations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
++--------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| pulse_otel_resource_info | [{"entity_type":"container","origin":"convention","id":["container.id"],"superseded_by":["k8s.pod.uid","k8s.container.name"],"descriptive":["container.name"]},{"entity_type":"host","origin":"convention","id":["host.id"]},{"entity_type":"k8s.container","origin":"convention","id":["k8s.pod.uid","k8s.container.name"],"descriptive":["container.id","container.name"]},{"entity_type":"k8s.pod","origin":"convention","id":["k8s.pod.uid"],"descriptive":["k8s.pod.name"]},{"entity_type":"service","origin":"convention","id":["job"],"descriptive":["service.name"]},{"entity_type":"service.instance","origin":"convention","id":["job","instance"]}] |
++--------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 -- The same table under the wrong source stamp derives nothing: the column is
 -- empty and `source` names the reason.
 CREATE TABLE kube_pod_info (
-  greptime_timestamp TIMESTAMP TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_timestamp TIMESTAMP TIME INDEX,
+  pulse_value DOUBLE,
   "namespace" STRING,
   "pod" STRING,
   "uid" STRING,
@@ -300,7 +300,7 @@ WHERE table_name = 'kube_pod_info';
 | kube_pod_info | prometheus | [{"entity_type":"k8s.node","origin":"convention","id":["node"]},{"entity_type":"k8s.pod","origin":"convention","id":["uid"],"descriptive":["namespace","pod","node"]}] |
 +---------------+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
-DROP TABLE greptime_otel_resource_info;
+DROP TABLE pulse_otel_resource_info;
 
 Affected Rows: 0
 
@@ -311,8 +311,8 @@ Affected Rows: 0
 -- A missing id column drops that entity alone: without `uid` there is no
 -- k8s.pod, and the k8s.node next to it still lands.
 CREATE TABLE kube_pod_info (
-  greptime_timestamp TIMESTAMP TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_timestamp TIMESTAMP TIME INDEX,
+  pulse_value DOUBLE,
   "namespace" STRING,
   "pod" STRING,
   "node" STRING,
@@ -349,7 +349,7 @@ CREATE TABLE traces_untagged (
   service_name STRING,
   "resource_attributes.host.id" STRING,
   PRIMARY KEY (service_name)
-) WITH ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true');
+) WITH ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true');
 
 Affected Rows: 0
 

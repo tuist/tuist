@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::hash_map::Entry;
 
 use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
@@ -35,7 +37,7 @@ use common_query::native_histogram::*;
 use common_query::native_histogram::{
     NATIVE_HISTOGRAM_FIELD, encode_native_histogram, native_histogram_column_schema,
 };
-use common_query::prelude::{greptime_native_histogram, greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_native_histogram, pulse_timestamp, pulse_value};
 use pipeline::{ContextOpt, ContextReq};
 use prost::encoding::{
     DecodeContext, WireType, decode_key, decode_varint, message, skip_field, uint32,
@@ -427,12 +429,12 @@ fn decode_series_leaves(
                 if let Some(SeriesWriter::Samples(table_data)) = &mut writer {
                     if sample_row_template.is_none() {
                         let timestamp_index = table_data.ensure_column_by_name(
-                            greptime_timestamp(),
+                            pulse_timestamp(),
                             ColumnDataType::TimestampMillisecond,
                             SemanticType::Timestamp,
                         )?;
                         let value_index = table_data.ensure_column_by_name(
-                            greptime_value(),
+                            pulse_value(),
                             ColumnDataType::Float64,
                             SemanticType::Field,
                         )?;
@@ -608,7 +610,7 @@ fn write_native_histogram<'a>(
     let mut row = table_data.alloc_one_row();
     row_writer::write_ts_to_millis(
         table_data,
-        greptime_timestamp(),
+        pulse_timestamp(),
         Some(histogram.timestamp),
         Precision::Millisecond,
         &mut row,
@@ -629,7 +631,7 @@ fn ensure_no_internal_histogram_labels(tags: &PromTags<'_>) -> Result<()> {
     // The histogram field column is generated from the protobuf payload.
     for (name, _) in tags {
         ensure!(
-            *name != greptime_native_histogram() && *name != NATIVE_HISTOGRAM_FIELD,
+            *name != pulse_native_histogram() && *name != NATIVE_HISTOGRAM_FIELD,
             error::InvalidPromRemoteRequestSnafu {
                 msg: format!(
                     "remote write v2 label `{name}` conflicts with an internal native histogram label"
@@ -913,7 +915,7 @@ mod tests {
     use std::sync::Arc;
 
     use api::v1::value::ValueData;
-    use common_query::prelude::{greptime_timestamp, greptime_value, set_default_prefix};
+    use common_query::prelude::{pulse_timestamp, pulse_value, set_default_prefix};
     use session::context::QueryContext;
 
     use super::*;
@@ -1001,7 +1003,7 @@ mod tests {
                 .iter()
                 .map(|column| column.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![greptime_timestamp(), greptime_value()]
+            vec![pulse_timestamp(), pulse_value()]
         );
         assert_eq!(
             rows.rows[0].values[1].value_data,
@@ -1286,7 +1288,7 @@ mod tests {
                 .iter()
                 .map(|col| col.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![greptime_timestamp(), greptime_value(), "job", "instance"]
+            vec![pulse_timestamp(), pulse_value(), "job", "instance"]
         );
         assert_eq!(
             rows.rows[0].values[0].value_data,
@@ -1341,7 +1343,7 @@ mod tests {
 
         let mut iter = ctx_req
             .samples
-            .as_req_iter(Arc::new(QueryContext::with("greptime", "public")));
+            .as_req_iter(Arc::new(QueryContext::with("pulse", "public")));
         let (ctx, reqs) = iter.next().unwrap();
         assert!(iter.next().is_none());
 
@@ -1358,7 +1360,7 @@ mod tests {
                 .iter()
                 .map(|col| col.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![greptime_timestamp(), greptime_value(), "job"]
+            vec![pulse_timestamp(), pulse_value(), "job"]
         );
     }
 
@@ -1440,7 +1442,7 @@ mod tests {
             "internal histogram label on samples",
             request_with_sample(vec![
                 (METRIC_NAME_LABEL, "metric"),
-                (greptime_native_histogram(), "user_value"),
+                (pulse_native_histogram(), "user_value"),
             ]),
             "conflicts with an internal native histogram label",
         ));
@@ -1862,7 +1864,7 @@ mod tests {
                 .iter()
                 .map(|col| col.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![greptime_timestamp(), greptime_native_histogram()]
+            vec![pulse_timestamp(), pulse_native_histogram()]
         );
         assert_eq!(
             rows.rows[0].values[0].value_data,
@@ -1924,7 +1926,7 @@ mod tests {
         let mut request = test_util::request_with_labels_and_samples(
             vec![
                 (METRIC_NAME_LABEL, "metric"),
-                (greptime_native_histogram(), "user_value"),
+                (pulse_native_histogram(), "user_value"),
             ],
             vec![],
         );
@@ -1936,14 +1938,14 @@ mod tests {
         };
         assert_eq!(
             err.to_string(),
-            "Invalid prometheus remote request, msg: remote write v2 label `greptime_native_histogram` conflicts with an internal native histogram label"
+            "Invalid prometheus remote request, msg: remote write v2 label `pulse_native_histogram` conflicts with an internal native histogram label"
         );
     }
 
     #[test]
     fn test_rejects_legacy_histogram_label_after_prefix_change() {
         set_default_prefix(Some("custom")).unwrap();
-        assert_eq!(greptime_native_histogram(), "custom_native_histogram");
+        assert_eq!(pulse_native_histogram(), "custom_native_histogram");
 
         let err = ensure_no_internal_histogram_labels(&vec![(
             NATIVE_HISTOGRAM_FIELD,
@@ -2005,7 +2007,7 @@ mod tests {
                 .iter()
                 .map(|col| col.column_name.as_str())
                 .collect::<Vec<_>>(),
-            vec![greptime_timestamp(), greptime_native_histogram()]
+            vec![pulse_timestamp(), pulse_native_histogram()]
         );
 
         assert_eq!(
@@ -2156,7 +2158,7 @@ mod tests {
     }
 
     fn histogram_field_value(rows: &Rows, row_idx: usize, field_name: &str) -> Option<ValueData> {
-        let histogram_idx = column_index(&rows.schema, greptime_native_histogram());
+        let histogram_idx = column_index(&rows.schema, pulse_native_histogram());
         let Some(ValueData::StructValue(histogram)) =
             &rows.rows[row_idx].values[histogram_idx].value_data
         else {

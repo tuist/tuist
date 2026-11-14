@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Utilities for projection on flat format.
 
 use std::sync::Arc;
@@ -696,7 +698,7 @@ mod tests {
             let metadata = Arc::new(builder.build().unwrap());
             let mapper = FlatProjectionMapper::new(&metadata, [0, 1]).unwrap();
 
-            for value in [Value::from("greptime"), Value::Null] {
+            for value in [Value::from("pulse"), Value::Null] {
                 let mut values = data_type.create_mutable_vector(1);
                 values.try_push_value_ref(&value.as_value_ref()).unwrap();
                 let dictionary = Arc::new(

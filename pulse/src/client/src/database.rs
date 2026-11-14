@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -70,7 +72,7 @@ type FlightDataStream = Pin<Box<dyn Stream<Item = FlightData> + Send>>;
 
 type DoPutResponseStream = Pin<Box<dyn Stream<Item = Result<DoPutResponse>>>>;
 
-const HINTS_METADATA_KEY: &str = "x-greptime-hints";
+const HINTS_METADATA_KEY: &str = "x-pulse-hints";
 /// Maximum time to wait for the optional trailing metrics message after
 /// affected rows have already been delivered.
 const FLIGHT_TRAILING_METRICS_TIMEOUT: Duration = Duration::from_secs(5);
@@ -594,9 +596,8 @@ impl Database {
     ///
     /// This API is designed for external usage. `dbname` is:
     ///
-    /// - the name of database when using GreptimeDB standalone or cluster
-    /// - the name provided by GreptimeCloud or other multi-tenant GreptimeDB
-    ///   environment
+    /// - the name of database when using Pulse standalone or cluster
+    /// - the name provided by a multi-tenant Pulse environment
     pub fn new_with_dbname(dbname: impl Into<String>, client: Client) -> Self {
         Self {
             catalog: String::default(),
@@ -942,7 +943,7 @@ impl Database {
             let encoded = BASE64_STANDARD.encode(format!("{username}:{password}"));
             let value = MetadataValue::from_str(&format!("Basic {encoded}"))
                 .context(InvalidTonicMetadataValueSnafu)?;
-            request.metadata_mut().insert("x-greptime-auth", value);
+            request.metadata_mut().insert("x-pulse-auth", value);
         }
 
         let db_to_put = if !self.dbname.is_empty() {
@@ -951,7 +952,7 @@ impl Database {
             &build_db_string(self.catalog_or_default(), self.schema_or_default())
         };
         request.metadata_mut().insert(
-            "x-greptime-db-name",
+            "x-pulse-db-name",
             MetadataValue::from_str(db_to_put).context(InvalidTonicMetadataValueSnafu)?,
         );
 
@@ -1077,7 +1078,7 @@ mod tests {
     use api::v1::{AuthHeader, Basic};
     use common_error::ext::{ErrorExt, RetryHint};
     use common_error::status_code::StatusCode;
-    use common_error::{GREPTIME_DB_HEADER_ERROR_CODE, GREPTIME_DB_HEADER_ERROR_RETRY_HINT};
+    use common_error::{PULSE_DB_HEADER_ERROR_CODE, PULSE_DB_HEADER_ERROR_RETRY_HINT};
     use common_query::OutputData;
     use common_recordbatch::{OrderOption, RecordBatch, RecordBatchStream};
     use datatypes::prelude::{ConcreteDataType, VectorRef};
@@ -1201,7 +1202,7 @@ mod tests {
 
     #[test]
     fn test_flight_request_builder_applies_request_options() {
-        let database = Database::new("greptime", "public", Client::default());
+        let database = Database::new("pulse", "public", Client::default());
         let snapshot_seqs = HashMap::from([(42, 99)]);
         let request = database
             .flight_request()
@@ -1309,11 +1310,11 @@ mod tests {
     fn test_from_tonic_status_with_retry_hint() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            GREPTIME_DB_HEADER_ERROR_CODE,
+            PULSE_DB_HEADER_ERROR_CODE,
             HeaderValue::from(StatusCode::Internal as u32),
         );
         headers.insert(
-            GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+            PULSE_DB_HEADER_ERROR_RETRY_HINT,
             HeaderValue::from_static(RetryHint::Retryable.as_str()),
         );
         let status =
@@ -1329,7 +1330,7 @@ mod tests {
     fn test_from_tonic_status_fallback() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            GREPTIME_DB_HEADER_ERROR_CODE,
+            PULSE_DB_HEADER_ERROR_CODE,
             HeaderValue::from(StatusCode::InvalidArguments as u32),
         );
         let status =

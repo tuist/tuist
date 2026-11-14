@@ -1,6 +1,6 @@
 -- Migrated from DuckDB test: test/sql/select/test_multi_column_reference.test
 -- Description: Test multi column reference
--- Note: Adapted for GreptimeDB - focusing on schema.table.column references
+-- Note: Adapted for Pulse - focusing on schema.table.column references
 
 -- Test schema -> table -> column reference
 CREATE SCHEMA test;
@@ -21,8 +21,8 @@ SELECT col FROM test.tbl ORDER BY col;
 -- Test with table alias
 SELECT t.col FROM test.tbl t ORDER BY col;
 
--- Note: DuckDB's struct field access (t.t.t pattern) is not applicable to GreptimeDB
--- as GreptimeDB doesn't support ROW/STRUCT types in the same way
+-- Note: DuckDB's struct field access (t.t.t pattern) is not applicable to Pulse
+-- as Pulse doesn't support ROW/STRUCT types in the same way
 
 -- Clean up
 DROP TABLE test.tbl;

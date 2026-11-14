@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use datatypes::prelude::*;
@@ -196,7 +198,7 @@ pub fn all_datatype_testing_data() -> TestingData {
         Arc::new(BinaryVector::from(vec![
             None,
             Some("hello".as_bytes().to_vec()),
-            Some("greptime".as_bytes().to_vec()),
+            Some("pulse".as_bytes().to_vec()),
             None,
         ])),
         Arc::new(StringVector::from(vec![
@@ -255,7 +257,7 @@ pub fn all_datatype_testing_data() -> TestingData {
             Value::from(u64::MAX.to_string().as_bytes()),
             Value::from(1.654321_f32.to_string().as_bytes()),
             Value::from(10.654321_f64.to_string().as_bytes()),
-            Value::from("greptime".as_bytes()),
+            Value::from("pulse".as_bytes()),
             Value::Null,
         ],
         vec![

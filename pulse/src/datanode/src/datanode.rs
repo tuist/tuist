@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Datanode implementation.
 
 use std::collections::HashMap;
@@ -23,7 +25,6 @@ use common_base::Plugins;
 use common_catalog::consts::{FILE_ENGINE, METRIC_ENGINE, MITO_ENGINE};
 use common_datasource::object_store::LocalFileAccess;
 use common_error::ext::BoxedError;
-use common_greptimedb_telemetry::GreptimeDBTelemetryTask;
 use common_meta::cache::{LayeredCacheRegistry, SchemaCacheRef, TableSchemaCacheRef};
 use common_meta::cache_invalidator::CacheInvalidatorRef;
 use common_meta::datanode::TopicStatsReporter;
@@ -31,6 +32,7 @@ use common_meta::key::runtime_switch::RuntimeSwitchManager;
 use common_meta::key::{SchemaMetadataManager, SchemaMetadataManagerRef};
 use common_meta::kv_backend::KvBackendRef;
 pub use common_procedure::options::ProcedureConfig;
+use common_pulse_telemetry::PulseTelemetryTask;
 use common_query::prelude::set_default_prefix;
 use common_stat::ResourceStatImpl;
 use common_telemetry::{error, info, warn};
@@ -74,9 +76,9 @@ use crate::event_listener::{
     NoopRegionServerEventListener, RegionServerEventListenerRef, RegionServerEventReceiver,
     new_region_server_event_channel,
 };
-use crate::greptimedb_telemetry::get_greptimedb_telemetry_task;
 use crate::heartbeat::HeartbeatTask;
 use crate::partition_expr_fetcher::MetaPartitionExprFetcher;
+use crate::pulse_telemetry::get_pulse_telemetry_task;
 use crate::region_server::{DummyTableProviderFactory, RegionServer};
 use crate::store::{self, new_object_store_without_cache};
 use crate::utils::{RegionOpenRequests, build_region_open_requests};
@@ -87,7 +89,7 @@ pub struct Datanode {
     heartbeat_task: Option<HeartbeatTask>,
     region_event_receiver: Option<RegionServerEventReceiver>,
     region_server: RegionServer,
-    greptimedb_telemetry_task: Arc<GreptimeDBTelemetryTask>,
+    pulse_telemetry_task: Arc<PulseTelemetryTask>,
     leases_notifier: Option<Arc<Notify>>,
     plugins: Plugins,
 }
@@ -109,7 +111,7 @@ impl Datanode {
     }
 
     pub fn start_telemetry(&self) {
-        if let Err(e) = self.greptimedb_telemetry_task.start() {
+        if let Err(e) = self.pulse_telemetry_task.start() {
             warn!(e; "Failed to start telemetry task!");
         }
     }
@@ -141,7 +143,7 @@ impl Datanode {
             .await
             .context(ShutdownServerSnafu)?;
 
-        let _ = self.greptimedb_telemetry_task.stop().await;
+        let _ = self.pulse_telemetry_task.stop().await;
         if let Some(heartbeat_task) = &self.heartbeat_task {
             heartbeat_task
                 .close()
@@ -171,8 +173,6 @@ pub struct DatanodeBuilder {
     topic_stats_reporter: Option<Box<dyn TopicStatsReporter>>,
     open_regions_writable_override: Option<bool>,
     local_file_access: LocalFileAccess,
-    #[cfg(feature = "enterprise")]
-    extension_range_provider_factory: Option<mito2::extension::BoxedExtensionRangeProviderFactory>,
 }
 
 impl DatanodeBuilder {
@@ -186,8 +186,6 @@ impl DatanodeBuilder {
             cache_registry: None,
             open_regions_writable_override: None,
             local_file_access: LocalFileAccess::Disabled,
-            #[cfg(feature = "enterprise")]
-            extension_range_provider_factory: None,
             topic_stats_reporter: None,
         }
     }
@@ -243,15 +241,6 @@ impl DatanodeBuilder {
     /// potential split-brain window during startup.
     pub fn with_open_regions_writable_override(&mut self, writable: bool) -> &mut Self {
         self.open_regions_writable_override = Some(writable);
-        self
-    }
-
-    #[cfg(feature = "enterprise")]
-    pub fn with_extension_range_provider(
-        &mut self,
-        extension_range_provider_factory: mito2::extension::BoxedExtensionRangeProviderFactory,
-    ) -> &mut Self {
-        self.extension_range_provider_factory = Some(extension_range_provider_factory);
         self
     }
 
@@ -352,7 +341,7 @@ impl DatanodeBuilder {
         };
 
         let is_standalone = heartbeat_task.is_none();
-        let greptimedb_telemetry_task = get_greptimedb_telemetry_task(
+        let pulse_telemetry_task = get_pulse_telemetry_task(
             Some(self.opts.storage.data_home.clone()),
             is_standalone && self.opts.enable_telemetry,
         )
@@ -368,7 +357,7 @@ impl DatanodeBuilder {
             services: ServerHandlers::default(),
             heartbeat_task,
             region_server,
-            greptimedb_telemetry_task,
+            pulse_telemetry_task,
             region_event_receiver,
             leases_notifier,
             plugins: self.plugins.clone(),
@@ -589,11 +578,6 @@ impl DatanodeBuilder {
                     plugins,
                 );
 
-                #[cfg(feature = "enterprise")]
-                let builder = builder.with_extension_range_provider_factory(
-                    self.extension_range_provider_factory.take(),
-                );
-
                 builder.try_build().await.context(BuildMitoEngineSnafu)?
             }
             DatanodeWalConfig::Kafka(kafka_config) => {
@@ -632,11 +616,6 @@ impl DatanodeBuilder {
                     plugins,
                 );
 
-                #[cfg(feature = "enterprise")]
-                let builder = builder.with_extension_range_provider_factory(
-                    self.extension_range_provider_factory.take(),
-                );
-
                 builder.try_build().await.context(BuildMitoEngineSnafu)?
             }
             DatanodeWalConfig::Noop => {
@@ -651,11 +630,6 @@ impl DatanodeBuilder {
                     file_ref_manager,
                     partition_expr_fetcher.clone(),
                     plugins,
-                );
-
-                #[cfg(feature = "enterprise")]
-                let builder = builder.with_extension_range_provider_factory(
-                    self.extension_range_provider_factory.take(),
                 );
 
                 builder.try_build().await.context(BuildMitoEngineSnafu)?
@@ -807,11 +781,7 @@ async fn open_all_regions(
     init_regions_parallelism: usize,
     ignore_nonexistent_region: bool,
 ) -> Result<()> {
-    let RegionOpenRequests {
-        leader_regions,
-        #[cfg(feature = "enterprise")]
-        follower_regions,
-    } = region_open_requests;
+    let RegionOpenRequests { leader_regions } = region_open_requests;
 
     let leader_region_num = leader_regions.len();
     info!("going to open {} region(s)", leader_region_num);
@@ -867,47 +837,6 @@ async fn open_all_regions(
                     error!(e; "failed to convert region {region_id} to leader");
                 }
             }
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    if !follower_regions.is_empty() {
-        use tokio::time::Instant;
-
-        let follower_region_num = follower_regions.len();
-        info!("going to open {} follower region(s)", follower_region_num);
-
-        let now = Instant::now();
-        let open_regions = region_server
-            .handle_batch_open_requests(
-                init_regions_parallelism,
-                follower_regions,
-                ignore_nonexistent_region,
-            )
-            .await?;
-        info!(
-            "Opened {} follower regions in {:?}",
-            open_regions.len(),
-            now.elapsed()
-        );
-
-        if !ignore_nonexistent_region {
-            ensure!(
-                open_regions.len() == follower_region_num,
-                error::UnexpectedSnafu {
-                    violated: format!(
-                        "Expected to open {} of follower regions, only {} of regions has opened",
-                        follower_region_num,
-                        open_regions.len()
-                    )
-                }
-            );
-        } else if open_regions.len() != follower_region_num {
-            warn!(
-                "ignore nonexistent region, expected to open {} of follower regions, only {} of regions has opened",
-                follower_region_num,
-                open_regions.len()
-            );
         }
     }
 

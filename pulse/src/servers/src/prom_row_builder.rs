@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Prometheus row-level helpers for converting proto `Rows` into Arrow
 //! `RecordBatch`es and aligning / normalizing their schemas against
 //! existing table schemas in the catalog.
@@ -31,7 +33,7 @@ use arrow::datatypes::{
 };
 use arrow::record_batch::RecordBatch;
 use arrow_schema::TimeUnit;
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use common_time::Timestamp;
 use common_time::timestamp::TimeUnit as CommonTimeUnit;
 use datatypes::data_type::DataType;
@@ -50,12 +52,12 @@ fn unzip_logical_region_schema(
     let mut field_column = None;
     let mut tag_columns = HashSet::with_capacity(target_schema.fields.len().saturating_sub(2));
     for field in target_schema.fields() {
-        if field.name() == greptime_timestamp() {
+        if field.name() == pulse_timestamp() {
             timestamp_column = Some(field.name().clone());
             continue;
         }
 
-        if field.name() == greptime_value() {
+        if field.name() == pulse_value() {
             field_column = Some(field.name().clone());
             continue;
         }
@@ -418,13 +420,13 @@ mod tests {
         let rows = Rows {
             schema: vec![
                 ColumnSchema {
-                    column_name: "greptime_timestamp".to_string(),
+                    column_name: "pulse_timestamp".to_string(),
                     datatype: ColumnDataType::TimestampMicrosecond as i32,
                     semantic_type: SemanticType::Timestamp as i32,
                     ..Default::default()
                 },
                 ColumnSchema {
-                    column_name: "greptime_value".to_string(),
+                    column_name: "pulse_value".to_string(),
                     datatype: ColumnDataType::Float64 as i32,
                     semantic_type: SemanticType::Field as i32,
                     ..Default::default()
@@ -455,11 +457,11 @@ mod tests {
         };
         let target = ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
         ]);
 
         let (batch, _) = rows_to_aligned_record_batch(&rows, &target)
@@ -491,11 +493,11 @@ mod tests {
         rows.schema[0].datatype = ColumnDataType::TimestampMillisecond as i32;
         let target = ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 DataType::Timestamp(TimeUnit::Microsecond, None),
                 false,
             ),
-            Field::new("greptime_value", DataType::Float64, true),
+            Field::new("pulse_value", DataType::Float64, true),
         ]);
 
         let (batch, _) = rows_to_aligned_record_batch(&rows, &target)
@@ -514,7 +516,7 @@ mod tests {
         let rows = Rows {
             schema: vec![
                 ColumnSchema {
-                    column_name: "greptime_timestamp".to_string(),
+                    column_name: "pulse_timestamp".to_string(),
                     datatype: ColumnDataType::TimestampMillisecond as i32,
                     semantic_type: SemanticType::Timestamp as i32,
                     ..Default::default()
@@ -526,7 +528,7 @@ mod tests {
                     ..Default::default()
                 },
                 ColumnSchema {
-                    column_name: "greptime_value".to_string(),
+                    column_name: "pulse_value".to_string(),
                     datatype: ColumnDataType::Float64 as i32,
                     semantic_type: SemanticType::Field as i32,
                     ..Default::default()
@@ -610,7 +612,7 @@ mod tests {
         let rows = Rows {
             schema: vec![
                 ColumnSchema {
-                    column_name: "greptime_timestamp".to_string(),
+                    column_name: "pulse_timestamp".to_string(),
                     datatype: ColumnDataType::TimestampMillisecond as i32,
                     semantic_type: SemanticType::Timestamp as i32,
                     ..Default::default()
@@ -628,7 +630,7 @@ mod tests {
                     ..Default::default()
                 },
                 ColumnSchema {
-                    column_name: "greptime_value".to_string(),
+                    column_name: "pulse_value".to_string(),
                     datatype: ColumnDataType::Float64 as i32,
                     semantic_type: SemanticType::Field as i32,
                     ..Default::default()
@@ -684,7 +686,7 @@ mod tests {
     fn test_identify_missing_columns_from_proto() {
         let rows_schema = vec![
             ColumnSchema {
-                column_name: "greptime_timestamp".to_string(),
+                column_name: "pulse_timestamp".to_string(),
                 datatype: ColumnDataType::TimestampMillisecond as i32,
                 semantic_type: SemanticType::Timestamp as i32,
                 ..Default::default()
@@ -702,7 +704,7 @@ mod tests {
                 ..Default::default()
             },
             ColumnSchema {
-                column_name: "greptime_value".to_string(),
+                column_name: "pulse_value".to_string(),
                 datatype: ColumnDataType::Float64 as i32,
                 semantic_type: SemanticType::Field as i32,
                 ..Default::default()
@@ -727,7 +729,7 @@ mod tests {
     fn test_build_prom_create_table_schema_from_proto() {
         let rows_schema = vec![
             ColumnSchema {
-                column_name: "greptime_timestamp".to_string(),
+                column_name: "pulse_timestamp".to_string(),
                 datatype: ColumnDataType::TimestampMillisecond as i32,
                 semantic_type: SemanticType::Timestamp as i32,
                 ..Default::default()
@@ -739,7 +741,7 @@ mod tests {
                 ..Default::default()
             },
             ColumnSchema {
-                column_name: "greptime_value".to_string(),
+                column_name: "pulse_value".to_string(),
                 datatype: ColumnDataType::Float64 as i32,
                 semantic_type: SemanticType::Field as i32,
                 ..Default::default()
@@ -749,7 +751,7 @@ mod tests {
         let schema = build_prom_create_table_schema_from_proto(&rows_schema).unwrap();
         assert_eq!(3, schema.len());
 
-        assert_eq!("greptime_timestamp", schema[0].column_name);
+        assert_eq!("pulse_timestamp", schema[0].column_name);
         assert_eq!(SemanticType::Timestamp as i32, schema[0].semantic_type);
         assert_eq!(
             ColumnDataType::TimestampMillisecond as i32,
@@ -760,7 +762,7 @@ mod tests {
         assert_eq!(SemanticType::Tag as i32, schema[1].semantic_type);
         assert_eq!(ColumnDataType::String as i32, schema[1].datatype);
 
-        assert_eq!("greptime_value", schema[2].column_name);
+        assert_eq!("pulse_value", schema[2].column_name);
         assert_eq!(SemanticType::Field as i32, schema[2].semantic_type);
         assert_eq!(ColumnDataType::Float64 as i32, schema[2].datatype);
     }

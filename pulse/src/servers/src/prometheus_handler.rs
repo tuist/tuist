@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! prom supply the prometheus HTTP API Server compliance
 
 use std::sync::Arc;
@@ -228,11 +230,7 @@ mod tests {
             );
         }
 
-        let matchers = [Matcher::new(
-            MatchOp::Equal,
-            "x_greptime_database",
-            "private",
-        )];
+        let matchers = [Matcher::new(MatchOp::Equal, "x_pulse_database", "private")];
         assert_eq!(resolve_schema_from_matchers(&matchers).unwrap(), None);
 
         let matchers = [

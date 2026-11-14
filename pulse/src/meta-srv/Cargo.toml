@@ -9,7 +9,6 @@ mock = []
 pg_kvbackend = ["dep:tokio-postgres", "common-meta/pg_kvbackend", "dep:deadpool-postgres", "dep:deadpool"]
 mysql_kvbackend = ["dep:sqlx", "common-meta/mysql_kvbackend"]
 testing = ["common-wal/testing"]
-enterprise = ["common-meta/enterprise"]
 
 [lints]
 workspace = true
@@ -27,7 +26,7 @@ common-catalog.workspace = true
 common-config.workspace = true
 common-error.workspace = true
 common-event-recorder.workspace = true
-common-greptimedb-telemetry.workspace = true
+common-pulse-telemetry.workspace = true
 common-grpc.workspace = true
 common-macro.workspace = true
 common-meta.workspace = true

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
@@ -102,12 +104,12 @@ mod tests {
         let table_names = {
             let mut set = HashSet::new();
             set.insert(TableName {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: "a_table".to_string(),
             });
             set.insert(TableName {
-                catalog_name: "greptime".to_string(),
+                catalog_name: "pulse".to_string(),
                 schema_name: "public".to_string(),
                 table_name: "b_table".to_string(),
             });

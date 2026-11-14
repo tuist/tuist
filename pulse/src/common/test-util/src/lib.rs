@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::LazyLock;
@@ -37,7 +39,7 @@ static WORKSPACE_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
 /// Find the absolute path to a file or a directory in the workspace.
 /// The input `path` should be the relative path of the file or directory from workspace root.
 ///
-/// For example, if the greptimedb project is placed under directory "/foo/bar/greptimedb/",
+/// For example, if the pulse project is placed under directory "/foo/bar/pulse/",
 /// and this function is invoked with path = "/src/common/test-util/src/lib.rs", you will get the
 /// absolute path to this file.
 ///

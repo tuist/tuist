@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Wrapper for making aggregate functions out of state/merge functions of original aggregate functions.
 //!
 //! i.e. for a aggregate function `foo`, we will have a state function `foo_state` and a merge function `foo_merge`.
@@ -140,12 +142,12 @@ impl StateMergeHelper {
     /// Note that can't register `merge` function here, as it needs to be created from the original aggregate function with given input types.
     pub fn register(registry: &FunctionRegistry) {
         let all_default = all_default_aggregate_functions();
-        let greptime_custom_aggr_functions = registry.aggregate_functions();
+        let pulse_custom_aggr_functions = registry.aggregate_functions();
 
         // if our custom aggregate function have the same name as the default aggregate function, we will override it.
         let supported = all_default
             .into_iter()
-            .chain(greptime_custom_aggr_functions.into_iter().map(Arc::new))
+            .chain(pulse_custom_aggr_functions.into_iter().map(Arc::new))
             .collect::<Vec<_>>();
         debug!(
             "Registering state functions for supported: {:?}",

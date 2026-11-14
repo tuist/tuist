@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 
 use ahash::{HashMap, HashMapExt};
@@ -21,7 +23,7 @@ use api::v1::column_def::options_from_column_schema;
 use api::v1::value::ValueData;
 use api::v1::{
     ColumnDataType, ColumnDataTypeExtension, ColumnOptions, ColumnSchema, JsonTypeExtension, Row,
-    RowInsertRequest, Rows, SemanticType, Value as GreptimeValue,
+    RowInsertRequest, Rows, SemanticType, Value as PulseValue,
 };
 use bytes::Bytes;
 use common_telemetry::warn;
@@ -32,7 +34,7 @@ use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::common::v1::{AnyValue, InstrumentationScope, KeyValue, any_value};
 use opentelemetry_proto::tonic::logs::v1::{LogRecord, ResourceLogs, ScopeLogs};
 use pipeline::{
-    ContextReq, GreptimePipelineParams, PipelineContext, PipelineWay, SchemaInfo, SelectInfo,
+    ContextReq, PipelineContext, PipelineWay, PulsePipelineParams, SchemaInfo, SelectInfo,
 };
 use session::context::QueryContextRef;
 use snafu::ensure;
@@ -52,7 +54,7 @@ use crate::query_handler::PipelineHandlerRef;
 
 pub const LOG_TABLE_NAME: &str = "opentelemetry_logs";
 
-/// Convert OpenTelemetry metrics to GreptimeDB insert requests
+/// Convert OpenTelemetry metrics to Pulse insert requests
 ///
 /// See
 /// <https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto>
@@ -62,7 +64,7 @@ pub const LOG_TABLE_NAME: &str = "opentelemetry_logs";
 pub async fn to_grpc_insert_requests(
     request: ExportLogsServiceRequest,
     pipeline: PipelineWay,
-    pipeline_params: GreptimePipelineParams,
+    pipeline_params: PulsePipelineParams,
     table_name: String,
     query_ctx: &QueryContextRef,
     pipeline_handler: PipelineHandlerRef,
@@ -415,49 +417,49 @@ fn build_otlp_build_in_row(
     };
 
     let row = vec![
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::TimestampNanosecondValue(ts as i64)),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::StringValue(bytes_to_hex_string(&log.trace_id))),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::StringValue(bytes_to_hex_string(&log.span_id))),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::StringValue(log.severity_text)),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::I32Value(log.severity_number)),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: log
                 .body
                 .as_ref()
                 .map(|x| ValueData::StringValue(log_body_to_string(x))),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::BinaryValue(log_attr.to_vec())),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::I32Value(log.flags as i32)),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: parse_ctx.scope_name.clone().map(ValueData::StringValue),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: parse_ctx.scope_version.clone().map(ValueData::StringValue),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::BinaryValue(parse_ctx.scope_attrs.to_vec())),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::StringValue(parse_ctx.scope_url.clone())),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::BinaryValue(parse_ctx.resource_attr.to_vec())),
         },
-        GreptimeValue {
+        PulseValue {
             value_data: Some(ValueData::StringValue(parse_ctx.resource_url.clone())),
         },
     ];
@@ -470,10 +472,10 @@ fn extract_field_from_attr_and_combine_schema(
     attrs: &jsonb::Value,
     existing_schema: Option<&ExistingLogSchema>,
     table_name: &str,
-) -> Result<Vec<GreptimeValue>> {
+) -> Result<Vec<PulseValue>> {
     // note we use schema.len instead of select_keys.len
     // because the len of the row value should always matches the len of the schema
-    let mut extracted_values = vec![GreptimeValue::default(); select_schema.schema.len()];
+    let mut extracted_values = vec![PulseValue::default(); select_schema.schema.len()];
 
     for key in select_info.keys.iter() {
         let Some(value) = attrs.get_by_name_ignore_case(key).cloned() else {
@@ -516,7 +518,7 @@ fn decide_column_schema_and_convert_value(
     value: JsonbValue,
     existing_schema: Option<&ExistingLogSchema>,
     table_name: &str,
-) -> Result<Option<(ColumnSchema, GreptimeValue)>> {
+) -> Result<Option<(ColumnSchema, PulseValue)>> {
     if let Some(existing_column) = existing_schema.and_then(|schema| schema.get(column_name)) {
         return decide_existing_column_schema_and_convert_value(
             column_name,
@@ -528,7 +530,7 @@ fn decide_column_schema_and_convert_value(
 
     let column_info = match value {
         JsonbValue::String(s) => Ok(Some((
-            GreptimeValue {
+            PulseValue {
                 value_data: Some(ValueData::StringValue(s.into())),
             },
             ColumnDataType::String,
@@ -537,7 +539,7 @@ fn decide_column_schema_and_convert_value(
         ))),
         JsonbValue::Number(n) => match n {
             JsonbNumber::Int64(i) => Ok(Some((
-                GreptimeValue {
+                PulseValue {
                     value_data: Some(ValueData::I64Value(i)),
                 },
                 ColumnDataType::Int64,
@@ -559,7 +561,7 @@ fn decide_column_schema_and_convert_value(
             JsonbNumber::UInt64(u) => {
                 let value = jsonb_uint64_to_log_value(u, column_name)?;
                 Ok(Some((
-                    GreptimeValue {
+                    PulseValue {
                         value_data: Some(ValueData::I64Value(value)),
                     },
                     ColumnDataType::Int64,
@@ -569,7 +571,7 @@ fn decide_column_schema_and_convert_value(
             }
         },
         JsonbValue::Bool(b) => Ok(Some((
-            GreptimeValue {
+            PulseValue {
                 value_data: Some(ValueData::BoolValue(b)),
             },
             ColumnDataType::Boolean,
@@ -629,7 +631,7 @@ fn decide_existing_column_schema_and_convert_value(
     value: JsonbValue,
     existing_column: &ExistingLogColumn,
     table_name: &str,
-) -> Result<Option<(ColumnSchema, GreptimeValue)>> {
+) -> Result<Option<(ColumnSchema, PulseValue)>> {
     let Some((value_data, request_type)) = jsonb_value_to_log_value_data(column_name, value, true)?
     else {
         return Ok(None);
@@ -646,7 +648,7 @@ fn decide_existing_column_schema_and_convert_value(
 
     Ok(Some((
         existing_column.schema.clone(),
-        GreptimeValue { value_data },
+        PulseValue { value_data },
     )))
 }
 
@@ -913,7 +915,7 @@ fn parse_export_logs_service_request_to_rows(
     align_rows_with_existing_schema(&mut schemas, &mut rows, existing_schema, table_name)?;
 
     rows.iter_mut().for_each(|row| {
-        row.values.resize(schemas.len(), GreptimeValue::default());
+        row.values.resize(schemas.len(), PulseValue::default());
     });
 
     Ok(Rows {
@@ -966,8 +968,8 @@ struct ParseContext<'a> {
     select_schema: SchemaInfo,
 
     // extracted and uplifted values using select keys
-    resource_uplift_values: Vec<GreptimeValue>,
-    scope_uplift_values: Vec<GreptimeValue>,
+    resource_uplift_values: Vec<PulseValue>,
+    scope_uplift_values: Vec<PulseValue>,
 
     // passdown values
     resource_url: String,
@@ -1055,13 +1057,13 @@ fn parse_log(log_records: Vec<LogRecord>, parse_ctx: &mut ParseContext) -> Resul
 }
 
 fn merge_values(
-    log: Vec<GreptimeValue>,
-    scope: &[GreptimeValue],
-    resource: &[GreptimeValue],
-) -> Vec<GreptimeValue> {
+    log: Vec<PulseValue>,
+    scope: &[PulseValue],
+    resource: &[PulseValue],
+) -> Vec<PulseValue> {
     log.into_iter()
         .enumerate()
-        .map(|(i, value)| GreptimeValue {
+        .map(|(i, value)| PulseValue {
             value_data: value
                 .value_data
                 .or_else(|| scope.get(i).and_then(|x| x.value_data.clone()))

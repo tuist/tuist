@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::env;
 use std::time::Duration;
 
@@ -43,9 +45,9 @@ struct TestConnection {
 impl TestConnection {
     fn from_env() -> Self {
         Self {
-            addr: env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string()),
-            catalog: env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string()),
-            auth_basic: env::var("GREPTIME_AUTH_BASIC").ok(),
+            addr: env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string()),
+            catalog: env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string()),
+            auth_basic: env::var("PULSE_AUTH_BASIC").ok(),
         }
     }
 
@@ -149,9 +151,9 @@ async fn schema_exists(database_client: &DatabaseClient, schema: &str) -> Result
 #[tokio::test]
 #[ignore]
 async fn export_import_v2_schema_parity_e2e() -> Result<()> {
-    let addr = env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
-    let catalog = env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string());
-    let auth_basic = env::var("GREPTIME_AUTH_BASIC").ok();
+    let addr = env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
+    let catalog = env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string());
+    let auth_basic = env::var("PULSE_AUTH_BASIC").ok();
     let schema = "test_db_schema_parity";
 
     let database_client = DatabaseClient::new(
@@ -342,9 +344,9 @@ async fn export_import_v2_schema_parity_e2e() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn import_v2_ddl_dry_run_e2e() -> Result<()> {
-    let addr = env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
-    let catalog = env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string());
-    let auth_basic = env::var("GREPTIME_AUTH_BASIC").ok();
+    let addr = env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
+    let catalog = env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string());
+    let auth_basic = env::var("PULSE_AUTH_BASIC").ok();
     let schema = "test_db_ddl_dry_run";
 
     let database_client = DatabaseClient::new(
@@ -447,9 +449,9 @@ async fn import_v2_ddl_dry_run_e2e() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn export_import_v2_data_roundtrip_e2e() -> Result<()> {
-    let addr = env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
-    let catalog = env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string());
-    let auth_basic = env::var("GREPTIME_AUTH_BASIC").ok();
+    let addr = env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
+    let catalog = env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string());
+    let auth_basic = env::var("PULSE_AUTH_BASIC").ok();
     let schema = "test_db_data_roundtrip";
 
     let database_client = DatabaseClient::new(
@@ -990,9 +992,9 @@ async fn import_v2_resume_from_completed_chunk_e2e() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn import_v2_fails_on_incomplete_snapshot_e2e() -> Result<()> {
-    let addr = env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
-    let catalog = env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string());
-    let auth_basic = env::var("GREPTIME_AUTH_BASIC").ok();
+    let addr = env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
+    let catalog = env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string());
+    let auth_basic = env::var("PULSE_AUTH_BASIC").ok();
     let schema = "test_db_incomplete_snapshot";
 
     let database_client = DatabaseClient::new(
@@ -1159,9 +1161,9 @@ async fn import_v2_fails_on_incomplete_snapshot_e2e() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn import_v2_schema_filter_data_e2e() -> Result<()> {
-    let addr = env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
-    let catalog = env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string());
-    let auth_basic = env::var("GREPTIME_AUTH_BASIC").ok();
+    let addr = env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
+    let catalog = env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string());
+    let auth_basic = env::var("PULSE_AUTH_BASIC").ok();
     let schema_a = "test_db_filter_a";
     let schema_b = "test_db_filter_b";
 
@@ -1345,9 +1347,9 @@ async fn import_v2_schema_filter_data_e2e() -> Result<()> {
 #[tokio::test]
 #[ignore]
 async fn export_import_v2_skipped_chunk_e2e() -> Result<()> {
-    let addr = env::var("GREPTIME_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
-    let catalog = env::var("GREPTIME_CATALOG").unwrap_or_else(|_| "greptime".to_string());
-    let auth_basic = env::var("GREPTIME_AUTH_BASIC").ok();
+    let addr = env::var("PULSE_ADDR").unwrap_or_else(|_| "127.0.0.1:4000".to_string());
+    let catalog = env::var("PULSE_CATALOG").unwrap_or_else(|_| "pulse".to_string());
+    let auth_basic = env::var("PULSE_AUTH_BASIC").ok();
     let schema = "test_db_skipped_chunk";
 
     let database_client = DatabaseClient::new(

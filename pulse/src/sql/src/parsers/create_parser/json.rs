@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use datatypes::extension::json::JSON2_REMAINDER_FIELD_NAME;
 use datatypes::json::JSON2_MAX_STRUCTURED_DEPTH;
 use snafu::{ResultExt, ensure};
@@ -21,7 +23,7 @@ use sqlparser::parser::Parser;
 use sqlparser::tokenizer::Token;
 
 use crate::ast::Ident;
-use crate::dialect::GreptimeDbDialect;
+use crate::dialect::PulseDialect;
 use crate::error::{InvalidSqlSnafu, Result, SyntaxSnafu};
 use crate::parsers::create_parser::{INVERTED, SKIPPING};
 use crate::statements::create::{Json2Options, JsonTypeHint};
@@ -31,7 +33,7 @@ const MAX_AUTO_EXPANDED_PATHS: &str = "max_auto_expanded_paths";
 
 /// Parses a JSON2 type hint path with the same grammar used by `CREATE TABLE`.
 pub fn parse_json2_type_hint_path(path: &str) -> Result<Vec<String>> {
-    let dialect = GreptimeDbDialect {};
+    let dialect = PulseDialect {};
     let mut parser = Parser::new(&dialect)
         .try_with_sql(path)
         .context(SyntaxSnafu)?;
@@ -283,14 +285,14 @@ mod tests {
     use sqlparser::ast::{DataType, ExactNumberInfo};
 
     use super::parse_json2_type_hint_path;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::create::Column;
     use crate::statements::statement::Statement;
 
     fn parse_json2_column(sql: &str) -> Column {
         let Statement::CreateTable(mut create_table) =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0)
         else {
@@ -400,12 +402,8 @@ CREATE TABLE traces (
                 "CREATE TABLE traces (log_json_data JSON2 ({options}), ts TIMESTAMP TIME INDEX)"
             );
             assert!(
-                ParserContext::create_with_dialect(
-                    &sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default()
-                )
-                .is_err(),
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .is_err(),
                 "{options}"
             );
         }
@@ -514,7 +512,7 @@ CREATE TABLE traces (
             ] {
                 let err = ParserContext::create_with_dialect(
                     &sql,
-                    &GreptimeDbDialect {},
+                    &PulseDialect {},
                     ParseOptions::default(),
                 )
                 .unwrap_err();
@@ -534,12 +532,9 @@ CREATE TABLE traces (
             let sql = format!(
                 "CREATE TABLE traces (log_json_data JSON2 (status_code BIGINT DEFAULT {default}), ts TIMESTAMP TIME INDEX)"
             );
-            let err = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap_err();
+            let err =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap_err();
             assert!(err.to_string().contains("DEFAULT is not supported"));
         }
     }
@@ -552,7 +547,7 @@ CREATE TABLE traces (
     log_json_data JSON2 (a.b STRING, a.b BIGINT),
     ts TIMESTAMP TIME INDEX,
 )"#,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         );
 
@@ -568,7 +563,7 @@ CREATE TABLE traces (
     log_json_data JSON2 (a STRING, a.b BIGINT),
     ts TIMESTAMP TIME INDEX,
 )"#,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         );
 
@@ -600,11 +595,8 @@ CREATE TABLE traces (
     ts TIMESTAMP TIME INDEX,
 )"#,
         ] {
-            let result = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            );
+            let result =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
             assert!(result.is_err());
             assert!(

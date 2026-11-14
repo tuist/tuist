@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Import V2 CLI command.
 
 use std::collections::HashSet;
@@ -56,7 +58,7 @@ pub struct ImportV2Command {
     from: String,
 
     /// Target catalog name.
-    #[clap(long, default_value = "greptime")]
+    #[clap(long, default_value = "pulse")]
     catalog: String,
 
     /// Schema list to import (default: all in snapshot).
@@ -78,7 +80,7 @@ pub struct ImportV2Command {
 
     /// Override the import resume state file path.
     ///
-    /// Defaults to a stable path under `~/.greptime/import_state`.
+    /// Defaults to a stable path under `~/.pulse/import_state`.
     #[clap(long)]
     state_path: Option<PathBuf>,
 
@@ -154,7 +156,7 @@ impl ImportV2Command {
 }
 
 /// Resolves the import resume state file path. When `override_path` is set it is
-/// used verbatim; otherwise the stable default under `~/.greptime/import_state`
+/// used verbatim; otherwise the stable default under `~/.pulse/import_state`
 /// is derived from the import identity.
 fn resolve_state_path(
     override_path: Option<&Path>,
@@ -770,11 +772,11 @@ mod tests {
         });
         let dir = tempfile::tempdir().unwrap();
         let state_path = dir.path().join("state.json");
-        let mut manifest = Manifest::new_schema_only("greptime".into(), vec!["public".into()]);
+        let mut manifest = Manifest::new_schema_only("pulse".into(), vec!["public".into()]);
         manifest.version = 2;
         manifest.data_layout = Some("metric-parquet-packs".into());
         let import = Import {
-            catalog: "greptime".into(),
+            catalog: "pulse".into(),
             schemas: None,
             dry_run: false,
             progress: ProgressMode::default(),
@@ -788,7 +790,7 @@ mod tests {
             }),
             database_client: DatabaseClient::new(
                 address.to_string(),
-                "greptime".into(),
+                "pulse".into(),
                 None,
                 std::time::Duration::from_secs(5),
                 None,
@@ -886,7 +888,7 @@ mod tests {
             Some(override_path.as_path()),
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string()],
         )
         .unwrap();
@@ -899,14 +901,14 @@ mod tests {
             None,
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string()],
         )
         .unwrap();
         let expected = default_state_path(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string()],
         )
         .unwrap();
@@ -1128,7 +1130,7 @@ CREATE VIEW v AS SELECT 1;
     #[tokio::test]
     async fn test_collect_chunk_data_prefixes_indexes_present_prefixes() {
         let storage = StubStorage {
-            manifest: Manifest::new_schema_only("greptime".to_string(), vec!["public".to_string()]),
+            manifest: Manifest::new_schema_only("pulse".to_string(), vec!["public".to_string()]),
             files_by_prefix: HashMap::from([
                 (
                     "data/public/7/".to_string(),
@@ -1181,7 +1183,7 @@ CREATE VIEW v AS SELECT 1;
         failed.status = ChunkStatus::Failed;
 
         let storage = StubStorage {
-            manifest: Manifest::new_schema_only("greptime".to_string(), vec!["public".to_string()]),
+            manifest: Manifest::new_schema_only("pulse".to_string(), vec!["public".to_string()]),
             files_by_prefix: HashMap::new(),
         };
 
@@ -1199,7 +1201,7 @@ CREATE VIEW v AS SELECT 1;
         completed.files = vec!["data/public/7/a.parquet".to_string()];
 
         let storage = StubStorage {
-            manifest: Manifest::new_schema_only("greptime".to_string(), vec!["public".to_string()]),
+            manifest: Manifest::new_schema_only("pulse".to_string(), vec!["public".to_string()]),
             files_by_prefix: HashMap::new(),
         };
 
@@ -1216,7 +1218,7 @@ CREATE VIEW v AS SELECT 1;
         completed.status = ChunkStatus::Completed;
 
         let storage = StubStorage {
-            manifest: Manifest::new_schema_only("greptime".to_string(), vec!["public".to_string()]),
+            manifest: Manifest::new_schema_only("pulse".to_string(), vec!["public".to_string()]),
             files_by_prefix: HashMap::new(),
         };
 

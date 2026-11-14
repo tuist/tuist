@@ -1,6 +1,6 @@
 CREATE TABLE t1(a INT, b STRING, c TIMESTAMP TIME INDEX);
 
-INSERT INTO t1 VALUES (41, "hello", 1), (42, "world", 2), (43, "greptime", 3);
+INSERT INTO t1 VALUES (41, "hello", 1), (42, "world", 2), (43, "pulse", 3);
 
 CREATE VIEW v1 AS SELECT a, b FROM t1;
 
@@ -8,7 +8,7 @@ SELECT * FROM v1;
 
 SELECT a FROM v1;
 
-INSERT INTO t1 VALUES (44, "greptimedb", 4);
+INSERT INTO t1 VALUES (44, "pulse", 4);
 
 SELECT * FROM v1;
 

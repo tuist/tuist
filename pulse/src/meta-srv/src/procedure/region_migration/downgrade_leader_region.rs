@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::time::Duration;
 
@@ -399,7 +401,7 @@ mod tests {
 
     fn new_persistent_context() -> PersistentContext {
         PersistentContext::new(
-            vec![("greptime".into(), "public".into())],
+            vec![("pulse".into(), "public".into())],
             Peer::empty(1),
             Peer::empty(2),
             vec![RegionId::new(1024, 1)],

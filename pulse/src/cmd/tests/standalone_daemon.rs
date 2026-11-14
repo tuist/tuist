@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![cfg(unix)]
 
 use std::net::TcpStream;
@@ -36,7 +38,7 @@ impl Drop for DaemonGuard {
 #[test]
 #[cfg(unix)]
 fn test_standalone_daemon_mode_detaches_from_shell() {
-    let bin = env!("CARGO_BIN_EXE_greptime");
+    let bin = env!("CARGO_BIN_EXE_pulse");
     let data_home = tempfile::tempdir().unwrap();
     let data_home_path = data_home.path().to_str().unwrap().to_string();
 

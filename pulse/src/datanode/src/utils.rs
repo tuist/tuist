@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 
 use common_meta::DatanodeId;
@@ -38,8 +40,6 @@ use crate::error::{GetMetadataSnafu, Result, SerializeWalOptionsSnafu};
 /// The requests to open regions.
 pub struct RegionOpenRequests {
     pub(crate) leader_regions: Vec<(RegionId, RegionOpenRequest)>,
-    #[cfg(feature = "enterprise")]
-    pub(crate) follower_regions: Vec<(RegionId, RegionOpenRequest)>,
 }
 
 impl RegionOpenRequests {
@@ -52,9 +52,6 @@ impl RegionOpenRequests {
         Vec<(RegionId, RegionOpenRequest)>,
     ) {
         let leader_regions = self.leader_regions;
-        #[cfg(feature = "enterprise")]
-        let follower_regions = self.follower_regions;
-        #[cfg(not(feature = "enterprise"))]
         let follower_regions = Vec::new();
         (leader_regions, follower_regions)
     }
@@ -130,8 +127,6 @@ pub async fn build_region_open_requests(
     let topic_name_manager = TopicNameManager::new(kv_backend);
     let mut topic_regions = HashMap::<String, Vec<RegionId>>::new();
     let mut regions = vec![];
-    #[cfg(feature = "enterprise")]
-    let mut follower_regions = vec![];
 
     for table_value in table_values {
         for region_number in table_value.regions {
@@ -152,31 +147,6 @@ pub async fn build_region_open_requests(
 
             regions.push((
                 region_id,
-                table_value.region_info.engine.clone(),
-                table_value.region_info.region_storage_path.clone(),
-                region_options,
-            ));
-        }
-
-        #[cfg(feature = "enterprise")]
-        for region_number in table_value.follower_regions {
-            let region_id = RegionId::new(table_value.table_id, region_number);
-            // Augments region options with wal options if a wal options is provided.
-            let mut region_options = table_value.region_info.region_options.clone();
-            serialize_wal_options(
-                &mut region_options,
-                RegionId::new(table_value.table_id, region_number),
-                &table_value.region_info.region_wal_options,
-            )
-            .context(SerializeWalOptionsSnafu { region_id })?;
-            group_region_by_topic(
-                region_id,
-                &table_value.region_info.region_wal_options,
-                &mut topic_regions,
-            );
-
-            follower_regions.push((
-                RegionId::new(table_value.table_id, region_number),
                 table_value.region_info.engine.clone(),
                 table_value.region_info.region_storage_path.clone(),
                 region_options,
@@ -247,30 +217,7 @@ pub async fn build_region_open_requests(
         ));
     }
 
-    #[cfg(feature = "enterprise")]
-    let follower_region_requests = {
-        let mut follower_region_requests = Vec::with_capacity(follower_regions.len());
-        for (region_id, engine, store_path, options) in follower_regions {
-            let table_dir = table_dir(&store_path, region_id.table_id());
-            follower_region_requests.push((
-                region_id,
-                RegionOpenRequest {
-                    engine,
-                    table_dir,
-                    path_type: PathType::Bare,
-                    options,
-                    skip_wal_replay: true,
-                    checkpoint: None,
-                    requirements: Default::default(),
-                },
-            ));
-        }
-        follower_region_requests
-    };
-
     Ok(RegionOpenRequests {
         leader_regions: leader_region_requests,
-        #[cfg(feature = "enterprise")]
-        follower_regions: follower_region_requests,
     })
 }

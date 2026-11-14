@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -51,7 +53,7 @@ enum MergeState {
 lazy_static! {
     /// Timer of different stages in query.
     pub static ref QUERY_STAGE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_query_stage_elapsed",
+        "pulse_query_stage_elapsed",
         "query engine time elapsed during each stage",
         &["stage"],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
@@ -73,36 +75,36 @@ lazy_static! {
         .with_label_values(&["merge_scan_poll"]);
 
     pub static ref MERGE_SCAN_REGIONS: Histogram = register_histogram!(
-        "greptime_query_merge_scan_regions",
+        "pulse_query_merge_scan_regions",
         "query merge scan regions"
     )
     .unwrap();
     pub static ref MERGE_SCAN_ERRORS_TOTAL: IntCounter = register_int_counter!(
-        "greptime_query_merge_scan_errors_total",
+        "pulse_query_merge_scan_errors_total",
         "query merge scan errors total"
     )
     .unwrap();
     pub static ref PUSH_DOWN_FALLBACK_ERRORS_TOTAL: IntCounter = register_int_counter!(
-        "greptime_push_down_fallback_errors_total",
+        "pulse_push_down_fallback_errors_total",
         "query push down fallback errors total"
     )
     .unwrap();
 
     pub static ref QUERY_MEMORY_POOL_USAGE_BYTES: IntGauge = register_int_gauge!(
-        "greptime_query_memory_pool_usage_bytes",
+        "pulse_query_memory_pool_usage_bytes",
         "current query memory pool usage in bytes"
     )
     .unwrap();
 
     pub static ref QUERY_MEMORY_POOL_REJECTED_TOTAL: IntCounter = register_int_counter!(
-        "greptime_query_memory_pool_rejected_total",
+        "pulse_query_memory_pool_rejected_total",
         "total number of query memory allocations rejected"
     )
     .unwrap();
 
     /// Remote dynamic filter fanout RPC results, labeled with status.
     pub static ref REMOTE_DYN_FILTER_UPDATE_RPC_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_query_remote_dyn_filter_update_rpc_total",
+        "pulse_query_remote_dyn_filter_update_rpc_total",
         "remote dynamic filter fanout RPC results",
         &["status"]
     )
@@ -110,7 +112,7 @@ lazy_static! {
 
     /// Remote dynamic filter fanout payload bytes.
     pub static ref REMOTE_DYN_FILTER_PAYLOAD_BYTES: Histogram = register_histogram!(
-        "greptime_query_remote_dyn_filter_payload_bytes",
+        "pulse_query_remote_dyn_filter_payload_bytes",
         "remote dynamic filter fanout payload bytes",
         vec![
             128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0, 8192.0, 16384.0, 32768.0,
@@ -121,7 +123,7 @@ lazy_static! {
 
     /// Remote dynamic filter encode results, labeled with result.
     pub static ref REMOTE_DYN_FILTER_ENCODE_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_query_remote_dyn_filter_encode_total",
+        "pulse_query_remote_dyn_filter_encode_total",
         "remote dynamic filter encode results",
         &["result"]
     )
@@ -486,7 +488,7 @@ mod tests {
         Arc::new(
             MergeScanExec::new(
                 &session_state,
-                TableName::new("greptime", "public", "test"),
+                TableName::new("pulse", "public", "test"),
                 vec![RegionId::new(table_id, 0)],
                 plan,
                 &schema,

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
@@ -42,13 +44,13 @@ mod tests {
     use store_api::storage::RegionId;
     use substrait::{DFLogicalSubstraitConvertor, SubstraitPlan};
 
-    use crate::standalone::GreptimeDbStandaloneBuilder;
+    use crate::standalone::PulseStandaloneBuilder;
     use crate::tests;
     use crate::tests::MockDistributedInstance;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_standalone_exec_sql() {
-        let standalone = GreptimeDbStandaloneBuilder::new("test_standalone_exec_sql")
+        let standalone = PulseStandaloneBuilder::new("test_standalone_exec_sql")
             .build()
             .await;
         let instance = standalone.fe_instance();
@@ -284,7 +286,7 @@ mod tests {
             instance
                 .frontend()
                 .catalog_manager()
-                .table("greptime", "public", "demo", None)
+                .table("pulse", "public", "demo", None)
                 .await
                 .unwrap()
                 .is_none()
@@ -353,7 +355,7 @@ mod tests {
         let counter_hook = Arc::new(AssertionHook::default());
         plugins.insert::<SqlQueryInterceptorRef<Error>>(counter_hook.clone());
 
-        let standalone = GreptimeDbStandaloneBuilder::new("test_sql_interceptor_plugin")
+        let standalone = PulseStandaloneBuilder::new("test_sql_interceptor_plugin")
             .with_plugin(plugins)
             .build()
             .await;
@@ -414,7 +416,7 @@ mod tests {
         let hook = Arc::new(ExecPlanHook::default());
         plugins.insert::<SqlQueryInterceptorRef<Error>>(hook.clone());
 
-        let standalone = GreptimeDbStandaloneBuilder::new("test_exec_plan_interceptor_plugin")
+        let standalone = PulseStandaloneBuilder::new("test_exec_plan_interceptor_plugin")
             .with_plugin(plugins)
             .build()
             .await;
@@ -491,7 +493,7 @@ mod tests {
         let hook = Arc::new(DisableDBOpHook);
         plugins.insert::<SqlQueryInterceptorRef<Error>>(hook.clone());
 
-        let standalone = GreptimeDbStandaloneBuilder::new("test_disable_db_operation_plugin")
+        let standalone = PulseStandaloneBuilder::new("test_disable_db_operation_plugin")
             .with_plugin(plugins)
             .build()
             .await;
@@ -576,7 +578,7 @@ mod tests {
         let plugins = Plugins::new();
         plugins.insert::<auth::PermissionCheckerRef>(Arc::new(DenySecretTraces));
 
-        let standalone = GreptimeDbStandaloneBuilder::new("test_entity_graph_runs_as_caller")
+        let standalone = PulseStandaloneBuilder::new("test_entity_graph_runs_as_caller")
             .with_plugin(plugins)
             .build()
             .await;
@@ -594,7 +596,7 @@ mod tests {
                     service_name string,
                     duration_nano bigint unsigned,
                     primary key (service_name)
-                ) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true')"#
+                ) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true')"#
             );
             create_table(&instance, &create).await;
             let insert = format!(
@@ -623,7 +625,7 @@ mod tests {
                 service_name string,
                 duration_nano bigint unsigned,
                 primary key (service_name)
-            ) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true')"#,
+            ) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true')"#,
         )
         .await;
         create_table(
@@ -638,7 +640,7 @@ mod tests {
                 service_name string,
                 duration_nano bigint unsigned,
                 primary key (service_name)
-            ) with ('table_data_model' = 'greptime_trace_v1', 'append_mode' = 'true')"#,
+            ) with ('table_data_model' = 'pulse_trace_v1', 'append_mode' = 'true')"#,
         )
         .await;
         for insert in [
@@ -654,7 +656,7 @@ mod tests {
             assert_eq!(x, 1);
         }
 
-        let sql = "select src_id, dst_id from greptime_private.semantic_relationships \
+        let sql = "select src_id, dst_id from pulse_private.semantic_relationships \
                    order by src_id";
         let output = query(&instance, sql).await;
         let OutputData::Stream(s) = output.data else {
@@ -675,7 +677,7 @@ mod tests {
             "edge with a denied join side leaked:\n{pretty_print}"
         );
 
-        let sql = "select entity_id from greptime_private.semantic_entities order by entity_id";
+        let sql = "select entity_id from pulse_private.semantic_entities order by entity_id";
         let output = query(&instance, sql).await;
         let OutputData::Stream(s) = output.data else {
             unreachable!()
@@ -729,7 +731,7 @@ mod tests {
                 if let auth::PermissionTableTargets::Resolved(targets) = targets
                     && targets
                         .iter()
-                        .any(|target| target.table == "greptime_otel_resource_info")
+                        .any(|target| target.table == "pulse_otel_resource_info")
                 {
                     return Ok(auth::PermissionResp::Reject);
                 }
@@ -740,7 +742,7 @@ mod tests {
         let plugins = Plugins::new();
         plugins.insert::<auth::PermissionCheckerRef>(Arc::new(DenyResourceInfo));
 
-        let standalone = GreptimeDbStandaloneBuilder::new("test_otlp_descriptor_denied")
+        let standalone = PulseStandaloneBuilder::new("test_otlp_descriptor_denied")
             .with_plugin(plugins)
             .build()
             .await;
@@ -784,7 +786,7 @@ mod tests {
             .error_message
             .expect("denial must surface as a warning");
         assert!(
-            warning.contains("greptime_otel_resource_info"),
+            warning.contains("pulse_otel_resource_info"),
             "unexpected warning: {warning}"
         );
 
@@ -802,7 +804,7 @@ mod tests {
             "metric data was not committed:\n{pretty_print}"
         );
         assert!(
-            !pretty_print.contains("greptime_otel_resource_info"),
+            !pretty_print.contains("pulse_otel_resource_info"),
             "denied descriptor table was created:\n{pretty_print}"
         );
     }

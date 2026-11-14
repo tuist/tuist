@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::value::ValueData;
 use api::v1::{Rows, Value};
 use common_telemetry::tracing::info;
-use greptime_proto::v1::Value as GreptimeValue;
+use greptime_proto::v1::Value as PulseValue;
 use greptime_proto::v1::value::ValueData::{
     BinaryValue, BoolValue, F64Value, StringValue, TimestampNanosecondValue, TimestampSecondValue,
     U8Value, U32Value, U64Value,
@@ -414,8 +416,8 @@ transform:
         ("breadcrumbs_cloud_wrapper_asn", None),
     ]
     .into_iter()
-    .map(|(_, d)| GreptimeValue { value_data: d })
-    .collect::<Vec<GreptimeValue>>();
+    .map(|(_, d)| PulseValue { value_data: d })
+    .collect::<Vec<PulseValue>>();
 
     let yaml_content = Content::Yaml(pipeline_yaml);
     let pipeline: Pipeline = parse(&yaml_content).expect("failed to parse pipeline");

@@ -4,14 +4,14 @@
 
 CREATE TABLE tsid_binary_join_physical (
   ts TIMESTAMP(3) TIME INDEX,
-  greptime_value DOUBLE,
+  pulse_value DOUBLE,
 ) ENGINE = metric WITH ("physical_metric_table" = "");
 
 CREATE TABLE tsid_binary_join_left (
   host STRING NULL,
   job STRING NULL,
   ts TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
+  pulse_value DOUBLE NULL,
   TIME INDEX (ts),
   PRIMARY KEY(host, job),
 )
@@ -24,7 +24,7 @@ CREATE TABLE tsid_binary_join_right (
   host STRING NULL,
   job STRING NULL,
   ts TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
+  pulse_value DOUBLE NULL,
   TIME INDEX (ts),
   PRIMARY KEY(host, job),
 )
@@ -36,7 +36,7 @@ WITH(
 CREATE TABLE tsid_binary_join_right_by_job (
   job STRING NULL,
   ts TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
+  pulse_value DOUBLE NULL,
   TIME INDEX (ts),
   PRIMARY KEY(job),
 )
@@ -49,7 +49,7 @@ CREATE TABLE tsid_binary_join_third (
   host STRING NULL,
   job STRING NULL,
   ts TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
+  pulse_value DOUBLE NULL,
   TIME INDEX (ts),
   PRIMARY KEY(host, job),
 )
@@ -58,25 +58,25 @@ WITH(
   on_physical_table = 'tsid_binary_join_physical'
 );
 
-INSERT INTO tsid_binary_join_left (host, job, ts, greptime_value) VALUES
+INSERT INTO tsid_binary_join_left (host, job, ts, pulse_value) VALUES
   ('host1', 'job1', 0, 12),
   ('host2', 'job2', 0, 18),
   ('host1', 'job1', 5000, 15),
   ('host2', 'job2', 5000, 21);
 
-INSERT INTO tsid_binary_join_right (host, job, ts, greptime_value) VALUES
+INSERT INTO tsid_binary_join_right (host, job, ts, pulse_value) VALUES
   ('host1', 'job1', 0, 3),
   ('host2', 'job2', 0, 6),
   ('host1', 'job1', 5000, 5),
   ('host2', 'job2', 5000, 7);
 
-INSERT INTO tsid_binary_join_right_by_job (job, ts, greptime_value) VALUES
+INSERT INTO tsid_binary_join_right_by_job (job, ts, pulse_value) VALUES
   ('job1', 0, 3),
   ('job2', 0, 6),
   ('job1', 5000, 5),
   ('job2', 5000, 7);
 
-INSERT INTO tsid_binary_join_third (host, job, ts, greptime_value) VALUES
+INSERT INTO tsid_binary_join_third (host, job, ts, pulse_value) VALUES
   ('host1', 'job1', 0, 2),
   ('host2', 'job2', 0, 3),
   ('host1', 'job1', 5000, 4),

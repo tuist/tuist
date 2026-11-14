@@ -3,9 +3,9 @@
 default_timezone = "UTC"
 
 ## The default column prefix for auto-created time index, value, and native histogram columns.
-## Legacy OTLP summary columns keep their historical `greptime_` prefix.
+## Legacy OTLP summary columns keep their historical `pulse_` prefix.
 ## @toml2docs:none-default
-default_column_prefix = "greptime"
+default_column_prefix = "pulse"
 
 ## Server-side global switch for auto table creation on write.
 ## When `false`, a missing table is never auto-created even if the request sets the `auto_create_table` hint to `true`. Default: `true`.
@@ -16,7 +16,7 @@ default_column_prefix = "greptime"
 #+ experimental_metric_export = false
 
 ## The user provider for authentication.
-## Examples: "static_user_provider:file:/path/to/users", "static_user_provider:cmd:greptime_user=greptime_pwd"
+## Examples: "static_user_provider:file:/path/to/users", "static_user_provider:cmd:pulse_user=pulse_pwd"
 ## Password verifier formats: "plain:<password>", "pbkdf2_sha256:<iterations>:<hex_salt>:<hex_hash>",
 ## "mysql_native_password:<hex_sha1_sha1_password>",
 ## "pg_scram_sha256:<iterations>:<hex_salt>:<hex_stored_key>:<hex_server_key>"
@@ -305,7 +305,7 @@ enable = true
 enable = true
 ## Maximum spans per trace ingest chunk. Set to 0 to disable splitting.
 trace_ingest_chunk_size = 512
-## Whether to synthesize the `greptime_otel_resource_info` table from OTLP metric
+## Whether to synthesize the `pulse_otel_resource_info` table from OTLP metric
 ## resource attributes, so metrics-only services reach the semantic graph.
 experimental_enable_resource_info = false
 
@@ -419,7 +419,7 @@ max_send_message_size = "512MB"
 ## The logging options.
 [logging]
 ## The directory to store the log files. If set to empty, logs will not be written to files.
-dir = "./greptimedb_data/logs"
+dir = "./pulse_data/logs"
 
 ## The log level. Can be `info`/`debug`/`warn`/`error`.
 ## @toml2docs:none-default
@@ -473,9 +473,9 @@ default_ratio = 1.0
 enable = true
 
 ## The record type of slow queries. It can be `system_table` or `log`.
-## If `system_table` is selected, the slow queries will be recorded in a system table `greptime_private.slow_queries`.
+## If `system_table` is selected, the slow queries will be recorded in a system table `pulse_private.slow_queries`.
 ## If `log` is selected, slow queries are logged to stdout when `logging.append_stdout` is enabled,
-## and to `greptimedb-slow-queries.*` when `logging.enable_file_logging` is enabled and `logging.dir` is nonempty.
+## and to `pulse-slow-queries.*` when `logging.enable_file_logging` is enabled and `logging.dir` is nonempty.
 ## Slow query logging is independent of `logging.level` and uses `logging.log_format` and the logging retention settings.
 record_type = "system_table"
 

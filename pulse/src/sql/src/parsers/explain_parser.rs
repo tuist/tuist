@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::ResultExt;
 use sqlparser::keywords::Keyword;
 
@@ -56,14 +58,14 @@ mod tests {
     use sqlparser::ast::{GroupByExpr, Query as SpQuery, SelectFlavor, WildcardAdditionalOptions};
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
 
     #[test]
     pub fn test_explain() {
         let sql = "EXPLAIN select * from foo";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         let stmts = result.unwrap();
         assert_eq!(1, stmts.len());
 

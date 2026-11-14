@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::collections::BTreeSet;
 use std::sync::{Arc, OnceLock, Weak};
@@ -618,7 +620,7 @@ impl SystemCatalog {
             }
             DEFAULT_SCHEMA_NAME => self.numbers_table_provider.table_names(),
             // Computed entity-graph tables overlay the physical tables of
-            // `greptime_private` (the caller appends these to the physical list).
+            // `pulse_private` (the caller appends these to the physical list).
             DEFAULT_PRIVATE_SCHEMA_NAME => SemanticGraphTableProvider::table_names(),
             _ => vec![],
         }

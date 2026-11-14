@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::region::build_index_request;
 use arrow::datatypes::DataType as ArrowDataType;
 use common_error::ext::BoxedError;
@@ -152,7 +154,7 @@ mod tests {
             build_index_impl(
                 handler,
                 &ctx.query_ctx,
-                &[ValueRef::String("greptime.public.test")],
+                &[ValueRef::String("pulse.public.test")],
                 "build_series_index",
                 Some(build_index_request::Options::SeriesIndex(Default::default())),
             )

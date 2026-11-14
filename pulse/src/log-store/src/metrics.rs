@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::*;
 
@@ -27,7 +29,7 @@ pub const PARTITION_LABEL: &str = "partition";
 lazy_static! {
     /// Counters of bytes of each operation on a logstore.
     pub static ref METRIC_LOGSTORE_OP_BYTES_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_logstore_op_bytes_total",
+        "pulse_logstore_op_bytes_total",
         "logstore operation bytes total",
         &[LOGSTORE_LABEL, OPTYPE_LABEL],
     )
@@ -51,7 +53,7 @@ lazy_static! {
 
     /// Timer of operations on a logstore.
     pub static ref METRIC_LOGSTORE_OP_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_logstore_op_elapsed",
+        "pulse_logstore_op_elapsed",
         "logstore operation elapsed",
         &[LOGSTORE_LABEL, OPTYPE_LABEL],
         vec![
@@ -72,19 +74,19 @@ lazy_static! {
     pub static ref METRIC_RAFT_ENGINE_READ_ELAPSED: Histogram = METRIC_LOGSTORE_OP_ELAPSED.with_label_values(&["raft-engine", "read"]);
 
     pub static ref METRIC_KAFKA_CLIENT_BYTES_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_logstore_kafka_client_bytes_total",
+        "pulse_logstore_kafka_client_bytes_total",
         "kafka logstore's bytes traffic total",
         &[LOGSTORE_LABEL, PARTITION_LABEL],
     )
     .unwrap();
     pub static ref METRIC_KAFKA_CLIENT_TRAFFIC_TOTAL: IntCounterVec = register_int_counter_vec!(
-        "greptime_logstore_kafka_client_traffic_total",
+        "pulse_logstore_kafka_client_traffic_total",
         "kafka logstore's request count traffic total",
         &[LOGSTORE_LABEL, PARTITION_LABEL],
     )
     .unwrap();
     pub static ref METRIC_KAFKA_CLIENT_PRODUCE_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_logstore_kafka_client_produce_elapsed",
+        "pulse_logstore_kafka_client_produce_elapsed",
         "kafka logstore produce operation elapsed",
         &[LOGSTORE_LABEL, PARTITION_LABEL],
     )

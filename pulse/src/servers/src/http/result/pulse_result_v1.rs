@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 
 use axum::Json;
@@ -22,14 +24,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::http::header::{
-    GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT, GREPTIME_DB_HEADER_METRICS,
+    PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT, PULSE_DB_HEADER_METRICS,
 };
-use crate::http::{GreptimeQueryOutput, HttpResponse, ResponseFormat, handler, process_with_limit};
+use crate::http::{HttpResponse, PulseQueryOutput, ResponseFormat, handler, process_with_limit};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct GreptimedbV1Response {
+pub struct PulseV1Response {
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub(crate) output: Vec<GreptimeQueryOutput>,
+    pub(crate) output: Vec<PulseQueryOutput>,
     pub(crate) execution_time_ms: u64,
 
     // placeholder for header value
@@ -38,10 +40,10 @@ pub struct GreptimedbV1Response {
     pub(crate) resp_metrics: HashMap<String, Value>,
 }
 
-impl GreptimedbV1Response {
+impl PulseV1Response {
     pub async fn from_output(outputs: Vec<crate::error::Result<Output>>) -> HttpResponse {
         match handler::from_output(outputs).await {
-            Ok((output, resp_metrics)) => HttpResponse::GreptimedbV1(Self {
+            Ok((output, resp_metrics)) => HttpResponse::PulseV1(Self {
                 output,
                 execution_time_ms: 0,
                 resp_metrics,
@@ -50,7 +52,7 @@ impl GreptimedbV1Response {
         }
     }
 
-    pub fn output(&self) -> &[GreptimeQueryOutput] {
+    pub fn output(&self) -> &[PulseQueryOutput] {
         &self.output
     }
 
@@ -69,7 +71,7 @@ impl GreptimedbV1Response {
     }
 }
 
-impl IntoResponse for GreptimedbV1Response {
+impl IntoResponse for PulseV1Response {
     fn into_response(self) -> Response {
         let execution_time = self.execution_time_ms;
         let metrics = if self.resp_metrics.is_empty() {
@@ -81,15 +83,15 @@ impl IntoResponse for GreptimedbV1Response {
         let mut resp = Json(self).into_response();
 
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_FORMAT,
-            HeaderValue::from_static(ResponseFormat::GreptimedbV1.as_str()),
+            &PULSE_DB_HEADER_FORMAT,
+            HeaderValue::from_static(ResponseFormat::PulseV1.as_str()),
         );
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_EXECUTION_TIME,
+            &PULSE_DB_HEADER_EXECUTION_TIME,
             HeaderValue::from(execution_time),
         );
         if let Some(m) = metrics.and_then(|m| HeaderValue::from_str(&m).ok()) {
-            resp.headers_mut().insert(&GREPTIME_DB_HEADER_METRICS, m);
+            resp.headers_mut().insert(&PULSE_DB_HEADER_METRICS, m);
         }
 
         resp

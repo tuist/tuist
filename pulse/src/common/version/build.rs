@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -29,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let refresh = profile == "release";
 
     println!("cargo:rerun-if-env-changed=RUSTC");
-    println!("cargo:rerun-if-env-changed=GREPTIME_PRODUCT_NAME");
+    println!("cargo:rerun-if-env-changed=PULSE_PRODUCT_NAME");
     println!("cargo:rerun-if-env-changed=CARGO_WORKSPACE_DIR");
 
     // Resolve the workspace root from CARGO_MANIFEST_DIR (this crate is
@@ -52,10 +54,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let product_version = load_product_version(&workspace_root);
-    println!("cargo:rustc-env=GREPTIME_PRODUCT_VERSION={product_version}");
+    println!("cargo:rustc-env=PULSE_PRODUCT_VERSION={product_version}");
 
     let product_name = load_product_name();
-    println!("cargo:rustc-env=GREPTIME_PRODUCT_NAME={product_name}");
+    println!("cargo:rustc-env=PULSE_PRODUCT_NAME={product_name}");
 
     let repository = open_repository(&workspace_root);
 
@@ -105,7 +107,7 @@ fn load_product_version(workspace_root: &Path) -> String {
         .as_ref()
         .and_then(|w| {
             w.metadata.as_ref().and_then(|m| {
-                m.get("greptime")
+                m.get("pulse")
                     .and_then(|g| g.get("product_version").and_then(|v| v.as_str()))
             })
         })
@@ -114,7 +116,7 @@ fn load_product_version(workspace_root: &Path) -> String {
 }
 
 fn load_product_name() -> String {
-    env::var("GREPTIME_PRODUCT_NAME").unwrap_or_else(|_| "GreptimeDB".to_string())
+    env::var("PULSE_PRODUCT_NAME").unwrap_or_else(|_| "Pulse".to_string())
 }
 
 fn emit_workspace_watch_list(

@@ -1,4 +1,4 @@
-# Greptime Runtime
+# Pulse Runtime
 
 ## Run performance test for different priority & workload type
 

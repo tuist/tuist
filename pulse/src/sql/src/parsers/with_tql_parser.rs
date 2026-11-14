@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt;
 
 use serde::Serialize;
@@ -25,7 +27,7 @@ use sqlparser::parser::IsOptional;
 use sqlparser::tokenizer::Token;
 use sqlparser_derive::{Visit, VisitMut};
 
-use crate::dialect::GreptimeDbDialect;
+use crate::dialect::PulseDialect;
 use crate::error::{self, Result};
 use crate::parser::ParserContext;
 use crate::parsers::tql_parser;
@@ -275,7 +277,7 @@ impl ParserContext<'_> {
         let tql_string = &self.sql[start_index..end_index];
         let tql_string = tql_string.trim();
 
-        let mut parser_ctx = ParserContext::new(&GreptimeDbDialect {}, tql_string)?;
+        let mut parser_ctx = ParserContext::new(&PulseDialect {}, tql_string)?;
         parser_ctx.scheduled_time = self.scheduled_time;
         let statement = parser_ctx.parse_tql(require_now_expr)?;
 
@@ -295,7 +297,7 @@ impl ParserContext<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::parsers::with_tql_parser::CteContent;
     use crate::statements::statement::Statement;
@@ -313,7 +315,7 @@ mod tests {
         "#;
 
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(statements.len(), 1);
 
@@ -351,7 +353,7 @@ mod tests {
         "#;
 
         let statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(statements.len(), 1);
 

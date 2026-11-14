@@ -8,7 +8,7 @@ kind = "otlp_trace_load"
 [scenario.load]
 database = "public"
 table = "opentelemetry_traces"
-pipeline = "greptime_trace_v1"
+pipeline = "pulse_trace_v1"
 duration_seconds = 120
 warmup_seconds = 60
 rate = 50000

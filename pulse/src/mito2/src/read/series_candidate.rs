@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Candidate metric-series discovery for the two-stage series scan.
 
 use std::cmp::Reverse;
@@ -96,14 +98,6 @@ impl SeriesCandidateScanner {
         part_metrics: PartitionMetrics,
     ) -> Result<Self> {
         validate_metric_metadata(&stream_ctx)?;
-        #[cfg(feature = "enterprise")]
-        ensure!(
-            stream_ctx.input.extension_ranges().is_empty(),
-            InvalidRequestSnafu {
-                region_id: stream_ctx.input.region_metadata().region_id,
-                reason: "candidate-series scan does not support extension ranges; use the legacy series-scan path",
-            }
-        );
         ensure!(
             !pruner.predicate_prefilter_enabled(),
             UnexpectedSnafu {

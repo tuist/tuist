@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified by Tuist; see pulse/FORK.md.
+
 import importlib.util
 import json
 import sys
@@ -54,11 +56,11 @@ class SummaryTest(unittest.TestCase):
                 self.assertEqual(summary.duration(value), expected)
 
     def test_relative_latency_and_measurement_counts(self):
-        self.measured('greptimedb')
+        self.measured('pulse')
         self.measured('clickhouse',20)
         self.measured('victorialogs',5)
         text = summary.benchmark(self.root, summary.TARGETS)
-        self.assertIn('| Q01 | Scan / index | greptimedb | 10.0 ms | — |', text)
+        self.assertIn('| Q01 | Scan / index | pulse | 10.0 ms | — |', text)
         self.assertEqual(text.count('+100.0%'),3)
         self.assertEqual(text.count('-50.0%'),3)
         self.assertEqual(text.count('| 5 | 0 | 0 |'),3)
@@ -67,14 +69,14 @@ class SummaryTest(unittest.TestCase):
         self.measured('clickhouse',20)
         for base in [None, {'passed':False}, {'data_profile':{'id':'M'}}]:
             if base is not None:
-                self.measured('greptimedb', **base)
+                self.measured('pulse', **base)
             text = summary.benchmark(self.root, summary.TARGETS)
             self.assertNotIn('+100.0%',text)
         self.assertEqual(summary.delta(10,0),'—')
         self.assertEqual(summary.delta(None,10),'—')
 
     def test_mismatched_results_have_no_comparison(self):
-        self.measured('greptimedb')
+        self.measured('pulse')
         path = self.measured('clickhouse', 20)
         data = json.loads(path.read_text())
         data['per_query'][0]['result_fingerprint'] = 'different-result'
@@ -82,7 +84,7 @@ class SummaryTest(unittest.TestCase):
         self.assertNotIn('+100.0%', summary.benchmark(self.root, summary.TARGETS))
 
     def test_collapsed_explain_escaped_and_bounded(self):
-        self.write('greptimedb-1/greptimedb-1/query-plans.json',
+        self.write('pulse-1/pulse-1/query-plans.json',
                    {'capability':{'state':'supported'}, 'queries':[
                        {'query_name':'Q01','state':'passed','explain_sql':'SELECT <x>',
                         'raw_response':'<script>'+'x'*10000}]})
@@ -99,27 +101,27 @@ class SummaryTest(unittest.TestCase):
 
     def test_physical_and_post_load_evidence(self):
         self.write('corpus/size.json',{'raw_jsonl_bytes':2048})
-        self.write('greptimedb-1/greptimedb-1/physical-evidence.json',
+        self.write('pulse-1/pulse-1/physical-evidence.json',
                    {'passed':True,'storage':{'engine_total_bytes':1024,'sst_files':1},
                     'materialization':{'state':'materialized'}})
-        self.write('greptimedb-1/post-load-docker-stats.json',
+        self.write('pulse-1/post-load-docker-stats.json',
                    {'CPUPerc':'1.2%','MemUsage':'20MiB / 4GiB'})
-        text=summary.lifecycle(self.root,['greptimedb'])
+        text=summary.lifecycle(self.root,['pulse'])
         self.assertIn('2.00 KiB',text)
-        self.assertIn('| greptimedb | 1.00 KiB | 2.00× | materialized | 1 | 1.2% | 20MiB / 4GiB |',text)
+        self.assertIn('| pulse | 1.00 KiB | 2.00× | materialized | 1 | 1.2% | 20MiB / 4GiB |',text)
         self.assertIn('<summary>DDL',text)
 
     def test_legacy_timing_not_relabelled_and_missing_artifacts(self):
         path=self.root/'timings.jsonl'
         path.write_text(json.dumps(dict(phase='generate',started_at_ms=1789629388230252120,
                                        ended_at_ms=1789629396310721272,elapsed_ms=8080469248,exit_code=0))+'\n')
-        text=summary.lifecycle(self.root, ['greptimedb'])
+        text=summary.lifecycle(self.root, ['pulse'])
         self.assertIn('invalid timestamp units (legacy artifact)',text)
         self.assertNotIn('2244h',text)
         self.assertIn('unavailable',text)
         path.write_text(json.dumps(dict(phase='generate',started_at_ms=1789629388230,
                                        ended_at_ms=1789629396310,elapsed_ms=8080,exit_code=7))+'\n')
-        self.assertIn('| generate | 8.08 s | 7 |',summary.lifecycle(self.root,['greptimedb']))
+        self.assertIn('| generate | 8.08 s | 7 |',summary.lifecycle(self.root,['pulse']))
 
 
 if __name__ == '__main__':

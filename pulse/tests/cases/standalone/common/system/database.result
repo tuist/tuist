@@ -20,11 +20,11 @@ select schema();
 
 select user(), current_user(), system_user();
 
-+----------+----------------+---------------+
-| user()   | current_user() | system_user() |
-+----------+----------------+---------------+
-| greptime | greptime       | greptime      |
-+----------+----------------+---------------+
++--------+----------------+---------------+
+| user() | current_user() | system_user() |
++--------+----------------+---------------+
+| pulse  | pulse          | pulse         |
++--------+----------------+---------------+
 
 use information_schema;
 

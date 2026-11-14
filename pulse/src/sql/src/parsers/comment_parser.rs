@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::{ResultExt, ensure};
 use sqlparser::ast::ObjectName;
 use sqlparser::keywords::Keyword;
@@ -132,14 +134,14 @@ impl ParserContext<'_> {
 mod tests {
     use std::assert_matches;
 
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::comment::CommentObject;
     use crate::statements::statement::Statement;
 
     fn parse(sql: &str) -> Statement {
         let mut stmts =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(stmts.len(), 1);
         stmts.pop().unwrap()

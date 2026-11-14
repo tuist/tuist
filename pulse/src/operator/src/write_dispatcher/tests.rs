@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -313,11 +315,11 @@ impl RegionTestServer {
                         format!("region {region_id} rejected the write"),
                     );
                     status.metadata_mut().insert(
-                        common_error::GREPTIME_DB_HEADER_ERROR_CODE,
+                        common_error::PULSE_DB_HEADER_ERROR_CODE,
                         (code as u32).to_string().parse().unwrap(),
                     );
                     status.metadata_mut().insert(
-                        common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                        common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
                         hint.as_str().parse().unwrap(),
                     );
                     status
@@ -514,7 +516,7 @@ async fn test_write_retry_transport_errors() {
             let mut status = Status::new(code, "write failed");
             if let Some(hint) = hint {
                 status.metadata_mut().insert(
-                    common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+                    common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
                     hint.as_str().parse().unwrap(),
                 );
             }
@@ -822,7 +824,7 @@ async fn test_finish_retries_initial_failures_in_one_round() {
         vec![
             vec![CacheIdent::TableId(1)],
             vec![CacheIdent::TableName(TableName::new(
-                "greptime", "public", "table_1"
+                "pulse", "public", "table_1"
             ))],
         ]
     );
@@ -902,7 +904,7 @@ async fn test_write_retry_refreshes_stale_route_and_sends_only_failed_region_to_
             vec![
                 vec![CacheIdent::TableId(1)],
                 vec![CacheIdent::TableName(TableName::new(
-                    "greptime", "public", "table_1"
+                    "pulse", "public", "table_1"
                 ))],
             ]
         );
@@ -1140,7 +1142,7 @@ async fn test_write_retry_rebuilds_only_failed_rows_after_route_refresh() {
             vec![
                 vec![CacheIdent::TableId(1)],
                 vec![CacheIdent::TableName(TableName::new(
-                    "greptime", "public", "table_1"
+                    "pulse", "public", "table_1"
                 ))],
             ]
         );
@@ -1252,7 +1254,7 @@ async fn test_write_retry_restores_changed_partition_tags_for_failed_regions() {
         create_routing_caches(backend.clone());
     // Warm the catalog's name-keyed TableCache before the partition column changes.
     let cached_table = catalog_manager
-        .table("greptime", "public", "physical", None)
+        .table("pulse", "public", "physical", None)
         .await
         .unwrap()
         .unwrap();
@@ -1311,7 +1313,7 @@ async fn test_write_retry_restores_changed_partition_tags_for_failed_regions() {
         vec![
             vec![CacheIdent::TableId(1)],
             vec![CacheIdent::TableName(TableName::new(
-                "greptime", "public", "physical"
+                "pulse", "public", "physical"
             ))],
         ]
     );
@@ -1758,7 +1760,7 @@ async fn check_write_retry_rebuilds_logical_rows_in_mixed_table_envelope(kind: W
     let rebuilt_logical_ids = [1, 3].map(|region| RegionId::new(42, region).as_u64());
     let mut status = Status::unavailable("partition changed");
     status.metadata_mut().insert(
-        common_error::GREPTIME_DB_HEADER_ERROR_RETRY_HINT,
+        common_error::PULSE_DB_HEADER_ERROR_RETRY_HINT,
         RetryHint::RetryAfterRouteRefresh.as_str().parse().unwrap(),
     );
     server
@@ -1769,7 +1771,7 @@ async fn check_write_retry_rebuilds_logical_rows_in_mixed_table_envelope(kind: W
         .insert(stale_logical_id, VecDeque::from([status]));
 
     let header = Some(RegionRequestHeader {
-        dbname: "greptime.public".to_string(),
+        dbname: "pulse.public".to_string(),
         ..Default::default()
     });
     let mut physical = build_partitioned_request(kind, 1, versions[&1], &[70]);
@@ -1827,7 +1829,7 @@ async fn check_write_retry_rebuilds_logical_rows_in_mixed_table_envelope(kind: W
     assert_eq!(
         calls[1],
         vec![CacheIdent::TableName(TableName::new(
-            "greptime",
+            "pulse",
             "public",
             "retry_logical"
         ))],
@@ -1845,7 +1847,7 @@ async fn test_write_retry_rejects_reused_table_name() {
     let (partition_manager, _, registry, catalog_manager) = create_routing_caches(backend.clone());
     // Prime both name-keyed caches with the old identity before the concurrent rename.
     let original = catalog_manager
-        .table("greptime", "public", "table_1", None)
+        .table("pulse", "public", "table_1", None)
         .await
         .unwrap()
         .unwrap();
@@ -1875,7 +1877,7 @@ async fn test_write_retry_rejects_reused_table_name() {
         HashMap::from([(RegionId::new(1, 2).as_u64(), 1)])
     );
     let replacement = catalog_manager
-        .table("greptime", "public", "table_1", None)
+        .table("pulse", "public", "table_1", None)
         .await
         .unwrap()
         .unwrap();

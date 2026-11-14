@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
@@ -432,7 +434,7 @@ mod tests {
     }
 
     fn query_context_with_initial_regs(query_id: QueryId) -> QueryContext {
-        let mut query_ctx = QueryContext::with("greptime", "public");
+        let mut query_ctx = QueryContext::with("pulse", "public");
         query_ctx.set_extension(REMOTE_QUERY_ID_EXTENSION_KEY, query_id.to_string());
         query_ctx.set_extension(
             INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY,
@@ -484,7 +486,7 @@ mod tests {
 
     #[test]
     fn initial_dyn_filter_regs_can_be_read_from_query_context() {
-        let mut query_ctx = QueryContext::with("greptime", "public");
+        let mut query_ctx = QueryContext::with("pulse", "public");
         query_ctx.set_extension(
             INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY,
             InitialDynFilterRegs::new(vec![InitialDynFilterReg::new(
@@ -503,7 +505,7 @@ mod tests {
 
     #[test]
     fn initial_dyn_filter_regs_from_query_context_rejects_duplicate_filter_ids() {
-        let mut query_ctx = QueryContext::with("greptime", "public");
+        let mut query_ctx = QueryContext::with("pulse", "public");
         query_ctx.set_extension(
             INITIAL_REMOTE_DYN_FILTER_REGISTRATIONS_EXTENSION_KEY,
             InitialDynFilterRegs::new(vec![

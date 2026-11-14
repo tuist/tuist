@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -88,7 +90,7 @@ impl MetasrvInstance {
 
         let mut builder = HttpServerBuilder::new(opts.http.clone())
             .with_metrics_handler(MetricsHandler)
-            .with_greptime_config_options(opts.to_toml().context(error::TomlFormatSnafu)?);
+            .with_pulse_config_options(opts.to_toml().context(error::TomlFormatSnafu)?);
         builder = builder.with_extra_router(extra_routers);
 
         // put metasrv into plugins for later use

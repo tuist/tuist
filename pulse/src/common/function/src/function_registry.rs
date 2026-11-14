@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! functions registry
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -613,11 +615,6 @@ mod tests {
     fn test_builtin_admin_functions_remain_queryable() {
         // Built-in admin-only functions registered at startup stay queryable
         // through the same global registry used for runtime registrations.
-        #[cfg(feature = "enterprise")]
-        {
-            assert!(get_admin_function("purge_table").is_some());
-        }
-        #[cfg(not(feature = "enterprise"))]
         {
             assert!(get_admin_function("purge_table").is_none());
         }

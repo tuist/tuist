@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Debug;
 
 use ::auth::{
@@ -623,20 +625,20 @@ mod tests {
 
     #[test]
     fn test_scram_client_first_parse() {
-        let message = b"n,,n=greptime,r=clientnonce";
+        let message = b"n,,n=pulse,r=clientnonce";
         let client_first = ScramClientFirst::parse(message).unwrap();
         assert_eq!("biws", client_first.channel_binding);
-        assert_eq!("n=greptime,r=clientnonce", client_first.bare);
+        assert_eq!("n=pulse,r=clientnonce", client_first.bare);
         assert_eq!("clientnonce", client_first.nonce);
 
-        let message = b"y,,n=greptime,r=clientnonce";
+        let message = b"y,,n=pulse,r=clientnonce";
         let client_first = ScramClientFirst::parse(message).unwrap();
         assert_eq!("eSws", client_first.channel_binding);
-        assert_eq!("n=greptime,r=clientnonce", client_first.bare);
+        assert_eq!("n=pulse,r=clientnonce", client_first.bare);
         assert_eq!("clientnonce", client_first.nonce);
 
-        assert!(ScramClientFirst::parse(b"p=tls-server-end-point,,n=greptime,r=nonce").is_none());
-        assert!(ScramClientFirst::parse(b"n,a=authzid,n=greptime,r=nonce").is_none());
+        assert!(ScramClientFirst::parse(b"p=tls-server-end-point,,n=pulse,r=nonce").is_none());
+        assert!(ScramClientFirst::parse(b"n,a=authzid,n=pulse,r=nonce").is_none());
     }
 
     #[test]

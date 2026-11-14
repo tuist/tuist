@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use common_query::Output;
 use frontend::instance::Instance;
 use servers::query_handler::sql::SqlQueryHandler;
 use session::context::QueryContext;
-use tests_integration::standalone::GreptimeDbStandaloneBuilder;
+use tests_integration::standalone::PulseStandaloneBuilder;
 
 async fn execute_sql(instance: &Instance, sql: &str) -> Output {
     SqlQueryHandler::do_query(instance, sql, QueryContext::arc())
@@ -29,7 +31,7 @@ async fn execute_sql(instance: &Instance, sql: &str) -> Output {
 async fn test_dict_groupby_sst() {
     common_telemetry::init_default_ut_logging();
 
-    let standalone = GreptimeDbStandaloneBuilder::new("dict_groupby_sst")
+    let standalone = PulseStandaloneBuilder::new("dict_groupby_sst")
         .build()
         .await;
     let frontend = standalone.fe_instance();
@@ -42,7 +44,7 @@ async fn test_dict_groupby_sst() {
             usage_user DOUBLE,
             usage_system DOUBLE,
             usage_idle DOUBLE,
-            greptime_timestamp TIMESTAMP TIME INDEX
+            pulse_timestamp TIMESTAMP TIME INDEX
         ) WITH (append_mode = 'true', sst_format = 'flat')
         "#,
     )
@@ -85,12 +87,12 @@ async fn test_dict_groupby_sst() {
     );
 
     let query = r#"
-        SELECT hostname, avg(usage_user), date_trunc('hour', greptime_timestamp)
+        SELECT hostname, avg(usage_user), date_trunc('hour', pulse_timestamp)
         FROM cpu
-        WHERE greptime_timestamp >= '2023-06-12T00:00:00Z'
-          AND greptime_timestamp < '2023-06-14T00:00:00Z'
-        GROUP BY date_trunc('hour', greptime_timestamp), hostname
-        ORDER BY hostname, date_trunc('hour', greptime_timestamp)
+        WHERE pulse_timestamp >= '2023-06-12T00:00:00Z'
+          AND pulse_timestamp < '2023-06-14T00:00:00Z'
+        GROUP BY date_trunc('hour', pulse_timestamp), hostname
+        ORDER BY hostname, date_trunc('hour', pulse_timestamp)
     "#;
     let groups = execute_sql(frontend, query).await.data.pretty_print().await;
     assert_eq!(
@@ -117,11 +119,11 @@ async fn test_dict_groupby_sst() {
         frontend,
         r#"
         EXPLAIN ANALYZE VERBOSE
-        SELECT avg(usage_user), date_trunc('hour', greptime_timestamp)
+        SELECT avg(usage_user), date_trunc('hour', pulse_timestamp)
         FROM cpu
-        WHERE greptime_timestamp >= '2023-06-12T00:00:00Z'
-          AND greptime_timestamp < '2023-06-14T00:00:00Z'
-        GROUP BY date_trunc('hour', greptime_timestamp), hostname
+        WHERE pulse_timestamp >= '2023-06-12T00:00:00Z'
+          AND pulse_timestamp < '2023-06-14T00:00:00Z'
+        GROUP BY date_trunc('hour', pulse_timestamp), hostname
         "#,
     )
     .await

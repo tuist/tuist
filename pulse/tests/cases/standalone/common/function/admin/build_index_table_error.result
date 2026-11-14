@@ -12,5 +12,5 @@ Error: 1004(InvalidArguments), Failed to build admin function args: failed to ca
 -- Error: table does not exist
 ADMIN BUILD_INDEX('non_existent_table');
 
-Error: 1002(Unexpected), Failed to execute admin function build_index: Execution error: Table not found: greptime.public.non_existent_table
+Error: 1002(Unexpected), Failed to execute admin function build_index: Execution error: Table not found: pulse.public.non_existent_table
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Minimal schema index structures for Export/Import V2.
 //!
 //! The canonical schema representation is the per-schema DDL file under
@@ -81,12 +83,12 @@ mod tests {
     fn test_schema_snapshot_filter() {
         let mut snapshot = SchemaSnapshot::new();
         snapshot.add_schema(SchemaDefinition {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             name: "public".to_string(),
             options: HashMap::new(),
         });
         snapshot.add_schema(SchemaDefinition {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             name: "private".to_string(),
             options: HashMap::new(),
         });

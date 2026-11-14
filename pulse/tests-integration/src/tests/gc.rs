@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,7 +31,7 @@ use mito2::gc::GcConfig;
 use store_api::storage::RegionId;
 use table::metadata::TableId;
 
-use crate::cluster::GreptimeDbClusterBuilder;
+use crate::cluster::PulseClusterBuilder;
 use crate::test_util::{StorageType, TempDirGuard, execute_sql, get_test_store_config};
 use crate::tests::test_util::{MockInstanceBuilder, TestContext, wait_procedure};
 
@@ -90,7 +92,7 @@ pub(super) async fn distributed_with_gc(store_type: &StorageType) -> (TestContex
     let test_name = uuid::Uuid::new_v4().to_string();
     let (store_config, guard) = get_test_store_config(store_type);
 
-    let mut builder = GreptimeDbClusterBuilder::new(&test_name).await;
+    let mut builder = PulseClusterBuilder::new(&test_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_gc_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));
@@ -171,7 +173,7 @@ async fn test_gc_basic(store_type: &StorageType) {
     // Step 3: Get table information
     let table = instance
         .catalog_manager()
-        .table("greptime", "public", "test_gc_table", None)
+        .table("pulse", "public", "test_gc_table", None)
         .await
         .unwrap()
         .unwrap();

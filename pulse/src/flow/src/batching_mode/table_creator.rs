@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::CreateTableExpr;
 use common_recordbatch::map_dictionary_to_values_data_type;
 use datafusion_common::tree_node::TreeNode;
@@ -295,7 +297,7 @@ mod test {
         let expr = create_table_with_expr(
             &plan,
             &[
-                "greptime".to_string(),
+                "pulse".to_string(),
                 "public".to_string(),
                 "sink".to_string(),
             ],
@@ -394,7 +396,7 @@ mod test {
             let expr = create_table_with_expr(
                 &plan,
                 &[
-                    "greptime".to_string(),
+                    "pulse".to_string(),
                     "public".to_string(),
                     "sink".to_string(),
                 ],
@@ -532,7 +534,7 @@ mod test {
             let expr = create_table_with_expr(
                 &plan,
                 &[
-                    "greptime".to_string(),
+                    "pulse".to_string(),
                     "public".to_string(),
                     tc.sink_table_name.clone(),
                 ],

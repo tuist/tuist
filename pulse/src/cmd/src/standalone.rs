@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -78,10 +80,10 @@ use standalone::{
 use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::error::{OtherSnafu, Result, StartFlownodeSnafu};
-use crate::options::{GlobalOptions, GreptimeOptions};
+use crate::options::{GlobalOptions, PulseOptions};
 use crate::{App, create_resource_limit_metrics, error, log_versions, maybe_activate_heap_profile};
 
-pub const APP_NAME: &str = "greptime-standalone";
+pub const APP_NAME: &str = "pulse-standalone";
 
 fn standalone_local_file_access(
     storage: &StorageConfig,
@@ -142,14 +144,14 @@ pub struct Command {
 }
 
 impl Command {
-    pub async fn build(&self, opts: GreptimeOptions<StandaloneOptions>) -> Result<Instance> {
+    pub async fn build(&self, opts: PulseOptions<StandaloneOptions>) -> Result<Instance> {
         self.subcmd.build(opts).await
     }
 
     pub fn load_options(
         &self,
         global_options: &GlobalOptions,
-    ) -> Result<GreptimeOptions<StandaloneOptions>> {
+    ) -> Result<PulseOptions<StandaloneOptions>> {
         self.subcmd.load_options(global_options)
     }
 
@@ -165,7 +167,7 @@ enum SubCommand {
 }
 
 impl SubCommand {
-    async fn build(&self, opts: GreptimeOptions<StandaloneOptions>) -> Result<Instance> {
+    async fn build(&self, opts: PulseOptions<StandaloneOptions>) -> Result<Instance> {
         match self {
             SubCommand::Start(cmd) => cmd.build(opts).await,
         }
@@ -174,7 +176,7 @@ impl SubCommand {
     fn load_options(
         &self,
         global_options: &GlobalOptions,
-    ) -> Result<GreptimeOptions<StandaloneOptions>> {
+    ) -> Result<PulseOptions<StandaloneOptions>> {
         match self {
             SubCommand::Start(cmd) => cmd.load_options(global_options),
         }
@@ -301,7 +303,7 @@ pub struct StartCommand {
     tls_watch: bool,
     #[clap(long)]
     user_provider: Option<String>,
-    #[clap(long, default_value = "GREPTIMEDB_STANDALONE")]
+    #[clap(long, default_value = "PULSE_STANDALONE")]
     pub env_prefix: String,
     /// The working home directory of this standalone instance.
     #[clap(long)]
@@ -324,12 +326,12 @@ impl StartCommand {
         false
     }
 
-    /// Load the GreptimeDB options from various sources (command line, config file or env).
+    /// Load the Pulse options from various sources (command line, config file or env).
     pub fn load_options(
         &self,
         global_options: &GlobalOptions,
-    ) -> Result<GreptimeOptions<StandaloneOptions>> {
-        let mut opts = GreptimeOptions::<StandaloneOptions>::load_layered_options(
+    ) -> Result<PulseOptions<StandaloneOptions>> {
+        let mut opts = PulseOptions::<StandaloneOptions>::load_layered_options(
             self.config_file.as_deref(),
             self.env_prefix.as_ref(),
         )
@@ -428,8 +430,8 @@ impl StartCommand {
     #[allow(unreachable_code)]
     #[allow(unused_variables)]
     #[allow(clippy::diverging_sub_expression)]
-    /// Build GreptimeDB instance with the loaded options.
-    pub async fn build(&self, opts: GreptimeOptions<StandaloneOptions>) -> Result<Instance> {
+    /// Build Pulse instance with the loaded options.
+    pub async fn build(&self, opts: PulseOptions<StandaloneOptions>) -> Result<Instance> {
         let guard = common_telemetry::init_global_logging(
             APP_NAME,
             &opts.component.logging,
@@ -1162,7 +1164,7 @@ mod tests {
 
             [wal]
             provider = "raft_engine"
-            dir = "./greptimedb_data/test/wal"
+            dir = "./pulse_data/test/wal"
             file_size = "1GB"
             purge_threshold = "50GB"
             purge_interval = "10m"
@@ -1170,7 +1172,7 @@ mod tests {
             sync_write = false
 
             [storage]
-            data_home = "./greptimedb_data/"
+            data_home = "./pulse_data/"
             type = "File"
 
             [[storage.providers]]
@@ -1202,7 +1204,7 @@ mod tests {
 
             [logging]
             level = "debug"
-            dir = "./greptimedb_data/test/logs"
+            dir = "./pulse_data/test/logs"
         "#;
         write!(file, "{}", toml_str).unwrap();
         let cmd = StartCommand {
@@ -1237,10 +1239,7 @@ mod tests {
         let DatanodeWalConfig::RaftEngine(raft_engine_config) = dn_opts.wal else {
             unreachable!()
         };
-        assert_eq!(
-            "./greptimedb_data/test/wal",
-            raft_engine_config.dir.unwrap()
-        );
+        assert_eq!("./pulse_data/test/wal", raft_engine_config.dir.unwrap());
 
         assert!(matches!(
             &dn_opts.storage.store,
@@ -1264,7 +1263,7 @@ mod tests {
         }
 
         assert_eq!("debug", logging_opts.level.as_ref().unwrap());
-        assert_eq!("./greptimedb_data/test/logs".to_string(), logging_opts.dir);
+        assert_eq!("./pulse_data/test/logs".to_string(), logging_opts.dir);
     }
 
     #[test]
@@ -1278,7 +1277,7 @@ mod tests {
 
         let opts = cmd
             .load_options(&GlobalOptions {
-                log_dir: Some("./greptimedb_data/test/logs".to_string()),
+                log_dir: Some("./pulse_data/test/logs".to_string()),
                 log_level: Some("debug".to_string()),
 
                 #[cfg(feature = "tokio-console")]
@@ -1287,7 +1286,7 @@ mod tests {
             .unwrap()
             .component;
 
-        assert_eq!("./greptimedb_data/test/logs", opts.logging.dir);
+        assert_eq!("./pulse_data/test/logs", opts.logging.dir);
         assert_eq!("debug", opts.logging.level.unwrap());
     }
 
@@ -1408,8 +1407,7 @@ mod tests {
 
     #[test]
     fn test_load_default_standalone_options() {
-        let options =
-            StandaloneOptions::load_layered_options(None, "GREPTIMEDB_STANDALONE").unwrap();
+        let options = StandaloneOptions::load_layered_options(None, "PULSE_STANDALONE").unwrap();
         let default_options = StandaloneOptions::default();
         assert_eq!(options.enable_telemetry, default_options.enable_telemetry);
         assert_eq!(options.http, default_options.http);
@@ -1445,10 +1443,9 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "enterprise"))]
     fn test_load_options_ignores_unknown_plugin_options() {
         // Plugin options that are not recognized by the current build (for example,
-        // an enterprise plugin option seen by an open-source build) must not abort
+        // an option for a plugin the build does not include) must not abort
         // startup. They should be dropped with a warning instead.
         let mut file = create_named_temp_file();
         write!(
@@ -1463,9 +1460,9 @@ AnotherUnknownPlugin = {{}}
         )
         .unwrap();
 
-        let opts = GreptimeOptions::<StandaloneOptions>::load_layered_options(
+        let opts = PulseOptions::<StandaloneOptions>::load_layered_options(
             Some(file.path().to_str().unwrap()),
-            "GREPTIMEDB_STANDALONE_UT",
+            "PULSE_STANDALONE_UT",
         )
         .expect(
             "loading a config with unrecognized plugin options should succeed, \
@@ -1492,9 +1489,9 @@ Dummy = {{ unexpected = "payload" }}
         )
         .unwrap();
 
-        let result = GreptimeOptions::<StandaloneOptions>::load_layered_options(
+        let result = PulseOptions::<StandaloneOptions>::load_layered_options(
             Some(file.path().to_str().unwrap()),
-            "GREPTIMEDB_STANDALONE_UT",
+            "PULSE_STANDALONE_UT",
         );
         assert!(
             result.is_err(),
@@ -1503,7 +1500,6 @@ Dummy = {{ unexpected = "payload" }}
     }
 
     #[test]
-    #[cfg(not(feature = "enterprise"))]
     fn test_load_options_ignores_multi_key_unknown_plugin_entry() {
         // A single plugin table carrying several *unknown* keys must not abort
         // startup with serde's "expected map with a single key" error; it is
@@ -1519,9 +1515,9 @@ SecondUnknownPlugin = {{ b = 2 }}
         )
         .unwrap();
 
-        let opts = GreptimeOptions::<StandaloneOptions>::load_layered_options(
+        let opts = PulseOptions::<StandaloneOptions>::load_layered_options(
             Some(file.path().to_str().unwrap()),
-            "GREPTIMEDB_STANDALONE_UT",
+            "PULSE_STANDALONE_UT",
         )
         .expect(
             "loading a config with a multi-key unknown plugin entry should succeed, \

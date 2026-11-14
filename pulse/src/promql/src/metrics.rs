@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::*;
 
 lazy_static! {
     /// Counter for the number of series processed per query.
     pub static ref PROMQL_SERIES_COUNT: Histogram = register_histogram!(
-        "greptime_promql_series_count",
+        "pulse_promql_series_count",
         "promql series count",
         exponential_buckets(10.0, 10.0, 8).unwrap(),
     ).unwrap();

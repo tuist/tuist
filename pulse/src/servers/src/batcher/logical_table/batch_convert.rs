@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -19,7 +21,7 @@ use std::time::{Duration, Instant};
 use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType as ArrowDataType, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use metric_engine::batch_modifier::{TagColumnInfo, modify_batch_sparse};
 use smallvec::SmallVec;
 use snafu::{OptionExt, ResultExt, ensure};
@@ -88,7 +90,7 @@ pub struct TableBatch {
 /// - `Vec<TagColumnInfo>`: all Utf8 tag columns sorted by tag name, used for
 ///   TSID and sparse primary-key encoding.
 /// - `SmallVec<[usize; 3]>`: indices of columns copied into the physical batch
-///   after `__primary_key`, ordered as `[greptime_timestamp, greptime_value,
+///   after `__primary_key`, ordered as `[pulse_timestamp, pulse_value,
 ///   partition_tag_columns...]`.
 pub(in crate::batcher::logical_table) fn columns_taxonomy(
     batch_schema: &Arc<ArrowSchema>,
@@ -99,7 +101,7 @@ pub(in crate::batcher::logical_table) fn columns_taxonomy(
     let mut tag_columns = Vec::new();
     let mut essential_column_indices =
         SmallVec::<[usize; 3]>::with_capacity(2 + partition_columns.len());
-    // Placeholder for greptime_timestamp and greptime_value
+    // Placeholder for pulse_timestamp and pulse_value
     essential_column_indices.push(0);
     essential_column_indices.push(0);
 
@@ -166,14 +168,14 @@ pub(in crate::batcher::logical_table) fn columns_taxonomy(
         timestamp_index.with_context(|| error::InvalidPromRemoteRequestSnafu {
             msg: format!(
                 "Missing essential column '{}' in logical table '{}' batch schema",
-                greptime_timestamp(),
+                pulse_timestamp(),
                 table_name
             ),
         })?;
     let value_index = value_index.with_context(|| error::InvalidPromRemoteRequestSnafu {
         msg: format!(
             "Missing essential column '{}' in logical table '{}' batch schema",
-            greptime_value(),
+            pulse_value(),
             table_name
         ),
     })?;
@@ -287,11 +289,11 @@ mod tests {
     fn test_collect_tag_columns_and_non_tag_indices_keeps_partition_tag_column() {
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new("host", ArrowDataType::Utf8, true),
             Field::new("region", ArrowDataType::Utf8, true),
         ]));
@@ -310,9 +312,9 @@ mod tests {
     fn test_collect_tag_columns_and_non_tag_indices_prioritizes_essential_columns() {
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("host", ArrowDataType::Utf8, true),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
@@ -332,11 +334,11 @@ mod tests {
     fn test_collect_tag_columns_and_non_tag_indices_rejects_unexpected_data_type() {
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new("host", ArrowDataType::Utf8, true),
             Field::new("invalid", ArrowDataType::Boolean, true),
         ]));
@@ -354,8 +356,8 @@ mod tests {
     #[test]
     fn test_collect_tag_columns_and_non_tag_indices_rejects_int64_timestamp_column() {
         let schema = Arc::new(ArrowSchema::new(vec![
-            Field::new("greptime_timestamp", ArrowDataType::Int64, false),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_timestamp", ArrowDataType::Int64, false),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new("host", ArrowDataType::Utf8, true),
         ]));
         let name_to_ids = HashMap::from([("host".to_string(), 1_u32)]);
@@ -382,7 +384,7 @@ mod tests {
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new("host", ArrowDataType::Utf8, true),
         ]));
         let name_to_ids = HashMap::from([("host".to_string(), 1_u32)]);
@@ -400,7 +402,7 @@ mod tests {
     fn test_collect_tag_columns_and_non_tag_indices_rejects_duplicated_value_column() {
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
@@ -425,21 +427,21 @@ mod tests {
 
         let schema1 = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new("tag1", ArrowDataType::Utf8, true),
         ]));
 
         let schema2 = Arc::new(ArrowSchema::new(vec![
             Field::new(
-                "greptime_timestamp",
+                "pulse_timestamp",
                 ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
                 false,
             ),
-            Field::new("greptime_value", ArrowDataType::Float64, true),
+            Field::new("pulse_value", ArrowDataType::Float64, true),
             Field::new("tag1", ArrowDataType::Utf8, true),
             Field::new("tag2", ArrowDataType::Utf8, true),
         ]));
@@ -517,8 +519,8 @@ mod tests {
         assert_eq!(1, modified.len());
         assert_eq!(3, modified[0].num_columns());
         assert_eq!("__primary_key", modified[0].schema().field(0).name());
-        assert_eq!("greptime_timestamp", modified[0].schema().field(1).name());
-        assert_eq!("greptime_value", modified[0].schema().field(2).name());
+        assert_eq!("pulse_timestamp", modified[0].schema().field(1).name());
+        assert_eq!("pulse_value", modified[0].schema().field(2).name());
     }
 
     #[test]

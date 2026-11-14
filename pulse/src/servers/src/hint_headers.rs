@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use http::HeaderMap;
 use session::hints::{HINT_KEYS, HINTS_KEY, HINTS_KEY_PREFIX};
 use tonic::metadata::MetadataMap;
@@ -25,7 +27,7 @@ pub(crate) fn extract_hints<T: ToHeaderMap>(headers: &T) -> Vec<(String, String)
                 hints.push((key.trim().to_string(), value.trim().to_string()));
             }
         });
-        // If hints are provided in the `x-greptime-hints` header, ignore the rest of the headers
+        // If hints are provided in the `x-pulse-hints` header, ignore the rest of the headers
         return hints;
     }
     for key in HINT_KEYS.iter() {
@@ -79,24 +81,18 @@ mod tests {
     fn test_extract_hints_with_full_header_map() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            "x-greptime-hint-auto_create_table",
+            "x-pulse-hint-auto_create_table",
             HeaderValue::from_static("true"),
         );
-        headers.insert("x-greptime-hint-ttl", HeaderValue::from_static("3600d"));
+        headers.insert("x-pulse-hint-ttl", HeaderValue::from_static("3600d"));
+        headers.insert("x-pulse-hint-append_mode", HeaderValue::from_static("true"));
+        headers.insert("x-pulse-hint-merge_mode", HeaderValue::from_static("false"));
         headers.insert(
-            "x-greptime-hint-append_mode",
-            HeaderValue::from_static("true"),
-        );
-        headers.insert(
-            "x-greptime-hint-merge_mode",
-            HeaderValue::from_static("false"),
-        );
-        headers.insert(
-            "x-greptime-hint-physical_table",
+            "x-pulse-hint-physical_table",
             HeaderValue::from_static("table1"),
         );
         headers.insert(
-            "x-greptime-hint-read_preference",
+            "x-pulse-hint-read_preference",
             HeaderValue::from_static("leader"),
         );
 
@@ -124,10 +120,10 @@ mod tests {
     fn test_extract_hints_with_missing_keys() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            "x-greptime-hint-auto_create_table",
+            "x-pulse-hint-auto_create_table",
             HeaderValue::from_static("true"),
         );
-        headers.insert("x-greptime-hint-ttl", HeaderValue::from_static("3600d"));
+        headers.insert("x-pulse-hint-ttl", HeaderValue::from_static("3600d"));
 
         let hints = extract_hints(&headers);
 
@@ -143,7 +139,7 @@ mod tests {
     fn test_extract_hints_all_in_one() {
         let mut headers = HeaderMap::new();
         headers.insert(
-            "x-greptime-hints",
+            "x-pulse-hints",
             HeaderValue::from_static(" auto_create_table=true, ttl =3600d, append_mode=true , merge_mode=false , physical_table= table1,\
             read_preference=leader"),
         );
@@ -172,24 +168,24 @@ mod tests {
     fn test_extract_hints_with_metadata_map() {
         let mut metadata = MetadataMap::new();
         metadata.insert(
-            "x-greptime-hint-auto_create_table",
+            "x-pulse-hint-auto_create_table",
             MetadataValue::from_static("true"),
         );
-        metadata.insert("x-greptime-hint-ttl", MetadataValue::from_static("3600d"));
+        metadata.insert("x-pulse-hint-ttl", MetadataValue::from_static("3600d"));
         metadata.insert(
-            "x-greptime-hint-append_mode",
+            "x-pulse-hint-append_mode",
             MetadataValue::from_static("true"),
         );
         metadata.insert(
-            "x-greptime-hint-merge_mode",
+            "x-pulse-hint-merge_mode",
             MetadataValue::from_static("false"),
         );
         metadata.insert(
-            "x-greptime-hint-physical_table",
+            "x-pulse-hint-physical_table",
             MetadataValue::from_static("table1"),
         );
         metadata.insert(
-            "x-greptime-hint-read_preference",
+            "x-pulse-hint-read_preference",
             MetadataValue::from_static("leader"),
         );
 
@@ -217,10 +213,10 @@ mod tests {
     fn test_extract_hints_with_partial_metadata_map() {
         let mut metadata = MetadataMap::new();
         metadata.insert(
-            "x-greptime-hint-auto_create_table",
+            "x-pulse-hint-auto_create_table",
             MetadataValue::from_static("true"),
         );
-        metadata.insert("x-greptime-hint-ttl", MetadataValue::from_static("3600d"));
+        metadata.insert("x-pulse-hint-ttl", MetadataValue::from_static("3600d"));
 
         let hints = extract_hints(&metadata);
 

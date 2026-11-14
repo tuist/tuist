@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -82,14 +84,14 @@ impl Instance {
             .await
             .context(CatalogSnafu)?
             .with_context(|| TableNotFoundSnafu {
-                table_name: "greptime.information_schema.tables",
+                table_name: "pulse.information_schema.tables",
             })?;
 
         let dataframe = self
             .query_engine
             .read_table(table)
             .with_context(|_| ReadTableSnafu {
-                table_name: "greptime.information_schema.tables",
+                table_name: "pulse.information_schema.tables",
             })?;
 
         let logical_plan =

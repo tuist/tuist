@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod admin;
 mod comment;
 mod copy_database;
@@ -51,8 +53,6 @@ use common_meta::key::view_info::{ViewInfoManager, ViewInfoManagerRef};
 use common_meta::key::{TableMetadataManager, TableMetadataManagerRef};
 use common_meta::kv_backend::KvBackendRef;
 use common_meta::procedure_executor::ProcedureExecutorRef;
-#[cfg(feature = "enterprise")]
-use common_meta::rpc::ddl::CreatorGrantIntent;
 use common_query::Output;
 use common_telemetry::{debug, tracing, warn};
 use common_time::Timestamp;
@@ -114,23 +114,6 @@ pub trait StatementExecutorConfigurator: Send + Sync {
 
 pub type StatementExecutorConfiguratorRef = Arc<dyn StatementExecutorConfigurator>;
 
-#[cfg(feature = "enterprise")]
-#[async_trait::async_trait]
-pub trait CreateDatabaseHandler: Send + Sync {
-    fn creator(
-        &self,
-        query_ctx: &QueryContextRef,
-    ) -> std::result::Result<Option<CreatorGrantIntent>, BoxedError>;
-
-    async fn refresh_current_user(
-        &self,
-        query_ctx: &QueryContextRef,
-    ) -> std::result::Result<(), BoxedError>;
-}
-
-#[cfg(feature = "enterprise")]
-pub type CreateDatabaseHandlerRef = Arc<dyn CreateDatabaseHandler>;
-
 pub struct ExecutorConfigureContext {
     pub kv_backend: KvBackendRef,
 }
@@ -150,31 +133,9 @@ pub struct StatementExecutor {
     origin_frontend_addr: String,
     admin_function_service: AdminFunctionServiceRef,
     pub(crate) local_file_access: LocalFileAccess,
-    #[cfg(feature = "enterprise")]
-    create_database_handler: Option<CreateDatabaseHandlerRef>,
-    #[cfg(feature = "enterprise")]
-    trigger_querier: Option<TriggerQuerierRef>,
 }
 
 pub type StatementExecutorRef = Arc<StatementExecutor>;
-
-/// Trait for querying trigger info, such as `SHOW CREATE TRIGGER` etc.
-#[cfg(feature = "enterprise")]
-#[async_trait::async_trait]
-pub trait TriggerQuerier: Send + Sync {
-    // Query the `SHOW CREATE TRIGGER` statement for the given trigger.
-    async fn show_create_trigger(
-        &self,
-        catalog: &str,
-        trigger: &str,
-        query_ctx: &QueryContextRef,
-    ) -> std::result::Result<Output, BoxedError>;
-
-    fn as_any(&self) -> &dyn std::any::Any;
-}
-
-#[cfg(feature = "enterprise")]
-pub type TriggerQuerierRef = Arc<dyn TriggerQuerier>;
 
 impl StatementExecutor {
     #[allow(clippy::too_many_arguments)]
@@ -205,10 +166,6 @@ impl StatementExecutor {
             origin_frontend_addr,
             admin_function_service,
             local_file_access,
-            #[cfg(feature = "enterprise")]
-            create_database_handler: None,
-            #[cfg(feature = "enterprise")]
-            trigger_querier: None,
         }
     }
 
@@ -217,18 +174,6 @@ impl StatementExecutor {
     /// The last added layer is the outermost layer.
     pub fn with_admin_function_layer(mut self, layer: AdminFunctionLayerRef) -> Self {
         self.admin_function_service = layer.layer(self.admin_function_service);
-        self
-    }
-
-    #[cfg(feature = "enterprise")]
-    pub fn with_trigger_querier(mut self, querier: TriggerQuerierRef) -> Self {
-        self.trigger_querier = Some(querier);
-        self
-    }
-
-    #[cfg(feature = "enterprise")]
-    pub fn with_create_database_handler(mut self, handler: CreateDatabaseHandlerRef) -> Self {
-        self.create_database_handler = Some(handler);
         self
     }
 
@@ -281,9 +226,6 @@ impl StatementExecutor {
 
             Statement::ShowFlows(stmt) => self.show_flows(stmt, query_ctx).await,
             Statement::ShowFlowStatus(stmt) => self.show_flow_status(stmt, query_ctx).await,
-
-            #[cfg(feature = "enterprise")]
-            Statement::ShowTriggers(stmt) => self.show_triggers(stmt, query_ctx).await,
 
             Statement::Copy(sql::statements::copy::Copy::CopyQueryTo(stmt)) => {
                 let query_output = self
@@ -339,22 +281,10 @@ impl StatementExecutor {
                 Ok(Output::new_with_affected_rows(0))
             }
             Statement::CreateFlow(stmt) => self.create_flow(stmt, query_ctx).await,
-            #[cfg(feature = "enterprise")]
-            Statement::CreateTrigger(stmt) => self.create_trigger(stmt, query_ctx).await,
             Statement::DropFlow(stmt) => {
                 self.drop_flow(
                     query_ctx.current_catalog().to_string(),
                     format_raw_object_name(stmt.flow_name()),
-                    stmt.drop_if_exists(),
-                    query_ctx,
-                )
-                .await
-            }
-            #[cfg(feature = "enterprise")]
-            Statement::DropTrigger(stmt) => {
-                self.drop_trigger(
-                    query_ctx.current_catalog().to_string(),
-                    format_raw_object_name(stmt.trigger_name()),
                     stmt.drop_if_exists(),
                     query_ctx,
                 )
@@ -385,11 +315,6 @@ impl StatementExecutor {
                 self.alter_database(alter_database, query_ctx).await
             }
 
-            #[cfg(feature = "enterprise")]
-            Statement::AlterTrigger(alter_trigger) => {
-                self.alter_trigger(alter_trigger, query_ctx).await
-            }
-
             Statement::DropTable(stmt) => {
                 let mut table_names = Vec::with_capacity(stmt.table_names().len());
                 for table_name_stmt in stmt.table_names() {
@@ -400,15 +325,6 @@ impl StatementExecutor {
                     table_names.push(TableName::new(catalog, schema, table));
                 }
                 self.drop_tables(&table_names[..], stmt.drop_if_exists(), query_ctx.clone())
-                    .await
-            }
-            #[cfg(feature = "enterprise")]
-            Statement::UndropTable(stmt) => {
-                let (catalog, schema, table) =
-                    table_idents_to_full_name(stmt.table_name(), &query_ctx)
-                        .map_err(BoxedError::new)
-                        .context(ExternalSnafu)?;
-                self.undrop_table(TableName::new(catalog, schema, table), query_ctx)
                     .await
             }
             Statement::DropDatabase(stmt) => {
@@ -492,8 +408,6 @@ impl StatementExecutor {
             }
             Statement::ShowCreateFlow(show) => self.show_create_flow(show, query_ctx).await,
             Statement::ShowCreateView(show) => self.show_create_view(show, query_ctx).await,
-            #[cfg(feature = "enterprise")]
-            Statement::ShowCreateTrigger(show) => self.show_create_trigger(show, query_ctx).await,
             Statement::SetVariables(set_var) => self.set_variables(set_var, query_ctx),
             Statement::ShowVariables(show_variable) => self.show_variable(show_variable, query_ctx),
             Statement::Comment(stmt) => self.comment(stmt, query_ctx).await,

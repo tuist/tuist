@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::any::Any;
 use std::sync::Arc;
 
@@ -1293,14 +1295,6 @@ pub enum Error {
         location: Location,
     },
 
-    #[cfg(feature = "enterprise")]
-    #[snafu(display("Failed to scan external range"))]
-    ScanExternalRange {
-        source: BoxedError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-
     #[snafu(display(
         "Inconsistent timestamp column length, expect: {}, actual: {}",
         expected,
@@ -1629,9 +1623,6 @@ impl ErrorExt for Error {
 
             Encode { source, .. } | Decode { source, .. } => source.status_code(),
 
-            #[cfg(feature = "enterprise")]
-            ScanExternalRange { source, .. } => source.status_code(),
-
             InconsistentTimestampLength { .. } => StatusCode::InvalidArguments,
 
             TooManyFilesToRead { .. } | TooManyGcJobs { .. } => StatusCode::RateLimited,
@@ -1724,9 +1715,6 @@ impl ErrorExt for Error {
             CompactionMemoryExhausted { source, .. } => source.retry_hint(),
             ConvertBulkWalEntry { source, .. } => source.retry_hint(),
             Encode { source, .. } | Decode { source, .. } => source.retry_hint(),
-
-            #[cfg(feature = "enterprise")]
-            ScanExternalRange { source, .. } => source.retry_hint(),
 
             _ => RetryHint::NonRetryable,
         }

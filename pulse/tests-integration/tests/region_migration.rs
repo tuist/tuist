@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -60,7 +62,7 @@ use servers::query_handler::sql::SqlQueryHandler;
 use session::context::{QueryContext, QueryContextRef};
 use store_api::storage::RegionId;
 use table::metadata::TableId;
-use tests_integration::cluster::{GreptimeDbCluster, GreptimeDbClusterBuilder};
+use tests_integration::cluster::{PulseCluster, PulseClusterBuilder};
 use tests_integration::test_util::{
     PEER_PLACEHOLDER_ADDR, StorageType, get_test_store_config, setup_authenticated_grpc_database,
 };
@@ -128,7 +130,7 @@ pub async fn test_region_migration(store_type: StorageType, endpoints: Vec<Strin
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_migration_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(1),
         peer_factory(2),
@@ -291,7 +293,7 @@ pub async fn test_metric_table_region_migration_by_sql(
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_migration_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(1),
         peer_factory(2),
@@ -418,7 +420,7 @@ pub async fn test_metric_table_region_migration_by_sql(
         region_id.as_u64(),
         from_peer_id,
         to_peer_id,
-        Some("greptime"),
+        Some("pulse"),
     )
     .await;
 }
@@ -451,7 +453,7 @@ async fn test_region_migration_by_sql_inner(
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_migration_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(1),
         peer_factory(2),
@@ -634,7 +636,7 @@ async fn test_region_migration_by_sql_inner(
             offline_region_id.as_u64(),
             offline_from_peer_id,
             from_peer_id,
-            Some("greptime"),
+            Some("pulse"),
         )
         .await;
 
@@ -712,7 +714,7 @@ pub async fn test_region_migration_multiple_regions(
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_region_migration_multiple_regions_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(1),
         peer_factory(2),
@@ -882,7 +884,7 @@ pub async fn test_region_migration_all_regions(store_type: StorageType, endpoint
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_region_migration_all_regions_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(2),
         peer_factory(2),
@@ -1044,7 +1046,7 @@ pub async fn test_region_migration_incorrect_from_peer(
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_region_migration_incorrect_from_peer_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(1),
         peer_factory(2),
@@ -1132,7 +1134,7 @@ pub async fn test_region_migration_incorrect_region_id(
     let (store_config, _guard) = get_test_store_config(&store_type);
     let home_dir = create_temp_dir("test_region_migration_incorrect_region_id_data_home");
     let datanodes = 5u64;
-    let builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let builder = PulseClusterBuilder::new(cluster_name).await;
     let const_selector = Arc::new(ConstNodeSelector::new(vec![
         peer_factory(1),
         peer_factory(2),
@@ -1259,7 +1261,7 @@ async fn assert_values(instance: &Arc<Instance>) {
     check_output_stream(result.unwrap().data, expected).await;
 }
 
-async fn prepare_testing_metric_table(cluster: &GreptimeDbCluster) -> TableId {
+async fn prepare_testing_metric_table(cluster: &PulseCluster) -> TableId {
     let sql = r#"CREATE TABLE phy (ts timestamp time index, val double) engine=metric with ("physical_metric_table" = "");"#;
     let mut result = cluster
         .frontend
@@ -1298,7 +1300,7 @@ async fn prepare_testing_metric_table(cluster: &GreptimeDbCluster) -> TableId {
     table.table_info().table_id()
 }
 
-async fn prepare_testing_table(cluster: &GreptimeDbCluster) -> TableId {
+async fn prepare_testing_table(cluster: &PulseCluster) -> TableId {
     let sql = format!(
         r"
     CREATE TABLE {TEST_TABLE_NAME} (
@@ -1348,7 +1350,7 @@ async fn find_region_distribution(
 
 /// Find region distribution by SQL query
 async fn find_region_distribution_by_sql(
-    cluster: &GreptimeDbCluster,
+    cluster: &PulseCluster,
     table: &str,
 ) -> RegionDistribution {
     let query_ctx = QueryContext::arc();
@@ -1357,9 +1359,9 @@ async fn find_region_distribution_by_sql(
         cluster.fe_instance(),
         &format!(
             r#"select b.peer_id as datanode_id,
-                           a.greptime_partition_id as region_id
+                           a.pulse_partition_id as region_id
                     from information_schema.partitions a left join information_schema.region_peers b
-                    on a.greptime_partition_id = b.region_id
+                    on a.pulse_partition_id = b.region_id
                     where a.table_name='{table}' order by datanode_id asc"#
         ),
         query_ctx.clone(),
@@ -1401,7 +1403,7 @@ async fn find_region_distribution_by_sql(
 
 /// Trigger the region migration by SQL, returns the procedure id if success.
 async fn trigger_migration_by_sql(
-    cluster: &GreptimeDbCluster,
+    cluster: &PulseCluster,
     region_id: u64,
     from_peer_id: u64,
     to_peer_id: u64,
@@ -1552,7 +1554,7 @@ async fn check_region_migration_events_system_table(
     // The query is equivalent to the following SQL:
     //   SELECT region_migration_trigger_reason, procedure_state,
     //          json_get_string(procedure_trigger, 'type') AS procedure_trigger
-    //   FROM greptime_private.events WHERE
+    //   FROM pulse_private.events WHERE
     //       type = 'region_migration' AND
     //       procedure_id = '${procedure_id}' AND
     //       table_id = ${table_id} AND

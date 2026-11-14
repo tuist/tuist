@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 pub mod coerce;
 
 use std::borrow::Cow;
@@ -25,13 +27,13 @@ use api::v1::value::ValueData;
 use api::v1::{ColumnDataType, SemanticType};
 use arrow_schema::extension::ExtensionType;
 use coerce::{coerce_columns, coerce_value};
-use common_query::prelude::{greptime_timestamp, greptime_value};
+use common_query::prelude::{pulse_timestamp, pulse_value};
 use common_telemetry::warn;
 use datatypes::data_type::ConcreteDataType;
 use datatypes::extension::json::{Json2ExtensionType, parse_legacy_json2_settings};
 use datatypes::json::JsonSettings;
 use datatypes::value::Value;
-use greptime_proto::v1::{ColumnSchema, Row, Rows, Value as GreptimeValue};
+use greptime_proto::v1::{ColumnSchema, Row, Rows, Value as PulseValue};
 use itertools::Itertools;
 use jsonb::Number;
 use once_cell::sync::OnceCell;
@@ -62,17 +64,17 @@ const DEFAULT_MAX_NESTED_LEVELS_FOR_JSON_FLATTENING: usize = 10;
 pub type RowWithTableSuffix = (Row, Option<String>);
 
 /// fields not in the columns will be discarded
-/// to prevent automatic column creation in GreptimeDB
+/// to prevent automatic column creation in Pulse
 #[derive(Debug, Clone)]
-pub struct GreptimeTransformer {
+pub struct PulseTransformer {
     transforms: Transforms,
     schema: Vec<ColumnSchema>,
 }
 
-/// Parameters that can be used to configure the greptime pipelines.
+/// Parameters that can be used to configure the pulse pipelines.
 #[derive(Debug, Default)]
-pub struct GreptimePipelineParams {
-    /// The original options for configuring the greptime pipelines.
+pub struct PulsePipelineParams {
+    /// The original options for configuring the pulse pipelines.
     /// This should not be used directly, instead, use the parsed shortcut option values.
     options: HashMap<String, String>,
 
@@ -83,10 +85,10 @@ pub struct GreptimePipelineParams {
     pub max_nested_levels: OnceCell<usize>,
 }
 
-impl GreptimePipelineParams {
-    /// Create a `GreptimePipelineParams` from params string which is from the http header with key `x-greptime-pipeline-params`
+impl PulsePipelineParams {
+    /// Create a `PulsePipelineParams` from params string which is from the http header with key `x-pulse-pipeline-params`
     /// The params is in the format of `key1=value1&key2=value2`,for example:
-    /// x-greptime-pipeline-params: max_nested_levels=5
+    /// x-pulse-pipeline-params: max_nested_levels=5
     pub fn from_params(params: Option<&str>) -> Self {
         let options = Self::parse_header_str_to_map(params);
 
@@ -141,14 +143,14 @@ impl GreptimePipelineParams {
     }
 }
 
-impl GreptimeTransformer {
+impl PulseTransformer {
     /// Add a default timestamp column to the transforms
-    fn add_greptime_timestamp_column(transforms: &mut Transforms) {
+    fn add_pulse_timestamp_column(transforms: &mut Transforms) {
         let type_ = ColumnDataType::TimestampNanosecond;
         let default = None;
 
         let transform = Transform {
-            fields: Fields::one(Field::new(greptime_timestamp().to_string(), None)),
+            fields: Fields::one(Field::new(pulse_timestamp().to_string(), None)),
             type_,
             json_settings: None,
             default,
@@ -160,7 +162,7 @@ impl GreptimeTransformer {
         transforms.push(transform);
     }
 
-    /// Generate the schema for the GreptimeTransformer
+    /// Generate the schema for the PulseTransformer
     fn init_schemas(transforms: &Transforms) -> Result<Vec<ColumnSchema>> {
         let mut schema = vec![];
         for transform in transforms.iter() {
@@ -170,7 +172,7 @@ impl GreptimeTransformer {
     }
 }
 
-impl GreptimeTransformer {
+impl PulseTransformer {
     pub fn new(mut transforms: Transforms, doc_version: &PipelineDocVersion) -> Result<Self> {
         // empty check is done in the caller
         let mut column_names_set = HashSet::new();
@@ -210,23 +212,23 @@ impl GreptimeTransformer {
         let schema = match timestamp_columns.len() {
             0 if doc_version == &PipelineDocVersion::V1 => {
                 // compatible with v1, add a default timestamp column
-                GreptimeTransformer::add_greptime_timestamp_column(&mut transforms);
-                GreptimeTransformer::init_schemas(&transforms)?
+                PulseTransformer::add_pulse_timestamp_column(&mut transforms);
+                PulseTransformer::init_schemas(&transforms)?
             }
-            1 => GreptimeTransformer::init_schemas(&transforms)?,
+            1 => PulseTransformer::init_schemas(&transforms)?,
             count => {
                 let columns = timestamp_columns.iter().join(", ");
                 return TransformTimestampIndexCountSnafu { count, columns }.fail();
             }
         };
-        Ok(GreptimeTransformer { transforms, schema })
+        Ok(PulseTransformer { transforms, schema })
     }
 
     pub fn transform_mut(
         &self,
         pipeline_map: &mut VrlValue,
         is_v1: bool,
-    ) -> Result<Vec<GreptimeValue>> {
+    ) -> Result<Vec<PulseValue>> {
         self.transform_mut_with_schema(pipeline_map, is_v1, &SchemaInfo::default(), None)
     }
 
@@ -236,8 +238,8 @@ impl GreptimeTransformer {
         is_v1: bool,
         schema_info: &SchemaInfo,
         table_suffix: Option<&str>,
-    ) -> Result<Vec<GreptimeValue>> {
-        let mut values = vec![GreptimeValue { value_data: None }; self.schema.len()];
+    ) -> Result<Vec<PulseValue>> {
+        let mut values = vec![PulseValue { value_data: None }; self.schema.len()];
         let mut output_index = 0;
         for transform in self.transforms.iter() {
             for field in transform.fields.iter() {
@@ -259,7 +261,7 @@ impl GreptimeTransformer {
                         };
                         let value_data = coerce_value(v, transform, json_settings.as_ref())?;
                         // every transform fields has only one output field
-                        values[output_index] = GreptimeValue { value_data };
+                        values[output_index] = PulseValue { value_data };
                     }
                     None => {
                         let value_data = match transform.on_failure {
@@ -275,7 +277,7 @@ impl GreptimeTransformer {
                         if transform.is_timeindex() && value_data.is_none() {
                             return TimeIndexMustBeNonNullSnafu.fail();
                         }
-                        values[output_index] = GreptimeValue { value_data };
+                        values[output_index] = PulseValue { value_data };
                     }
                 }
                 output_index += 1;
@@ -549,7 +551,7 @@ fn calc_ts(p_ctx: &PipelineContext, values: &VrlValue) -> Result<Option<ValueDat
         Channel::Prometheus => {
             let ts = values
                 .as_object()
-                .and_then(|m| m.get(greptime_timestamp()))
+                .and_then(|m| m.get(pulse_timestamp()))
                 .and_then(|ts| ts.try_into_i64().ok())
                 .unwrap_or_default();
             Ok(Some(ValueData::TimestampMillisecondValue(ts)))
@@ -569,7 +571,7 @@ fn calc_ts(p_ctx: &PipelineContext, values: &VrlValue) -> Result<Option<ValueDat
     }
 }
 
-/// Converts VRL values to Greptime rows grouped by their ContextOpt.
+/// Converts VRL values to Pulse rows grouped by their ContextOpt.
 /// # Returns
 /// A HashMap where keys are `ContextOpt` and values are vectors of (row, table_suffix) pairs.
 /// Single object input produces one ContextOpt group with one row.
@@ -581,7 +583,7 @@ pub(crate) fn values_to_rows(
     schema_info: &mut SchemaInfo,
     mut values: VrlValue,
     pipeline_ctx: &PipelineContext<'_>,
-    row: Option<Vec<GreptimeValue>>,
+    row: Option<Vec<PulseValue>>,
     need_calc_ts: bool,
     tablesuffix_template: Option<&crate::tablesuffix::TableSuffixTemplate>,
 ) -> Result<std::collections::HashMap<ContextOpt, Vec<RowWithTableSuffix>>> {
@@ -637,7 +639,7 @@ pub(crate) fn values_to_rows(
 }
 
 /// `need_calc_ts` happens in two cases:
-/// 1. full greptime_identity
+/// 1. full pulse_identity
 /// 2. auto-transform without transformer
 ///
 /// if transform is present in custom pipeline in v2 mode
@@ -646,25 +648,25 @@ pub(crate) fn values_to_row(
     schema_info: &mut SchemaInfo,
     values: VrlValue,
     pipeline_ctx: &PipelineContext<'_>,
-    row: Option<Vec<GreptimeValue>>,
+    row: Option<Vec<PulseValue>>,
     need_calc_ts: bool,
 ) -> Result<Row> {
-    let mut row: Vec<GreptimeValue> =
+    let mut row: Vec<PulseValue> =
         row.unwrap_or_else(|| Vec::with_capacity(schema_info.schema.len()));
     let custom_ts = pipeline_ctx.pipeline_definition.get_custom_ts();
 
     if need_calc_ts {
         // calculate timestamp value based on the channel
         let ts = calc_ts(pipeline_ctx, &values)?;
-        row.push(GreptimeValue { value_data: ts });
+        row.push(PulseValue { value_data: ts });
     }
 
-    row.resize(schema_info.schema.len(), GreptimeValue { value_data: None });
+    row.resize(schema_info.schema.len(), PulseValue { value_data: None });
 
     // skip ts column
     let ts_column_name = custom_ts
         .as_ref()
-        .map_or(greptime_timestamp(), |ts| ts.get_column_name());
+        .map_or(pulse_timestamp(), |ts| ts.get_column_name());
 
     let values = values.into_object().context(ValueMustBeMapSnafu)?;
 
@@ -685,7 +687,7 @@ pub(crate) fn values_to_row(
 }
 
 fn decide_semantic(p_ctx: &PipelineContext, column_name: &str) -> SemanticType {
-    if p_ctx.channel == Channel::Prometheus && column_name != greptime_value() {
+    if p_ctx.channel == Channel::Prometheus && column_name != pulse_value() {
         SemanticType::Tag
     } else {
         SemanticType::Field
@@ -695,7 +697,7 @@ fn decide_semantic(p_ctx: &PipelineContext, column_name: &str) -> SemanticType {
 fn resolve_value(
     value: VrlValue,
     column_name: String,
-    row: &mut Vec<GreptimeValue>,
+    row: &mut Vec<PulseValue>,
     schema_info: &mut SchemaInfo,
     p_ctx: &PipelineContext,
 ) -> Result<()> {
@@ -831,7 +833,7 @@ fn resolve_value(
         }
     };
 
-    let value = GreptimeValue { value_data };
+    let value = PulseValue { value_data };
     if let Some(index) = index {
         row[index] = value;
     } else {
@@ -877,7 +879,7 @@ fn identity_pipeline_inner(
     let column_schema = datatypes::schema::ColumnSchema::new(
         custom_ts
             .map(|ts| ts.get_column_name().to_string())
-            .unwrap_or_else(|| greptime_timestamp().to_string()),
+            .unwrap_or_else(|| pulse_timestamp().to_string()),
         custom_ts
             .map(|c| ConcreteDataType::from(ColumnDataTypeWrapper::new(c.get_datatype(), None)))
             .unwrap_or_else(|| {
@@ -926,15 +928,15 @@ fn identity_pipeline_inner(
                 row.values.len()
             );
             row.values
-                .resize(column_count, GreptimeValue { value_data: None });
+                .resize(column_count, PulseValue { value_data: None });
         }
     }
 
     Ok((schema_info, opt_map))
 }
 
-/// Identity pipeline for Greptime
-/// This pipeline will convert the input JSON array to Greptime Rows
+/// Identity pipeline for Pulse
+/// This pipeline will convert the input JSON array to Pulse Rows
 /// params table is used to set the semantic type of the row key column to Tag
 /// 1. The pipeline will add a default timestamp column to the schema
 /// 2. The pipeline not resolve NULL value
@@ -1262,9 +1264,9 @@ table_suffix: _${device}
 
     #[test]
     fn test_identify_pipeline() {
-        let params = GreptimePipelineParams::default();
+        let params = PulsePipelineParams::default();
         let pipeline_ctx = PipelineContext::new(
-            &PipelineDefinition::GreptimeIdentityPipeline(None),
+            &PipelineDefinition::PulseIdentityPipeline(None),
             &params,
             Channel::Unknown,
         );
@@ -1512,11 +1514,11 @@ table_suffix: _${device}
 
     #[test]
     fn test_identity_pipeline_skip_error_flattens_valid_rows() {
-        let params = GreptimePipelineParams::from_map(ahash::HashMap::from_iter([(
+        let params = PulsePipelineParams::from_map(ahash::HashMap::from_iter([(
             "skip_error".to_string(),
             "true".to_string(),
         )]));
-        let pipeline_def = PipelineDefinition::GreptimeIdentityPipeline(None);
+        let pipeline_def = PipelineDefinition::PulseIdentityPipeline(None);
         let pipeline_ctx = PipelineContext::new(&pipeline_def, &params, Channel::Unknown);
         let array = vec![
             serde_json::json!({
@@ -1571,13 +1573,13 @@ table_suffix: _${device}
                 serde_json::json!({"name": "Charlie", "age": 35}).into(),
             ];
 
-            let params = GreptimePipelineParams::from_map(AHashMap::from_iter([(
+            let params = PulsePipelineParams::from_map(AHashMap::from_iter([(
                 "skip_error".to_string(),
                 "true".to_string(),
             )]));
 
             let pipeline_ctx = PipelineContext::new(
-                &PipelineDefinition::GreptimeIdentityPipeline(None),
+                &PipelineDefinition::PulseIdentityPipeline(None),
                 &params,
                 Channel::Unknown,
             );
@@ -1607,10 +1609,10 @@ table_suffix: _${device}
                 VrlValue::Bytes("invalid_string".into()), // This should cause error
             ];
 
-            let params = GreptimePipelineParams::default(); // skip_error = false
+            let params = PulsePipelineParams::default(); // skip_error = false
 
             let pipeline_ctx = PipelineContext::new(
-                &PipelineDefinition::GreptimeIdentityPipeline(None),
+                &PipelineDefinition::PulseIdentityPipeline(None),
                 &params,
                 Channel::Unknown,
             );
@@ -1639,14 +1641,14 @@ table_suffix: _${device}
 
         // Create array with elements having different TTL values (ContextOpt)
         let input_array = vec![
-            serde_json::json!({"name": "Alice", "greptime_ttl": "1h"}).into(),
-            serde_json::json!({"name": "Bob", "greptime_ttl": "1h"}).into(),
-            serde_json::json!({"name": "Charlie", "greptime_ttl": "24h"}).into(),
+            serde_json::json!({"name": "Alice", "pulse_ttl": "1h"}).into(),
+            serde_json::json!({"name": "Bob", "pulse_ttl": "1h"}).into(),
+            serde_json::json!({"name": "Charlie", "pulse_ttl": "24h"}).into(),
         ];
 
-        let params = GreptimePipelineParams::default();
+        let params = PulsePipelineParams::default();
         let pipeline_ctx = PipelineContext::new(
-            &PipelineDefinition::GreptimeIdentityPipeline(None),
+            &PipelineDefinition::PulseIdentityPipeline(None),
             &params,
             Channel::Unknown,
         );

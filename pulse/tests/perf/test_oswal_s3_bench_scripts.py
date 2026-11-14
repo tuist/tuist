@@ -37,17 +37,17 @@ def load(name, filename):
 bench = load("oswal_s3_bench", "oswal-s3-bench.py")
 summary = load("oswal_s3_bench_summary", "oswal-s3-bench-summary.py")
 
-ACK_BUCKETS = """# TYPE greptime_logstore_object_store_wal_append_ack_seconds histogram
-greptime_logstore_object_store_wal_append_ack_seconds_bucket{le="0.064"} 0
-greptime_logstore_object_store_wal_append_ack_seconds_bucket{le="0.128"} 50
-greptime_logstore_object_store_wal_append_ack_seconds_bucket{le="0.256"} 100
-greptime_logstore_object_store_wal_append_ack_seconds_bucket{le="+Inf"} 100
-greptime_logstore_object_store_wal_append_ack_seconds_sum 12
-greptime_logstore_object_store_wal_append_ack_seconds_count 100
-greptime_logstore_object_store_wal_created_objects_total 120
-greptime_logstore_object_store_wal_stalled_appends_total 3
-greptime_logstore_object_store_wal_poisoned_total 0
-greptime_logstore_kafka_client_produce_elapsed_count 9
+ACK_BUCKETS = """# TYPE pulse_logstore_object_store_wal_append_ack_seconds histogram
+pulse_logstore_object_store_wal_append_ack_seconds_bucket{le="0.064"} 0
+pulse_logstore_object_store_wal_append_ack_seconds_bucket{le="0.128"} 50
+pulse_logstore_object_store_wal_append_ack_seconds_bucket{le="0.256"} 100
+pulse_logstore_object_store_wal_append_ack_seconds_bucket{le="+Inf"} 100
+pulse_logstore_object_store_wal_append_ack_seconds_sum 12
+pulse_logstore_object_store_wal_append_ack_seconds_count 100
+pulse_logstore_object_store_wal_created_objects_total 120
+pulse_logstore_object_store_wal_stalled_appends_total 3
+pulse_logstore_object_store_wal_poisoned_total 0
+pulse_logstore_kafka_client_produce_elapsed_count 9
 """
 
 
@@ -101,7 +101,7 @@ class PlanTest(unittest.TestCase):
         inspect = [{"RepoDigests": ["greptime/greptimedb@sha256:" + "a" * 64]}]
         manifest = bench.build_manifest(plan, inspect, "runtime@sha256:" + "b" * 64, "c6id.2xlarge",
                                         "ap-southeast-1", "oswal-bench/1-1")
-        self.assertEqual(manifest["greptimedb_image"], "greptime/greptimedb@sha256:" + "a" * 64)
+        self.assertEqual(manifest["pulse_image"], "greptime/greptimedb@sha256:" + "a" * 64)
         self.assertEqual((manifest["rows"], manifest["rounds"], manifest["concurrency"]), (2_000_000, 2, [1, 8]))
         with self.assertRaises(ValueError):
             bench.build_manifest(plan, [{"RepoDigests": []}], "", "", "", "")
@@ -120,13 +120,13 @@ class SummaryTest(unittest.TestCase):
     def write_cell(self, root, cell_id, rows_per_second, exit_code=0, metrics=""):
         round_number, concurrency, config = cell_id.split("-")
         path = root / "cells" / cell_id
-        (path / "greptimedb-1").mkdir(parents=True)
+        (path / "pulse-1").mkdir(parents=True)
         (path / "cell.json").write_text(json.dumps({
             "id": cell_id, "round": int(round_number), "concurrency": int(concurrency), "config": config,
             "wal": bench.WAL_CONFIGS[config], "metrics_scraped": True,
             "exit_code": exit_code, "wal_device": "/dev/nvme1n1", "version": "1.4.0", "load_wall_seconds": 61.0}))
         if exit_code == 0:
-            (path / "greptimedb-1" / "load-result.json").write_text(json.dumps({
+            (path / "pulse-1" / "load-result.json").write_text(json.dumps({
                 "count_after": 6000, "load_seconds": 60.0, "rows_per_second": rows_per_second}))
         (path / "metrics.prom").write_text(metrics)
 
@@ -156,7 +156,7 @@ class SummaryTest(unittest.TestCase):
     def test_untouched_counters_are_zero_only_for_an_active_object_store_wal(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            created = "greptime_logstore_object_store_wal_created_objects_total 40\n"
+            created = "pulse_logstore_object_store_wal_created_objects_total 40\n"
             self.write_cell(root, "1-8-E", 90.0, metrics=created)
             self.write_cell(root, "1-8-D", 80.0, metrics="")
             cell_e, cell_d = (summary.load_cell(root / "cells" / i) for i in ("1-8-E", "1-8-D"))
@@ -199,14 +199,14 @@ FAKE_DOCKER = r"""#!/usr/bin/env bash
 printf '%s\n' "docker $*" >> "$FAKE_LOG"
 case "$1" in
     run)
-        for arg in "$@"; do [[ "$arg" != -d ]] || { echo "keys=${GREPTIMEDB_STANDALONE__STORAGE__ACCESS_KEY_ID:+set}${GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY:+set}" >> "$FAKE_LOG"; echo fakecid; exit 0; }; done
+        for arg in "$@"; do [[ "$arg" != -d ]] || { echo "keys=${PULSE_STANDALONE__STORAGE__ACCESS_KEY_ID:+set}${PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY:+set}" >> "$FAKE_LOG"; echo fakecid; exit 0; }; done
         for arg in "$@"; do
             case "$arg" in type=bind,src=*,dst=/results) results=${arg#type=bind,src=}; results=${results%,dst=/results} ;; esac
         done
         [[ "$FAKE_LOAD_RC" == 0 ]] || exit "$FAKE_LOAD_RC"
-        mkdir -p "$results/greptimedb-1"
+        mkdir -p "$results/pulse-1"
         echo "{\"count_before\": 0, \"count_after\": $FAKE_ROWS, \"load_seconds\": 2, \"rows_per_second\": 3000}" \
-            > "$results/greptimedb-1/load-result.json" ;;
+            > "$results/pulse-1/load-result.json" ;;
     inspect) echo true ;;
     exec) echo 'version: 1.4.0-test' ;;
     logs) echo 'server log' ;;
@@ -217,7 +217,7 @@ printf '%s\n' "curl $*" >> "$FAKE_LOG"
 for arg in "$@"; do
     [[ "$arg" != */metrics ]] || {
         [[ "$FAKE_METRICS_RC" == 0 ]] || exit "$FAKE_METRICS_RC"
-        printf '%s\n' 'greptime_logstore_object_store_wal_poisoned_total 1' 'other_total 2'; exit 0;
+        printf '%s\n' 'pulse_logstore_object_store_wal_poisoned_total 1' 'other_total 2'; exit 0;
     }
 done
 """
@@ -239,7 +239,7 @@ class CellLifecycleTest(unittest.TestCase):  # the run script against fake docke
             "PATH": f"{bin_dir}:{os.environ['PATH']}", "FAKE_LOG": str(root / "fake.log"),
             "FAKE_LOAD_RC": str(load_rc), "FAKE_METRICS_RC": str(metrics_rc), "FAKE_ROWS": "6000", "PLAN": str(root / "results" / "plan.json"),
             "RESULTS": str(root / "results"), "CORPUS_DIR": str(root / "corpus"), "OWNER": "o11ybench-oswal-1-1",
-            "RUNTIME_IMAGE": "runtime@sha256:" + "b" * 64, "GREPTIMEDB_IMAGE": "greptimedb@sha256:" + "a" * 64,
+            "RUNTIME_IMAGE": "runtime@sha256:" + "b" * 64, "PULSE_IMAGE": "pulse@sha256:" + "a" * 64,
             "RUN_PREFIX": "oswal-bench/1-1", "WAL_ROOT": str(root / "wal"), "S3_BUCKET": "bucket",
             "S3_REGION": "ap-southeast-1", "AWS_ACCESS_KEY_ID": "AKIAFAKEKEY", "AWS_SECRET_ACCESS_KEY": "fake-secret-value",
         }
@@ -258,7 +258,7 @@ class CellLifecycleTest(unittest.TestCase):  # the run script against fake docke
                 cell = root / "results" / "cells" / cell_id
                 self.assertEqual(json.loads((cell / "cell.json").read_text())["exit_code"], 3)
                 self.assertEqual((cell / "metrics.prom").read_text(),
-                                 "greptime_logstore_object_store_wal_poisoned_total 1\n")
+                                 "pulse_logstore_object_store_wal_poisoned_total 1\n")
                 self.assertFalse((cell / "metrics.all").exists())
                 self.assertEqual((cell / "server.log").read_text(), "server log\n")
             self.assertEqual(log.count("docker stop -t 120 fakecid"), 2)
@@ -296,12 +296,12 @@ class CellLifecycleTest(unittest.TestCase):  # the run script against fake docke
             self.assertNotIn("fake-secret-value", log)
             self.assertNotIn("AKIAFAKEKEY", log)
             self.assertEqual(log.count("keys=setset"), 2)
-            self.assertIn("-e GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY ", log)
+            self.assertIn("-e PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY ", log)
             cell = root / "results" / "cells" / "1-8-D"
             config = (cell / "config.env").read_text().splitlines()
-            self.assertIn("GREPTIMEDB_STANDALONE__STORAGE__ROOT=oswal-bench/1-1/1-8-D", config)
-            self.assertIn("GREPTIMEDB_STANDALONE__WAL__ACK_MODE=durable", config)
-            self.assertIn("GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY=<redacted>", config)
+            self.assertIn("PULSE_STANDALONE__STORAGE__ROOT=oswal-bench/1-1/1-8-D", config)
+            self.assertIn("PULSE_STANDALONE__WAL__ACK_MODE=durable", config)
+            self.assertIn("PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY=<redacted>", config)
             recorded = json.loads((cell / "cell.json").read_text())
             self.assertEqual((recorded["exit_code"], recorded["version"], recorded["metrics_scraped"]),
                              (0, "1.4.0-test", True))

@@ -6,14 +6,6 @@ license.workspace = true
 
 [features]
 testing = []
-enterprise = [
-    "common-meta/enterprise",
-    "sql/enterprise",
-    "query/enterprise",
-    "prost-types",
-    "catalog/enterprise",
-    "common-function/enterprise",
-]
 
 [lints]
 workspace = true
@@ -68,7 +60,6 @@ object-store.workspace = true
 partition.workspace = true
 percent-encoding.workspace = true
 prometheus.workspace = true
-prost-types = { workspace = true, optional = true }
 query.workspace = true
 regex.workspace = true
 serde.workspace = true

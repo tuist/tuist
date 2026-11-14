@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::column_data_type_extension::TypeExt;
@@ -36,7 +38,7 @@ use crate::error::{
     UnsupportedTypeInPipelineSnafu, VrlRegexValueSnafu,
 };
 use crate::etl::transform::index::Index;
-use crate::etl::transform::transformer::greptime::{
+use crate::etl::transform::transformer::pulse::{
     vrl_value_to_jsonb_value, vrl_value_to_serde_json,
 };
 use crate::etl::transform::{OnFailure, Transform, TransformIndexOptions};

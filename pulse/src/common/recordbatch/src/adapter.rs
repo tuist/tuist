@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::{self, Display};
 use std::future::Future;
 use std::marker::PhantomData;
@@ -179,7 +181,7 @@ where
     }
 }
 
-/// Greptime SendableRecordBatchStream -> DataFusion RecordBatchStream.
+/// Pulse SendableRecordBatchStream -> DataFusion RecordBatchStream.
 /// The reverse one is [RecordBatchStreamAdapter].
 pub struct DfRecordBatchStreamAdapter {
     stream: SendableRecordBatchStream,
@@ -217,7 +219,7 @@ impl Stream for DfRecordBatchStreamAdapter {
     }
 }
 
-/// DataFusion [SendableRecordBatchStream](DfSendableRecordBatchStream) -> Greptime [RecordBatchStream].
+/// DataFusion [SendableRecordBatchStream](DfSendableRecordBatchStream) -> Pulse [RecordBatchStream].
 /// The reverse one is [DfRecordBatchStreamAdapter].
 /// It can collect metrics from DataFusion execution plan.
 pub struct RecordBatchStreamAdapter {

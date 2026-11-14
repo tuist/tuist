@@ -3,9 +3,9 @@ CREATE TABLE IF NOT EXISTS aggr_optimize_not (
   b STRING NULL,
   c STRING NULL,
   d STRING NULL,
-  greptime_timestamp TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
-  TIME INDEX (greptime_timestamp),
+  pulse_timestamp TIMESTAMP(3) NOT NULL,
+  pulse_value DOUBLE NULL,
+  TIME INDEX (pulse_timestamp),
   PRIMARY KEY (a, b, c, d)
 ) PARTITION ON COLUMNS (a, b, c) (a < 'b', a >= 'b',);
 
@@ -115,9 +115,9 @@ CREATE TABLE IF NOT EXISTS aggr_optimize_not_count (
   b STRING NULL,
   c STRING NULL,
   d STRING NULL,
-  greptime_timestamp TIMESTAMP(3) NOT NULL,
-  greptime_value DOUBLE NULL,
-  TIME INDEX (greptime_timestamp),
+  pulse_timestamp TIMESTAMP(3) NOT NULL,
+  pulse_value DOUBLE NULL,
+  TIME INDEX (pulse_timestamp),
   PRIMARY KEY (a, b, c, d)
 ) PARTITION ON COLUMNS (a, b, c) (a < 'b', a >= 'b',);
 
@@ -159,7 +159,7 @@ TRUNCATE TABLE aggr_optimize_not_count;
 -- SQLNESS REPLACE (Hash.*) REDACTED
 EXPLAIN
 SELECT
-  min(greptime_value)
+  min(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -177,7 +177,7 @@ GROUP BY
 -- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
 EXPLAIN ANALYZE
 SELECT
-  min(greptime_value)
+  min(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -191,7 +191,7 @@ GROUP BY
 -- SQLNESS REPLACE (Hash.*) REDACTED
 EXPLAIN
 SELECT
-  min(greptime_value)
+  min(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -210,7 +210,7 @@ GROUP BY
 -- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
 EXPLAIN ANALYZE
 SELECT
-  min(greptime_value)
+  min(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -225,7 +225,7 @@ GROUP BY
 -- SQLNESS REPLACE (Hash.*) REDACTED
 EXPLAIN
 SELECT
-  min(greptime_value)
+  min(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -242,7 +242,7 @@ GROUP BY
 -- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
 EXPLAIN ANALYZE
 SELECT
-  min(greptime_value)
+  min(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -255,7 +255,7 @@ GROUP BY
 -- SQLNESS REPLACE (Hash.*) REDACTED
 EXPLAIN
 SELECT
-  min(greptime_value) + max(greptime_value)
+  min(pulse_value) + max(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -272,7 +272,7 @@ GROUP BY
 -- SQLNESS REPLACE \\?"(dyn_filters|time_range|file_summary|max_part_range)\\?":.* "$1":REDACTED
 EXPLAIN ANALYZE
 SELECT
-  min(greptime_value) + max(greptime_value)
+  min(pulse_value) + max(pulse_value)
 FROM
   aggr_optimize_not
 GROUP BY
@@ -287,13 +287,13 @@ GROUP BY
 EXPLAIN
 SELECT
   a,
-  min(greptime_value)
+  min(pulse_value)
 FROM
   (
     SELECT
       a,
       b,
-      greptime_value
+      pulse_value
     FROM
       aggr_optimize_not
     ORDER BY
@@ -314,13 +314,13 @@ GROUP BY
 EXPLAIN ANALYZE
 SELECT
   a,
-  min(greptime_value)
+  min(pulse_value)
 FROM
   (
     SELECT
       a,
       b,
-      greptime_value
+      pulse_value
     FROM
       aggr_optimize_not
     ORDER BY

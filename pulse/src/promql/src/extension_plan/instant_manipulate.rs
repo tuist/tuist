@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use common_query::prelude::{greptime_native_histogram, greptime_value};
+use common_query::prelude::{pulse_native_histogram, pulse_value};
 use datafusion::arrow::array::{Array, TimestampMillisecondArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -59,8 +61,8 @@ const MAX_INSTANT_MANIPULATE_OUTPUT_POINTS: usize = 1_000_000;
 
 fn mixed_sample_fields(field: Option<&str>) -> [Option<&str>; 2] {
     let companion = match field {
-        Some(field) if field == greptime_value() => Some(greptime_native_histogram()),
-        Some(field) if field == greptime_native_histogram() => Some(greptime_value()),
+        Some(field) if field == pulse_value() => Some(pulse_native_histogram()),
+        Some(field) if field == pulse_native_histogram() => Some(pulse_value()),
         _ => None,
     };
     [field, companion]

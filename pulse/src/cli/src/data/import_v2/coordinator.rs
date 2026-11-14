@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -621,7 +623,7 @@ mod tests {
         ImportResumeConfig {
             snapshot_id: "snapshot-1".to_string(),
             target_addr: "127.0.0.1:4000".to_string(),
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schemas: vec!["public".to_string(), "analytics".to_string()],
             state_path: path,
             tasks,
@@ -671,7 +673,7 @@ mod tests {
         let mut state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.clone(),
         );
@@ -735,7 +737,7 @@ mod tests {
         let state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4001",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.clone(),
         );
@@ -770,7 +772,7 @@ mod tests {
         let mut state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.clone(),
         );
@@ -791,7 +793,7 @@ mod tests {
         let mut state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.clone(),
         );
@@ -906,7 +908,7 @@ mod tests {
         let mut state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.clone(),
         );
@@ -962,7 +964,7 @@ mod tests {
         let mut state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.clone(),
         );
@@ -1010,7 +1012,7 @@ mod tests {
         let mut state = ImportState::new(
             "snapshot-1",
             "127.0.0.1:4000",
-            "greptime",
+            "pulse",
             &["public".to_string(), "analytics".to_string()],
             tasks.to_vec(),
         );

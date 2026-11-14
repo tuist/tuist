@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -216,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_validate_table_ref() {
-        let query_ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let query_ctx = Arc::new(QueryContext::with("pulse", "public"));
 
         let table_provider = DfTableSourceProvider::new(
             MemoryCatalogManager::with_default_setup(),
@@ -238,7 +240,7 @@ mod tests {
         let result = table_provider.resolve_table_ref(table_ref);
         assert!(result.is_ok());
 
-        let table_ref = TableReference::full("greptime", "public", "table_name");
+        let table_ref = TableReference::full("pulse", "public", "table_name");
         let result = table_provider.resolve_table_ref(table_ref);
         assert!(result.is_ok());
 
@@ -250,13 +252,13 @@ mod tests {
         let result = table_provider.resolve_table_ref(table_ref);
         assert!(result.is_ok());
 
-        let table_ref = TableReference::full("greptime", "information_schema", "columns");
+        let table_ref = TableReference::full("pulse", "information_schema", "columns");
         assert!(table_provider.resolve_table_ref(table_ref).is_ok());
 
         let table_ref = TableReference::full("dummy", "information_schema", "columns");
         assert!(table_provider.resolve_table_ref(table_ref).is_err());
 
-        let table_ref = TableReference::full("greptime", "greptime_private", "columns");
+        let table_ref = TableReference::full("pulse", "pulse_private", "columns");
         assert!(table_provider.resolve_table_ref(table_ref).is_ok());
     }
 
@@ -315,7 +317,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_view() {
-        let query_ctx = Arc::new(QueryContext::with("greptime", "public"));
+        let query_ctx = Arc::new(QueryContext::with("pulse", "public"));
         let backend = Arc::new(MemoryKvBackend::default());
         let layered_cache_builder = LayeredCacheRegistryBuilder::default()
             .add_cache_registry(CacheRegistryBuilder::default().build());

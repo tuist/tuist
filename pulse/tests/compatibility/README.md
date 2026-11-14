@@ -1,6 +1,6 @@
-# GreptimeDB Compatibility Test Framework
+# Pulse Compatibility Test Framework
 
-Compatibility tests verify that one GreptimeDB version can restart on state written by another version.
+Compatibility tests verify that one Pulse version can restart on state written by another version.
 
 Tests are run via `cargo sqlness compat` and reuse the sqlness-runner infrastructure.
 
@@ -35,9 +35,9 @@ cargo run -p sqlness-runner -- compat --help
 ## Prerequisites
 
 - **Docker** (for etcd): PR1 always uses Docker etcd for distributed metadata. External metadata stores are future work.
-- **From binary**: Either `--from-version <version>` to auto-pull a release, or `--from-bins-dir <path>` to use a local build. The binary `greptime` must exist directly inside the given directory.
-- **To binary**: Defaults to the current debug build (`target/debug/greptime`). Override with `--to-bins-dir <path>` or fetch a release with `--to-version <version>`.
-- **Custom target-dir**: If you use a non-default `CARGO_TARGET_DIR`, the debug binary won't be at `target/debug/greptime`. Pass `--from-bins-dir` / `--to-bins-dir` explicitly pointing to your custom target directory. Alternatively, run `cargo build -p greptime` without a custom target-dir.
+- **From binary**: Either `--from-version <version>` to auto-pull a release, or `--from-bins-dir <path>` to use a local build. The binary `pulse` must exist directly inside the given directory.
+- **To binary**: Defaults to the current debug build (`target/debug/pulse`). Override with `--to-bins-dir <path>` or fetch a release with `--to-version <version>`.
+- **Custom target-dir**: If you use a non-default `CARGO_TARGET_DIR`, the debug binary won't be at `target/debug/pulse`. Pass `--from-bins-dir` / `--to-bins-dir` explicitly pointing to your custom target directory. Alternatively, run `cargo build -p pulse` without a custom target-dir.
 
 ## Case Format
 
@@ -179,7 +179,7 @@ If output differs from expected, the run fails and `verify.result` is updated wi
 
 ## PR1 Limitations
 
-- **Sqlness interceptors**: `-- SQLNESS ...` comments are applied per statement using the same interceptor registry as the ordinary sqlness runner, including the GreptimeDB `PROTOCOL` interceptor. For `PROTOCOL POSTGRES`, the namespace prelude uses `SET search_path` instead of `USE`. Avoid unqualified PostgreSQL-protocol table names starting with `pg_`: GreptimeDB's current PostgreSQL compatibility parser rewrites them to `pg_catalog.<table>`.
+- **Sqlness interceptors**: `-- SQLNESS ...` comments are applied per statement using the same interceptor registry as the ordinary sqlness runner, including the Pulse `PROTOCOL` interceptor. For `PROTOCOL POSTGRES`, the namespace prelude uses `SET search_path` instead of `USE`. Avoid unqualified PostgreSQL-protocol table names starting with `pg_`: Pulse's current PostgreSQL compatibility parser rewrites them to `pg_catalog.<table>`.
 - **Distributed topology**: The compat runner starts 1 metasrv + 3 datanodes + 1 frontend + 1 flownode. Standalone compatibility runs need no external metadata store.
 - **No comment-based compat config**: The compat runner does not define extra compatibility configuration in SQL comments; sqlness comments keep their normal sqlness meaning.
 

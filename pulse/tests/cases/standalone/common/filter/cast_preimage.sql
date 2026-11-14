@@ -55,7 +55,7 @@ WHERE '1970-01-01 00:00:05'::TIMESTAMP(3) < CAST(ts AS TIMESTAMP(3))
 ORDER BY host, v;
 
 -- Integer widening comparison and IN-list cover the overlap with the old
--- Greptime ConstNormalizationRule's lossless-cast cases.
+-- Pulse ConstNormalizationRule's lossless-cast cases.
 CREATE TABLE cast_preimage_int (
   ts TIMESTAMP TIME INDEX,
   host STRING PRIMARY KEY,

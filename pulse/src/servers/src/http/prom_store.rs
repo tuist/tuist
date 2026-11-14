@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::prom_store::remote::ReadRequest;
@@ -24,7 +26,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::IntoResponse;
 use axum_extra::TypedHeader;
 use common_catalog::consts::DEFAULT_SCHEMA_NAME;
-use common_query::prelude::GREPTIME_PHYSICAL_TABLE;
+use common_query::prelude::PULSE_PHYSICAL_TABLE;
 use common_telemetry::tracing;
 use mime_guess::mime;
 use pipeline::util::to_pipeline_version;
@@ -44,7 +46,7 @@ use crate::batcher::logical_table::LogicalTablePendingRowsBatcher;
 use crate::error::{self, InternalSnafu, PipelineSnafu, Result};
 use crate::http::extractor::PipelineInfo;
 use crate::http::header::{
-    CONTENT_TYPE_PROTOBUF_STR, GREPTIME_DB_HEADER_METRICS, write_cost_header_map,
+    CONTENT_TYPE_PROTOBUF_STR, PULSE_DB_HEADER_METRICS, write_cost_header_map,
 };
 use crate::prom_remote_write::decode::PromSeriesProcessor;
 use crate::prom_remote_write::v2::decode_remote_write_v2;
@@ -95,7 +97,7 @@ impl Default for RemoteWriteQuery {
     fn default() -> RemoteWriteQuery {
         Self {
             db: Some(DEFAULT_SCHEMA_NAME.to_string()),
-            physical_table: Some(GREPTIME_PHYSICAL_TABLE.to_string()),
+            physical_table: Some(PULSE_PHYSICAL_TABLE.to_string()),
             get_vm_proto_version: None,
         }
     }
@@ -327,7 +329,7 @@ fn prepare_remote_write_context(
     let physical_table = params
         .physical_table
         .clone()
-        .unwrap_or_else(|| GREPTIME_PHYSICAL_TABLE.to_string());
+        .unwrap_or_else(|| PULSE_PHYSICAL_TABLE.to_string());
     query_ctx.set_extension(PHYSICAL_TABLE_PARAM, physical_table);
     // Stamp the Prometheus metric identity here, before `as_req_iter` splits into the
     // batched and direct write paths, so both inherit it (the batched path bypasses
@@ -835,7 +837,7 @@ impl IntoResponse for PromStoreResponse {
             serde_json::to_string(&self.resp_metrics).ok()
         };
         if let Some(m) = metrics.and_then(|m| HeaderValue::from_str(&m).ok()) {
-            header_map.insert(&GREPTIME_DB_HEADER_METRICS, m);
+            header_map.insert(&PULSE_DB_HEADER_METRICS, m);
         }
 
         (header_map, self.body).into_response()
@@ -885,7 +887,7 @@ mod tests {
     use api::v1::{Row, RowInsertRequest, Rows};
     use async_trait::async_trait;
     use common_query::Output;
-    use pipeline::GreptimePipelineParams;
+    use pipeline::PulsePipelineParams;
     use session::context::{QueryContext, QueryContextRef};
 
     use super::*;
@@ -945,7 +947,7 @@ mod tests {
     fn test_prepare_remote_write_context_stamps_semantics() {
         let (_, query_ctx, _timer) = prepare_remote_write_context(
             &RemoteWriteQuery::default(),
-            QueryContext::with("greptime", "public"),
+            QueryContext::with("pulse", "public"),
             REMOTE_WRITE_V2_VERSION,
         );
 
@@ -1008,7 +1010,7 @@ mod tests {
 
     fn test_prom_write_batch(table_name: &str) -> PromWriteBatch {
         (
-            Arc::new(QueryContext::with("greptime", "public")),
+            Arc::new(QueryContext::with("pulse", "public")),
             RowInsertRequests {
                 inserts: vec![RowInsertRequest {
                     table_name: table_name.to_string(),
@@ -1035,7 +1037,7 @@ mod tests {
     #[async_trait]
     impl PromWriteBatcher for RecordingPromWriteBatcher {
         async fn submit(&self, requests: RowInsertRequests, ctx: QueryContextRef) -> Result<u64> {
-            assert_eq!(ctx.write_rows_to_admit("greptime", "public", 1), 0);
+            assert_eq!(ctx.write_rows_to_admit("pulse", "public", 1), 0);
             record_write_event(&self.events, "batch", &requests);
             Ok(prom_write_row_count(&requests))
         }
@@ -1062,7 +1064,7 @@ mod tests {
             ctx: QueryContextRef,
             _with_metric_engine: bool,
         ) -> Result<Output> {
-            assert_eq!(ctx.write_rows_to_admit("greptime", "public", 1), 0);
+            assert_eq!(ctx.write_rows_to_admit("pulse", "public", 1), 0);
             record_write_event(&self.events, "direct", &request);
             Ok(Output::new_with_affected_rows(0))
         }
@@ -1105,7 +1107,7 @@ mod tests {
         let response = remote_write_v2(
             test_state(),
             RemoteWriteQuery::default(),
-            QueryContext::with("greptime", "public"),
+            QueryContext::with("pulse", "public"),
             pipeline_info(Some("pipeline")),
             false,
             body,
@@ -1138,7 +1140,7 @@ mod tests {
         PipelineInfo {
             pipeline_name: pipeline_name.map(ToString::to_string),
             pipeline_version: None,
-            pipeline_params: GreptimePipelineParams::default(),
+            pipeline_params: PulsePipelineParams::default(),
         }
     }
 

@@ -3,8 +3,9 @@
 Pulse is the observability backend in Tuist's clusters. Since November 2026 it is
 a fork of [GreptimeDB](https://github.com/GreptimeTeam/greptimedb); before that it
 was a separate Elixir application, which is in this directory's history before
-the import commit. The code keeps GreptimeDB's names; Tuist publishes it as
-`ghcr.io/tuist/pulse`, and clusters deploy it as the `pulse` release.
+the import commit. Tuist renamed the code to Pulse (see [Tuist changes](#tuist-changes)),
+publishes it as `ghcr.io/tuist/pulse`, and clusters deploy it as the `pulse`
+release.
 
 ## Upstream base
 
@@ -21,36 +22,61 @@ The import is the upstream tree at that commit, except:
   Enterprise License are not Apache-2.0, and that license forbids copying or
   distributing them, so they are not in this repository: `LICENSE-ENTERPRISE`,
   `licenserc-enterprise.toml`, `licenses/enterprise-header.txt`, and the sources
-  below (triggers, the recycle bin, and undrop and purge of dropped tables).
-  They compile only with the `enterprise` Cargo feature, which the fork never
-  enables; the default build is unchanged, and building with the feature fails
-  on the missing files. `pulse.yml` reads this list to stub the files for
-  rustfmt, which follows `mod` declarations even when they are cfg'd out.
-
-  - `src/catalog/src/system_schema/information_schema/recycle_bin.rs`
-  - `src/catalog/src/system_schema/information_schema/recycle_bin_test.rs`
-  - `src/common/function/src/admin/purge_table.rs`
-  - `src/common/meta/src/ddl/purge_dropped_table.rs`
-  - `src/common/meta/src/ddl/undrop_table.rs`
-  - `src/common/meta/src/rpc/ddl/trigger.rs`
-  - `src/mito2/src/extension.rs`
-  - `src/operator/src/expr_helper/trigger.rs`
-  - `src/sql/src/parsers/alter_parser/trigger.rs`
-  - `src/sql/src/parsers/create_parser/trigger.rs`
-  - `src/sql/src/parsers/show_parser/trigger.rs`
-  - `src/sql/src/statements/alter/trigger.rs`
-  - `src/sql/src/statements/create/trigger.rs`
-  - `src/sql/src/statements/drop/trigger.rs`
-  - `src/sql/src/statements/show/trigger.rs`
-
+  for triggers, the recycle bin, and undrop and purge of dropped tables. The
+  `enterprise` Cargo feature and the code it gated were removed after the
+  import (see below).
 - **Upstream automation.** `.github/` (its workflows do not run inside this
   monorepo) and the agent skills in `.agents/skills/` and `.claude/`.
   `AGENTS.md`, its `CLAUDE.md` symlink and the rest of `.agents/` are kept.
 
 ## Tuist changes
 
-Every Tuist change to an upstream file is marked with a `Modified by Tuist`
-line under its license header, or a `Tuist:` comment at the change.
+Every upstream source file Tuist changed is marked with a `Modified by Tuist`
+line under its license header, or a `Tuist:` comment at the change. Files
+without a license header, such as test expectations and configuration, are
+covered by this list.
+
+- **Renamed to Pulse.** Every GreptimeDB name in the code is now a Pulse name:
+  crates (`common-pulse-telemetry`), types, modules and files, the `pulse`
+  binary and the image's entrypoint, comments, and the names Pulse stores or
+  speaks on the wire: the default catalog `pulse` and its `pulse_private`
+  schema (and so the object-store paths under them), the `pulse_timestamp`,
+  `pulse_value` and `pulse_native_histogram` columns, the `pulse_identity` and
+  `pulse_trace_v*` pipelines, the `x-pulse-*` HTTP headers, the `PULSE_*`
+  configuration environment prefix, the `pulse_v1` response format, the
+  `pulse_*` self-metrics, and the `pulse_data`, `pulse_wal_topic` and
+  `pulse_metakv` defaults. Data written under the old catalog is not migrated
+  (see [Rolling out the rename](#rolling-out-the-rename)).
+  These keep Greptime names:
+  - On-disk format identifiers, so a renamed release opens the metadata, SSTs
+    and indexes earlier releases wrote and stays readable by upstream tools:
+    `greptime:` column and parquet metadata keys, the `greptime.json`,
+    `greptime.json2` and `greptime.histogram` extension types,
+    `greptime.series_index`, `greptime.semantic.*` table options, puffin index
+    blob types, the fulltext index's field names, and the `__greptime_*` flow
+    and DDL options.
+  - Headers only Pulse's own nodes send each other (`x-greptime-snapshot-seqs`,
+    `x-greptime-flow-extensions`, `x-greptime-internal-create-database-creator-bin`),
+    so nodes on either side of a rolling upgrade still understand each other.
+  - The `Copyright … Greptime Team` license headers and `LICENSE`, which
+    Apache-2.0 requires us to keep.
+  - Dependencies: `greptime-proto` and what it generates (`GreptimeRequest`,
+    `GreptimeDatabase` and the other gRPC types, and the `greptime.v1`
+    packages on the wire), and the other GreptimeTeam crates `Cargo.toml`
+    fetches from GitHub.
+  - Links to upstream issues and documentation, and the Greptime container
+    images some tests and harnesses start. `tests/compatibility` and
+    `tests/perf` still compare against upstream GreptimeDB releases, so they no
+    longer match Pulse's names; Tuist's CI runs neither.
+- **No enterprise feature.** The `enterprise` Cargo feature and every code path
+  it gated are gone, as is the license tooling for enterprise files. Undrop and
+  purge of dropped tables, and `gc.experimental_soft_drop`, which needs them,
+  are rejected as unsupported, as they were in the default build.
+- **No upstream docs or release tooling.** `docs/`, the Grafana dashboards, the
+  `cyborg` bot, upstream's README, contribution and security guides, changelog
+  and coverage configuration, the generated configuration reference, the
+  Docker builds other than `docker/buildx/ubuntu`, and the Makefile targets
+  that used them.
 
 - **Query nesting limits** ([`src/sql/src/nesting.rs`](src/sql/src/nesting.rs)).
   GreptimeDB v1.3.0 aborts the whole process with a stack overflow on short,
@@ -79,7 +105,7 @@ line under its license header, or a `Tuist:` comment at the change.
 ## Build, release and deploy
 
 - [`pulse.yml`](../.github/workflows/pulse.yml) checks formatting, runs the
-  `sql` crate's tests (where the limits live), and type-checks the `greptime`
+  `sql` crate's tests (where the limits live), and type-checks the `pulse`
   binary, which covers the other changed crates.
 - [`pulse-release.yml`](../.github/workflows/pulse-release.yml) publishes
   `ghcr.io/tuist/pulse:<version>` and the `pulse@<version>` tag when `pulse/`
@@ -96,12 +122,33 @@ line under its license header, or a `Tuist:` comment at the change.
   `.github/scripts/pulse-readiness.sh`, the gate every server deploy runs,
   accepts any `ghcr.io/tuist/pulse:<version>-<n>` image.
 
+## Rolling out the rename
+
+The clusters run releases built before the rename, and the infrastructure
+around them still uses GreptimeDB's names. The change that moves the pin to the
+first renamed release has to switch them too, or ingestion and queries fail:
+
+- The chart's storage credentials: `GREPTIMEDB_STANDALONE__*` and
+  `GREPTIMEDB_DATANODE__*` become `PULSE_STANDALONE__*` and `PULSE_DATANODE__*`.
+- The collectors in `infra/helm/k8s-monitoring` and the server's `Tuist.Pulse`
+  deploy independently of the backend, so they send both the `X-Greptime-*`
+  and `X-Pulse-*` headers (and both trace pipeline names) until every
+  environment runs a renamed release. Each release ignores the other's names.
+- `infra/helm/greptimedb/loki-otlp.yaml` and the smoke scripts in
+  `.github/scripts`: headers and the `greptime_timestamp` column.
+- Storage: the upgrade is in place, without a migration and without wiping
+  anything, because the on-disk formats are unchanged. The renamed release
+  creates the `pulse` catalog next to the old `greptime` one, and collectors
+  write into it from then on; tables in the `greptime` catalog stay in
+  metadata and under `data/greptime/` in the bucket, unread.
+
 ## Moving to a newer upstream version
 
 1. Import the new upstream tag's tree over `pulse/` with the same exclusions,
    using that version's `licenserc-enterprise.toml` for the enterprise list.
 2. Reapply the Tuist changes above (the commits touching `pulse/` since the
-   previous import) and update this file's upstream table.
+   previous import), including the rename and the enterprise removal, and
+   update this file's upstream table.
 3. Check that every PromQL parse still goes through `sql::nesting::parse_promql`
    (`rg 'promql_parser::parser::parse\(' src` outside tests), and repeat the
    overflow checks against the new planner before trusting the limits.

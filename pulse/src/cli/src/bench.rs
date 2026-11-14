@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::sync::Arc;
@@ -88,7 +90,7 @@ impl BenchTableMetadataCommand {
         #[cfg(feature = "pg_kvbackend")]
         let kv_backend = if let Some(postgres_addr) = &self.postgres_addr {
             info!("Using postgres as kv backend");
-            PgStore::with_url(postgres_addr, "greptime_metakv", 128)
+            PgStore::with_url(postgres_addr, "pulse_metakv", 128)
                 .await
                 .unwrap()
         } else {
@@ -98,7 +100,7 @@ impl BenchTableMetadataCommand {
         #[cfg(feature = "mysql_kvbackend")]
         let kv_backend = if let Some(mysql_addr) = &self.mysql_addr {
             info!("Using mysql as kv backend");
-            MySqlStore::with_url(mysql_addr, "greptime_metakv", 128)
+            MySqlStore::with_url(mysql_addr, "pulse_metakv", 128)
                 .await
                 .unwrap()
         } else {

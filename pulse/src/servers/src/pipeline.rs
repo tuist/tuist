@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -20,7 +22,7 @@ use api::v1::helper::time_index_column_schema;
 use api::v1::{ColumnDataType, Row, RowInsertRequest, Rows, Value};
 use common_time::timestamp::TimeUnit;
 use pipeline::{
-    ContextOpt, ContextReq, DispatchedTo, GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME, Pipeline,
+    ContextOpt, ContextReq, DispatchedTo, PULSE_INTERNAL_IDENTITY_PIPELINE_NAME, Pipeline,
     PipelineContext, PipelineDefinition, PipelineProcessOutput, SchemaInfo, TransformedOutput,
     TransformerMode, identity_pipeline, unwrap_or_continue_if_err,
 };
@@ -43,7 +45,7 @@ macro_rules! push_to_map {
     };
 }
 
-/// Never call this on `GreptimeIdentityPipeline` because it's a real pipeline
+/// Never call this on `PulseIdentityPipeline` because it's a real pipeline
 pub async fn get_pipeline(
     pipeline_def: &PipelineDefinition,
     handler: &PipelineHandlerRef,
@@ -118,8 +120,8 @@ async fn run_custom_pipeline(
     let mut dispatched: BTreeMap<DispatchedTo, Vec<VrlValue>> = BTreeMap::new();
 
     let mut schema_info = match pipeline.transformer() {
-        TransformerMode::GreptimeTransformer(greptime_transformer) => {
-            SchemaInfo::from_schema_list(greptime_transformer.schemas().clone())
+        TransformerMode::PulseTransformer(pulse_transformer) => {
+            SchemaInfo::from_schema_list(pulse_transformer.schemas().clone())
         }
         TransformerMode::AutoTransform(ts_name, timeunit) => {
             let timeunit = match timeunit {
@@ -142,7 +144,7 @@ async fn run_custom_pipeline(
     schema_info.set_table(table);
     let needs_json_settings = matches!(
         pipeline.transformer(),
-        TransformerMode::GreptimeTransformer(transformer) if transformer.has_json_transform()
+        TransformerMode::PulseTransformer(transformer) if transformer.has_json_transform()
     );
 
     for pipeline_map in pipeline_maps {
@@ -241,7 +243,7 @@ async fn run_custom_pipeline(
         let next_pipeline_name = dispatched_to
             .pipeline
             .as_deref()
-            .unwrap_or(GREPTIME_INTERNAL_IDENTITY_PIPELINE_NAME);
+            .unwrap_or(PULSE_INTERNAL_IDENTITY_PIPELINE_NAME);
 
         // run pipeline recursively.
         let next_pipeline_def =

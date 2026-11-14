@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use chrono::{DateTime, Utc};
 use datafusion_common::ScalarValue;
 use snafu::{OptionExt, ResultExt};
@@ -94,101 +96,6 @@ impl ParserContext<'_> {
                 }
             }
             unexpected => self.unsupported(unexpected.to_string()),
-        }
-    }
-
-    /// Parse a parenthesized TQL statement and return [`Tql`] and raw text.
-    ///
-    /// # Parameters
-    ///
-    /// - `is_lparen_consumed`: whether the leading `(` has already been consumed by the caller.
-    /// - `require_now_expr`: whether time params must contain `now()` (same as [`Self::parse_tql`]).
-    /// - `only_eval`: if `true`, rejects non-`TQL EVAL/EVALUATE` statements.
-    ///
-    /// # Examples
-    /// - (TQL EVAL (0, 10, '1s') cpu_usage)
-    #[cfg(feature = "enterprise")]
-    pub(crate) fn parse_parenthesized_tql(
-        &mut self,
-        is_lparen_consumed: bool,
-        require_now_expr: bool,
-        only_eval: bool,
-    ) -> Result<(Tql, String)> {
-        use crate::error::InvalidSqlSnafu;
-
-        if !is_lparen_consumed {
-            self.parser
-                .expect_token(&Token::LParen)
-                .context(error::SyntaxSnafu)?;
-        }
-
-        let tql_token = self.parser.peek_token();
-        let start_location = tql_token.span.start;
-        let mut paren_depth = 0usize;
-        let end_location;
-
-        loop {
-            let token_with_span = self.parser.peek_token();
-
-            if token_with_span.token == Token::EOF {
-                return Err(InvalidSqlSnafu {
-                    msg: "Unexpected end of input while parsing TQL".to_string(),
-                }
-                .build());
-            }
-
-            if token_with_span.token == Token::RParen && paren_depth == 0 {
-                end_location = token_with_span.span.start;
-                self.parser.next_token();
-                break;
-            }
-
-            let consumed = self.parser.next_token();
-            match consumed.token {
-                Token::LParen => paren_depth += 1,
-                Token::RParen => paren_depth = paren_depth.saturating_sub(1),
-                _ => {}
-            }
-        }
-
-        let sql_len = self.sql.len();
-        let start_index = location_to_index(self.sql, &start_location);
-        snafu::ensure!(
-            start_index <= sql_len,
-            error::InvalidSqlSnafu {
-                msg: format!("Invalid location (index {} > len {})", start_index, sql_len),
-            }
-        );
-
-        let end_index = location_to_index(self.sql, &end_location);
-        snafu::ensure!(
-            end_index <= sql_len,
-            error::InvalidSqlSnafu {
-                msg: format!("Invalid location (index {} > len {})", end_index, sql_len),
-            }
-        );
-
-        let tql_sql = &self.sql[start_index..end_index];
-        let tql_sql = tql_sql.trim();
-        let raw_query = tql_sql.trim_end_matches(';');
-
-        let mut parser_ctx = ParserContext::new(&crate::dialect::GreptimeDbDialect {}, tql_sql)?;
-        parser_ctx.scheduled_time = self.scheduled_time;
-        let statement = parser_ctx.parse_tql(require_now_expr)?;
-
-        match statement {
-            Statement::Tql(tql) => match (only_eval, tql) {
-                (true, Tql::Eval(eval)) => Ok((Tql::Eval(eval), raw_query.to_string())),
-                (true, _) => Err(InvalidSqlSnafu {
-                    msg: "Only TQL EVAL is supported in this context".to_string(),
-                }
-                .build()),
-                (false, tql) => Ok((tql, raw_query.to_string())),
-            },
-            _ => Err(InvalidSqlSnafu {
-                msg: "Expected TQL statement",
-            }
-            .build()),
         }
     }
 
@@ -420,12 +327,12 @@ mod tests {
     use common_error::ext::ErrorExt;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
 
     fn parse_into_statement(sql: &str) -> Statement {
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         result.remove(0)
@@ -434,7 +341,7 @@ mod tests {
     fn parse_into_statement_at(sql: &str, scheduled_time: DateTime<Utc>) -> Statement {
         let mut result = ParserContext::create_with_dialect(
             sql,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions {
                 scheduled_time: Some(scheduled_time),
             },
@@ -464,7 +371,7 @@ mod tests {
     fn test_require_now_expr() {
         let sql = "TQL EVAL (now() - now(), now() -  (now() - '10 seconds'::interval), '1s') http_requests_total{environment=~'staging|testing|development',method!='GET'} @ 1609746000 offset 5m";
 
-        let mut parser = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
+        let mut parser = ParserContext::new(&PulseDialect {}, sql).unwrap();
         let statement = parser.parse_tql(true).unwrap();
         match statement {
             Statement::Tql(Tql::Eval(eval)) => {
@@ -482,7 +389,7 @@ mod tests {
 
         let sql = "TQL EVAL (0, 15, '1s') http_requests_total{environment=~'staging|testing|development',method!='GET'} @ 1609746000 offset 5m";
 
-        let mut parser = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
+        let mut parser = ParserContext::new(&PulseDialect {}, sql).unwrap();
         let statement = parser.parse_tql(true);
         assert!(
             statement.is_err()
@@ -494,7 +401,7 @@ mod tests {
 
         let sql = "TQL EVAL (now() - now(), now() -  (now() - '10 seconds'::interval), '1s') http_requests_total{environment=~'staging|testing|development',method!='GET'} @ 1609746000 offset 5m";
 
-        let mut parser = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
+        let mut parser = ParserContext::new(&PulseDialect {}, sql).unwrap();
         let statement = parser.parse_tql(false).unwrap();
         match statement {
             Statement::Tql(Tql::Eval(eval)) => {
@@ -511,7 +418,7 @@ mod tests {
         };
 
         let sql = "TQL EVAL (0, 15, '1s') http_requests_total{environment=~'staging|testing|development',method!='GET'} @ 1609746000 offset 5m";
-        let mut parser = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
+        let mut parser = ParserContext::new(&PulseDialect {}, sql).unwrap();
         let statement = parser.parse_tql(false).unwrap();
         match statement {
             Statement::Tql(Tql::Eval(eval)) => {
@@ -563,7 +470,7 @@ mod tests {
 
         let sql = "TQL EVAL (now(), now()-'5m', '30s') http_requests_total";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
         assert!(result.is_err());
     }
 
@@ -1349,7 +1256,7 @@ mod tests {
 
     #[test]
     fn test_parse_tql_alias_errors() {
-        let dialect = &GreptimeDbDialect {};
+        let dialect = &PulseDialect {};
         let parse_options = ParseOptions::default();
 
         // Test AS without alias identifier
@@ -1373,7 +1280,7 @@ mod tests {
 
     #[test]
     fn test_parse_tql_error() {
-        let dialect = &GreptimeDbDialect {};
+        let dialect = &PulseDialect {};
         let parse_options = ParseOptions::default();
 
         // invalid duration
@@ -1418,49 +1325,5 @@ mod tests {
             "{}",
             result.output_msg()
         );
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    fn test_parse_parenthesized_tql_only_eval_allowed() {
-        let sql = "(TQL EXPLAIN http_requests_total)";
-        let mut ctx = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
-        let result = ctx.parse_parenthesized_tql(false, false, true);
-        assert!(result.is_err());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    fn test_parse_parenthesized_tql_allow_non_eval_when_flag_false() {
-        let sql = "(TQL EXPLAIN http_requests_total)";
-        let mut ctx = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
-
-        let (tql, raw) = ctx
-            .parse_parenthesized_tql(false, false, false)
-            .expect("should allow non-eval when flag is false");
-
-        match tql {
-            Tql::Explain(_) => {}
-            _ => panic!("Expected TQL Explain variant"),
-        }
-        assert!(raw.contains("TQL EXPLAIN"));
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    fn test_parse_parenthesized_tql_without_lparen() {
-        let sql = "TQL EVAL http_requests_total)";
-        let mut ctx = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
-        let result = ctx.parse_parenthesized_tql(false, false, true);
-        assert!(result.is_err());
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[test]
-    fn test_parse_parenthesized_tql_without_rparen() {
-        let sql = "(TQL EVAL http_requests_total";
-        let mut ctx = ParserContext::new(&GreptimeDbDialect {}, sql).unwrap();
-        let result = ctx.parse_parenthesized_tql(false, false, true);
-        assert!(result.is_err());
     }
 }

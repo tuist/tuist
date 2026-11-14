@@ -8,11 +8,11 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-ADD ${TARGETARCH}/${TARGET_BIN} /greptime/bin/${TARGET_BIN}
+ADD ${TARGETARCH}/${TARGET_BIN} /pulse/bin/${TARGET_BIN}
 
-ENV PATH=/greptime/bin/:$PATH
+ENV PATH=/pulse/bin/:$PATH
 
 EXPOSE 8080
 
-ENTRYPOINT ["/greptime/bin/kafka_wal_helper"]
+ENTRYPOINT ["/pulse/bin/kafka_wal_helper"]
 CMD ["--addr", "0.0.0.0:8080"]

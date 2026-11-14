@@ -12,31 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use axum::Json;
 use axum::response::IntoResponse;
 use http::HeaderValue;
 use http::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 
-/// Greptimedb Manage Api Response struct
+/// Pulse Manage Api Response struct
 /// Currently we have `Pipelines` and `Scripts` as control panel api
 #[derive(Serialize, Deserialize, Debug)]
-pub struct GreptimedbManageResponse {
+pub struct PulseManageResponse {
     #[serde(flatten)]
     pub(crate) manage_result: ManageResult,
     pub(crate) execution_time_ms: u64,
 }
 
-impl GreptimedbManageResponse {
+impl PulseManageResponse {
     pub fn from_pipeline(
         name: String,
         version: String,
         execution_time_ms: u64,
         pipeline: Option<String>,
     ) -> Self {
-        GreptimedbManageResponse {
+        PulseManageResponse {
             manage_result: ManageResult::Pipelines {
                 pipelines: vec![PipelineOutput {
                     name,
@@ -49,21 +51,21 @@ impl GreptimedbManageResponse {
     }
 
     pub fn from_pipelines(pipelines: Vec<PipelineOutput>, execution_time_ms: u64) -> Self {
-        GreptimedbManageResponse {
+        PulseManageResponse {
             manage_result: ManageResult::Pipelines { pipelines },
             execution_time_ms,
         }
     }
 
     pub fn from_sql(sql: SqlOutput, execution_time_ms: u64) -> Self {
-        GreptimedbManageResponse {
+        PulseManageResponse {
             manage_result: ManageResult::Sql { sql },
             execution_time_ms,
         }
     }
 
     pub fn from_dashboard(name: String, execution_time_ms: u64) -> Self {
-        GreptimedbManageResponse {
+        PulseManageResponse {
             manage_result: ManageResult::Dashboards {
                 dashboards: vec![DashboardOutput {
                     name,
@@ -75,7 +77,7 @@ impl GreptimedbManageResponse {
     }
 
     pub fn from_dashboards(dashboards: Vec<DashboardOutput>, execution_time_ms: u64) -> Self {
-        GreptimedbManageResponse {
+        PulseManageResponse {
             manage_result: ManageResult::Dashboards { dashboards },
             execution_time_ms,
         }
@@ -121,7 +123,7 @@ pub struct SqlOutput {
     pub(crate) message: Option<String>,
 }
 
-impl IntoResponse for GreptimedbManageResponse {
+impl IntoResponse for PulseManageResponse {
     fn into_response(self) -> axum::response::Response {
         let execution_time = self.execution_time_ms;
 
@@ -130,11 +132,11 @@ impl IntoResponse for GreptimedbManageResponse {
         // We deliberately don't add this format into [`crate::http::ResponseFormat`]
         // because this is a format for manage api other than the data query api
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_FORMAT,
-            HeaderValue::from_static("greptimedb_manage"),
+            &PULSE_DB_HEADER_FORMAT,
+            HeaderValue::from_static("pulse_manage"),
         );
         resp.headers_mut().insert(
-            &GREPTIME_DB_HEADER_EXECUTION_TIME,
+            &PULSE_DB_HEADER_EXECUTION_TIME,
             HeaderValue::from(execution_time),
         );
         resp.headers_mut().insert(
@@ -155,7 +157,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_into_response() {
-        let resp = GreptimedbManageResponse {
+        let resp = PulseManageResponse {
             manage_result: ManageResult::Pipelines {
                 pipelines: vec![PipelineOutput {
                     name: "test_name".to_string(),
@@ -170,7 +172,7 @@ mod tests {
         let data_str = format!("{:?}", re);
         assert_eq!(
             data_str,
-            r#"Response { status: 200, version: HTTP/1.1, headers: {"content-type": "application/json", "x-greptime-format": "greptimedb_manage", "x-greptime-execution-time": "42"}, body: Body(UnsyncBoxBody) }"#
+            r#"Response { status: 200, version: HTTP/1.1, headers: {"content-type": "application/json", "x-pulse-format": "pulse_manage", "x-pulse-execution-time": "42"}, body: Body(UnsyncBoxBody) }"#
         );
 
         let body_bytes = to_bytes(re.into_body(), usize::MAX).await.unwrap();

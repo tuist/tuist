@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::http::{HeaderMap, StatusCode};
@@ -220,9 +222,7 @@ async fn test_ai_match_nulls_need_no_api_key() {
         .await
         .unwrap_err();
     assert!(
-        error
-            .to_string()
-            .contains("GREPTIMEDB_EXPERIMENTAL_JEV=true"),
+        error.to_string().contains("PULSE_EXPERIMENTAL_JEV=true"),
         "{error}"
     );
 }
@@ -748,7 +748,7 @@ async fn test_ai_choose_and_score_reject_invalid_answers() {
 }
 
 #[tokio::test]
-#[ignore = "calls the real Jev API; requires JEV_API_KEY and GREPTIMEDB_EXPERIMENTAL_JEV=true"]
+#[ignore = "calls the real Jev API; requires JEV_API_KEY and PULSE_EXPERIMENTAL_JEV=true"]
 async fn test_ai_match_live() {
     let ctx = SessionContext::new();
     let function = FUNCTION_REGISTRY.get_function("ai_match").unwrap();

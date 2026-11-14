@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -29,7 +31,7 @@ use axum::Router;
 use axum::http::HeaderMap;
 use common_query::Output;
 use common_query::prelude::{
-    GREPTIME_PHYSICAL_TABLE, greptime_native_histogram, greptime_timestamp, greptime_value,
+    PULSE_PHYSICAL_TABLE, pulse_native_histogram, pulse_timestamp, pulse_value,
 };
 use common_test_util::ports;
 use datafusion_expr::LogicalPlan;
@@ -578,7 +580,7 @@ async fn test_prometheus_remote_write_v2_samples() {
     assert_eq!("http_requests_total", insert.table_name);
     let rows = insert.rows.as_ref().unwrap();
     assert_eq!(
-        vec![greptime_timestamp(), greptime_value(), "job"],
+        vec![pulse_timestamp(), pulse_value(), "job"],
         rows.schema
             .iter()
             .map(|column| column.column_name.as_str())
@@ -660,7 +662,7 @@ async fn test_prometheus_remote_write_v2_writes_histogram_only_series() {
     let captured = write_rx.recv().await.unwrap();
     assert!(captured.with_metric_engine);
     assert_eq!(
-        Some(GREPTIME_PHYSICAL_TABLE.to_string()),
+        Some(PULSE_PHYSICAL_TABLE.to_string()),
         captured.physical_table
     );
     assert_eq!(1, captured.request.inserts.len());
@@ -671,7 +673,7 @@ async fn test_prometheus_remote_write_v2_writes_histogram_only_series() {
     assert!(
         rows.schema
             .iter()
-            .any(|column| column.column_name == greptime_native_histogram()
+            .any(|column| column.column_name == pulse_native_histogram()
                 && column.datatype == ColumnDataType::Struct as i32)
     );
     assert!(write_rx.try_recv().is_err());

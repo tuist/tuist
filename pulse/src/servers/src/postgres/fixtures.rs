@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -64,7 +66,7 @@ pub(crate) fn matches(query: &str) -> bool {
 }
 
 fn set_transaction_warning(query_ctx: QueryContextRef) {
-    query_ctx.set_warning("Please note transaction is not supported in GreptimeDB.".to_string());
+    query_ctx.set_warning("Please note transaction is not supported in Pulse.".to_string());
 }
 
 /// Process unsupported SQL and return fixed result as a compatibility solution

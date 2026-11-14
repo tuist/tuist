@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use common_error::status_code::StatusCode;
@@ -20,15 +22,15 @@ use mime_guess::mime;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::http::header::{GREPTIME_DB_HEADER_EXECUTION_TIME, GREPTIME_DB_HEADER_FORMAT};
+use crate::http::header::{PULSE_DB_HEADER_EXECUTION_TIME, PULSE_DB_HEADER_FORMAT};
 use crate::http::result::error_result::ErrorResponse;
-use crate::http::{GreptimeQueryOutput, HttpResponse, ResponseFormat, handler, process_with_limit};
+use crate::http::{HttpResponse, PulseQueryOutput, ResponseFormat, handler, process_with_limit};
 
-/// The json format here is different from the default json output of `GreptimedbV1` result.
+/// The json format here is different from the default json output of `PulseV1` result.
 /// `JsonResponse` is intended to make it easier for user to consume data.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonResponse {
-    output: Vec<GreptimeQueryOutput>,
+    output: Vec<PulseQueryOutput>,
     execution_time_ms: u64,
 }
 
@@ -52,7 +54,7 @@ impl JsonResponse {
         }
     }
 
-    pub fn output(&self) -> &[GreptimeQueryOutput] {
+    pub fn output(&self) -> &[PulseQueryOutput] {
         &self.output
     }
 
@@ -82,14 +84,14 @@ impl IntoResponse for JsonResponse {
         let execution_time = self.execution_time_ms;
         let payload = match self.output.pop() {
             None => String::default(),
-            Some(GreptimeQueryOutput::AffectedRows(n)) => json!({
+            Some(PulseQueryOutput::AffectedRows(n)) => json!({
                 "data": [],
                 "affected_rows": n,
                 "execution_time_ms": execution_time,
             })
             .to_string(),
 
-            Some(GreptimeQueryOutput::Records(records)) => {
+            Some(PulseQueryOutput::Records(records)) => {
                 // Borrow the schema field directly so the rows can be moved out.
                 let schema = &records.schema;
 
@@ -123,11 +125,11 @@ impl IntoResponse for JsonResponse {
                     HeaderValue::from_static(mime::APPLICATION_JSON.as_ref()),
                 ),
                 (
-                    GREPTIME_DB_HEADER_FORMAT.clone(),
+                    PULSE_DB_HEADER_FORMAT.clone(),
                     HeaderValue::from_static(ResponseFormat::Json.as_str()),
                 ),
                 (
-                    GREPTIME_DB_HEADER_EXECUTION_TIME.clone(),
+                    PULSE_DB_HEADER_EXECUTION_TIME.clone(),
                     HeaderValue::from(execution_time),
                 ),
             ],
@@ -165,8 +167,8 @@ mod tests {
         let response = response.into_response();
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
-        assert_eq!(response.headers()[&GREPTIME_DB_HEADER_FORMAT], "json");
-        assert_eq!(response.headers()[&GREPTIME_DB_HEADER_EXECUTION_TIME], "7");
+        assert_eq!(response.headers()[&PULSE_DB_HEADER_FORMAT], "json");
+        assert_eq!(response.headers()[&PULSE_DB_HEADER_EXECUTION_TIME], "7");
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(
             serde_json::from_slice::<Value>(&body).unwrap(),

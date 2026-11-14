@@ -48,7 +48,7 @@ Affected Rows: 0
 
 CREATE TABLE test2 (i INTEGER, j TIMESTAMP TIME INDEX);
 
-Error: 4000(TableAlreadyExists), Table already exists: `greptime.public.test2`
+Error: 4000(TableAlreadyExists), Table already exists: `pulse.public.test2`
 
 CREATE TABLE 'N.~' (i TIMESTAMP TIME INDEX);
 
@@ -186,7 +186,7 @@ Affected Rows: 0
 
 CREATE TABLE test_like_2 LIKE test_like_1;
 
-Error: 4000(TableAlreadyExists), Table already exists: `greptime.public.test_like_2`
+Error: 4000(TableAlreadyExists), Table already exists: `pulse.public.test_like_2`
 
 CREATE TABLE `ExcePTuRi`(
 non TIMESTAMP(6) TIME INDEX,

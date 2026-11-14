@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::convert::Infallible;
 
 use api::v1::frontend::frontend_server::FrontendServer;
@@ -39,9 +41,9 @@ use tower::{Layer, ServiceBuilder};
 use crate::grpc::database::DatabaseService;
 use crate::grpc::flight::{FlightCraftRef, FlightCraftWrapper};
 use crate::grpc::frontend_grpc_handler::FrontendGrpcHandler;
-use crate::grpc::greptime_handler::GreptimeRequestHandler;
 use crate::grpc::memory_limit::{MemoryLimiterExtensionLayer, MemoryLimiterExtensionService};
 use crate::grpc::prom_query_gateway::PrometheusGatewayService;
+use crate::grpc::pulse_handler::PulseRequestHandler;
 use crate::grpc::region_server::{RegionServerHandlerRef, RegionServerRequestHandler};
 use crate::grpc::{GrpcServer, GrpcServerConfig};
 use crate::otel_arrow::{HeaderInterceptor, OtelArrowServiceHandler};
@@ -138,7 +140,7 @@ impl GrpcServerBuilder {
     }
 
     /// Add handler for [DatabaseService] service.
-    pub fn database_handler(mut self, database_handler: GreptimeRequestHandler) -> Self {
+    pub fn database_handler(mut self, database_handler: PulseRequestHandler) -> Self {
         add_service!(
             self,
             GreptimeDatabaseServer::new(DatabaseService::new(database_handler))

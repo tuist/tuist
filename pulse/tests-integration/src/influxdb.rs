@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -44,7 +46,7 @@ monitor1,host=host2 memory=1027";
 
         let mut output = instance
             .do_query(
-                "SELECT greptime_timestamp, host, cpu, memory FROM monitor1 ORDER BY greptime_timestamp",
+                "SELECT pulse_timestamp, host, cpu, memory FROM monitor1 ORDER BY pulse_timestamp",
                 QueryContext::arc(),
             )
             .await;
@@ -76,7 +78,7 @@ monitor1,host=host2 memory=1027 1663840496400340001";
 
         let mut output = instance
             .do_query(
-                "SELECT greptime_timestamp, host, cpu, memory FROM monitor1 ORDER BY greptime_timestamp",
+                "SELECT pulse_timestamp, host, cpu, memory FROM monitor1 ORDER BY pulse_timestamp",
                 QueryContext::arc(),
             )
             .await;
@@ -89,7 +91,7 @@ monitor1,host=host2 memory=1027 1663840496400340001";
             recordbatches.pretty_print().unwrap(),
             "\
 +-------------------------------+-------+------+--------+
-| greptime_timestamp            | host  | cpu  | memory |
+| pulse_timestamp               | host  | cpu  | memory |
 +-------------------------------+-------+------+--------+
 | 2022-09-22T09:54:56.100023100 | host1 | 66.6 | 1024.0 |
 | 2022-09-22T09:54:56.400340001 | host2 |      | 1027.0 |
@@ -107,14 +109,14 @@ monitor1,host=host2 cpu=32 1663840496400340001";
 
         let mut output = instance
             .do_query(
-                "SELECT greptime_timestamp, host, cpu, memory FROM monitor1 ORDER BY greptime_timestamp",
+                "SELECT pulse_timestamp, host, cpu, memory FROM monitor1 ORDER BY pulse_timestamp",
                 QueryContext::arc(),
             )
             .await;
         let output = output.remove(0).unwrap();
         let expected = "\
 +-------------------------------+-------+------+--------+
-| greptime_timestamp            | host  | cpu  | memory |
+| pulse_timestamp               | host  | cpu  | memory |
 +-------------------------------+-------+------+--------+
 | 2022-09-22T09:54:56.100023100 | host1 | 66.6 | 1024.0 |
 | 2022-09-22T09:54:56.400340001 | host2 | 32.0 | 1027.0 |

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -298,7 +300,7 @@ async fn discover_region(client: &Client, port: u16, table: &Table) -> Result<Di
     let (table_dir, region_dir) = storage_paths(&table.database, table_id, region_seq);
     Ok(Discovery {
         table: table.name.clone(),
-        catalog: "greptime".to_string(),
+        catalog: "pulse".to_string(),
         schema: table.database.clone(),
         table_id,
         region_id,
@@ -314,7 +316,7 @@ async fn discover_region(client: &Client, port: u16, table: &Table) -> Result<Di
 }
 
 fn storage_paths(database: &str, table_id: u64, region_seq: u64) -> (String, String) {
-    let table_dir = format!("data/greptime/{database}/{table_id}/");
+    let table_dir = format!("data/pulse/{database}/{table_id}/");
     let region_dir = format!("{table_dir}{table_id}_{region_seq:010}");
     (table_dir, region_dir)
 }
@@ -595,8 +597,8 @@ mod tests {
         assert_eq!(
             storage_paths("public", 1024, 0),
             (
-                "data/greptime/public/1024/".to_string(),
-                "data/greptime/public/1024/1024_0000000000".to_string(),
+                "data/pulse/public/1024/".to_string(),
+                "data/pulse/public/1024/1024_0000000000".to_string(),
             )
         );
     }

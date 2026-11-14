@@ -22,9 +22,9 @@ flowchart TD
     D --> E["Chunk spans within each group"]
     E --> F{"Trace pipeline"}
 
-    F -->|greptime_trace_v0| G["v0 conversion<br/>fixed columns and JSON attributes"]
-    F -->|greptime_trace_v1| H["v1 conversion<br/>flattened dynamic attributes"]
-    F -->|greptime_trace_v2| T["v2 conversion<br/>fixed columns and JSON2 attributes"]
+    F -->|pulse_trace_v0| G["v0 conversion<br/>fixed columns and JSON attributes"]
+    F -->|pulse_trace_v1| H["v1 conversion<br/>flattened dynamic attributes"]
+    F -->|pulse_trace_v2| T["v2 conversion<br/>fixed columns and JSON2 attributes"]
     H --> I["Collect request-wide schema observations"]
     I --> J["Resolve types, prevalidate rewrites,<br/>apply DDL, and recheck table schema"]
 
@@ -56,8 +56,8 @@ The route is registered as `POST /v1/otlp/v1/traces` in
 3. resolves the requested pipeline; and
 4. calls `OpenTelemetryProtocolHandler::traces`.
 
-The trace converter accepts the internal `greptime_trace_v0`,
-`greptime_trace_v1`, and `greptime_trace_v2` pipelines. Their `PipelineWay` variants are defined in
+The trace converter accepts the internal `pulse_trace_v0`,
+`pulse_trace_v1`, and `pulse_trace_v2` pipelines. Their `PipelineWay` variants are defined in
 [`pipeline/src/manager.rs`](../../../../pipeline/src/manager.rs).
 
 ### 2. Parse and chunk
@@ -115,7 +115,7 @@ The v1 path performs these steps before the normal chunk writes:
    lightweight schema observations.
 2. Mark a chunk for span-only fallback if one column contains both raw OTLP
    bytes and arrays or key-value lists encoded as JSONB. Both use protobuf
-   `BinaryValue`, but a Greptime column cannot represent both logical schemas.
+   `BinaryValue`, but a Pulse column cannot represent both logical schemas.
    The chunk bypasses request-wide schema planning and is reconciled span by
    span.
 3. Aggregate the compatible observations into `TraceRequestSchema` and

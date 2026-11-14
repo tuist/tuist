@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::Next;
@@ -19,12 +21,12 @@ use axum::response::{IntoResponse, Response};
 use session::context::QueryContext;
 
 use crate::error::InvalidParameterSnafu;
-use crate::http::header::GREPTIME_INSERT_SKIP_WAL_HEADER_NAME;
+use crate::http::header::PULSE_INSERT_SKIP_WAL_HEADER_NAME;
 use crate::http::result::error_result::ErrorResponse;
 
 /// Extract the request-level WAL policy from the dedicated HTTP header.
 pub async fn extract_skip_wal(mut request: Request<Body>, next: Next) -> Response {
-    let skip_wal = match request.headers().get(&GREPTIME_INSERT_SKIP_WAL_HEADER_NAME) {
+    let skip_wal = match request.headers().get(&PULSE_INSERT_SKIP_WAL_HEADER_NAME) {
         None => false,
         Some(value) => match value
             .to_str()
@@ -39,7 +41,7 @@ pub async fn extract_skip_wal(mut request: Request<Body>, next: Next) -> Respons
                         InvalidParameterSnafu {
                             reason: format!(
                                 "{} must be true or false",
-                                GREPTIME_INSERT_SKIP_WAL_HEADER_NAME
+                                PULSE_INSERT_SKIP_WAL_HEADER_NAME
                             ),
                         }
                         .build(),

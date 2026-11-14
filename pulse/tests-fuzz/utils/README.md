@@ -15,7 +15,7 @@ Source and related files:
 
 - `tests-fuzz/utils/kafka_wal_helper.rs` — HTTP helper binary.
 - `docker/ci/ubuntu/Dockerfile.kafka-wal-helper` — lightweight runtime image.
-- `.github/actions/setup-greptimedb-cluster/kafka-wal-helper.yaml` — Kubernetes Deployment and Service.
+- `.github/actions/setup-pulse-cluster/kafka-wal-helper.yaml` — Kubernetes Deployment and Service.
 
 ### Build the binary
 
@@ -56,7 +56,7 @@ docker push <registry>/tools/kafka_wal_helper:<tag>
 
 ### Deploy to Kubernetes
 
-Update `.github/actions/setup-greptimedb-cluster/kafka-wal-helper.yaml` to use the image you pushed:
+Update `.github/actions/setup-pulse-cluster/kafka-wal-helper.yaml` to use the image you pushed:
 
 ```yaml
 image: <registry>/tools/kafka_wal_helper:<tag>
@@ -66,7 +66,7 @@ Apply the helper manifest to the namespace where you want the helper to run:
 
 ```bash
 kubectl -n kafka-cluster apply \
-  -f .github/actions/setup-greptimedb-cluster/kafka-wal-helper.yaml
+  -f .github/actions/setup-pulse-cluster/kafka-wal-helper.yaml
 ```
 
 Forward the helper service to a local port:
@@ -92,7 +92,7 @@ curl -s http://127.0.0.1:8080/record-offsets \
   -H 'content-type: application/json' \
   -d '{
     "broker_endpoints":["kafka-broker-0.kafka-broker-headless.test-env-kafka.svc.cluster.local:9092"],
-    "topic_prefix":"greptimedb_wal_topic",
+    "topic_prefix":"pulse_wal_topic",
     "num_topics":3,
     "partition":0
   }'
@@ -103,9 +103,9 @@ Example response:
 ```json
 {
   "offsets": [
-    {"topic":"greptimedb_wal_topic_0","partition":0,"offset":123},
-    {"topic":"greptimedb_wal_topic_1","partition":0,"offset":456},
-    {"topic":"greptimedb_wal_topic_2","partition":0,"offset":789}
+    {"topic":"pulse_wal_topic_0","partition":0,"offset":123},
+    {"topic":"pulse_wal_topic_1","partition":0,"offset":456},
+    {"topic":"pulse_wal_topic_2","partition":0,"offset":789}
   ]
 }
 ```
@@ -121,9 +121,9 @@ curl -s http://127.0.0.1:8080/delete-records \
     "broker_endpoints":["kafka-broker-0.kafka-broker-headless.test-env-kafka.svc.cluster.local:9092"],
     "timeout_ms":5000,
     "offsets":[
-      {"topic":"greptimedb_wal_topic_0","partition":0,"offset":123},
-      {"topic":"greptimedb_wal_topic_1","partition":0,"offset":456},
-      {"topic":"greptimedb_wal_topic_2","partition":0,"offset":789}
+      {"topic":"pulse_wal_topic_0","partition":0,"offset":123},
+      {"topic":"pulse_wal_topic_1","partition":0,"offset":456},
+      {"topic":"pulse_wal_topic_2","partition":0,"offset":789}
     ]
   }'
 ```
@@ -133,9 +133,9 @@ Example response:
 ```json
 {
   "deleted": [
-    {"topic":"greptimedb_wal_topic_0","partition":0,"offset":123},
-    {"topic":"greptimedb_wal_topic_1","partition":0,"offset":456},
-    {"topic":"greptimedb_wal_topic_2","partition":0,"offset":789}
+    {"topic":"pulse_wal_topic_0","partition":0,"offset":123},
+    {"topic":"pulse_wal_topic_1","partition":0,"offset":456},
+    {"topic":"pulse_wal_topic_2","partition":0,"offset":789}
   ]
 }
 ```

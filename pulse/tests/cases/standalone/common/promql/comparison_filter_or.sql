@@ -1,13 +1,13 @@
 -- Use metric engine to match real PromQL usage.
 CREATE TABLE comparison_filter_or_physical (
     ts TIMESTAMP TIME INDEX,
-    greptime_value DOUBLE
+    pulse_value DOUBLE
 ) ENGINE=metric WITH ("physical_metric_table" = "");
 
 CREATE TABLE a (
     k STRING NULL,
     ts TIMESTAMP NOT NULL,
-    greptime_value DOUBLE NULL,
+    pulse_value DOUBLE NULL,
     TIME INDEX (ts),
     PRIMARY KEY (k)
 ) ENGINE=metric WITH (on_physical_table = 'comparison_filter_or_physical');
@@ -15,18 +15,18 @@ CREATE TABLE a (
 CREATE TABLE b (
     k STRING NULL,
     ts TIMESTAMP NOT NULL,
-    greptime_value DOUBLE NULL,
+    pulse_value DOUBLE NULL,
     TIME INDEX (ts),
     PRIMARY KEY (k)
 ) ENGINE=metric WITH (on_physical_table = 'comparison_filter_or_physical');
 
-INSERT INTO a (ts, k, greptime_value)
+INSERT INTO a (ts, k, pulse_value)
 VALUES
     (0, 'x', 3),
     (0, 'y', 1),
     (0, 'z', 5);
 
-INSERT INTO b (ts, k, greptime_value)
+INSERT INTO b (ts, k, pulse_value)
 VALUES
     (0, 'x', 1),
     (0, 'y', 2);
@@ -51,12 +51,12 @@ tql eval (0, 0, '1s') abs(a > b);
 CREATE TABLE m (
     k STRING NULL,
     ts TIMESTAMP NOT NULL,
-    greptime_value DOUBLE NULL,
+    pulse_value DOUBLE NULL,
     TIME INDEX (ts),
     PRIMARY KEY (k)
 ) ENGINE=metric WITH (on_physical_table = 'comparison_filter_or_physical');
 
-INSERT INTO m (ts, k, greptime_value)
+INSERT INTO m (ts, k, pulse_value)
 VALUES
     (1000, 'x', 3),
     (1000, 'y', 0),

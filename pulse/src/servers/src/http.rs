@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt::Display;
@@ -69,10 +71,10 @@ use crate::http::prometheus::{
 use crate::http::result::arrow_result::ArrowResponse;
 use crate::http::result::csv_result::CsvResponse;
 use crate::http::result::error_result::ErrorResponse;
-use crate::http::result::greptime_result_v1::GreptimedbV1Response;
 use crate::http::result::influxdb_result_v1::InfluxdbV1Response;
 use crate::http::result::json_result::JsonResponse;
 use crate::http::result::null_result::NullResponse;
+use crate::http::result::pulse_result_v1::PulseV1Response;
 use crate::interceptor::LogIngestInterceptorRef;
 use crate::metrics::http_metrics_layer;
 use crate::metrics_handler::MetricsHandler;
@@ -164,7 +166,7 @@ const DEFAULT_BODY_LIMIT: ReadableSize = ReadableSize::mb(64);
 const DEFAULT_HTTP_API_ADDR_PORT: u16 = 4006;
 
 /// Authorization header
-pub const AUTHORIZATION_HEADER: &str = "x-greptime-auth";
+pub const AUTHORIZATION_HEADER: &str = "x-pulse-auth";
 
 // TODO(fys): This is a temporary workaround, it will be improved later
 // these APIs will bypass authentication.
@@ -415,7 +417,7 @@ impl HttpRecordsOutput {
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum GreptimeQueryOutput {
+pub enum PulseQueryOutput {
     AffectedRows(usize),
     Records(HttpRecordsOutput),
 }
@@ -428,7 +430,7 @@ pub enum ResponseFormat {
     Csv(bool, bool),
     Table,
     #[default]
-    GreptimedbV1,
+    PulseV1,
     InfluxdbV1,
     Json,
     Null,
@@ -442,7 +444,7 @@ impl ResponseFormat {
             "csvwithnames" => Some(ResponseFormat::Csv(true, false)),
             "csvwithnamesandtypes" => Some(ResponseFormat::Csv(true, true)),
             "table" => Some(ResponseFormat::Table),
-            "greptimedb_v1" => Some(ResponseFormat::GreptimedbV1),
+            "pulse_v1" => Some(ResponseFormat::PulseV1),
             "influxdb_v1" => Some(ResponseFormat::InfluxdbV1),
             "json" => Some(ResponseFormat::Json),
             "null" => Some(ResponseFormat::Null),
@@ -455,7 +457,7 @@ impl ResponseFormat {
             ResponseFormat::Arrow => "arrow",
             ResponseFormat::Csv(_, _) => "csv",
             ResponseFormat::Table => "table",
-            ResponseFormat::GreptimedbV1 => "greptimedb_v1",
+            ResponseFormat::PulseV1 => "pulse_v1",
             ResponseFormat::InfluxdbV1 => "influxdb_v1",
             ResponseFormat::Json => "json",
             ResponseFormat::Null => "null",
@@ -513,7 +515,7 @@ pub enum HttpResponse {
     Csv(CsvResponse),
     Table(TableResponse),
     Error(ErrorResponse),
-    GreptimedbV1(GreptimedbV1Response),
+    PulseV1(PulseV1Response),
     InfluxdbV1(InfluxdbV1Response),
     Json(JsonResponse),
     Null(NullResponse),
@@ -525,7 +527,7 @@ impl HttpResponse {
             HttpResponse::Arrow(resp) => resp.with_execution_time(execution_time).into(),
             HttpResponse::Csv(resp) => resp.with_execution_time(execution_time).into(),
             HttpResponse::Table(resp) => resp.with_execution_time(execution_time).into(),
-            HttpResponse::GreptimedbV1(resp) => resp.with_execution_time(execution_time).into(),
+            HttpResponse::PulseV1(resp) => resp.with_execution_time(execution_time).into(),
             HttpResponse::InfluxdbV1(resp) => resp.with_execution_time(execution_time).into(),
             HttpResponse::Json(resp) => resp.with_execution_time(execution_time).into(),
             HttpResponse::Null(resp) => resp.with_execution_time(execution_time).into(),
@@ -537,7 +539,7 @@ impl HttpResponse {
         match self {
             HttpResponse::Csv(resp) => resp.with_limit(limit).into(),
             HttpResponse::Table(resp) => resp.with_limit(limit).into(),
-            HttpResponse::GreptimedbV1(resp) => resp.with_limit(limit).into(),
+            HttpResponse::PulseV1(resp) => resp.with_limit(limit).into(),
             HttpResponse::Json(resp) => resp.with_limit(limit).into(),
             _ => self,
         }
@@ -545,18 +547,18 @@ impl HttpResponse {
 }
 
 pub fn process_with_limit(
-    mut outputs: Vec<GreptimeQueryOutput>,
+    mut outputs: Vec<PulseQueryOutput>,
     limit: usize,
-) -> Vec<GreptimeQueryOutput> {
+) -> Vec<PulseQueryOutput> {
     outputs
         .drain(..)
         .map(|data| match data {
-            GreptimeQueryOutput::Records(mut records) => {
+            PulseQueryOutput::Records(mut records) => {
                 if records.rows.len() > limit {
                     records.rows.truncate(limit);
                     records.total_rows = limit;
                 }
-                GreptimeQueryOutput::Records(records)
+                PulseQueryOutput::Records(records)
             }
             _ => data,
         })
@@ -569,7 +571,7 @@ impl IntoResponse for HttpResponse {
             HttpResponse::Arrow(resp) => resp.into_response(),
             HttpResponse::Csv(resp) => resp.into_response(),
             HttpResponse::Table(resp) => resp.into_response(),
-            HttpResponse::GreptimedbV1(resp) => resp.into_response(),
+            HttpResponse::PulseV1(resp) => resp.into_response(),
             HttpResponse::InfluxdbV1(resp) => resp.into_response(),
             HttpResponse::Json(resp) => resp.into_response(),
             HttpResponse::Null(resp) => resp.into_response(),
@@ -602,9 +604,9 @@ impl From<ErrorResponse> for HttpResponse {
     }
 }
 
-impl From<GreptimedbV1Response> for HttpResponse {
-    fn from(value: GreptimedbV1Response) -> Self {
-        HttpResponse::GreptimedbV1(value)
+impl From<PulseV1Response> for HttpResponse {
+    fn from(value: PulseV1Response) -> Self {
+        HttpResponse::PulseV1(value)
     }
 }
 
@@ -632,8 +634,8 @@ pub struct ApiState {
 }
 
 #[derive(Clone)]
-pub struct GreptimeOptionsConfigState {
-    pub greptime_config_options: String,
+pub struct PulseOptionsConfigState {
+    pub pulse_config_options: String,
 }
 
 #[derive(Clone)]
@@ -834,9 +836,9 @@ impl HttpServerBuilder {
         Self { router, ..self }
     }
 
-    pub fn with_greptime_config_options(self, opts: String) -> Self {
-        let config_router = HttpServer::route_config(GreptimeOptionsConfigState {
-            greptime_config_options: opts,
+    pub fn with_pulse_config_options(self, opts: String) -> Self {
+        let config_router = HttpServer::route_config(PulseOptionsConfigState {
+            pulse_config_options: opts,
         });
 
         Self {
@@ -910,7 +912,7 @@ impl HttpServerBuilder {
     /// built-in, plugin and downstream route registered via `with_extra_router()`
     /// is present on both). The API server additionally installs an outer guard
     /// that exposes only the `/v1` and `/dashboard` namespaces, returning `404`
-    /// for everything else. This means downstream projects (e.g. enterprise) do
+    /// for everything else. This means downstream projects do
     /// not need to classify their routes as public/internal: non-`/v1`
     /// operational routes are hidden from the API listener automatically.
     ///
@@ -1553,7 +1555,7 @@ impl HttpServer {
             })
     }
 
-    fn route_config<S>(state: GreptimeOptionsConfigState) -> Router<S> {
+    fn route_config<S>(state: PulseOptionsConfigState) -> Router<S> {
         Router::new()
             .route("/config", routing::get(handler::config))
             .with_state(state)
@@ -1720,7 +1722,7 @@ mod test {
     use datatypes::prelude::*;
     use datatypes::schema::{ColumnSchema, Schema};
     use datatypes::vectors::{StringVector, UInt32Vector};
-    use header::constants::GREPTIME_DB_HEADER_TIMEOUT;
+    use header::constants::PULSE_DB_HEADER_TIMEOUT;
     use query::parser::PromQuery;
     use query::query_engine::DescribeResult;
     use session::context::QueryContextRef;
@@ -1805,7 +1807,7 @@ mod test {
         HttpServerBuilder::new(options)
             .with_sql_handler(instance)
             .with_metrics_handler(MetricsHandler)
-            .with_greptime_config_options("dummy = \"value\"".to_string())
+            .with_pulse_config_options("dummy = \"value\"".to_string())
     }
 
     #[tokio::test]
@@ -1955,11 +1957,10 @@ mod test {
 
     #[tokio::test]
     pub async fn test_extra_router_respects_api_surface() {
-        // Downstream routes added through `with_extra_router()` (e.g. enterprise
-        // plugins or the `RouterConfigurator`) are present on the full listener
-        // and on the API listener's router, but the API listener's outer guard
-        // hides every non-`/v1` path automatically. This is what keeps the
-        // feature correct for greptimedb-enterprise with no downstream changes.
+        // Downstream routes added through `with_extra_router()` (e.g. plugins or
+        // the `RouterConfigurator`) are present on the full listener and on the
+        // API listener's router, but the API listener's outer guard hides every
+        // non-`/v1` path automatically.
         let (tx, _rx) = mpsc::channel(100);
         let instance = Arc::new(DummyInstance { _tx: tx });
         let options = HttpOptions {
@@ -2044,7 +2045,7 @@ mod test {
 
         let res = client
             .options("/health")
-            .header("Access-Control-Request-Headers", "x-greptime-auth")
+            .header("Access-Control-Request-Headers", "x-pulse-auth")
             .header("Access-Control-Request-Method", "DELETE")
             .header("Origin", "https://example.com")
             .send()
@@ -2186,7 +2187,7 @@ mod test {
         let now = Instant::now();
         let res = client
             .get("/test/timeout")
-            .header(GREPTIME_DB_HEADER_TIMEOUT, "20ms")
+            .header(PULSE_DB_HEADER_TIMEOUT, "20ms")
             .send()
             .await;
         assert_eq!(res.status(), StatusCode::REQUEST_TIMEOUT);
@@ -2197,7 +2198,7 @@ mod test {
             Duration::from_millis(15),
             client
                 .get("/test/timeout")
-                .header(GREPTIME_DB_HEADER_TIMEOUT, "0s")
+                .header(PULSE_DB_HEADER_TIMEOUT, "0s")
                 .send(),
         )
         .await
@@ -2208,7 +2209,7 @@ mod test {
             client
                 .get("/test/timeout")
                 .header(
-                    GREPTIME_DB_HEADER_TIMEOUT,
+                    PULSE_DB_HEADER_TIMEOUT,
                     humantime::format_duration(Duration::default()).to_string(),
                 )
                 .send(),
@@ -2228,10 +2229,10 @@ mod test {
         let recordbatches = RecordBatches::try_new(schema.clone(), vec![]).unwrap();
         let outputs = vec![Ok(Output::new_with_record_batches(recordbatches))];
 
-        let json_resp = GreptimedbV1Response::from_output(outputs).await;
-        if let HttpResponse::GreptimedbV1(json_resp) = json_resp {
+        let json_resp = PulseV1Response::from_output(outputs).await;
+        if let HttpResponse::PulseV1(json_resp) = json_resp {
             let json_output = &json_resp.output[0];
-            if let GreptimeQueryOutput::Records(r) = json_output {
+            if let PulseQueryOutput::Records(r) = json_output {
                 assert_eq!(r.num_rows(), 0);
                 assert_eq!(r.num_cols(), 2);
                 assert_eq!(r.schema.column_schemas[0].name, "numbers");
@@ -2256,14 +2257,14 @@ mod test {
             Arc::new(StringVector::from(vec![
                 None,
                 Some("hello"),
-                Some("greptime"),
+                Some("pulse"),
                 None,
             ])),
         ];
         let recordbatch = RecordBatch::new(schema.clone(), columns).unwrap();
 
         for format in [
-            ResponseFormat::GreptimedbV1,
+            ResponseFormat::PulseV1,
             ResponseFormat::InfluxdbV1,
             ResponseFormat::Csv(true, true),
             ResponseFormat::Table,
@@ -2280,16 +2281,16 @@ mod test {
                     CsvResponse::from_output(outputs, with_names, with_types).await
                 }
                 ResponseFormat::Table => TableResponse::from_output(outputs).await,
-                ResponseFormat::GreptimedbV1 => GreptimedbV1Response::from_output(outputs).await,
+                ResponseFormat::PulseV1 => PulseV1Response::from_output(outputs).await,
                 ResponseFormat::InfluxdbV1 => InfluxdbV1Response::from_output(outputs, None).await,
                 ResponseFormat::Json => JsonResponse::from_output(outputs).await,
                 ResponseFormat::Null => NullResponse::from_output(outputs).await,
             };
 
             match json_resp {
-                HttpResponse::GreptimedbV1(resp) => {
+                HttpResponse::PulseV1(resp) => {
                     let json_output = &resp.output[0];
-                    if let GreptimeQueryOutput::Records(r) = json_output {
+                    if let PulseQueryOutput::Records(r) = json_output {
                         assert_eq!(r.num_rows(), 4);
                         assert_eq!(r.num_cols(), 2);
                         assert_eq!(r.schema.column_schemas[0].name, "numbers");
@@ -2313,7 +2314,7 @@ mod test {
                 }
                 HttpResponse::Csv(resp) => {
                     let output = &resp.output()[0];
-                    if let GreptimeQueryOutput::Records(r) = output {
+                    if let PulseQueryOutput::Records(r) = output {
                         assert_eq!(r.num_rows(), 4);
                         assert_eq!(r.num_cols(), 2);
                         assert_eq!(r.schema.column_schemas[0].name, "numbers");
@@ -2327,7 +2328,7 @@ mod test {
 
                 HttpResponse::Table(resp) => {
                     let output = &resp.output()[0];
-                    if let GreptimeQueryOutput::Records(r) = output {
+                    if let PulseQueryOutput::Records(r) = output {
                         assert_eq!(r.num_rows(), 4);
                         assert_eq!(r.num_cols(), 2);
                         assert_eq!(r.schema.column_schemas[0].name, "numbers");
@@ -2356,7 +2357,7 @@ mod test {
 
                 HttpResponse::Json(resp) => {
                     let output = &resp.output()[0];
-                    if let GreptimeQueryOutput::Records(r) = output {
+                    if let PulseQueryOutput::Records(r) = output {
                         assert_eq!(r.num_rows(), 4);
                         assert_eq!(r.num_cols(), 2);
                         assert_eq!(r.schema.column_schemas[0].name, "numbers");
@@ -2379,7 +2380,7 @@ mod test {
 
     #[test]
     fn test_response_format_misc() {
-        assert_eq!(ResponseFormat::default(), ResponseFormat::GreptimedbV1);
+        assert_eq!(ResponseFormat::default(), ResponseFormat::PulseV1);
         assert_eq!(ResponseFormat::parse("arrow"), Some(ResponseFormat::Arrow));
         assert_eq!(
             ResponseFormat::parse("csv"),
@@ -2395,8 +2396,8 @@ mod test {
         );
         assert_eq!(ResponseFormat::parse("table"), Some(ResponseFormat::Table));
         assert_eq!(
-            ResponseFormat::parse("greptimedb_v1"),
-            Some(ResponseFormat::GreptimedbV1)
+            ResponseFormat::parse("pulse_v1"),
+            Some(ResponseFormat::PulseV1)
         );
         assert_eq!(
             ResponseFormat::parse("influxdb_v1"),
@@ -2415,11 +2416,11 @@ mod test {
         assert_eq!(ResponseFormat::Csv(false, false).as_str(), "csv");
         assert_eq!(ResponseFormat::Csv(true, true).as_str(), "csv");
         assert_eq!(ResponseFormat::Table.as_str(), "table");
-        assert_eq!(ResponseFormat::GreptimedbV1.as_str(), "greptimedb_v1");
+        assert_eq!(ResponseFormat::PulseV1.as_str(), "pulse_v1");
         assert_eq!(ResponseFormat::InfluxdbV1.as_str(), "influxdb_v1");
         assert_eq!(ResponseFormat::Json.as_str(), "json");
         assert_eq!(ResponseFormat::Null.as_str(), "null");
-        assert_eq!(ResponseFormat::default().as_str(), "greptimedb_v1");
+        assert_eq!(ResponseFormat::default().as_str(), "pulse_v1");
     }
 
     #[test]

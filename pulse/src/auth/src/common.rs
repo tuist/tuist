@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::{Arc, LazyLock};
 
 use common_base::secrets::SecretString;
@@ -31,7 +33,7 @@ use crate::user_provider::watch_file_user_provider::{
 };
 use crate::{UserInfoRef, UserProviderRef};
 
-pub(crate) const DEFAULT_USERNAME: &str = "greptime";
+pub(crate) const DEFAULT_USERNAME: &str = "pulse";
 pub const DEFAULT_PBKDF2_SHA256_ITERATIONS: u32 = 4096;
 pub const DEFAULT_PBKDF2_SHA256_SALT_LEN: usize = 16;
 pub const PBKDF2_SHA256_HASH_LEN: usize = 32;
@@ -46,7 +48,7 @@ type HmacSha256 = Hmac<Sha256>;
 static PG_SCRAM_MOCK_SECRET: LazyLock<[u8; PG_SCRAM_SHA256_KEY_LEN]> = LazyLock::new(rand::random);
 
 /// construct a [`UserInfo`](crate::user_info::UserInfo) impl with name
-/// use default username `greptime` if None is provided
+/// use default username `pulse` if None is provided
 pub fn userinfo_by_name(username: Option<String>) -> UserInfoRef {
     DefaultUserInfo::with_name(username.unwrap_or_else(|| DEFAULT_USERNAME.to_string()))
 }
@@ -566,12 +568,12 @@ mod tests {
 
         let salt = b"01234567890123456789";
         let auth_data = mysql_native_password_auth_data(b"123456", salt);
-        auth_mysql_with_verifier(&auth_data, salt, "greptime", &verifier).unwrap();
+        auth_mysql_with_verifier(&auth_data, salt, "pulse", &verifier).unwrap();
         assert!(
             auth_mysql_with_verifier(
                 &auth_data,
                 salt,
-                "greptime",
+                "pulse",
                 &format_mysql_native_password_verifier(b"wrong")
             )
             .is_err()

@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::*;
 
 lazy_static! {
     /// Timer of handling query in RPC handler.
     pub static ref GRPC_HANDLE_QUERY_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_frontend_grpc_handle_query_elapsed",
+        "pulse_frontend_grpc_handle_query_elapsed",
         "Elapsed time of handling queries in RPC handler",
         &["type"],
         vec![0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0]
@@ -32,7 +34,7 @@ lazy_static! {
         .with_label_values(&["promql"]);
 
     pub static ref PROMQL_QUERY_METRICS_ELAPSED: HistogramVec = register_histogram_vec!(
-        "greptime_frontend_promql_query_metrics_elapsed",
+        "pulse_frontend_promql_query_metrics_elapsed",
         "frontend promql query metric names elapsed",
         &["db"]
     )
@@ -40,7 +42,7 @@ lazy_static! {
 
     /// The number of OpenTelemetry metrics send by frontend node.
     pub static ref OTLP_METRICS_ROWS: IntCounter = register_int_counter!(
-        "greptime_frontend_otlp_metrics_rows",
+        "pulse_frontend_otlp_metrics_rows",
         "frontend otlp metrics rows"
     )
     .unwrap();
@@ -48,21 +50,21 @@ lazy_static! {
     /// Failed writes of the synthesized OTLP resource descriptor table; these
     /// surface as OTLP partial-success warnings, not request failures.
     pub static ref OTLP_RESOURCE_INFO_WRITE_ERRORS: IntCounter = register_int_counter!(
-        "greptime_frontend_otlp_resource_info_write_errors",
+        "pulse_frontend_otlp_resource_info_write_errors",
         "frontend otlp resource descriptor write errors"
     )
     .unwrap();
 
     /// The number of OpenTelemetry traces send by frontend node.
     pub static ref OTLP_TRACES_ROWS: IntCounter = register_int_counter!(
-        "greptime_frontend_otlp_traces_rows",
+        "pulse_frontend_otlp_traces_rows",
         "frontend otlp traces rows"
     )
     .unwrap();
 
     /// The number of OpenTelemetry trace ingest failures on the frontend node.
     pub static ref OTLP_TRACES_FAILURE_COUNT: IntCounterVec = register_int_counter_vec!(
-        "greptime_frontend_otlp_traces_failure_count",
+        "pulse_frontend_otlp_traces_failure_count",
         "frontend otlp trace ingest failure count",
         &["label"]
     )
@@ -70,20 +72,20 @@ lazy_static! {
 
     /// The number of OpenTelemetry logs send by frontend node.
     pub static ref OTLP_LOGS_ROWS: IntCounter = register_int_counter!(
-        "greptime_frontend_otlp_logs_rows",
+        "pulse_frontend_otlp_logs_rows",
         "frontend otlp logs rows"
     )
     .unwrap();
 
     /// The number of heartbeats send by frontend node.
     pub static ref HEARTBEAT_SENT_COUNT: IntCounter = register_int_counter!(
-        "greptime_frontend_heartbeat_send_count",
+        "pulse_frontend_heartbeat_send_count",
         "frontend heartbeat sent",
     )
     .unwrap();
     /// The number of heartbeats received by frontend node, labeled with result type.
     pub static ref HEARTBEAT_RECV_COUNT: IntCounterVec = register_int_counter_vec!(
-        "greptime_frontend_heartbeat_recv_count",
+        "pulse_frontend_heartbeat_recv_count",
         "frontend heartbeat received",
         &["result"]
     )

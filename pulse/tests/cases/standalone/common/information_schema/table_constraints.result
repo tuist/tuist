@@ -19,7 +19,7 @@ DESC TABLE TABLE_CONSTRAINTS;
 
 SELECT *
 FROM TABLE_CONSTRAINTS
-WHERE TABLE_SCHEMA != 'greptime_private'
+WHERE TABLE_SCHEMA != 'pulse_private'
 ORDER BY TABLE_NAME, CONSTRAINT_NAME;
 
 +--------------------+-------------------+-----------------+--------------+------------+-----------------+----------+
@@ -42,7 +42,7 @@ Affected Rows: 0
 
 SELECT *
 FROM TABLE_CONSTRAINTS
-WHERE TABLE_SCHEMA != 'greptime_private'
+WHERE TABLE_SCHEMA != 'pulse_private'
 ORDER BY TABLE_NAME, CONSTRAINT_NAME;
 
 +--------------------+-------------------+-----------------+--------------+------------+-----------------+----------+

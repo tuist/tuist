@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 mod planning;
 mod state;
 
@@ -50,7 +52,7 @@ use crate::worker::WorkerListener;
 
 /// Internal testing switch to prevent SST compaction from changing file layouts
 /// during query regression tests. This is not a public configuration option.
-const DISABLE_COMPACTION_ENV: &str = "GREPTIME_DISABLE_COMPACTION";
+const DISABLE_COMPACTION_ENV: &str = "PULSE_DISABLE_COMPACTION";
 
 /// Internal query-regression switch, read once when the first scheduler starts.
 /// Applies to SST compaction only; ingestion and flushing remain enabled.

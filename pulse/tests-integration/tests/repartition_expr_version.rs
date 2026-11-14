@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use common_query::Output;
@@ -25,7 +27,7 @@ use mito2::gc::GcConfig;
 use servers::error::Result as ServerResult;
 use servers::query_handler::sql::SqlQueryHandler;
 use session::context::{QueryContext, QueryContextRef};
-use tests_integration::cluster::GreptimeDbClusterBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
 use tests_integration::test_util::{StorageType, get_test_store_config};
 use tokio::time::{Duration, sleep};
 
@@ -52,7 +54,7 @@ macro_rules! repartition_expr_version_tests {
 pub async fn test_repartition_expr_version(store_type: StorageType) {
     let cluster_name = "test_repartition_expr_version";
     let (store_config, _guard) = get_test_store_config(&store_type);
-    let mut builder = GreptimeDbClusterBuilder::new(cluster_name).await;
+    let mut builder = PulseClusterBuilder::new(cluster_name).await;
     if matches!(store_type, StorageType::File) {
         let home_dir = create_temp_dir("test_repartition_expr_version_data_home");
         builder = builder.with_shared_home_dir(Arc::new(home_dir));

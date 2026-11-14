@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Table and TableEngine requests
 
 use std::collections::{HashMap, HashSet};
@@ -59,9 +61,9 @@ pub const FILE_TABLE_PATTERN_KEY: &str = "pattern";
 pub const FILE_TABLE_FORMAT_KEY: &str = "format";
 
 pub const TABLE_DATA_MODEL: &str = "table_data_model";
-pub const TABLE_DATA_MODEL_TRACE_V1: &str = "greptime_trace_v1";
+pub const TABLE_DATA_MODEL_TRACE_V1: &str = "pulse_trace_v1";
 /// Table data model used by the JSON2-based OTLP trace pipeline.
-pub const TABLE_DATA_MODEL_TRACE_V2: &str = "greptime_trace_v2";
+pub const TABLE_DATA_MODEL_TRACE_V2: &str = "pulse_trace_v2";
 
 /// Returns true for the Trace V1 and V2 data models supported
 /// by semantic graph derivation.

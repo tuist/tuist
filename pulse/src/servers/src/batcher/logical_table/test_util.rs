@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -38,11 +40,11 @@ pub(in crate::batcher::logical_table) fn mock_tag_batch(
 ) -> RecordBatch {
     let schema = Arc::new(ArrowSchema::new(vec![
         Field::new(
-            "greptime_timestamp",
+            "pulse_timestamp",
             ArrowDataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
             false,
         ),
-        Field::new("greptime_value", ArrowDataType::Float64, true),
+        Field::new("pulse_value", ArrowDataType::Float64, true),
         Field::new(tag_name, ArrowDataType::Utf8, true),
     ]));
 

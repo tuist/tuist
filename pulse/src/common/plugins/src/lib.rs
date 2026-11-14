@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 /// This crate is designed to be at the bottom of the depencey tree
 /// to provide common and useful utils and consts to all plugin usage,
 /// since `plugins` crate is at the top depending on crates like `frontend` and `datanode`
 mod consts;
 
-pub use consts::{GREPTIME_EXEC_PREFIX, GREPTIME_EXEC_READ_COST, GREPTIME_EXEC_WRITE_COST};
+pub use consts::{PULSE_EXEC_PREFIX, PULSE_EXEC_READ_COST, PULSE_EXEC_WRITE_COST};

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #![no_main]
 
 use std::collections::HashMap;
@@ -47,17 +49,17 @@ use tests_fuzz::translator::mysql::alter_expr::AlterTableExprTranslator;
 use tests_fuzz::translator::mysql::create_expr::CreateTableExprTranslator;
 use tests_fuzz::utils::{
     Connections, get_fuzz_override, get_gt_fuzz_input_max_alter_actions,
-    get_gt_fuzz_input_max_columns, init_greptime_connections_via_env,
+    get_gt_fuzz_input_max_columns, init_pulse_connections_via_env,
 };
 use tests_fuzz::validator;
 
 struct FuzzContext {
-    greptime: Pool<MySql>,
+    pulse: Pool<MySql>,
 }
 
 impl FuzzContext {
     async fn close(self) {
-        self.greptime.close().await;
+        self.pulse.close().await;
     }
 }
 
@@ -230,14 +232,14 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     let translator = CreateTableExprTranslator;
     let sql = translator.translate(&expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &sql })?;
     info!("Create table: {sql}, result: {result:?}");
 
     let insert = generate_insert_table_sql(&mut rng, &expr)?;
     let result = sqlx::query(sqlx::AssertSqlSafe(insert.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql: &insert })?;
     info!("Insert Into table: {insert}, result: {result:?}");
@@ -249,7 +251,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         let translator = AlterTableExprTranslator;
         let sql = translator.translate(&expr)?;
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Alter table: {sql}, result: {result:?}");
@@ -257,20 +259,13 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         table_ctx = Arc::new(Arc::unwrap_or_clone(table_ctx).alter(expr).unwrap());
 
         // validate value
-        validator::column::valid_marker_value(
-            &ctx.greptime,
-            "public".into(),
-            table_ctx.name.clone(),
-        )
-        .await?;
+        validator::column::valid_marker_value(&ctx.pulse, "public".into(), table_ctx.name.clone())
+            .await?;
 
         // Validates columns
-        let mut column_entries = validator::column::fetch_columns(
-            &ctx.greptime,
-            "public".into(),
-            table_ctx.name.clone(),
-        )
-        .await?;
+        let mut column_entries =
+            validator::column::fetch_columns(&ctx.pulse, "public".into(), table_ctx.name.clone())
+                .await?;
         column_entries.sort_by(|a, b| a.column_name.cmp(&b.column_name));
         let mut columns = table_ctx.columns.clone();
         columns.sort_by(|a, b| a.name.value.cmp(&b.name.value));
@@ -278,7 +273,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 
         // Validates table options
         let sql = format!("SHOW CREATE TABLE {}", table_ctx.name);
-        let mut table_options = validator::table::fetch_table_options(&ctx.greptime, &sql).await?;
+        let mut table_options = validator::table::fetch_table_options(&ctx.pulse, &sql).await?;
         table_options.sort_by(|a, b| a.key().cmp(b.key()));
         let mut expected_table_options = table_ctx.table_options.clone();
         expected_table_options.sort_by(|a, b| a.key().cmp(b.key()));
@@ -305,7 +300,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
         let sql = format!("SELECT * FROM {}", table_ctx.name);
         let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
             .persistent(false)
-            .execute(&ctx.greptime)
+            .execute(&ctx.pulse)
             .await
             .context(error::ExecuteQuerySnafu { sql: &sql })?;
         info!("Select from table: {sql}, result: {result:?}");
@@ -315,7 +310,7 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
     let table_name = table_ctx.name.clone();
     let sql = format!("DROP TABLE {}", table_name);
     let result = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()))
-        .execute(&ctx.greptime)
+        .execute(&ctx.pulse)
         .await
         .context(error::ExecuteQuerySnafu { sql })?;
     info!("Drop table: {}, result: {result:?}", table_name);
@@ -327,9 +322,9 @@ async fn execute_alter_table(ctx: FuzzContext, input: FuzzInput) -> Result<()> {
 fuzz_target!(|input: FuzzInput| {
     common_telemetry::init_default_ut_logging();
     common_runtime::block_on_global(async {
-        let Connections { mysql } = init_greptime_connections_via_env().await;
+        let Connections { mysql } = init_pulse_connections_via_env().await;
         let ctx = FuzzContext {
-            greptime: mysql.expect("mysql connection init must be succeed"),
+            pulse: mysql.expect("mysql connection init must be succeed"),
         };
         execute_alter_table(ctx, input)
             .await

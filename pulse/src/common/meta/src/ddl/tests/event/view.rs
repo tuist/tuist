@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::sync::Arc;
 
 use api::v1::value::ValueData;
@@ -49,7 +51,7 @@ fn test_view_submitted_event_contracts() {
         event.as_ref(),
         CREATE_VIEW_EVENT_TYPE,
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("v_metrics"),
             view_id: None,
@@ -77,7 +79,7 @@ fn test_view_submitted_event_contracts() {
         event.as_ref(),
         DROP_VIEW_EVENT_TYPE,
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("view_name"),
             view_id: Some(42),
@@ -97,11 +99,11 @@ fn test_view_submitted_event_contracts() {
 fn test_view_lifecycle_event_contracts() {
     for (event, event_type) in [
         (
-            ViewDdlEvent::create_lifecycle("greptime", "public", "v_metrics"),
+            ViewDdlEvent::create_lifecycle("pulse", "public", "v_metrics"),
             CREATE_VIEW_EVENT_TYPE,
         ),
         (
-            ViewDdlEvent::drop_lifecycle("greptime", "public", "v_metrics", 42),
+            ViewDdlEvent::drop_lifecycle("pulse", "public", "v_metrics", 42),
             DROP_VIEW_EVENT_TYPE,
         ),
     ] {
@@ -110,7 +112,7 @@ fn test_view_lifecycle_event_contracts() {
             &event,
             event_type,
             ViewEventLocator {
-                catalog_name: Some("greptime"),
+                catalog_name: Some("pulse"),
                 schema_name: Some("public"),
                 view_name: Some("v_metrics"),
                 view_id: (event_type == DROP_VIEW_EVENT_TYPE).then_some(42),
@@ -118,12 +120,12 @@ fn test_view_lifecycle_event_contracts() {
         );
     }
 
-    let event = ViewDdlEvent::create_succeeded("greptime", "public", "v_metrics", 84);
+    let event = ViewDdlEvent::create_succeeded("pulse", "public", "v_metrics", 84);
     assert_view_event_contract(
         &event,
         CREATE_VIEW_EVENT_TYPE,
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("v_metrics"),
             view_id: Some(84),
@@ -161,7 +163,7 @@ fn test_view_procedures_preserve_lifecycle_locators() {
                 event.as_ref(),
                 event_type,
                 ViewEventLocator {
-                    catalog_name: Some("greptime"),
+                    catalog_name: Some("pulse"),
                     schema_name: Some("public"),
                     view_name: Some("view_name"),
                     view_id,
@@ -175,7 +177,7 @@ fn test_view_procedures_preserve_lifecycle_locators() {
         event.as_ref(),
         DROP_VIEW_EVENT_TYPE,
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("view_name"),
             view_id: Some(42),
@@ -195,7 +197,7 @@ fn test_create_view_succeeded_output_mapping() {
         event.as_ref(),
         CREATE_VIEW_EVENT_TYPE,
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("view_name"),
             view_id: Some(84),
@@ -211,7 +213,7 @@ fn test_create_view_succeeded_output_mapping() {
             event.as_ref(),
             CREATE_VIEW_EVENT_TYPE,
             ViewEventLocator {
-                catalog_name: Some("greptime"),
+                catalog_name: Some("pulse"),
                 schema_name: Some("public"),
                 view_name: Some("view_name"),
                 view_id: None,
@@ -239,7 +241,7 @@ fn test_view_event_procedure_envelope_contract() {
     let submitted = ProcedureEvent::new(
         procedure_id,
         Box::new(ViewDdlEvent::create_submitted(
-            "greptime",
+            "pulse",
             "public",
             "view_name",
             CreateViewEventIntent {
@@ -255,7 +257,7 @@ fn test_view_event_procedure_envelope_contract() {
     let succeeded = ProcedureEvent::new(
         procedure_id,
         Box::new(ViewDdlEvent::create_succeeded(
-            "greptime",
+            "pulse",
             "public",
             "view_name",
             42,
@@ -270,7 +272,7 @@ fn test_view_event_procedure_envelope_contract() {
         "Running",
         "Submitted",
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("view_name"),
             view_id: None,
@@ -282,7 +284,7 @@ fn test_view_event_procedure_envelope_contract() {
         "Done",
         "Succeeded",
         ViewEventLocator {
-            catalog_name: Some("greptime"),
+            catalog_name: Some("pulse"),
             schema_name: Some("public"),
             view_name: Some("view_name"),
             view_id: Some(42),

@@ -18,7 +18,7 @@ You only need to write test SQL in `.sql` file, and run the test.
 ### Case organization
 
 The root dir of input cases is `tests/cases`. It contains several subdirectories stand for different test
-modes. E.g., `standalone/` contains all the tests to run under `greptimedb standalone start` mode.
+modes. E.g., `standalone/` contains all the tests to run under `pulse standalone start` mode.
 
 Under the first level of subdirectory (e.g. the `cases/standalone`), you can organize your cases as you like.
 Sqlness walks through every file recursively and runs them.
@@ -45,6 +45,6 @@ Unlike other tests, this harness is in a binary target form. You can run it with
 cargo sqlness bare
 ```
 
-It automatically finishes the following procedures: compile `GreptimeDB`, start it, grab tests and feed it to
+It automatically finishes the following procedures: compile `Pulse`, start it, grab tests and feed it to
 the server, then collect and compare the results. You only need to check if the `.result` files are changed.
 If not, congratulations, the test is passed 🥳!

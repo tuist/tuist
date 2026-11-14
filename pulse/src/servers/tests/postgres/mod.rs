@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -193,7 +195,7 @@ async fn test_schema_validating() -> Result<()> {
     let (pg_server, server_port) = generate_server(DatabaseAuthInfo {
         catalog: DEFAULT_CATALOG_NAME,
         schema: DEFAULT_SCHEMA_NAME,
-        username: "greptime",
+        username: "pulse",
     })
     .await?;
 
@@ -217,14 +219,13 @@ async fn test_schema_validating() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_pg_scram_sha256_auth() -> Result<()> {
     let verifier =
-        format_pg_scram_sha256_password_verifier(b"greptime", b"pg-scram-salt", 4096).unwrap();
+        format_pg_scram_sha256_password_verifier(b"pulse", b"pg-scram-salt", 4096).unwrap();
     let user_provider =
-        user_provider_from_option(&format!("static_user_provider:cmd:greptime={verifier}"))
-            .unwrap();
+        user_provider_from_option(&format!("static_user_provider:cmd:pulse={verifier}")).unwrap();
     let (postgres_server, server_port) =
         start_test_server_with_user_provider(user_provider, Default::default()).await?;
 
-    let client = create_plain_connection_with_credentials(server_port, "greptime", "greptime")
+    let client = create_plain_connection_with_credentials(server_port, "pulse", "pulse")
         .await
         .unwrap();
     let rows = client
@@ -233,11 +234,11 @@ async fn test_pg_scram_sha256_auth() -> Result<()> {
     assert_eq!(unwrap_results(rows.unwrap().as_ref())[0], "0");
 
     let wrong_password =
-        create_plain_connection_with_credentials(server_port, "greptime", "wrong").await;
+        create_plain_connection_with_credentials(server_port, "pulse", "wrong").await;
     assert!(wrong_password.is_err());
 
     let unknown_user =
-        create_plain_connection_with_credentials(server_port, "not_found", "greptime").await;
+        create_plain_connection_with_credentials(server_port, "not_found", "pulse").await;
     assert!(unknown_user.is_err());
 
     postgres_server.shutdown().await.unwrap();
@@ -253,7 +254,7 @@ async fn test_pg_cleartext_auth_fallback() -> Result<()> {
     postgres_server.start(listening).await.unwrap();
     let server_port = postgres_server.bind_addr().unwrap().port();
 
-    let client = create_plain_connection_with_credentials(server_port, "greptime", "greptime")
+    let client = create_plain_connection_with_credentials(server_port, "pulse", "pulse")
         .await
         .unwrap();
     let rows = client
@@ -262,7 +263,7 @@ async fn test_pg_cleartext_auth_fallback() -> Result<()> {
     assert_eq!(unwrap_results(rows.unwrap().as_ref())[0], "0");
 
     let wrong_password =
-        create_plain_connection_with_credentials(server_port, "greptime", "wrong").await;
+        create_plain_connection_with_credentials(server_port, "pulse", "wrong").await;
     assert!(wrong_password.is_err());
 
     postgres_server.shutdown().await.unwrap();
@@ -722,7 +723,7 @@ async fn create_plain_connection(
 ) -> std::result::Result<Client, PgError> {
     let url = if with_pwd {
         format!(
-            "host=127.0.0.1 port={port} user=greptime password=greptime connect_timeout=2 dbname={DEFAULT_SCHEMA_NAME}",
+            "host=127.0.0.1 port={port} user=pulse password=pulse connect_timeout=2 dbname={DEFAULT_SCHEMA_NAME}",
         )
     } else {
         format!("host=127.0.0.1 port={port} connect_timeout=2 dbname={DEFAULT_SCHEMA_NAME}")

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -60,7 +62,7 @@ pub struct CreateTableExpr {
     #[builder(default)]
     pub if_not_exists: bool,
 
-    // GreptimeDB specific options
+    // Pulse specific options
     #[builder(default, setter(into))]
     pub partition: Option<PartitionDef>,
     #[builder(default, setter(into))]

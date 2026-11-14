@@ -39,7 +39,7 @@ Error: 4001(TableNotFound), Table not found: t
 
 SELECT * FROM t;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.public.t
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.public.t
 
 CREATE TABLE t(i INTEGER, j TIMESTAMP TIME INDEX);
 
@@ -67,11 +67,11 @@ SELECT * FROM new_table;
 
 ALTER TABLE new_table RENAME new_table;
 
-Error: 4000(TableAlreadyExists), Table already exists, table: greptime.public.new_table
+Error: 4000(TableAlreadyExists), Table already exists, table: pulse.public.new_table
 
 ALTER TABLE new_table RENAME t;
 
-Error: 4000(TableAlreadyExists), Table already exists, table: greptime.public.t
+Error: 4000(TableAlreadyExists), Table already exists, table: pulse.public.t
 
 DROP TABLE t;
 

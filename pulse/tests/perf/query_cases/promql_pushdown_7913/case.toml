@@ -1,4 +1,4 @@
-# Query performance regression case for GreptimeDB issue #7913.
+# Query performance regression case for Pulse issue #7913.
 # This is a case config for the generic direct-SST fixture generator. The
 # generator must not hard-code PromQL/#7913 behavior; this file only supplies one
 # schema/layout/query instance.
@@ -20,7 +20,7 @@ engine = "mito"
 append_mode = true
 sst_format = "flat"
 primary_key = ["host", "instance"]
-time_index = "greptime_timestamp"
+time_index = "pulse_timestamp"
 
 [[scenario.tables.columns]]
 name = "host"
@@ -41,7 +41,7 @@ semantic = "field"
 distribution = { kind = "deterministic_wave", min = 0.0, max = 1000.0 }
 
 [[scenario.tables.columns]]
-name = "greptime_timestamp"
+name = "pulse_timestamp"
 type = "TIMESTAMP(9)"
 semantic = "timestamp"
 
@@ -73,7 +73,7 @@ max_candidate_latency_regression_pct = 15
 [[scenario.queries]]
 name = "latest_timestamp_equality_subquery"
 kind = "sql"
-query = "SELECT * FROM promql_pushdown_7913 WHERE greptime_timestamp = (SELECT greptime_timestamp FROM promql_pushdown_7913 ORDER BY greptime_timestamp DESC LIMIT 1)"
+query = "SELECT * FROM promql_pushdown_7913 WHERE pulse_timestamp = (SELECT pulse_timestamp FROM promql_pushdown_7913 ORDER BY pulse_timestamp DESC LIMIT 1)"
 warmup = 3
 iterations = 9
 

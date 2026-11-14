@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use api::v1::value::ValueData;
 use api::v1::{ColumnDataType, RowInsertRequests};
 use common_grpc::precision::Precision;
-use common_query::prelude::greptime_timestamp;
+use common_query::prelude::pulse_timestamp;
 use hyper::Request;
 use influxdb_line_protocol::{FieldValue, parse_lines};
 use snafu::ResultExt;
@@ -91,7 +93,7 @@ impl TryFrom<InfluxdbRequest> for RowInsertRequests {
             // timestamp
             row_writer::write_ts_to_nanos(
                 table_data,
-                greptime_timestamp(),
+                pulse_timestamp(),
                 ts,
                 precision,
                 &mut one_row,
@@ -117,7 +119,7 @@ fn unwrap_or_default_precision(precision: Option<Precision>) -> Precision {
 mod tests {
     use api::v1::value::ValueData;
     use api::v1::{ColumnDataType, RowInsertRequests, Rows, SemanticType};
-    use common_query::prelude::greptime_timestamp;
+    use common_query::prelude::pulse_timestamp;
 
     use crate::influxdb::InfluxdbRequest;
 
@@ -194,7 +196,7 @@ monitor2,host=host4 cpu=66.3,memory=1029 1663840496400340003";
                         }
                     }
                 }
-                _ if column_schema.column_name == greptime_timestamp() => {
+                _ if column_schema.column_name == pulse_timestamp() => {
                     assert_eq!(
                         ColumnDataType::TimestampNanosecond as i32,
                         column_schema.datatype
@@ -269,7 +271,7 @@ monitor2,host=host4 cpu=66.3,memory=1029 1663840496400340003";
                         }
                     }
                 }
-                _ if column_schema.column_name == greptime_timestamp() => {
+                _ if column_schema.column_name == pulse_timestamp() => {
                     assert_eq!(
                         ColumnDataType::TimestampNanosecond as i32,
                         column_schema.datatype

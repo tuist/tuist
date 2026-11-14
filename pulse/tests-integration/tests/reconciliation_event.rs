@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use client::OutputData;
 use common_meta::reconciliation::ResolveStrategy;
 use common_procedure::watcher;
@@ -19,20 +21,20 @@ use frontend::instance::Instance;
 use servers::query_handler::sql::SqlQueryHandler;
 use session::context::QueryContext;
 use table::table_reference::TableReference;
-use tests_integration::cluster::GreptimeDbClusterBuilder;
+use tests_integration::cluster::PulseClusterBuilder;
 use tests_integration::test_util::test_event_recorder_options;
 
 use crate::event_recorder_test_util::{assert_eventually_eq, find_eventually_string};
 
-const EVENTS_TABLE: &str = "greptime_private.events";
-const CATALOG: &str = "greptime";
+const EVENTS_TABLE: &str = "pulse_private.events";
+const CATALOG: &str = "pulse";
 const DATABASE: &str = "reconciliation_event_database";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_catalog_and_database_reconciliation_events() {
     common_telemetry::init_default_ut_logging();
 
-    let cluster = GreptimeDbClusterBuilder::new("catalog_database_reconciliation_events")
+    let cluster = PulseClusterBuilder::new("catalog_database_reconciliation_events")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)
@@ -148,7 +150,7 @@ async fn test_catalog_and_database_reconciliation_events() {
 +--------------------------------------+--------------------------------------+-------------------+--------------------+---------------------+--------------------+--------------------+-------------------------------+
 | parent_procedure_id                  | child_procedure_id                   | parent_event_type | child_event_type   | parent_catalog_name | parent_schema_name | child_catalog_name | child_schema_name             |
 +--------------------------------------+--------------------------------------+-------------------+--------------------+---------------------+--------------------+--------------------+-------------------------------+
-| {catalog_procedure_id} | {database_procedure_id} | reconcile_catalog | reconcile_database | greptime            |                    | greptime           | reconciliation_event_database |
+| {catalog_procedure_id} | {database_procedure_id} | reconcile_catalog | reconcile_database | pulse               |                    | pulse              | reconciliation_event_database |
 +--------------------------------------+--------------------------------------+-------------------+--------------------+---------------------+--------------------+--------------------+-------------------------------+"
         ),
     )
@@ -243,7 +245,7 @@ async fn test_catalog_and_database_reconciliation_events() {
 async fn test_table_reconciliation_events() {
     common_telemetry::init_default_ut_logging();
 
-    let cluster = GreptimeDbClusterBuilder::new("table_reconciliation_events")
+    let cluster = PulseClusterBuilder::new("table_reconciliation_events")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)
@@ -352,7 +354,7 @@ async fn test_table_reconciliation_events() {
 async fn test_logical_table_reconciliation_events() {
     common_telemetry::init_default_ut_logging();
 
-    let cluster = GreptimeDbClusterBuilder::new("logical_table_reconciliation_events")
+    let cluster = PulseClusterBuilder::new("logical_table_reconciliation_events")
         .await
         .with_event_recorder_options(test_event_recorder_options())
         .with_datanodes(1)

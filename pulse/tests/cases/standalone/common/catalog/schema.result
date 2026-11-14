@@ -95,7 +95,7 @@ Affected Rows: 0
 
 DROP TABLE hello;
 
-Error: 4001(TableNotFound), Table not found: greptime.test_public_schema.hello
+Error: 4001(TableNotFound), Table not found: pulse.test_public_schema.hello
 
 SHOW TABLES FROM test_public_schema;
 
@@ -134,7 +134,7 @@ Affected Rows: 0
 
 SELECT * FROM test_public_schema.hello;
 
-Error: 4001(TableNotFound), Failed to plan SQL: Table not found: greptime.test_public_schema.hello
+Error: 4001(TableNotFound), Failed to plan SQL: Table not found: pulse.test_public_schema.hello
 
 USE public;
 

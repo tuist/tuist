@@ -15,11 +15,11 @@ Affected Rows: 0
 
 SELECT source_table_names FROM information_schema.flows WHERE flow_name = 'calc_reqs';
 
-+-------------------------------+
-| source_table_names            |
-+-------------------------------+
-| greptime.public.http_requests |
-+-------------------------------+
++----------------------------+
+| source_table_names         |
++----------------------------+
+| pulse.public.http_requests |
++----------------------------+
 
 SHOW CREATE TABLE cnt_reqs;
 
@@ -120,7 +120,7 @@ Error: 3001(EngineExecuteQuery), Unsupported expr type: count_values on multi-va
 CREATE FLOW calc_reqs SINK TO cnt_reqs EVAL INTERVAL '1m' AS
 TQL EVAL (now() - '1m'::interval, now(), '5s') rate(http_requests_two_vals[5m]);
 
-Error: 3001(EngineExecuteQuery), Invalid query: TQL query only supports one f64 value column, table `greptime.public.http_requests_two_vals`(id=[REDACTED]) has 2 f64 value columns, columns are: [val Float64 null, valb Float64 null]
+Error: 3001(EngineExecuteQuery), Invalid query: TQL query only supports one f64 value column, table `pulse.public.http_requests_two_vals`(id=[REDACTED]) has 2 f64 value columns, columns are: [val Float64 null, valb Float64 null]
 
 SHOW TABLES;
 
@@ -405,11 +405,11 @@ Affected Rows: 0
 
 SELECT source_table_names FROM information_schema.flows WHERE flow_name = 'calc_rate_by_matcher';
 
-+-------------------------------------+
-| source_table_names                  |
-+-------------------------------------+
-| greptime.public.http_requests_total |
-+-------------------------------------+
++----------------------------------+
+| source_table_names               |
++----------------------------------+
+| pulse.public.http_requests_total |
++----------------------------------+
 
 DROP FLOW calc_rate_by_matcher;
 

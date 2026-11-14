@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use serde::Serialize;
 use sqlparser::ast::{
     Insert as SpInsert, ObjectName, ObjectNamePart, Parens, SetExpr, Statement, TableObject,
@@ -232,7 +234,7 @@ impl TryFrom<Statement> for Insert {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
@@ -241,7 +243,7 @@ mod tests {
         // insert "-1"
         let sql = "INSERT INTO my_table VALUES(-1)";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -255,7 +257,7 @@ mod tests {
         // insert "+1"
         let sql = "INSERT INTO my_table VALUES(+1)";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -271,7 +273,7 @@ mod tests {
     fn test_insert_column_names_are_single_identifiers() {
         let stmt = ParserContext::create_with_dialect(
             "INSERT INTO my_table (host, \"value\") VALUES (1, 2)",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -283,7 +285,7 @@ mod tests {
 
         let result = ParserContext::create_with_dialect(
             "INSERT INTO my_table (metric.host) VALUES (1)",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         );
         let error = result.unwrap_err().to_string();
@@ -298,7 +300,7 @@ mod tests {
         // insert "default"
         let sql = "INSERT INTO my_table VALUES(default)";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -315,7 +317,7 @@ mod tests {
         // insert "DEFAULT"
         let sql = "INSERT INTO my_table VALUES(DEFAULT)";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -332,7 +334,7 @@ mod tests {
         // insert 'default'
         let sql = "INSERT INTO my_table VALUES('default')";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -349,7 +351,7 @@ mod tests {
         // insert "default". Treating double-quoted identifiers as strings.
         let sql = "INSERT INTO my_table VALUES(\"default\")";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -365,7 +367,7 @@ mod tests {
 
         let sql = "INSERT INTO my_table VALUES(`default`)";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -380,7 +382,7 @@ mod tests {
     fn test_insert_select() {
         let sql = "INSERT INTO my_table select * from other_table";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .remove(0);
         match stmt {
@@ -415,13 +417,10 @@ mod tests {
         ];
 
         for (sql, expected) in cases {
-            let stmt = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap()
-            .remove(0);
+            let stmt =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap()
+                    .remove(0);
             match stmt {
                 Statement::Insert(insert) => {
                     assert_eq!(insert.has_non_values_query_source(), expected, "{sql}");

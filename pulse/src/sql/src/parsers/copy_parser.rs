@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use snafu::ResultExt;
 use sqlparser::keywords::Keyword;
 use sqlparser::tokenizer::Token;
@@ -273,7 +275,7 @@ mod tests {
     use sqlparser::ast::{Ident, ObjectName};
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
     use crate::statements::statement::Statement::Copy;
 
@@ -281,18 +283,12 @@ mod tests {
     fn test_parse_copy_table() {
         let sql0 = "COPY catalog0.schema0.tbl TO 'tbl_file.parquet'";
         let sql1 = "COPY catalog0.schema0.tbl TO 'tbl_file.parquet' WITH (FORMAT = 'parquet')";
-        let result0 = ParserContext::create_with_dialect(
-            sql0,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
-        let result1 = ParserContext::create_with_dialect(
-            sql1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result0 =
+            ParserContext::create_with_dialect(sql0, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
+        let result1 =
+            ParserContext::create_with_dialect(sql1, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         for mut result in [result0, result1] {
             assert_eq!(1, result.len());
@@ -327,7 +323,7 @@ mod tests {
         ]
         .iter()
         .map(|sql| {
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
         })
         .collect::<Vec<_>>();
@@ -379,7 +375,7 @@ mod tests {
         for test in tests {
             let mut result = ParserContext::create_with_dialect(
                 test.sql,
-                &GreptimeDbDialect {},
+                &PulseDialect {},
                 ParseOptions::default(),
             )
             .unwrap();
@@ -405,7 +401,7 @@ mod tests {
     fn test_parse_copy_table_from_csv_options() {
         let sql = "COPY my_table FROM '/tmp/test.csv' WITH (FORMAT = 'CSV', SKIP_BAD_RECORDS = 'false', HEADERS = 'false')";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -448,7 +444,7 @@ mod tests {
         for test in tests {
             let mut result = ParserContext::create_with_dialect(
                 test.sql,
-                &GreptimeDbDialect {},
+                &PulseDialect {},
                 ParseOptions::default(),
             )
             .unwrap();
@@ -471,7 +467,7 @@ mod tests {
     fn test_copy_database_to() {
         let sql = "COPY DATABASE catalog0.schema0 TO 'tbl_file.parquet' WITH (FORMAT = 'parquet') CONNECTION (FOO='Bar', ONE='two')";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -507,7 +503,7 @@ mod tests {
     fn test_copy_database_from() {
         let sql = "COPY DATABASE catalog0.schema0 FROM '/a/b/c/' WITH (FORMAT = 'parquet') CONNECTION (FOO='Bar', ONE='two')";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -543,7 +539,7 @@ mod tests {
     fn test_copy_query_to() {
         let sql = "COPY (SELECT * FROM tbl WHERE ts > 10) TO 'tbl_file.parquet' WITH (FORMAT = 'parquet') CONNECTION (FOO='Bar', ONE='two')";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -554,7 +550,7 @@ mod tests {
 
         let query = ParserContext::create_with_dialect(
             "SELECT * FROM tbl WHERE ts > 10",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -582,36 +578,24 @@ mod tests {
             let sql = "COPY SELECT * FROM tbl WHERE ts > 10 TO 'tbl_file.parquet' WITH (FORMAT = 'parquet') CONNECTION (FOO='Bar', ONE='two')";
 
             assert!(
-                ParserContext::create_with_dialect(
-                    sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default()
-                )
-                .is_err()
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .is_err()
             )
         }
         {
             let sql = "COPY SELECT * FROM tbl WHERE ts > 10) TO 'tbl_file.parquet' WITH (FORMAT = 'parquet') CONNECTION (FOO='Bar', ONE='two')";
 
             assert!(
-                ParserContext::create_with_dialect(
-                    sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default()
-                )
-                .is_err()
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .is_err()
             )
         }
         {
             let sql = "COPY (SELECT * FROM tbl WHERE ts > 10 TO 'tbl_file.parquet' WITH (FORMAT = 'parquet') CONNECTION (FOO='Bar', ONE='two')";
 
             assert!(
-                ParserContext::create_with_dialect(
-                    sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default()
-                )
-                .is_err()
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .is_err()
             )
         }
     }
@@ -620,14 +604,14 @@ mod tests {
     fn test_copy_query_to_stdout() {
         let sql = "COPY (SELECT * FROM tbl WHERE ts > 10) TO STDOUT WITH (FORMAT = 'csv')";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM tbl WHERE ts > 10",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -640,7 +624,7 @@ mod tests {
     fn test_copy_query_to_stdout_without_format() {
         let sql = "COPY (SELECT generate_series(1, 2), generate_series(2, 3)) TO STDOUT";
         let stmt =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap()
                 .pop()
                 .unwrap();
@@ -648,7 +632,7 @@ mod tests {
         let query_str = "SELECT generate_series(1, 2), generate_series(2, 3)";
         let expected_query = ParserContext::create_with_dialect(
             query_str,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -661,7 +645,7 @@ mod tests {
     fn test_copy_query_to_stdout_with_binary_format() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT WITH (FORMAT binary)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -674,7 +658,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -687,7 +671,7 @@ mod tests {
     fn test_copy_query_to_stdout_with_csv_format() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT WITH (FORMAT csv)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -700,7 +684,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -713,7 +697,7 @@ mod tests {
     fn test_copy_query_to_stdout_with_equals_format() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT WITH (FORMAT = 'binary')";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -726,7 +710,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -740,7 +724,7 @@ mod tests {
         let sql =
             "COPY (SELECT * FROM test_table) TO STDOUT WITH (FORMAT csv, DELIMITER ',', HEADER)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -753,7 +737,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -766,7 +750,7 @@ mod tests {
     fn test_copy_query_to_stdout_without_with_keyword() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT (FORMAT binary)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -779,7 +763,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -792,7 +776,7 @@ mod tests {
     fn test_copy_query_to_stdout_without_with_csv_format() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT (FORMAT csv)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -805,7 +789,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -818,7 +802,7 @@ mod tests {
     fn test_copy_query_to_stdout_without_with_multiple_options() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT (FORMAT csv, DELIMITER ',', HEADER)";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         if let Err(e) = &result {
             panic!(
@@ -831,7 +815,7 @@ mod tests {
 
         let expected_query = ParserContext::create_with_dialect(
             "SELECT * FROM test_table",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap()
@@ -844,13 +828,13 @@ mod tests {
     fn test_invalid_copy_query() {
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT (FORMAT csv";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         assert!(result.is_err());
 
         let sql = "COPY (SELECT * FROM test_table) TO STDOUT (FORMAT csv))";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         assert!(result.is_err());
     }

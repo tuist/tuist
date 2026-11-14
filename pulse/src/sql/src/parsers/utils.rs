@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -375,42 +377,6 @@ pub fn validate_column_skipping_index_create_option(key: &str) -> bool {
     .contains(&key)
 }
 
-/// Convert an [`IntervalMonthDayNano`] to a [`Duration`].
-#[cfg(feature = "enterprise")]
-pub fn convert_month_day_nano_to_duration(
-    interval: arrow_buffer::IntervalMonthDayNano,
-) -> Result<std::time::Duration> {
-    let months: i64 = interval.months.into();
-    let days: i64 = interval.days.into();
-    let months_in_seconds: i64 = months * 60 * 60 * 24 * 3044 / 1000;
-    let days_in_seconds: i64 = days * 60 * 60 * 24;
-    let seconds_from_nanos = interval.nanoseconds / 1_000_000_000;
-    let total_seconds = months_in_seconds + days_in_seconds + seconds_from_nanos;
-
-    let mut nanos_remainder = interval.nanoseconds % 1_000_000_000;
-    let mut adjusted_seconds = total_seconds;
-
-    if nanos_remainder < 0 {
-        nanos_remainder += 1_000_000_000;
-        adjusted_seconds -= 1;
-    }
-
-    snafu::ensure!(
-        adjusted_seconds >= 0,
-        crate::error::InvalidIntervalSnafu {
-            reason: "must be a positive interval",
-        }
-    );
-
-    // Cast safety: `adjusted_seconds` is guaranteed to be non-negative before.
-    let adjusted_seconds = adjusted_seconds as u64;
-    // Cast safety: `nanos_remainder` is smaller than 1_000_000_000 which
-    // is checked above.
-    let nanos_remainder = nanos_remainder as u32;
-
-    Ok(std::time::Duration::new(adjusted_seconds, nanos_remainder))
-}
-
 pub fn parse_with_options(parser: &mut Parser) -> Result<OptionMap> {
     let options = parser
         .parse_options(Keyword::WITH)
@@ -442,13 +408,13 @@ mod tests {
     use datatypes::arrow::datatypes::TimestampNanosecondType;
 
     use super::*;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::{ParseOptions, ParserContext};
     use crate::statements::statement::Statement;
 
     #[test]
     fn test_is_tql() {
-        let dialect = GreptimeDbDialect {};
+        let dialect = PulseDialect {};
 
         assert!(is_tql(&dialect, "TQL EVAL (0, 10, '1s') cpu_usage_total").unwrap());
         assert!(!is_tql(&dialect, "SELECT 1").unwrap());

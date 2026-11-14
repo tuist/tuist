@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Schema extraction from information_schema.
 //!
 //! For V2 DDL-only snapshots, extractor only persists the schema index.
@@ -246,7 +248,7 @@ mod tests {
             "Test_Db".to_string(),
         ];
 
-        let canonicalized = dedupe_canonicalized_schemas(&requested, &available, "greptime")
+        let canonicalized = dedupe_canonicalized_schemas(&requested, &available, "pulse")
             .expect("schemas should be canonicalized");
 
         assert_eq!(canonicalized, vec!["public", "test_db"]);

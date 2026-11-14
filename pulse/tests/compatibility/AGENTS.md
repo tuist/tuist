@@ -68,7 +68,7 @@ This file is intended for AI agents editing compat cases or the compat runner. F
 ## PostgreSQL Protocol Cases
 
 - When using `-- SQLNESS PROTOCOL POSTGRES`, avoid unqualified table names
-  starting with `pg_`. GreptimeDB issue #8359 causes the parser to rewrite them
+  starting with `pg_`. Pulse issue #8359 causes the parser to rewrite them
   to `pg_catalog.<table>`. Qualify such names explicitly or rename the table.
 
 ## Previewing with `--dry-run`

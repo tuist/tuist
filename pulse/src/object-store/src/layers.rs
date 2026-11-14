@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 #[cfg(feature = "hdfs-object-store")]
 mod hdfs;
 #[cfg(feature = "testing")]
@@ -31,7 +33,7 @@ mod prometheus {
 
     /// This logical tries to extract parent path from the object storage operation
     /// the function also relies on assumption that the region path is built from
-    /// pattern `<data|index>/catalog/schema/table_id/...` OR `greptimedb/object_cache/<read|write>/...`
+    /// pattern `<data|index>/catalog/schema/table_id/...` OR `pulse/object_cache/<read|write>/...`
     ///
     /// We'll get the data/catalog/schema from path.
     pub fn build_prometheus_metrics_layer(_with_path_label: bool) -> PrometheusLayer {

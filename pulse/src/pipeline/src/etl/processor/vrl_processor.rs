@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
@@ -271,7 +273,7 @@ mod tests {
     #[test]
     fn test_host_functions_require_opt_in() {
         let calls = [
-            ("get_env_var", r#"get_env_var!("GREPTIME_VRL_TEST_SECRET")"#),
+            ("get_env_var", r#"get_env_var!("PULSE_VRL_TEST_SECRET")"#),
             ("get_hostname", "get_hostname!()"),
             ("get_timezone_name", "get_timezone_name!()"),
             ("http_request", r#"http_request!("http://127.0.0.1:9/")"#),
@@ -304,8 +306,8 @@ mod tests {
             assert!(error.contains("undefined function"), "{name}: {error}");
         }
 
-        temp_env::with_var("GREPTIME_VRL_TEST_SECRET", Some("decoy"), || {
-            let source = ".secret = get_env_var!(\"GREPTIME_VRL_TEST_SECRET\")\n.";
+        temp_env::with_var("PULSE_VRL_TEST_SECRET", Some("decoy"), || {
+            let source = ".secret = get_env_var!(\"PULSE_VRL_TEST_SECRET\")\n.";
             let processor = VrlProcessor::new(source.to_string(), true).unwrap();
             let result = processor
                 .resolve(VrlValue::Object(BTreeMap::new()))
@@ -389,7 +391,7 @@ processors:
   - vrl:
       allow_vrl_host_access: true
       source: |
-        .secret = get_env_var!("GREPTIME_VRL_TEST_SECRET")
+        .secret = get_env_var!("PULSE_VRL_TEST_SECRET")
         .
 transform:
   - field: secret

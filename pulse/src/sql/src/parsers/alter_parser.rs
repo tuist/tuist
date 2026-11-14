@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "enterprise")]
-pub mod trigger;
+// Modified by Tuist; see pulse/FORK.md.
 
 use std::collections::HashMap;
 
@@ -50,11 +49,6 @@ impl ParserContext<'_> {
             Token::Word(w) => match w.keyword {
                 Keyword::DATABASE => self.parse_alter_database().map(Statement::AlterDatabase),
                 Keyword::TABLE => self.parse_alter_table().map(Statement::AlterTable),
-                #[cfg(feature = "enterprise")]
-                Keyword::TRIGGER => {
-                    self.parser.next_token();
-                    self.parse_alter_trigger()
-                }
                 _ => self.expected("DATABASE or TABLE after ALTER", self.parser.peek_token()),
             },
             unexpected => self.unsupported(unexpected.to_string()),
@@ -772,7 +766,7 @@ mod tests {
 
     use super::*;
     use crate::ast::ObjectNamePartExt;
-    use crate::dialect::GreptimeDbDialect;
+    use crate::dialect::PulseDialect;
     use crate::parser::ParseOptions;
     use crate::statements::alter::AlterDatabaseOperation;
     use crate::statements::create::{Column, ColumnExtensions};
@@ -790,14 +784,10 @@ mod tests {
             ("\"select\" STRING NULL", ""),
         ] {
             let parse = |sql: &str| {
-                ParserContext::create_with_dialect(
-                    sql,
-                    &GreptimeDbDialect {},
-                    ParseOptions::default(),
-                )
-                .unwrap()
-                .pop()
-                .unwrap()
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap()
+                    .pop()
+                    .unwrap()
             };
             let Statement::CreateTable(create) = parse(&format!(
                 "CREATE TABLE t ({definition}, n INT, ts TIMESTAMP TIME INDEX)"
@@ -833,7 +823,7 @@ mod tests {
         ] {
             let err = ParserContext::create_with_dialect(
                 &format!("ALTER TABLE t ADD COLUMN {definition}"),
-                &GreptimeDbDialect {},
+                &PulseDialect {},
                 ParseOptions::default(),
             )
             .unwrap_err();
@@ -849,7 +839,7 @@ mod tests {
     fn test_parse_alter_database() {
         let sql = "ALTER DATABASE test_db SET 'a'='A', 'b' = 'B'";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -879,7 +869,7 @@ mod tests {
         }
         let sql = "ALTER DATABASE test_db UNSET 'a', 'b'";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let statement = result.remove(0);
@@ -909,7 +899,7 @@ mod tests {
     fn test_parse_alter_add_column() {
         let sql = "ALTER TABLE my_metric_1 ADD tagk_i STRING Null;";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -950,7 +940,7 @@ mod tests {
     fn test_parse_alter_add_column_with_first() {
         let sql = "ALTER TABLE my_metric_1 ADD tagk_i STRING Null FIRST;";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -991,7 +981,7 @@ mod tests {
         let sql =
             "ALTER TABLE my_metric_1 ADD tagk_i STRING Null AFTER ts, add column tagl_i String;";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1048,7 +1038,7 @@ mod tests {
     fn test_parse_add_column_if_not_exists() {
         let sql = "ALTER TABLE test ADD COLUMN IF NOT EXISTS a INTEGER, ADD COLUMN b STRING, ADD COLUMN IF NOT EXISTS c INT;";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(result.len(), 1);
         let statement = result.remove(0);
@@ -1121,7 +1111,7 @@ ALTER TABLE t REPARTITION (
   device_id < 100 AND area >= 'South',
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1162,7 +1152,7 @@ INTO (
   device_id < 100 AND area >= 'South'
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1212,7 +1202,7 @@ WITH (
   WAIT = false
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1254,7 +1244,7 @@ ALTER TABLE sensor_readings PARTITION ON COLUMNS (device_id, area) (
   device_id >= 100 AND area > 'East'
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1294,7 +1284,7 @@ ALTER TABLE sensor_readings PARTITION ON COLUMNS (device_id) (
   WAIT = false
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1319,7 +1309,7 @@ ALTER TABLE sensor_readings PARTITION ON COLUMNS () (
   device_id < 100
 );"#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         assert!(result.is_err());
     }
@@ -1329,7 +1319,7 @@ ALTER TABLE sensor_readings PARTITION ON COLUMNS () (
         let sql = r#"
 ALTER TABLE sensor_readings PARTITION ON COLUMNS (device_id) ();"#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
 
         assert_eq!(
@@ -1348,7 +1338,7 @@ ALTER TABLE metrics SPLIT PARTITION (
   device_id < 100 AND area >= 'South'
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1389,7 +1379,7 @@ INTO (
   device_id < 100 AND area >= 'South'
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1435,7 +1425,7 @@ INTO (
   device_id < 100 AND area >= 'South'
 );"#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default());
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default());
 
         assert!(result.is_err());
     }
@@ -1452,7 +1442,7 @@ INTO (
 )
 ON COLUMNS (device_id, area);"#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
 
         assert_eq!(
@@ -1469,7 +1459,7 @@ ALTER TABLE metrics MERGE PARTITION (
   device_id >= 100
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1506,7 +1496,7 @@ INTO (
   device_id >= 0
 );"#;
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
 
         assert_eq!(
@@ -1526,7 +1516,7 @@ ALTER TABLE alter_repartition_table MERGE PARTITION (
   WAIT = false
 );"#;
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1577,7 +1567,7 @@ ALTER TABLE metrics REPARTITION
 );"#;
 
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         assert_eq!(
             result.output_msg(),
@@ -1589,7 +1579,7 @@ ALTER TABLE metrics REPARTITION
     fn test_parse_alter_drop_column() {
         let sql = "ALTER TABLE my_metric_1 DROP a";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         let err = result.output_msg();
         assert_eq!(
@@ -1599,7 +1589,7 @@ ALTER TABLE metrics REPARTITION
 
         let sql = "ALTER TABLE my_metric_1 DROP COLUMN a";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1625,20 +1615,14 @@ ALTER TABLE metrics REPARTITION
     #[test]
     fn test_parse_alter_modify_column_type() {
         let sql_1 = "ALTER TABLE my_metric_1 MODIFY COLUMN a STRING";
-        let result_1 = ParserContext::create_with_dialect(
-            sql_1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let result_1 =
+            ParserContext::create_with_dialect(sql_1, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         let sql_2 = "ALTER TABLE my_metric_1 MODIFY COLUMN a STRING";
-        let mut result_2 = ParserContext::create_with_dialect(
-            sql_2,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let mut result_2 =
+            ParserContext::create_with_dialect(sql_2, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
         assert_eq!(result_1, result_2);
         assert_eq!(1, result_2.len());
 
@@ -1681,7 +1665,7 @@ MODIFY COLUMN attrs JSON2 (
     request_id STRING INVERTED INDEX
 )"#;
         let mut statements =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         let Statement::AlterTable(alter_table) = statements.remove(0) else {
@@ -1704,7 +1688,7 @@ MODIFY COLUMN attrs JSON2 (
         let formatted = alter_table.to_string();
         let reparsed = ParserContext::create_with_dialect(
             &formatted,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap();
@@ -1712,7 +1696,7 @@ MODIFY COLUMN attrs JSON2 (
 
         let mut empty = ParserContext::create_with_dialect(
             "ALTER TABLE application_logs MODIFY COLUMN attrs JSON2 ()",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap();
@@ -1729,12 +1713,9 @@ MODIFY COLUMN attrs JSON2 (
     #[test]
     fn test_parse_alter_change_column_alias_type() {
         let sql_1 = "ALTER TABLE my_metric_1 MODIFY COLUMN a MediumText";
-        let mut result_1 = ParserContext::create_with_dialect(
-            sql_1,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let mut result_1 =
+            ParserContext::create_with_dialect(sql_1, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         match result_1.remove(0) {
             Statement::AlterTable(alter_table) => {
@@ -1762,12 +1743,9 @@ MODIFY COLUMN attrs JSON2 (
         }
 
         let sql_2 = "ALTER TABLE my_metric_1 MODIFY COLUMN a TIMESTAMP_US";
-        let mut result_2 = ParserContext::create_with_dialect(
-            sql_2,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap();
+        let mut result_2 =
+            ParserContext::create_with_dialect(sql_2, &PulseDialect {}, ParseOptions::default())
+                .unwrap();
 
         match result_2.remove(0) {
             Statement::AlterTable(alter_table) => {
@@ -1799,7 +1777,7 @@ MODIFY COLUMN attrs JSON2 (
     fn test_parse_alter_rename_table() {
         let sql = "ALTER TABLE test_table table_t";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         let err = result.output_msg();
         assert_eq!(
@@ -1809,7 +1787,7 @@ MODIFY COLUMN attrs JSON2 (
 
         let sql = "ALTER TABLE test_table RENAME table_t";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
 
@@ -1834,7 +1812,7 @@ MODIFY COLUMN attrs JSON2 (
 
     fn check_parse_alter_table_set_options(sql: &str, expected: &[(&str, &str)]) {
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let Statement::AlterTable(alter) = &result[0] else {
@@ -1855,7 +1833,7 @@ MODIFY COLUMN attrs JSON2 (
 
     fn check_parse_alter_table_unset_options(sql: &str, expected: &[&str]) {
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let Statement::AlterTable(alter) = &result[0] else {
@@ -1885,7 +1863,7 @@ MODIFY COLUMN attrs JSON2 (
 
         ParserContext::create_with_dialect(
             "ALTER TABLE test_table SET a INTEGER",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap_err();
@@ -1897,7 +1875,7 @@ MODIFY COLUMN attrs JSON2 (
         check_parse_alter_table_unset_options("ALTER TABLE test_table UNSET 'a','b'", &["a", "b"]);
         ParserContext::create_with_dialect(
             "ALTER TABLE test_table UNSET a INTEGER",
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap_err();
@@ -1907,7 +1885,7 @@ MODIFY COLUMN attrs JSON2 (
     fn test_parse_alter_column_fulltext() {
         let sql = "ALTER TABLE test_table MODIFY COLUMN a SET FULLTEXT INDEX WITH(analyzer='English',case_sensitive='false',backend='bloom',granularity=1000,false_positive_rate=0.01)";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(1, result.len());
@@ -1947,7 +1925,7 @@ MODIFY COLUMN attrs JSON2 (
 
         let sql = "ALTER TABLE test_table MODIFY COLUMN a UNSET FULLTEXT INDEX";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let statement = result.remove(0);
@@ -1973,7 +1951,7 @@ MODIFY COLUMN attrs JSON2 (
             "ALTER TABLE test_table MODIFY COLUMN a SET FULLTEXT INDEX WITH('abcd'='true')";
         let result = ParserContext::create_with_dialect(
             invalid_sql,
-            &GreptimeDbDialect {},
+            &PulseDialect {},
             ParseOptions::default(),
         )
         .unwrap_err();
@@ -1988,7 +1966,7 @@ MODIFY COLUMN attrs JSON2 (
     fn test_parse_alter_column_inverted() {
         let sql = "ALTER TABLE test_table MODIFY COLUMN a SET INVERTED INDEX";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
 
         assert_eq!(1, result.len());
@@ -2011,7 +1989,7 @@ MODIFY COLUMN attrs JSON2 (
 
         let sql = "ALTER TABLE test_table MODIFY COLUMN a UNSET INVERTED INDEX";
         let mut result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap();
         assert_eq!(1, result.len());
         let statement = result.remove(0);
@@ -2034,12 +2012,8 @@ MODIFY COLUMN attrs JSON2 (
         }
 
         let invalid_sql = "ALTER TABLE test_table MODIFY COLUMN a SET INVERTED";
-        ParserContext::create_with_dialect(
-            invalid_sql,
-            &GreptimeDbDialect {},
-            ParseOptions::default(),
-        )
-        .unwrap_err();
+        ParserContext::create_with_dialect(invalid_sql, &PulseDialect {}, ParseOptions::default())
+            .unwrap_err();
     }
 
     #[test]
@@ -2048,12 +2022,9 @@ MODIFY COLUMN attrs JSON2 (
             "ALTER TABLE test SET 'compaction.twcs.trigger_file_num'=8;",
             "ALTER TABLE test SET 'compaction.twcs.trigger_file_num'='8';",
         ] {
-            let mut result = ParserContext::create_with_dialect(
-                sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let mut result =
+                ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             assert_eq!(1, result.len());
 
             let statement = result.remove(0);
@@ -2086,12 +2057,9 @@ MODIFY COLUMN attrs JSON2 (
                 .collect::<Vec<String>>()
                 .join(",");
             let sql = format!("ALTER TABLE test_table {sql}");
-            let mut result = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let mut result =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             assert_eq!(1, result.len());
             let statement = result.remove(0);
             assert_matches!(statement, Statement::AlterTable { .. });
@@ -2127,12 +2095,9 @@ MODIFY COLUMN attrs JSON2 (
                 .collect::<Vec<String>>()
                 .join(",");
             let sql = format!("ALTER TABLE test_table {sql}");
-            let mut result = ParserContext::create_with_dialect(
-                &sql,
-                &GreptimeDbDialect {},
-                ParseOptions::default(),
-            )
-            .unwrap();
+            let mut result =
+                ParserContext::create_with_dialect(&sql, &PulseDialect {}, ParseOptions::default())
+                    .unwrap();
             assert_eq!(1, result.len());
             let statement = result.remove(0);
             assert_matches!(statement, Statement::AlterTable { .. });
@@ -2163,7 +2128,7 @@ MODIFY COLUMN attrs JSON2 (
     fn test_parse_alter_set_default_invalid() {
         let sql = "ALTER TABLE test_table MODIFY COLUMN a SET 100;";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         let err = result.output_msg();
         assert_eq!(
@@ -2173,7 +2138,7 @@ MODIFY COLUMN attrs JSON2 (
 
         let sql = "ALTER TABLE test_table MODIFY COLUMN a SET DEFAULT 100, b SET DEFAULT 200";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         let err = result.output_msg();
         assert_eq!(
@@ -2183,7 +2148,7 @@ MODIFY COLUMN attrs JSON2 (
 
         let sql = "ALTER TABLE test_table MODIFY COLUMN a SET DEFAULT 100, MODIFY COLUMN b DROP DEFAULT 200";
         let result =
-            ParserContext::create_with_dialect(sql, &GreptimeDbDialect {}, ParseOptions::default())
+            ParserContext::create_with_dialect(sql, &PulseDialect {}, ParseOptions::default())
                 .unwrap_err();
         let err = result.output_msg();
         assert_eq!(

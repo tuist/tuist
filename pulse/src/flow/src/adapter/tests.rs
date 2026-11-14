@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Mock test for adapter module
 //! TODO(discord9): write mock test
 
@@ -565,7 +567,7 @@ impl StreamingHarness {
             .create_flow_inner(CreateFlowArgs {
                 flow_id: id,
                 source_table_ids: vec![source],
-                sink_table_name: ["greptime".into(), "public".into(), sink.into()],
+                sink_table_name: ["pulse".into(), "public".into(), sink.into()],
                 create_if_not_exists: false,
                 or_replace: false,
                 expire_after: None,
@@ -652,7 +654,7 @@ async fn stateless_rejects_aggregate_flow_with_actionable_diagnostic() {
         .create_flow_inner(CreateFlowArgs {
             flow_id: 1,
             source_table_ids: vec![1],
-            sink_table_name: ["greptime".into(), "public".into(), "sink".into()],
+            sink_table_name: ["pulse".into(), "public".into(), "sink".into()],
             create_if_not_exists: true,
             or_replace: true,
             expire_after: None,

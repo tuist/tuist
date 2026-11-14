@@ -12,30 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use lazy_static::lazy_static;
 use prometheus::*;
 
 lazy_static! {
     pub static ref METRIC_CATALOG_MANAGER_CATALOG_COUNT: IntGauge =
-        register_int_gauge!("greptime_catalog_catalog_count", "catalog catalog count").unwrap();
+        register_int_gauge!("pulse_catalog_catalog_count", "catalog catalog count").unwrap();
     pub static ref METRIC_CATALOG_MANAGER_SCHEMA_COUNT: IntGauge =
-        register_int_gauge!("greptime_catalog_schema_count", "catalog schema count").unwrap();
+        register_int_gauge!("pulse_catalog_schema_count", "catalog schema count").unwrap();
     pub static ref METRIC_CATALOG_MANAGER_TABLE_COUNT: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_catalog_table_count",
+        "pulse_catalog_table_count",
         "catalog table count",
         &["db"]
     )
     .unwrap();
     pub static ref METRIC_CATALOG_KV_REMOTE_GET: Histogram =
-        register_histogram!("greptime_catalog_kv_get_remote", "catalog kv get remote").unwrap();
+        register_histogram!("pulse_catalog_kv_get_remote", "catalog kv get remote").unwrap();
     pub static ref METRIC_CATALOG_KV_GET: Histogram =
-        register_histogram!("greptime_catalog_kv_get", "catalog kv get").unwrap();
+        register_histogram!("pulse_catalog_kv_get", "catalog kv get").unwrap();
     pub static ref METRIC_CATALOG_KV_BATCH_GET: Histogram =
-        register_histogram!("greptime_catalog_kv_batch_get", "catalog kv batch get").unwrap();
+        register_histogram!("pulse_catalog_kv_batch_get", "catalog kv batch get").unwrap();
 
     /// Count of running process in each catalog.
     pub static ref PROCESS_LIST_COUNT: IntGaugeVec = register_int_gauge_vec!(
-        "greptime_process_list_count",
+        "pulse_process_list_count",
         "Running process count per catalog",
         &["catalog"]
     )
@@ -43,7 +45,7 @@ lazy_static! {
 
     /// Count of killed process in each catalog.
     pub static ref PROCESS_KILL_COUNT: IntCounterVec = register_int_counter_vec!(
-        "greptime_process_kill_count",
+        "pulse_process_kill_count",
         "Completed kill process requests count",
         &["catalog"]
     )

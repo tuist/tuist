@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 //! Mito region engine.
 
 #[cfg(test)]
@@ -143,8 +145,6 @@ use crate::error::{
     RegionNotFoundSnafu, Result, SequenceRangeUnsupportedSnafu, SerdeJsonSnafu,
     SerializeColumnMetadataSnafu, SnapshotFenceStaleSnafu,
 };
-#[cfg(feature = "enterprise")]
-use crate::extension::BoxedExtensionRangeProviderFactory;
 use crate::gc::GcLimiterRef;
 use crate::manifest::action::RegionEdit;
 use crate::memtable::MemtableStats;
@@ -179,8 +179,6 @@ pub struct MitoEngineBuilder<'a, S: LogStore> {
     file_ref_manager: FileReferenceManagerRef,
     partition_expr_fetcher: PartitionExprFetcherRef,
     plugins: Plugins,
-    #[cfg(feature = "enterprise")]
-    extension_range_provider_factory: Option<BoxedExtensionRangeProviderFactory>,
 }
 
 impl<'a, S: LogStore> MitoEngineBuilder<'a, S> {
@@ -204,20 +202,6 @@ impl<'a, S: LogStore> MitoEngineBuilder<'a, S> {
             file_ref_manager,
             plugins,
             partition_expr_fetcher,
-            #[cfg(feature = "enterprise")]
-            extension_range_provider_factory: None,
-        }
-    }
-
-    #[cfg(feature = "enterprise")]
-    #[must_use]
-    pub fn with_extension_range_provider_factory(
-        self,
-        extension_range_provider_factory: Option<BoxedExtensionRangeProviderFactory>,
-    ) -> Self {
-        Self {
-            extension_range_provider_factory,
-            ..self
         }
     }
 
@@ -260,13 +244,7 @@ impl<'a, S: LogStore> MitoEngineBuilder<'a, S> {
             wal_raw_entry_reader,
             scan_memory_tracker,
             region_hook,
-            #[cfg(feature = "enterprise")]
-            extension_range_provider_factory: None,
         };
-
-        #[cfg(feature = "enterprise")]
-        let inner =
-            inner.with_extension_range_provider_factory(self.extension_range_provider_factory);
 
         Ok(MitoEngine {
             inner: Arc::new(inner),
@@ -793,8 +771,6 @@ struct EngineInner {
     /// The region hook (if any) registered via plugins; exposed for the GC worker
     /// to fire [`RegionHook::on_region_gc`].
     region_hook: Option<RegionHookRef>,
-    #[cfg(feature = "enterprise")]
-    extension_range_provider_factory: Option<BoxedExtensionRangeProviderFactory>,
 }
 
 type TopicGroupedRegionOpenRequests = HashMap<String, Vec<(RegionId, RegionOpenRequest)>>;
@@ -826,18 +802,6 @@ fn prepare_batch_open_requests(
 }
 
 impl EngineInner {
-    #[cfg(feature = "enterprise")]
-    #[must_use]
-    fn with_extension_range_provider_factory(
-        self,
-        extension_range_provider_factory: Option<BoxedExtensionRangeProviderFactory>,
-    ) -> Self {
-        Self {
-            extension_range_provider_factory,
-            ..self
-        }
-    }
-
     /// Stop the inner engine.
     async fn stop(&self) -> Result<()> {
         self.workers.stop().await
@@ -1141,11 +1105,6 @@ impl EngineInner {
         // be proven when one is attached. Treat the capability as missing so
         // the request fails closed below instead of emitting out-of-range
         // rows. See the injection point in `ScanRegion::scan_input`.
-        #[cfg(feature = "enterprise")]
-        let extension_provider_blocks_exact = region.is_follower()
-            && self.extension_range_provider_factory.is_some()
-            && exact_sequence_range.is_some();
-        #[cfg(not(feature = "enterprise"))]
         let extension_provider_blocks_exact = false;
         let exact_sequence_range = if extension_provider_blocks_exact {
             None
@@ -1216,25 +1175,7 @@ impl EngineInner {
             scan_region
         };
 
-        #[cfg(feature = "enterprise")]
-        let scan_region = self.maybe_fill_extension_range_provider(scan_region, region);
-
         Ok(scan_region)
-    }
-
-    #[cfg(feature = "enterprise")]
-    fn maybe_fill_extension_range_provider(
-        &self,
-        mut scan_region: ScanRegion,
-        region: MitoRegionRef,
-    ) -> ScanRegion {
-        if region.is_follower()
-            && let Some(factory) = self.extension_range_provider_factory.as_ref()
-        {
-            scan_region
-                .set_extension_range_provider(factory.create_extension_range_provider(region));
-        }
-        scan_region
     }
 
     /// Converts the [`RegionRole`].
@@ -1692,8 +1633,6 @@ impl MitoEngine {
                 wal_raw_entry_reader,
                 scan_memory_tracker,
                 region_hook: None,
-                #[cfg(feature = "enterprise")]
-                extension_range_provider_factory: None,
             }),
         })
     }

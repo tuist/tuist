@@ -51,7 +51,7 @@ remote datanodes via `operator`/`client`.
   The returned context covers chunks and derived writes while preserving WCU
   accounting and the original protocol channel.
 - Internal gRPC listeners mark requests with `Channel::Internal` in middleware
-  (`server.rs`), including requests handled by Enterprise Flight wrappers.
+  (`server.rs`).
 
 - **Flight bulk insert** (`instance/grpc.rs`): initializes on the first batch after
   the lazy schema handshake; checks permissions and reconciles missing columns

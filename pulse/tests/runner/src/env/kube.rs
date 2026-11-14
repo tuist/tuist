@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::fmt::Display;
 use std::path::Path;
 use std::sync::Arc;
@@ -28,12 +30,12 @@ use crate::protocol_interceptor::{MYSQL, PROTOCOL_KEY};
 #[async_trait]
 pub trait DatabaseManager: Send + Sync {
     // Restarts the database.
-    async fn restart(&self, database: &GreptimeDB);
+    async fn restart(&self, database: &Pulse);
 }
 
 #[async_trait]
 impl DatabaseManager for () {
-    async fn restart(&self, _: &GreptimeDB) {
+    async fn restart(&self, _: &Pulse) {
         // Do nothing
     }
 }
@@ -65,7 +67,7 @@ pub struct Env {
 
 #[async_trait]
 impl EnvController for Env {
-    type DB = GreptimeDB;
+    type DB = Pulse;
 
     async fn start(&self, mode: &str, id: usize, _config: Option<&Path>) -> Self::DB {
         if id > 0 {
@@ -73,7 +75,7 @@ impl EnvController for Env {
         }
 
         match mode {
-            "standalone" | "distributed" => GreptimeDB {
+            "standalone" | "distributed" => Pulse {
                 client: Mutex::new(
                     MultiProtocolClient::connect(
                         &self.server_addr,
@@ -96,14 +98,14 @@ impl EnvController for Env {
     }
 }
 
-pub struct GreptimeDB {
+pub struct Pulse {
     pub client: Mutex<MultiProtocolClient>,
     pub delete_namespace_on_stop: bool,
     pub database_manager: Arc<dyn DatabaseManager>,
     pub resources_manager: Arc<dyn ResourcesManager>,
 }
 
-impl GreptimeDB {
+impl Pulse {
     async fn postgres_query(&self, _ctx: QueryContext, query: String) -> Box<dyn Display> {
         let mut client = self.client.lock().await;
 
@@ -133,7 +135,7 @@ impl GreptimeDB {
 }
 
 #[async_trait]
-impl Database for GreptimeDB {
+impl Database for Pulse {
     async fn query(&self, ctx: QueryContext, query: String) -> Box<dyn Display> {
         if ctx.context.contains_key("restart") {
             self.database_manager.restart(self).await
@@ -152,7 +154,7 @@ impl Database for GreptimeDB {
     }
 }
 
-impl GreptimeDB {
+impl Pulse {
     async fn stop(&self) {
         if self.delete_namespace_on_stop {
             self.resources_manager.delete_namespace().await;

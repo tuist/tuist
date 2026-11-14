@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modified by Tuist; see pulse/FORK.md.
+
 use std::collections::{HashMap, HashSet};
 
 use api::v1::column_data_type_extension::TypeExt;
@@ -271,7 +273,7 @@ fn test_push_trace_failure_message_caps_recorded_messages() {
 fn test_wrap_trace_alter_failure_preserves_status_code() {
     let err = wrap_trace_alter_failure(
         servers::error::TableNotFoundSnafu {
-            catalog: "greptime".to_string(),
+            catalog: "pulse".to_string(),
             schema: "public".to_string(),
             table: "trace_type_missing".to_string(),
         }

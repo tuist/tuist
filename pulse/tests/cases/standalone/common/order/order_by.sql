@@ -49,10 +49,10 @@ SELECT a-10 AS k FROM test UNION SELECT a-10 AS l FROM test ORDER BY l;
 -- Not compatible with duckdb, work in gretimedb
 SELECT a-10 AS k FROM test UNION SELECT a-10 AS l FROM test ORDER BY 1-k;
 
--- Not compatible with duckdb, give an error in greptimedb
+-- Not compatible with duckdb, give an error in pulse
 SELECT a-10 AS k FROM test UNION SELECT a-10 AS l FROM test ORDER BY a-10;
 
--- Not compatible with duckdb, give an error in greptimedb
+-- Not compatible with duckdb, give an error in pulse
 SELECT a-10 AS k FROM test UNION SELECT a-11 AS l FROM test ORDER BY a-11;
 
 DROP TABLE test;
