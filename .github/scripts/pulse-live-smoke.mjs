@@ -1,9 +1,9 @@
 // CI pod only: count real recent telemetry, never print response bodies or tokens.
 import { readFileSync } from 'node:fs';
 try {
-  const token = readFileSync(process.env.GREPTIMEDB_DASHBOARD_AUTH_FILE, 'utf8').match(/^dashboard:ro=(.+)$/m)?.[1];
+  const token = readFileSync(process.env.PULSE_DASHBOARD_AUTH_FILE, 'utf8').match(/^dashboard:ro=(.+)$/m)?.[1];
   if (!token) throw new Error();
-  const base = process.env.GREPTIMEDB_URL;
+  const base = process.env.PULSE_URL;
   const headers = {Authorization: `Basic ${Buffer.from(`dashboard:${token}`).toString('base64')}`, 'X-Pulse-DB-Name': 'public'};
   const deadline = Date.now() + 300000;
   const since = new Date(Date.now() - 600000).toISOString();
@@ -18,8 +18,8 @@ try {
       const metrics = await get(`/v1/prometheus/api/v1/query?${new URLSearchParams({query: 'kube_pod_info'})}`);
       const counts = [];
       for (const sql of [
-        `SELECT COUNT(*) FROM opentelemetry_logs WHERE timestamp >= '${since}' AND COALESCE(json_get_string(resource_attributes, '["service.name"]'), '') != 'greptimedb-ci'`,
-        `SELECT COUNT(*) FROM opentelemetry_traces WHERE timestamp >= '${since}' AND service_name != 'greptimedb-ci'`,
+        `SELECT COUNT(*) FROM opentelemetry_logs WHERE timestamp >= '${since}' AND COALESCE(json_get_string(resource_attributes, '["service.name"]'), '') != 'pulse-ci'`,
+        `SELECT COUNT(*) FROM opentelemetry_traces WHERE timestamp >= '${since}' AND service_name != 'pulse-ci'`,
       ]) {
         const result = await get(`/v1/sql?${new URLSearchParams({sql})}`);
         counts.push(Number(result.output?.[0]?.records?.rows?.[0]?.[0] ?? 0));

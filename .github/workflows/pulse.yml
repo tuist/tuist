@@ -1,6 +1,6 @@
 name: Pulse
 
-# Pulse is Tuist's fork of GreptimeDB (pulse/FORK.md). Upstream's own CI is not
+# Pulse is Tuist's observability database (pulse/FORK.md). Upstream's own CI is not
 # imported; this checks what the fork changes and that the server still builds.
 on:
   push:

@@ -1,4 +1,4 @@
-# The same chart the workload clusters install with greptimedb-deployment.yml,
+# The same chart the workload clusters install with pulse-deployment.yml,
 # read from this repository at Flux's revision; values-management.yaml pins
 # it to one node's /var (management has no volume provisioner) and the
 # management/ prefix of tuist-pulso-production. Vault items in tuist-k8s-mgmt:
@@ -17,7 +17,7 @@ spec:
   storageNamespace: observability
   chart:
     spec:
-      chart: ./infra/helm/greptimedb
+      chart: ./infra/helm/pulse
       reconcileStrategy: Revision
       sourceRef:
         kind: GitRepository
@@ -25,8 +25,8 @@ spec:
         namespace: flux-system
       # Flux drops the chart's values.yaml once valuesFiles is set.
       valuesFiles:
-        - ./infra/helm/greptimedb/values.yaml
-        - ./infra/helm/greptimedb/values-management.yaml
+        - ./infra/helm/pulse/values.yaml
+        - ./infra/helm/pulse/values-management.yaml
   install:
     remediation:
       retries: -1

@@ -6,7 +6,7 @@ environment: staging
 # which has no volume provisioner, runs it.
 topology: cluster
 # Staging/canary only: moves an installed standalone backend to the cluster
-# topology without dropping reads or writes. greptimedb-deployment.yml sets it.
+# topology without dropping reads or writes. pulse-deployment.yml sets it.
 #   serving: the cluster runs beside the standalone pod, which still backs
 #     Service `pulse`; Service `pulse-frontend` reaches the cluster for checks.
 #   draining: Service `pulse` selects the frontends; standalone stays for rollback.
@@ -15,7 +15,7 @@ migration:
   standalone: ""
 dashboard:
   enabled: false
-# Pulse, Tuist's GreptimeDB fork, built from pulse/ by pulse-release.yml.
+# Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md).
 image: ghcr.io/tuist/pulse:1.44.0-canary.1
 storage:
   bucket: tuist-pulso-staging

@@ -5,7 +5,7 @@ trap 'echo "::error::Pulse readiness failed at line $LINENO; collectors were not
 : "${DEPLOY_ENV:?managed environment required}"
 case "$DEPLOY_ENV" in staging|canary|production) ;; *) exit 1 ;; esac
 namespace=${OBSERVABILITY_NAMESPACE:-observability}
-# Pulse is the `pulse` release of infra/helm/greptimedb. Gate on it when it is
+# Pulse is the `pulse` release of infra/helm/pulse. Gate on it when it is
 # installed; a cluster without it still gets Grafana Cloud collection.
 if [[ -n "$(kubectl -n "$namespace" get statefulset pulse-datanode --ignore-not-found -o name)" ]]; then
   workloads='statefulset/pulse-etcd:3 statefulset/pulse-kafka:3 deployment/pulse-metasrv:3 statefulset/pulse-datanode:3 deployment/pulse-frontend:2'

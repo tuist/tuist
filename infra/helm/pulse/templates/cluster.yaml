@@ -1,4 +1,4 @@
-{{- include "greptimedb.validate" . }}
+{{- include "pulse.validate" . }}
 {{- if eq .Values.topology "cluster" }}
 apiVersion: v1
 kind: ConfigMap
@@ -6,7 +6,7 @@ metadata:
   name: pulse-metasrv-config
 data:
   config.toml: |
-    {{- include "greptimedb.metasrvConfig" . | nindent 4 }}
+    {{- include "pulse.metasrvConfig" . | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -14,7 +14,7 @@ metadata:
   name: pulse-datanode-config
 data:
   config.toml: |
-    {{- include "greptimedb.datanodeConfig" . | nindent 4 }}
+    {{- include "pulse.datanodeConfig" . | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -22,7 +22,7 @@ metadata:
   name: pulse-frontend-config
 data:
   config.toml: |
-    {{- include "greptimedb.frontendConfig" . | nindent 4 }}
+    {{- include "pulse.frontendConfig" . | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -31,9 +31,9 @@ metadata:
 data:
   # Per-broker node.id and advertised.listeners are appended at start.
   server.properties: |
-    {{- include "greptimedb.kafkaServerProperties" . | nindent 4 }}
+    {{- include "pulse.kafkaServerProperties" . | nindent 4 }}
   log4j2.yaml: |
-    {{- include "greptimedb.kafkaLog4j" . | nindent 4 }}
+    {{- include "pulse.kafkaLog4j" . | nindent 4 }}
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -73,7 +73,7 @@ spec:
   type: ClusterIP
   selector:
     {{- if eq .Values.migration.standalone "serving" }}
-    {{- include "greptimedb.standaloneSelector" . | nindent 4 }}
+    {{- include "pulse.standaloneSelector" . | nindent 4 }}
     {{- else }}
     app.kubernetes.io/instance: pulse
     app.kubernetes.io/component: frontend
@@ -173,9 +173,9 @@ spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       terminationGracePeriodSeconds: 60
-      {{- include "greptimedb.placement" "etcd" | nindent 6 }}
+      {{- include "pulse.placement" "etcd" | nindent 6 }}
       securityContext:
-        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+        {{- include "pulse.podSecurityContext" . | nindent 8 }}
       containers:
         - name: etcd
           image: {{ .Values.cluster.etcd.image | quote }}
@@ -200,7 +200,7 @@ spec:
             - {name: client, containerPort: 2379}
             - {name: peer, containerPort: 2380}
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.cluster.etcd.resources | nindent 12 }}
           readinessProbe:
@@ -239,14 +239,14 @@ spec:
         app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: kafka
       annotations:
-        checksum/config: {{ printf "%s\n%s" (include "greptimedb.kafkaServerProperties" .) (include "greptimedb.kafkaLog4j" .) | sha256sum | trunc 16 }}
+        checksum/config: {{ printf "%s\n%s" (include "pulse.kafkaServerProperties" .) (include "pulse.kafkaLog4j" .) | sha256sum | trunc 16 }}
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       terminationGracePeriodSeconds: 120
-      {{- include "greptimedb.placement" "kafka" | nindent 6 }}
+      {{- include "pulse.placement" "kafka" | nindent 6 }}
       securityContext:
-        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+        {{- include "pulse.podSecurityContext" . | nindent 8 }}
       containers:
         - name: kafka
           image: {{ .Values.cluster.kafka.image | quote }}
@@ -274,7 +274,7 @@ spec:
             - {name: broker, containerPort: 9092}
             - {name: controller, containerPort: 9093}
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.cluster.kafka.resources | nindent 12 }}
           readinessProbe:
@@ -317,14 +317,14 @@ spec:
         app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: metasrv
       annotations:
-        checksum/config: {{ include "greptimedb.metasrvConfig" . | sha256sum | trunc 16 }}
+        checksum/config: {{ include "pulse.metasrvConfig" . | sha256sum | trunc 16 }}
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       terminationGracePeriodSeconds: 30
-      {{- include "greptimedb.placement" "metasrv" | nindent 6 }}
+      {{- include "pulse.placement" "metasrv" | nindent 6 }}
       securityContext:
-        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+        {{- include "pulse.podSecurityContext" . | nindent 8 }}
       initContainers:
         # The metasrv leader creates the WAL topics once, when it starts
         # leading, and does not retry. On a fresh install that can run before
@@ -336,8 +336,8 @@ spec:
           command: [sh, -ec]
           args:
             - |
-              servers={{ include "greptimedb.peers" (list "pulse-kafka" 9092) | replace "\"" "" | trimPrefix "[" | trimSuffix "]" | replace ", " "," }}
-              until /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$servers" --list 2>/dev/null | grep -q '^greptimedb_wal_topic_' ||
+              servers={{ include "pulse.peers" (list "pulse-kafka" 9092) | replace "\"" "" | trimPrefix "[" | trimSuffix "]" | replace ", " "," }}
+              until /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$servers" --list 2>/dev/null | grep -q '^{{ include "pulse.walTopicPrefix" . }}_' ||
                 [ "$(/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server "$servers" 2>/dev/null | grep -c ' (id: ')" -ge 3 ]; do
                 echo 'Waiting for the WAL topics or all three Kafka brokers'
                 sleep 5
@@ -346,7 +346,7 @@ spec:
             - {name: KAFKA_HEAP_OPTS, value: -Xmx128m}
             - {name: LOG_DIR, value: /tmp/logs}
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             requests: {cpu: 50m, memory: 192Mi}
             limits: {memory: 256Mi}
@@ -355,7 +355,7 @@ spec:
       containers:
         - name: metasrv
           image: {{ .Values.image | quote }}
-          args: [metasrv, start, --config-file, /etc/greptimedb/config/config.toml, --grpc-server-addr, "$(POD_IP):3002"]
+          args: [metasrv, start, --config-file, /etc/pulse/config/config.toml, --grpc-server-addr, "$(POD_IP):3002"]
           env:
             - name: POD_IP
               valueFrom: {fieldRef: {fieldPath: status.podIP}}
@@ -363,14 +363,14 @@ spec:
             - {name: grpc, containerPort: 3002}
             - {name: http, containerPort: 4000}
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.cluster.metasrv.resources | nindent 12 }}
           readinessProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
           volumeMounts:
-            - {name: config, mountPath: /etc/greptimedb/config, readOnly: true}
+            - {name: config, mountPath: /etc/pulse/config, readOnly: true}
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
@@ -399,14 +399,14 @@ spec:
         app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: datanode
       annotations:
-        checksum/config: {{ include "greptimedb.datanodeConfig" . | sha256sum | trunc 16 }}
+        checksum/config: {{ include "pulse.datanodeConfig" . | sha256sum | trunc 16 }}
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       terminationGracePeriodSeconds: 120
-      {{- include "greptimedb.placement" "datanode" | nindent 6 }}
+      {{- include "pulse.placement" "datanode" | nindent 6 }}
       securityContext:
-        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+        {{- include "pulse.podSecurityContext" . | nindent 8 }}
       containers:
         - name: datanode
           image: {{ .Values.image | quote }}
@@ -414,7 +414,7 @@ spec:
             - datanode
             - start
             - --config-file
-            - /etc/greptimedb/config/config.toml
+            - /etc/pulse/config/config.toml
             - --node-id
             - $(POD_INDEX)
             - --grpc-server-addr
@@ -431,7 +431,7 @@ spec:
             - {name: grpc, containerPort: 3001}
             - {name: http, containerPort: 4000}
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.cluster.datanode.resources | nindent 12 }}
           startupProbe:
@@ -442,8 +442,8 @@ spec:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
           volumeMounts:
-            - {name: data, mountPath: /data/greptimedb}
-            - {name: config, mountPath: /etc/greptimedb/config, readOnly: true}
+            - {name: data, mountPath: /data/pulse}
+            - {name: config, mountPath: /etc/pulse/config, readOnly: true}
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
@@ -478,22 +478,22 @@ spec:
         app.kubernetes.io/instance: pulse
         app.kubernetes.io/component: frontend
       annotations:
-        checksum/config: {{ include "greptimedb.frontendConfig" . | sha256sum | trunc 16 }}
+        checksum/config: {{ include "pulse.frontendConfig" . | sha256sum | trunc 16 }}
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
       terminationGracePeriodSeconds: 60
-      {{- include "greptimedb.placement" "frontend" | nindent 6 }}
+      {{- include "pulse.placement" "frontend" | nindent 6 }}
       securityContext:
-        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+        {{- include "pulse.podSecurityContext" . | nindent 8 }}
       {{- if .Values.dashboard.enabled }}
       initContainers:
-      {{- include "greptimedb.authInit" . | nindent 6 }}
+      {{- include "pulse.authInit" . | nindent 6 }}
       {{- end }}
       containers:
         - name: frontend
           image: {{ .Values.image | quote }}
-          args: [frontend, start, --config-file, /etc/greptimedb/config/config.toml, --grpc-server-addr, "$(POD_IP):4001"]
+          args: [frontend, start, --config-file, /etc/pulse/config/config.toml, --grpc-server-addr, "$(POD_IP):4001"]
           env:
             - name: POD_IP
               valueFrom: {fieldRef: {fieldPath: status.podIP}}
@@ -501,7 +501,7 @@ spec:
             - {name: http, containerPort: 4000}
             - {name: grpc, containerPort: 4001}
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.cluster.frontend.resources | nindent 12 }}
           # Keep serving until Service `pulse` drops this endpoint; without it a
@@ -513,13 +513,13 @@ spec:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
           volumeMounts:
-            - {name: config, mountPath: /etc/greptimedb/config, readOnly: true}
-            - {name: auth, mountPath: /etc/greptimedb/auth, readOnly: true}
+            - {name: config, mountPath: /etc/pulse/config, readOnly: true}
+            - {name: auth, mountPath: /etc/pulse/auth, readOnly: true}
             - {name: scratch, mountPath: /tmp}
       volumes:
         - name: config
           configMap: {name: pulse-frontend-config}
-        {{- include "greptimedb.authVolumes" . | nindent 8 }}
+        {{- include "pulse.authVolumes" . | nindent 8 }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
 {{- if .Values.migration.standalone }}
@@ -533,10 +533,10 @@ metadata:
   name: pulse-standalone
 spec:
   podSelector:
-    {{- include "greptimedb.standalonePolicySelector" . | nindent 4 }}
+    {{- include "pulse.standalonePolicySelector" . | nindent 4 }}
   policyTypes: [Ingress]
   ingress:
-    {{- include "greptimedb.apiIngress" . | nindent 4 }}
+    {{- include "pulse.apiIngress" . | nindent 4 }}
 {{- end }}
 ---
 # Components talk only to each other; clients reach the frontends' HTTP API.
@@ -566,5 +566,5 @@ spec:
       app.kubernetes.io/component: frontend
   policyTypes: [Ingress]
   ingress:
-    {{- include "greptimedb.apiIngress" . | nindent 4 }}
+    {{- include "pulse.apiIngress" . | nindent 4 }}
 {{- end }}

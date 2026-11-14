@@ -1,4 +1,4 @@
-{{- include "greptimedb.validate" . }}
+{{- include "pulse.validate" . }}
 {{- if ne .Values.environment "management" }}
 {{- if .Values.migration.standalone }}
 # Created before pulse-host-ingress narrows to the frontends (template order).
@@ -8,7 +8,7 @@ metadata:
   name: pulse-standalone-host-ingress
 spec:
   endpointSelector:
-    {{- include "greptimedb.standalonePolicySelector" . | nindent 4 }}
+    {{- include "pulse.standalonePolicySelector" . | nindent 4 }}
   ingress:
     - fromEntities: [host, remote-node]
       toPorts:

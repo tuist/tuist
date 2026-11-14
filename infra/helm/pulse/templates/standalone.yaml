@@ -1,4 +1,4 @@
-{{- include "greptimedb.validate" . }}
+{{- include "pulse.validate" . }}
 {{- $standalone := eq .Values.topology "standalone" }}
 {{- if or $standalone .Values.migration.standalone }}
 apiVersion: v1
@@ -9,7 +9,7 @@ data:
   config.toml: |
     mode = "standalone"
     enable_telemetry = false
-    user_provider = "static_user_provider:file:/etc/greptimedb/auth/passwd"
+    user_provider = "static_user_provider:file:/etc/pulse/auth/passwd"
     max_in_flight_write_bytes = "64MB"
     max_concurrent_queries = 4
     [http]
@@ -17,9 +17,9 @@ data:
     timeout = "30s"
     [wal]
     provider = "raft_engine"
-    dir = "/data/greptimedb/wal"
+    dir = "/data/pulse/wal"
     [storage]
-    data_home = "/data/greptimedb"
+    data_home = "/data/pulse"
     type = "S3"
     bucket = {{ .Values.storage.bucket | quote }}
     endpoint = {{ .Values.storage.endpoint | quote }}
@@ -116,7 +116,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
-        {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+        {{- include "pulse.podSecurityContext" . | nindent 8 }}
       {{- if or .Values.dashboard.enabled .Values.persistence.hostPath }}
       initContainers:
       {{- end }}
@@ -124,7 +124,7 @@ spec:
         # fsGroup does not apply to hostPath, which kubelet creates root-owned.
         - name: own-data
           image: busybox:1.37.0
-          command: [chown, "1000:1000", /data/greptimedb]
+          command: [chown, "1000:1000", /data/pulse]
           securityContext:
             runAsNonRoot: false
             runAsUser: 0
@@ -135,18 +135,18 @@ spec:
             requests: {cpu: 10m, memory: 16Mi}
             limits: {memory: 32Mi}
           volumeMounts:
-            - {name: data, mountPath: /data/greptimedb}
+            - {name: data, mountPath: /data/pulse}
       {{- end }}
-      {{- include "greptimedb.authInit" . | nindent 6 }}
+      {{- include "pulse.authInit" . | nindent 6 }}
       containers:
         - name: pulse
           image: {{ .Values.image | quote }}
-          args: [standalone, start, --config-file, /etc/greptimedb/config/config.toml]
+          args: [standalone, start, --config-file, /etc/pulse/config/config.toml]
           ports:
             - name: http
               containerPort: 4000
           securityContext:
-            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+            {{- include "pulse.containerSecurityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           envFrom:
@@ -160,14 +160,14 @@ spec:
             httpGet: {path: /health, port: http}
             periodSeconds: 5
           volumeMounts:
-            - {name: data, mountPath: /data/greptimedb}
+            - {name: data, mountPath: /data/pulse}
             - {name: scratch, mountPath: /tmp}
-            - {name: config, mountPath: /etc/greptimedb/config, readOnly: true}
-            - {name: auth, mountPath: /etc/greptimedb/auth, readOnly: true}
+            - {name: config, mountPath: /etc/pulse/config, readOnly: true}
+            - {name: auth, mountPath: /etc/pulse/auth, readOnly: true}
       volumes:
         - name: config
           configMap: {name: pulse-config}
-        {{- include "greptimedb.authVolumes" . | nindent 8 }}
+        {{- include "pulse.authVolumes" . | nindent 8 }}
         - name: scratch
           emptyDir: {sizeLimit: 64Mi}
         {{- with .Values.persistence.hostPath }}
@@ -199,6 +199,6 @@ spec:
       app.kubernetes.io/instance: pulse
   policyTypes: [Ingress]
   ingress:
-    {{- include "greptimedb.apiIngress" . | nindent 4 }}
+    {{- include "pulse.apiIngress" . | nindent 4 }}
 {{- end }}
 {{- end }}

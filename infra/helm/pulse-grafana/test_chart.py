@@ -14,7 +14,7 @@ CHART = pathlib.Path(__file__).resolve().parent
 class ChartTest(unittest.TestCase):
     def test_private_readonly_staging_contract(self):
         rendered = subprocess.check_output(
-            ["helm", "template", "greptime-grafana-staging", str(CHART), "-n", "observability"],
+            ["helm", "template", "pulse-grafana-staging", str(CHART), "-n", "observability"],
             text=True,
         )
         objects = {obj["kind"]: obj for obj in yaml.safe_load_all(rendered)}
@@ -27,7 +27,7 @@ class ChartTest(unittest.TestCase):
             self.assertEqual(source["basicAuthUser"], "dashboard")
             self.assertTrue(source["basicAuth"])
             self.assertFalse(source["editable"])
-            self.assertEqual(source["secureJsonData"]["basicAuthPassword"], "$GREPTIME_DASHBOARD_PASSWORD")
+            self.assertEqual(source["secureJsonData"]["basicAuthPassword"], "$PULSE_DASHBOARD_PASSWORD")
             self.assertEqual(source["secureJsonData"]["httpHeaderValue1"], "public")
         self.assertEqual(sources[0]["url"], "http://pulse.observability.svc.cluster.local:4000/v1/prometheus")
         self.assertEqual(sources[1]["jsonData"]["defaultDatabase"], "public")
@@ -41,7 +41,7 @@ class ChartTest(unittest.TestCase):
         self.assertEqual(peers[0]["podSelector"]["matchLabels"], {
             "tailscale.com/managed": "true",
             "tailscale.com/parent-resource-type": "ingress",
-            "tailscale.com/parent-resource": "greptime-grafana-staging",
+            "tailscale.com/parent-resource": "pulse-grafana-staging",
             "tailscale.com/parent-resource-ns": "observability",
         })
         pod = objects["Deployment"]["spec"]["template"]["spec"]
@@ -56,7 +56,7 @@ class ChartTest(unittest.TestCase):
             "GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION": "true",
         }.items():
             self.assertEqual(env[key]["value"], value)
-        self.assertIn("valueFrom", env["GREPTIME_DASHBOARD_PASSWORD"])
+        self.assertIn("valueFrom", env["PULSE_DASHBOARD_PASSWORD"])
         dashboard = json.loads(objects["ConfigMap"]["data"]["staging.json"])
         self.assertEqual([panel["type"] for panel in dashboard["panels"]], ["timeseries", "logs", "table", "traces"])
         self.assertFalse(dashboard["editable"])

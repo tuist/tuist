@@ -1,5 +1,5 @@
 {{- if or (ne .Values.environment "staging") (ne .Release.Namespace "observability") }}
-{{- fail "GreptimeDB Grafana is staging-only and must run in observability" }}
+{{- fail "Pulse Grafana is staging-only and must run in observability" }}
 {{- end }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -25,7 +25,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: greptimedb-grafana
+    app.kubernetes.io/name: pulse-grafana
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
     - name: http
@@ -55,7 +55,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: greptimedb-grafana
+      app.kubernetes.io/name: pulse-grafana
       app.kubernetes.io/instance: {{ .Release.Name }}
   policyTypes: [Ingress]
   ingress:
@@ -81,14 +81,14 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: greptimedb-grafana
+      app.kubernetes.io/name: pulse-grafana
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
       labels:
-        app.kubernetes.io/name: greptimedb-grafana
+        app.kubernetes.io/name: pulse-grafana
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       automountServiceAccountToken: false
@@ -100,7 +100,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        - name: greptime-plugin
+        - name: datasource-plugin
           image: alpine:3.22.2
           command: [sh, -ec]
           args:
@@ -127,12 +127,12 @@ spec:
           ports:
             - {name: http, containerPort: 3000}
           env:
-            - name: GREPTIME_DASHBOARD_PASSWORD
+            - name: PULSE_DASHBOARD_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}
                   key: dashboardPassword
-            - {name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS, value: info8fcc-greptimedb-datasource}
+            - {name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS, value: {{ .Values.plugin.id | quote }}}
             - {name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true"}
             - {name: GF_PLUGINS_PLUGIN_ADMIN_ENABLED, value: "false"}
             - {name: GF_AUTH_PROXY_ENABLED, value: "true"}

@@ -32,13 +32,13 @@ function snappy(body) {
 
 let phase = 'configuration';
 try {
-  const base = process.env.GREPTIMEDB_URL;
+  const base = process.env.PULSE_URL;
   const run = process.env.SMOKE_RUN;
   const environment = process.env.DEPLOY_ENV;
-  const ingest = process.env.GREPTIMEDB_INGEST_URL;
+  const ingest = process.env.PULSE_INGEST_URL;
   if (!['staging', 'canary', 'production'].includes(environment)) throw new Error();
   const ttl = environment === 'production' ? 'forever' : '7d';
-  const password = readFileSync(process.env.GREPTIMEDB_AUTH_FILE, 'utf8').trim().replace(/^pilot=/, '');
+  const password = readFileSync(process.env.PULSE_AUTH_FILE, 'utf8').trim().replace(/^pilot=/, '');
   if (!base || !password || !/^[a-zA-Z0-9-]+$/.test(run ?? '')) throw new Error();
   const headers = {
     Authorization: `Basic ${Buffer.from(`pilot:${password}`).toString('base64')}`,
@@ -69,9 +69,9 @@ try {
   if (typeof ddl !== 'string' || !expected.test(ddl)) throw new Error();
   let writerAuthorization;
   let readerAuthorization;
-  if (process.env.GREPTIMEDB_DASHBOARD_AUTH_FILE) {
+  if (process.env.PULSE_DASHBOARD_AUTH_FILE) {
     phase = 'scoped identities';
-    const provider = readFileSync(process.env.GREPTIMEDB_DASHBOARD_AUTH_FILE, 'utf8');
+    const provider = readFileSync(process.env.PULSE_DASHBOARD_AUTH_FILE, 'utf8');
     const token = provider.match(/^dashboard:ro=(.+)$/m)?.[1];
     if (!token || !provider.includes(`tuist:wo=${token}\n`)) throw new Error();
     writerAuthorization = `Basic ${Buffer.from(`tuist:${token}`).toString('base64')}`;
@@ -116,21 +116,21 @@ try {
     };
     // ExportMetricsRequest.resource_metrics.scope_metrics.metrics.gauge.data_points
     const point = concat(fixed(3, timestamp), fixed(4, 17, true), message(7, attribute('audit_run', run)));
-    const metric = concat(message(1, 'greptimedb_ci_value'), message(5, message(1, point)));
+    const metric = concat(message(1, 'pulse_ci_value'), message(5, message(1, point)));
     if (ingest) {
       const label = (name, value) => message(1, concat(message(1, name), message(2, value)));
       const sample = concat(fixed(1, 17, true), Buffer.from([0x10]), varint(timestamp / 1000000n));
-      const series = concat(label('__name__', 'greptimedb_ci_value'), label('audit_run', run), message(2, sample));
+      const series = concat(label('__name__', 'pulse_ci_value'), label('audit_run', run), message(2, sample));
       await write('metrics', snappy(message(1, series)), {
         'Content-Encoding': 'snappy', 'X-Prometheus-Remote-Write-Version': '0.1.0',
       }, '/api/v1/write');
     } else await write('metrics', message(1, message(2, message(2, metric))));
     // ExportLogsRequest.resource_logs.scope_logs.log_records
-    const resource = message(1, attribute('service.name', 'greptimedb-ci'));
+    const resource = message(1, attribute('service.name', 'pulse-ci'));
     const log = concat(fixed(1, timestamp), message(3, 'ERROR'), message(5, message(1, run)), message(9, Buffer.from(trace, 'hex')));
     if (ingest) {
       await write('logs', JSON.stringify({ streams: [{
-        stream: {service_name: 'greptimedb-ci', level: 'error', audit_run: run},
+        stream: {service_name: 'pulse-ci', level: 'error', audit_run: run},
         values: [[timestamp.toString(), run, {trace_id: trace}]],
       }] }), {'Content-Type': 'application/json'}, '/loki/api/v1/push');
       // Collector transport: Loki PushRequest with raw Snappy protobuf and
@@ -140,13 +140,13 @@ try {
       const time = concat(Buffer.from([0x08]), varint(seconds), Buffer.from([0x10]), varint(nanos));
       const metadata = concat(message(1, 'trace_id'), message(2, trace));
       const entry = concat(message(1, time), message(2, `${run}-pb`), message(3, metadata));
-      const stream = concat(message(1, `{service_name="greptimedb-ci",level="error",audit_run="${run}"}`), message(2, entry));
+      const stream = concat(message(1, `{service_name="pulse-ci",level="error",audit_run="${run}"}`), message(2, entry));
       await write('logs', snappy(message(1, stream)), {'Content-Encoding': 'snappy'}, '/loki/api/v1/push');
     } else {
       await write('logs', message(1, concat(message(1, resource), message(2, message(2, log)))));
       // Native OTLP creates the canonical fulltext/scope schema FIRST.
       phase = 'Loki pipeline installation';
-      const pipeline = process.env.GREPTIMEDB_LOKI_PIPELINE;
+      const pipeline = process.env.PULSE_LOKI_PIPELINE;
       if (!pipeline) throw new Error();
       await request('/v1/pipelines/loki_otlp', pipeline, {'Content-Type': 'application/x-yaml'});
     }
@@ -186,7 +186,7 @@ try {
   while (performance.now() < deadline) {
     try {
       const metrics = await (await request(`/v1/prometheus/api/v1/query?${new URLSearchParams({
-        query: `greptimedb_ci_value{audit_run="${run}"}`,
+        query: `pulse_ci_value{audit_run="${run}"}`,
       })}`)).json();
       const logs = await sql(`SELECT body, severity_text, timestamp, resource_attributes, trace_id FROM opentelemetry_logs WHERE body = '${run}'`);
       const traces = await sql(`SELECT trace_id, span_name, span_status_code, timestamp, service_name, duration_nano FROM opentelemetry_traces WHERE trace_id = '${trace}'`);
@@ -195,11 +195,11 @@ try {
         metrics.data.result.length === 1 && metrics.data.result[0].metric.audit_run === run &&
         Number(metrics.data.result[0].value[1]) === 17 &&
         logs?.length === 1 && logs[0][0] === run && logs[0][1] === 'ERROR' &&
-        logs[0][2] != null && logs[0][3]?.['service.name'] === 'greptimedb-ci' && logs[0][4] === trace &&
+        logs[0][2] != null && logs[0][3]?.['service.name'] === 'pulse-ci' && logs[0][4] === trace &&
         traces?.length === 1 && traces[0][0] === trace && traces[0][1] === run && traces[0][2] === 'STATUS_CODE_ERROR' &&
-        traces[0][3] != null && traces[0][4] === 'greptimedb-ci' && Number(traces[0][5]) === 17000000 &&
+        traces[0][3] != null && traces[0][4] === 'pulse-ci' && Number(traces[0][5]) === 17000000 &&
         (!ingest || (protobufLogs?.length === 1 && protobufLogs[0][1] === 'ERROR' && protobufLogs[0][2] === trace &&
-          protobufLogs[0][3]?.['service.name'] === 'greptimedb-ci'));
+          protobufLogs[0][3]?.['service.name'] === 'pulse-ci'));
       if (qualified) break;
     } catch { /* Newly created tables can take time to become queryable. */ }
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -207,6 +207,6 @@ try {
   if (!qualified) throw new Error();
   console.log(`PASS: ${environment} database TTL ${ttl}; configured scoped identities; authenticated PromQL value/label, error log and trace identity; anonymous SQL rejected`);
 } catch {
-  console.error(`FAIL: GreptimeDB pilot (${phase})`);
+  console.error(`FAIL: Pulse pilot (${phase})`);
   process.exitCode = 1;
 }
