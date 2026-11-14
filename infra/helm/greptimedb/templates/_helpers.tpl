@@ -34,10 +34,21 @@ key's IAM policy is limited to; production's Pulse owns pulse/. */}}
 {{ printf "tuist-pulso-%s" (ternary "production" .Values.environment (eq .Values.environment "management")) }}
 {{- end }}
 
-{{/* The standalone StatefulSet's pod, apart from the cluster's pods. */}}
+{{/* The standalone StatefulSet's pod, apart from the cluster's pods, for
+Service `pulse`. Service selectors take plain labels only. */}}
 {{- define "greptimedb.standaloneSelector" -}}
 app.kubernetes.io/instance: pulse
 statefulset.kubernetes.io/pod-name: pulse-0
+{{- end }}
+
+{{/* The same pod for network policies: the only Pulse pod without a component.
+Cilium leaves statefulset.kubernetes.io/pod-name out of a pod's identity, so a
+policy selecting it never matches and the pod falls back to pulse-internal. */}}
+{{- define "greptimedb.standalonePolicySelector" -}}
+matchLabels:
+  app.kubernetes.io/instance: pulse
+matchExpressions:
+  - {key: app.kubernetes.io/component, operator: DoesNotExist}
 {{- end }}
 
 {{- define "greptimedb.prefix" -}}

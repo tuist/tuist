@@ -75,6 +75,11 @@ general node with a `maxUnavailable: 1` disruption budget:
 | `pulse-datanode` | 3 | Regions; local disk is a rebuildable cache |
 | `pulse-frontend` | 2 | Authenticated HTTP API behind Service `pulse:4000` |
 
+The metasrv leader creates the WAL topics once, when it starts leading, and
+does not retry, so each metasrv pod first waits until the topics exist or all
+three brokers are registered. Otherwise a fresh install can create them before
+replication factor 3 is possible and fail every region creation.
+
 WAL topics use replication factor 3, `min.insync.replicas=2`, no unclean leader
 election and no time-based retention; Greptime prunes them after flushing to
 object storage. Greptime v1.3.0 produces WAL records with `acks=all` (its pinned
@@ -105,8 +110,12 @@ writes, in one run:
 1. It installs the cluster beside the standalone pod
    (`migration.standalone=serving`). Service `pulse` stays on that pod, which
    the chart renders unchanged so it does not restart; the run fails if its
-   UID or restart count changes. The side-by-side phase only has to fit now;
-   the cluster alone must still fit after losing a node.
+   UID or restart count changes. Its own NetworkPolicy and
+   CiliumNetworkPolicy select it as the only Pulse pod without
+   `app.kubernetes.io/component`: Cilium leaves
+   `statefulset.kubernetes.io/pod-name` out of pod identities, so a policy on
+   that label never matches. The side-by-side phase only has to fit now; the
+   cluster alone must still fit after losing a node.
 2. It smoke-tests the frontends through Service `pulse-frontend`.
 3. It moves Service `pulse` to the frontends (`migration.standalone=draining`)
    and runs the usual smoke, restart and telemetry checks against it. If they
