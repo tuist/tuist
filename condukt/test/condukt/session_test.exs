@@ -1787,6 +1787,97 @@ defmodule Condukt.SessionTest do
     GenServer.stop(pid)
   end
 
+  test "steering joins the running turn and a follow-up starts the next one" do
+    test_pid = self()
+
+    tool =
+      Condukt.tool(
+        name: "slow",
+        description: "slow",
+        parameters: %{type: "object", properties: %{}},
+        call: fn _, _ ->
+          send(test_pid, {:tool_running, self()})
+          receive do: (:continue -> {:ok, "slow done"})
+        end
+      )
+
+    {model, model_id} =
+      LLMProvider.model([
+        LLMProvider.response(
+          %ReqLLM.Message{role: :assistant, content: [], tool_calls: [ToolCall.new("call_1", "slow", "{}")]},
+          :tool_calls
+        ),
+        LLMProvider.text_response("short answer")
+      ])
+
+    {:ok, pid} =
+      ConfigAgent.start_link(
+        model: model,
+        tools: [tool],
+        notifier: {RecordingNotifier, test_pid: test_pid},
+        load_project_instructions: false
+      )
+
+    stub_stream(pid, model_id, [compaction_stream([ReqLLM.StreamChunk.text("summary")])])
+
+    task = Task.async(fn -> Condukt.run(pid, "go") end)
+    assert_receive {:tool_running, tool_pid}
+    assert :ok = Condukt.steer(pid, "use the short form")
+    assert :ok = Condukt.follow_up(pid, "then summarize")
+    send(tool_pid, :continue)
+
+    assert Task.await(task) == {:ok, "short answer"}
+    assert_receive {LLMProvider, :request, ^model_id, _first, _opts}
+    assert_receive {LLMProvider, :request, ^model_id, second, _opts}
+    assert context_text(second) =~ "use the short form"
+    refute context_text(second) =~ "then summarize"
+
+    assert_receive {:notified, {:text, "summary"}}, 1_000
+    assert_receive {:notified, :done}, 1_000
+
+    history = await_history(pid, &(Message.text(List.last(&1)) == "summary"))
+
+    assert for(%{role: :user, content: content} <- history, do: content) ==
+             ["go", "use the short form", "then summarize"]
+
+    GenServer.stop(pid)
+  end
+
+  test "run waits for a turn started from queued input instead of being rejected" do
+    test_pid = self()
+    {model, model_id} = LLMProvider.model([LLMProvider.text_response("second answer")])
+
+    {:ok, pid} =
+      ConfigAgent.start_link(
+        model: model,
+        notifier: {RecordingNotifier, test_pid: test_pid},
+        load_project_instructions: false
+      )
+
+    queued =
+      Stream.map([:first], fn _ ->
+        send(test_pid, {:queued_inference, self()})
+        receive do: (:continue -> ReqLLM.StreamChunk.text("first answer"))
+      end)
+
+    stub_stream(pid, model_id, [compaction_stream(queued)])
+
+    assert :ok = Condukt.follow_up(pid, "first")
+    assert_receive {:queued_inference, inference}, 1_000
+    task = Task.async(fn -> Condukt.run(pid, "second") end)
+    eventually_pending = fn -> :sys.get_state(pid).turn.pending != [] end
+    Enum.find_value(1..200, fn _ -> eventually_pending.() || (Process.sleep(5) && nil) end)
+    assert eventually_pending.()
+    send(inference, :continue)
+
+    assert Task.await(task) == {:ok, "second answer"}
+
+    assert Enum.map(Condukt.history(pid), &Message.text/1) ==
+             ["first", "first answer", "second", "second answer"]
+
+    GenServer.stop(pid)
+  end
+
   test "stream completion updates history and persists the final snapshot" do
     ref = make_ref()
     messages = [Message.user("hello"), Message.assistant("world")]

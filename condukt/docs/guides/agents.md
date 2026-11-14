@@ -288,8 +288,8 @@ For a running agent process, the `Condukt` module also forwards these calls to
 * `Condukt.clear/1` clears history
 * `Condukt.abort/1` aborts the current operation
 * `Condukt.compact/1` runs the configured compactor
-* `Condukt.steer/2` injects a message mid run, skipping remaining tool calls
-* `Condukt.follow_up/2` queues a message to be delivered after the current run
+* `Condukt.steer/2` injects a message into the running turn after its current tool round
+* `Condukt.follow_up/2` queues a message that starts a turn after the current one
 
 See the [One-Shot Runs guide](one-shot-runs.md) for prompt-first one-shot runs
 without an agent module.

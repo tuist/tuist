@@ -559,15 +559,16 @@ defmodule Condukt do
   @doc """
   Injects a message mid-execution (steering).
 
-  This message will be delivered after the current tool completes,
-  and remaining tool calls will be skipped.
+  A running native turn takes it after its current tool round, before the next
+  model request. An idle session starts a turn with it.
   """
   defdelegate steer(agent, message), to: Condukt.Session
 
   @doc """
   Queues a follow-up message.
 
-  This message will be delivered when the agent finishes its current work.
+  It starts a turn when the agent finishes its current work, or at once when
+  the session is idle. Aborting withdraws queued messages.
   """
   defdelegate follow_up(agent, message), to: Condukt.Session
 end
