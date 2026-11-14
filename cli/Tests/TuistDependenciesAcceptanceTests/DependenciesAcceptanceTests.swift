@@ -218,6 +218,74 @@ struct DependenciesAcceptanceTests {
             ]
         ).pipedStream().awaitCompletion()
     }
+
+    /// Regression test for https://github.com/tuist/tuist/issues/12338.
+    ///
+    /// The fixture declares `swift-dependencies` by URL with SPM traits and installs it through
+    /// the registry (`--replace-scm-with-registry`), so SwiftPM resolves it under its scoped
+    /// registry identity. The generated dependency project used to lose the enabled traits and
+    /// with them `SWIFT_ACTIVE_COMPILATION_CONDITIONS`.
+    ///
+    /// Disabled for the same reason as the other registry tests: installing through the registry
+    /// requires network access, which the acceptance test jobs do not guarantee.
+    @Test(
+        .disabled(),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_app_with_registry_and_spm_traits")
+    )
+    func app_with_registry_and_spm_traits() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When: Set up the registry and install the dependencies through it
+        try await TuistTest.run(
+            RegistrySetupCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--path", fixtureDirectory.pathString, "--no-open"]
+        )
+
+        // Then: The generated dependency project keeps the enabled traits
+        let dependencyProject = try #require(
+            try await fileSystem.glob(
+                directory: fixtureDirectory,
+                include: ["**/tuist-derived/Projects/*swift-dependencies*/**/project.pbxproj"]
+            )
+            .collect()
+            .first
+        )
+        let projectContents = try await fileSystem.readTextFile(at: dependencyProject)
+        // Other targets within the project also set `SWIFT_ACTIVE_COMPILATION_CONDITIONS` (they carry
+        // `SWIFT_PACKAGE`), so inspect every value block and pick the one that lists the traits.
+        let enabledTraitsBlocks = projectContents
+            .components(separatedBy: "SWIFT_ACTIVE_COMPILATION_CONDITIONS = (")
+            .dropFirst()
+            .map { block in
+                block
+                    .components(separatedBy: "\n")
+                    .prefix { !$0.hasSuffix(");") }
+                    .joined(separator: "\n")
+            }
+        let expectedTraits = ["Clocks", "CombineSchedulers", "Foundation", "FoundationNetworking"]
+        let enabledTraits = try #require(
+            enabledTraitsBlocks.first { block in
+                expectedTraits.allSatisfy { block.contains($0) }
+            }
+        )
+        for trait in expectedTraits {
+            #expect(enabledTraits.contains(trait))
+        }
+    }
 }
 
 @Suite(.coverageAttribution)
