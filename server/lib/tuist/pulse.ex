@@ -36,7 +36,8 @@ defmodule Tuist.Pulse do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.FeatureFlags
-  alias Tuist.Pulse.Greptime
+  alias Tuist.Pulse.Explore
+  alias Tuist.Pulse.SQL
   alias Tuist.Pulse.Table
   alias Tuist.Tasks
 
@@ -72,6 +73,49 @@ defmodule Tuist.Pulse do
     else
       false -> {:error, :forbidden}
       error -> error
+    end
+  end
+
+  @doc """
+  Structured, read-only exploration for agents. Operations: `:metrics`
+  (instant or range PromQL), `:labels` (label names, or one label's values with
+  counts for logs and traces), `:logs` and `:traces` (filtered newest, oldest or
+  slowest matches, at most 100) and `:trace` (one trace's spans, at most 1000).
+  See `Tuist.Pulse.Explore` for parameters. Windows reuse the table's 15m, 1h,
+  6h and 24h ranges ending at `end_at`; range queries have at most 361 points
+  per series and 5000 series.
+  """
+  def explore(user, account, operation, params) do
+    with true <- authorized?(user, account),
+         {:ok, opts} <- Explore.validate(operation, params),
+         {:ok, client} <- credentials() do
+      if operation == :metrics,
+        do: explore_metrics(opts, client),
+        else: Explore.run(operation, opts, &request(client, &1, &2))
+    else
+      false -> {:error, :forbidden}
+      error -> error
+    end
+  end
+
+  defp explore_metrics(opts, client) do
+    {path, params} =
+      if opts.type == "range",
+        do: {"/api/v1/query_range", [query: opts.query, start: opts.start, end: opts.finish, step: opts.step]},
+        else: {"/api/v1/query", [query: opts.query, time: opts.finish]}
+
+    with {:ok, body} <- request(client, path, params),
+         {:ok, result} <- normalize(body),
+         :ok <- complete_result("metrics", result) do
+      {:ok,
+       %{
+         type: opts.type,
+         series: Enum.sort_by(result.series, & &1["name"]),
+         warnings: result.warnings,
+         step: opts.step,
+         start_at: opts.start_at,
+         end_at: opts.end_at
+       }}
     end
   end
 
@@ -157,7 +201,7 @@ defmodule Tuist.Pulse do
   defp analytics_sample(client, signal, {id, unit}, period, window) do
     mode = if period == :previous, do: :instant, else: period
 
-    with {:ok, values, warnings} <- Greptime.aggregate(signal, id, mode, window, &request(client, "/v1/sql", &1)) do
+    with {:ok, values, warnings} <- SQL.aggregate(signal, id, mode, window, &request(client, "/v1/sql", &1)) do
       {:ok, {id, unit, period, values, warnings}}
     end
   end
@@ -180,7 +224,7 @@ defmodule Tuist.Pulse do
     ]
   end
 
-  # Log and trace widget SQL is authored by Tuist.Pulse.Greptime from the id.
+  # Log and trace widget SQL is authored by Tuist.Pulse.SQL from the id.
   defp widget_queries("logs"), do: [{"entries", :count}, {"errors", :count}, {"warnings", :count}]
   defp widget_queries("traces"), do: [{"spans", :count}, {"errors", :count}, {"duration_p95", :milliseconds}]
 
@@ -326,7 +370,7 @@ defmodule Tuist.Pulse do
         with {:ok, body} <- request(client, "/api/v1/query", query: opts.query, time: opts.finish),
              do: normalize(body)
       else
-        Greptime.query(signal, opts, &request(client, "/v1/sql", &1))
+        SQL.query(signal, opts, &request(client, "/v1/sql", &1))
       end
 
     with {:ok, result} <- result,

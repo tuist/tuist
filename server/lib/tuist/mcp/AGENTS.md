@@ -93,6 +93,17 @@
   must explicitly provide; Phoenix's `"arguments"` parameter filter keeps MCP
   tool arguments out of request logs, so do not log or report them elsewhere.
 
+- Pulse tools share `Tuist.Pulse` with the Pulse pages: `PulseTools.execute/3`
+  requires a user (or user-associated `mcp` credential), account read, then
+  `Pulse.authorized?/2` (configured account, `pulse` flag, current
+  membership) before any read. Exploration tools (`query_pulse_metrics`,
+  `list_pulse_labels`, `search_pulse_logs`, `search_pulse_traces`,
+  `get_pulse_trace`) go through `Pulse.explore/4` and `Pulse.Explore`, which
+  takes structured filters only: values reach SQL as escaped literals, log
+  labels as literal JSON paths, and trace labels only when they name an
+  existing scalar trace column. Never accept SQL from callers; keep the
+  15m–24h windows, row limits and transport bounds.
+
 - Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when
