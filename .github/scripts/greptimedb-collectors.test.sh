@@ -68,6 +68,10 @@ for environment in staging canary production; do
   # X-Scope-OrgID (as for Grafana Cloud), which Greptime ignores.
   block 'otelcol.auth.basic "pulse_traces"' "$tmp/receiver.alloy" | grep -Fq 'data["ingest-password"]'
   block 'remote.kubernetes.secret "pulse_traces"' "$tmp/receiver.alloy" | grep -Eq 'name += "pulse-dashboard-auth"'
+  # Pulse types the status-code column from its first write, so Bandit's "nil"
+  # string would otherwise reject the whole span.
+  block 'otelcol.processor.transform "pulse_traces"' "$tmp/receiver.alloy" |
+    grep -Fq '"delete_key(attributes, \"http.response.status_code\") where attributes[\"http.response.status_code\"] == \"nil\""'
   jq -e 'all(.[]; .kind != "Alloy" or (.metadata.name | endswith("pulse-traces-sampler") | not))' \
     "$tmp/rendered.json" > /dev/null
 
