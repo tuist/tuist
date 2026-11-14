@@ -2727,11 +2727,6 @@ msgstr "Se comprobó la caché, pero no fue posible reutilizar las salidas almac
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "Acciones de compilación restauradas desde la caché local o remota."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "Compilado para aprender las entradas de la tarea y permitir su futura reutilización desde la caché."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3337,3 +3332,8 @@ msgstr "Total"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "Usado"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "Compilado sin consultar la caché porque no se pudo almacenar en caché."

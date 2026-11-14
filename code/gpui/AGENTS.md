@@ -42,8 +42,10 @@ feature with its own state), not for every module.
 
 ## Shared session
 
-Sign-in must interoperate with `tuist auth login` and the macOS app, which read
-the same files. Treat these as a frozen contract with
+Sign-in must interoperate with `tuist auth login`, which reads the same files.
+The shipping macOS app keeps its own session in the Keychain; the native Swift
+macOS client shares that one (see `../crates/core/README.md`). Treat these as a
+frozen contract with
 `cli/Sources/TuistServer/Utilities/ServerCredentialsStore.swift`,
 `ServerAuthenticationController.swift`, and `CachedValueStore.swift`:
 
@@ -57,9 +59,10 @@ the same files. Treat these as a frozen contract with
   non-roaming `%LOCALAPPDATA%` for credentials, desktop account data, and locks.
 - Rotation holds an exclusive file lock at
   `<state>/cached_value_store/credential-refresh-<unpadded FNV-1a 64 hex of the
-  credentials path>.lock`, rereads the store under the lock, keeps a peer's
-  newer pair over a replayed response, and marks credentials `rejected` only
-  when nobody rotated them meanwhile. Transient failures keep credentials.
+  storage key>.lock` (here the credentials path), rereads the store under the
+  lock, keeps a peer's newer pair over a replayed response, and marks
+  credentials `rejected` only when nobody rotated them meanwhile. Transient
+  failures keep credentials.
 - Browser sign-in registers a public PKCE client for a `127.0.0.1` loopback
   redirect (RFC 8252) through the server's same-origin registration endpoint,
   and stores the issuing client ID so every client refreshes with it. Account

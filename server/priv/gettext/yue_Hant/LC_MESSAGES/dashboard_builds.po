@@ -2727,11 +2727,6 @@ msgstr "已檢查快取但無法重用快取輸出。"
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "從本地或遠端快取還原的編譯動作。"
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "為學習任務輸入以便日後重用快取而進行編譯。"
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3337,3 +3332,8 @@ msgstr "總計"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "已用"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "由於無法快取，編譯時未查閱快取。"

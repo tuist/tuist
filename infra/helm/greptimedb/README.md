@@ -34,8 +34,10 @@ These are desired configuration, **not a record of provisioned resources**:
   `OP_SERVICE_ACCOUNT_TOKEN`, and the general pool has the requested capacity.
 - The management cluster runs its own standalone Pulse, installed by Flux
   (`infra/flux/pulse`) with `values-management.yaml`, so its metrics never
-  depend on a workload cluster. It writes `tuist-pulse-management/pulse/` with
-  the **`tuist-k8s-mgmt`** vault's `PULSE_TOKEN` and `PULSE_S3_CREDENTIALS`
+  depend on a workload cluster. It writes `tuist-pulso-production/management/`
+  with the **`tuist-k8s-mgmt`** vault's `PULSE_TOKEN` and
+  `PULSE_S3_CREDENTIALS`, a Tigris key whose IAM policy allows only that prefix,
+  so management can never read or delete production's `pulse/`
   (`mgmt-cluster-apply.yml` creates its `pulse-auth` Secret), and
   keeps its WAL and catalog on `tuist-mgmt`'s `/var/lib/tuist-pulse` because
   management has no volume provisioner. CI's TTL and storage checks do not run

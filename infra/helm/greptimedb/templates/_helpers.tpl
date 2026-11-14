@@ -5,8 +5,8 @@
 {{- if not (has .Values.environment (list "staging" "canary" "production" "management")) }}
 {{- fail "GreptimeDB requires an explicit managed environment" }}
 {{- end }}
-{{- if or (ne .Values.storage.bucket (include "greptimedb.bucket" .)) (ne .Values.storage.prefix "pulse/") }}
-{{- fail "GreptimeDB must use the selected environment's isolated pulse/ prefix" }}
+{{- if or (ne .Values.storage.bucket (include "greptimedb.bucket" .)) (ne .Values.storage.prefix (include "greptimedb.prefix" .)) }}
+{{- fail "GreptimeDB must use the selected environment's bucket and isolated prefix" }}
 {{- end }}
 {{- if not (has .Values.topology (list "standalone" "cluster")) }}
 {{- fail "GreptimeDB topology must be standalone or cluster" }}
@@ -22,8 +22,14 @@
 {{- end }}
 {{- end }}
 
+{{/* Management shares production's bucket under its own root, which its
+key's IAM policy is limited to; production's Pulse owns pulse/. */}}
 {{- define "greptimedb.bucket" -}}
-{{ ternary "tuist-pulse-management" (printf "tuist-pulso-%s" .Values.environment) (eq .Values.environment "management") }}
+{{ printf "tuist-pulso-%s" (ternary "production" .Values.environment (eq .Values.environment "management")) }}
+{{- end }}
+
+{{- define "greptimedb.prefix" -}}
+{{ ternary "management/" "pulse/" (eq .Values.environment "management") }}
 {{- end }}
 
 {{- define "greptimedb.readerNamespace" -}}

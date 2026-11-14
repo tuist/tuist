@@ -99,15 +99,72 @@ struct CargoCompilationCacheTests {
 
     @Test(.inTemporaryDirectory) func restoresSplitDebugObjectsWithTheLibrary() async throws {
         let fixture = try await fixture()
-        let name = "tiny-123.tiny.abc-cgu.0.rcgu.o"
-        let object = fixture.output.appendingPathComponent(name)
-        try Data("debug object".utf8).write(to: object)
+        // An incremental compilation leaves one object per codegen unit, 256 of them.
+        let objects = (0 ..< 256).map { fixture.output.appendingPathComponent("tiny-123.tiny.abc\($0)-cgu.0.rcgu.o") }
+        for (index, object) in objects.enumerated() {
+            try Data("debug object \(index)".utf8).write(to: object)
+        }
         let cache = try fixture.cache()
         try await cache.store(stdout: Data(), stderr: Data())
         try fixture.removeOutputs()
-        try FileManager.default.removeItem(at: object)
+        for object in objects {
+            try FileManager.default.removeItem(at: object)
+        }
         #expect(try await cache.restore())
-        #expect(try Data(contentsOf: object) == Data("debug object".utf8))
+        #expect(try Data(contentsOf: objects[255]) == Data("debug object 255".utf8))
+    }
+
+    @Test(.inTemporaryDirectory) func recordedRunsLeaveOutWhatModeledProgramsStart() throws {
+        // Without SIP, `/usr/bin/git` loads the recorder, runs Xcode's git, which forks a helper; the run also forks
+        // and execs `xcrun` itself, whose answer must stay keyed.
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        func query(_ program: String, _ arguments: String...) -> String {
+            ([program, "/work", ""] + arguments).joined(separator: "\u{1f}")
+        }
+        let events = [
+            "100\tP\t/work/target/build/script", "100\tp\t99",
+            "100\tQ\t" + query("/usr/bin/git", "git", "rev-parse", "HEAD"),
+            "101\tP\t/usr/bin/git", "101\tp\t100",
+            "101\tJ\t" + query("/xcode/bin/git", "git", "rev-parse", "HEAD"), "101\tF\t",
+            "101\tP\t/xcode/bin/git", "101\tp\t100",
+            "102\tJ\t" + query("/xcode/libexec/git-helper", "git-helper"), "102\tF\t",
+            "102\tP\t/xcode/libexec/git-helper", "102\tp\t101", "102\tF\t", "101\tF\t",
+            "103\tJ\t" + query("/usr/bin/xcrun", "xcrun", "--show-sdk-path"), "103\tF\t",
+            "103\tP\t/usr/bin/xcrun", "103\tp\t100", "103\tF\t",
+        ]
+        // The recorder buffers events: a process that never logged `F` may have read more than its log says.
+        let finished = events + ["100\tF\t"]
+        func parse(_ events: [String]) throws -> CargoReadSet? {
+            let log = URL(fileURLWithPath: directory.appending(component: UUID().uuidString).pathString)
+            try Data((events.joined(separator: "\n") + "\n").utf8).write(to: log)
+            return CargoReadSet.parse(
+                log: log, relocation: CargoRelocation(environment: [:], sysroot: URL(fileURLWithPath: "/toolchain")),
+                excludedRoots: [], targetDirectory: nil, allowedWrites: [], keyedEnvironment: { _ in true }
+            )
+        }
+        let reads = try #require(try parse(finished))
+        #expect(reads.entries.filter { $0.kind == "command" }.map { $0.name.split(separator: "\u{1f}")[0] }.sorted()
+            == ["/usr/bin/git", "/usr/bin/xcrun"])
+        #expect(try parse(finished + ["100\tX\t/bin/unrecorded"]) == nil)
+        #expect(try parse(events) == nil)
+        // A failed exec continues the program it sealed, which must finish again.
+        #expect(try parse(finished + ["100\tZ\t/usr/bin/missing"]) == nil)
+        #expect(try parse(finished + ["100\tZ\t/usr/bin/missing", "100\tF\t"]) != nil)
+    }
+
+    @Test(.inTemporaryDirectory) func remembersOutputScansOnlyWhileTheOutputIsUnchanged() throws {
+        // Publication and unit collection scan the same outputs; a rewritten output must be scanned again.
+        let directory = try #require(FileSystem.temporaryTestDirectory).pathString
+        let relocation = CargoRelocation(
+            environment: ["CARGO_HOME": "/cargo-home", "TUIST_CARGO_WORKSPACE_ROOT": directory + "/workspace"],
+            sysroot: URL(fileURLWithPath: "/toolchain")
+        )
+        let output = URL(fileURLWithPath: directory + "/libexample.rlib")
+        try Data("path-free".utf8).write(to: output)
+        #expect(try relocation.boundRoots(of: output).isEmpty)
+        try Data("built in \(directory)/workspace/src".utf8).write(to: output)
+        #expect(try relocation.boundRoots(of: output).map(\.placeholder) == ["@@TUIST_WORKSPACE@@"])
+        #expect(try relocation.boundRoots(of: output).map(\.placeholder) == ["@@TUIST_WORKSPACE@@"])
     }
 
     @Test(.inTemporaryDirectory) func producesReadableBoundedInspectionRecords() async throws {
@@ -168,7 +225,9 @@ struct CargoCompilationCacheTests {
         let fixture = try await fixture()
         let dependency = fixture.output.appendingPathComponent(fixture.invocation.files[0])
         try fixture.invocation.certifyOutputs()
-        let generated = fixture.root.appendingPathComponent("generated.rs")
+        // Keys hold the entries of every directory holding a source, so not the fixture's root, which holds the cache.
+        let generated = fixture.root.appendingPathComponent("generated/generated.rs")
+        try FileManager.default.createDirectory(at: generated.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("pub fn generated() {}".utf8).write(to: generated)
         let report = "artifact: \(fixture.source.path) \(generated.path)\n"
         let arguments = fixture.invocation.arguments + [
@@ -179,7 +238,9 @@ struct CargoCompilationCacheTests {
         let depInfo = fixture.output.appendingPathComponent(fixture.invocation.files[2])
         let fixtureDepInfo = try Data(contentsOf: depInfo)
         try report.write(to: depInfo, atomically: true, encoding: .utf8)
-        let original = try #require(await deferred.refreshed(remote: nil))
+        let refreshed = deferred.refreshed()
+        let original = try #require(refreshed.keyed)
+        await deferred.remember(try #require(refreshed.sources), remote: nil)
         try fixtureDepInfo.write(to: depInfo)
         #expect(original.compilerInputs?.sources.map(\.lastPathComponent).sorted() == ["generated.rs", "lib.rs"])
         #expect(try await fixture.prepare(arguments: arguments)?.key == original.key)
@@ -365,6 +426,23 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.cache().restoreLocally())
     }
 
+    @Test(.inTemporaryDirectory) func incrementalCompilationsShareEntriesWithNonIncrementalOnes() async throws {
+        let fixture = try await fixture()
+        let incremental = try #require(await fixture.prepare(
+            arguments: fixture.invocation.arguments + ["-C", "incremental=\(fixture.root.path)/incremental"]
+        ))
+        #expect(incremental.key == fixture.invocation.key)
+        let joined = try #require(await fixture.prepare(
+            arguments: fixture.invocation.arguments + ["-Cincremental=\(fixture.root.path)/elsewhere"]
+        ))
+        #expect(joined.key == fixture.invocation.key)
+        let optimized = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + ["-C", "opt-level=3"]))
+        #expect(optimized.key != fixture.invocation.key)
+        try await fixture.cache(invocation: incremental).store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        #expect(try await fixture.cache().restoreLocally())
+    }
+
     @Test(.inTemporaryDirectory) func diagnosticsReplayOnlyAtTheirWidthAndUnexpectedStreamsAreNeverCached() async throws {
         let fixture = try await fixture()
         try await fixture.cache().store(stdout: Data(), stderr: Data("warning: terminal-specific rendering".utf8))
@@ -470,7 +548,6 @@ struct CargoCompilationCacheTests {
     @Test(.inTemporaryDirectory) func bypassesUnsupportedCompilations() async throws {
         let fixture = try await fixture()
         for extra in [
-            ["-C", "incremental=/tmp/incremental"],
             ["--sysroot", "/another/toolchain"], ["--target", "custom.json"], ["--test"],
             ["-L", "framework=/tmp/native"], ["-L", "native=/tmp/native"], ["@arguments"],
             ["--library-path=native=/tmp/native"], ["--codegen=target-cpu=native"],

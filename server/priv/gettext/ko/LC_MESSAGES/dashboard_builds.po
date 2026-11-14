@@ -2726,11 +2726,6 @@ msgstr "캐시를 확인했지만 캐시된 출력을 재사용할 수 없습니
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "로컬 또는 원격 캐시에서 복원된 컴파일 작업."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "향후 캐시 재사용을 위해 작업 입력을 학습하기 위해 컴파일됨."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3336,3 +3331,8 @@ msgstr "전체"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "사용량"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "캐시할 수 없으므로 캐시를 참조하지 않고 컴파일했습니다."

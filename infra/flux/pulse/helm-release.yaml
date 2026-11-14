@@ -1,8 +1,9 @@
 # The same chart the workload clusters install with greptimedb-deployment.yml,
 # read from this repository at Flux's revision; values-management.yaml pins
 # it to one node's /var (management has no volume provisioner) and the
-# private tuist-pulse-management bucket. Vault items in tuist-k8s-mgmt:
-# PULSE_TOKEN/password and PULSE_S3_CREDENTIALS; mgmt-cluster-apply.yml
+# management/ prefix of tuist-pulso-production. Vault items in tuist-k8s-mgmt:
+# PULSE_TOKEN/password and PULSE_S3_CREDENTIALS (a key limited to that
+# prefix); mgmt-cluster-apply.yml
 # creates the in-cluster pulse-auth Secret.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

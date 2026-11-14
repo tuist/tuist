@@ -373,7 +373,7 @@ extension CargoUnitCache {
                   REAPI.digest(data) == file.digest else { continue }
             var needed: [REAPI.Digest] = []
             if !file.path.hasPrefix("reads/") {
-                guard let result = try? REAPI.ActionResult(serializedBytes: data), result.outputFiles.count <= 128,
+                guard let result = try? REAPI.ActionResult(serializedBytes: data), result.outputFiles.count <= CargoCompilationCache.maximumOutputFiles,
                       result.outputFiles
                       .allSatisfy({ (try? REAPI.validate($0.digest)) != nil && $0.digest.sizeBytes <= 100_000_000 })
                 else { continue }
@@ -819,7 +819,9 @@ extension CargoUnitCache {
             }
         }
         guard !fingerprints.isEmpty else { return [] }
-        let deps = (try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent("deps").path)) ?? []
+        let deps = Self.byUnitHash(
+            (try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent("deps").path)) ?? []
+        )
         let candidates = fingerprints.keys.sorted().prefix(10000)
         // A unit is a dependency's when every source its compiler read is in Cargo's registry or git checkouts
         // (or generated into this target directory). Build-script runs read nothing through rustc: they belong to
@@ -859,7 +861,8 @@ extension CargoUnitCache {
             let hash = String(name.suffix(16))
             let depInfo: [URL]
             if fingerprints[name]?.hasPrefix(".fingerprint/") == true {
-                depInfo = deps.filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("deps/" + $0) }
+                depInfo = (deps[hash] ?? []).filter { $0.hasSuffix("-\(hash).d") }
+                    .map { profile.appendingPathComponent("deps/" + $0) }
                     + ((try? fileManager.contentsOfDirectory(atPath: profile.appendingPathComponent("build/" + name).path))
                         ?? []).filter { $0.hasSuffix("-\(hash).d") }.map { profile.appendingPathComponent("build/\(name)/" + $0) }
             } else {
@@ -880,7 +883,8 @@ extension CargoUnitCache {
         let created = fresh.filter { name in
             classified[name] ?? (packages[package(name)] == true && runBinding(name) != nil)
         }
-        let collected = Self.concurrentMap(Array(created)) { collect($0, deps: deps) }.compactMap { $0 }
+        let collected = Self.concurrentMap(Array(created)) { collect($0, deps: deps[String($0.suffix(16))] ?? []) }
+            .compactMap { $0 }
         var budget: Int64 = 8_000_000_000
         var units = reused
         for unit in collected {
@@ -998,15 +1002,31 @@ extension CargoUnitCache {
         return bound
     }
 
+    /// Names in a profile's `deps` by each unit hash they carry: `-` and 16 characters, then `.` or the end, as in
+    /// `libfoo-<hash>.rlib` or `foo-<hash>.<unit>.rcgu.o`. `deps` holds tens of thousands of files, so looking each
+    /// unit's files up in it one by one took seconds after every seed build.
+    static func byUnitHash(_ names: [String]) -> [String: [String]] {
+        var result: [String: [String]] = [:]
+        for name in names {
+            let bytes = Array(name.utf8)
+            var hashes: Set<String> = []
+            for index in bytes.indices where bytes[index] == UInt8(ascii: "-") && index + 17 <= bytes.count {
+                let end = index + 17
+                guard end == bytes.count || bytes[end] == UInt8(ascii: ".") else { continue }
+                hashes.insert(String(decoding: bytes[index + 1 ..< end], as: UTF8.self))
+            }
+            for hash in hashes { result[hash, default: []].append(name) }
+        }
+        return result
+    }
+
+    /// A unit's files: in the earlier layout, `deps` (the names in the profile's `deps` carrying its hash, see
+    /// `byUnitHash`) and its `.fingerprint` and `build` directories; in Cargo 1.100's, its `build/<package>/<hash>`.
     private func collect(_ name: String, deps: [String]) -> Unit? {
-        let hash = String(name.suffix(16))
         let modern = FileManager.default.fileExists(
             atPath: profile.appendingPathComponent(Self.unitDirectory(name) + "/fingerprint").path
         )
-        var paths = modern ? [] : deps.filter { file in
-            guard let range = file.range(of: "-" + hash) else { return false }
-            return range.upperBound == file.endIndex || file[range.upperBound] == "."
-        }.map { "deps/" + $0 }
+        var paths = modern ? [] : deps.map { "deps/" + $0 }
         var directories: [String] = []
         for tree in modern ? [Self.unitDirectory(name)] : [".fingerprint/" + name, "build/" + name] {
             let base = profile.appendingPathComponent(tree)
@@ -1036,8 +1056,8 @@ extension CargoUnitCache {
             if !path.hasPrefix(fingerprint), !path.hasSuffix(".d"),
                !(path.hasPrefix("build/") && records.contains(URL(fileURLWithPath: path).lastPathComponent))
             {
-                guard let data = try? Data(contentsOf: file) else { return nil }
-                bound.formUnion(relocation.boundRoots(in: data).map(\.path))
+                guard let roots = try? relocation.boundRoots(of: file) else { return nil }
+                bound.formUnion(roots.map(\.path))
             }
             let certified = CargoCacheInputs.isCertified(digest, environment: environment)
             files.append(File(

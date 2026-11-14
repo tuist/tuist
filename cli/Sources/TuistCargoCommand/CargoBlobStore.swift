@@ -20,10 +20,24 @@ struct CargoBlobStore {
     /// publication stored is not copied and hashed a second time.
     private static let published = Published()
 
-    /// Writes an index or record file atomically, creating its directory.
+    /// Writes an index or record file atomically, creating its directory. Unlike Foundation's `Data.write`, it does not
+    /// `fsync`: a seed build writes a record for every blob and compilation, and their flushes slowed every rustc
+    /// running beside them. Readers verify or decode what they read, so a write a crash loses is only a miss.
     static func write(_ data: Data, to file: URL) throws {
-        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
+        let directory = file.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let temporary = directory.appendingPathComponent(".\(file.lastPathComponent).\(UUID().uuidString).tmp").path
+        let descriptor = open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o666)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        do {
+            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            try handle.write(contentsOf: data)
+            try handle.close()
+            guard rename(temporary, file.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        } catch {
+            unlink(temporary)
+            throw error
+        }
     }
 
     func path(_ digest: REAPI.Digest) -> URL {

@@ -253,7 +253,11 @@ machinery are the same; moving the Linux writer fence or slot-release boundary
 requires validation against Kata, rather than trusting a job's completion signal.
 
 The privileged agent alone receives the host containerd socket and uses CRI list
-operations for that writer fence. Runtime errors fail closed. Waiting for the
+operations for that writer fence. Runtime errors fail closed. containerd replaces
+its socket when it restarts and the file mount keeps the deleted one, so a
+liveness probe restarts the agent once the mounted socket has no links.
+Mounting `/run/containerd` instead would copy every container's mounts into
+the agent and pin runner cache volumes. Waiting for the
 whole kubelet directory before unmounting deadlocks: propagated child mounts
 keep kubelet's SubPath mounts busy. After the runtime fence, unmounting releases
 those children so kubelet can complete cleanup. Directory removal still waits

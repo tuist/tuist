@@ -6,12 +6,15 @@ environment: management
 topology: standalone
 dashboard:
   enabled: true
+# Production's bucket under management/, with a key whose IAM policy allows
+# only that prefix, so management can't read or delete production's pulse/.
 storage:
-  bucket: tuist-pulse-management
+  bucket: tuist-pulso-production
+  prefix: management/
 # Management has no volume provisioner (Talos, no CSI). Standalone keeps its
 # WAL and catalog on local disk, so the pod lives on one node's /var, which
 # Talos preserves across reboots and in-place upgrades. Replacing that node
-# loses the catalog: purge pulse/ in tuist-pulse-management before Pulse
+# loses the catalog: purge tuist-pulso-production/management/ before Pulse
 # starts on another node, or a fresh catalog may collide with the old regions.
 persistence:
   hostPath: /var/lib/tuist-pulse

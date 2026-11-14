@@ -2731,11 +2731,6 @@ msgstr "تم فحص ذاكرة التخزين المؤقت ولكن لم يمك�
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "تمت استعادة إجراءات التجميع من ذاكرة التخزين المؤقت المحلية أو البعيدة."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "تم التجميع لمعرفة مدخلات المهمة لإعادة الاستخدام المستقبلي في ذاكرة التخزين المؤقت."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3341,3 +3336,8 @@ msgstr "الإجمالي"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "المستخدم"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "تم التجميع دون الرجوع إلى ذاكرة التخزين المؤقت لأنه لا يمكن تخزينه مؤقتًا."

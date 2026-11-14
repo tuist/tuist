@@ -147,6 +147,7 @@ struct CargoCompilerObserver {
         }
         let deferred = (invocation as? CargoCacheInvocation)?.isDeferred == true
         let measurement = (invocation ?? recorded).map(CargoCacheMeasurement.init)
+        if measurement == nil, !native { CargoCacheMeasurement.uncached(arguments, environment: environment) }
         var cache: CargoCompilationCache?
         let replayed = CargoReplay()
         if let invocation, let measurement, let root = environment["TUIST_CARGO_CACHE_DIR"] {
@@ -300,6 +301,7 @@ struct CargoCompilerObserver {
         _ arguments: [String],
         environment: [String: String],
         started: Date,
+        finished: Date = Date(),
         failed: Bool,
         diagnostics: [CargoDiagnostic]
     ) {
@@ -319,14 +321,11 @@ struct CargoCompilerObserver {
             kind: arguments.contains("--test") ? "test" : option("--crate-type") ?? "lib",
             dependencies: Array(dependencies.prefix(5000)),
             startOffsetMs: CargoCommandService.milliseconds(started.timeIntervalSince1970 - origin),
-            durationMs: CargoCommandService.milliseconds(Date().timeIntervalSince(started)),
+            durationMs: CargoCommandService.milliseconds(finished.timeIntervalSince(started)),
             status: failed ? "failure" : "success", diagnostics: diagnostics
         )
         if let data = try? JSONEncoder().encode(compilation) {
-            try? data.write(
-                to: URL(fileURLWithPath: session).appendingPathComponent(UUID().uuidString + ".json"),
-                options: .atomic
-            )
+            try? CargoBlobStore.write(data, to: URL(fileURLWithPath: session).appendingPathComponent(UUID().uuidString + ".json"))
         }
     }
 }

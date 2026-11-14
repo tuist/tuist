@@ -2728,11 +2728,6 @@ msgstr "Кэш проверен, но повторно использовать 
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "Действия компиляции восстановлены из локального или удалённого кэша."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "Скомпилировано для определения входных данных задачи и обеспечения их повторного использования из кэша в будущем."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3338,3 +3333,8 @@ msgstr "Всего"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "Использовано"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "Скомпилировано без обращения к кэшу, так как результат не мог быть закэширован."

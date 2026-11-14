@@ -91,13 +91,13 @@ everywhere and nothing writes its format any more. Its objects are retained
 until deleted: below `tenants/<tenant>/` (logs, metric samples, traces, error
 events, service-graph series and their manifests, pages and backups), plus
 `system/tenants/v1/`, `usage/v1/`, `auth/` and `.pulse/`, in
-`tuist-pulso-{staging,canary,production}`, `tuist-pulse-management` and, if the
-retired pentest cluster wrote any, `tuist-pulse-pentest`. They can contain
+`tuist-pulso-canary` and `tuist-pulso-production`. Staging's were deleted, and
+the management and pentest buckets that held the rest no longer exist. They can contain
 identifiers, message bodies, attributes and stack traces supplied by producers,
 and an operational tenant can mix telemetry from several accounts. They are
 being deleted: the one-shot `pulse-legacy-purge.yml` removes those prefixes
-from each bucket, and `tuist-pulse-pentest` is deleted in Tigris. Until
-that has run for a bucket, its objects remain, with no time-based deletion.
+from each bucket. Until that has run for a bucket, its objects remain, with no
+time-based deletion.
 
 To export, an authorized storage operator lists and retrieves the verified
 tenant's objects and the manifests needed to interpret them, decodes the Parquet
@@ -110,8 +110,8 @@ the GreptimeDB storage below.
 
 Pulse (the GreptimeDB fork, Helm release `pulse`) uses an independent `pulse/`
 prefix in each environment's `tuist-pulso-<env>` bucket (staging, canary and
-production), and in `tuist-pulse-management` for the management cluster's own
-Pulse, for database-managed data and indexes, and disposable
+production), and under `management/` in `tuist-pulso-production` for the
+management cluster's own Pulse, for database-managed data and indexes, and disposable
 `pulse/ci-preflight/<run>` storage probes. The interim upstream `greptimedb`
 release in staging and canary wrote under `greptimedb/`; uninstalling it keeps
 those objects and its PVC until a `purge_greptimedb` dispatch deletes both. Staging and canary use a retained 10 GiB Kubernetes PVC for local
@@ -1269,7 +1269,7 @@ in Tigris and on its standalone WAL/state PVC. The deployment verifies a seven-d
 database TTL before enabling ingestion; physical object reclamation can lag
 logical expiry. Canary uses the same layout in its own bucket; production
 stores data under `pulse/distributed/` and management under
-`tuist-pulse-management/pulse/`, both without a TTL. Switching an ingestion route
+`tuist-pulso-production/management/`, both without a TTL. Switching an ingestion route
 stops new writes to the old backend but erases neither store.
 
 Loki stream labels are retained in log `resource_attributes`, with `service_name`

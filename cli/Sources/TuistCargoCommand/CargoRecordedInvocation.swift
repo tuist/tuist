@@ -33,9 +33,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
     func storedOutput(_ data: Data) -> Data? { relocation.relative(data) }
     func restoredOutput(_ data: Data) -> Data? { relocation.absolute(data) }
 
-    func unkeyedRoots(in data: Data) -> [String] {
+    func unkeyedRoots(in file: URL) throws -> [String] {
         let keyed = Set((reads?.entries ?? []).filter { $0.kind == "root" }.map(\.name))
-        return relocation.boundRoots(in: data).filter { !keyed.contains($0.placeholder) }.map(\.path)
+        return try relocation.boundRoots(of: file).filter { !keyed.contains($0.placeholder) }.map(\.path)
     }
 
     static func prepare(
@@ -49,7 +49,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
               !arguments.contains(where: {
                   $0.hasPrefix("@") || $0.hasPrefix("--print") || $0 == "--test" || $0 == "-o"
                       || $0.hasPrefix("--remap-path-prefix") || $0.hasPrefix("--sysroot") || $0.hasSuffix(".json")
-                      || $0.hasPrefix("incremental=") || $0.hasPrefix("-Cincremental") || $0.hasPrefix("-Zincremental")
+                      || $0.hasPrefix("-Zincremental")
               }),
               let name = CargoCacheInputs.values("--crate-name", in: arguments).first,
               !name.isEmpty, name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }),
@@ -96,7 +96,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
         var inputs = [
             keyVersion, CargoReadRecorder.version, directory.pathString, identity.version,
         ]
-        inputs += arguments.dropFirst().filter { !$0.hasPrefix("--diagnostic-width") }
+        inputs += CargoCacheInputs.withoutIncremental(Array(arguments.dropFirst())).filter { !$0.hasPrefix("--diagnostic-width") }
         inputs += environment.sorted { $0.key < $1.key }.filter { !CargoCacheInvocation.isIgnored($0.key) }
             .map { "\($0.key)=\($0.value)" }
         var externs: [URL] = []
@@ -203,7 +203,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
             log: log, relocation: relocation, excludedRoots: excluded,
             targetDirectory: environment["TUIST_CARGO_TARGET_DIR"].map { URL(fileURLWithPath: $0).standardizedFileURL.path },
             keepsLinkedLibraries: linksWithSystemLinker,
-            allowedWrites: [output.path] + temporary,
+            // rustc's incremental session holds only scratch state for its next compilation of this crate.
+            allowedWrites: [output.path] + temporary
+                + [CargoCacheInputs.incrementalDirectory(arguments, directory: directory)?.path].compactMap { $0 },
             allowedSpawn: { [linksWithSystemLinker] path in
                 guard linksWithSystemLinker else { return false }
                 let program = URL(fileURLWithPath: path).lastPathComponent
@@ -222,8 +224,11 @@ struct CargoRecordedInvocation: CargoCacheAction {
         }
         // Outputs that name a root behave the same only at that root, so their key names it too.
         for file in (try? outputFiles()) ?? [] where !file.hasSuffix(".d") {
-            guard let data = try? Data(contentsOf: output.appendingPathComponent(file)) else { return nil }
-            reads.bind(relocation.boundRoots(in: data))
+            guard let roots = try? relocation.boundRoots(of: output.appendingPathComponent(file)) else {
+                explain("could not read its output \(file)")
+                return nil
+            }
+            reads.bind(roots)
         }
         return with(reads)
     }
@@ -248,9 +253,10 @@ struct CargoRecordedInvocation: CargoCacheAction {
     }
 
     func outputFiles() throws -> [String] {
-        let additional = try FileManager.default.contentsOfDirectory(atPath: output.path)
+        let additional = try CargoCacheInputs.entries(of: output, prefix: String(files.last!.dropLast(2)) + ".")
             .filter { !files.contains($0) && acceptsOutput($0) }.sorted()
-        guard files.count + additional.count <= 128 else { throw CargoCacheInvocation.CacheError.unsupported }
+        guard files.count + additional.count <= CargoCompilationCache.maximumOutputFiles
+        else { throw CargoCacheInvocation.CacheError.unsupported }
         return files + additional
     }
 }

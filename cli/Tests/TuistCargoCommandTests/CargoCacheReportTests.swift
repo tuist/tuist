@@ -46,6 +46,28 @@ struct CargoCacheReportTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func countsCrateCompilationsTheCacheCouldNotTakeAsUnconsulted() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let root = URL(fileURLWithPath: directory.pathString)
+        let environment = ["TUIST_CARGO_SESSION": root.path, "TUIST_CARGO_CACHE_DIR": root.appendingPathComponent("cache").path]
+        let harness = ["rustc", "--crate-name", "widgets", "--edition=2021", "src/lib.rs", "--test", "--emit=dep-info,link"]
+        CargoCacheMeasurement.uncached(harness, environment: environment)
+        CargoCacheMeasurement.uncached(["rustc", "-", "--crate-name", "___", "--print=file-names"], environment: environment)
+        var uncachedEnvironment = environment
+        uncachedEnvironment["TUIST_CARGO_CACHE_DIR"] = nil
+        CargoCacheMeasurement.uncached(harness, environment: uncachedEnvironment)
+
+        let metrics = try #require(CargoCacheReport.read(root: root))
+        #expect(metrics["unconsulted"] as? UInt64 == 1)
+        let details = try #require(metrics["details"] as? [String: Any])
+        let tasks = try #require(details["tasks"] as? [[String: Any]])
+        #expect(tasks.count == 1)
+        #expect(tasks.first?["name"] as? String == "widgets")
+        #expect(tasks.first?["status"] as? String == "unconsulted")
+        #expect(details["truncated"] as? Bool == false)
+    }
+
+    @Test(.inTemporaryDirectory)
     func saturatesOverflowingCounters() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let root = URL(fileURLWithPath: directory.pathString)

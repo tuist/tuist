@@ -2726,11 +2726,6 @@ msgstr "已检查缓存但无法复用缓存输出。"
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "从本地或远程缓存恢复的编译操作。"
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "为学习任务输入以便未来缓存复用而进行的编译。"
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3336,3 +3331,8 @@ msgstr "总计"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "已用"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "由于无法缓存，未查询缓存直接编译。"

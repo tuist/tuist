@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">"Tuist Code"</string>
+    <string name="login_title">"Welcome to Tuist Code"</string>
+    <string name="login_subtitle">"Sign in to access your projects and\ncollaborate with your team"</string>
+    <string name="continue_in_browser">"Continue in your browser…"</string>
+    <string name="sign_in_tuist">"Sign in with Tuist"</string>
+    <string name="sign_in_apple">"Sign in with Apple"</string>
+    <string name="sign_in_google">"Sign in with Google"</string>
+    <string name="sign_in_github">"Sign in with GitHub"</string>
+    <string name="or">"or"</string>
+    <string name="self_hosted_server">"Self-hosted server"</string>
+    <string name="self_hosted">"Self-hosted"</string>
+    <string name="self_hosted_message">"Use the root address of your Tuist server"</string>
+    <string name="sign_in">"Sign in"</string>
     <string name="previews">"Previews"</string>
     <string name="profile">"Profile"</string>
     <string name="loading">"Loading…"</string>
@@ -19,14 +31,7 @@
     <string name="delete_account_message">"Permanently delete the account for this profile? This cannot be undone."</string>
     <string name="cancel">"Cancel"</string>
     <string name="confirm">"Confirm"</string>
-    <string name="server_url">"Server URL (HTTPS)"</string>
-    <string name="continue_label">"Continue"</string>
     <string name="https_required">"Enter a valid HTTPS server URL."</string>
-    <string name="provider">"Sign in with"</string>
-    <string name="provider_tuist">"Tuist"</string>
-    <string name="provider_github">"GitHub"</string>
-    <string name="provider_google">"Google"</string>
-    <string name="provider_apple">"Apple"</string>
     <string name="ephemeral_required">"Adding a profile requires a browser that supports secure ephemeral Custom Tabs. Install or update a compatible browser and try again."</string>
     <string name="browser_unavailable">"No application is available to open this link."</string>
     <string name="refresh">"Refresh"</string>

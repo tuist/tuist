@@ -2726,11 +2726,6 @@ msgstr "キャッシュを確認しましたが、キャッシュ出力を再利
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "ローカルまたはリモートキャッシュから復元されたコンパイルアクション。"
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "将来のキャッシュ再利用のためにタスク入力を学習するためのコンパイル。"
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3336,3 +3331,8 @@ msgstr "合計"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "使用済み"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "キャッシュに保存できないため、キャッシュを参照せずにコンパイルされました。"

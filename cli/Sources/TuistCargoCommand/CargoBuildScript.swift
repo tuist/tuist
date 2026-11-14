@@ -228,6 +228,13 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
             await context.store(log: log, started: started, stdout: stdout, stderr: stderr, remote: remote)
         }
 
+        /// Cargo's dependents only read the run's outputs, and storing them checks again that the reads and outputs did
+        /// not change, so a served run is stored after Cargo hears the script exit: storing hashes every read and copies
+        /// every output, which for a script building a C library (`aws-lc-sys`) holds back the crates that wait on it.
+        func settle(succeeded: Bool) async -> @Sendable () async -> Void {
+            { [self] in await finish(succeeded: succeeded) }
+        }
+
         func discard() {
             if let log { try? FileManager.default.removeItem(at: log) }
         }

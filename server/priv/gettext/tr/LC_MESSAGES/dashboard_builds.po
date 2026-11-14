@@ -2727,11 +2727,6 @@ msgstr "Önbellek kontrol edildi ancak önbelleğe alınmış çıktılar yenide
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "Derleme eylemleri yerel veya uzak önbellekten geri yüklendi."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "Gelecekteki önbellek yeniden kullanımı için görev girdilerini öğrenmek amacıyla derlendi."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3337,3 +3332,8 @@ msgstr "Toplam"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "Kullanılan"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "Önbelleğe alınamadığı için önbellek sorgulanmadan derlendi."

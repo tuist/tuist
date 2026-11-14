@@ -164,10 +164,7 @@ final class CargoInputHasher {
         if before.precise { entries[file] = (before, digest) }
         let entry = Entry(identity: before, hash: digest.hash, size: digest.sizeBytes)
         if let memo {
-            if !inMemory, let data = try? JSONEncoder().encode(entry) {
-                try? FileManager.default.createDirectory(at: memo.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? data.write(to: memo, options: .atomic)
-            }
+            if !inMemory, let data = try? JSONEncoder().encode(entry) { try? CargoBlobStore.write(data, to: memo) }
             Self.processRecords.setFile(memo, entry)
         }
         return digest
@@ -179,10 +176,7 @@ final class CargoInputHasher {
         guard let sharedDirectory, let identity = try? identify(file), identity.precise, accepts(identity) else { return }
         let entry = Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes)
         let memo = sharedDirectory.appendingPathComponent(REAPI.digest(Data(file.path.utf8)).hash, isDirectory: false)
-        if !inMemory, let data = try? JSONEncoder().encode(entry) {
-            try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
-            try? data.write(to: memo, options: .atomic)
-        }
+        if !inMemory, let data = try? JSONEncoder().encode(entry) { try? CargoBlobStore.write(data, to: memo) }
         Self.processRecords.setFile(memo, entry)
     }
 
@@ -200,8 +194,7 @@ final class CargoInputHasher {
             let entry = Entry(identity: identity, hash: digest.hash, size: digest.sizeBytes)
             let memo = directory + "/" + REAPI.digest(Data(path.utf8)).hash
             if !inMemory, let data = try? JSONEncoder().encode(entry) {
-                try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
-                try? data.write(to: URL(fileURLWithPath: memo, isDirectory: false), options: .atomic)
+                try? CargoBlobStore.write(data, to: URL(fileURLWithPath: memo, isDirectory: false))
             }
             Self.processRecords.setFile(memo, entry)
         }
@@ -276,8 +269,7 @@ final class CargoInputHasher {
         guard records.count <= 10000 else { return }
         if !inMemory {
             guard let data = try? JSONEncoder().encode(records), data.count <= 2_000_000 else { return }
-            try? FileManager.default.createDirectory(at: memo.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? data.write(to: memo, options: .atomic)
+            try? CargoBlobStore.write(data, to: memo)
         }
         Self.processRecords.setTree(memo, records)
     }

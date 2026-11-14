@@ -65,7 +65,7 @@ crate_type = "staticlib"
 name = "TuistCodeCoreMacOS"
 kind = "rust_library"
 srcs = ["crates/core/src/**/*.rs"]
-deps = ["native-dependencies/Host", "./TuistCodeOAuthMacOS", "./TuistCodeJWTMacOS"]
+deps = ["native-dependencies/Host", "./TuistCodeOAuthMacOS", "./TuistCodeJWTMacOS", "./TuistCodeCredentialsMacOS"]
 [target.attrs]
 crate_name = "tuist_app_core"
 cargo_package = "tuist-app-core"
@@ -93,7 +93,7 @@ android_api = 26
 name = "TuistCodeCoreTests"
 kind = "rust_test"
 srcs = ["crates/core/src/**/*.rs"]
-deps = ["native-dependencies/Host", "./TuistCodeOAuth", "./TuistCodeJWT"]
+deps = ["native-dependencies/Host", "./TuistCodeOAuth", "./TuistCodeJWT", "./TuistCodeCredentials"]
 [target.attrs]
 crate_name = "tuist_app_core_tests"
 cargo_package = "tuist-app-core"
@@ -123,6 +123,7 @@ families = ["iphone", "ipad"]
 info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneSimulator", PLATFORM_NAME = "iphonesimulator" }
 entitlements = "ios/Simulator.entitlements"
+asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
 
 [[target]]
@@ -139,6 +140,7 @@ sdk_variant = "device"
 families = ["iphone", "ipad"]
 info_plist = "ios/Info.plist"
 info_plist_substitutions = { SUPPORTED_PLATFORM = "iPhoneOS", PLATFORM_NAME = "iphoneos" }
+asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.png"]
 
 [[target]]
@@ -152,6 +154,7 @@ bundle_id = "dev.tuist.code"
 product_name = "TuistCode"
 minimum_os = "14.0"
 info_plist = "macos/Info.plist"
+asset_catalogs = ["apple/Resources/Assets.xcassets"]
 resources = ["apple/Resources/en.lproj/Localizable.strings", "macos/Resources/AppIcon.icns"]
 
 [[target]]
@@ -194,6 +197,30 @@ crate_name = "tuist_jwt"
 crate_root = "crates/jwt/src/lib.rs"
 cargo_package = "tuist-jwt"
 edition = "2024"
+
+# The macOS core shares the Tuist app's refresh lock; iOS and Android do not link it.
+[[target]]
+name = "TuistCodeCredentials"
+kind = "rust_library"
+srcs = ["crates/credentials/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_credentials"
+crate_root = "crates/credentials/src/lib.rs"
+cargo_package = "tuist-credentials"
+edition = "2024"
+
+[[target]]
+name = "TuistCodeCredentialsMacOS"
+kind = "rust_library"
+srcs = ["crates/credentials/src/**/*.rs"]
+deps = ["native-dependencies/Host"]
+[target.attrs]
+crate_name = "tuist_credentials"
+crate_root = "crates/credentials/src/lib.rs"
+cargo_package = "tuist-credentials"
+edition = "2024"
+target = "aarch64-apple-darwin"
 
 [[target]]
 name = "TuistCodeOAuthIOS"

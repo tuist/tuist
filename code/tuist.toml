@@ -1,0 +1,4 @@
+# Tuist CLI configuration for publishing IPAs that Once cannot publish itself
+# (see `preview:ios-device`). Once reads its project from once.toml.
+project = "tuist/code"
+url = "https://tuist.dev"

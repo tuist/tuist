@@ -2726,11 +2726,6 @@ msgstr "შემოწმდა ქეში, მაგრამ ქეში�
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "კომპილაციის მოქმედებები აღდგა ლოკალური ან დისტანციური ქეშიდან."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "შეკომპილდა ამოცანის შემავალი მონაცემების შესასწავლად, რათა მომავალში ქეშიდან ხელახლა გამოყენება მოხერხდეს."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3336,3 +3331,8 @@ msgstr "ჯამური"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "გამოყენებული"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "კომპილირდა ქეშის გამოყენების გარეშე, რადგან მისი ქეშირება შეუძლებელი იყო."

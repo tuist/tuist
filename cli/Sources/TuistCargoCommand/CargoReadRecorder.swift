@@ -86,6 +86,7 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
     #include <string.h>
     #include <sys/param.h>
     #include <sys/socket.h>
+    #include <sys/un.h>
     #include <sys/stat.h>
     #include <unistd.h>
     #include <pthread.h>
@@ -109,6 +110,75 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
     }
     #define depth (*depth_slot())
 
+    /* Events are buffered per process and written in batches rather than with one `write` each, which rustc and
+       clang make for every header and source they look up. The buffer is written before this process starts or
+       becomes another program, so a child's events follow its parent's, and when it exits, with an `F` event the
+       parser requires: a process that loaded the recorder and died before writing its events makes the run
+       uncacheable rather than leave its reads out. */
+    static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+    static char pending[65536];
+    static size_t pending_length = 0;
+    /* A forked child, which never logged `P`, and a process past its exit write events as they happen. */
+    static int unbuffered = 0;
+
+    static void write_all(const char *data, size_t length) {
+        while (length > 0) {
+            ssize_t written = write(log_fd, data, length);
+            if (written < 0 && errno == EINTR) continue;
+            if (written <= 0) return;
+            data += written;
+            length -= (size_t)written;
+        }
+    }
+
+    static void flush_locked(void) {
+        write_all(pending, pending_length);
+        pending_length = 0;
+    }
+
+    static void append(const char *data, size_t length) {
+        if (log_fd < 0) return;
+        pthread_mutex_lock(&log_lock);
+        if (unbuffered || length > sizeof pending) {
+            flush_locked();
+            write_all(data, length);
+        } else {
+            if (pending_length + length > sizeof pending) flush_locked();
+            memcpy(pending + pending_length, data, length);
+            pending_length += length;
+        }
+        pthread_mutex_unlock(&log_lock);
+    }
+
+    /* Takes the lock within about 100 ms. A signal handler that spawns or exits while its own thread appends would
+       otherwise wait forever; skipping its write leaves the process without `F`, which only makes the run uncacheable. */
+    static int acquire(void) {
+        for (int attempt = 0; attempt < 1000; attempt++) {
+            if (pthread_mutex_trylock(&log_lock) == 0) return 1;
+            usleep(100);
+        }
+        return 0;
+    }
+
+    static void flush(void) {
+        if (log_fd < 0 || !acquire()) return;
+        flush_locked();
+        pthread_mutex_unlock(&log_lock);
+    }
+
+    /* Writes this program's events and `F`, before it exits or execs. `final`: it exits, so later events (from
+       other exit handlers) are written as they happen. An exec that fails logs `Y` or `Z`, which reopens it. */
+    static void seal(int final) {
+        if (log_fd < 0) return;
+        char line[32];
+        int length = snprintf(line, sizeof line, "%d\tF\t\n", getpid());
+        if (!acquire()) return;
+        flush_locked();
+        if (length > 0) write_all(line, (size_t)length);
+        if (final) unbuffered = 1;
+        pthread_mutex_unlock(&log_lock);
+    }
+
     static void emit(char kind, const char *text) {
         if (log_fd < 0 || text == NULL) return;
         char line[MAXPATHLEN * 2 + 64];
@@ -117,7 +187,7 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
         if ((size_t)length >= sizeof line || strchr(text, '\n') != NULL) {
             length = snprintf(line, sizeof line, "%d\t?\tunrepresentable\n", getpid());
         }
-        write(log_fd, line, (size_t)length);
+        append(line, (size_t)length);
     }
 
     static void emit_path(char kind, int directory, const char *path) {
@@ -136,6 +206,17 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
         }
         snprintf(absolute, sizeof absolute, "%s/%s", base, path);
         emit(kind, absolute);
+    }
+
+    static void before_fork(void) {
+        pthread_mutex_lock(&log_lock);
+        if (log_fd >= 0) flush_locked();
+    }
+    static void after_fork_parent(void) { pthread_mutex_unlock(&log_lock); }
+    static void after_fork_child(void) {
+        pending_length = 0;
+        unbuffered = 1;
+        pthread_mutex_unlock(&log_lock);
     }
 
     __attribute__((constructor)) static void start(void) {
@@ -181,9 +262,18 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
         char parent[32];
         snprintf(parent, sizeof parent, "%d", getppid());
         emit('p', parent);
+        pthread_atfork(before_fork, after_fork_parent, after_fork_child);
         ready = 1;
         depth--;
     }
+
+    __attribute__((destructor)) static void stop(void) { seal(1); }
+
+    /* `exit` runs the destructor; these end the process without it. */
+    static void my__exit(int status) { seal(1); _exit(status); }
+    INTERPOSE(my__exit, _exit)
+    static void my_Exit(int status) { seal(1); _Exit(status); }
+    INTERPOSE(my_Exit, _Exit)
 
     /* Whether the calling code is the toolchain's or the system's, whose own environment reads are not the crate's. */
     static int from_toolchain(const void *caller) {
@@ -447,7 +537,7 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
         }
         if (length <= 0 || (size_t)length + 1 >= sizeof line) return 0;
         line[length++] = '\n';
-        write(log_fd, line, (size_t)length);
+        append(line, (size_t)length);
         if (environment == *_NSGetEnviron()) emit('x', "*");
         return 1;
     }
@@ -472,6 +562,7 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
             depth--;
         }
         if (!query) spawned(path, environment);
+        seal(0);
         int result = execve(path, arguments, environment);
         if (logged) { int saved = errno; depth++; emit(query ? 'Z' : 'Y', path); depth--; errno = saved; }
         return result;
@@ -489,8 +580,9 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
        before, and withdrawn when it fails. */
     static int my_posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *actions,
                               const posix_spawnattr_t *attributes, char *const arguments[], char *const environment[]) {
-        int logged = ready && depth == 0, replaces = logged && replaces_process(attributes);
+        int replacing = replaces_process(attributes), logged = ready && depth == 0, replaces = logged && replacing;
         if (replaces) spawned(path, environment);
+        if (replacing) seal(0); else flush();
         depth++;
         int result = posix_spawn(pid, path, actions, attributes, arguments, environment);
         depth--;
@@ -502,8 +594,9 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
 
     static int my_posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *actions,
                                const posix_spawnattr_t *attributes, char *const arguments[], char *const environment[]) {
-        int logged = ready && depth == 0, replaces = logged && replaces_process(attributes);
+        int replacing = replaces_process(attributes), logged = ready && depth == 0, replaces = logged && replacing;
         if (replaces) spawned(file, environment);
+        if (replacing) seal(0); else flush();
         depth++;
         int result = posix_spawnp(pid, file, actions, attributes, arguments, environment);
         depth--;
@@ -514,7 +607,12 @@ enum CargoReadRecorder { // swiftlint:disable:this type_body_length
     INTERPOSE(my_posix_spawnp, posix_spawnp)
 
     static int my_connect(int socket, const struct sockaddr *address, socklen_t length) {
-        if (ready && depth == 0) { depth++; emit('N', "connect"); depth--; }
+        if (ready && depth == 0) {
+            depth++;
+            if (address && address->sa_family == AF_UNIX) emit('N', ((const struct sockaddr_un *)address)->sun_path);
+            else emit('N', "connect");
+            depth--;
+        }
         return connect(socket, address, length);
     }
     INTERPOSE(my_connect, connect)

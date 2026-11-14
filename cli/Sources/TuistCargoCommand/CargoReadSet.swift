@@ -38,12 +38,21 @@ struct CargoReadSet: Codable, Equatable {
         }
         var commands: Set<Entry> = []
         // Processes of query programs and tools that loaded the recorder, such as a Homebrew `git` or swiftly's
-        // `swiftc`, and their children: what they print or produce is keyed, so their own events are not the run's.
+        // `swiftc`, and their children: what they print or produce is keyed, so their own events, including the
+        // programs they start, are not the run's. Without SIP every program loads the recorder: `/usr/bin/ar` runs
+        // Xcode's `ar`, which runs `ranlib`.
         var queryProcesses: Set<String> = []
+        // Children of those processes. A forked child logs its `execve` before the program it starts says whose
+        // child it is, so an attempt of one is dropped once that is known.
+        var queryChildren: Set<String> = []
         // The index files of working trees a keyed git query asked about.
         var queriedIndexes: Set<String> = []
         var counted: Set<String> = []
         var attempts: [String: String] = [:]
+        var programs: [String: String] = [:]
+        // Processes that loaded the recorder and have not logged `F` yet: the recorder buffers events, so one that died
+        // before writing them may have read more than the log says.
+        var open: Set<String> = []
         func model(_ value: String) {
             let parts = value.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
             guard parts.count >= 4, !allowedSpawn(parts[0]) else { return }
@@ -70,28 +79,37 @@ struct CargoReadSet: Codable, Equatable {
             }
             let pid = String(fields[0])
             let value = String(fields[2])
-            if queryProcesses.contains(pid) {
-                if "XQJ".contains(kind) { spawns += 1; unrecorded.append(value) }
+            if kind == "F" {
+                open.remove(pid)
                 continue
             }
+            if kind == "p", queryProcesses.contains(value) {
+                queryProcesses.insert(pid)
+                queryChildren.insert(pid)
+                if counted.remove(pid) != nil { processes -= 1 }
+                continue
+            }
+            if queryProcesses.contains(pid) { continue }
             switch kind {
             // An allowed program that loaded the recorder must not stand in for a child that did not.
             case "P":
+                programs[pid] = value
+                open.insert(pid)
                 if CargoQuery.programs.union(CargoTool.programs).contains(URL(fileURLWithPath: value).lastPathComponent) {
                     queryProcesses.insert(pid)
                 } else if !allowedSpawn(value) { processes += 1; counted.insert(pid) }
-            case "p":
-                if queryProcesses.contains(value) {
-                    queryProcesses.insert(pid)
-                    if counted.remove(pid) != nil { processes -= 1 }
-                }
+            case "p": break
             case "Q": model(value)
             // An `execve` of a modeled program, as a forked child's `execvp` tries each `PATH` directory: `Z`
             // withdraws an attempt that failed, so only the last one stands.
             case "J": attempts[pid] = value
-            case "Z": attempts[pid] = nil
+            case "Z":
+                attempts[pid] = nil
+                // A failed exec continues the program it sealed.
+                if programs[pid] != nil { open.insert(pid) }
             case "X": if !allowedSpawn(value) { spawns += 1; unrecorded.append(value) }
             case "Y":
+                if programs[pid] != nil { open.insert(pid) }
                 if !allowedSpawn(value) {
                     spawns -= 1
                     if let last = unrecorded.lastIndex(of: value) { unrecorded.remove(at: last) }
@@ -108,12 +126,17 @@ struct CargoReadSet: Codable, Equatable {
                 written.insert(path)
             case "R", "S", "A", "D": observed.append((kind, standardized(value)))
             default:
-                explain(kind == "N" ? "connected to the network" : "event \(kind) \(value)")
+                explain(kind == "N" ? "connected to \(value) from \(programs[pid] ?? "an unknown program")" : "event \(kind) \(value)")
                 return nil
             }
         }
-        for attempt in attempts.values.sorted() {
+        for (pid, attempt) in attempts.sorted(by: { $0.value < $1.value }) where !queryChildren.contains(pid) {
             model(attempt)
+        }
+        guard open.isEmpty else {
+            let unfinished = open.compactMap { programs[$0] }.sorted().prefix(4)
+            explain("has a recorded process that did not finish logging: " + unfinished.joined(separator: "; "))
+            return nil
         }
         // Every process started must have loaded the recorder, the first one included.
         guard processes >= 1, processes >= spawns + 1 else {

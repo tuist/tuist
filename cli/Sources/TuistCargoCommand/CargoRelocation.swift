@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Takes the checkout's machine-specific roots out of cache keys and stored text, as Bazel's `rules_rust` and blaze do,
 /// so another checkout path or machine finds the same entries. Compiled outputs are made path-free separately, by
@@ -114,6 +115,26 @@ struct CargoRelocation: Equatable {
         let scanned = Self.behavioralBytes(data)
         return roots.filter { scanned.range(of: Data($0.path.utf8)) != nil }
     }
+
+    /// `boundRoots(in:)` of a file, remembered under the file's identity: a compilation's publication scans its outputs
+    /// and unit collection scans the same files again after Cargo exits, gigabytes of rlibs that changed in between only
+    /// when their identity did.
+    func boundRoots(of file: URL) throws -> [Root] {
+        let identity = try CargoInputHasher.identity(file)
+        let paths = roots.map(\.path)
+        if identity.precise, let bound = Self.scanned.withLock({ $0[file.path] }), bound.identity == identity,
+           bound.roots == paths
+        {
+            return roots.filter { bound.found.contains($0.path) }
+        }
+        let found = boundRoots(in: try Data(contentsOf: file))
+        if identity.precise, (try? CargoInputHasher.identity(file)) == identity {
+            Self.scanned.withLock { $0[file.path] = (identity, paths, Set(found.map(\.path))) }
+        }
+        return found
+    }
+
+    private static let scanned = Mutex<[String: (identity: CargoInputHasher.Identity, roots: [String], found: Set<String>)]>([:])
 
     static func behavioralBytes(_ data: Data) -> Data {
         guard data.count > 32, data.prefix(4) == Data([0xCF, 0xFA, 0xED, 0xFE]) else { return data }

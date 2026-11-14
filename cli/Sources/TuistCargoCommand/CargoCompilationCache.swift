@@ -23,7 +23,7 @@ protocol CargoCacheAction {
     func storedOutput(_ data: Data) -> Data?
     func restoredOutput(_ data: Data) -> Data?
     /// Machine roots an output names that its key does not; such an entry would behave differently elsewhere.
-    func unkeyedRoots(in data: Data) -> [String]
+    func unkeyedRoots(in file: URL) throws -> [String]
     /// The one output stored and restored with its executable bit, a linked binary.
     var executableOutput: String? { get }
 }
@@ -34,7 +34,7 @@ extension CargoCacheAction {
     var remapArguments: [String] { [] }
     func storedOutput(_ data: Data) -> Data? { data }
     func restoredOutput(_ data: Data) -> Data? { data }
-    func unkeyedRoots(in _: Data) -> [String] { [] }
+    func unkeyedRoots(in _: URL) throws -> [String] { [] }
 }
 
 struct CargoCompilationCache {
@@ -156,7 +156,7 @@ struct CargoCompilationCache {
             budget -= Int64(size)
             var content = file
             if !name.hasSuffix(".d") {
-                let unkeyed = invocation.unkeyedRoots(in: try Data(contentsOf: file))
+                let unkeyed = try invocation.unkeyedRoots(in: file)
                 guard unkeyed.isEmpty else {
                     let roots = unkeyed.joined(separator: ", ")
                     return refuse("\(name) names \(roots), which its key does not")
@@ -251,6 +251,9 @@ struct CargoCompilationCache {
     static let widthMessage = "tuist-diagnostic-width"
     /// Matches the unit cache: debug rlibs of large crates (aws-sdk-s3, mise) pass 100 MB, and blobs stream over ByteStream.
     static let maximumBytes: Int64 = 4_000_000_000
+    /// Incremental compilations use 256 codegen units, and unpacked debug information keeps an object (and on Linux a
+    /// `.dwo`) per unit beside the rlib.
+    static let maximumOutputFiles = 1024
 
     static func diagnosticWidth(_ arguments: [String]) -> String {
         var width = ""
@@ -288,7 +291,7 @@ struct CargoCompilationCache {
               result.stdoutRaw.isEmpty, result.stderrRaw.count <= 1_000_000, let messages = Self.messages(result.stderrRaw),
               // Diagnostics replay only at the width they were rendered at.
               !messages.diagnostics || messages.width == Self.diagnosticWidth(invocation.arguments),
-              result.outputFiles.count <= 128,
+              result.outputFiles.count <= Self.maximumOutputFiles,
               Set(result.outputFiles.map(\.path)).count == result.outputFiles.count,
               Set(invocation.files).isSubset(of: Set(result.outputFiles.map(\.path))),
               result.outputFiles.allSatisfy({ invocation.acceptsOutput($0.path) })

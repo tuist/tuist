@@ -2728,11 +2728,6 @@ msgstr "Sprawdzono pamięć podręczną, ale nie można było ponownie wykorzyst
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "Akcje kompilacji przywrócone z lokalnej lub zdalnej pamięci podręcznej."
 
-#: lib/tuist_web/helpers/cargo_cache.ex:75
-#, elixir-autogen, elixir-format
-msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "Skompilowano w celu poznania danych wejściowych zadania dla przyszłego ponownego wykorzystania z pamięci podręcznej."
-
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
@@ -3338,3 +3333,8 @@ msgstr "Łącznie"
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr "Wykorzystane"
+
+#: lib/tuist_web/helpers/cargo_cache.ex:75
+#, elixir-autogen, elixir-format
+msgid "Compiled without consulting the cache because it could not be cached."
+msgstr "Skompilowano bez odwoływania się do pamięci podręcznej, ponieważ nie można było jej zbuforować."
