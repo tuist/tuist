@@ -325,6 +325,33 @@ spec:
       {{- include "greptimedb.placement" "metasrv" | nindent 6 }}
       securityContext:
         {{- include "greptimedb.podSecurityContext" . | nindent 8 }}
+      initContainers:
+        # The metasrv leader creates the WAL topics once, when it starts
+        # leading, and does not retry. On a fresh install that can run before
+        # all three brokers register, which fails replication factor 3 and
+        # leaves every region creation failing. Once the topics exist, a
+        # degraded Kafka no longer holds metasrv back.
+        - name: wait-for-wal
+          image: {{ .Values.cluster.kafka.image | quote }}
+          command: [sh, -ec]
+          args:
+            - |
+              servers={{ include "greptimedb.peers" (list "pulse-kafka" 9092) | replace "\"" "" | trimPrefix "[" | trimSuffix "]" | replace ", " "," }}
+              until /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$servers" --list 2>/dev/null | grep -q '^greptimedb_wal_topic_' ||
+                [ "$(/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server "$servers" 2>/dev/null | grep -c ' (id: ')" -ge 3 ]; do
+                echo 'Waiting for the WAL topics or all three Kafka brokers'
+                sleep 5
+              done
+          env:
+            - {name: KAFKA_HEAP_OPTS, value: -Xmx128m}
+            - {name: LOG_DIR, value: /tmp/logs}
+          securityContext:
+            {{- include "greptimedb.containerSecurityContext" . | nindent 12 }}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: scratch, mountPath: /tmp}
       containers:
         - name: metasrv
           image: {{ .Values.image | quote }}
@@ -501,8 +528,7 @@ metadata:
   name: pulse-standalone
 spec:
   podSelector:
-    matchLabels:
-      {{- include "greptimedb.standaloneSelector" . | nindent 6 }}
+    {{- include "greptimedb.standalonePolicySelector" . | nindent 4 }}
   policyTypes: [Ingress]
   ingress:
     {{- include "greptimedb.apiIngress" . | nindent 4 }}

@@ -65,6 +65,8 @@ jq -e -n --slurpfile target "$tmp/target.json" --slurpfile serving "$tmp/serving
   def cluster: [.[] | select((.kind == "StatefulSet" or .kind == "Deployment") and .metadata.name != "pulse")];
   {"app.kubernetes.io/instance":"pulse","statefulset.kubernetes.io/pod-name":"pulse-0"} as $standalone |
   {"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"frontend"} as $frontends |
+  {matchLabels:{"app.kubernetes.io/instance":"pulse"},
+    matchExpressions:[{key:"app.kubernetes.io/component",operator:"DoesNotExist"}]} as $policy |
   $target[0] as $target | $serving[0] as $serving | $draining[0] as $draining |
   ($serving | one("StatefulSet"; "pulse") | .spec.replicas == 1 and
     .spec.selector == {matchLabels:{"app.kubernetes.io/instance":"pulse"}} and
@@ -81,9 +83,13 @@ jq -e -n --slurpfile target "$tmp/target.json" --slurpfile serving "$tmp/serving
     ["PULSE_DATANODE__STORAGE__ACCESS_KEY_ID","PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY",
      "PULSE_STANDALONE__STORAGE__ACCESS_KEY_ID","PULSE_STANDALONE__STORAGE__SECRET_ACCESS_KEY"]) and
   # The cluster admits only its own pods; the standalone pod keeps its readers.
+  # Cilium ignores statefulset.kubernetes.io/pod-name, so policies select the
+  # only Pulse pod without a component.
   ($serving | one("NetworkPolicy"; "pulse-standalone").spec |
-    .podSelector.matchLabels == $standalone and .ingress == ($serving | one("NetworkPolicy"; "pulse-private").spec.ingress)) and
-  ($serving | one("CiliumNetworkPolicy"; "pulse-standalone-host-ingress").spec.endpointSelector.matchLabels == $standalone) and
+    .podSelector == $policy and .ingress == ($serving | one("NetworkPolicy"; "pulse-private").spec.ingress)) and
+  ($serving | one("CiliumNetworkPolicy"; "pulse-standalone-host-ingress").spec.endpointSelector == $policy) and
+  all([$serving, $draining][][] | select(.kind | endswith("NetworkPolicy"));
+    .spec | tostring | contains("statefulset.kubernetes.io/pod-name") | not) and
   # Helm applies in this order: the standalone pod gains its own policies
   # before the cluster ones select it or narrow to the frontends.
   ($serving | [.[] | select(.kind | endswith("NetworkPolicy")) | .metadata.name] |
@@ -126,7 +132,10 @@ jq -e '
   (one("StatefulSet"; "pulse-etcd") | .spec.replicas == 3 and spread("etcd")) and
   (one("StatefulSet"; "pulse-kafka") | .spec.replicas == 3 and spread("kafka") and
     (.spec.template.spec.containers[0].image | test("^docker.io/apache/kafka:[0-9.]+@sha256:[0-9a-f]{64}$"))) and
-  (one("Deployment"; "pulse-metasrv") | .spec.replicas == 3 and spread("metasrv")) and
+  (one("Deployment"; "pulse-metasrv") | .spec.replicas == 3 and spread("metasrv") and
+    # Topic creation runs once per leader: wait for the WAL or every broker.
+    .spec.template.spec.initContainers[0].name == "wait-for-wal" and
+    (.spec.template.spec.initContainers[0].args[0] | contains("greptimedb_wal_topic_", "-ge 3"))) and
   # Production keeps its own sizing whatever the staging/canary defaults are.
   (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources.requests == {cpu:"1",memory:"2Gi"}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "20Gi" and

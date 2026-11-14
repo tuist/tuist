@@ -8,8 +8,7 @@ metadata:
   name: pulse-standalone-host-ingress
 spec:
   endpointSelector:
-    matchLabels:
-      {{- include "greptimedb.standaloneSelector" . | nindent 6 }}
+    {{- include "greptimedb.standalonePolicySelector" . | nindent 4 }}
   ingress:
     - fromEntities: [host, remote-node]
       toPorts:
