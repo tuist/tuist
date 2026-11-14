@@ -40,14 +40,11 @@ defmodule Tuist.MCP.WebMCPTest do
     organization = %{organization_id: 1}
 
     pulse_tools =
-      ~w(query_pulse get_pulse_analytics query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
+      ~w(query_pulse get_pulse_analytics get_pulse_error_issue query_pulse_metrics list_pulse_labels search_pulse_logs search_pulse_traces get_pulse_trace)
 
-    for path <- ~w(metrics logs traces) do
+    for path <- ~w(metrics logs traces errors errors/issues/abc) do
       assert WebMCP.dashboard_page("/acme/~/pulse/#{path}", organization, nil) == "pulse"
     end
-
-    assert WebMCP.dashboard_page("/acme/~/pulse/errors", organization, nil) == nil
-    refute Map.has_key?(WebMCP.account_server("pulse", nil).tools, "get_pulse_error_issue")
 
     assert pulse_tools -- Map.keys(WebMCP.account_server("pulse", nil).tools) == []
     assert Map.keys(WebMCP.public_server().tools) -- pulse_tools == Map.keys(WebMCP.public_server().tools)

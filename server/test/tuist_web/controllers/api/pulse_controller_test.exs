@@ -23,8 +23,8 @@ defmodule TuistWeb.API.PulseControllerTest do
   end
 
   defp call(action, params, assigns) do
-    path = Map.merge(%{"account_handle" => "acme"}, Map.take(params, ~w(signal)))
-    query = Map.drop(params, ~w(signal))
+    path = Map.merge(%{"account_handle" => "acme"}, Map.take(params, ~w(signal fingerprint)))
+    query = Map.drop(params, ~w(signal fingerprint))
     conn = Plug.Test.conn(:get, "/?" <> URI.encode_query(query))
     conn = %{conn | path_params: path, params: Map.merge(path, query), query_params: query, body_params: %{}}
     conn = Enum.reduce(assigns, conn, fn {key, value}, conn -> assign(conn, key, value) end)
@@ -103,7 +103,38 @@ defmodule TuistWeb.API.PulseControllerTest do
     end
 
     for action <- [:query, :analytics] do
-      assert call(action, %{"signal" => "errors"}, current_user: ctx.user).status == 400
+      assert call(action, %{"signal" => "unknown"}, current_user: ctx.user).status == 400
+    end
+  end
+
+  test "error issues take the fingerprint from the path and the service from the query", ctx do
+    fingerprint = String.duplicate("a1", 32)
+
+    expect(Pulse, :error_issue, fn user, _account, ^fingerprint, params ->
+      assert user == ctx.user
+
+      assert params == %{
+               "service" => "server",
+               "range" => "6h",
+               "end_at" => "2026-10-01T12:00:00Z",
+               "page" => 1,
+               "page_size" => 20
+             }
+
+      {:error, :not_found}
+    end)
+
+    params = %{"fingerprint" => fingerprint, "service" => "server", "range" => "6h", "end_at" => "2026-10-01T12:00:00Z"}
+    assert call(:error_issue, params, current_user: ctx.user).status == 404
+
+    reject(&Pulse.error_issue/4)
+
+    for params <- [
+          %{"fingerprint" => fingerprint},
+          %{"fingerprint" => "ABC", "service" => "server"},
+          %{"fingerprint" => fingerprint, "service" => "server", "query" => "x"}
+        ] do
+      assert call(:error_issue, params, current_user: ctx.user).status == 400
     end
   end
 
@@ -148,15 +179,23 @@ defmodule TuistWeb.API.PulseControllerTest do
     end
   end
 
-  test "analytics routes resolve before signal routes and error issue routes do not exist" do
-    for {path, action} <- [{"logs/analytics", :analytics}, {"logs", :query}] do
+  test "issue and analytics routes resolve before signal routes" do
+    for {path, action} <- [
+          {"logs/analytics", :analytics},
+          {"logs", :query},
+          {"errors", :query},
+          {"errors/issues/issue", :error_issue}
+        ] do
       route = Phoenix.Router.route_info(TuistWeb.Router, "GET", "/api/accounts/acme/pulse/" <> path, "localhost")
       assert route.plug == Controller
       assert route.plug_opts == action
     end
 
-    for path <- ["errors/issues/issue/events/event", "errors/issues/issue"] do
-      assert Phoenix.Router.route_info(TuistWeb.Router, "GET", "/api/accounts/acme/pulse/" <> path, "localhost") == :error
-    end
+    assert Phoenix.Router.route_info(
+             TuistWeb.Router,
+             "GET",
+             "/api/accounts/acme/pulse/errors/issues/issue/events/event",
+             "localhost"
+           ) == :error
   end
 end

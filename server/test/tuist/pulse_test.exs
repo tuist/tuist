@@ -20,7 +20,7 @@ defmodule Tuist.PulseTest do
     %{user: user, account: organization.account, organization: organization, config: config}
   end
 
-  test "logs use readonly SQL rows in the configured database and errors are not a signal", ctx do
+  test "logs use readonly SQL rows in the configured database", ctx do
     expect(Req, :request, fn request ->
       assert request.url.path == "/v1/sql"
       assert request.options[:auth] == {:basic, "dashboard:secret"}
@@ -37,16 +37,12 @@ defmodule Tuist.PulseTest do
     assert Pulse.default_query("metrics") == "up"
     assert Pulse.default_query("logs") == "*"
     assert Pulse.default_query("traces") == "*"
-    assert Pulse.default_query("errors") == nil
+    assert Pulse.default_query("errors") == "*"
 
     assert {:ok, %{rows: [%{"message" => "can't connect", "timestamp" => "1794329254406000002"}], meta: meta}} =
              Pulse.query(ctx.user, ctx.account, "logs", %{"query" => "can't", "service" => "server"})
 
     assert meta["total_count"] == 1
-
-    reject(Req, :request, 1)
-    assert {:error, :invalid_params} = Pulse.query(ctx.user, ctx.account, "errors", %{})
-    assert {:error, :invalid_params} = Pulse.analytics(ctx.user, ctx.account, "errors", %{})
   end
 
   test "metrics use the Prometheus API and spans retain measured milliseconds", ctx do
@@ -338,6 +334,267 @@ defmodule Tuist.PulseTest do
     assert {:error, :query_result_limit} = Pulse.query(ctx.user, ctx.account, "traces", %{})
   end
 
+  @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id)
+  @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle)
+  @fingerprint String.duplicate("a1", 32)
+
+  test "errors list issues by service and fingerprint, filtered and sorted before paging", ctx do
+    expect(Req, :request, 4, fn request ->
+      sql = request.options.params[:sql]
+      assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
+
+      if sql =~ "GROUP BY service, fingerprint, bucket",
+        do: issue_buckets(sql),
+        else: issue_rows(sql)
+    end)
+
+    assert {:ok, %{rows: rows, meta: meta}} =
+             Pulse.query(ctx.user, ctx.account, "errors", %{
+               "query" => "can't",
+               "service" => "server",
+               "sort_by" => "events"
+             })
+
+    assert Enum.map(rows, & &1["fingerprint"]) == [@fingerprint, String.duplicate("c3", 32)]
+    assert %{"first_seen" => "1794329254000000001", "last_seen" => "1794329255000000002", "accounts" => 1} = hd(rows)
+    assert meta["total_count"] == 2
+
+    # The worker's events under the same fingerprint stay out of the server issue's trend.
+    series = hd(rows)["occurrence_series"]
+    assert length(series) == 60
+    assert series |> Enum.at(3) |> List.last() == 2
+    assert series |> Enum.map(&List.last/1) |> Enum.sum() == 3
+    assert rows |> List.last() |> Map.fetch!("occurrence_series") |> Enum.all?(&(List.last(&1) == 0))
+
+    assert {:ok, %{rows: rows}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't"})
+    assert Enum.map(rows, & &1["latest_event_id"]) == ~w(bb aa cc)
+  end
+
+  defp issue_buckets(sql) do
+    assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 AND fingerprint IN ("
+    assert sql =~ "'#{String.duplicate("b2", 32)}'"
+
+    response(
+      sql_body(~w(service fingerprint bucket events), [
+        ["server", @fingerprint, 3, 2],
+        ["server", @fingerprint, 70, 1],
+        ["worker", @fingerprint, 3, 5],
+        ["worker", String.duplicate("b2", 32), 0, 9]
+      ])
+    )
+  end
+
+  defp issue_rows(sql) do
+    assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
+    assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 GROUP BY service, fingerprint ORDER BY last_seen DESC"
+    assert sql =~ "count(DISTINCT nullif(account_handle, '')) AS accounts"
+    assert String.ends_with?(sql, " LIMIT 100")
+
+    response(
+      sql_body(@issue_columns, [
+        [
+          "server",
+          @fingerprint,
+          3,
+          1,
+          ns(1_794_329_254) + 1,
+          ns(1_794_329_255) + 2,
+          "RuntimeError: can't",
+          "f/1",
+          "error",
+          "elixir",
+          "aa"
+        ],
+        [
+          "worker",
+          String.duplicate("b2", 32),
+          9,
+          0,
+          ns(1_794_329_250),
+          ns(1_794_329_256),
+          "KeyError: can't",
+          nil,
+          "warning",
+          nil,
+          "bb"
+        ],
+        [
+          "server",
+          String.duplicate("c3", 32),
+          1,
+          0,
+          ns(1_794_329_251),
+          ns(1_794_329_251),
+          "Exit: can't",
+          nil,
+          "fatal",
+          nil,
+          "cc"
+        ]
+      ])
+    )
+  end
+
+  test "an error issue returns its summary, 60 occurrence buckets and the latest scrubbed event", ctx do
+    finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+    start = finish - 3600
+    parent = self()
+    event = ["ee", "RuntimeError: boom", "error", "production", "1.0", "pod", "0af7", "tuist"]
+
+    stub(Req, :request, fn request ->
+      sql = request.options.params[:sql]
+      send(parent, :sql)
+
+      assert sql =~
+               " FROM errors WHERE timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"
+
+      assert sql =~ " AND service = 'server''s' AND fingerprint = '#{@fingerprint}'"
+
+      cond do
+        sql =~ "GROUP BY service, fingerprint" ->
+          response(
+            sql_body(@issue_columns, [
+              [
+                "server's",
+                @fingerprint,
+                4,
+                1,
+                ns(start) + 5,
+                ns(finish),
+                "RuntimeError: boom",
+                "f/1",
+                "error",
+                "elixir",
+                "ee"
+              ]
+            ])
+          )
+
+        sql =~ "GROUP BY bucket" ->
+          assert sql =~ "(arrow_cast(timestamp, 'Int64') - #{ns(start)}) / 60000000000 AS bucket"
+          # An event at the window's inclusive end falls into the last bucket.
+          response(sql_body(~w(bucket events), [[0, 2], [30, 1], [60, 1]]))
+
+        sql =~ ", event FROM errors" ->
+          payload = %{
+            "exception" => [%{"type" => "RuntimeError", "frames" => []}],
+            "tags" => %{"a" => "b"},
+            "user" => %{"id" => "1"}
+          }
+
+          response(sql_body(@event_columns ++ ["event"], [[ns(finish) | event] ++ [payload]]))
+
+        true ->
+          assert String.ends_with?(sql, "ORDER BY timestamp DESC, event_id ASC LIMIT 2 OFFSET 2")
+
+          response(
+            sql_body(@event_columns, [[ns(finish) | event], [ns(start) + 5, "dd", nil, "error", nil, nil, nil, nil, nil]])
+          )
+      end
+    end)
+
+    assert {:ok, detail} =
+             Pulse.error_issue(ctx.user, ctx.account, @fingerprint, %{
+               "service" => "server's",
+               "end_at" => "2026-11-06T12:00:00Z",
+               "page" => "2",
+               "page_size" => "2"
+             })
+
+    assert detail.issue["events"] == 4
+
+    assert detail.meta == %{
+             "page" => 2,
+             "page_size" => 2,
+             "total_count" => 4,
+             "total_pages" => 2,
+             "end_at" => "2026-11-06T12:00:00Z",
+             "has_next_page" => false,
+             "has_previous_page" => true
+           }
+
+    assert detail.issue["first_seen"] == Integer.to_string(ns(start) + 5)
+    assert length(detail.occurrence_series) == 60
+    assert hd(detail.occurrence_series) == [start, 2]
+    assert Enum.at(detail.occurrence_series, 30) == [start + 1800, 1]
+    assert List.last(detail.occurrence_series) == [finish - 60, 1]
+    assert detail.occurrence_series |> Enum.map(&List.last/1) |> Enum.sum() == 4
+    assert detail.latest_event["event_id"] == "ee"
+    assert detail.latest_event["timestamp"] == Integer.to_string(ns(finish))
+    assert detail.latest_event["exception"] == [%{"type" => "RuntimeError", "frames" => []}]
+    assert detail.latest_event["tags"] == %{"a" => "b"}
+    refute Map.has_key?(detail.latest_event, "user")
+    assert Enum.map(detail.events, & &1["event_id"]) == ~w(ee dd)
+
+    for _ <- 1..4, do: assert_received(:sql)
+    refute_received :sql
+  end
+
+  test "error issues report a missing issue and validate before HTTP", ctx do
+    expect(Req, :request, fn _ -> response(sql_body(@issue_columns, [])) end)
+    assert {:error, :not_found} = Pulse.error_issue(ctx.user, ctx.account, @fingerprint, %{"service" => "server"})
+
+    reject(Req, :request, 1)
+
+    for {fingerprint, params} <- [
+          {String.upcase(@fingerprint), %{"service" => "server"}},
+          {"a1", %{"service" => "server"}},
+          {@fingerprint, %{}},
+          {@fingerprint, %{"service" => ""}},
+          {@fingerprint, %{"service" => 1}},
+          {@fingerprint, %{"service" => "server", "query" => "x"}},
+          {@fingerprint, %{"service" => "server", "range" => "7d"}},
+          {@fingerprint, %{"service" => "server", "page" => "0"}},
+          {@fingerprint, nil}
+        ] do
+      assert {:error, :invalid_params} = Pulse.error_issue(ctx.user, ctx.account, fingerprint, params)
+    end
+
+    outsider = AccountsFixtures.user_fixture()
+    assert {:error, :forbidden} = Pulse.error_issue(outsider, ctx.account, @fingerprint, %{"service" => "server"})
+    assert {:error, :forbidden} = Pulse.error_issue(nil, ctx.account, "bad", %{})
+  end
+
+  test "an error event is read by its issue and ID within the window", ctx do
+    event_id = String.duplicate("e5", 16)
+
+    expect(Req, :request, fn request ->
+      sql = request.options.params[:sql]
+      assert sql =~ " AND service = 'server' AND fingerprint = '#{@fingerprint}' AND event_id = '#{event_id}'"
+
+      response(
+        sql_body(@event_columns ++ ["event"], [
+          [ns(1_794_329_254), event_id, "KeyError", "error", "production", nil, "pod", nil, nil] ++
+            [%{"contexts" => %{"trace.span_id" => "b7ad"}, "request" => %{"url" => "/x"}, "user" => %{}}]
+        ])
+      )
+    end)
+
+    assert {:ok, %{event: event}} =
+             Pulse.error_event(ctx.user, ctx.account, @fingerprint, event_id, %{"service" => "server"})
+
+    assert event["title"] == "KeyError"
+    assert event["contexts"] == %{"trace.span_id" => "b7ad"}
+    refute Map.has_key?(event, "user")
+
+    expect(Req, :request, fn _ -> response(sql_body(@event_columns ++ ["event"], [])) end)
+
+    assert {:error, :not_found} =
+             Pulse.error_event(ctx.user, ctx.account, @fingerprint, event_id, %{"service" => "server"})
+
+    reject(Req, :request, 1)
+
+    for {id, params} <- [
+          {String.upcase(event_id), %{"service" => "server"}},
+          {event_id, %{"service" => "server", "page" => "2"}},
+          {event_id, %{}}
+        ] do
+      assert {:error, :invalid_params} = Pulse.error_event(ctx.user, ctx.account, @fingerprint, id, params)
+    end
+
+    assert {:error, :forbidden} = Pulse.error_event(nil, ctx.account, @fingerprint, event_id, %{"service" => "server"})
+  end
+
   test "malformed upstream results return fixed errors", ctx do
     for {signal, body} <- [
           {"metrics", "not json"},
@@ -551,14 +808,21 @@ defmodule Tuist.PulseTest do
       assert Enum.map(widgets, &{&1.value, &1.previous_value}) == [{2, nil}, {2, nil}, {0, nil}]
     end
 
-    for signal <- ~w(logs traces) do
+    for signal <- ~w(logs traces errors) do
       test "#{signal} aggregates through SQL with aligned buckets and independent full-window totals", ctx do
         signal = unquote(signal)
         now = ~U[2026-11-06 12:03:59Z]
         stub(DateTime, :utc_now, fn -> now end)
         parent = self()
-        table = if signal == "logs", do: "opentelemetry_logs", else: "opentelemetry_traces"
-        ids = if signal == "logs", do: ~w(entries errors warnings), else: ~w(spans errors duration_p95)
+        table = %{"logs" => "opentelemetry_logs", "traces" => "opentelemetry_traces", "errors" => "errors"}[signal]
+
+        ids =
+          %{
+            "logs" => ~w(entries errors warnings),
+            "traces" => ~w(spans errors duration_p95),
+            "errors" => ~w(events fatal services)
+          }[signal]
+
         # Each widget gets its own values, and Pulse returns the columns in
         # reverse order, so a widget reading another's column fails.
         weights = ids |> Enum.with_index(1) |> Map.new()
@@ -631,7 +895,7 @@ defmodule Tuist.PulseTest do
       end
     end
 
-    test "log and trace widgets share one statement per period with fixed filters and expressions", ctx do
+    test "log, trace and error widgets share one statement per period with fixed filters and expressions", ctx do
       parent = self()
 
       for {signal, table, ids, fragments} <- [
@@ -646,6 +910,12 @@ defmodule Tuist.PulseTest do
                ~s|count(*) AS "spans"|,
                ~s|count(*) FILTER (WHERE span_status_code = 'STATUS_CODE_ERROR') AS "errors"|,
                ~s|approx_percentile_cont(duration_nano, 0.95) / 1000000000.0 AS "duration_p95"|
+             ]},
+            {"errors", "errors", ~w(events fatal services),
+             [
+               ~s|count(*) AS "events"|,
+               ~s|count(*) FILTER (WHERE "level" = 'fatal') AS "fatal"|,
+               ~s|count(DISTINCT nullif(service, '')) AS "services"|
              ]}
           ] do
         stub(Req, :request, fn request ->
@@ -1043,6 +1313,7 @@ defmodule Tuist.PulseTest do
   end
 
   defp response(body), do: {:ok, %Req.Response{status: 200, body: body}}
+  defp ns(seconds), do: seconds * 1_000_000_000
   defp vector_body(entries), do: %{"status" => "success", "data" => %{"resultType" => "vector", "result" => entries}}
   defp scalar_body(value), do: %{"status" => "success", "data" => %{"resultType" => "scalar", "result" => value}}
 

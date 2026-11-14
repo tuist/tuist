@@ -28,6 +28,7 @@ defmodule Tuist.MCP.Server do
     Tools.SearchPulseLogs,
     Tools.SearchPulseTraces,
     Tools.GetPulseTrace,
+    Tools.GetPulseErrorIssue,
     Tools.ListAccounts,
     Tools.GetOrganization,
     Tools.ListAccountTokens,
@@ -183,7 +184,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.65.0",
+      version: "1.66.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

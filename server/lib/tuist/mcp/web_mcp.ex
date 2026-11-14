@@ -155,7 +155,7 @@ defmodule Tuist.MCP.WebMCP do
 
   defp account_page([]), do: "projects"
   defp account_page(["projects"]), do: "projects"
-  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces), do: "pulse"
+  defp account_page(["~", "pulse", signal | _]) when signal in ~w(metrics logs traces errors), do: "pulse"
   defp account_page(["runners" | _]), do: "runners"
   defp account_page(["webhooks" | _]), do: "webhooks"
   defp account_page(["sandboxes" | _]), do: "sandboxes"
@@ -204,6 +204,7 @@ defmodule Tuist.MCP.WebMCP do
     do: [
       Tools.QueryPulse,
       Tools.GetPulseAnalytics,
+      Tools.GetPulseErrorIssue,
       Tools.QueryPulseMetrics,
       Tools.ListPulseLabels,
       Tools.SearchPulseLogs,

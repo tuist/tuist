@@ -916,6 +916,7 @@ defmodule TuistWeb.Router do
       delete "/", AccountController, :delete_account
 
       scope "/pulse" do
+        get "/errors/issues/:fingerprint", PulseController, :error_issue
         get "/:signal/analytics", PulseController, :analytics
         get "/:signal", PulseController, :query
       end
@@ -1872,6 +1873,9 @@ defmodule TuistWeb.Router do
       live "/~/pulse/metrics", PulseLive, :metrics
       live "/~/pulse/logs", PulseLive, :logs
       live "/~/pulse/traces", PulseLive, :traces
+      live "/~/pulse/errors", PulseLive, :errors
+      live "/~/pulse/errors/issues/:fingerprint", PulseErrorLive
+      live "/~/pulse/errors/issues/:fingerprint/events/:event_id", PulseErrorLive
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive

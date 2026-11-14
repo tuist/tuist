@@ -4,11 +4,12 @@ defmodule Tuist.Pulse.Table do
   @sorts %{
     "metrics" => ~w(name value),
     "logs" => ~w(timestamp service level message trace_id),
-    "traces" => ~w(timestamp service name duration_ms trace_id)
+    "traces" => ~w(timestamp service name duration_ms trace_id),
+    "errors" => ~w(last_seen first_seen events accounts title service level)
   }
 
   def validate(signal, params) when is_map(params) and is_map_key(@sorts, signal) do
-    filters = if signal == "logs", do: ~w(service level), else: ~w(service)
+    filters = if signal in ~w(logs errors), do: ~w(service level), else: ~w(service)
 
     keys =
       ~w(range end_at page page_size query search sort_by sort_order) ++ filters ++ Enum.map(filters, &(&1 <> "_op"))
@@ -57,6 +58,7 @@ defmodule Tuist.Pulse.Table do
     do: DateTime.to_unix(finish) >= @ranges[range] and DateTime.to_unix(finish) <= 9_223_372_036
 
   defp default_sort("metrics"), do: "name"
+  defp default_sort("errors"), do: "last_seen"
   defp default_sort(_), do: "timestamp"
   defp valid_text?(value), do: is_binary(value) and byte_size(value) <= 4096 and String.valid?(value)
   defp integer(value, min, max) when is_integer(value) and value >= min and value <= max, do: {:ok, value}
@@ -120,7 +122,7 @@ defmodule Tuist.Pulse.Table do
     filters?(row, opts.params) and String.contains?(String.downcase(JSON.encode!(row)), search)
   end
 
-  defp sort_value(row, "timestamp" = key) do
+  defp sort_value(row, key) when key in ~w(timestamp first_seen last_seen) do
     case row[key] do
       value when is_binary(value) -> String.to_integer(value)
       value -> value
