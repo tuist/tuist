@@ -66,8 +66,10 @@ defmodule Mix.Tasks.Tuist.Test do
   ## Quarantined tests
 
   Before the run, the task reads the tests the project quarantines in Tuist.
-  Skipped tests are left out of the run with an `--exclude test:NAME` filter
-  per test, and a complete run whose only failures are muted tests passes.
+  Skipped tests are tagged `tuist_quarantine: :skipped` as the test files
+  compile and left out with `--exclude tuist_quarantine:skipped`, which
+  leaves other modules' tests of the same name running. A complete run whose
+  only failures are muted tests passes.
   `--no-quarantine` runs every test and counts every failure. A run that
   cannot read the quarantined tests runs every test.
 
@@ -97,6 +99,7 @@ defmodule Mix.Tasks.Tuist.Test do
   alias TuistEx.Analytics.GitHistory
   alias TuistEx.Analytics.Isolated
   alias TuistEx.Analytics.Quarantine
+  alias TuistEx.Analytics.Quarantine.Tagger
   alias TuistEx.Analytics.Report
   alias TuistEx.Analytics.Shards
   alias TuistEx.Analytics.Subprocess
@@ -178,6 +181,7 @@ defmodule Mix.Tasks.Tuist.Test do
           System.put_env([{"MIX_PATH", System.get_env(@retry_mix_path)}, {@retry_mix_path, nil}])
         end
 
+        tag_skipped(path)
         configure(Keyword.put(options, :mode, {:collect, path}))
         run_test(test_args, options)
     end
@@ -416,7 +420,7 @@ defmodule Mix.Tasks.Tuist.Test do
             true
         end
 
-    Keyword.merge(options, quarantine: policy, mute: mute?)
+    Keyword.merge(options, quarantine: Quarantine.tag_skipped(policy), mute: mute?)
   end
 
   defp run_test(args, options) do
@@ -627,8 +631,9 @@ defmodule Mix.Tasks.Tuist.Test do
   defp do_with_coverage(payload, snapshot, options, opts, history) do
     payload = if history, do: Map.merge(payload, GitHistory.payload(history)), else: payload
 
-    # A test sharing a quarantined test's name was left out although the
-    # run's own arguments did not ask for it.
+    # A test sharing a quarantined test's name was left out, when the
+    # quarantine is applied by name, although the run's own arguments did
+    # not ask for it.
     partial? =
       options[:coverage_partial] == true or Map.has_key?(payload, :skip_test_identifiers)
 
@@ -707,6 +712,14 @@ defmodule Mix.Tasks.Tuist.Test do
   defp retry_once(test_args, path, options) do
     case System.find_executable("mix") do
       mix when is_binary(mix) ->
+        case options[:quarantine] do
+          %Quarantine{tagged: true, skipped: skipped} ->
+            File.write!(skipped_path(path), :erlang.term_to_binary(skipped))
+
+          _policy ->
+            :ok
+        end
+
         # `--failed` also reruns tests that failed before they were skipped:
         # ExUnit keeps a failure on record until the test passes.
         args =
@@ -720,6 +733,17 @@ defmodule Mix.Tasks.Tuist.Test do
         :error
     end
   end
+
+  # The tests a retry tags as skipped, which its parent wrote next to the
+  # results it collects.
+  defp tag_skipped(path) do
+    case File.read(skipped_path(path)) do
+      {:ok, skipped} -> Tagger.install(:erlang.binary_to_term(skipped))
+      {:error, _reason} -> :ok
+    end
+  end
+
+  defp skipped_path(results_path), do: Path.join(Path.dirname(results_path), "skipped")
 
   defp retry_env(path, options) do
     env = [

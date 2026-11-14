@@ -55,7 +55,29 @@ defmodule TuistEx.Analytics.QuarantineTest do
     assert Quarantine.fetch(request: request) == {:error, {:http, 500, %{}}}
   end
 
-  test "excludes a skipped test by the full name ExUnit gives it" do
+  test "excludes the tagged skipped tests by their tag" do
+    policy = %Quarantine{
+      skipped: MapSet.new([{"App.OrderTest", "", "ships"}]),
+      tagged: true
+    }
+
+    assert Quarantine.exclude_args(policy) == ["--exclude", "tuist_quarantine:skipped"]
+    assert Quarantine.excluded_names(policy) == MapSet.new()
+
+    assert ExUnit.Filters.eval(
+             [],
+             [tuist_quarantine: "skipped"],
+             %{tuist_quarantine: :skipped},
+             []
+           ) ==
+             {:excluded, "due to tuist_quarantine filter"}
+
+    # Nothing to skip, nothing to tag: the compiler is left alone.
+    muted_only = Quarantine.from_cases([test_case("muted", "App.CartTest", nil, "flakes")])
+    assert Quarantine.tag_skipped(muted_only) == muted_only
+  end
+
+  test "excludes a skipped test by the full name ExUnit gives it when it is not tagged" do
     policy =
       Quarantine.from_cases([
         test_case("skipped", "App.OrderTest", nil, "ships"),
