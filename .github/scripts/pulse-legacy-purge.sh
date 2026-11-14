@@ -16,14 +16,22 @@ top() {
 }
 
 delete_page() {
-  local out
-  out=$(aws s3api delete-objects --bucket "$BUCKET" --delete "file://$1" --output json)
-  # Quiet mode prints nothing, or only the keys that failed.
-  if [[ -n "$out" ]] && jq -e '(.Errors // []) | length > 0' <<< "$out" > /dev/null; then
-    jq -c '.Errors[:3]' <<< "$out" >&2
-    return 1
-  fi
-  rm -f "$1"
+  local out attempt
+  # Tigris can take over a minute to delete a full page; retry slow or failed
+  # requests, which is safe because deleting a deleted key succeeds.
+  for attempt in 1 2 3 4 5; do
+    if out=$(aws s3api delete-objects --bucket "$BUCKET" --delete "file://$1" \
+      --cli-read-timeout 300 --output json); then
+      # Quiet mode prints nothing, or only the keys that failed.
+      if [[ -z "$out" ]] || jq -e '(.Errors // []) | length == 0' <<< "$out" > /dev/null; then
+        rm -f "$1"
+        return 0
+      fi
+      jq -c '.Errors[:3]' <<< "$out" >&2
+    fi
+    sleep $((attempt * 10))
+  done
+  return 1
 }
 export -f delete_page
 export BUCKET
@@ -48,7 +56,7 @@ pages() {
 }
 
 echo "### $BUCKET"
-echo '| Prefix | Objects deleted |'
+echo '| Prefix | Objects listed for deletion |'
 echo '|---|---|'
 while IFS= read -r prefix; do
   : > "$work/counts"
