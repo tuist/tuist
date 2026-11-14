@@ -22,10 +22,7 @@ vice versa.
   compatible rename. Do not reset or reuse versions within one persisted
   history.
 - When a change touches a persisted or wire format, add a case to the
-  compatibility test suite. Follow [`tests/compatibility/README.md`](../tests/compatibility/README.md)
-  and [`tests/compatibility/AGENTS.md`](../tests/compatibility/AGENTS.md). The
-  original compatibility RFC describes a superseded case format and is not the
-  current runbook.
+  compatibility test suite; follow [`tests/compatibility/AGENTS.md`](../tests/compatibility/AGENTS.md).
 - Wire types are generated from the external `greptime-proto` crate; change the
   format there first, then bump the dependency (see invariant 6's pattern).
 

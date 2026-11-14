@@ -72,11 +72,13 @@ covered by this list.
   it gated are gone, as is the license tooling for enterprise files. Undrop and
   purge of dropped tables, and `gc.experimental_soft_drop`, which needs them,
   are rejected as unsupported, as they were in the default build.
-- **No upstream docs or release tooling.** `docs/`, the Grafana dashboards, the
-  `cyborg` bot, upstream's README, contribution and security guides, changelog
-  and coverage configuration, the generated configuration reference, the
-  Docker builds other than `docker/buildx/ubuntu`, and the Makefile targets
-  that used them.
+- **No upstream docs or release tooling.** The code is the documentation:
+  `docs/`, the READMEs and other Markdown guides in the source and test trees,
+  the Grafana dashboards, the `cyborg` bot, upstream's README, contribution and
+  security guides, changelog and coverage configuration, the generated
+  configuration reference, the Docker builds other than `docker/buildx/ubuntu`,
+  and the Makefile targets that used them are gone. The `AGENTS.md` guides are
+  kept for agents working in those crates.
 
 - **Query nesting limits** ([`src/sql/src/nesting.rs`](src/sql/src/nesting.rs)).
   GreptimeDB v1.3.0 aborts the whole process with a stack overflow on short,
