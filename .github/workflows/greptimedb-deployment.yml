@@ -399,6 +399,11 @@ jobs:
             kubectl -n observability get endpointslices -l kubernetes.io/service-name=pulse -o json | jq -e '
               [.items[].endpoints[]] | length >= 2 and
               all(.[]; .targetRef.name | startswith("pulse-frontend-"))' > /dev/null
+            # A Service only routes new connections: collectors keep writing to the
+            # standalone pod over their keep-alive connections. Restarting it makes
+            # every client reconnect through the Service; the StatefulSet recreates
+            # it on the same volume for the rollback below.
+            kubectl -n observability delete pod pulse-0 --wait=true --timeout=120s
             echo "Moved Service pulse from the standalone pod to the cluster frontends." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
