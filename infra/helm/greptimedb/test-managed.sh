@@ -15,7 +15,7 @@ jq -e '
     .spec.template.spec.automountServiceAccountToken == false and
     .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"} and
     .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-1" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-2" and
     .spec.template.spec.containers[0].readinessProbe.httpGet.path == "/health" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   any(.[]; .kind == "ConfigMap" and
@@ -33,7 +33,7 @@ for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do
     echo "FAIL: unsafe storage setting accepted: $setting" >&2
     exit 1
   fi
-  grep -Fq "selected environment's isolated pulse/ prefix" "$tmp/refused.log"
+  grep -Fq "selected environment's bucket and isolated prefix" "$tmp/refused.log"
 done
 # Standalone remains for the staging/canary pilots; production is covered below.
 for environment in staging canary; do
@@ -91,7 +91,7 @@ jq -e '
     (.spec.template.spec.containers[0].image | test("^docker.io/apache/kafka:[0-9.]+@sha256:[0-9a-f]{64}$"))) and
   (one("Deployment"; "pulse-metasrv") | .spec.replicas == 3 and spread("metasrv")) and
   (one("StatefulSet"; "pulse-datanode") | .spec.replicas == 3 and spread("datanode") and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-1" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.3.0-2" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   (one("Deployment"; "pulse-frontend") | .spec.replicas == 2 and spread("frontend") and
     .spec.template.spec.initContainers[0].name == "combine-auth") and
@@ -99,7 +99,7 @@ jq -e '
   # Readers keep the standalone Service name, now served by the frontends.
   (one("Service"; "pulse") | .spec.type == "ClusterIP" and .spec.selector["app.kubernetes.io/component"] == "frontend") and
   (one("ExternalSecret"; "pulse-credentials").spec.target.template.data | keys ==
-    ["GREPTIMEDB_DATANODE__STORAGE__ACCESS_KEY_ID","GREPTIMEDB_DATANODE__STORAGE__SECRET_ACCESS_KEY"]) and
+    ["PULSE_DATANODE__STORAGE__ACCESS_KEY_ID","PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY"]) and
   (config("pulse-kafka-config") | contains("min.insync.replicas=2", "default.replication.factor=3",
     "unclean.leader.election.enable=false", "auto.create.topics.enable=false", "log.retention.ms=-1")) and
   (config("pulse-metasrv-config") | contains("backend = \"etcd_store\"", "provider = \"kafka\"",

@@ -50,8 +50,8 @@ spec:
     template:
       engineVersion: v2
       data:
-        GREPTIMEDB_DATANODE__STORAGE__ACCESS_KEY_ID: '{{ "{{ .accessKey | trim }}" }}'
-        GREPTIMEDB_DATANODE__STORAGE__SECRET_ACCESS_KEY: '{{ "{{ .secretKey | trim }}" }}'
+        PULSE_DATANODE__STORAGE__ACCESS_KEY_ID: '{{ "{{ .accessKey | trim }}" }}'
+        PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY: '{{ "{{ .secretKey | trim }}" }}'
   data:
     - secretKey: accessKey
       remoteRef:

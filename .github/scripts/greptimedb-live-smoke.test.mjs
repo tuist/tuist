@@ -15,7 +15,7 @@ let ticks = 0;
 Date.now = () => ++ticks <= 3 ? 1800000000000 : 1800000600000;
 globalThis.setTimeout = callback => { callback(); };
 globalThis.fetch = async (input, options) => {
-  assert.equal(options.headers['X-Greptime-DB-Name'], 'public');
+  assert.equal(options.headers['X-Pulse-DB-Name'], 'public');
   const url = new URL(input);
   const scenario = process.env.SCENARIO;
   if (scenario === 'HTTP failure') return new Response('sensitive upstream body', {status:503});

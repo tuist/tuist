@@ -17,7 +17,7 @@ data:
         editable: false
         jsonData:
           httpMethod: POST
-          httpHeaderName1: x-greptime-db-name
+          httpHeaderName1: x-pulse-db-name
         secureJsonData:
           basicAuthPassword: $GREPTIME_DASHBOARD_PASSWORD
           httpHeaderValue1: public
@@ -33,7 +33,7 @@ data:
           host: {{ .Values.backend.url | quote }}
           defaultDatabase: public
           queryTimeout: "30"
-          httpHeaderName1: x-greptime-db-name
+          httpHeaderName1: x-pulse-db-name
           logs:
             defaultDatabase: public
             defaultTable: opentelemetry_logs

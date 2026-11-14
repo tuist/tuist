@@ -4,9 +4,21 @@ Pulse is Tuist's GreptimeDB fork: its source is in [`pulse/`](../../../pulse/FOR
 and `pulse-release.yml` publishes it as `ghcr.io/tuist/pulse`. In each workload
 cluster this chart runs it as the private `pulse` release in namespace
 `observability`, behind Service `pulse` (`pulse.observability.svc.cluster.local:4000`).
-Every resource is named `pulse` or `pulse-*`; Greptime's own config paths,
-environment variables and WAL topic names are unchanged. The chart directory
-keeps its old name until the code is renamed.
+Every resource is named `pulse` or `pulse-*`. From `1.3.0-2` the fork's
+internals are renamed too (see [Renamed to Pulse](../../../pulse/FORK.md)): the
+default catalog is `pulse`, configuration variables use the `PULSE_STANDALONE__`
+and `PULSE_DATANODE__` prefixes, and clients select a database with
+`X-Pulse-DB-Name`. The WAL topic prefix and data paths the chart sets explicitly
+are unchanged. The chart directory keeps its old name.
+
+Upgrading a release from `1.3.0-1` to `1.3.0-2` is in place but does not
+migrate data: the new binary creates the `pulse` catalog next to the old
+`greptime` one, the deployment re-uploads the `loki_otlp` pipeline into
+`pulse_private`, and collectors start writing into the new catalog. Tables in
+the `greptime` catalog stay in metadata and under `<prefix>data/greptime/` in
+the bucket but are no longer queried. Until every environment runs `1.3.0-2`,
+collectors and the server send both the `X-Greptime-*` and `X-Pulse-*` headers;
+drop the old ones afterwards.
 
 The chart pins the fork release in `values.yaml`, which must already be
 published: push `pulse/` to main and let `pulse-release.yml` finish before
