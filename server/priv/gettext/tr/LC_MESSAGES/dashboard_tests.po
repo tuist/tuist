@@ -467,7 +467,7 @@ msgstr "Başarısızlıklar"
 
 #: lib/tuist_web/helpers/attachment_helpers.ex:29
 #: lib/tuist_web/live/coverage/components.ex:651
-#: lib/tuist_web/live/coverage_detail_live.ex:466
+#: lib/tuist_web/live/coverage_detail_live.ex:467
 #: lib/tuist_web/live/test_selection/run_tab.ex:556
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:199
 #, elixir-autogen, elixir-format
@@ -740,6 +740,7 @@ msgstr "Kaçırıldı"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:146
 #: lib/tuist_web/helpers/test_labels.ex:17
+#: lib/tuist_web/helpers/test_labels.ex:52
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:48
 #: lib/tuist_web/live/test_selection/run_tab.ex:623
 #: lib/tuist_web/live/test_selection/run_tab.ex:666
@@ -753,6 +754,7 @@ msgid "Module Cache"
 msgstr "Modül Önbelleği"
 
 #: lib/tuist_web/helpers/test_labels.ex:21
+#: lib/tuist_web/helpers/test_labels.ex:57
 #: lib/tuist_web/live/test_run_live.html.heex:572
 #: lib/tuist_web/live/test_run_live.html.heex:1851
 #: lib/tuist_web/live/test_selection/run_tab.ex:607
@@ -861,7 +863,7 @@ msgstr "Başarısız olan test senaryosu sayısı."
 msgid "Other"
 msgstr "Diğer"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:580
+#: lib/tuist_web/live/coverage_detail_live.ex:581
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:59
 #: lib/tuist_web/live/test_case_live.html.heex:151
 #: lib/tuist_web/live/test_case_run_live.html.heex:101
@@ -1250,7 +1252,7 @@ msgstr "Test Modülleri"
 msgid "Test Run"
 msgstr "Test Çalıştırması"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:584
+#: lib/tuist_web/live/coverage_detail_live.ex:585
 #: lib/tuist_web/live/coverage_detail_live.html.heex:477
 #: lib/tuist_web/live/once_test_run_live.html.heex:3
 #: lib/tuist_web/live/test_run_live.html.heex:3
@@ -1447,7 +1449,7 @@ msgid "Tuist version"
 msgstr "Tuist sürümü"
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:179
-#: lib/tuist_web/helpers/test_labels.ex:66
+#: lib/tuist_web/helpers/test_labels.ex:69
 #: lib/tuist_web/live/once_test_run_live.html.heex:92
 #: lib/tuist_web/live/once_test_run_live.html.heex:120
 #: lib/tuist_web/live/once_test_run_live.html.heex:128
@@ -2187,7 +2189,7 @@ msgstr "Bu hedef için çalışan, test.xml dosyasını üretmediği için senar
 msgid "Code Coverage"
 msgstr "Kod Kapsamı"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:431
+#: lib/tuist_web/live/coverage_detail_live.ex:432
 #: lib/tuist_web/live/coverage_detail_live.html.heex:210
 #: lib/tuist_web/live/coverage_detail_live.html.heex:424
 #: lib/tuist_web/live/coverage_detail_live.html.heex:532
@@ -2228,8 +2230,8 @@ msgid "Executions"
 msgstr "Çalıştırmalar"
 
 #: lib/tuist_web/live/coverage/components.ex:103
-#: lib/tuist_web/live/coverage_detail_live.ex:432
-#: lib/tuist_web/live/coverage_detail_live.ex:583
+#: lib/tuist_web/live/coverage_detail_live.ex:433
+#: lib/tuist_web/live/coverage_detail_live.ex:584
 #: lib/tuist_web/live/coverage_detail_live.html.heex:234
 #: lib/tuist_web/live/coverage_detail_live.html.heex:270
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:174
@@ -2271,7 +2273,7 @@ msgid "Share of the file's executable lines the tests ran at least once."
 msgstr "Testlerin en az bir kez çalıştırdığı, dosyanın yürütülebilir satırlarının oranı."
 
 #: lib/tuist_web/helpers/test_labels.ex:16
-#: lib/tuist_web/helpers/test_labels.ex:51
+#: lib/tuist_web/helpers/test_labels.ex:53
 #: lib/tuist_web/live/once_test_case_run_live.html.heex:41
 #: lib/tuist_web/live/once_test_run_live.html.heex:283
 #, elixir-autogen, elixir-format
@@ -2279,7 +2281,7 @@ msgid "Target"
 msgstr "Hedef"
 
 #: lib/tuist_web/helpers/test_labels.ex:20
-#: lib/tuist_web/helpers/test_labels.ex:55
+#: lib/tuist_web/helpers/test_labels.ex:58
 #, elixir-autogen, elixir-format
 msgid "Targets"
 msgstr "Hedefler"
@@ -2290,13 +2292,13 @@ msgid "Unavailable"
 msgstr "Kullanılamıyor"
 
 #: lib/tuist_web/live/coverage/components.ex:275
-#: lib/tuist_web/live/coverage_detail_live.ex:520
+#: lib/tuist_web/live/coverage_detail_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Full"
 msgstr "Tam"
 
 #: lib/tuist_web/live/coverage/components.ex:274
-#: lib/tuist_web/live/coverage_detail_live.ex:521
+#: lib/tuist_web/live/coverage_detail_live.ex:522
 #, elixir-autogen, elixir-format
 msgid "Partial"
 msgstr "Kısmi"
@@ -2337,7 +2339,7 @@ msgid "Once version"
 msgstr "Bir kez sürüm"
 
 #: lib/tuist_web/helpers/test_labels.ex:44
-#: lib/tuist_web/live/coverage_detail_live.ex:516
+#: lib/tuist_web/live/coverage_detail_live.ex:517
 #: lib/tuist_web/live/coverage_detail_live.html.heex:535
 #: lib/tuist_web/live/once_tests_live.html.heex:495
 #, elixir-autogen, elixir-format
@@ -2377,7 +2379,7 @@ msgstr[0] "%{count} dosya"
 msgstr[1] "%{count} dosya"
 
 #: lib/tuist_web/live/coverage/components.ex:339
-#: lib/tuist_web/live/coverage_detail_live.ex:574
+#: lib/tuist_web/live/coverage_detail_live.ex:575
 #, elixir-autogen, elixir-format
 msgid "Branch %{name}"
 msgstr "Dal %{name}"
@@ -2402,7 +2404,7 @@ msgid "Code coverage is not enabled for this account."
 msgstr "Bu hesap için kod kapsamı etkin değil."
 
 #: lib/tuist_web/live/coverage/components.ex:341
-#: lib/tuist_web/live/coverage_detail_live.ex:572
+#: lib/tuist_web/live/coverage_detail_live.ex:573
 #: lib/tuist_web/live/coverage_file_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Commit %{name}"
@@ -2413,7 +2415,7 @@ msgstr "İşleme %{name}"
 msgid "Commit %{sha} has no coverage for this file"
 msgstr "%{sha} işlemesi bu dosya için kapsam içermiyor"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:581
+#: lib/tuist_web/live/coverage_detail_live.ex:582
 #: lib/tuist_web/live/coverage_detail_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Commits"
@@ -2447,7 +2449,7 @@ msgid "Every test of the run's scheme ran, so it measured the scheme in full."
 msgstr "Çalıştırmanın şemasındaki tüm testler çalıştığından, şema tamamen ölçüldü."
 
 #: lib/tuist_web/live/coverage/components.ex:662
-#: lib/tuist_web/live/coverage_detail_live.ex:466
+#: lib/tuist_web/live/coverage_detail_live.ex:467
 #, elixir-autogen, elixir-format
 msgid "File coverage"
 msgstr "Dosya kapsamı"
@@ -2581,7 +2583,7 @@ msgstr "%{schemes} şemalarında, bir çalıştırmadaki testlerin en az bir kez
 msgid "Status:"
 msgstr "Durum:"
 
-#: lib/tuist_web/live/coverage_detail_live.ex:407
+#: lib/tuist_web/live/coverage_detail_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "Target name"
 msgstr "Hedef adı"
@@ -2666,7 +2668,7 @@ msgstr "Atıldı"
 msgid "The run came from a checkout with uncommitted changes, so it measured code that isn't the commit's and its coverage was discarded."
 msgstr "Çalıştırma, işlenmemiş değişiklikler içeren bir checkout'tan geldiği için commit'e ait olmayan kodu ölçtü ve kapsamı dikkate alınmadı."
 
-#: lib/tuist_web/helpers/test_labels.ex:49
+#: lib/tuist_web/helpers/test_labels.ex:50
 #, elixir-autogen, elixir-format
 msgid "Application"
 msgstr "Uygulama"
@@ -2676,7 +2678,7 @@ msgstr "Uygulama"
 msgid "Application name"
 msgstr "Uygulama adı"
 
-#: lib/tuist_web/helpers/test_labels.ex:53
+#: lib/tuist_web/helpers/test_labels.ex:55
 #, elixir-autogen, elixir-format
 msgid "Applications"
 msgstr "Uygulamalar"
@@ -3268,7 +3270,7 @@ msgstr "Seçici test kapsamında kalan tüm modüllerdeki testler çalıştırı
 msgid "The average of the period's runs' skip rates. A run without a baseline counts the share of modules selective testing skipped."
 msgstr "Dönemdeki çalıştırmaların atlama oranlarının ortalaması. Temel çizgisi olmayan bir çalıştırma, seçici test tarafından atlanan modül oranını sayar."
 
-#: lib/tuist_web/helpers/test_labels.ex:50
+#: lib/tuist_web/helpers/test_labels.ex:51
 #, elixir-autogen, elixir-format
 msgid "Package"
 msgstr "Paket"
@@ -3278,7 +3280,12 @@ msgstr "Paket"
 msgid "Package name"
 msgstr "Paket adı"
 
-#: lib/tuist_web/helpers/test_labels.ex:54
+#: lib/tuist_web/helpers/test_labels.ex:56
 #, elixir-autogen, elixir-format
 msgid "Packages"
 msgstr "Paketler"
+
+#: lib/tuist_web/live/coverage_detail_live.ex:407
+#, elixir-autogen, elixir-format
+msgid "Module name"
+msgstr "Modül adı"

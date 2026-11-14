@@ -13,25 +13,26 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker do
   alias Tuist.Sandboxes.Sandbox
 
   @audience "https://tuist.dev"
+  @identity_poll_seconds 60
+  @identity_wait_limit_ms to_timeout(hour: 1)
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"sandbox_id" => id}}) do
+  def perform(%Oban.Job{args: %{"sandbox_id" => id}} = job) do
     case Repo.get(Sandbox, id) do
       %Sandbox{amp_orb_id: "amp-" <> uuid, state: :running} = sandbox
       when is_nil(sandbox.amp_creator_user_id) or is_nil(sandbox.amp_creator_email) ->
-        capture(sandbox, "T-" <> uuid)
+        capture(sandbox, "T-" <> uuid, job)
 
       _ ->
         :ok
     end
   end
 
-  # Detached bootstrap can still be running project setup for over ten minutes.
   # Keep trying while the Orb runs, without resuming it or delaying its startup.
   @impl Oban.Worker
   def backoff(_job), do: 60
 
-  defp capture(sandbox, thread_id) do
+  defp capture(sandbox, thread_id, job) do
     # The guest's existing Amp workload identity signs the proof. Never accept
     # arbitrary guest output as a user ID, persist the JWT, or log its output.
     # macOS bootstrap installs in ~/.amp/bin, outside the exec bridge's PATH.
@@ -76,10 +77,31 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorker do
 
       :ok
     else
-      {:ok, %{exit_code: code}} when is_integer(code) -> {:error, {:creator_command_failed, code}}
-      {:error, :invalid_token} -> {:error, :invalid_creator_proof}
-      false -> {:error, :creator_thread_mismatch}
-      _ -> {:error, :creator_unavailable}
+      # Amp writes the Orb's workload identity minutes after boot, while its
+      # detached setup runs; until then the command exits 1 with "No workload
+      # identity request token is available". That wait is expected, so poll
+      # without spending attempts or reporting each one as an error. Giving up
+      # is reported once, since Oban does not report cancelled jobs.
+      {:ok, %{exit_code: code}} when is_integer(code) ->
+        if DateTime.diff(DateTime.utc_now(), job.inserted_at, :millisecond) < @identity_wait_limit_ms do
+          {:snooze, @identity_poll_seconds}
+        else
+          Sentry.capture_message("Amp Orb never produced a creator identity token",
+            level: :warning,
+            extra: %{sandbox_id: sandbox.id, exit_code: code}
+          )
+
+          {:cancel, {:creator_command_failed, code}}
+        end
+
+      {:error, :invalid_token} ->
+        {:error, :invalid_creator_proof}
+
+      false ->
+        {:error, :creator_thread_mismatch}
+
+      _ ->
+        {:error, :creator_unavailable}
     end
   end
 end
