@@ -110,6 +110,19 @@ jobs:
           bash .github/scripts/pulse-collectors.test.sh
           mkdir -p "$RUNNER_TEMP/pulse-chart"
           helm package infra/helm/pulse --destination "$RUNNER_TEMP/pulse-chart"
+      - name: Run the Sentry errors pipeline in the pinned Pulse release
+        run: |
+          set -euo pipefail
+          printf 'pilot=ci\n' > "$RUNNER_TEMP/pulse-users"
+          chmod 644 "$RUNNER_TEMP/pulse-users"
+          docker run -d --name pulse -p 127.0.0.1:4000:4000 -v "$RUNNER_TEMP/pulse-users:/users:ro" \
+            "$(yq '.image' infra/helm/pulse/values.yaml)" \
+            standalone start --http-addr 0.0.0.0:4000 --user-provider=static_user_provider:file:/users
+          for _ in $(seq 60); do
+            curl -fsS -u pilot:ci 'http://127.0.0.1:4000/v1/sql?sql=SELECT%201' > /dev/null 2>&1 && break
+            sleep 2
+          done
+          PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-sentry-errors.mjs
       - uses: actions/upload-artifact@v4
         with:
           # One cascade run calls this workflow once per environment.
@@ -444,7 +457,11 @@ jobs:
               }]}}
           ' > "$dir/native.json"
           jq --rawfile pipeline infra/helm/pulse/loki-otlp.yaml \
-            '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline}]' "$dir/native.json" > "$dir/smoke.json"
+            --rawfile errors_table infra/helm/pulse/errors.sql \
+            --rawfile errors_pipeline infra/helm/pulse/sentry-errors.yaml \
+            '.spec.containers[0].env += [{name:"PULSE_LOKI_PIPELINE",value:$pipeline},
+              {name:"PULSE_ERRORS_TABLE",value:$errors_table},{name:"PULSE_ERRORS_PIPELINE",value:$errors_pipeline}]' \
+            "$dir/native.json" > "$dir/smoke.json"
       - name: Install private backend, retaining state on failure
         run: |
           set -euo pipefail
