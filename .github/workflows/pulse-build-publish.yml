@@ -1,0 +1,219 @@
+name: Pulse Build & Publish
+
+# Reusable build+publish pipeline for Pulse, shared by the canary, RC and
+# promote workflows, like kura-build-publish.yml. The caller computes the
+# version and the exact commit to build; this workflow validates, builds,
+# smoke-tests and publishes ghcr.io/tuist/pulse:<version>, tags the commit
+# pulse@<version> and creates its GitHub release.
+#
+# Publishing deploys nothing: the clusters run the image pinned in
+# infra/helm/greptimedb/values.yaml, and greptimedb-deployment.yml rolls it
+# out on dispatch.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Bare semver (e.g. 1.44.0, 1.44.0-canary.5, 1.44.0-rc.1) to stamp into the binary and tag as pulse@<version>"
+        required: true
+        type: string
+      ref:
+        description: "Resolved commit SHA to check out, build, and tag (not a branch name)"
+        required: true
+        type: string
+      changelog_from:
+        description: "Full git tag to diff release notes from (e.g. pulse@1.44.0); empty falls back to the latest pulse@ stable tag"
+        required: false
+        type: string
+        default: ""
+      make_latest:
+        description: "Whether ghcr.io/tuist/pulse:latest moves to this release (stable promotes only)"
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: "Whether GitHub marks this release as a prerelease (canary/RC)"
+        required: false
+        type: boolean
+        default: true
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    uses: ./.github/workflows/pulse.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  publish:
+    name: Publish Pulse ${{ inputs.version }}
+    needs: validate
+    runs-on: tuist-linux-large
+    timeout-minutes: 240
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ inputs.version }}
+      TAG: pulse@${{ inputs.version }}
+      SOURCE_SHA: ${{ inputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Refuse to replace a published version
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(canary|rc)\.[0-9]+)?$ ]]
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "::error::Release tag already exists: $TAG" >&2
+            exit 1
+          fi
+      - name: Write release notes
+        working-directory: pulse
+        env:
+          CHANGELOG_FROM: ${{ inputs.changelog_from }}
+        run: |
+          set -euo pipefail
+          from="$CHANGELOG_FROM"
+          if [[ -z "$from" ]]; then
+            from=$(git tag -l | grep -E '^pulse@[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)
+          fi
+          range=()
+          if [[ -n "$from" ]]; then range=(-- "${from}..HEAD"); fi
+          git cliff --include-path "pulse/**/*" --config cliff.toml --repository "../" "${range[@]}" 2>/dev/null \
+            | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 > "$RUNNER_TEMP/pulse-notes.md"
+      # The binary reports this as its version (`pulse --version`, SQL
+      # version(), /status). Crate versions and Cargo.lock keep upstream's, so
+      # the locked build is unchanged.
+      - name: Stamp the version
+        working-directory: pulse
+        run: |
+          set -euo pipefail
+          if grep -q '^\[workspace\.metadata\.pulse\]' Cargo.toml; then
+            echo "::error::pulse/Cargo.toml already sets [workspace.metadata.pulse]; stamp it here only." >&2
+            exit 1
+          fi
+          printf '\n[workspace.metadata.pulse]\nproduct_version = "%s"\n' "$VERSION" >> Cargo.toml
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Upstream's release build: the nightly profile (thin LTO, no debug info).
+      # The embedded web dashboard (servers/dashboard) is left out; nothing routes
+      # to it.
+      # Built into the local daemon and pushed only after the checks below, so
+      # a failing image never reaches the registry under a release tag.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: pulse
+          file: pulse/docker/buildx/ubuntu/Dockerfile
+          load: true
+          platforms: linux/amd64
+          build-args: |
+            CARGO_PROFILE=nightly
+            OUTPUT_DIR=nightly
+          tags: ghcr.io/tuist/pulse:${{ inputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/tuist/tuist
+            org.opencontainers.image.revision=${{ inputs.ref }}
+            org.opencontainers.image.version=${{ inputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+      # Before pushing: the image reports the stamped version and starts, and
+      # the queries that crashed GreptimeDB v1.3.0 with a stack overflow are
+      # rejected while it stays up.
+      - name: Check the image survives deeply nested queries
+        run: |
+          set -euo pipefail
+          image="ghcr.io/tuist/pulse:${VERSION}"
+          docker run --rm "$image" --version | tee "$RUNNER_TEMP/version.txt"
+          grep -qE "^[[:space:]]*version: ${VERSION//./\\.}$" "$RUNNER_TEMP/version.txt"
+          docker run -d --name pulse-smoke -p 127.0.0.1:4000:4000 "$image" \
+            standalone start --http-addr 0.0.0.0:4000 --data-home /tmp/pulse >/dev/null
+          trap 'docker logs --tail 50 pulse-smoke; docker rm -f pulse-smoke >/dev/null' EXIT
+          for _ in $(seq 60); do curl -fsS http://127.0.0.1:4000/health >/dev/null && break; sleep 2; done
+          rejected() {
+            local status
+            status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST --data-urlencode "$2=$3" "http://127.0.0.1:4000$1")
+            [[ "$status" == 4?? ]] || { echo "::error::$1 answered $status for ${#3} bytes"; return 1; }
+            curl -fsS http://127.0.0.1:4000/health >/dev/null
+          }
+          chain() { local out=""; for ((i = 1; i < $2; i++)); do out+="$1"; done; printf '%s' "$out"; }
+          rejected /v1/prometheus/api/v1/query query "$(chain 'vector(1)+' 80)vector(1)"
+          rejected /v1/sql sql "TQL EVAL (0, 0, '1s') $(chain 'vector(1)+' 80)vector(1)"
+          rejected /v1/sql sql "SELECT $(chain '1+' 4096)1"
+          rejected /v1/sql sql "$(chain 'SELECT 1 UNION ALL ' 256)SELECT 1"
+          rejected /v1/prometheus/api/v1/format_query query "$(chain '1+' 16384)1"
+          [[ "$(docker inspect -f '{{.State.Running}}' pulse-smoke)" == true ]]
+      - name: Push the checked image
+        id: image
+        env:
+          MAKE_LATEST: ${{ inputs.make_latest }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/tuist/pulse:${VERSION}"
+          if docker manifest inspect "$image" > /dev/null 2>&1; then
+            echo "::error::$image is already published." >&2
+            exit 1
+          fi
+          docker push "$image"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+          echo "digest=${digest#*@}" >> "$GITHUB_OUTPUT"
+          # :latest moves only on stable promotes; canaries and RCs push their
+          # own versioned tag only.
+          if [[ "$MAKE_LATEST" == true ]]; then
+            docker tag "$image" ghcr.io/tuist/pulse:latest
+            docker push ghcr.io/tuist/pulse:latest
+          fi
+      - name: Write release body and manifest
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          upstream=$(sed -nE '/^\[workspace\.package\]/,/^\[/ s/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' pulse/Cargo.toml)
+          [[ "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          {
+            echo "Pulse ${VERSION}, based on GreptimeDB ${upstream} (pulse/FORK.md)."
+            echo
+            echo "Image: \`ghcr.io/tuist/pulse:${VERSION}@${IMAGE_DIGEST}\`"
+            cat "$RUNNER_TEMP/pulse-notes.md"
+          } > "$RUNNER_TEMP/pulse-release.md"
+          jq -n --arg tag "$TAG" --arg version "$VERSION" --arg upstream "$upstream" \
+            --arg source_sha "$SOURCE_SHA" --arg image_digest "$IMAGE_DIGEST" \
+            '{tag: $tag, version: $version, upstream_version: $upstream,
+              source_sha: $source_sha, image: "ghcr.io/tuist/pulse", image_digest: $image_digest}' \
+            > "$RUNNER_TEMP/pulse-release.json"
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: tuist/tuist
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          target_commitish: ${{ inputs.ref }}
+          tag_name: ${{ env.TAG }}
+          name: Pulse ${{ inputs.version }}
+          body_path: ${{ runner.temp }}/pulse-release.md
+          files: ${{ runner.temp }}/pulse-release.json
+          fail_on_unmatched_files: true
+          # The repository's "Latest" release belongs to the components people
+          # install (CLI, server, Kura); Pulse never takes it.
+          make_latest: false
+          prerelease: ${{ inputs.prerelease }}

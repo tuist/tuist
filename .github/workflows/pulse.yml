@@ -14,6 +14,12 @@ on:
       - .github/workflows/pulse.yml
   workflow_dispatch:
   workflow_call:
+    inputs:
+      ref:
+        description: Commit to check; the release workflows pass the one they publish.
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -53,6 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:

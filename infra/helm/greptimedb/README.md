@@ -1,8 +1,10 @@
 # Pulse on GreptimeDB
 
 Pulse is Tuist's GreptimeDB fork: its source is in [`pulse/`](../../../pulse/FORK.md)
-and `pulse-release.yml` publishes it as `ghcr.io/tuist/pulse`. In each workload
-cluster this chart runs it as the private `pulse` release in namespace
+and its release workflows publish it as `ghcr.io/tuist/pulse`: a canary for
+every `pulse/` change on main, then release candidates and weekly stable
+releases (see `FORK.md`). In each workload cluster this chart runs it as the
+private `pulse` release in namespace
 `observability`, behind Service `pulse` (`pulse.observability.svc.cluster.local:4000`).
 Every resource is named `pulse` or `pulse-*`. From `1.3.0-2` the fork's
 internals are renamed too (see [Renamed to Pulse](../../../pulse/FORK.md)): the
