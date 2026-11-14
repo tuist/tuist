@@ -176,6 +176,9 @@ struct SetupCacheCommandServiceTests {
         #expect(try await FileSystem().readTextFile(at: environment.casPluginInstallPath()) == "plugin")
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib\n")
+        TuistTest.expectLogs(
+            "OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=organization/project -driver-batch-count 6"
+        )
         TuistTest.doesntExpectLogs("<path to libtuist_cas_plugin.dylib>")
     }
 

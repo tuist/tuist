@@ -234,6 +234,21 @@ struct SettingsContentHasherCompilationCacheTests {
         #expect(try await subject.hash(settings: uploading) == subject.hash(settings: readOnly))
     }
 
+    /// The batch count only regroups Swift compiler invocations, so it leaves the product as is.
+    @Test func hash_ignoresSwiftDriverBatchCount() async throws {
+        // Given
+        let subject = makeSubject()
+        let dynamic = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DFEATURE_FLAG"]),
+        ])
+        let pinned = settings(base: [
+            "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-DFEATURE_FLAG", "-driver-batch-count", "6"]),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: dynamic) == subject.hash(settings: pinned))
+    }
+
     /// The filter must not swallow flags that do change the built product.
     @Test func hash_keepsNonCASPluginOtherSwiftFlags() async throws {
         // Given

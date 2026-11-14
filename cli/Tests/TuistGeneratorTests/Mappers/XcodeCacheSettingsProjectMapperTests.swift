@@ -332,10 +332,15 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES"] == .string("YES"))
 
         // The account/project is delivered to the plugin as a compiler option so
-        // it reaches every frontend, including Xcode ⌘B builds.
+        // it reaches every frontend, including Xcode ⌘B builds. The batch count keeps
+        // Swift's cache keys independent of the machine's core count.
         #expect(
             baseSettings["OTHER_SWIFT_FLAGS"]
-                == .array(["$(inherited)", "-cas-plugin-option", "tuist-instance=test-org/test-project"])
+                == .array([
+                    "$(inherited)",
+                    "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                    "-driver-batch-count", "6",
+                ])
         )
 
         #expect(mappedProject.settings.configurations == project.settings.configurations)
@@ -412,6 +417,8 @@ struct XcodeCacheSettingsProjectMapperTests {
                     "tuist-instance=test-org/test-project",
                     "-cas-plugin-option",
                     "tuist-upload=false",
+                    "-driver-batch-count",
+                    "6",
                 ])
         )
     }
@@ -567,7 +574,11 @@ struct XcodeCacheSettingsProjectMapperTests {
         // don't shadow.
         #expect(
             mappedProject.settings.base["OTHER_SWIFT_FLAGS"]
-                == .array(["$(inherited)", "-cas-plugin-option", "tuist-instance=test-org/test-project"])
+                == .array([
+                    "$(inherited)",
+                    "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                    "-driver-batch-count", "6",
+                ])
         )
 
         // Then: the shadowing target's `OTHER_SWIFT_FLAGS` now also carries the CAS
@@ -581,6 +592,7 @@ struct XcodeCacheSettingsProjectMapperTests {
                     "-D", "DEBUG",
                     "-Xfrontend", "-warn-long-function-bodies=100",
                     "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                    "-driver-batch-count", "6",
                 ])
         )
     }
@@ -693,6 +705,7 @@ struct XcodeCacheSettingsProjectMapperTests {
                 == .array([
                     "-D", "DEBUG",
                     "-cas-plugin-option", "tuist-instance=test-org/test-project",
+                    "-driver-batch-count", "6",
                 ])
         )
     }
