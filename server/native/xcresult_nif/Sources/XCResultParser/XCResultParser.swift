@@ -300,9 +300,16 @@ public struct XCResultParser: Sendable {
                 unattributedIssues: &unattributedIssues
             )
         }
-        let errors = dedupedErrors(runnerErrors + unattributedIssues)
+        // Xcode records a selection that resolved to zero tests and testing it cancelled because the
+        // build failed alike: no test nodes, `result: "unknown"`, `totalTestCount: 0`. Only the
+        // build results tell them apart, so they are read when no test ran.
+        let buildErrors = allTestCases.isEmpty && runnerErrors.isEmpty ? try await buildErrors(from: xcresultPath) : []
+        let errors = dedupedErrors(runnerErrors + buildErrors + unattributedIssues)
 
-        let overallStatus = overallStatus(from: allTestCases, hasRunnerErrors: !runnerErrors.isEmpty)
+        let overallStatus = overallStatus(
+            from: allTestCases,
+            hasRunErrors: !runnerErrors.isEmpty || !buildErrors.isEmpty
+        )
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
         let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
             guard let name = device.deviceName,
@@ -322,8 +329,8 @@ public struct XCResultParser: Sendable {
         )
     }
 
-    private func overallStatus(from testCases: [TestCase], hasRunnerErrors: Bool) -> TestStatus {
-        if hasRunnerErrors || testCases.contains(where: { $0.status == .failed }) {
+    private func overallStatus(from testCases: [TestCase], hasRunErrors: Bool) -> TestStatus {
+        if hasRunErrors || testCases.contains(where: { $0.status == .failed }) {
             return .failed
         } else if testCases.allSatisfy({ $0.status == .skipped }) {
             return .skipped
@@ -799,6 +806,41 @@ public struct XCResultParser: Sendable {
                     step: "action-log", path: xcresultPath,
                     detail: describeDecodingFailure(error, output: String(decoding: logData, as: UTF8.self))
                 )
+            }
+        }
+    }
+
+    private struct BuildResults: Decodable {
+        let errors: [Issue]?
+
+        struct Issue: Decodable {
+            let message: String?
+        }
+    }
+
+    /// The errors of the build that came before testing, as run-level errors: a failing compile, a
+    /// scheme build action exiting non-zero, or a missing scheme, followed by "Testing cancelled
+    /// because the build failed." A bundle whose build results can't be read is taken to have
+    /// none, leaving the run as it would be without them.
+    private func buildErrors(from xcresultPath: AbsolutePath) async throws -> [TestRunError] {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-build-results") { temporaryDirectory in
+            let tempFile = temporaryDirectory.appending(component: "build-results.json")
+
+            let output = try await execute([
+                "/bin/sh", "-c",
+                // `exec` replaces the shell with the tool so cancellation, which signals
+                // only the direct child, reaches xcresulttool instead of orphaning it.
+                "exec /usr/bin/xcrun xcresulttool get build-results --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
+            ]
+            )
+            guard output.succeeded,
+                  let data = try? await fileSystem.readFile(at: tempFile),
+                  let buildResults = try? JSONDecoder().decode(BuildResults.self, from: data)
+            else { return [] }
+
+            return (buildResults.errors ?? []).compactMap { issue in
+                guard let message = issue.message, !message.isEmpty else { return nil }
+                return TestRunError(target: nil, message: message)
             }
         }
     }
