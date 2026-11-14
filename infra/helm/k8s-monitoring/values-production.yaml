@@ -63,6 +63,9 @@ k8s-monitoring:
               "X-Greptime-DB-Name" = "public",
               "X-Greptime-Pipeline-Name" = "loki_otlp",
               "X-Greptime-Log-Table-Name" = "opentelemetry_logs",
+              "X-Pulse-DB-Name" = "public",
+              "X-Pulse-Pipeline-Name" = "loki_otlp",
+              "X-Pulse-Log-Table-Name" = "opentelemetry_logs",
             }
             basic_auth {
               username = convert.nonsensitive(remote.kubernetes.secret.pulse_logs.data["ingest-username"])
@@ -95,6 +98,9 @@ k8s-monitoring:
         X-Greptime-DB-Name: public
         X-Greptime-Pipeline-Name: greptime_trace_v1
         X-Greptime-Trace-Table-Name: opentelemetry_traces
+        X-Pulse-DB-Name: public
+        X-Pulse-Pipeline-Name: pulse_trace_v1
+        X-Pulse-Trace-Table-Name: opentelemetry_traces
       auth:
         type: basic
         usernameKey: ingest-username

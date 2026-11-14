@@ -1259,7 +1259,7 @@ allowlisting in the Tuist dashboard is not per-customer storage isolation: the
 not be exposed to arbitrary customer accounts.
 
 For a legal export, an authorized operator must query `/v1/sql` using the
-environment's read-only `dashboard` identity and `x-greptime-db-name: public`, and
+environment's read-only `dashboard` identity and `x-pulse-db-name: public`, and
 export matching rows as JSON. Use the subject's verified authenticated/selected
 IDs and legacy handles in `log_attributes`, `resource_attributes`, span events and
 log bodies; JSON paths for dotted keys require bracket syntax (for example
