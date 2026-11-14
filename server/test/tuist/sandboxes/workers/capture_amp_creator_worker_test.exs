@@ -179,44 +179,57 @@ defmodule Tuist.Sandboxes.Workers.CaptureAmpCreatorWorkerTest do
              Repo.reload!(sandbox)
   end
 
-  test "retries long enough to capture a creator after a slow detached setup" do
+  test "waits quietly for the Orb's identity during a slow detached setup" do
     uuid = Ecto.UUID.generate()
     sandbox = sandbox_fixture(amp_orb_id: "amp-" <> uuid)
-    job = %{sandbox_id: sandbox.id} |> CaptureAmpCreatorWorker.new() |> Ecto.Changeset.apply_changes()
 
     stub(OIDC, :amp_creator, fn "proof", _ ->
       {:ok, %{user_id: "user_creator", name: "amp-name", username: nil, thread_id: "T-" <> uuid}}
     end)
 
+    stub(Sandboxes, :exec_running, fn _, _, _ ->
+      {:ok, %{exit_code: 1, stdout: "sensitive output", stderr: "No workload identity request token is available."}}
+    end)
+
     # The production setup that exposed this failure took 10 minutes 48 seconds.
-    result =
-      Enum.reduce_while(1..job.max_attempts, 0, fn attempt, elapsed ->
-        stub(Sandboxes, :exec_running, fn _, _, _ ->
-          if elapsed < 648,
-            do: {:ok, %{exit_code: 1, stdout: "", stderr: "identity not ready"}},
-            else: {:ok, %{exit_code: 0, stdout: "proof"}}
-        end)
+    inserted_at = DateTime.add(DateTime.utc_now(), -648, :second)
 
-        case perform_job(CaptureAmpCreatorWorker, job.args, attempt: attempt) do
-          :ok -> {:halt, :captured}
-          {:error, _} -> {:cont, elapsed + CaptureAmpCreatorWorker.backoff(%{job | attempt: attempt})}
-        end
-      end)
+    assert {:snooze, 60} =
+             perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id}, inserted_at: inserted_at)
 
-    assert result == :captured
+    stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "proof"}} end)
+    assert :ok = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id}, inserted_at: inserted_at)
     assert %{amp_creator_user_id: "user_creator", state: :running} = Repo.reload!(sandbox)
   end
 
-  test "reports failure stages without returning guest output" do
+  test "reports once without guest output when the Orb's identity never appears" do
     sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
 
     stub(Sandboxes, :exec_running, fn _, _, _ ->
       {:ok, %{exit_code: 1, stdout: "sensitive output", stderr: "sensitive error"}}
     end)
 
-    assert {:error, {:creator_command_failed, 1}} =
-             perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
+    sandbox_id = sandbox.id
 
+    # Exactly one report: a report while still waiting would use up this call.
+    expect(Sentry, :capture_message, fn "Amp Orb never produced a creator identity token", opts ->
+      assert opts[:extra] == %{sandbox_id: sandbox_id, exit_code: 1}
+      {:ok, "event"}
+    end)
+
+    assert {:snooze, 60} =
+             perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id},
+               inserted_at: DateTime.add(DateTime.utc_now(), -59, :minute)
+             )
+
+    assert {:cancel, {:creator_command_failed, 1}} =
+             perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id},
+               inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+             )
+  end
+
+  test "reports invalid proofs" do
+    sandbox = sandbox_fixture(amp_orb_id: "amp-" <> Ecto.UUID.generate())
     stub(Sandboxes, :exec_running, fn _, _, _ -> {:ok, %{exit_code: 0, stdout: "untrusted proof"}} end)
     stub(OIDC, :amp_creator, fn _, _ -> {:error, :invalid_token} end)
     assert {:error, :invalid_creator_proof} = perform_job(CaptureAmpCreatorWorker, %{sandbox_id: sandbox.id})
