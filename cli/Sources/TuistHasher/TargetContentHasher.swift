@@ -249,7 +249,11 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 let publicHeaders = buildableFolder.exceptions.flatMap(\.publicHeaders)
                 let privateHeaders = buildableFolder.exceptions.flatMap(\.privateHeaders)
 
-                return try await buildableFiles.concurrentMap { buildableFile in
+                let declaredContentsHashes = try buildableFolder.contents.map {
+                    [try contentHasher.hash(["declared-contents"] + $0.map(\.rawValue).sorted())]
+                } ?? []
+
+                return try await declaredContentsHashes + buildableFiles.concurrentMap { buildableFile in
                     let fileHash = try await contentHasher.hash(path: buildableFile.path)
                     let compilerFlagsHash = try contentHasher.hash(
                         buildableFile.compilerFlags ?? ""
