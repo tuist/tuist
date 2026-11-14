@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Bucket to purge (management is tuist-pulse-management, the rest tuist-pulso-<env>)
+        description: Environment whose tuist-pulso-<env> bucket to purge
         type: choice
-        options: [staging, canary, production, management]
+        options: [staging, canary, production]
 
 permissions: {}
 
@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 300
     # The same protected environments, and so approvals, as the deploys that
     # own each bucket's credentials.
-    environment: ${{ inputs.target == 'management' && 'mgmt-cluster-apply' || format('server-k8s-{0}', inputs.target) }}
+    environment: server-k8s-${{ inputs.target }}
     concurrency:
       group: pulse-legacy-purge-${{ inputs.target }}
       cancel-in-progress: false
@@ -43,7 +43,6 @@ jobs:
           set -euo pipefail
           case "$TARGET" in
             staging|canary|production) bucket="tuist-pulso-$TARGET" vault="tuist-k8s-$TARGET" ;;
-            management) bucket=tuist-pulse-management vault=tuist-k8s-mgmt ;;
             *) exit 1 ;;
           esac
           # The bucket-scoped key Pulse itself uses; it cannot reach other buckets.

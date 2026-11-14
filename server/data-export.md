@@ -91,13 +91,13 @@ everywhere and nothing writes its format any more. Its objects are retained
 until deleted: below `tenants/<tenant>/` (logs, metric samples, traces, error
 events, service-graph series and their manifests, pages and backups), plus
 `system/tenants/v1/`, `usage/v1/`, `auth/` and `.pulse/`, in
-`tuist-pulso-{staging,canary,production}`, `tuist-pulse-management` and, if the
-retired pentest cluster wrote any, `tuist-pulse-pentest`. They can contain
+`tuist-pulso-canary` and `tuist-pulso-production`. Staging's were deleted, and
+the management and pentest buckets that held the rest no longer exist. They can contain
 identifiers, message bodies, attributes and stack traces supplied by producers,
 and an operational tenant can mix telemetry from several accounts. They are
 being deleted: the one-shot `pulse-legacy-purge.yml` removes those prefixes
-from each bucket, and `tuist-pulse-pentest` is deleted in Tigris. Until
-that has run for a bucket, its objects remain, with no time-based deletion.
+from each bucket. Until that has run for a bucket, its objects remain, with no
+time-based deletion.
 
 To export, an authorized storage operator lists and retrieves the verified
 tenant's objects and the manifests needed to interpret them, decodes the Parquet
