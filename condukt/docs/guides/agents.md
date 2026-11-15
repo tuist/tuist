@@ -14,6 +14,7 @@ redaction).
 | `runtime/0` | `Condukt.AgentRuntimes.Native` | Component that owns the agent loop. |
 | `system_prompt/0` | `nil` | Static system prompt for the agent. |
 | `tools/0` | `[]` | List of tool modules, `{module, opts}` tuples, or inline tools. |
+| `hooks/0` | `[]` | Hooks that block, rewrite, or replace tool calls and continue runs. See [Hooks](hooks.md). |
 | `model/0` | `"anthropic:claude-sonnet-4-20250514"` | ReqLLM `provider:model` identifier. |
 | `thinking_level/0` | `:medium` | One of `:off`, `:minimal`, `:low`, `:medium`, `:high`. |
 | `init/1` | identity | Called with the keyword opts at startup. |

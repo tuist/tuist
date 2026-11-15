@@ -13,7 +13,9 @@ defmodule Condukt.Session.Turn do
   from the turn's worker carry it, so the session can tell a late one from a
   turn it already ended. Aborting replaces it and shuts the worker down.
 
-  `worker` runs the turn under the session's turn supervisor. What the turn's
+  `worker` runs the turn under the session's turn supervisor. The session
+  monitors it, so a worker that crashes ends its turn with the crash as the
+  error instead of leaving the session streaming. What the turn's
   tool calls start is not held here: each call is a process linked to the
   worker, and work it owns, such as a foreground sub-agent's session, is
   linked below it, so shutting the worker down takes all of it along.

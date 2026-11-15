@@ -27,6 +27,7 @@ defmodule Condukt.Session do
 
   alias Condukt.{
     Context,
+    Hooks,
     Message,
     Park,
     Retry,
@@ -56,6 +57,8 @@ defmodule Condukt.Session do
 
   @default_timeout 300_000
   @default_max_turns 50
+  # Calls that run at once when hooks may hold them waiting on a person.
+  @max_hooked_tool_concurrency 64
   # `Process.send_after/3` takes at most 2^32 - 1 ms; a later deadline re-arms.
   @max_timer 4_294_967_295
 
@@ -70,6 +73,7 @@ defmodule Condukt.Session do
     :configured_system_prompt,
     :system_prompt,
     :tools,
+    :hooks,
     :subagents,
     :subagent_supervisor,
     :turn_supervisor,
@@ -140,6 +144,7 @@ defmodule Condukt.Session do
       |> put_configured_opt(config, :system_prompt, fn -> agent_module.system_prompt() end)
       |> put_configured_opt(config, :load_project_instructions, fn -> true end)
       |> Keyword.put_new(:tools, agent_module.tools())
+      |> Keyword.put_new_lazy(:hooks, fn -> agent_hooks(agent_module) end)
       |> Keyword.put_new(:subagents, agent_subagents(agent_module))
       |> Keyword.put_new(:mcp_servers, agent_mcp_servers(agent_module))
       |> put_configured_opt(config, :cwd, &File.cwd!/0)
@@ -154,12 +159,14 @@ defmodule Condukt.Session do
       |> put_configured_opt(config, :retry)
 
     with :ok <- validate_llm_request_options(agent_opts[:llm_request_options]),
+         {:ok, hooks} <- Hooks.normalize(agent_opts[:hooks]),
          snapshot = load_snapshot(agent_opts[:session_store], agent_opts),
          model = restore_value(agent_opts, :model, snapshot && snapshot.model),
          {:ok, compaction} <- Compaction.new(agent_opts[:compactor], agent_opts[:background_compaction], model) do
       agent_opts =
         agent_opts
         |> Keyword.put(:model, model)
+        |> Keyword.put(:hooks, hooks)
         |> Keyword.put(:max_tokens, agent_opts[:max_tokens] || (agent_opts[:llm_request_options] || [])[:max_tokens])
         |> Keyword.put(:restored_snapshot, snapshot)
         |> Keyword.put(:compaction, compaction)
@@ -213,6 +220,10 @@ defmodule Condukt.Session do
     else
       []
     end
+  end
+
+  defp agent_hooks(agent_module) do
+    if function_exported?(agent_module, :hooks, 0), do: agent_module.hooks(), else: []
   end
 
   defp agent_secrets(agent_module) do
@@ -343,6 +354,14 @@ defmodule Condukt.Session do
   # Whether a turn runs or input other than reports waits to start one.
   def busy?(agent) do
     GenServer.call(agent, :busy?)
+  end
+
+  @doc false
+  # Whether `turn_ref` is the turn still running. A tool that runs past an
+  # abort, as `on_abort: :finish` lets it, asks before it returns something
+  # the aborted turn would drop.
+  def turn_running?(agent, turn_ref) do
+    GenServer.call(agent, {:turn_running?, turn_ref}, :infinity)
   end
 
   @doc false
@@ -593,6 +612,7 @@ defmodule Condukt.Session do
               configured_system_prompt: configured_system_prompt,
               system_prompt: Context.compose_system_prompt(configured_system_prompt, project_context.prompt),
               tools: tools ++ Subagent.tools(subagents, subagent_supervisor),
+              hooks: Keyword.fetch!(opts, :hooks),
               subagents: subagents,
               subagent_supervisor: subagent_supervisor,
               turn_supervisor: turn_supervisor,
@@ -778,6 +798,10 @@ defmodule Condukt.Session do
 
   def handle_call(:busy?, _from, state) do
     {:reply, state.turn.streaming or Turn.input_waiting?(state.turn), state}
+  end
+
+  def handle_call({:turn_running?, turn_ref}, _from, state) do
+    {:reply, state.turn.streaming and turn_ref == state.turn.abort_ref, state}
   end
 
   def handle_call(:native_runtime?, _from, state) do
@@ -1038,6 +1062,21 @@ defmodule Condukt.Session do
     {:noreply, commit_parking(state, records)}
   end
 
+  # A worker that crashed sent no result, so its turn ends here with the crash
+  # as its error. One that finished or was aborted is no longer the turn's
+  # worker when its monitor fires: its result came first, or the abort ended
+  # the turn.
+  def handle_info({:DOWN, _monitor, :process, worker, reason}, %{turn: %{worker: worker}} = state)
+      when is_pid(worker) do
+    error = {:error, {:turn_crashed, crash_reason(reason)}}
+    cancel_parked(state)
+
+    case state.turn.recipient do
+      {:run, from} -> handle_cast({:run_complete, from, {error, state.messages, state.assigns}}, state)
+      {:stream, ref} -> handle_cast({:stream_complete, ref, error}, broadcast(state, ref, error))
+    end
+  end
+
   def handle_info({:DOWN, monitor, :process, _pid, _reason}, state) do
     {:noreply, %{state | turn: Turn.drop_monitored(state.turn, monitor)}}
   end
@@ -1193,14 +1232,40 @@ defmodule Condukt.Session do
       text = Message.text(assistant_message)
       if text != "", do: view_event.({:text, text})
 
-      if Message.has_tool_calls?(assistant_message) do
-        state
-        |> execute_tool_calls(assistant_message, messages, view_event)
-        |> after_tool_round(state, &agent_loop(&1, &2, max_turns, turn + 1))
-      else
-        response_text = Message.text(assistant_message)
-        {:ok, messages, response_text, state.assigns}
+      cond do
+        Message.has_tool_calls?(assistant_message) ->
+          state
+          |> execute_tool_calls(assistant_message, messages, view_event)
+          |> after_tool_round(state, &agent_loop(&1, &2, max_turns, turn + 1))
+
+        continuation = yield_continuation(state, assistant_message, messages, turn, max_turns) ->
+          agent_loop(state, messages ++ [continuation], max_turns, turn + 1)
+
+        true ->
+          response_text = Message.text(assistant_message)
+          {:ok, messages, response_text, state.assigns}
       end
+    end
+  end
+
+  # The user message an `on_yield` hook continues the run with, or nil when
+  # the answer stands. On the run's last turn the answer stands without asking:
+  # a continuation there would end the run on the answer the hook rejected,
+  # with its message left unanswered in the history.
+  defp yield_continuation(_state, _assistant_message, _messages, turn, max_turns) when turn + 1 >= max_turns, do: nil
+
+  defp yield_continuation(%{hooks: []}, _assistant_message, _messages, _turn, _max_turns), do: nil
+
+  defp yield_continuation(state, assistant_message, messages, turn, max_turns) do
+    context =
+      state
+      |> tool_context([])
+      |> Map.merge(%{messages: messages, turn: turn, max_turns: max_turns})
+
+    # A hook that crashed leaves the answer standing.
+    case supervise(fn -> Hooks.run_on_yield(state.hooks, assistant_message, context) end, :infinity, :stop) do
+      {:ok, {:continue, text}} -> Message.user(text)
+      _ -> nil
     end
   end
 
@@ -1236,6 +1301,7 @@ defmodule Condukt.Session do
         GenServer.cast(parent, {:run_complete, state.turn.abort_ref, from, result})
       end)
 
+    Process.monitor(worker)
     %{state | turn: %{state.turn | worker: worker}}
   end
 
@@ -1243,6 +1309,7 @@ defmodule Condukt.Session do
     state = view_run_started(state, prompt, opts)
     state = %{state | turn: Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))}
     {:ok, worker} = start_stream_task(state, prompt, opts, subscriber_ref)
+    Process.monitor(worker)
     %{state | turn: %{state.turn | worker: worker}}
   end
 
@@ -1301,13 +1368,16 @@ defmodule Condukt.Session do
     messages = messages ++ [assistant_message]
     emit.(:turn_end)
 
-    case Message.has_tool_calls?(assistant_message) do
-      true ->
+    cond do
+      Message.has_tool_calls?(assistant_message) ->
         state
         |> execute_tool_calls(assistant_message, messages, emit)
         |> after_tool_round(state, &streaming_loop(&1, &2, max_turns, turn + 1, emit, abort_ref))
 
-      false ->
+      continuation = yield_continuation(state, assistant_message, messages, turn, max_turns) ->
+        streaming_loop(state, messages ++ [continuation], max_turns, turn + 1, emit, abort_ref)
+
+      true ->
         {:ok, messages, text, state.assigns}
     end
   end
@@ -1482,7 +1552,10 @@ defmodule Condukt.Session do
         outcome
       end,
       ordered: true,
-      timeout: tool_timeout(state)
+      max_concurrency: tool_concurrency(state, calls),
+      # Each call bounds its tool's own execution with the tool timeout, so a
+      # hook waiting on a person is not cut off by it.
+      timeout: :infinity
     )
     |> Enum.zip(calls)
     |> Enum.flat_map(fn
@@ -1491,7 +1564,7 @@ defmodule Condukt.Session do
 
       {task_result, {{id, _name, _args}, index}} ->
         if match?({:exit, _reason}, task_result), do: woken_call_done(state, resumes, id)
-        {result, _assigns} = outcome = task_result_to_tool_result(task_result, id)
+        {result, _assigns} = outcome = task_result_to_tool_result(task_result, id, state)
         emit.({:tool_result, result.tool_call_id, Message.tool_result_content(result)})
         [{index, outcome}]
     end)
@@ -1502,6 +1575,16 @@ defmodule Condukt.Session do
   # as each call finishes, not after its whole batch.
   defp woken_call_done(state, resumes, id) do
     if Map.has_key?(resumes, id), do: GenServer.cast(state.pid, {:parking_done, state.turn.abort_ref, [id]})
+  end
+
+  # Without hooks, one call per scheduler, as tools are mostly work. Hooks may
+  # hold calls waiting on people rather than CPUs, so then every call in the
+  # round runs at once, up to a cap that keeps one response from starting an
+  # unbounded number of tools or sub-agents.
+  defp tool_concurrency(%{hooks: []}, _calls), do: System.schedulers_online()
+
+  defp tool_concurrency(_state, calls) do
+    calls |> length() |> max(System.schedulers_online()) |> min(@max_hooked_tool_concurrency)
   end
 
   defp after_tool_round({:error, reason}, _state, _continue), do: {:error, reason}
@@ -1531,18 +1614,173 @@ defmodule Condukt.Session do
       agent: state.agent_module
     }
 
-    Telemetry.span(
-      :tool_call,
-      metadata,
-      fn -> execute_tool(tool_map, call, state, resume) end,
-      &tool_call_stop_metadata/1
-    )
+    {outcome, _args} =
+      Telemetry.span(
+        :tool_call,
+        metadata,
+        fn -> execute_hooked_tool(tool_map, call, state, resume) end,
+        &tool_call_stop_metadata/1
+      )
+
+    outcome
   end
 
-  defp tool_call_stop_metadata({:parked, _id}), do: %{status: :parked, result: nil}
-  defp tool_call_stop_metadata({%Message{content: {:error, _} = error}, _assigns}), do: %{status: :error, result: error}
+  # Returns the call's outcome with the arguments it ran with, for the
+  # `:tool_call` stop event. `before_tool` runs once, before a fresh call;
+  # `after_tool` runs on the result, after the last wake of a call that parked.
+  # The result hooks see and replace is already redacted, and a replacement is
+  # redacted again before the model sees it.
+  defp execute_hooked_tool(tool_map, {_id, _name, args} = call, %{hooks: []} = state, resume) do
+    {run_tool(tool_map, call, state, resume), args}
+  end
 
-  defp tool_call_stop_metadata({%Message{content: content}, _assigns}), do: %{status: :ok, result: content}
+  defp execute_hooked_tool(tool_map, {id, name, args}, state, nil = resume) do
+    context = tool_context(state, [], id)
+    hook_call = %{id: id, name: name, args: args}
+
+    case supervise(fn -> Hooks.run_before_tool(state.hooks, hook_call, context) end, :infinity, :stop) do
+      {:ok, {:ok, args}} ->
+        outcome = run_tool(tool_map, {id, name, args}, state, resume)
+        {after_tool(state, %{hook_call | args: args}, outcome, context), args}
+
+      {:ok, {:block, reason}} ->
+        reason = if is_binary(reason), do: reason, else: inspect(reason)
+        blocked = {error_result(state, id, "Tool call blocked: " <> reason), %{}}
+        {after_tool(state, hook_call, blocked, context), args}
+
+      {:error, reason} ->
+        blocked = {error_result(state, id, "Tool call blocked: " <> exit_message(reason)), %{}}
+        {after_tool(state, hook_call, blocked, context), args}
+    end
+  end
+
+  defp execute_hooked_tool(tool_map, {id, name, args} = call, state, resume) do
+    context = tool_context(state, [], id)
+    {after_tool(state, %{id: id, name: name, args: args}, run_tool(tool_map, call, state, resume), context), args}
+  end
+
+  defp after_tool(_state, _call, {:parked, _id} = parked, _context), do: parked
+
+  defp after_tool(state, call, {message, assigns}, context) do
+    result =
+      case message.content do
+        {:error, reason} -> {:error, reason}
+        content -> {:ok, content}
+      end
+
+    message =
+      case supervise(fn -> Hooks.run_after_tool(state.hooks, call, result, context) end, :infinity, :stop) do
+        {:ok, ^result} -> message
+        {:ok, {:ok, content}} -> %{message | content: Secrets.redact_result(state.secrets, content)}
+        {:ok, {:error, _} = error} -> %{message | content: Secrets.redact_result(state.secrets, error)}
+        {:error, reason} -> error_result(state, call.id, "after_tool hook failed: " <> exit_message(reason))
+      end
+
+    {message, assigns}
+  end
+
+  # The tool runs in its own process, bounded by the tool timeout. A tool that
+  # must not stop halfway finishes when the turn is aborted, as
+  # `Tool.on_abort/1` asks; any other dies with the turn.
+  defp run_tool(tool_map, {id, name, _args} = call, state, resume) do
+    on_exit =
+      case Map.fetch(tool_map, name) do
+        {:ok, spec} -> if Tool.on_abort(spec) == :finish, do: :finish, else: :stop
+        :error -> :stop
+      end
+
+    case supervise(fn -> execute_tool(tool_map, call, state, resume) end, tool_timeout(state), on_exit) do
+      {:ok, outcome} -> outcome
+      {:error, :timeout} -> {Message.tool_result(id, {:error, :timeout}), %{}}
+      {:error, reason} -> {error_result(state, id, exit_message(reason)), %{}}
+    end
+  end
+
+  # Runs `fun` in a process linked to this one and waits for its result. The
+  # link takes the process down with this one, as an abort takes the turn's
+  # whole process tree, while trapping exits for the wait turns a crash in it
+  # into `{:error, reason}`, failing only what it was doing. An exit this
+  # process receives meanwhile is passed on to `fun`'s process and then
+  # honored, at once or for `on_exit: :finish` once `fun` finishes, even when
+  # it arrived just after the result. The process leaves by signal, as it
+  # would without trapping, so a span around the wait does not report the
+  # abort as an exception. Past `timeout`, the process is killed and the
+  # result is `{:error, :timeout}`.
+  defp supervise(fun, timeout, on_exit) do
+    trapping? = Process.flag(:trap_exit, true)
+    caller = self()
+    ref = make_ref()
+    trace_context = TraceContext.current()
+
+    {:ok, pid} =
+      Task.start_link(fn ->
+        TraceContext.attach(trace_context)
+        send(caller, {ref, fun.()})
+      end)
+
+    deadline = if timeout == :infinity, do: :infinity, else: System.monotonic_time(:millisecond) + timeout
+
+    {result, exiting} = await_supervised(pid, ref, deadline, on_exit, trapping?, nil)
+    Process.flag(:trap_exit, trapping?)
+    exiting = exiting || (not trapping? && trapped_exit())
+    if exiting, do: Process.exit(self(), exiting)
+    result
+  end
+
+  defp await_supervised(pid, ref, deadline, on_exit, trapping?, exiting) do
+    receive do
+      {^ref, result} ->
+        receive do: ({:EXIT, ^pid, _reason} -> :ok)
+        {{:ok, result}, exiting}
+
+      {:EXIT, ^pid, reason} ->
+        {{:error, reason}, exiting}
+
+      {:EXIT, _from, :normal} when not trapping? ->
+        await_supervised(pid, ref, deadline, on_exit, trapping?, exiting)
+
+      {:EXIT, _from, reason} when not trapping? and is_nil(exiting) ->
+        Process.exit(pid, reason)
+
+        if on_exit == :finish,
+          do: await_supervised(pid, ref, :infinity, on_exit, trapping?, reason),
+          else: {nil, reason}
+    after
+      remaining(deadline) ->
+        Process.unlink(pid)
+        Process.exit(pid, :kill)
+        # An exit it sent before the unlink is not one from elsewhere.
+        receive do: ({:EXIT, ^pid, _reason} -> :ok), after: (0 -> :ok)
+        {{:error, :timeout}, exiting}
+    end
+  end
+
+  # An exit that arrived while the wait was over but exits were still trapped.
+  defp trapped_exit do
+    receive do: ({:EXIT, _from, reason} when reason != :normal -> reason), after: (0 -> nil)
+  end
+
+  defp remaining(:infinity), do: :infinity
+  defp remaining(deadline), do: max(deadline - System.monotonic_time(:millisecond), 0)
+
+  # Text from hooks and exits is as untrusted as a tool's own result.
+  defp error_result(state, id, text), do: Message.tool_result(id, Secrets.redact_result(state.secrets, {:error, text}))
+
+  defp crash_reason({reason, [{_, _, _, _} | _]}), do: reason
+  defp crash_reason(reason), do: reason
+
+  # The model sees this text, so stack traces are dropped.
+  defp exit_message({exception, _stacktrace}) when is_exception(exception), do: Exception.message(exception)
+  defp exit_message({reason, [{_, _, _, _} | _]}), do: exit_message(reason)
+  defp exit_message(reason), do: inspect(reason)
+
+  defp tool_call_stop_metadata({{:parked, _id}, args}), do: %{status: :parked, result: nil, args: args}
+
+  defp tool_call_stop_metadata({{%Message{content: {:error, _} = error}, _assigns}, args}),
+    do: %{status: :error, result: error, args: args}
+
+  defp tool_call_stop_metadata({{%Message{content: content}, _assigns}, args}),
+    do: %{status: :ok, result: content, args: args}
 
   defp llm_turn_metadata(state, messages, turn, streaming?) do
     %{
@@ -1569,9 +1807,9 @@ defmodule Condukt.Session do
     %{status: :error, error: reason}
   end
 
-  defp task_result_to_tool_result({:ok, outcome}, _id), do: outcome
+  defp task_result_to_tool_result({:ok, outcome}, _id, _state), do: outcome
 
-  defp task_result_to_tool_result({:exit, reason}, id), do: {Message.tool_result(id, {:error, reason}), %{}}
+  defp task_result_to_tool_result({:exit, reason}, id, state), do: {error_result(state, id, exit_message(reason)), %{}}
 
   defp execute_tool(tool_map, {id, name, _args} = call, state, resume) do
     case Map.fetch(tool_map, name) do

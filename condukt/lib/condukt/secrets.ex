@@ -236,5 +236,6 @@ defmodule Condukt.Secrets do
     Map.new(value, fn {key, inner} -> {key, redact_value(secrets, inner)} end)
   end
 
+  defp redact_value(secrets, {:error, reason}), do: {:error, redact_value(secrets, reason)}
   defp redact_value(_secrets, value), do: value
 end

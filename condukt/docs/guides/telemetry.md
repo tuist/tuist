@@ -34,7 +34,11 @@ Every iteration of the agent loop emits a `[:condukt, :llm_turn, :start]`
 and a `[:condukt, :llm_turn, :stop]`. The start event includes the conversation
 context in `:messages`, and the stop event includes the model response in
 `:assistant_message`. Tool events include the model-supplied `:args`,
-`:tool_call_id`, `:status`, and `:result` after session-secret redaction.
+`:tool_call_id`, `:status`, and `:result` after session-secret redaction. On
+`:stop`, `:args` are the arguments the call ran with, after any
+`before_tool` hook rewrote them, except on the stop of a parked call's wake,
+which has the model's arguments, and `:result` is the result after any
+`after_tool` hook replaced it.
 A tool call that parks stops with `status: :parked` and `result: nil`; each
 wake runs as another start/stop pair under the same `:tool_call_id`. See
 [Waiting for Events](parking.md).

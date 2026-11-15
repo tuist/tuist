@@ -173,16 +173,23 @@ defmodule Condukt.Tools.BackgroundSubagent do
 
   # Aborting the parent's turn ends the wait: the call traps exits (see
   # `on_abort/1`), so the abort arrives here as the turn's exit, and the call
-  # hands back an answer that crossed it before stopping. The sub-agent,
-  # which belongs to the session, keeps working.
-  defp run_action("wait", name, _args, manager, _context) do
+  # hands back an answer that crossed it before stopping. An answer that
+  # arrives first, once the session has already aborted the turn, is handed
+  # back the same way, since the turn would drop it. The sub-agent, which
+  # belongs to the session, keeps working.
+  defp run_action("wait", name, _args, manager, context) do
     ref = make_ref()
 
     case Manager.wait(manager, name, self(), ref) do
       :waiting ->
         receive do
           {^ref, outcome} ->
-            wait_result(name, outcome)
+            if turn_dropped?(context) do
+              Manager.report(manager, name, outcome)
+              {:error, :aborted}
+            else
+              wait_result(name, outcome)
+            end
 
           {:EXIT, _turn, _reason} ->
             unwait(manager, name, ref)
@@ -213,6 +220,12 @@ defmodule Condukt.Tools.BackgroundSubagent do
       other -> other
     end
   end
+
+  # A call made outside a turn has no turn to drop its answer.
+  defp turn_dropped?(%{agent: agent, turn_ref: turn_ref}) when is_reference(turn_ref),
+    do: not Session.turn_running?(agent, turn_ref)
+
+  defp turn_dropped?(_context), do: false
 
   # An answer delivered as the wait was abandoned goes back to the parent as a
   # report, so it is not lost with the aborted call.

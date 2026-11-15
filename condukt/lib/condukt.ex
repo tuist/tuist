@@ -79,6 +79,12 @@ defmodule Condukt do
   @callback tools() :: [module() | {module(), keyword()} | struct()]
 
   @doc """
+  Returns the hooks that step into this agent's native loop, as modules or
+  `{module, opts}` tuples run in list order. See `Condukt.Hooks`.
+  """
+  @callback hooks() :: [module() | {module(), keyword()}]
+
+  @doc """
   Returns the sub-agents this agent can delegate work to.
 
   Each entry maps a role atom to an agent module, to `{agent_module, opts}`, or
@@ -145,6 +151,7 @@ defmodule Condukt do
     system_prompt: 0,
     runtime: 0,
     tools: 0,
+    hooks: 0,
     subagents: 0,
     model: 0,
     thinking_level: 0,
@@ -184,6 +191,9 @@ defmodule Condukt do
       def tools, do: []
 
       @impl Condukt
+      def hooks, do: []
+
+      @impl Condukt
       def subagents, do: []
 
       @impl Condukt
@@ -212,6 +222,7 @@ defmodule Condukt do
       defoverridable system_prompt: 0,
                      runtime: 0,
                      tools: 0,
+                     hooks: 0,
                      subagents: 0,
                      model: 0,
                      thinking_level: 0,
@@ -249,6 +260,7 @@ defmodule Condukt do
       - `:sandbox` - Sandbox spec for tool I/O (module, `{module, opts}`, or
         `Condukt.Sandbox` struct). Defaults to
         `{Condukt.Sandbox.Local, cwd: <:cwd>}`.
+      - `:hooks` - Override the agent's `hooks/0`. See `Condukt.Hooks`.
       - `:subagents` - Override the agent's `subagents/0` registrations.
         Each role can point at an agent module, `{agent_module, opts}`, or a
         keyword list of session options for an anonymous child agent.
@@ -417,7 +429,7 @@ defmodule Condukt do
   Anonymous and module-defined one-shot runs accept all the per-run options above (`:timeout`,
   `:max_turns`, `:images`) plus the session options accepted by an agent's
   `start_link/1` (`:model`, `:system_prompt`, `:api_key`, `:base_url`,
-  `:llm_request_options`, `:thinking_level`, `:max_tokens`, `:tools`, `:sandbox`, `:cwd`, `:session_store`,
+  `:llm_request_options`, `:thinking_level`, `:max_tokens`, `:tools`, `:hooks`, `:sandbox`, `:cwd`, `:session_store`,
   `:session_store_key`, `:session_store_opts`, `:subagents`, `:compactor`, `:background_compaction`,
   `:redactor`, `:load_project_instructions`).
   `:load_project_instructions` defaults to `false` for anonymous runs and to

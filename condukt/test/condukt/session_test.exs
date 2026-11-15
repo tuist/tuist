@@ -143,6 +143,20 @@ defmodule Condukt.SessionTest do
           load_project_instructions: false
         )
 
+      session_id = Condukt.Session.id(pid)
+      handler_id = {:abort_exceptions, make_ref()}
+
+      :telemetry.attach(
+        handler_id,
+        [:condukt, :tool_call, :exception],
+        fn _event, _measurements, %{session_id: id} = metadata, _ ->
+          if id == session_id, do: send(test_pid, {:tool_exception, metadata.tool})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
       task = Task.async(fn -> Condukt.run(pid, "go") end)
       assert_receive {:running, "killed", killed}, 1_000
       assert_receive {:running, "finishing", finishing}, 1_000
@@ -159,9 +173,48 @@ defmodule Condukt.SessionTest do
       assert_receive {:DOWN, ^finishing_ref, :process, ^finishing, :normal}, 1_000
       refute_received {:exit_seen, "killed", _reason}
       refute_received {:finished, "killed"}
+      # An abort is not a failure of the tool.
+      refute_receive {:tool_exception, _tool}, 100
       assert Condukt.history(pid) == []
 
       GenServer.stop(pid)
+    end
+  end
+
+  describe "a crashed turn" do
+    # A tool result the next request cannot encode crashes a run's worker.
+    defp crashing_session(responses) do
+      tool =
+        Condukt.tool(
+          name: "tuple",
+          description: "tuple",
+          parameters: %{type: "object", properties: %{}},
+          call: fn _args, _context -> {:ok, {:not, :json}} end
+        )
+
+      call = %ReqLLM.Message{role: :assistant, content: [], tool_calls: [ToolCall.new("call-1", "tuple", "{}")]}
+      {model, _id} = LLMProvider.model([LLMProvider.response(call, :tool_calls) | responses])
+      {:ok, pid} = ConfigAgent.start_link(model: model, tools: [tool], load_project_instructions: false)
+      pid
+    end
+
+    @tag capture_log: true
+    test "fails its run, and the session takes the next one" do
+      pid = crashing_session([LLMProvider.text_response("again")])
+
+      assert {:error, {:turn_crashed, _reason}} = Condukt.run(pid, "go", timeout: 5_000)
+      assert {:ok, "again"} = Condukt.run(pid, "go", timeout: 5_000)
+    end
+
+    @tag capture_log: true
+    test "ends its stream with the error" do
+      pid = crashing_session([])
+      Mimic.stub(ReqLLM, :stream_text, fn _model, _context, _opts -> exit(:boom) end)
+      Mimic.allow(ReqLLM, self(), pid)
+
+      events = pid |> Condukt.stream("go") |> Enum.to_list()
+      assert {:error, {:turn_crashed, :boom}} = List.last(events)
+      assert Condukt.history(pid) == []
     end
   end
 
