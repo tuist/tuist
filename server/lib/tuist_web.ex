@@ -23,7 +23,7 @@ defmodule TuistWeb do
 
   def static_paths,
     do:
-      ~w(assets fonts images favicon.ico geofeed.csv favicon.svg favicon-16x16.png favicon-32x32.png apple-touch-icon.png android-chrome-192x192.png android-chrome-512x512.png site.webmanifest browserconfig.xml mstile-150x150.png js css .well-known marketing app apidocs skills docs server)
+      ~w(assets fonts images favicon.ico geofeed.csv favicon.svg favicon-16x16.png favicon-32x32.png apple-touch-icon.png android-chrome-192x192.png android-chrome-512x512.png site.webmanifest browserconfig.xml mstile-150x150.png js css .well-known marketing app apidocs skills docs server verify.sh)
 
   # `Phoenix.VerifiedRoutes.static_path/2` emits fingerprinted favicon URLs.
   # Keep the root assets allowlisted without allowing arbitrary static paths.

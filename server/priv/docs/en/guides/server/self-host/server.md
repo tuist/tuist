@@ -767,12 +767,12 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 
 1. Download the configuration files:
    ```bash
-   curl -O https://docs.tuist.io/server/self-host/docker-compose.yml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-config.xml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-log-level.xml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-log-ttl.xml
-   curl -O https://docs.tuist.io/server/self-host/clickhouse-keeper-config.xml
-   curl -O https://docs.tuist.io/server/self-host/.env.example
+   curl -O https://tuist.dev/server/self-host/docker-compose.yml
+   curl -O https://tuist.dev/server/self-host/clickhouse-config.xml
+   curl -O https://tuist.dev/server/self-host/clickhouse-log-level.xml
+   curl -O https://tuist.dev/server/self-host/clickhouse-log-ttl.xml
+   curl -O https://tuist.dev/server/self-host/clickhouse-keeper-config.xml
+   curl -O https://tuist.dev/server/self-host/.env.example
    ```
 
 2. Configure environment variables:

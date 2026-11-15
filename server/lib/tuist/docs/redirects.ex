@@ -96,6 +96,7 @@ defmodule Tuist.Docs.Redirects do
     # Examples and project description references
     {:exact, "/guides/examples/generated-projects", "/references/examples/generated-projects"},
     {:exact, "/references/examples", "/references/examples/generated-projects"},
+    {:exact, "/references/examples/xcode_app", "/references/examples/generated-projects/xcode_app"},
     {:prefix, "/reference/examples/", "/references/examples/generated-projects/"},
     {:prefix, "/guides/examples/generated-projects/", "/references/examples/generated-projects/"},
     {:exact_absolute, "/reference/project-description",
@@ -175,6 +176,8 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/quick-start/get-started", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/guides/quick-start/add-dependencies", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/guides/quick-start/gather-insights", "/tutorials/xcode/create-a-generated-project"},
+    {:exact, "/guides/quick-start/create-a-project", "/tutorials/xcode/create-a-generated-project"},
+    {:exact, "/guides/quick-start/optimize-workflows", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/xcode/get-started", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/xcode/add-dependencies", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/xcode/gather-insights", "/tutorials/xcode/create-a-generated-project"},
