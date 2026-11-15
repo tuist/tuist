@@ -554,6 +554,17 @@ jobs:
             exit 1
           fi
 
+          # The collectors also write to management's Pulse, and Alloy fails its
+          # whole config load, Grafana Cloud included, when a referenced Secret
+          # is missing. Flux's pulse release owns that login; check its
+          # ExternalSecret, never the Secret.
+          kubectl -n observability get externalsecret pulse-dashboard-auth -o json | jq -e '
+            (.spec.target.template.data | has("ingest-username") and has("ingest-password")) and
+            any(.status.conditions[]?; .type == "Ready" and .status == "True")' > /dev/null || {
+            echo "::error::Management collectors write to Pulse, but its ingest login (pulse-dashboard-auth) is not ready; check infra/flux/pulse."
+            exit 1
+          }
+
           helm repo add grafana https://grafana.github.io/helm-charts --force-update
           helm dependency build infra/helm/k8s-monitoring
           helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \

@@ -139,7 +139,7 @@ The rack's switches report through the Omada controller rather than a scrape of 
 
 ## Pulse
 
-Pulse, Tuist's observability database ([`pulse/`](../../../pulse/FORK.md)), is installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/pulse`](../pulse/README.md). The management cluster runs its own `pulse` release through Flux ([`infra/flux/pulse`](../../flux/pulse)); pentest sends its metrics only to Grafana Cloud.
+Pulse, Tuist's observability database ([`pulse/`](../../../pulse/FORK.md)), is installed independently in each workload cluster's `observability` namespace as the `pulse` release of [`infra/helm/pulse`](../pulse/README.md). The management cluster runs its own `pulse` release through Flux ([`infra/flux/pulse`](../../flux/pulse)), and its collectors write their metrics to it as well as to Grafana Cloud; `mgmt-cluster-apply.yml` installs them only once that release's `pulse-dashboard-auth` ExternalSecret is Ready. Pentest sends its metrics only to Grafana Cloud.
 
 Staging, canary and production collectors send metrics, logs and traces to Grafana Cloud and, through separate write queues, directly to Pulse (`pulse.observability.svc.cluster.local:4000`), with no gateway in between:
 
@@ -151,7 +151,7 @@ Every request selects the `public` database with `X-Pulse-DB-Name`. Basic auth u
 
 Install the `pulse` release with `dashboard=true` before these collectors reach a cluster. Alloy fails its whole config load, Grafana Cloud included, when a referenced Secret is missing, so `.github/scripts/pulse-readiness.sh` refuses a deploy whose collector values reference `pulse-dashboard-auth` until that ExternalSecret is Ready with the ingest keys.
 
-The base `pulse-metrics` destination in `values.yaml` carries Cloud's relabel/drop policy, including Kura instance normalization, but is inert (`type: custom` with no config emits nothing), so management and pentest never reference its Secret. The workload overlays activate it with `type: prometheus` and their env label.
+The base `pulse-metrics` destination in `values.yaml` carries Cloud's relabel/drop policy, including Kura instance normalization, but is inert (`type: custom` with no config emits nothing), so pentest never references its Secret. The workload and management overlays activate it with `type: prometheus` and their env label.
 
 Separate in-memory Loki queues alone do **not** isolate failures: once the
 backend's queue fills, Alloy backpressures shared log sources and the Faro
@@ -165,7 +165,7 @@ still blocks ingestion and ephemeral collector replacement can lose buffered
 data. It does not repair Pulse availability or recover historical logs
 already lost during an outage.
 
-`bash .github/scripts/pulse-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret, or if management or pentest write anywhere but Cloud.
+`bash .github/scripts/pulse-collectors.test.sh` (Helm, yq and jq) renders every environment and checks each Pulse writer's URL, headers, Secret keys, absent log tenant, unsampled traces, service-graph routing and Cloud-equal metric policy. It fails if any collector reads the legacy `pulse-credentials` Secret, if management writes anything but metrics to Pulse, or if pentest writes anywhere but Cloud.
 
 `python3 infra/helm/k8s-monitoring/test-log-destination-outage.py` uses the rendered
 canary Faro receiver and Pulse log writer with local backends: it fills more than the default
