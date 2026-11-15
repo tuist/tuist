@@ -603,13 +603,17 @@ jobs:
           }
           trap cleanup_port_forward EXIT
 
+          # Each destination has its own queue; read Cloud's, not whichever
+          # queue is listed first.
+          sent_timestamp() {
+            curl -fsS http://127.0.0.1:12345/metrics 2>/dev/null |
+              awk -v id="component_id=\"prometheus.remote_write.$1\"" \
+                'index($0, "prometheus_remote_storage_queue_highest_sent_timestamp_seconds{") == 1 && index($0, id) { print $NF; exit }' ||
+              true
+          }
           remote_write_ready=false
           for _ in $(seq 1 30); do
-            latest_sent_timestamp="$(
-              curl -fsS http://127.0.0.1:12345/metrics 2>/dev/null |
-                awk '/^prometheus_remote_storage_queue_highest_sent_timestamp_seconds/ {print $2; exit}' ||
-                true
-            )"
+            latest_sent_timestamp="$(sent_timestamp grafana_cloud_metrics)"
             if [ -n "$latest_sent_timestamp" ] &&
               awk -v sent="$latest_sent_timestamp" -v now="$(date +%s)" \
                 'BEGIN { exit !(sent >= now - 120) }'; then
@@ -623,6 +627,14 @@ jobs:
             echo "::error::Management metrics have not been delivered to Grafana Cloud in the last two minutes"
             cat "$port_forward_log"
             exit 1
+          fi
+          # Pulse is reported, not required: Cloud stays the source of truth.
+          pulse_sent_timestamp="$(sent_timestamp pulse_metrics)"
+          if [ -n "$pulse_sent_timestamp" ] &&
+            awk -v sent="$pulse_sent_timestamp" -v now="$(date +%s)" 'BEGIN { exit !(sent >= now - 120) }'; then
+            echo "Management metrics reached Pulse in the last two minutes."
+          else
+            echo "::warning::Management metrics have not reached Pulse in the last two minutes (last sent: ${pulse_sent_timestamp:-never})"
           fi
           cleanup_port_forward
           trap - EXIT
