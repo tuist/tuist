@@ -227,6 +227,7 @@ func TestUnreadableOrInvalidVMSizesAreRefused(t *testing.T) {
 	}
 	action := lab.sizedAction("8")
 	lab.store.fail = true
+	lab.gateway.ActionReadBudget = time.Second
 	if code := execute(action); code != codes.Unavailable {
 		t.Fatalf("unreadable action: %v", code)
 	}

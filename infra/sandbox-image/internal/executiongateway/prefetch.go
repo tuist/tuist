@@ -21,11 +21,13 @@ import (
 const (
 	endpointTTL     = 5 * time.Minute
 	prefetchTimeout = 50 * time.Millisecond
-	// Reading the action when the prefetch did not, for its VM size.
-	actionReadTimeout = 10 * time.Second
-	prefetchBytes     = 255 << 10
-	prefetchFile      = 64 << 10
-	prefetchPerBatch  = 128
+	// Reading the action when the prefetch did not, for its VM size: the
+	// delays between attempts (Gateway.ActionReadBudget bounds them all).
+	actionReadBackoff    = 100 * time.Millisecond
+	actionReadMaxBackoff = 5 * time.Second
+	prefetchBytes        = 255 << 10
+	prefetchFile         = 64 << 10
+	prefetchPerBatch     = 128
 	// The control plane accepts at most this much encoded input per action.
 	prefetchEncoded = 349_528
 	// Upper bound on one entry's protobuf framing around its data.
@@ -85,9 +87,11 @@ func (g *Gateway) learnEndpoint(ctx context.Context, account, project, auth stri
 
 // memory returns the VM memory the action asks for, reading the action when
 // the prefetch did not. Running an action in a smaller VM than it asked for
-// only fails it, so a failed read fails the call and Bazel retries it. A
-// missing action runs at the default size, where the VM reports it missing
-// and Bazel uploads it again.
+// only fails it, so the size must be read. A cache under load can take longer
+// than any one attempt, and Bazel fails the build after a few quick retries of
+// the call, so a slow or failed read is retried here with backoff for up to
+// ActionReadBudget before the call fails. A missing action runs at the default
+// size, where the VM reports it missing and Bazel uploads it again.
 func (g *Gateway) memory(parent context.Context, account, project, auth string, digest *re.Digest, action *re.Action) (int, error) {
 	if action == nil {
 		url := g.endpoint(account, project)
@@ -98,19 +102,29 @@ func (g *Gateway) memory(parent context.Context, account, project, auth string, 
 		if err != nil {
 			return 0, err
 		}
-		ctx, cancel := context.WithTimeout(parent, actionReadTimeout)
+		ctx, cancel := context.WithTimeout(parent, g.ActionReadBudget)
 		defer cancel()
 		ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", auth, "x-tuist-account-handle", account))
-		response, err := re.NewContentAddressableStorageClient(conn).BatchReadBlobs(ctx, &re.BatchReadBlobsRequest{InstanceName: project, Digests: []*re.Digest{digest}, DigestFunction: re.DigestFunction_SHA256})
-		switch {
-		case err == nil && len(response.Responses) == 1 && response.Responses[0].GetStatus().GetCode() == int32(codes.NotFound):
-			return worker.DefaultMemoryGB, nil
-		case err != nil || len(response.Responses) != 1 || !matches(response.Responses[0], digest):
-			return 0, status.Error(codes.Unavailable, "reading the action")
-		}
-		action = &re.Action{}
-		if proto.Unmarshal(response.Responses[0].Data, action) != nil {
-			return 0, status.Error(codes.InvalidArgument, "invalid action")
+		cas := re.NewContentAddressableStorageClient(conn)
+		for delay := actionReadBackoff; ; delay = min(2*delay, actionReadMaxBackoff) {
+			response, err := cas.BatchReadBlobs(ctx, &re.BatchReadBlobsRequest{InstanceName: project, Digests: []*re.Digest{digest}, DigestFunction: re.DigestFunction_SHA256})
+			if err == nil && len(response.Responses) == 1 {
+				if response.Responses[0].GetStatus().GetCode() == int32(codes.NotFound) {
+					return worker.DefaultMemoryGB, nil
+				}
+				if matches(response.Responses[0], digest) {
+					action = &re.Action{}
+					if proto.Unmarshal(response.Responses[0].Data, action) != nil {
+						return 0, status.Error(codes.InvalidArgument, "invalid action")
+					}
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return 0, status.Error(codes.Unavailable, "reading the action")
+			case <-time.After(delay):
+			}
 		}
 	}
 	return worker.MemoryGB(action.Platform)
