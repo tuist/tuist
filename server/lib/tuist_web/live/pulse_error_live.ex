@@ -128,7 +128,7 @@ defmodule TuistWeb.PulseErrorLive do
                   value={event["event_id"]}
                 />
                 <.detail_field
-                  :if={event["trace_id"]}
+                  :if={event["trace_id"] not in [nil, ""]}
                   label={dgettext("dashboard_pulse", "Trace ID")}
                   value={event["trace_id"]}
                 />

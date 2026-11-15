@@ -339,7 +339,7 @@ defmodule Tuist.PulseTest do
   @fingerprint String.duplicate("a1", 32)
 
   test "errors list issues by service and fingerprint, filtered and sorted before paging", ctx do
-    expect(Req, :request, 4, fn request ->
+    expect(Req, :request, 6, fn request ->
       sql = request.options.params[:sql]
       assert sql =~ " FROM errors WHERE timestamp > to_timestamp_seconds("
 
@@ -368,6 +368,10 @@ defmodule Tuist.PulseTest do
 
     assert {:ok, %{rows: rows}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't"})
     assert Enum.map(rows, & &1["latest_event_id"]) == ~w(bb aa cc)
+
+    # Search matches an issue's fields, not its trend's bucket labels.
+    label = series |> Enum.at(30) |> hd() |> to_string()
+    assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't", "search" => label})
   end
 
   defp issue_buckets(sql) do

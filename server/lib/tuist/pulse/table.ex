@@ -117,9 +117,11 @@ defmodule Tuist.Pulse.Table do
     end)
   end
 
+  # An error issue's occurrence series is chart data, not searchable text.
   defp matches?(row, opts) do
     search = String.downcase(Map.get(opts.params, "search", ""))
-    filters?(row, opts.params) and String.contains?(String.downcase(JSON.encode!(row)), search)
+    text = row |> Map.delete("occurrence_series") |> JSON.encode!() |> String.downcase()
+    filters?(row, opts.params) and String.contains?(text, search)
   end
 
   defp sort_value(row, key) when key in ~w(timestamp first_seen last_seen) do
