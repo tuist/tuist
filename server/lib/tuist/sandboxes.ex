@@ -1734,8 +1734,8 @@ defmodule Tuist.Sandboxes do
         state: sandbox.state
       )
 
-      if sandbox.state == :creating and sandbox.archived_at do
-        Archives.revert_restore(sandbox.id)
+      if unfinished_restore?(sandbox) do
+        revert_restore(sandbox)
       else
         {released, _} =
           Repo.update_all(
@@ -1806,6 +1806,13 @@ defmodule Tuist.Sandboxes do
   defp reconcile_reported(%Sandbox{node_name: assigned}, node_name, %{"state" => "paused"})
        when not is_nil(assigned) and assigned != node_name, do: :ok
 
+  # Nor is an errored copy, such as the jail of a lazy-disk restore its
+  # daemon's restart interrupted, after a respawn restored the sandbox on
+  # another node. Erroring or reverting that row would strand or destroy
+  # the live VM; only the stale copy goes.
+  defp reconcile_reported(%Sandbox{node_name: assigned, id: id}, node_name, %{"state" => "error"})
+       when not is_nil(assigned) and assigned != node_name, do: delete_orphan(node_name, id)
+
   defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
     if sandbox.platform == :darwin and is_boolean(reported["resident"]) do
       Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and s.node_uid == ^sandbox.node_uid),
@@ -1813,7 +1820,9 @@ defmodule Tuist.Sandboxes do
       )
     end
 
-    if sandbox.state != :error do
+    # A row already errored for an interrupted lazy-disk restore is still
+    # reverted, so an Orb the server errored before this rule spawns again.
+    if sandbox.state != :error or Archives.loading_disks?(sandbox) do
       Logger.warning("sandboxes: node reports sandbox in error", sandbox_id: sandbox.id, reason: reported["error"])
       error_or_revert(sandbox, reported["error"] || "error on the node", sandbox.state)
     end
@@ -1955,11 +1964,31 @@ defmodule Tuist.Sandboxes do
   # is still the only copy.
   defp error_or_revert(sandbox, message, from_state \\ nil)
 
-  defp error_or_revert(%Sandbox{state: :creating, archived_at: %DateTime{}} = sandbox, _message, _from_state),
-    do: Archives.revert_restore(sandbox.id)
-
   defp error_or_revert(%Sandbox{} = sandbox, message, from_state) do
-    if mark_error(sandbox.id, message, from_state) == 1 and sandbox.state != :error, do: Events.record(sandbox, "failed")
+    if unfinished_restore?(sandbox) do
+      revert_restore(sandbox)
+    else
+      if mark_error(sandbox.id, message, from_state) == 1 and sandbox.state != :error,
+        do: Events.record(sandbox, "failed")
+
+      :ok
+    end
+  end
+
+  # A restore still being created, or running on lazy disks its node had
+  # not finished loading: the archive is its only complete copy, and an
+  # errored row on a node is never restored again, which strands its Orb.
+  defp unfinished_restore?(%Sandbox{state: :creating, archived_at: %DateTime{}}), do: true
+  defp unfinished_restore?(%Sandbox{} = sandbox), do: Archives.loading_disks?(sandbox)
+
+  # Guarded by the node the row was read on, so a restore that moved on to
+  # another node meanwhile is left alone. A restore that had started running
+  # gets the stop event `mark_error` would have recorded; one still being
+  # created never started, and an errored one already stopped.
+  defp revert_restore(sandbox) do
+    if Archives.revert_restore(sandbox.id, sandbox.state, sandbox.node_name) == 1 and
+         sandbox.state in [:running, :paused, :resuming],
+       do: Events.record(sandbox, "failed")
 
     :ok
   end

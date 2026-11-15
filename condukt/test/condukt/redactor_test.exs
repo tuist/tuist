@@ -65,6 +65,12 @@ defmodule Condukt.RedactorTest do
       assert redacted.content == ~s({"VALUE":"SECRET"})
     end
 
+    test "encodes error tool_result content the way the model sees it before redacting" do
+      msg = Message.tool_result("call-3", {:error, "blocked: secret"})
+      [redacted] = Redactor.redact_messages(UpcaseRedactor, [msg])
+      assert redacted.content == ~s(ERROR: "BLOCKED: SECRET")
+    end
+
     test "leaves assistant block lists untouched" do
       msg = Message.assistant([{:text, "hello"}, {:tool_call, "id", "name", %{}}])
       assert [^msg] = Redactor.redact_messages(UpcaseRedactor, [msg])

@@ -485,7 +485,15 @@ socket, the poller and the caller share a replica:
   stopped mid-operation) is settled by the node's next report once it
   has been stuck for 150 s: a `resuming` row takes the state the node
   reports, a `creating` row the node does not list becomes `error`. A
-  node reporting a sandbox in `error` errors the row with its reason.
+  node reporting a sandbox in `error` errors the row with its reason,
+  except a warm restore still loading lazy disks
+  (`Archives.loading_disks?/1`, until `memory_loaded`), which reverts to
+  `archived`, even from `error`, as do the other paths that would error
+  it. sandboxd errors such a jail when it restarts, and a placed `error`
+  row is never restored, so it would strand its Orb. A revert records
+  `failed` for a row that had started running and drops its
+  `loading_since`. An error report from a node the row is not on is a
+  stale copy: only that node's jail is deleted, never the row changed.
 - A node that left the cluster never reports again. Every minute
   `ReleaseRemovedNodesWorker` (`Sandboxes.release_removed_nodes/0`) errors
   the Linux agent rows of a node that is not connected and whose Kubernetes

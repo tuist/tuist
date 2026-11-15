@@ -14,7 +14,7 @@ jq -e '
   ([.[] | select(.kind == "StatefulSet" or .kind == "Deployment") | .metadata.name] | sort ==
     ["pulse-datanode","pulse-etcd","pulse-frontend","pulse-kafka","pulse-metasrv"]) and
   (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0] |
-    .image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and .resources.requests == {cpu:"250m",memory:"768Mi"}) and
+    .image == "ghcr.io/tuist/pulse:1.44.0-canary.4" and .resources.requests == {cpu:"250m",memory:"768Mi"}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
     any(.spec.template.spec.containers[0].env[]; .name == "KAFKA_HEAP_OPTS" and .value == "-Xms512m -Xmx512m")) and
   (one("Service"; "pulse").spec.selector == {"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"frontend"}) and
@@ -72,7 +72,7 @@ jq -e -n --slurpfile target "$tmp/target.json" --slurpfile serving "$tmp/serving
     .spec.selector == {matchLabels:{"app.kubernetes.io/instance":"pulse"}} and
     .spec.persistentVolumeClaimRetentionPolicy == {whenDeleted:"Retain",whenScaled:"Retain"} and
     .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "10Gi" and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.4" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   ($serving | one("ConfigMap"; "pulse-config").data["config.toml"] |
     contains("provider = \"raft_engine\"", "root = \"pulse/\"", "type = \"S3\"")) and
@@ -141,7 +141,7 @@ jq -e '
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "20Gi" and
     any(.spec.template.spec.containers[0].env[]; .name == "KAFKA_HEAP_OPTS" and .value == "-Xms1g -Xmx1g")) and
   (one("StatefulSet"; "pulse-datanode") | .spec.replicas == 3 and spread("datanode") and
-    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.1" and
+    .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.4" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   (one("Deployment"; "pulse-frontend") | .spec.replicas == 2 and spread("frontend") and
     .spec.template.spec.initContainers[0].name == "combine-auth") and

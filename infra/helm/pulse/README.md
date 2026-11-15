@@ -43,7 +43,8 @@ These are desired configuration, **not a record of provisioned resources**:
   `OP_SERVICE_ACCOUNT_TOKEN`, and the general pool has the requested capacity.
 - The management cluster runs its own standalone Pulse, installed by Flux
   (`infra/flux/pulse`) with `values-management.yaml`, so its metrics never
-  depend on a workload cluster. It writes `tuist-pulso-production/management/`
+  depend on a workload cluster. Management's collectors write their metrics
+  to it alongside Grafana Cloud. It writes `tuist-pulso-production/management/`
   with the **`tuist-k8s-mgmt`** vault's `PULSE_TOKEN` and
   `PULSE_S3_CREDENTIALS`, a Tigris key whose IAM policy allows only that prefix,
   so management can never read or delete production's `pulse/`

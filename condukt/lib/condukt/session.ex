@@ -27,12 +27,15 @@ defmodule Condukt.Session do
 
   alias Condukt.{
     Context,
+    Hooks,
     Message,
+    Park,
     Retry,
     Sandbox,
     Secrets,
     SessionID,
     SessionStore,
+    Signal,
     Telemetry,
     Tool,
     TraceContext
@@ -41,8 +44,12 @@ defmodule Condukt.Session do
   alias Condukt.MCP
   alias Condukt.Notifier
   alias Condukt.Session.Compaction
+  alias Condukt.Session.Parking
   alias Condukt.Session.Translate
   alias Condukt.Session.Turn
+  alias Condukt.Session.View
+  alias Condukt.Session.Viewer
+  alias Condukt.Sessions.Inbox
   alias Condukt.SessionStore.Snapshot
   alias Condukt.Tool.Inline
   alias Condukt.Tools.Subagent
@@ -51,6 +58,10 @@ defmodule Condukt.Session do
 
   @default_timeout 300_000
   @default_max_turns 50
+  # Calls that run at once when hooks may hold them waiting on a person.
+  @max_hooked_tool_concurrency 64
+  # `Process.send_after/3` takes at most 2^32 - 1 ms; a later deadline re-arms.
+  @max_timer 4_294_967_295
 
   defstruct [
     :id,
@@ -63,8 +74,10 @@ defmodule Condukt.Session do
     :configured_system_prompt,
     :system_prompt,
     :tools,
+    :hooks,
     :subagents,
     :subagent_supervisor,
+    :turn_supervisor,
     :cwd,
     :sandbox,
     :secrets,
@@ -76,6 +89,8 @@ defmodule Condukt.Session do
     :retry,
     :project_context,
     :user_state,
+    :viewer,
+    :inbox,
     compaction: %Compaction{},
     messages: [],
     turn: %Condukt.Session.Turn{},
@@ -131,6 +146,7 @@ defmodule Condukt.Session do
       |> put_configured_opt(config, :system_prompt, fn -> agent_module.system_prompt() end)
       |> put_configured_opt(config, :load_project_instructions, fn -> true end)
       |> Keyword.put_new(:tools, agent_module.tools())
+      |> Keyword.put_new_lazy(:hooks, fn -> agent_hooks(agent_module) end)
       |> Keyword.put_new(:subagents, agent_subagents(agent_module))
       |> Keyword.put_new(:mcp_servers, agent_mcp_servers(agent_module))
       |> put_configured_opt(config, :cwd, &File.cwd!/0)
@@ -145,12 +161,14 @@ defmodule Condukt.Session do
       |> put_configured_opt(config, :retry)
 
     with :ok <- validate_llm_request_options(agent_opts[:llm_request_options]),
+         {:ok, hooks} <- Hooks.normalize(agent_opts[:hooks]),
          snapshot = load_snapshot(agent_opts[:session_store], agent_opts),
          model = restore_value(agent_opts, :model, snapshot && snapshot.model),
          {:ok, compaction} <- Compaction.new(agent_opts[:compactor], agent_opts[:background_compaction], model) do
       agent_opts =
         agent_opts
         |> Keyword.put(:model, model)
+        |> Keyword.put(:hooks, hooks)
         |> Keyword.put(:max_tokens, agent_opts[:max_tokens] || (agent_opts[:llm_request_options] || [])[:max_tokens])
         |> Keyword.put(:restored_snapshot, snapshot)
         |> Keyword.put(:compaction, compaction)
@@ -204,6 +222,10 @@ defmodule Condukt.Session do
     else
       []
     end
+  end
+
+  defp agent_hooks(agent_module) do
+    if function_exported?(agent_module, :hooks, 0), do: agent_module.hooks(), else: []
   end
 
   defp agent_secrets(agent_module) do
@@ -274,7 +296,12 @@ defmodule Condukt.Session do
     end
   end
 
-  defp session_destination({:via, module, name}), do: module.whereis_name(name)
+  defp session_destination({:via, module, name}) do
+    case module.whereis_name(name) do
+      :undefined -> nil
+      pid -> pid
+    end
+  end
 
   defp session_destination({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
 
@@ -283,6 +310,7 @@ defmodule Condukt.Session do
   """
   def stream(agent, prompt, opts \\ []) do
     opts = attach_trace_context(opts)
+    timeout = opts[:timeout] || @default_timeout
 
     Stream.resource(
       fn ->
@@ -298,7 +326,7 @@ defmodule Condukt.Session do
           {^ref, event} ->
             {[event], ref}
         after
-          @default_timeout ->
+          timeout ->
             {[{:error, :timeout}], ref}
         end
       end,
@@ -317,16 +345,6 @@ defmodule Condukt.Session do
   end
 
   @doc false
-  # Records work a tool call started as owned by the turn that made the call,
-  # so aborting the turn aborts it first. Returns `{:error, :aborted}` when that
-  # turn is already over; the caller then stops the work itself.
-  def own(%{agent: session, turn_ref: turn_ref}, owned) when is_pid(session) and is_reference(turn_ref) do
-    GenServer.call(session, {:own, turn_ref, owned}, :infinity)
-  end
-
-  def own(_tool_context, _owned), do: :ok
-
-  @doc false
   # Publishes an event from a sub-agent where the session's own events go: the
   # streaming turn `turn_ref` names, or with `nil` the notifier only, for
   # background sub-agents that outlive the turn that started them.
@@ -338,6 +356,14 @@ defmodule Condukt.Session do
   # Whether a turn runs or input other than reports waits to start one.
   def busy?(agent) do
     GenServer.call(agent, :busy?)
+  end
+
+  @doc false
+  # Whether `turn_ref` is the turn still running. A tool that runs past an
+  # abort, as `on_abort: :finish` lets it, asks before it returns something
+  # the aborted turn would drop.
+  def turn_running?(agent, turn_ref) do
+    GenServer.call(agent, {:turn_running?, turn_ref}, :infinity)
   end
 
   @doc false
@@ -357,6 +383,61 @@ defmodule Condukt.Session do
   @doc false
   def withdraw_report(session, tag) do
     GenServer.cast(session, {:withdraw_report, tag})
+  end
+
+  @doc false
+  # Records in the view what a background sub-agent's manager reports of it:
+  # its name, role, session id, spawning call, and status, or `nil` once it
+  # is gone.
+  def background_changed(session, name, entry) do
+    GenServer.cast(session, {:background_subagent, name, entry})
+  end
+
+  @doc false
+  # Records in the view the message a background sub-agent's turn started
+  # from, `{:run_started, message}`, or steering that joined it,
+  # `{:input, message}`. Nothing is published: the notifier's events are
+  # unchanged.
+  def background_input(session, name, change) do
+    GenServer.cast(session, {:background_input, name, change})
+  end
+
+  @doc false
+  # Takes an input submitted by id, see `Condukt.Sessions.submit/3`.
+  def submit(agent, input) do
+    call_session(agent, {:submit, input}, @default_timeout)
+  end
+
+  @doc """
+  Returns the session's current `Condukt.Session.View`: its history, the turn
+  in flight with its partial answer and running tools, queued input, and agent
+  configuration, free of secrets.
+
+  Pair it with numbered changes from a notifier on another node; see
+  `Condukt.Notifiers.PubSub`. In the same node, or with the session's pid,
+  `watch/1` returns the view and subscribes in one step.
+  """
+  def view(agent) do
+    GenServer.call(agent, :view)
+  end
+
+  @doc """
+  Returns the session's current `Condukt.Session.View` and subscribes the
+  caller to the changes after it.
+
+  The caller receives `{:condukt_change, session_id, epoch, seq, change}` for
+  every change, starting with the one numbered after the view's `seq`, and
+  applies them with `Condukt.Session.View.advance/4`. Nothing between the view
+  and the first change is lost or repeated. Watching again only returns the
+  current view. The subscription ends with `unwatch/1` or the caller's exit.
+  """
+  def watch(agent) do
+    GenServer.call(agent, {:watch, self()})
+  end
+
+  @doc "Stops the changes `watch/1` subscribed the caller to."
+  def unwatch(agent) do
+    GenServer.cast(agent, {:unwatch, self()})
   end
 
   @doc """
@@ -389,12 +470,67 @@ defmodule Condukt.Session do
   Aborts the current operation.
 
   Replies to a running caller with `{:error, :aborted}`, or closes its stream
-  after that error, without waiting for in-flight inference or admitted tools.
-  Native retry backoff wakes immediately. Already-admitted work may finish,
-  but its late events and results cannot affect the session or a replacement turn.
+  after that error. The turn's process is shut down before this returns, and
+  the processes linked below it go down with it: running tool calls and what
+  they own, such as a foreground sub-agent's session. Tools that ask to
+  `:finish` (see `Condukt.Tool`) run to the end instead. Side effects already
+  made are not rolled back, and late events and results from the turn cannot
+  affect the session or a replacement turn.
   """
   def abort(agent) do
     GenServer.call(agent, :abort)
+  end
+
+  @doc """
+  Delivers a signal to the running turn's parked tool calls.
+
+  `agent` is a session pid, name, or the id of a session started with
+  `Condukt.Sessions`. An id reaches whatever sessions the configured
+  `Condukt.Sessions.Registry` sees, which with a cluster-wide adapter includes
+  other nodes. `kind` is a `Condukt.Signal` module, whose `cast/1`
+  checks `value` in the calling process.
+
+  Returns `:ok` when the value is kept for the call parked on `{kind, key}`,
+  which wakes, or for the first call that parks on it later in the turn.
+  Otherwise returns `{:error, reason}`:
+
+    * `:duplicate` - the key already holds a value, as for a webhook retry.
+    * `{:invalid, reason}` - `cast/1` rejected the value; nothing is kept.
+    * `:closed` - no turn is running, or the key's wait is over: its deadline
+      came first, another of its keys woke it, or its turn ended. Keys stay
+      closed for the rest of the session.
+    * `:inbox_full` - the turn already holds 100 signals for keys no call has
+      parked on.
+    * `:not_found` - no session answers under `agent`.
+
+  Treat `:duplicate` and `:closed` as final answers to the sender. Nothing
+  checks who sends a signal, so authenticate senders in the host.
+  """
+  def signal(agent, kind, key, value) do
+    with {:cast, {:ok, value}} <- {:cast, Signal.cast(kind, key, value)},
+         {:error, {:session_exit, _reason}} <-
+           call_session(signal_target(agent), {:signal, {kind, key}, value}, @default_timeout) do
+      {:error, :not_found}
+    else
+      {:cast, {:error, reason}} -> {:error, {:invalid, reason}}
+      result -> result
+    end
+  end
+
+  defp signal_target(id) when is_binary(id), do: Condukt.Sessions.whereis(id)
+  defp signal_target(agent), do: agent
+
+  @doc """
+  Returns what a parked turn waits for, or `nil` while it runs or is idle.
+
+  A turn is waiting once each of its pending tool calls is parked and its
+  worker blocks until a signal or a deadline wakes one. The result is
+  `%{tool_calls: [%{tool_call_id: id, tool: name, signals: keys, until: deadline}], wake_at: deadline}`,
+  where `wake_at` is the earliest deadline or `nil`. The session publishes the
+  same map as a `{:waiting, map}` event whenever it changes.
+  """
+  def waiting(agent) do
+    GenServer.call(agent, :waiting)
   end
 
   @doc """
@@ -455,6 +591,9 @@ defmodule Condukt.Session do
           emit_secret_resolve(id, agent_module, secrets)
           subagents = normalize_subagents(Keyword.get(opts, :subagents, []))
           {:ok, subagent_supervisor} = maybe_start_subagent_supervisor(subagents)
+          # Each turn runs as a child of this supervisor, so the turn and
+          # everything linked below it go down with the session.
+          {:ok, turn_supervisor} = Task.Supervisor.start_link()
           configured_tools = Keyword.fetch!(opts, :tools)
           tools = configured_tools ++ MCP.tools(mcp_registry)
 
@@ -481,8 +620,10 @@ defmodule Condukt.Session do
               configured_system_prompt: configured_system_prompt,
               system_prompt: Context.compose_system_prompt(configured_system_prompt, project_context.prompt),
               tools: tools ++ Subagent.tools(subagents, subagent_supervisor),
+              hooks: Keyword.fetch!(opts, :hooks),
               subagents: subagents,
               subagent_supervisor: subagent_supervisor,
+              turn_supervisor: turn_supervisor,
               cwd: cwd,
               sandbox: sandbox,
               secrets: secrets,
@@ -494,11 +635,13 @@ defmodule Condukt.Session do
               retry: Retry.normalize(opts[:retry]),
               project_context: project_context,
               user_state: user_state,
+              inbox: Keyword.get(opts, :inbox),
               assigns: Keyword.get(opts, :assigns, %{})
             }
             |> restore_messages(snapshot)
 
-          {:ok, state}
+          :ok = join_sessions(state, Keyword.get(opts, :parent))
+          {:ok, start_viewer(state)}
         else
           {:runtime, {:error, reason}} ->
             {:stop, {:runtime_init_failed, reason}}
@@ -598,7 +741,7 @@ defmodule Condukt.Session do
   def handle_call({:run, prompt, opts}, from, state) do
     cond do
       state.turn.streaming and state.turn.queued ->
-        {:noreply, %{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:run, from}})}}
+        {:noreply, sync_queue(%{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:run, from}})})}
 
       state.turn.streaming or not is_nil(state.compaction.waiter) ->
         {:reply, {:error, :already_streaming}, state}
@@ -617,6 +760,20 @@ defmodule Condukt.Session do
     {:reply, :ok, %{state | turn: Turn.subscribe(state.turn, pid, ref, monitor)}}
   end
 
+  # The view process replies. It takes these requests from the session, in
+  # line with every change the session sent it before, so the view holds what
+  # the session did up to this request, and a watcher is added at the very
+  # change the view ends at, with nothing lost or repeated after it.
+  def handle_call(:view, from, state) do
+    GenServer.cast(state.viewer, {:view, from})
+    {:noreply, state}
+  end
+
+  def handle_call({:watch, pid}, from, state) do
+    GenServer.cast(state.viewer, {:watch, pid, from})
+    {:noreply, state}
+  end
+
   def handle_call(:history, _from, state) do
     {:reply, state.messages, state}
   end
@@ -625,30 +782,25 @@ defmodule Condukt.Session do
     {:reply, state.id, state}
   end
 
-  def handle_call(:clear, _from, state) do
+  def handle_call(:clear, from, state) do
     state = abort_turn(state)
     compaction = %{Compaction.cancel(state.compaction) | attempted: nil, usage: nil}
+    if state.messages != [], do: view_change(state, {:messages, :replace, []})
     state = %{state | messages: [], compaction: compaction}
     persist_or_clear_snapshot(state, :clear)
-    {:reply, :ok, maybe_start_queued_turn(state)}
+    reply_after_view(maybe_start_queued_turn(state), from, :ok)
   end
 
-  def handle_call(:abort, _from, state) do
-    {:reply, :ok, state |> abort_turn() |> maybe_start_queued_turn()}
-  end
-
-  def handle_call({:own, ref, owned}, _from, state) do
-    if state.turn.streaming and ref == state.turn.abort_ref do
-      {:reply, :ok, %{state | turn: Turn.own(state.turn, owned)}}
-    else
-      {:reply, {:error, :aborted}, state}
-    end
+  def handle_call(:abort, from, state) do
+    state |> abort_turn() |> maybe_start_queued_turn() |> reply_after_view(from, :ok)
   end
 
   def handle_call({:take_steering, ref}, _from, state) do
     if state.turn.streaming and ref == state.turn.abort_ref do
       {steering, turn} = Turn.take_steering(state.turn)
-      {:reply, {:ok, steering}, %{state | turn: turn}}
+      state = sync_queue(%{state | turn: turn})
+      Enum.each(steering, &view_change(state, {:input, &1}))
+      {:reply, {:ok, steering}, state}
     else
       {:reply, {:error, :aborted}, state}
     end
@@ -658,21 +810,72 @@ defmodule Condukt.Session do
     {:reply, state.turn.streaming or Turn.input_waiting?(state.turn), state}
   end
 
+  def handle_call({:turn_running?, turn_ref}, _from, state) do
+    {:reply, state.turn.streaming and turn_ref == state.turn.abort_ref, state}
+  end
+
   def handle_call(:native_runtime?, _from, state) do
     {:reply, match?({Native, _}, state.runtime), state}
   end
 
-  def handle_call({:check_turn, ref}, _from, state) do
-    result = if state.turn.streaming and ref == state.turn.abort_ref, do: :ok, else: {:error, :aborted}
-    {:reply, result, state}
+  def handle_call(:sync, _from, state) do
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:park, ref, call, call_state, park}, _from, state) do
+    if state.turn.streaming and ref == state.turn.abort_ref do
+      case Parking.park(parking(state), call, call_state, park) do
+        {:ok, records} -> {:reply, :ok, commit_parking(state, records)}
+        {:error, reason} -> {:reply, {:error, reason}, state}
+      end
+    else
+      {:reply, {:error, :aborted}, state}
+    end
+  end
+
+  def handle_call({:signal, key, value}, _from, state) do
+    with true <- state.turn.streaming,
+         {:ok, records} <- Parking.signal(parking(state), key, value) do
+      {:reply, :ok, commit_parking(state, records)}
+    else
+      false -> {:reply, {:error, :closed}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call(:waiting, _from, state) do
+    reply =
+      case state.turn.parking do
+        %Parking{blocked: true} = parking -> waiting_info(parking)
+        _other -> nil
+      end
+
+    {:reply, reply, state}
+  end
+
+  # The worker takes the woken calls of its parked round. With none woken it
+  # blocks until the session sends `{:parking_ready, ref}`.
+  def handle_call({:take_ready, ref}, _from, state) do
+    with true <- state.turn.streaming and ref == state.turn.abort_ref,
+         %Parking{} = parking <- state.turn.parking do
+      if Parking.ready?(parking) do
+        {resumes, parking} = Parking.take_ready(parking)
+        {:reply, {:ok, resumes}, put_parking(state, %{parking | blocked: false, published: nil})}
+      else
+        {:reply, {:ok, %{}}, publish_waiting(put_parking(state, %{parking | blocked: true}))}
+      end
+    else
+      false -> {:reply, {:error, :aborted}, state}
+      nil -> {:reply, {:ok, %{}}, state}
+    end
   end
 
   def handle_call(:compact, from, state) do
     cond do
       not Compaction.enabled?(state.compaction) ->
-        state = maybe_compact(state)
-        persist_snapshot(state)
-        {:reply, :ok, state}
+        compacted = maybe_compact(state)
+        persist_snapshot(compacted)
+        {:reply, :ok, view_history_changed(compacted, state.messages)}
 
       state.turn.streaming or not is_nil(state.compaction.waiter) ->
         {:reply, {:error, :already_streaming}, state}
@@ -684,11 +887,11 @@ defmodule Condukt.Session do
     end
   end
 
-  def handle_call({:compaction_checkpoint, ref, messages, trace_context}, from, state) do
+  def handle_call({:compaction_checkpoint, ref, messages, trace_context, phase}, from, state) do
     if state.turn.streaming and ref == state.turn.abort_ref do
       compaction = %{state.compaction | trace_context: trace_context}
       state = %{state | messages: messages, compaction: compaction}
-      compaction_checkpoint_reply(state, from, compaction_overhead(state), compaction_metadata(state))
+      compaction_checkpoint_reply(state, from, compaction_overhead(state), compaction_metadata(state), phase)
     else
       {:reply, {:error, :aborted}, state}
     end
@@ -704,9 +907,16 @@ defmodule Condukt.Session do
     {:reply, :ok, maybe_start_queued_turn(%{state | turn: Turn.follow_up(state.turn, msg)})}
   end
 
+  def handle_call({:submit, input}, _from, state) do
+    case Turn.submit(state.turn, input, Message.user(input.text)) do
+      {:ok, turn} -> {:reply, :ok, maybe_start_queued_turn(%{state | turn: turn})}
+      {:error, :duplicate} -> {:reply, {:error, :duplicate}, state}
+    end
+  end
+
   @impl true
   def handle_cast({:stream, prompt, opts, subscriber_ref}, state) when state.turn.streaming and state.turn.queued do
-    {:noreply, %{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:stream, subscriber_ref}})}}
+    {:noreply, sync_queue(%{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:stream, subscriber_ref}})})}
   end
 
   def handle_cast({:stream, _prompt, _opts, subscriber_ref}, state)
@@ -725,7 +935,12 @@ defmodule Condukt.Session do
   end
 
   def handle_cast({:withdraw_report, tag}, state) do
-    {:noreply, %{state | turn: Turn.withdraw_report(state.turn, tag)}}
+    {:noreply, sync_queue(%{state | turn: Turn.withdraw_report(state.turn, tag)})}
+  end
+
+  def handle_cast({:unwatch, pid}, state) do
+    GenServer.cast(state.viewer, {:unwatch, pid})
+    {:noreply, state}
   end
 
   def handle_cast({:unsubscribe, pid, ref}, state) do
@@ -736,30 +951,60 @@ defmodule Condukt.Session do
 
   def handle_cast({:broadcast_event, turn_ref, event, ref}, state) do
     if turn_ref == state.turn.abort_ref do
-      broadcast(state, ref, event)
+      state = broadcast(state, ref, event)
       {:noreply, maybe_dispatch_event(state, event)}
     else
       {:noreply, state}
     end
   end
 
+  # A turn run without streaming publishes no events, as before, but its
+  # steps and tool calls still reach the view as each finishes.
+  def handle_cast({:view_event, turn_ref, event}, state) do
+    if turn_ref == state.turn.abort_ref do
+      view_change(state, event)
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  def handle_cast({:background_subagent, name, entry}, state) do
+    view_change(state, {:background, name, entry})
+    {:noreply, state}
+  end
+
+  def handle_cast({:background_input, _name, _change} = input, state) do
+    GenServer.cast(state.viewer, input)
+    {:noreply, state}
+  end
+
+  # A background sub-agent's events go to the notifier, as before, and build
+  # its run in the view; the view process does both, in one order.
   def handle_cast({:subagent_event, nil, event}, state) do
-    Notifier.publish(state.notifier, state.id, event)
+    GenServer.cast(state.viewer, {:background_subagent_event, event})
     {:noreply, state}
   end
 
   def handle_cast({:subagent_event, turn_ref, event}, state) do
     case state.turn.recipient do
-      {:stream, ref} when turn_ref == state.turn.abort_ref -> broadcast(state, ref, event)
-      _other -> :ok
+      {:stream, ref} when turn_ref == state.turn.abort_ref -> {:noreply, broadcast(state, ref, event)}
+      _other -> {:noreply, state}
     end
-
-    {:noreply, state}
   end
 
   def handle_cast({:compaction_usage, ref, response, messages}, state) do
     if ref == state.turn.abort_ref do
       {:noreply, %{state | compaction: Compaction.usage(state.compaction, response, messages)}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  # Woken calls the worker ran that returned results instead of parking again.
+  def handle_cast({:parking_done, turn_ref, ids}, state) do
+    if turn_ref == state.turn.abort_ref and state.turn.parking do
+      {:noreply, commit_parking(state, Enum.map(ids, &{:done, &1}))}
     else
       {:noreply, state}
     end
@@ -780,10 +1025,13 @@ defmodule Condukt.Session do
     messages =
       if match?({:error, _}, result) and Compaction.enabled?(state.compaction), do: state.messages, else: messages
 
-    state = %{state | turn: Turn.finish(state.turn), messages: messages, assigns: assigns}
+    state = state |> adopt_turn_messages(messages, assigns) |> view_run_finished(run_error(result))
+    state = finish_turn(state)
 
     state =
-      if match?({:ok, _}, result) or not Compaction.enabled?(state.compaction), do: maybe_compact(state), else: state
+      if match?({:ok, _}, result) or not Compaction.enabled?(state.compaction),
+        do: state |> maybe_compact() |> view_history_changed(state.messages),
+        else: state
 
     persist_snapshot(state)
     {:noreply, maybe_start_queued_turn(state)}
@@ -797,16 +1045,20 @@ defmodule Condukt.Session do
     end
   end
 
-  def handle_cast({:stream_complete, ref, {:ok, messages, _response, assigns}}, state) do
-    broadcast(state, ref, :done)
-    state = %{state | turn: Turn.finish(state.turn), messages: messages, assigns: assigns} |> maybe_compact()
+  def handle_cast({:stream_complete, ref, {:ok, messages, response, assigns}}, state) do
+    settle_input(state, state.turn.input, {:ok, response})
+    state = broadcast(state, ref, :done)
+    state = state |> adopt_turn_messages(messages, assigns) |> view_run_finished(nil)
+    state = finish_turn(state)
+    state = state |> maybe_compact() |> view_history_changed(state.messages)
     persist_snapshot(state)
     {:noreply, maybe_start_queued_turn(state)}
   end
 
-  def handle_cast({:stream_complete, ref, _result}, state) do
-    broadcast(state, ref, :done)
-    {:noreply, maybe_start_queued_turn(%{state | turn: Turn.finish(state.turn)})}
+  def handle_cast({:stream_complete, ref, result}, state) do
+    settle_input(state, state.turn.input, {:error, run_error(result)})
+    state = broadcast(state, ref, :done) |> view_run_finished(run_error(result))
+    {:noreply, maybe_start_queued_turn(finish_turn(state))}
   end
 
   @impl true
@@ -824,14 +1076,50 @@ defmodule Condukt.Session do
     compaction_finished(%{state | compaction: compaction})
   end
 
+  def handle_info({:park_deadline, ref}, %{turn: %{abort_ref: ref, parking: %Parking{} = parking}} = state) do
+    records = Parking.expire(parking, System.os_time(:millisecond))
+    {:noreply, commit_parking(state, records)}
+  end
+
+  # A worker that crashed sent no result, so its turn ends here with the crash
+  # as its error. One that finished or was aborted is no longer the turn's
+  # worker when its monitor fires: its result came first, or the abort ended
+  # the turn.
+  def handle_info({:DOWN, _monitor, :process, worker, reason}, %{turn: %{worker: worker}} = state)
+      when is_pid(worker) do
+    error = {:error, {:turn_crashed, crash_reason(reason)}}
+    cancel_parked(state)
+
+    case state.turn.recipient do
+      {:run, from} -> handle_cast({:run_complete, from, {error, state.messages, state.assigns}}, state)
+      {:stream, ref} -> handle_cast({:stream_complete, ref, error}, broadcast(state, ref, error))
+    end
+  end
+
   def handle_info({:DOWN, monitor, :process, _pid, _reason}, state) do
     {:noreply, %{state | turn: Turn.drop_monitored(state.turn, monitor)}}
+  end
+
+  # Takes the inputs the inbox stored for this session, as it starts and
+  # whenever `Condukt.Sessions.submit/3` stores another. Inputs the session
+  # already took are dropped as duplicates.
+  def handle_info({Condukt.Sessions, :drain}, %{inbox: inbox} = state) when not is_nil(inbox) do
+    case Inbox.take(inbox, state.id) do
+      {:ok, inputs} ->
+        {:noreply, maybe_start_queued_turn(%{state | turn: Enum.reduce(inputs, state.turn, &take_input/2)})}
+
+      {:error, reason} ->
+        Logger.warning("session #{state.id} could not take its stored input: #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
   def terminate(_reason, state) do
+    cancel_parked(state)
+    settle_inputs(state, :aborted)
     if state.mcp_registry, do: MCP.stop_all(state.mcp_registry)
     stop_subagent_supervisor(state.subagent_supervisor)
     Compaction.stop(state.compaction)
@@ -964,45 +1252,54 @@ defmodule Condukt.Session do
   end
 
   defp agent_turn(state, messages, max_turns, turn) do
-    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
     tools = build_req_llm_tools(state.tools, state)
 
-    attempt = fn ->
-      with :ok <- check_turn(state) do
-        ReqLLM.generate_text(state.llm.model, context, llm_opts(state, tools))
-      end
-    end
-
-    result =
-      Telemetry.span(
-        :llm_turn,
-        llm_turn_metadata(state, messages, turn, false),
-        fn ->
-          Retry.with_retry(
-            state.retry,
-            fn -> false end,
-            attempt,
-            &wait_for_retry(state, &1)
-          )
-        end,
-        &llm_turn_stop_metadata/1
-      )
+    call = &ReqLLM.generate_text(state.llm.model, &1, llm_opts(state, tools))
+    {result, messages} = llm_request(state, messages, turn, false, fn -> false end, call)
 
     with {:ok, response} <- result,
-         :ok <- check_turn(state) do
+         :ok <- sync(state) do
       record_compaction_usage(state, response, messages)
       assistant_message = Translate.response_to_message(response)
       messages = messages ++ [assistant_message]
+      view_event = &GenServer.cast(state.pid, {:view_event, state.turn.abort_ref, &1})
+      text = Message.text(assistant_message)
+      if text != "", do: view_event.({:text, text})
 
-      if Message.has_tool_calls?(assistant_message) do
-        {tool_results, messages, assigns_diff} = execute_tool_calls(state, assistant_message, messages)
-        messages = messages ++ tool_results
-        state = %{state | assigns: Map.merge(state.assigns, assigns_diff)}
-        agent_loop(state, messages, max_turns, turn + 1)
-      else
-        response_text = Message.text(assistant_message)
-        {:ok, messages, response_text, state.assigns}
+      cond do
+        Message.has_tool_calls?(assistant_message) ->
+          state
+          |> execute_tool_calls(assistant_message, messages, view_event)
+          |> after_tool_round(state, &agent_loop(&1, &2, max_turns, turn + 1))
+
+        continuation = yield_continuation(state, assistant_message, messages, turn, max_turns) ->
+          agent_loop(state, messages ++ [continuation], max_turns, turn + 1)
+
+        true ->
+          response_text = Message.text(assistant_message)
+          {:ok, messages, response_text, state.assigns}
       end
+    end
+  end
+
+  # The user message an `on_yield` hook continues the run with, or nil when
+  # the answer stands. On the run's last turn the answer stands without asking:
+  # a continuation there would end the run on the answer the hook rejected,
+  # with its message left unanswered in the history.
+  defp yield_continuation(_state, _assistant_message, _messages, turn, max_turns) when turn + 1 >= max_turns, do: nil
+
+  defp yield_continuation(%{hooks: []}, _assistant_message, _messages, _turn, _max_turns), do: nil
+
+  defp yield_continuation(state, assistant_message, messages, turn, max_turns) do
+    context =
+      state
+      |> tool_context([])
+      |> Map.merge(%{messages: messages, turn: turn, max_turns: max_turns})
+
+    # A hook that crashed leaves the answer standing.
+    case supervise(fn -> Hooks.run_on_yield(state.hooks, assistant_message, context) end, :infinity, :stop) do
+      {:ok, {:continue, text}} -> Message.user(text)
+      _ -> nil
     end
   end
 
@@ -1026,23 +1323,27 @@ defmodule Condukt.Session do
   end
 
   defp start_run(state, prompt, opts, from) do
+    state = view_run_started(state, prompt, opts)
     state = %{state | turn: Turn.start(state.turn, {:run, from}, length(state.messages))}
     parent = self()
     trace_context = TraceContext.capture(opts)
 
     {:ok, worker} =
-      Task.start(fn ->
+      Task.Supervisor.start_child(state.turn_supervisor, fn ->
         TraceContext.attach(trace_context)
         result = do_run(state, prompt, opts)
         GenServer.cast(parent, {:run_complete, state.turn.abort_ref, from, result})
       end)
 
+    Process.monitor(worker)
     %{state | turn: %{state.turn | worker: worker}}
   end
 
   defp start_stream(state, prompt, opts, subscriber_ref) do
+    state = view_run_started(state, prompt, opts)
     state = %{state | turn: Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))}
     {:ok, worker} = start_stream_task(state, prompt, opts, subscriber_ref)
+    Process.monitor(worker)
     %{state | turn: %{state.turn | worker: worker}}
   end
 
@@ -1051,7 +1352,7 @@ defmodule Condukt.Session do
     abort_ref = state.turn.abort_ref
     trace_context = TraceContext.capture(opts)
 
-    Task.start(fn ->
+    Task.Supervisor.start_child(state.turn_supervisor, fn ->
       TraceContext.attach(trace_context)
 
       result =
@@ -1072,7 +1373,6 @@ defmodule Condukt.Session do
   end
 
   defp stream_turn(state, messages, max_turns, turn, emit, abort_ref) do
-    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
     tools = build_req_llm_tools(state.tools, state)
 
     emitted_counter = :counters.new(1, [:atomics])
@@ -1083,22 +1383,11 @@ defmodule Condukt.Session do
       emit.(event)
     end
 
-    attempt = fn ->
-      with :ok <- check_turn(state) do
-        run_stream_attempt(state.llm.model, context, llm_opts(state, tools), tracked_emit)
-      end
-    end
-
-    result =
-      Telemetry.span(
-        :llm_turn,
-        llm_turn_metadata(state, messages, turn, true),
-        fn -> Retry.with_retry(state.retry, emitted?, attempt, &wait_for_retry(state, &1)) end,
-        &llm_turn_stop_metadata/1
-      )
+    call = &run_stream_attempt(state.llm.model, &1, llm_opts(state, tools), tracked_emit)
+    {result, messages} = llm_request(state, messages, turn, true, emitted?, call)
 
     with {:ok, response} <- result,
-         :ok <- check_turn(state) do
+         :ok <- sync(state) do
       handle_stream_response(state, response, messages, max_turns, turn, emit, abort_ref)
     else
       {:error, reason} ->
@@ -1113,15 +1402,16 @@ defmodule Condukt.Session do
     messages = messages ++ [assistant_message]
     emit.(:turn_end)
 
-    case Message.has_tool_calls?(assistant_message) do
+    cond do
+      Message.has_tool_calls?(assistant_message) ->
+        state
+        |> execute_tool_calls(assistant_message, messages, emit)
+        |> after_tool_round(state, &streaming_loop(&1, &2, max_turns, turn + 1, emit, abort_ref))
+
+      continuation = yield_continuation(state, assistant_message, messages, turn, max_turns) ->
+        streaming_loop(state, messages ++ [continuation], max_turns, turn + 1, emit, abort_ref)
+
       true ->
-        {tool_results, messages, assigns_diff} =
-          execute_tool_calls(state, assistant_message, messages, emit)
-
-        state = %{state | assigns: Map.merge(state.assigns, assigns_diff)}
-        streaming_loop(state, messages ++ tool_results, max_turns, turn + 1, emit, abort_ref)
-
-      false ->
         {:ok, messages, text, state.assigns}
     end
   end
@@ -1194,53 +1484,148 @@ defmodule Condukt.Session do
           context = tool_context(state, [])
 
           case Tool.execute(tool_spec, args, context) do
-            {:ok, result, _assigns} when is_binary(result) -> Secrets.redact_text(state.secrets, result)
-            {:ok, result, _assigns} -> JSON.encode!(Secrets.redact_result(state.secrets, result))
-            {:ok, result} when is_binary(result) -> Secrets.redact_text(state.secrets, result)
-            {:ok, result} -> JSON.encode!(Secrets.redact_result(state.secrets, result))
-            {:error, reason} -> "Error: #{inspect(reason)}"
+            {:ok, result, _assigns} when is_binary(result) ->
+              Secrets.redact_text(state.secrets, result)
+
+            {:ok, result, _assigns} ->
+              JSON.encode!(Secrets.redact_result(state.secrets, result))
+
+            {:ok, result} when is_binary(result) ->
+              Secrets.redact_text(state.secrets, result)
+
+            {:ok, result} ->
+              JSON.encode!(Secrets.redact_result(state.secrets, result))
+
+            {:error, reason} ->
+              "Error: #{inspect(reason)}"
+
+            {:park, call_state, _opts} ->
+              # Nothing will wake the call, so undo what it started.
+              Tool.cancel(tool_spec, call_state, context)
+              "Error: #{spec.name} cannot wait for signals under this runtime"
           end
         end
       )
     end)
   end
 
-  # One path for both callers. The streaming one differs only in announcing the
-  # calls before they run and each result as it lands, so it passes an emitter
-  # rather than duplicating the pipeline; the plain one passes a no-op.
-  defp execute_tool_calls(state, assistant_message, messages, emit \\ &noop_emit/1) do
+  # One path for both callers. Each announces the calls before they run and
+  # each result as it lands through its emitter: the streaming one to its
+  # subscribers and notifier, the plain one to the view only.
+  #
+  # A call that parks leaves its round waiting: this worker blocks until the
+  # session reports a woken call, runs it through `wake/3`, and repeats until
+  # every call has a result. Aborting the turn terminates the worker, blocked
+  # or not. Returns `{tool_results, messages, assigns_diff}`.
+  defp execute_tool_calls(state, assistant_message, messages, emit) do
     tool_calls = Message.tool_calls(assistant_message)
-    tool_map = build_tool_map(state.tools)
-    trace_context = TraceContext.current()
 
     Enum.each(tool_calls, fn {id, name, args} -> emit.({:tool_call, name, id, args}) end)
 
-    {tool_results, assigns_diff} =
-      tool_calls
-      |> Task.async_stream(
-        fn {id, _name, _args} = tool_call ->
-          TraceContext.attach(trace_context)
+    # Results are kept by position, not id, so each call keeps its own result
+    # even if a provider repeats an id.
+    calls = Enum.with_index(tool_calls)
 
-          case check_turn(state) do
-            :ok -> execute_tool_call(tool_map, tool_call, state)
-            {:error, :aborted} -> {Message.tool_result(id, {:error, :aborted}), %{}}
-          end
-        end,
-        ordered: true,
-        timeout: tool_timeout(state)
-      )
-      |> Enum.zip(tool_calls)
-      |> Enum.map(&task_result_to_tool_result/1)
-      |> Enum.map(fn {result, assigns} ->
-        emit.({:tool_result, result.tool_call_id, Message.tool_result_content(result)})
-        {result, assigns}
-      end)
-      |> split_results_and_assigns()
+    with {:ok, results} <- await_tool_round(state, calls, run_tool_calls(state, calls, %{}, emit), emit) do
+      {tool_results, assigns_diff} =
+        split_results_and_assigns(Enum.map(calls, fn {_call, index} -> Map.fetch!(results, index) end))
 
-    {tool_results, messages, assigns_diff}
+      {tool_results, messages, assigns_diff}
+    end
   end
 
-  defp noop_emit(_event), do: :ok
+  defp await_tool_round(state, calls, results, emit) do
+    if map_size(results) == length(calls) do
+      {:ok, results}
+    else
+      with {:ok, resumes} <- await_wakes(state) do
+        woken = Enum.filter(calls, &woken?(&1, resumes, results))
+        await_tool_round(state, calls, Map.merge(results, run_tool_calls(state, woken, resumes, emit)), emit)
+      end
+    end
+  end
+
+  defp woken?({{id, _name, _args}, index}, resumes, results),
+    do: Map.has_key?(resumes, id) and not Map.has_key?(results, index)
+
+  # Blocks this worker, which costs a process and nothing else, until the
+  # session has a woken call for it. Aborting the turn terminates the worker;
+  # the session going down ends the wait.
+  defp await_wakes(state) do
+    abort_ref = state.turn.abort_ref
+
+    with {:ok, resumes} when map_size(resumes) == 0 <-
+           GenServer.call(state.pid, {:take_ready, abort_ref}, :infinity) do
+      monitor = Process.monitor(state.pid)
+
+      receive do
+        {:parking_ready, ^abort_ref} ->
+          Process.demonitor(monitor, [:flush])
+          await_wakes(state)
+
+        {:DOWN, ^monitor, :process, _pid, _reason} ->
+          {:error, :aborted}
+      end
+    end
+  end
+
+  # Runs `{call, index}` pairs, returning the outcomes of those that did not
+  # park by index. `resumes` holds the `{event, state}` of woken calls by id.
+  defp run_tool_calls(state, calls, resumes, emit) do
+    tool_map = build_tool_map(state.tools)
+    trace_context = TraceContext.current()
+
+    calls
+    |> Task.async_stream(
+      fn {{id, _name, _args} = tool_call, _index} ->
+        TraceContext.attach(trace_context)
+
+        outcome = execute_tool_call(tool_map, tool_call, state, Map.get(resumes, id))
+
+        if not match?({:parked, _id}, outcome), do: woken_call_done(state, resumes, id)
+        outcome
+      end,
+      ordered: true,
+      max_concurrency: tool_concurrency(state, calls),
+      # Each call bounds its tool's own execution with the tool timeout, so a
+      # hook waiting on a person is not cut off by it.
+      timeout: :infinity
+    )
+    |> Enum.zip(calls)
+    |> Enum.flat_map(fn
+      {{:ok, {:parked, _id}}, _call} ->
+        []
+
+      {task_result, {{id, _name, _args}, index}} ->
+        if match?({:exit, _reason}, task_result), do: woken_call_done(state, resumes, id)
+        {result, _assigns} = outcome = task_result_to_tool_result(task_result, id, state)
+        emit.({:tool_result, result.tool_call_id, Message.tool_result_content(result)})
+        [{index, outcome}]
+    end)
+    |> Map.new()
+  end
+
+  # A woken call with a result is no longer one an abort cancels. Sent as soon
+  # as each call finishes, not after its whole batch.
+  defp woken_call_done(state, resumes, id) do
+    if Map.has_key?(resumes, id), do: GenServer.cast(state.pid, {:parking_done, state.turn.abort_ref, [id]})
+  end
+
+  # Without hooks, one call per scheduler, as tools are mostly work. Hooks may
+  # hold calls waiting on people rather than CPUs, so then every call in the
+  # round runs at once, up to a cap that keeps one response from starting an
+  # unbounded number of tools or sub-agents.
+  defp tool_concurrency(%{hooks: []}, _calls), do: System.schedulers_online()
+
+  defp tool_concurrency(_state, calls) do
+    calls |> length() |> max(System.schedulers_online()) |> min(@max_hooked_tool_concurrency)
+  end
+
+  defp after_tool_round({:error, reason}, _state, _continue), do: {:error, reason}
+
+  defp after_tool_round({tool_results, messages, assigns_diff}, state, continue) do
+    continue.(%{state | assigns: Map.merge(state.assigns, assigns_diff)}, messages ++ tool_results)
+  end
 
   # A tool that never returns used to hang the turn forever, which a person at
   # a terminal can interrupt and a server-side run cannot. Bounded by the
@@ -1254,7 +1639,7 @@ defmodule Condukt.Session do
     |> then(fn {results, merged} -> {Enum.reverse(results), merged} end)
   end
 
-  defp execute_tool_call(tool_map, {id, name, args}, state) do
+  defp execute_tool_call(tool_map, {id, name, args} = call, state, resume) do
     metadata = %{
       tool: name,
       tool_call_id: id,
@@ -1263,17 +1648,173 @@ defmodule Condukt.Session do
       agent: state.agent_module
     }
 
-    Telemetry.span(
-      :tool_call,
-      metadata,
-      fn -> execute_tool(tool_map, name, args, state, id) end,
-      &tool_call_stop_metadata/1
-    )
+    {outcome, _args} =
+      Telemetry.span(
+        :tool_call,
+        metadata,
+        fn -> execute_hooked_tool(tool_map, call, state, resume) end,
+        &tool_call_stop_metadata/1
+      )
+
+    outcome
   end
 
-  defp tool_call_stop_metadata({%Message{content: {:error, _} = error}, _assigns}), do: %{status: :error, result: error}
+  # Returns the call's outcome with the arguments it ran with, for the
+  # `:tool_call` stop event. `before_tool` runs once, before a fresh call;
+  # `after_tool` runs on the result, after the last wake of a call that parked.
+  # The result hooks see and replace is already redacted, and a replacement is
+  # redacted again before the model sees it.
+  defp execute_hooked_tool(tool_map, {_id, _name, args} = call, %{hooks: []} = state, resume) do
+    {run_tool(tool_map, call, state, resume), args}
+  end
 
-  defp tool_call_stop_metadata({%Message{content: content}, _assigns}), do: %{status: :ok, result: content}
+  defp execute_hooked_tool(tool_map, {id, name, args}, state, nil = resume) do
+    context = tool_context(state, [], id)
+    hook_call = %{id: id, name: name, args: args}
+
+    case supervise(fn -> Hooks.run_before_tool(state.hooks, hook_call, context) end, :infinity, :stop) do
+      {:ok, {:ok, args}} ->
+        outcome = run_tool(tool_map, {id, name, args}, state, resume)
+        {after_tool(state, %{hook_call | args: args}, outcome, context), args}
+
+      {:ok, {:block, reason}} ->
+        reason = if is_binary(reason), do: reason, else: inspect(reason)
+        blocked = {error_result(state, id, "Tool call blocked: " <> reason), %{}}
+        {after_tool(state, hook_call, blocked, context), args}
+
+      {:error, reason} ->
+        blocked = {error_result(state, id, "Tool call blocked: " <> exit_message(reason)), %{}}
+        {after_tool(state, hook_call, blocked, context), args}
+    end
+  end
+
+  defp execute_hooked_tool(tool_map, {id, name, args} = call, state, resume) do
+    context = tool_context(state, [], id)
+    {after_tool(state, %{id: id, name: name, args: args}, run_tool(tool_map, call, state, resume), context), args}
+  end
+
+  defp after_tool(_state, _call, {:parked, _id} = parked, _context), do: parked
+
+  defp after_tool(state, call, {message, assigns}, context) do
+    result =
+      case message.content do
+        {:error, reason} -> {:error, reason}
+        content -> {:ok, content}
+      end
+
+    message =
+      case supervise(fn -> Hooks.run_after_tool(state.hooks, call, result, context) end, :infinity, :stop) do
+        {:ok, ^result} -> message
+        {:ok, {:ok, content}} -> %{message | content: Secrets.redact_result(state.secrets, content)}
+        {:ok, {:error, _} = error} -> %{message | content: Secrets.redact_result(state.secrets, error)}
+        {:error, reason} -> error_result(state, call.id, "after_tool hook failed: " <> exit_message(reason))
+      end
+
+    {message, assigns}
+  end
+
+  # The tool runs in its own process, bounded by the tool timeout. A tool that
+  # must not stop halfway finishes when the turn is aborted, as
+  # `Tool.on_abort/1` asks; any other dies with the turn.
+  defp run_tool(tool_map, {id, name, _args} = call, state, resume) do
+    on_exit =
+      case Map.fetch(tool_map, name) do
+        {:ok, spec} -> if Tool.on_abort(spec) == :finish, do: :finish, else: :stop
+        :error -> :stop
+      end
+
+    case supervise(fn -> execute_tool(tool_map, call, state, resume) end, tool_timeout(state), on_exit) do
+      {:ok, outcome} -> outcome
+      {:error, :timeout} -> {Message.tool_result(id, {:error, :timeout}), %{}}
+      {:error, reason} -> {error_result(state, id, exit_message(reason)), %{}}
+    end
+  end
+
+  # Runs `fun` in a process linked to this one and waits for its result. The
+  # link takes the process down with this one, as an abort takes the turn's
+  # whole process tree, while trapping exits for the wait turns a crash in it
+  # into `{:error, reason}`, failing only what it was doing. An exit this
+  # process receives meanwhile is passed on to `fun`'s process and then
+  # honored, at once or for `on_exit: :finish` once `fun` finishes, even when
+  # it arrived just after the result. The process leaves by signal, as it
+  # would without trapping, so a span around the wait does not report the
+  # abort as an exception. Past `timeout`, the process is killed and the
+  # result is `{:error, :timeout}`.
+  defp supervise(fun, timeout, on_exit) do
+    trapping? = Process.flag(:trap_exit, true)
+    caller = self()
+    ref = make_ref()
+    trace_context = TraceContext.current()
+
+    {:ok, pid} =
+      Task.start_link(fn ->
+        TraceContext.attach(trace_context)
+        send(caller, {ref, fun.()})
+      end)
+
+    deadline = if timeout == :infinity, do: :infinity, else: System.monotonic_time(:millisecond) + timeout
+
+    {result, exiting} = await_supervised(pid, ref, deadline, on_exit, trapping?, nil)
+    Process.flag(:trap_exit, trapping?)
+    exiting = exiting || (not trapping? && trapped_exit())
+    if exiting, do: Process.exit(self(), exiting)
+    result
+  end
+
+  defp await_supervised(pid, ref, deadline, on_exit, trapping?, exiting) do
+    receive do
+      {^ref, result} ->
+        receive do: ({:EXIT, ^pid, _reason} -> :ok)
+        {{:ok, result}, exiting}
+
+      {:EXIT, ^pid, reason} ->
+        {{:error, reason}, exiting}
+
+      {:EXIT, _from, :normal} when not trapping? ->
+        await_supervised(pid, ref, deadline, on_exit, trapping?, exiting)
+
+      {:EXIT, _from, reason} when not trapping? and is_nil(exiting) ->
+        Process.exit(pid, reason)
+
+        if on_exit == :finish,
+          do: await_supervised(pid, ref, :infinity, on_exit, trapping?, reason),
+          else: {nil, reason}
+    after
+      remaining(deadline) ->
+        Process.unlink(pid)
+        Process.exit(pid, :kill)
+        # An exit it sent before the unlink is not one from elsewhere.
+        receive do: ({:EXIT, ^pid, _reason} -> :ok), after: (0 -> :ok)
+        {{:error, :timeout}, exiting}
+    end
+  end
+
+  # An exit that arrived while the wait was over but exits were still trapped.
+  defp trapped_exit do
+    receive do: ({:EXIT, _from, reason} when reason != :normal -> reason), after: (0 -> nil)
+  end
+
+  defp remaining(:infinity), do: :infinity
+  defp remaining(deadline), do: max(deadline - System.monotonic_time(:millisecond), 0)
+
+  # Text from hooks and exits is as untrusted as a tool's own result.
+  defp error_result(state, id, text), do: Message.tool_result(id, Secrets.redact_result(state.secrets, {:error, text}))
+
+  defp crash_reason({reason, [{_, _, _, _} | _]}), do: reason
+  defp crash_reason(reason), do: reason
+
+  # The model sees this text, so stack traces are dropped.
+  defp exit_message({exception, _stacktrace}) when is_exception(exception), do: Exception.message(exception)
+  defp exit_message({reason, [{_, _, _, _} | _]}), do: exit_message(reason)
+  defp exit_message(reason), do: inspect(reason)
+
+  defp tool_call_stop_metadata({{:parked, _id}, args}), do: %{status: :parked, result: nil, args: args}
+
+  defp tool_call_stop_metadata({{%Message{content: {:error, _} = error}, _assigns}, args}),
+    do: %{status: :error, result: error, args: args}
+
+  defp tool_call_stop_metadata({{%Message{content: content}, _assigns}, args}),
+    do: %{status: :ok, result: content, args: args}
 
   defp llm_turn_metadata(state, messages, turn, streaming?) do
     %{
@@ -1300,20 +1841,21 @@ defmodule Condukt.Session do
     %{status: :error, error: reason}
   end
 
-  defp task_result_to_tool_result({{:ok, {message, assigns}}, _tool_call}), do: {message, assigns}
+  defp task_result_to_tool_result({:ok, outcome}, _id, _state), do: outcome
 
-  defp task_result_to_tool_result({{:exit, reason}, {id, _name, _args}}) do
-    {Message.tool_result(id, {:error, reason}), %{}}
-  end
+  defp task_result_to_tool_result({:exit, reason}, id, state), do: {error_result(state, id, exit_message(reason)), %{}}
 
-  defp execute_tool(tool_map, name, args, state, id) do
+  defp execute_tool(tool_map, {id, name, _args} = call, state, resume) do
     case Map.fetch(tool_map, name) do
       :error ->
         {Message.tool_result(id, {:error, "Unknown tool: #{name}"}), %{}}
 
       {:ok, tool_spec} ->
         emit_secret_access(state, name, id)
-        execute_known_tool(tool_spec, args, state, id)
+        # A tool that must not stop halfway traps exits, so an abort reaches it
+        # as an `{:EXIT, _, _}` message instead of killing it.
+        if Tool.on_abort(tool_spec) == :finish, do: Process.flag(:trap_exit, true)
+        execute_known_tool(tool_spec, call, state, resume)
     end
   end
 
@@ -1348,12 +1890,12 @@ defmodule Condukt.Session do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  defp execute_known_tool({module, opts}, args, state, id) do
-    execute_tool_spec({module, opts}, args, tool_context(state, opts, id), id)
+  defp execute_known_tool({module, opts}, {id, _name, _args} = call, state, resume) do
+    execute_tool_spec({module, opts}, call, tool_context(state, opts, id), resume)
   end
 
-  defp execute_known_tool(tool_spec, args, state, id) do
-    execute_tool_spec(tool_spec, args, tool_context(state, [], id), id)
+  defp execute_known_tool(tool_spec, {id, _name, _args} = call, state, resume) do
+    execute_tool_spec(tool_spec, call, tool_context(state, [], id), resume)
   end
 
   defp tool_context(state, opts, tool_call_id \\ nil) do
@@ -1383,8 +1925,15 @@ defmodule Condukt.Session do
     }
   end
 
-  defp execute_tool_spec(tool_spec, args, context, id) do
-    case Tool.execute(tool_spec, args, context) do
+  # A fresh call runs `call/2`; a woken one, `wake/3` with its event and state.
+  defp execute_tool_spec(tool_spec, {id, _name, args} = call, context, resume) do
+    outcome =
+      case resume do
+        nil -> Tool.execute(tool_spec, args, context)
+        {event, call_state} -> Tool.wake(tool_spec, event, call_state, context)
+      end
+
+    case outcome do
       {:ok, result, assigns} when is_map(assigns) ->
         {Message.tool_result(id, Secrets.redact_result(context[:secrets], result)), assigns}
 
@@ -1393,6 +1942,33 @@ defmodule Condukt.Session do
 
       {:error, reason} ->
         {Message.tool_result(id, Secrets.redact_result(context[:secrets], {:error, reason})), %{}}
+
+      {:park, call_state, opts} ->
+        park_tool_call(tool_spec, call, context, call_state, opts)
+    end
+  end
+
+  # Where a tool call's `{:park, state, opts}` parks it: the session records
+  # the park, and the turn's worker waits until `wake/3` handles its event.
+  defp park_tool_call(tool_spec, {id, name, _args}, context, call_state, opts) do
+    case request_park(tool_spec, {id, name}, context, call_state, opts) do
+      :ok ->
+        {:parked, id}
+
+      {:error, :aborted} ->
+        # The abort refused this park, so nothing else cancels what the call started.
+        Tool.cancel(tool_spec, call_state, context)
+        {Message.tool_result(id, {:error, :aborted}), %{}}
+
+      {:error, reason} ->
+        {Message.tool_result(id, {:error, {:invalid_park, reason}}), %{}}
+    end
+  end
+
+  defp request_park(tool_spec, call, context, call_state, opts) do
+    with :ok <- if(Tool.wakes?(tool_spec), do: :ok, else: {:error, :no_wake_callback}),
+         {:ok, park} <- Park.new(opts) do
+      GenServer.call(context.agent, {:park, context.turn_ref, call, call_state, park}, :infinity)
     end
   end
 
@@ -1415,9 +1991,23 @@ defmodule Condukt.Session do
     end
   end
 
+  # Sends an event to its subscribers here and hands it to the view process,
+  # which publishes it and records it. A session built without one, as a few
+  # tests do, publishes it itself.
   defp broadcast(state, ref, event) do
     broadcast_subscribers(state, ref, event)
-    Notifier.publish(state.notifier, state.id, event)
+    publish(state, event)
+  end
+
+  # Past the caller's own subscribers: through the viewer when there is one,
+  # which records the event and publishes it to the notifier.
+  defp publish(state, event) do
+    case state.viewer do
+      nil -> Notifier.publish(state.notifier, state.id, event)
+      viewer -> GenServer.cast(viewer, {:event, event})
+    end
+
+    state
   end
 
   defp broadcast_subscribers(state, ref, event) do
@@ -1558,17 +2148,51 @@ defmodule Condukt.Session do
     %{state | messages: messages, compaction: compaction}
   end
 
-  defp compaction_checkpoint(%{compaction: %{policy: nil}} = state, messages) do
-    with :ok <- check_turn(state) do
-      {:ok, Compaction.apply(state.compaction.spec, messages, compaction_metadata(state))}
+  defp compaction_checkpoint(state, messages, phase \\ :background)
+
+  defp compaction_checkpoint(%{compaction: %{policy: nil}} = state, messages, phase) do
+    opts = Compaction.compactor_opts(phase)
+    {:ok, Compaction.apply(state.compaction.spec, messages, compaction_metadata(state), opts)}
+  end
+
+  defp compaction_checkpoint(state, messages, phase) do
+    GenServer.call(
+      state.pid,
+      {:compaction_checkpoint, state.turn.abort_ref, messages, TraceContext.current(), phase},
+      :infinity
+    )
+  end
+
+  # Sends one model request with transient retries and returns the result with
+  # the messages it used. Token estimates can admit a request the provider
+  # rejects as too long, so that rejection is compacted and retried once.
+  defp llm_request(state, messages, turn, streaming?, emitted?, call) do
+    result = llm_attempts(state, messages, turn, streaming?, emitted?, call)
+
+    with {:error, reason} <- result,
+         true <- not is_nil(state.compaction.spec) and not emitted?.() and Retry.context_overflow?(reason),
+         {:ok, compacted} when compacted != messages <- compaction_checkpoint(state, messages, :overflow) do
+      Logger.warning("provider rejected the request as too long; retrying once after compaction")
+      {llm_attempts(state, compacted, turn, streaming?, emitted?, call), compacted}
+    else
+      {:error, :aborted} = aborted -> {aborted, messages}
+      _no_retry -> {result, messages}
     end
   end
 
-  defp compaction_checkpoint(state, messages) do
-    GenServer.call(
-      state.pid,
-      {:compaction_checkpoint, state.turn.abort_ref, messages, TraceContext.current()},
-      :infinity
+  defp llm_attempts(state, messages, turn, streaming?, emitted?, call) do
+    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
+
+    attempt = fn ->
+      :ok = sync(state)
+      call.(context)
+    end
+
+    Telemetry.span(
+      :llm_turn,
+      llm_turn_metadata(state, messages, turn, streaming?),
+      fn -> Retry.with_retry(state.retry, emitted?, attempt) end,
+      &llm_turn_stop_metadata/1
     )
   end
 
@@ -1579,7 +2203,7 @@ defmodule Condukt.Session do
     GenServer.cast(state.pid, {:compaction_usage, state.turn.abort_ref, %{usage: response.usage}, messages})
   end
 
-  defp compaction_checkpoint_reply(state, from, overhead, metadata, phase \\ :background) do
+  defp compaction_checkpoint_reply(state, from, overhead, metadata, phase) do
     protected_count = if state.turn.prompt_index, do: length(state.messages) - state.turn.prompt_index, else: 1
 
     case Compaction.checkpoint(state.compaction, state.messages, overhead, from, metadata, phase, protected_count) do
@@ -1624,8 +2248,20 @@ defmodule Condukt.Session do
       end
 
     updated = %{state | compaction: compaction, messages: messages, turn: turn}
-    if messages != state.messages, do: persist_snapshot(updated)
-    updated
+
+    cond do
+      messages == state.messages ->
+        updated
+
+      # The turn's own history replaces the view's when it ends.
+      updated.turn.streaming ->
+        persist_snapshot(updated)
+        %{updated | turn: Turn.rewrite_history(updated.turn)}
+
+      true ->
+        persist_snapshot(updated)
+        view_history_changed(updated, state.messages)
+    end
   end
 
   defp release_compaction_waiter(%{compaction: %{waiter: nil}} = state, _result), do: state
@@ -1637,21 +2273,26 @@ defmodule Condukt.Session do
 
   defp abort_turn(state) do
     state = release_compaction_waiter(state, {:error, :aborted})
-    if state.turn.worker, do: send(state.turn.worker, {:abort, state.turn.abort_ref})
-    # Bottom-up: what the turn owns is aborted before its own caller hears.
-    Enum.each(state.turn.owned, &abort_owned(&1, state.turn.abort_ref))
+    # The worker does not trap exits, so it is gone when this returns. Its tool
+    # calls are linked to it and go down with it, and so does what they own,
+    # such as a foreground sub-agent's session and that session's own turn.
+    if state.turn.worker, do: Task.Supervisor.terminate_child(state.turn_supervisor, state.turn.worker)
 
-    case state.turn.recipient do
-      {:run, from} ->
-        GenServer.reply(from, {:error, :aborted})
+    state =
+      case state.turn.recipient do
+        {:run, from} ->
+          GenServer.reply(from, {:error, :aborted})
+          state
 
-      {:stream, ref} ->
-        broadcast(state, ref, {:error, :aborted})
-        broadcast(state, ref, :done)
+        {:stream, ref} ->
+          state |> broadcast(ref, {:error, :aborted}) |> broadcast(ref, :done)
 
-      nil ->
-        :ok
-    end
+        nil ->
+          state
+      end
+
+    cancel_parked(state)
+    settle_inputs(state, :aborted)
 
     # Pending callers never started, so only they hear, not the notifier.
     Enum.each(state.turn.pending, fn
@@ -1663,23 +2304,19 @@ defmodule Condukt.Session do
         broadcast_subscribers(state, ref, :done)
     end)
 
+    state = if state.turn.streaming, do: view_run_finished(state, :aborted), else: state
+    state = end_parking(state)
     %{state | turn: Turn.abort(state.turn)}
   end
-
-  defp abort_owned({:session, pid}, _turn_ref) do
-    GenServer.call(pid, :abort)
-  catch
-    :exit, _reason -> :ok
-  end
-
-  defp abort_owned({:process, pid}, turn_ref), do: send(pid, {:abort, turn_ref})
 
   # Starts the next queued input when the session is idle. A pending caller
   # gets the turn it asked for. Nobody waits on a turn started from a queued
   # message, so it streams to the notifier and the agent's `handle_event/2`
   # only. Other runtimes cannot stream, so input queued for them keeps
-  # waiting, as before.
-  defp maybe_start_queued_turn(%{runtime: {Native, _}} = state)
+  # waiting, as before. Either way the view's queue follows what is left.
+  defp maybe_start_queued_turn(state), do: state |> start_queued_turn() |> sync_queue()
+
+  defp start_queued_turn(%{runtime: {Native, _}} = state)
        when not state.turn.streaming and is_nil(state.compaction.waiter) do
     case Turn.next_input(state.turn) do
       {nil, _turn} ->
@@ -1691,13 +2328,235 @@ defmodule Condukt.Session do
       {{prompt, opts, {:stream, ref}}, turn} ->
         start_stream(%{state | turn: turn}, prompt, opts, ref)
 
+      # The request id travels with the turn, so a durable journal records
+      # which submission the turn answers.
+      {{:input, input, message}, turn} ->
+        state = start_stream(%{state | turn: turn}, message.content, [request_id: input.request_id], make_ref())
+        %{state | turn: %{state.turn | queued: true, input: input}}
+
       {%Message{} = message, turn} ->
         state = start_stream(%{state | turn: turn}, message.content, [images: message.images], make_ref())
         %{state | turn: %{state.turn | queued: true}}
     end
   end
 
-  defp maybe_start_queued_turn(state), do: state
+  defp start_queued_turn(state), do: state
+
+  # Records the session under its parent in the session tree, which drops it
+  # when this process exits, and has it take the input its inbox stored while
+  # it was not running once it has started.
+  defp join_sessions(state, parent) do
+    :ok = Condukt.Sessions.join_parent(parent, self())
+    if state.inbox, do: send(self(), {Condukt.Sessions, :drain})
+    :ok
+  end
+
+  defp take_input(input, turn) do
+    case Turn.submit(turn, input, Message.user(input.text)) do
+      {:ok, turn} -> turn
+      {:error, :duplicate} -> turn
+    end
+  end
+
+  # Settles the input the running turn started from, and with `settle_inputs/2`
+  # the queued ones an abort withdraws. Telling the sender calls another
+  # session, possibly on another node, so it runs in its own process.
+  defp settle_input(_state, nil, _outcome), do: :ok
+  defp settle_input(_state, %{from: nil}, _outcome), do: :ok
+
+  defp settle_input(state, input, outcome) do
+    {:ok, _pid} = Task.start(Condukt.Sessions, :settle, [input, outcome, state.inbox])
+    :ok
+  end
+
+  defp settle_inputs(state, outcome) do
+    if state.turn.streaming, do: settle_input(state, state.turn.input, outcome)
+    Enum.each(state.turn.inputs, fn {input, _message} -> settle_input(state, input, outcome) end)
+  end
+
+  # ============================================================================
+  # View
+  # ============================================================================
+
+  # Starts the process that holds the view, linked so that neither outlives
+  # the other's crash. It redacts what the session sends it, as it arrives.
+  defp start_viewer(state) do
+    {runtime, _opts} = state.runtime
+
+    agent = %{
+      module: state.agent_module,
+      model: model_name(state.llm.model),
+      thinking_level: state.llm.thinking_level,
+      tools: Enum.map(state.tools, &Tool.name/1),
+      runtime: runtime
+    }
+
+    {:ok, viewer} =
+      Viewer.start_link(
+        id: state.id,
+        agent: agent,
+        messages: state.messages,
+        redactor: outbound_redactor(state),
+        notifier: state.notifier
+      )
+
+    %{state | viewer: viewer}
+  end
+
+  # Only the name: a model spec can carry provider options a viewer must not see.
+  defp model_name(model) when is_binary(model), do: model
+  defp model_name(%{provider: provider, id: id}), do: "#{provider}:#{id}"
+  defp model_name(_model), do: nil
+
+  # Replies once the view process has handled what the session sent it
+  # before, so the events an abort published have reached the notifier when
+  # the call returns, as when the session published them itself. Callers such
+  # as the background sub-agent manager read their notifier right after.
+  defp reply_after_view(%{viewer: nil} = state, _from, reply), do: {:reply, reply, state}
+
+  defp reply_after_view(state, from, reply) do
+    GenServer.cast(state.viewer, {:reply, from, reply})
+    {:noreply, state}
+  end
+
+  # Changes leave unredacted and in the session's order; the view process
+  # redacts and numbers them. A session built without one sends nothing.
+  defp view_change(%{viewer: nil}, _change), do: :ok
+  defp view_change(state, change), do: GenServer.cast(state.viewer, {:change, change})
+
+  # Sent whenever the queue may have changed; the view process drops it when
+  # it did not.
+  defp sync_queue(state) do
+    view_change(state, {:queue, View.queue(state.turn)})
+    state
+  end
+
+  defp view_run_started(state, prompt, opts) do
+    state = sync_queue(state)
+    view_change(state, {:run_started, Message.user(prompt, opts[:images] || [])})
+    state
+  end
+
+  # Ends the view's run with what the turn added to the history, the
+  # messages from `prompt_index` on, so a turn costs the view what it added.
+  # Call it before the turn is finished or aborted, while `prompt_index` still
+  # holds. History a compaction rewrote during the turn is replaced instead.
+  defp view_run_finished(%{viewer: nil} = state, _error), do: state
+
+  defp view_run_finished(%{turn: %{history_rewritten: true}} = state, error) do
+    view_change(state, {:run_finished, error, []})
+    view_change(state, {:messages, :replace, state.messages})
+    state
+  end
+
+  defp view_run_finished(state, error) do
+    view_change(state, {:run_finished, error, Enum.drop(state.messages, state.turn.prompt_index)})
+    state
+  end
+
+  # Takes the history a turn ended with. A compactor without a background
+  # policy compacts inside the turn's worker, where the session cannot see
+  # it, so only then is the history compared with the one the turn started
+  # from; anywhere else a rewrite goes through the session and is recorded.
+  defp adopt_turn_messages(state, messages, assigns) do
+    legacy? = state.compaction.policy == nil and state.compaction.spec != nil
+    rewritten? = legacy? and not List.starts_with?(messages, state.messages)
+    turn = if rewritten?, do: Turn.rewrite_history(state.turn), else: state.turn
+    %{state | messages: messages, assigns: assigns, turn: turn}
+  end
+
+  # Replaces the view's history after an idle compaction changed it.
+  defp view_history_changed(state, previous) do
+    if state.messages != previous, do: view_change(state, {:messages, :replace, state.messages})
+    state
+  end
+
+  defp run_error({:error, reason}), do: reason
+  defp run_error(_result), do: nil
+
+  # The one place a turn's parking changes. A durable journal stores `records`
+  # here before they apply, as `Condukt.Session.Parking` describes.
+  defp commit_parking(state, records) do
+    parking = Enum.reduce(records, parking(state), &Parking.apply_record(&2, &1))
+    if parking.timer, do: Process.cancel_timer(parking.timer)
+
+    timer =
+      case Parking.next_deadline(parking) do
+        nil ->
+          nil
+
+        until ->
+          delay = (until - System.os_time(:millisecond)) |> max(0) |> min(@max_timer)
+          Process.send_after(self(), {:park_deadline, state.turn.abort_ref}, delay)
+      end
+
+    notify_worker(put_parking(state, %{parking | timer: timer}))
+  end
+
+  # Wakes the turn's worker when it is blocked on its parked round and a call
+  # is ready for it.
+  defp notify_worker(%{turn: %{worker: worker, parking: %Parking{blocked: true} = parking}} = state)
+       when is_pid(worker) do
+    if Parking.ready?(parking) do
+      send(worker, {:parking_ready, state.turn.abort_ref})
+      put_parking(state, %{parking | blocked: false})
+    else
+      state
+    end
+  end
+
+  defp notify_worker(state), do: state
+
+  defp parking(state), do: state.turn.parking || Parking.new()
+
+  defp put_parking(state, parking), do: %{state | turn: %{state.turn | parking: parking}}
+
+  # Ends the turn's parking: its waits and early signals go, and every key it
+  # used stays closed for later turns.
+  defp end_parking(%{turn: %{parking: nil}} = state), do: state
+  defp end_parking(state), do: commit_parking(state, [:end_turn])
+
+  defp finish_turn(state) do
+    state = end_parking(state)
+    %{state | turn: Turn.finish(state.turn)}
+  end
+
+  defp publish_waiting(%{turn: %{parking: parking}} = state) do
+    waiting = waiting_info(parking)
+
+    if waiting == parking.published do
+      state
+    else
+      state = put_parking(state, %{parking | published: waiting})
+      event = {:waiting, waiting}
+
+      case state.turn.recipient do
+        {:stream, ref} -> state |> broadcast(ref, event) |> maybe_dispatch_event(event)
+        _run -> publish(state, event)
+      end
+    end
+  end
+
+  defp waiting_info(parking) do
+    %{tool_calls: Parking.waiting(parking), wake_at: Park.to_datetime(Parking.next_deadline(parking))}
+  end
+
+  # Runs `cancel/2` of the parked calls and the woken ones running again, each
+  # in its own unlinked process, so neither the abort nor the session ending
+  # stops it, with the state they last parked with.
+  defp cancel_parked(%{turn: %{parking: %Parking{} = parking}} = state) do
+    if parking.timer, do: Process.cancel_timer(parking.timer)
+    tool_map = build_tool_map(state.tools)
+
+    for {id, wait} <- Parking.cancellable(parking), {:ok, tool_spec} <- [Map.fetch(tool_map, wait.tool)] do
+      context = tool_context(state, [], id)
+      Task.start(fn -> Tool.cancel(tool_spec, wait.state, context) end)
+    end
+
+    :ok
+  end
+
+  defp cancel_parked(_state), do: :ok
 
   defp take_steering(state, messages) do
     with {:ok, steering} <- GenServer.call(state.pid, {:take_steering, state.turn.abort_ref}, :infinity) do
@@ -1705,19 +2564,11 @@ defmodule Condukt.Session do
     end
   end
 
-  defp wait_for_retry(state, delay) do
-    with :ok <- check_turn(state) do
-      abort_ref = state.turn.abort_ref
-
-      receive do
-        {:abort, ^abort_ref} -> {:error, :aborted}
-      after
-        delay -> :ok
-      end
-    end
-  end
-
-  defp check_turn(state), do: GenServer.call(state.pid, {:check_turn, state.turn.abort_ref}, :infinity)
+  # Waits until the session has handled every event this worker sent. An
+  # agent's `handle_event/2` that stops the turn on one of them shuts this
+  # worker down while the session handles it, so the call never returns here
+  # and the provider request or tool batch after it never starts.
+  defp sync(state), do: GenServer.call(state.pid, :sync, :infinity)
 
   defp compaction_metadata(state), do: %{agent: state.agent_module, session_id: state.id}
 

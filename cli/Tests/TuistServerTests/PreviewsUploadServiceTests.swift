@@ -103,7 +103,7 @@ struct PreviewsUploadServiceTests {
     }
 
     @Test(.inTemporaryDirectory, arguments: [nil, UInt16(62), UInt16(183)])
-    func uploads_a_distribution_with_its_entry_point_resources_and_target(machine: UInt16?) async throws {
+    func uploads_a_distribution_with_its_entry_point_resources_target_and_icon(machine: UInt16?) async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let distribution = directory.appending(component: "Tool Distribution")
         let entryPoint = try RelativePath(validating: "bin/tool")
@@ -134,6 +134,10 @@ struct PreviewsUploadServiceTests {
             precompiledMetadataProvider: precompiledMetadataProvider
         )
         let uploadedArchive = directory.appending(component: "uploaded.zip")
+        let icon = machine.map { _ in directory.appending(component: "icon.png") }
+        given(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
+            .willReturn()
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(artifactPath: .any, generateUploadURL: .any, updateProgress: .any)
             .willProduce { archive, _, _ in
@@ -142,11 +146,17 @@ struct PreviewsUploadServiceTests {
             }
 
         let preview = try await subject.uploadPreview(
-            .executable(path: distribution, entryPoint: entryPoint),
+            .executable(path: distribution, entryPoint: entryPoint, icon: icon),
             fullHandle: "tuist/tuist", serverURL: serverURL,
             gitBranch: nil, gitCommitSHA: nil, gitRef: nil, track: nil, updateProgress: { _ in }
         )
         #expect(preview.url == shareURL.absoluteString)
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                icon.map { .value($0) } ?? .any, previewId: .value(preview.id),
+                serverURL: .value(serverURL), fullHandle: .value("tuist/tuist")
+            )
+            .called(icon == nil ? 0 : 1)
         let architectures = machine.map { $0 == 62 ? ["x86_64"] : ["arm64"] } ?? []
         verify(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(

@@ -17,7 +17,7 @@ dashboard:
   enabled: false
 # Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md). Deploys use
 # the newest canary in the commit; this pin covers commits without one.
-image: ghcr.io/tuist/pulse:1.44.0-canary.1
+image: ghcr.io/tuist/pulse:1.44.0-canary.4
 storage:
   bucket: tuist-pulso-staging
   endpoint: https://t3.storage.dev

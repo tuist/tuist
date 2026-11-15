@@ -60,6 +60,17 @@ defmodule Condukt.Tool do
     the run. A tool can return `{:ok, result, %{key: value}}` to merge new
     entries into this map for the next turn.
 
+  ## Waiting Without Holding a Process
+
+  A tool that waits for the outside world, such as a CI webhook, a person's
+  answer, or a slow job, returns `{:park, state, opts}` instead of a result,
+  much as a `GenServer` returns `{:noreply, state, timeout}`. No tool code runs
+  and the tool timeout does not apply while the call is parked. When a signal
+  or its deadline arrives, the session calls
+  `c:wake/3` with the event and `state`, and `c:cancel/2` with `state` if the
+  turn is aborted first. See `Condukt.Park` and the
+  [Waiting for Events](parking.md) guide.
+
   ## Sharing State Between Tools
 
   Use the third element of the success tuple to share facts across tool
@@ -79,6 +90,22 @@ defmodule Condukt.Tool do
   Returned maps are merged into the session's `:assigns` last-write-wins.
   Within a single batch of tool calls all tools see the same
   start-of-batch snapshot; updates take effect in the next turn.
+
+  ## Aborts
+
+  Each call runs in its own process, linked to the turn that made it.
+  Aborting the turn shuts the turn down, and the link takes the call with it,
+  along with any processes the call linked to itself, such as a sub-agent's
+  session. A call that must not stop halfway, because it would leave a side
+  effect half done, opts out with `c:on_abort/1`:
+
+      @impl true
+      def on_abort(_opts), do: :finish
+
+  Its process then traps exits while it runs, so the abort arrives as an
+  `{:EXIT, pid, :shutdown}` message. The call can ignore it and run to the end,
+  or receive it, clean up, and stop. Either way its result reaches nobody,
+  because the turn is over.
 
   ## Sandbox-aware tools
 
@@ -150,15 +177,47 @@ defmodule Condukt.Tool do
       can read them as `context.assigns[:key]`. Last-write-wins on key
       collisions, matching `Phoenix.Component.assign/3`.
     * `{:error, reason}` — the LLM receives an error.
+    * `{:park, state, opts}` — the call waits for a signal or a time.
+      `c:wake/3` receives the event and `state`. See
+      `Condukt.Park`.
 
   Within a single batch of tool calls in one assistant message, each tool
   starts from the same start-of-batch `assigns` snapshot; updates are
   merged after the batch and visible in the next turn.
   """
   @callback call(args :: map(), context :: map()) ::
-              {:ok, term()} | {:ok, term(), map()} | {:error, term()}
+              {:ok, term()} | {:ok, term(), map()} | {:error, term()} | {:park, term(), keyword()}
 
-  @optional_callbacks [name: 1, description: 1, parameters: 1]
+  @doc """
+  What happens to a running call when its turn is aborted: `:kill`, the
+  default, stops it, and `:finish` lets it run to the end. See "Aborts".
+  """
+  @callback on_abort(opts :: keyword()) :: :kill | :finish
+
+  @doc """
+  Handles the event that wakes a parked call.
+
+  `event` is `{:signal, {kind, key}, value}`, with the value the signal kind's
+  `cast/1` returned, or `:timeout` when the park's deadline came first.
+  `state` is the term the call parked with. Returns what `c:call/2` returns,
+  so a call can park again, for example to poll once more.
+
+  A tool that parks must implement it.
+  """
+  @callback wake(event :: term(), state :: term(), context :: map()) ::
+              {:ok, term()} | {:ok, term(), map()} | {:error, term()} | {:park, term(), keyword()}
+
+  @doc """
+  Cleans up external work when the turn is aborted while the call is parked.
+
+  Like `c:GenServer.terminate/2`, it receives the call's last parked `state`.
+  It runs in its own process, also for a woken call that is aborted before it
+  parks again or returns, and may run more than once, so keep it idempotent.
+  Its return value is ignored.
+  """
+  @callback cancel(state :: term(), context :: map()) :: term()
+
+  @optional_callbacks [name: 1, description: 1, parameters: 1, on_abort: 1, wake: 3, cancel: 2]
 
   defmacro __using__(_opts) do
     quote do
@@ -186,6 +245,18 @@ defmodule Condukt.Tool do
   def name(%Condukt.Tool.Inline{name: name}), do: name
   def name({module, opts}), do: module.name(opts)
   def name(module) when is_atom(module), do: module.name()
+
+  @doc """
+  Returns what aborting the turn does to a running call of the tool: `:kill`
+  unless the tool asks to `:finish`.
+  """
+  def on_abort(%Condukt.Tool.Inline{on_abort: on_abort}), do: on_abort
+  def on_abort({module, opts}), do: module_on_abort(module, opts)
+  def on_abort(module) when is_atom(module), do: module_on_abort(module, [])
+
+  defp module_on_abort(module, opts) do
+    if function_exported?(module, :on_abort, 1), do: module.on_abort(opts), else: :kill
+  end
 
   @doc """
   Builds a tool specification for the LLM provider.
@@ -232,6 +303,54 @@ defmodule Condukt.Tool do
     context
     |> Map.put(:opts, [])
     |> execute_call(module, args)
+  end
+
+  @doc """
+  Whether a tool implements `c:wake/3`, which parking requires.
+  """
+  def wakes?(%Condukt.Tool.Inline{wake: wake}), do: is_function(wake, 3)
+  def wakes?({module, _opts}), do: wakes?(module)
+  def wakes?(module) when is_atom(module), do: Code.ensure_loaded?(module) and function_exported?(module, :wake, 3)
+
+  @doc """
+  Runs a tool's `c:wake/3` for a parked call.
+  """
+  def wake(%Condukt.Tool.Inline{wake: wake}, event, state, context) do
+    guard(fn -> wake.(event, state, Map.put(context, :opts, [])) end)
+  end
+
+  def wake({module, opts}, event, state, context) do
+    guard(fn -> module.wake(event, state, Map.put(context, :opts, opts)) end)
+  end
+
+  def wake(module, event, state, context) when is_atom(module) do
+    guard(fn -> module.wake(event, state, Map.put(context, :opts, [])) end)
+  end
+
+  @doc """
+  Runs a tool's `c:cancel/2`, when it has one.
+  """
+  def cancel(%Condukt.Tool.Inline{cancel: nil}, _state, _context), do: :ok
+
+  def cancel(%Condukt.Tool.Inline{cancel: cancel}, state, context) do
+    guard(fn -> cancel.(state, Map.put(context, :opts, [])) end)
+  end
+
+  def cancel({module, opts}, state, context), do: cancel_module(module, state, Map.put(context, :opts, opts))
+  def cancel(module, state, context) when is_atom(module), do: cancel_module(module, state, Map.put(context, :opts, []))
+
+  defp cancel_module(module, state, context) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :cancel, 2) do
+      guard(fn -> module.cancel(state, context) end)
+    else
+      :ok
+    end
+  end
+
+  defp guard(fun) do
+    fun.()
+  catch
+    :error, error -> {:error, format_error(error)}
   end
 
   defp execute_call(context, module, args) do

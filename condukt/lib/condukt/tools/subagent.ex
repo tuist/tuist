@@ -6,9 +6,11 @@ defmodule Condukt.Tools.Subagent do
   It starts a fresh child `Condukt.Session`, runs the task once, returns the
   child's final response, and terminates the child session.
 
-  The child belongs to the call: aborting the parent's turn aborts the child
-  first. While the parent streams, the child streams too, and its events reach
-  the parent's stream as `{:subagent, tool_call_id, event}`.
+  The child belongs to the call: it runs under a supervisor linked to the
+  call's process, so when the parent's turn is aborted and the call goes down,
+  the supervisor shuts the child down, and the child's own turn with it. While
+  the parent streams, the child streams too, and its events reach the parent's
+  stream as `{:subagent, tool_call_id, event}`.
 
   Roles registered with `background: true` are served by
   `Condukt.Tools.BackgroundSubagent` instead.
@@ -172,14 +174,13 @@ defmodule Condukt.Tools.Subagent do
         :subagent,
         base_metadata,
         fn ->
-          with {:ok, input} <- validate_input(args, registration.input_schema),
-               {:ok, supervisor} <- fetch_supervisor(context),
-               prepared = prepare_child(registration, context, self()),
-               {:ok, child} <- start_child(supervisor, registration.agent_module, prepared.session_opts) do
-            child_id = safe_session_id(child)
-            {run_and_stop(supervisor, child, task, input, prepared, context), child_id}
-          else
-            error -> {error, nil}
+          case validate_input(args, registration.input_schema) do
+            {:ok, input} ->
+              prepared = prepare_child(registration, context, self())
+              run_owned(registration.agent_module, task, input, prepared, context)
+
+            error ->
+              {error, nil}
           end
         end,
         fn {result, child_session_id} ->
@@ -279,9 +280,6 @@ defmodule Condukt.Tools.Subagent do
     |> Map.get(:opts, [])
     |> Keyword.get(:subagents, Map.get(context, :subagents, []))
   end
-
-  defp fetch_supervisor(%{subagent_supervisor: supervisor}) when is_pid(supervisor), do: {:ok, supervisor}
-  defp fetch_supervisor(_context), do: {:error, :subagent_supervisor_unavailable}
 
   @doc false
   def validate_input(args, nil) do
@@ -388,6 +386,7 @@ defmodule Condukt.Tools.Subagent do
     opts
     |> Keyword.put_new(:sandbox, Map.fetch!(context, :sandbox))
     |> Keyword.put_new(:cwd, Map.fetch!(context, :cwd))
+    |> put_new_present(:parent, Map.get(context, :session_id))
     |> put_new_present(:secrets, Map.get(context, :secrets))
     |> put_new_present(:model, Map.get(context, :model))
     |> put_new_present(:thinking_level, Map.get(context, :thinking_level))
@@ -416,55 +415,49 @@ defmodule Condukt.Tools.Subagent do
     end
   end
 
-  defp run_and_stop(supervisor, child, task, input, prepared, context) do
+  # The child runs under a supervisor this call starts linked to itself, the
+  # call's own branch of the parent's process tree. When the parent's turn is
+  # aborted, the call goes down, and the supervisor, hearing its parent exit,
+  # shuts the child down. A child that crashes takes only itself down, and the
+  # call reports it as an error. Stopping the supervisor at the end of the call
+  # stops the child, so it never outlives the call.
+  defp run_owned(agent_module, task, input, prepared, context) do
+    {:ok, supervisor} = DynamicSupervisor.start_link(strategy: :one_for_one)
+
+    try do
+      case start_child(supervisor, agent_module, prepared.session_opts) do
+        {:ok, child} ->
+          child_id = safe_session_id(child)
+          {run_child_task(child, task, input, prepared, context), child_id}
+
+        error ->
+          {error, nil}
+      end
+    after
+      Supervisor.stop(supervisor)
+    end
+  end
+
+  defp run_child_task(child, task, input, prepared, context) do
     prompt = child_prompt(task, input)
 
-    result = drive_child(child, prompt, prepared, context)
-    terminate_child(supervisor, child)
+    result =
+      if Map.get(context, :stream?, false),
+        do: stream_child(child, prompt, prepared, context),
+        else: run_child(child, prompt, prepared)
 
     case {result, prepared.output_schema} do
       {{:ok, _text}, nil} -> result
       {{:ok, _text}, output_schema} -> await_submission(output_schema, prepared.ref)
       {result, _output_schema} -> result
     end
-  end
-
-  # A child that exits mid-call fails the tool call, not the parent's turn.
-  defp drive_child(child, prompt, prepared, context) do
-    if Map.get(context, :stream?, false),
-      do: stream_child(child, prompt, prepared, context),
-      else: run_child(child, prompt, prepared, context)
   catch
     :exit, reason -> {:error, {:session_exit, reason}}
   end
 
-  # The request reaches the child before the parent's turn takes ownership,
-  # so an abort either finds the child's turn running or, when the parent's
-  # turn already ended, makes `own_started/2` abort it here. No window lets
-  # the child start a turn nobody aborts.
-  defp run_child(child, prompt, prepared, context) do
+  defp run_child(child, prompt, prepared) do
     opts = Keyword.put(prepared.run_opts, :trace_context, prepared.trace_context)
-    request = :gen_server.send_request(child, {:run, prompt, opts})
-    own_started(context, child)
-
-    case :gen_server.receive_response(request, prepared.run_opts[:timeout] || @default_timeout) do
-      {:reply, result} ->
-        result
-
-      {:error, {reason, _child}} ->
-        {:error, {:session_exit, reason}}
-
-      :timeout ->
-        _ = Condukt.abort(child)
-        {:error, {:session_exit, :timeout}}
-    end
-  end
-
-  defp own_started(context, child) do
-    case Session.own(context, {:session, child}) do
-      :ok -> :ok
-      {:error, :aborted} -> Condukt.abort(child)
-    end
+    Condukt.run(child, prompt, opts)
   end
 
   # Streams the child's turn into the parent's, collecting the same final
@@ -480,13 +473,12 @@ defmodule Condukt.Tools.Subagent do
       |> Keyword.put(:trace_context, prepared.trace_context)
 
     :ok = Session.stream_to(child, prompt, opts, ref)
-    own_started(context, child)
 
     case await_stream(child, ref, monitor, deadline, forwarder(context), nil) do
       # A runtime without streaming did not run anything, so run it instead.
       {:error, {:streaming_not_supported_by_runtime, _runtime}} ->
         Process.demonitor(monitor, [:flush])
-        run_child(child, prompt, prepared, context)
+        run_child(child, prompt, prepared)
 
       result ->
         Process.demonitor(monitor, [:flush])
@@ -518,8 +510,8 @@ defmodule Condukt.Tools.Subagent do
       {:DOWN, ^monitor, :process, ^child, reason} ->
         {:error, {:session_exit, reason}}
     after
+      # Stopping the call's supervisor stops the child.
       max(deadline - System.monotonic_time(:millisecond), 0) ->
-        _ = Condukt.abort(child)
         {:error, {:session_exit, :timeout}}
     end
   end
@@ -600,12 +592,4 @@ defmodule Condukt.Tools.Subagent do
 
   defp to_string_key(key) when is_atom(key), do: Atom.to_string(key)
   defp to_string_key(key) when is_binary(key), do: key
-
-  defp terminate_child(supervisor, child) do
-    if Process.alive?(child) do
-      _ = DynamicSupervisor.terminate_child(supervisor, child)
-    end
-
-    :ok
-  end
 end

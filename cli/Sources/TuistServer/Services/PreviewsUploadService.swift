@@ -22,7 +22,7 @@ import TuistEnvironment
 
 public enum PreviewUploadType: Equatable {
     case apk(path: AbsolutePath, metadata: APKMetadata)
-    case executable(path: AbsolutePath, entryPoint: RelativePath?)
+    case executable(path: AbsolutePath, entryPoint: RelativePath?, icon: AbsolutePath? = nil)
     #if canImport(TuistCore)
         case ipa(AppBundle)
         case appBundles([AppBundle])
@@ -166,7 +166,7 @@ public protocol PreviewsUploadServicing {
             updateProgress: @escaping (Double) -> Void
         ) async throws -> Components.Schemas.Preview {
             switch previewUploadType {
-            case let .executable(path, entryPoint):
+            case let .executable(path, entryPoint, icon):
                 return try await fileSystem.runInTemporaryDirectory(prefix: "executable-preview") { temporaryDirectory in
                     let root = try RelativePath(validating: path.basename)
                     let executable = entryPoint.map { root.appending($0) } ?? root
@@ -203,6 +203,14 @@ public protocol PreviewsUploadServicing {
                             updateProgress: updateProgress
                         )
                         try await archiver.delete()
+                        if let icon {
+                            try await uploadPreviewIconService.uploadPreviewIcon(
+                                icon,
+                                previewId: preview.id,
+                                serverURL: serverURL,
+                                fullHandle: fullHandle
+                            )
+                        }
                         return preview
                     } catch {
                         try? await archiver.delete()

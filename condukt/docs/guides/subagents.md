@@ -126,22 +126,27 @@ result, and then terminates the child session.
 
 ## Ownership and cancellation
 
-A child session belongs to the tool call that started it, and the call belongs
-to the parent's turn. That ownership decides what a cancellation reaches:
+Ownership follows the process tree. Each turn runs in its own process under
+the parent session, each tool call in a process linked to the turn, and a
+`subagent` call starts a supervisor linked to itself and runs its child session
+under it. The child's turn and tool calls hang below the child the same way.
 
 - `Condukt.abort/1` on the parent, a `{:stop, reason, state}` from its
-  `handle_event/2`, and `Condukt.clear/1` abort the children of the running
-  turn first, then the turn itself. The tool call returns
-  `{:error, :aborted}` and the child session is terminated.
-- A child's own sub-agents belong to the child's turn, so the abort reaches
-  them too, bottom-up through the tree.
+  `handle_event/2`, and `Condukt.clear/1` shut the turn's process down before
+  they return. Its tool calls go down with it through their links. When a
+  `subagent` call goes down, its supervisor shuts the child session down,
+  which takes the child's own turn, tool calls, and sub-agents with it, all
+  the way down the tree.
 - The parent's turn ends only once its tool calls have returned, so it is
-  never idle while a foreground child still runs. An abort is the exception:
-  it aborts the child's turn before the parent's caller hears, and the child
-  session is terminated shortly after.
+  never idle while a foreground child still runs.
+- A tool that must not stop halfway opts out with `c:Condukt.Tool.on_abort/1`
+  returning `:finish`, and runs to the end with its result discarded. See
+  "Aborts" in `Condukt.Tool`.
 
 Background sub-agents are owned by the parent session, not a turn, and keep
-working through an abort.
+working through an abort. The `background_subagent` tool asks to finish, so an
+abort never leaves a sub-agent started but unregistered. A `wait` in progress
+ends with `{:error, :aborted}`.
 
 ## Streaming child events
 
@@ -217,14 +222,25 @@ Ownership works differently from foreground calls:
 
 - A background sub-agent belongs to the parent session. Aborting a parent turn
   does not stop it; only `stop`, or stopping the parent session, does.
+- It is registered under its parent and name. Host code finds it with
+  `Condukt.Tools.BackgroundSubagent.whereis(parent, name)` and drives it with
+  the usual functions, such as `Condukt.history/1`, `Condukt.steer/2`, or
+  `Condukt.abort/1`. Two spawns cannot take the same name.
 - A `wait` call belongs to the turn that made it, like any tool call. Aborting
   that turn ends the wait, and the answer is reported as a follow-up instead.
 - The sub-agent's events are forwarded to the parent's notifier, tagged with
   the `spawn` call's id, for as long as it lives. They do not go to a parent
-  stream, which ends with its turn.
+  stream, which ends with its turn. A viewer of the parent sees each
+  sub-agent under its name in the view's `background`, with its status and
+  current turn; see [Watching a session](streaming-and-events.md#watching-a-session).
+  A `:notifier` set on the role still receives the sub-agent's own events.
 
 Background sub-agents live only in memory: they end with the parent session
-and are not restored with its conversation. Their roles must use the native
+and are not restored with its conversation. Sub-agents of both kinds record
+the parent's session id as their parent, so `Condukt.Sessions.children/1`
+lists them and `Condukt.Sessions.abort/2` on the parent reaches them. For
+children that outlive a process, run on other nodes, or are the host's own
+objects, such as threads, see [Child Sessions](child-sessions.md). Their roles must use the native
 runtime, because their turns start from queued input and stream to the
 manager that tracks them; `spawn` returns
 `{:error, {:background_subagent_requires_native_runtime, agent}}` otherwise.
@@ -325,9 +341,9 @@ connections across agents.
 
 ## Supervision
 
-A parent session with sub-agents starts a linked `DynamicSupervisor`.
-Sub-agent sessions are started on demand under that supervisor with
-`restart: :temporary`.
+A foreground child runs under a `DynamicSupervisor` its tool call starts and
+stops, with `restart: :temporary`. A parent session with sub-agents also starts
+a linked `DynamicSupervisor` for its background sub-agents and their manager.
 
 Properties:
 
@@ -365,4 +381,5 @@ Unknown roles return:
 
 Child start failures and child crashes return `{:error, reason}` from the
 tool call. The model receives that error as the tool result and can recover in
-the next turn. An aborted call returns `{:error, :aborted}`.
+the next turn. An aborted call returns nothing; the parent's caller gets
+`{:error, :aborted}`.

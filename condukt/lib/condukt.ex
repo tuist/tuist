@@ -79,6 +79,12 @@ defmodule Condukt do
   @callback tools() :: [module() | {module(), keyword()} | struct()]
 
   @doc """
+  Returns the hooks that step into this agent's native loop, as modules or
+  `{module, opts}` tuples run in list order. See `Condukt.Hooks`.
+  """
+  @callback hooks() :: [module() | {module(), keyword()}]
+
+  @doc """
   Returns the sub-agents this agent can delegate work to.
 
   Each entry maps a role atom to an agent module, to `{agent_module, opts}`, or
@@ -135,8 +141,9 @@ defmodule Condukt do
   Handles events during execution.
 
   Returning `{:stop, reason, state}` cancels the current turn, not the session.
-  Late events and results from that turn are ignored. Already-admitted tools
-  may still finish; cancellation does not roll back their side effects.
+  Late events and results from that turn are ignored. Running tool calls are
+  stopped, except those of tools that ask to finish (see `Condukt.Tool`), and
+  side effects already made are not rolled back.
   """
   @callback handle_event(term(), term()) :: {:noreply, term()} | {:stop, term(), term()}
 
@@ -144,6 +151,7 @@ defmodule Condukt do
     system_prompt: 0,
     runtime: 0,
     tools: 0,
+    hooks: 0,
     subagents: 0,
     model: 0,
     thinking_level: 0,
@@ -183,6 +191,9 @@ defmodule Condukt do
       def tools, do: []
 
       @impl Condukt
+      def hooks, do: []
+
+      @impl Condukt
       def subagents, do: []
 
       @impl Condukt
@@ -211,6 +222,7 @@ defmodule Condukt do
       defoverridable system_prompt: 0,
                      runtime: 0,
                      tools: 0,
+                     hooks: 0,
                      subagents: 0,
                      model: 0,
                      thinking_level: 0,
@@ -248,6 +260,7 @@ defmodule Condukt do
       - `:sandbox` - Sandbox spec for tool I/O (module, `{module, opts}`, or
         `Condukt.Sandbox` struct). Defaults to
         `{Condukt.Sandbox.Local, cwd: <:cwd>}`.
+      - `:hooks` - Override the agent's `hooks/0`. See `Condukt.Hooks`.
       - `:subagents` - Override the agent's `subagents/0` registrations.
         Each role can point at an agent module, `{agent_module, opts}`, or a
         keyword list of session options for an anonymous child agent.
@@ -416,7 +429,7 @@ defmodule Condukt do
   Anonymous and module-defined one-shot runs accept all the per-run options above (`:timeout`,
   `:max_turns`, `:images`) plus the session options accepted by an agent's
   `start_link/1` (`:model`, `:system_prompt`, `:api_key`, `:base_url`,
-  `:llm_request_options`, `:thinking_level`, `:max_tokens`, `:tools`, `:sandbox`, `:cwd`, `:session_store`,
+  `:llm_request_options`, `:thinking_level`, `:max_tokens`, `:tools`, `:hooks`, `:sandbox`, `:cwd`, `:session_store`,
   `:session_store_key`, `:session_store_opts`, `:subagents`, `:compactor`, `:background_compaction`,
   `:redactor`, `:load_project_instructions`).
   `:load_project_instructions` defaults to `false` for anonymous runs and to
@@ -485,6 +498,15 @@ defmodule Condukt do
   - `:parameters` - JSON Schema map describing the arguments
   - `:call` - 2-arity function `(args, context)` returning `{:ok, result}` or `{:error, reason}`
 
+  ## Optional keys
+
+  - `:on_abort` - `:kill` (default) or `:finish`, what aborting the turn does
+    to a running call. See "Aborts" in `Condukt.Tool`.
+  - `:wake` - 3-arity function `(event, state, context)` that handles the event
+    waking a parked call. See `c:Condukt.Tool.wake/3`.
+  - `:cancel` - 2-arity function `(state, context)` run when the turn is aborted
+    while the call is parked. See `c:Condukt.Tool.cancel/2`.
+
   The `context` map passed to `:call` matches the context received by
   `Condukt.Tool` callbacks: `:agent`, `:sandbox`, `:cwd`, `:opts` (always
   `[]` for inline tools).
@@ -512,7 +534,10 @@ defmodule Condukt do
       name: Keyword.fetch!(opts, :name),
       description: Keyword.fetch!(opts, :description),
       parameters: Keyword.fetch!(opts, :parameters),
-      call: Keyword.fetch!(opts, :call)
+      call: Keyword.fetch!(opts, :call),
+      on_abort: Keyword.get(opts, :on_abort, :kill),
+      wake: Keyword.get(opts, :wake),
+      cancel: Keyword.get(opts, :cancel)
     }
   end
 
@@ -525,6 +550,8 @@ defmodule Condukt do
   - `{:thinking, chunk}` - Thinking/reasoning chunk
   - `{:tool_call, name, id, args}` - Tool being called
   - `{:tool_result, id, result}` - Tool result
+  - `{:waiting, %{tool_calls: calls, wake_at: deadline}}` - The turn's tool
+    calls are parked, waiting for signals or deadlines; see `Condukt.Park`
   - `{:error, reason}` - Error occurred
   - `:agent_start` - Agent started processing
   - `:agent_end` - Agent finished
@@ -538,6 +565,22 @@ defmodule Condukt do
   Returns the conversation history.
   """
   defdelegate history(agent), to: Condukt.Session
+
+  @doc """
+  Returns the session's current view. See `Condukt.Session.view/1`.
+  """
+  defdelegate view(agent), to: Condukt.Session
+
+  @doc """
+  Returns the session's current view and subscribes to the changes after it.
+  See `Condukt.Session.watch/1`.
+  """
+  defdelegate watch(agent), to: Condukt.Session
+
+  @doc """
+  Stops the changes `watch/1` subscribed the caller to.
+  """
+  defdelegate unwatch(agent), to: Condukt.Session
 
   @doc """
   Clears conversation history.
@@ -571,4 +614,12 @@ defmodule Condukt do
   the session is idle. Aborting withdraws queued messages.
   """
   defdelegate follow_up(agent, message), to: Condukt.Session
+
+  @doc """
+  Delivers a signal to a session's parked tool calls.
+
+  Returns `:ok`, or `{:error, reason}` with `:duplicate`, `{:invalid, reason}`,
+  `:closed`, `:inbox_full`, or `:not_found`. See `Condukt.Session.signal/4`.
+  """
+  defdelegate signal(agent, kind, key, value), to: Condukt.Session
 end

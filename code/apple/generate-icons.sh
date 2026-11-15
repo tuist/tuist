@@ -1,10 +1,15 @@
 #!/bin/bash
-# Render the shipping Icon Composer source for Tuist Code.
+# Render Tuist Code's icon: the shipping Icon Composer layers on a dark editor background.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-source_icon="$PWD/../app/Resources/TuistApp/AppIcon.icon"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
+source_icon="$scratch/AppIcon.icon"
+cp -R ../app/Resources/TuistApp/AppIcon.icon "$source_icon"
+plutil -replace fill -json '{
+  "linear-gradient": ["display-p3:0.25000,0.24000,0.36000,1.00000", "srgb:0.05000,0.05000,0.09000,1.00000"],
+  "orientation": {"start": {"x": 0.5, "y": 0}, "stop": {"x": 0.5, "y": 0.7}}
+}' "$source_icon/icon.json"
 mkdir -p "$scratch/ios" "$scratch/macos" ios/Resources macos/Resources android/res/drawable-nodpi
 xcrun actool "$source_icon" --compile "$scratch/ios" --platform iphonesimulator \
   --minimum-deployment-target 17.0 --app-icon AppIcon \

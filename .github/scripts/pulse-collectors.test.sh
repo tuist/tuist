@@ -6,23 +6,12 @@ chart=infra/helm/k8s-monitoring
 origin=http://pulse.observability.svc.cluster.local:4000
 # Extract one top-level-or-indented Alloy block by its exact opening line.
 block() { awk -v start="$1" '$0 ~ "^ *" start " \\{$" { copying=1; indent=match($0, /[^ ]/) } copying { print } copying && $0 ~ "^ {" indent-1 "}}$" { exit }' "$2"; }
-for environment in staging canary production; do
-  helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
-  helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
-  # Cloud and Pulse each keep every signal. Nothing reads the legacy
-  # pulse-credentials Secret.
-  if grep -q 'pulse-credentials' "$tmp/rendered.yaml"; then exit 1; fi
-  for signal in metrics logs traces; do
-    grep -q "Destination: grafana-cloud-$signal" "$tmp/rendered.yaml"
-    grep -q "Destination: pulse-$signal" "$tmp/rendered.yaml"
-  done
+config() { jq -er --arg name "$1" '.[] | select(.kind == "ConfigMap" and (.metadata.name | endswith($name))) | .data["config.alloy"]' "$tmp/rendered.json"; }
+# Metrics: native remote write, public database, write-only user, Cloud's policy.
+check_metrics() {
   yq ea -o=json '[.]' "$tmp/rendered.yaml" > "$tmp/rendered.json"
-  config() { jq -er --arg name "$1" '.[] | select(.kind == "ConfigMap" and (.metadata.name | endswith($name))) | .data["config.alloy"]' "$tmp/rendered.json"; }
   config alloy-metrics > "$tmp/metrics.alloy"
   config alloy-control-plane > "$tmp/control-plane.alloy"
-  config alloy-receiver > "$tmp/receiver.alloy"
-
-  # Metrics: native remote write, public database, write-only user, Cloud's policy.
   for file in metrics control-plane; do
     block 'prometheus.remote_write "pulse_metrics"' "$tmp/$file.alloy" > "$tmp/writer.alloy"
     grep -Fq "url = \"$origin/v1/prometheus/write\"" "$tmp/writer.alloy"
@@ -42,6 +31,19 @@ for environment in staging canary production; do
   done
   test -s "$tmp/pulse_metrics.rules"
   cmp "$tmp/grafana_cloud_metrics.rules" "$tmp/pulse_metrics.rules"
+}
+for environment in staging canary production; do
+  helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
+  helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
+  # Cloud and Pulse each keep every signal. Nothing reads the legacy
+  # pulse-credentials Secret.
+  if grep -q 'pulse-credentials' "$tmp/rendered.yaml"; then exit 1; fi
+  for signal in metrics logs traces; do
+    grep -q "Destination: grafana-cloud-$signal" "$tmp/rendered.yaml"
+    grep -q "Destination: pulse-$signal" "$tmp/rendered.yaml"
+  done
+  check_metrics
+  config alloy-receiver > "$tmp/receiver.alloy"
 
   # Logs: custom WAL-backed writer with the Loki pipeline headers and no tenant.
   block 'loki.write "pulse_logs"' "$tmp/receiver.alloy" > "$tmp/logs.alloy"
@@ -83,11 +85,15 @@ for environment in staging canary production; do
       (contains("grafana_cloud") | not))
   ' "$tmp/rendered.json" > /dev/null
 done
-# Management and pentest collect metrics only for Cloud: no Pulse writer or Secret.
-for environment in management pentest; do
-  helm lint "$chart" -n observability -f "$chart/values-$environment.yaml"
-  helm template k8s-monitoring "$chart" -n observability -f "$chart/values-$environment.yaml" > "$tmp/rendered.yaml"
-  if grep -Eq 'pulse[-_](metrics|logs|traces)|pulse\.observability|pulse-credentials|pulse-dashboard-auth' "$tmp/rendered.yaml"; then exit 1; fi
-  grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
-done
-echo 'PASS: workload collectors write natively to Pulse with its headers and the write-only pulse-dashboard-auth login; management and pentest stay Cloud-only; Cloud preserved'
+# Management collects metrics only, for Cloud and its own Pulse.
+helm lint "$chart" -n observability -f "$chart/values-management.yaml"
+helm template k8s-monitoring "$chart" -n observability -f "$chart/values-management.yaml" > "$tmp/rendered.yaml"
+if grep -Eq 'pulse[-_](logs|traces)|pulse-credentials' "$tmp/rendered.yaml"; then exit 1; fi
+grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
+check_metrics
+# Pentest collects metrics only for Cloud: no Pulse writer or Secret.
+helm lint "$chart" -n observability -f "$chart/values-pentest.yaml"
+helm template k8s-monitoring "$chart" -n observability -f "$chart/values-pentest.yaml" > "$tmp/rendered.yaml"
+if grep -Eq 'pulse[-_](metrics|logs|traces)|pulse\.observability|pulse-credentials|pulse-dashboard-auth' "$tmp/rendered.yaml"; then exit 1; fi
+grep -q 'Destination: grafana-cloud-metrics' "$tmp/rendered.yaml"
+echo 'PASS: workload collectors write natively to Pulse with its headers and the write-only pulse-dashboard-auth login; management writes metrics to its Pulse; pentest stays Cloud-only; Cloud preserved'

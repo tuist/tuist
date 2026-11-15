@@ -3,6 +3,8 @@ defmodule Condukt.Application do
 
   use Application
 
+  alias Condukt.Tools.BackgroundSubagent
+
   # The control channel for a `:decide` network policy is a per-session
   # `...K8s.ControlBridge` started as a `:transient` child of this
   # DynamicSupervisor (the standard "dynamic children under the app
@@ -17,7 +19,10 @@ defmodule Condukt.Application do
   @impl true
   def start(_type, _args) do
     children =
-      [Condukt.SessionStore.Memory.Table] ++
+      [
+        Condukt.SessionStore.Memory.Table,
+        {Registry, keys: :unique, name: BackgroundSubagent.registry()}
+      ] ++
         Condukt.Sessions.child_specs() ++
         [
           {DynamicSupervisor,

@@ -57,6 +57,10 @@ defmodule Condukt.MixProject do
       {:phoenix_pubsub, "~> 2.1", optional: true},
       {:bandit, "~> 1.5", optional: true},
 
+      # Cluster-wide session registry for `Condukt.Sessions.Registry.Horde`.
+      # Optional: single-node projects and other registries do not carry it.
+      {:horde, "~> 0.10", optional: true},
+
       # Telemetry
       {:telemetry, "~> 1.0"},
 
@@ -98,7 +102,10 @@ defmodule Condukt.MixProject do
         "docs/guides/agents.md": [title: "Agents"],
         "docs/guides/one-shot-runs.md": [title: "One-Shot Runs"],
         "docs/guides/tools.md": [title: "Tools"],
+        "docs/guides/hooks.md": [title: "Hooks"],
         "docs/guides/subagents.md": [title: "Sub-agents"],
+        "docs/guides/parking.md": [title: "Waiting for Events"],
+        "docs/guides/child-sessions.md": [title: "Child Sessions"],
         "docs/guides/mcp.md": [title: "MCP"],
         "docs/guides/http-routes.md": [title: "HTTP Routes"],
         "docs/guides/sandbox.md": [title: "Sandbox"],
@@ -123,7 +130,10 @@ defmodule Condukt.MixProject do
           "docs/guides/agents.md",
           "docs/guides/one-shot-runs.md",
           "docs/guides/tools.md",
-          "docs/guides/subagents.md"
+          "docs/guides/hooks.md",
+          "docs/guides/subagents.md",
+          "docs/guides/parking.md",
+          "docs/guides/child-sessions.md"
         ],
         Integrations: [
           "docs/guides/mcp.md",
@@ -152,6 +162,7 @@ defmodule Condukt.MixProject do
         Core: [
           Condukt,
           Condukt.Session,
+          Condukt.Hooks,
           Condukt.Operation,
           Condukt.Plug,
           Condukt.Message,
