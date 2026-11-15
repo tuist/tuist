@@ -19,6 +19,12 @@ defmodule Condukt.Session.Turn do
   linked below it, so shutting the worker down takes all of it along.
   Background sub-agents belong to the session, not a turn, and survive.
 
+  `parking` holds the turn's parked tool calls and the signals sent to it, a
+  `Session.Parking` struct. While the turn's calls are parked its worker
+  blocks waiting for a wake. The session ends a turn's parking before
+  `finish/1` or `abort/1`, keeping only the keys it closed, so `parking`
+  outlives the turn as the queues do.
+
   Input waits in four queues, taken in this order when the session is idle:
   `pending` callers whose `run` or `stream` arrived while a `queued` turn (one
   started from queued input, with nobody waiting on it) ran, steering that
@@ -41,6 +47,7 @@ defmodule Condukt.Session.Turn do
             subscribers: [],
             pending: [],
             reports: [],
+            parking: nil,
             queued: false,
             history_rewritten: false
 

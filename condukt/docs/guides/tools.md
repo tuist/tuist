@@ -261,6 +261,8 @@ end
   the next section.
 * `{:error, reason}` for failures. The error is reported back to the model
   so it can recover.
+* `{:park, state, opts}` to wait for an outside event or a time; `wake/3`
+  then receives the event and `state`. See [Waiting for Events](parking.md).
 
 ## Sharing state across tool calls
 

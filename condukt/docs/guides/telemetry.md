@@ -35,6 +35,9 @@ and a `[:condukt, :llm_turn, :stop]`. The start event includes the conversation
 context in `:messages`, and the stop event includes the model response in
 `:assistant_message`. Tool events include the model-supplied `:args`,
 `:tool_call_id`, `:status`, and `:result` after session-secret redaction.
+A tool call that parks stops with `status: :parked` and `result: nil`; each
+wake runs as another start/stop pair under the same `:tool_call_id`. See
+[Waiting for Events](parking.md).
 
 `:turn` starts at 0 and increments by one per loop iteration.
 `:streaming?` is `true` when the call went through `ReqLLM.stream_text`,

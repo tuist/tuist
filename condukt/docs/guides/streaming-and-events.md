@@ -14,6 +14,7 @@ right shape for chat UIs, LiveView, Phoenix Channels, and CLI output.
 | `{:thinking, chunk}` | A chunk of model reasoning (if the provider exposes it). |
 | `{:tool_call, name, id, args}` | The model is calling a tool. |
 | `{:tool_result, id, result}` | A tool returned a result. |
+| `{:waiting, %{tool_calls: calls, wake_at: deadline}}` | The turn's pending tool calls are parked, waiting for signals or deadlines. See [Waiting for Events](parking.md). |
 | `:turn_end` | The current LLM turn finished. |
 | `:agent_end` | The agent stopped its loop. |
 | `{:error, reason}` | An error occurred during the run. |

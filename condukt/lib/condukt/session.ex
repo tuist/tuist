@@ -28,11 +28,13 @@ defmodule Condukt.Session do
   alias Condukt.{
     Context,
     Message,
+    Park,
     Retry,
     Sandbox,
     Secrets,
     SessionID,
     SessionStore,
+    Signal,
     Telemetry,
     Tool,
     TraceContext
@@ -41,6 +43,7 @@ defmodule Condukt.Session do
   alias Condukt.MCP
   alias Condukt.Notifier
   alias Condukt.Session.Compaction
+  alias Condukt.Session.Parking
   alias Condukt.Session.Translate
   alias Condukt.Session.Turn
   alias Condukt.Session.View
@@ -53,6 +56,8 @@ defmodule Condukt.Session do
 
   @default_timeout 300_000
   @default_max_turns 50
+  # `Process.send_after/3` takes at most 2^32 - 1 ms; a later deadline re-arms.
+  @max_timer 4_294_967_295
 
   defstruct [
     :id,
@@ -278,7 +283,12 @@ defmodule Condukt.Session do
     end
   end
 
-  defp session_destination({:via, module, name}), do: module.whereis_name(name)
+  defp session_destination({:via, module, name}) do
+    case module.whereis_name(name) do
+      :undefined -> nil
+      pid -> pid
+    end
+  end
 
   defp session_destination({name, node}) when is_atom(name) and is_atom(node), do: {name, node}
 
@@ -287,6 +297,7 @@ defmodule Condukt.Session do
   """
   def stream(agent, prompt, opts \\ []) do
     opts = attach_trace_context(opts)
+    timeout = opts[:timeout] || @default_timeout
 
     Stream.resource(
       fn ->
@@ -302,7 +313,7 @@ defmodule Condukt.Session do
           {^ref, event} ->
             {[event], ref}
         after
-          @default_timeout ->
+          timeout ->
             {[{:error, :timeout}], ref}
         end
       end,
@@ -441,6 +452,58 @@ defmodule Condukt.Session do
   """
   def abort(agent) do
     GenServer.call(agent, :abort)
+  end
+
+  @doc """
+  Delivers a signal to the running turn's parked tool calls.
+
+  `agent` is a session pid, name, or the id of a session started with
+  `Condukt.Sessions`. An id reaches whatever sessions the configured
+  `Condukt.Sessions.Registry` sees, which with a cluster-wide adapter includes
+  other nodes. `kind` is a `Condukt.Signal` module, whose `cast/1`
+  checks `value` in the calling process.
+
+  Returns `:ok` when the value is kept for the call parked on `{kind, key}`,
+  which wakes, or for the first call that parks on it later in the turn.
+  Otherwise returns `{:error, reason}`:
+
+    * `:duplicate` - the key already holds a value, as for a webhook retry.
+    * `{:invalid, reason}` - `cast/1` rejected the value; nothing is kept.
+    * `:closed` - no turn is running, or the key's wait is over: its deadline
+      came first, another of its keys woke it, or its turn ended. Keys stay
+      closed for the rest of the session.
+    * `:inbox_full` - the turn already holds 100 signals for keys no call has
+      parked on.
+    * `:not_found` - no session answers under `agent`.
+
+  Treat `:duplicate` and `:closed` as final answers to the sender. Nothing
+  checks who sends a signal, so authenticate senders in the host.
+  """
+  def signal(agent, kind, key, value) do
+    with {:cast, {:ok, value}} <- {:cast, Signal.cast(kind, key, value)},
+         {:error, {:session_exit, _reason}} <-
+           call_session(signal_target(agent), {:signal, {kind, key}, value}, @default_timeout) do
+      {:error, :not_found}
+    else
+      {:cast, {:error, reason}} -> {:error, {:invalid, reason}}
+      result -> result
+    end
+  end
+
+  defp signal_target(id) when is_binary(id), do: Condukt.Sessions.whereis(id)
+  defp signal_target(agent), do: agent
+
+  @doc """
+  Returns what a parked turn waits for, or `nil` while it runs or is idle.
+
+  A turn is waiting once each of its pending tool calls is parked and its
+  worker blocks until a signal or a deadline wakes one. The result is
+  `%{tool_calls: [%{tool_call_id: id, tool: name, signals: keys, until: deadline}], wake_at: deadline}`,
+  where `wake_at` is the earliest deadline or `nil`. The session publishes the
+  same map as a `{:waiting, map}` event whenever it changes.
+  """
+  def waiting(agent) do
+    GenServer.call(agent, :waiting)
   end
 
   @doc """
@@ -725,6 +788,54 @@ defmodule Condukt.Session do
     {:reply, :ok, state}
   end
 
+  def handle_call({:park, ref, call, call_state, park}, _from, state) do
+    if state.turn.streaming and ref == state.turn.abort_ref do
+      case Parking.park(parking(state), call, call_state, park) do
+        {:ok, records} -> {:reply, :ok, commit_parking(state, records)}
+        {:error, reason} -> {:reply, {:error, reason}, state}
+      end
+    else
+      {:reply, {:error, :aborted}, state}
+    end
+  end
+
+  def handle_call({:signal, key, value}, _from, state) do
+    with true <- state.turn.streaming,
+         {:ok, records} <- Parking.signal(parking(state), key, value) do
+      {:reply, :ok, commit_parking(state, records)}
+    else
+      false -> {:reply, {:error, :closed}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call(:waiting, _from, state) do
+    reply =
+      case state.turn.parking do
+        %Parking{blocked: true} = parking -> waiting_info(parking)
+        _other -> nil
+      end
+
+    {:reply, reply, state}
+  end
+
+  # The worker takes the woken calls of its parked round. With none woken it
+  # blocks until the session sends `{:parking_ready, ref}`.
+  def handle_call({:take_ready, ref}, _from, state) do
+    with true <- state.turn.streaming and ref == state.turn.abort_ref,
+         %Parking{} = parking <- state.turn.parking do
+      if Parking.ready?(parking) do
+        {resumes, parking} = Parking.take_ready(parking)
+        {:reply, {:ok, resumes}, put_parking(state, %{parking | blocked: false, published: nil})}
+      else
+        {:reply, {:ok, %{}}, publish_waiting(put_parking(state, %{parking | blocked: true}))}
+      end
+    else
+      false -> {:reply, {:error, :aborted}, state}
+      nil -> {:reply, {:ok, %{}}, state}
+    end
+  end
+
   def handle_call(:compact, from, state) do
     cond do
       not Compaction.enabled?(state.compaction) ->
@@ -849,6 +960,15 @@ defmodule Condukt.Session do
     end
   end
 
+  # Woken calls the worker ran that returned results instead of parking again.
+  def handle_cast({:parking_done, turn_ref, ids}, state) do
+    if turn_ref == state.turn.abort_ref and state.turn.parking do
+      {:noreply, commit_parking(state, Enum.map(ids, &{:done, &1}))}
+    else
+      {:noreply, state}
+    end
+  end
+
   def handle_cast({:run_complete, turn_ref, from, result}, state) do
     if turn_ref == state.turn.abort_ref do
       handle_cast({:run_complete, from, result}, state)
@@ -865,7 +985,7 @@ defmodule Condukt.Session do
       if match?({:error, _}, result) and Compaction.enabled?(state.compaction), do: state.messages, else: messages
 
     state = state |> adopt_turn_messages(messages, assigns) |> view_run_finished(run_error(result))
-    state = %{state | turn: Turn.finish(state.turn)}
+    state = finish_turn(state)
 
     state =
       if match?({:ok, _}, result) or not Compaction.enabled?(state.compaction),
@@ -887,7 +1007,7 @@ defmodule Condukt.Session do
   def handle_cast({:stream_complete, ref, {:ok, messages, _response, assigns}}, state) do
     state = broadcast(state, ref, :done)
     state = state |> adopt_turn_messages(messages, assigns) |> view_run_finished(nil)
-    state = %{state | turn: Turn.finish(state.turn)}
+    state = finish_turn(state)
     state = state |> maybe_compact() |> view_history_changed(state.messages)
     persist_snapshot(state)
     {:noreply, maybe_start_queued_turn(state)}
@@ -895,7 +1015,7 @@ defmodule Condukt.Session do
 
   def handle_cast({:stream_complete, ref, result}, state) do
     state = broadcast(state, ref, :done) |> view_run_finished(run_error(result))
-    {:noreply, maybe_start_queued_turn(%{state | turn: Turn.finish(state.turn)})}
+    {:noreply, maybe_start_queued_turn(finish_turn(state))}
   end
 
   @impl true
@@ -913,6 +1033,11 @@ defmodule Condukt.Session do
     compaction_finished(%{state | compaction: compaction})
   end
 
+  def handle_info({:park_deadline, ref}, %{turn: %{abort_ref: ref, parking: %Parking{} = parking}} = state) do
+    records = Parking.expire(parking, System.os_time(:millisecond))
+    {:noreply, commit_parking(state, records)}
+  end
+
   def handle_info({:DOWN, monitor, :process, _pid, _reason}, state) do
     {:noreply, %{state | turn: Turn.drop_monitored(state.turn, monitor)}}
   end
@@ -921,6 +1046,7 @@ defmodule Condukt.Session do
 
   @impl true
   def terminate(_reason, state) do
+    cancel_parked(state)
     if state.mcp_registry, do: MCP.stop_all(state.mcp_registry)
     stop_subagent_supervisor(state.subagent_supervisor)
     Compaction.stop(state.compaction)
@@ -1068,10 +1194,9 @@ defmodule Condukt.Session do
       if text != "", do: view_event.({:text, text})
 
       if Message.has_tool_calls?(assistant_message) do
-        {tool_results, messages, assigns_diff} = execute_tool_calls(state, assistant_message, messages, view_event)
-        messages = messages ++ tool_results
-        state = %{state | assigns: Map.merge(state.assigns, assigns_diff)}
-        agent_loop(state, messages, max_turns, turn + 1)
+        state
+        |> execute_tool_calls(assistant_message, messages, view_event)
+        |> after_tool_round(state, &agent_loop(&1, &2, max_turns, turn + 1))
       else
         response_text = Message.text(assistant_message)
         {:ok, messages, response_text, state.assigns}
@@ -1178,11 +1303,9 @@ defmodule Condukt.Session do
 
     case Message.has_tool_calls?(assistant_message) do
       true ->
-        {tool_results, messages, assigns_diff} =
-          execute_tool_calls(state, assistant_message, messages, emit)
-
-        state = %{state | assigns: Map.merge(state.assigns, assigns_diff)}
-        streaming_loop(state, messages ++ tool_results, max_turns, turn + 1, emit, abort_ref)
+        state
+        |> execute_tool_calls(assistant_message, messages, emit)
+        |> after_tool_round(state, &streaming_loop(&1, &2, max_turns, turn + 1, emit, abort_ref))
 
       false ->
         {:ok, messages, text, state.assigns}
@@ -1257,11 +1380,25 @@ defmodule Condukt.Session do
           context = tool_context(state, [])
 
           case Tool.execute(tool_spec, args, context) do
-            {:ok, result, _assigns} when is_binary(result) -> Secrets.redact_text(state.secrets, result)
-            {:ok, result, _assigns} -> JSON.encode!(Secrets.redact_result(state.secrets, result))
-            {:ok, result} when is_binary(result) -> Secrets.redact_text(state.secrets, result)
-            {:ok, result} -> JSON.encode!(Secrets.redact_result(state.secrets, result))
-            {:error, reason} -> "Error: #{inspect(reason)}"
+            {:ok, result, _assigns} when is_binary(result) ->
+              Secrets.redact_text(state.secrets, result)
+
+            {:ok, result, _assigns} ->
+              JSON.encode!(Secrets.redact_result(state.secrets, result))
+
+            {:ok, result} when is_binary(result) ->
+              Secrets.redact_text(state.secrets, result)
+
+            {:ok, result} ->
+              JSON.encode!(Secrets.redact_result(state.secrets, result))
+
+            {:error, reason} ->
+              "Error: #{inspect(reason)}"
+
+            {:park, call_state, _opts} ->
+              # Nothing will wake the call, so undo what it started.
+              Tool.cancel(tool_spec, call_state, context)
+              "Error: #{spec.name} cannot wait for signals under this runtime"
           end
         end
       )
@@ -1271,32 +1408,106 @@ defmodule Condukt.Session do
   # One path for both callers. Each announces the calls before they run and
   # each result as it lands through its emitter: the streaming one to its
   # subscribers and notifier, the plain one to the view only.
+  #
+  # A call that parks leaves its round waiting: this worker blocks until the
+  # session reports a woken call, runs it through `wake/3`, and repeats until
+  # every call has a result. Aborting the turn terminates the worker, blocked
+  # or not. Returns `{tool_results, messages, assigns_diff}`.
   defp execute_tool_calls(state, assistant_message, messages, emit) do
     tool_calls = Message.tool_calls(assistant_message)
-    tool_map = build_tool_map(state.tools)
-    trace_context = TraceContext.current()
 
     Enum.each(tool_calls, fn {id, name, args} -> emit.({:tool_call, name, id, args}) end)
 
-    {tool_results, assigns_diff} =
-      tool_calls
-      |> Task.async_stream(
-        fn tool_call ->
-          TraceContext.attach(trace_context)
-          execute_tool_call(tool_map, tool_call, state)
-        end,
-        ordered: true,
-        timeout: tool_timeout(state)
-      )
-      |> Enum.zip(tool_calls)
-      |> Enum.map(&task_result_to_tool_result/1)
-      |> Enum.map(fn {result, assigns} ->
-        emit.({:tool_result, result.tool_call_id, Message.tool_result_content(result)})
-        {result, assigns}
-      end)
-      |> split_results_and_assigns()
+    # Results are kept by position, not id, so each call keeps its own result
+    # even if a provider repeats an id.
+    calls = Enum.with_index(tool_calls)
 
-    {tool_results, messages, assigns_diff}
+    with {:ok, results} <- await_tool_round(state, calls, run_tool_calls(state, calls, %{}, emit), emit) do
+      {tool_results, assigns_diff} =
+        split_results_and_assigns(Enum.map(calls, fn {_call, index} -> Map.fetch!(results, index) end))
+
+      {tool_results, messages, assigns_diff}
+    end
+  end
+
+  defp await_tool_round(state, calls, results, emit) do
+    if map_size(results) == length(calls) do
+      {:ok, results}
+    else
+      with {:ok, resumes} <- await_wakes(state) do
+        woken = Enum.filter(calls, &woken?(&1, resumes, results))
+        await_tool_round(state, calls, Map.merge(results, run_tool_calls(state, woken, resumes, emit)), emit)
+      end
+    end
+  end
+
+  defp woken?({{id, _name, _args}, index}, resumes, results),
+    do: Map.has_key?(resumes, id) and not Map.has_key?(results, index)
+
+  # Blocks this worker, which costs a process and nothing else, until the
+  # session has a woken call for it. Aborting the turn terminates the worker;
+  # the session going down ends the wait.
+  defp await_wakes(state) do
+    abort_ref = state.turn.abort_ref
+
+    with {:ok, resumes} when map_size(resumes) == 0 <-
+           GenServer.call(state.pid, {:take_ready, abort_ref}, :infinity) do
+      monitor = Process.monitor(state.pid)
+
+      receive do
+        {:parking_ready, ^abort_ref} ->
+          Process.demonitor(monitor, [:flush])
+          await_wakes(state)
+
+        {:DOWN, ^monitor, :process, _pid, _reason} ->
+          {:error, :aborted}
+      end
+    end
+  end
+
+  # Runs `{call, index}` pairs, returning the outcomes of those that did not
+  # park by index. `resumes` holds the `{event, state}` of woken calls by id.
+  defp run_tool_calls(state, calls, resumes, emit) do
+    tool_map = build_tool_map(state.tools)
+    trace_context = TraceContext.current()
+
+    calls
+    |> Task.async_stream(
+      fn {{id, _name, _args} = tool_call, _index} ->
+        TraceContext.attach(trace_context)
+
+        outcome = execute_tool_call(tool_map, tool_call, state, Map.get(resumes, id))
+
+        if not match?({:parked, _id}, outcome), do: woken_call_done(state, resumes, id)
+        outcome
+      end,
+      ordered: true,
+      timeout: tool_timeout(state)
+    )
+    |> Enum.zip(calls)
+    |> Enum.flat_map(fn
+      {{:ok, {:parked, _id}}, _call} ->
+        []
+
+      {task_result, {{id, _name, _args}, index}} ->
+        if match?({:exit, _reason}, task_result), do: woken_call_done(state, resumes, id)
+        {result, _assigns} = outcome = task_result_to_tool_result(task_result, id)
+        emit.({:tool_result, result.tool_call_id, Message.tool_result_content(result)})
+        [{index, outcome}]
+    end)
+    |> Map.new()
+  end
+
+  # A woken call with a result is no longer one an abort cancels. Sent as soon
+  # as each call finishes, not after its whole batch.
+  defp woken_call_done(state, resumes, id) do
+    if Map.has_key?(resumes, id), do: GenServer.cast(state.pid, {:parking_done, state.turn.abort_ref, [id]})
+  end
+
+  defp after_tool_round({:error, reason}, _state, _continue), do: {:error, reason}
+
+  defp after_tool_round({tool_results, messages, assigns_diff}, state, continue) do
+    continue.(%{state | assigns: Map.merge(state.assigns, assigns_diff)}, messages ++ tool_results)
   end
 
   # A tool that never returns used to hang the turn forever, which a person at
@@ -1311,7 +1522,7 @@ defmodule Condukt.Session do
     |> then(fn {results, merged} -> {Enum.reverse(results), merged} end)
   end
 
-  defp execute_tool_call(tool_map, {id, name, args}, state) do
+  defp execute_tool_call(tool_map, {id, name, args} = call, state, resume) do
     metadata = %{
       tool: name,
       tool_call_id: id,
@@ -1323,11 +1534,12 @@ defmodule Condukt.Session do
     Telemetry.span(
       :tool_call,
       metadata,
-      fn -> execute_tool(tool_map, name, args, state, id) end,
+      fn -> execute_tool(tool_map, call, state, resume) end,
       &tool_call_stop_metadata/1
     )
   end
 
+  defp tool_call_stop_metadata({:parked, _id}), do: %{status: :parked, result: nil}
   defp tool_call_stop_metadata({%Message{content: {:error, _} = error}, _assigns}), do: %{status: :error, result: error}
 
   defp tool_call_stop_metadata({%Message{content: content}, _assigns}), do: %{status: :ok, result: content}
@@ -1357,13 +1569,11 @@ defmodule Condukt.Session do
     %{status: :error, error: reason}
   end
 
-  defp task_result_to_tool_result({{:ok, {message, assigns}}, _tool_call}), do: {message, assigns}
+  defp task_result_to_tool_result({:ok, outcome}, _id), do: outcome
 
-  defp task_result_to_tool_result({{:exit, reason}, {id, _name, _args}}) do
-    {Message.tool_result(id, {:error, reason}), %{}}
-  end
+  defp task_result_to_tool_result({:exit, reason}, id), do: {Message.tool_result(id, {:error, reason}), %{}}
 
-  defp execute_tool(tool_map, name, args, state, id) do
+  defp execute_tool(tool_map, {id, name, _args} = call, state, resume) do
     case Map.fetch(tool_map, name) do
       :error ->
         {Message.tool_result(id, {:error, "Unknown tool: #{name}"}), %{}}
@@ -1373,7 +1583,7 @@ defmodule Condukt.Session do
         # A tool that must not stop halfway traps exits, so an abort reaches it
         # as an `{:EXIT, _, _}` message instead of killing it.
         if Tool.on_abort(tool_spec) == :finish, do: Process.flag(:trap_exit, true)
-        execute_known_tool(tool_spec, args, state, id)
+        execute_known_tool(tool_spec, call, state, resume)
     end
   end
 
@@ -1408,12 +1618,12 @@ defmodule Condukt.Session do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  defp execute_known_tool({module, opts}, args, state, id) do
-    execute_tool_spec({module, opts}, args, tool_context(state, opts, id), id)
+  defp execute_known_tool({module, opts}, {id, _name, _args} = call, state, resume) do
+    execute_tool_spec({module, opts}, call, tool_context(state, opts, id), resume)
   end
 
-  defp execute_known_tool(tool_spec, args, state, id) do
-    execute_tool_spec(tool_spec, args, tool_context(state, [], id), id)
+  defp execute_known_tool(tool_spec, {id, _name, _args} = call, state, resume) do
+    execute_tool_spec(tool_spec, call, tool_context(state, [], id), resume)
   end
 
   defp tool_context(state, opts, tool_call_id \\ nil) do
@@ -1443,8 +1653,15 @@ defmodule Condukt.Session do
     }
   end
 
-  defp execute_tool_spec(tool_spec, args, context, id) do
-    case Tool.execute(tool_spec, args, context) do
+  # A fresh call runs `call/2`; a woken one, `wake/3` with its event and state.
+  defp execute_tool_spec(tool_spec, {id, _name, args} = call, context, resume) do
+    outcome =
+      case resume do
+        nil -> Tool.execute(tool_spec, args, context)
+        {event, call_state} -> Tool.wake(tool_spec, event, call_state, context)
+      end
+
+    case outcome do
       {:ok, result, assigns} when is_map(assigns) ->
         {Message.tool_result(id, Secrets.redact_result(context[:secrets], result)), assigns}
 
@@ -1453,6 +1670,33 @@ defmodule Condukt.Session do
 
       {:error, reason} ->
         {Message.tool_result(id, Secrets.redact_result(context[:secrets], {:error, reason})), %{}}
+
+      {:park, call_state, opts} ->
+        park_tool_call(tool_spec, call, context, call_state, opts)
+    end
+  end
+
+  # Where a tool call's `{:park, state, opts}` parks it: the session records
+  # the park, and the turn's worker waits until `wake/3` handles its event.
+  defp park_tool_call(tool_spec, {id, name, _args}, context, call_state, opts) do
+    case request_park(tool_spec, {id, name}, context, call_state, opts) do
+      :ok ->
+        {:parked, id}
+
+      {:error, :aborted} ->
+        # The abort refused this park, so nothing else cancels what the call started.
+        Tool.cancel(tool_spec, call_state, context)
+        {Message.tool_result(id, {:error, :aborted}), %{}}
+
+      {:error, reason} ->
+        {Message.tool_result(id, {:error, {:invalid_park, reason}}), %{}}
+    end
+  end
+
+  defp request_park(tool_spec, call, context, call_state, opts) do
+    with :ok <- if(Tool.wakes?(tool_spec), do: :ok, else: {:error, :no_wake_callback}),
+         {:ok, park} <- Park.new(opts) do
+      GenServer.call(context.agent, {:park, context.turn_ref, call, call_state, park}, :infinity)
     end
   end
 
@@ -1480,7 +1724,12 @@ defmodule Condukt.Session do
   # tests do, publishes it itself.
   defp broadcast(state, ref, event) do
     broadcast_subscribers(state, ref, event)
+    publish(state, event)
+  end
 
+  # Past the caller's own subscribers: through the viewer when there is one,
+  # which records the event and publishes it to the notifier.
+  defp publish(state, event) do
     case state.viewer do
       nil -> Notifier.publish(state.notifier, state.id, event)
       viewer -> GenServer.cast(viewer, {:event, event})
@@ -1770,6 +2019,8 @@ defmodule Condukt.Session do
           state
       end
 
+    cancel_parked(state)
+
     # Pending callers never started, so only they hear, not the notifier.
     Enum.each(state.turn.pending, fn
       {_prompt, _opts, {:run, from}} ->
@@ -1781,6 +2032,7 @@ defmodule Condukt.Session do
     end)
 
     state = if state.turn.streaming, do: view_run_finished(state, :aborted), else: state
+    state = end_parking(state)
     %{state | turn: Turn.abort(state.turn)}
   end
 
@@ -1910,6 +2162,90 @@ defmodule Condukt.Session do
 
   defp run_error({:error, reason}), do: reason
   defp run_error(_result), do: nil
+
+  # The one place a turn's parking changes. A durable journal stores `records`
+  # here before they apply, as `Condukt.Session.Parking` describes.
+  defp commit_parking(state, records) do
+    parking = Enum.reduce(records, parking(state), &Parking.apply_record(&2, &1))
+    if parking.timer, do: Process.cancel_timer(parking.timer)
+
+    timer =
+      case Parking.next_deadline(parking) do
+        nil ->
+          nil
+
+        until ->
+          delay = (until - System.os_time(:millisecond)) |> max(0) |> min(@max_timer)
+          Process.send_after(self(), {:park_deadline, state.turn.abort_ref}, delay)
+      end
+
+    notify_worker(put_parking(state, %{parking | timer: timer}))
+  end
+
+  # Wakes the turn's worker when it is blocked on its parked round and a call
+  # is ready for it.
+  defp notify_worker(%{turn: %{worker: worker, parking: %Parking{blocked: true} = parking}} = state)
+       when is_pid(worker) do
+    if Parking.ready?(parking) do
+      send(worker, {:parking_ready, state.turn.abort_ref})
+      put_parking(state, %{parking | blocked: false})
+    else
+      state
+    end
+  end
+
+  defp notify_worker(state), do: state
+
+  defp parking(state), do: state.turn.parking || Parking.new()
+
+  defp put_parking(state, parking), do: %{state | turn: %{state.turn | parking: parking}}
+
+  # Ends the turn's parking: its waits and early signals go, and every key it
+  # used stays closed for later turns.
+  defp end_parking(%{turn: %{parking: nil}} = state), do: state
+  defp end_parking(state), do: commit_parking(state, [:end_turn])
+
+  defp finish_turn(state) do
+    state = end_parking(state)
+    %{state | turn: Turn.finish(state.turn)}
+  end
+
+  defp publish_waiting(%{turn: %{parking: parking}} = state) do
+    waiting = waiting_info(parking)
+
+    if waiting == parking.published do
+      state
+    else
+      state = put_parking(state, %{parking | published: waiting})
+      event = {:waiting, waiting}
+
+      case state.turn.recipient do
+        {:stream, ref} -> state |> broadcast(ref, event) |> maybe_dispatch_event(event)
+        _run -> publish(state, event)
+      end
+    end
+  end
+
+  defp waiting_info(parking) do
+    %{tool_calls: Parking.waiting(parking), wake_at: Park.to_datetime(Parking.next_deadline(parking))}
+  end
+
+  # Runs `cancel/2` of the parked calls and the woken ones running again, each
+  # in its own unlinked process, so neither the abort nor the session ending
+  # stops it, with the state they last parked with.
+  defp cancel_parked(%{turn: %{parking: %Parking{} = parking}} = state) do
+    if parking.timer, do: Process.cancel_timer(parking.timer)
+    tool_map = build_tool_map(state.tools)
+
+    for {id, wait} <- Parking.cancellable(parking), {:ok, tool_spec} <- [Map.fetch(tool_map, wait.tool)] do
+      context = tool_context(state, [], id)
+      Task.start(fn -> Tool.cancel(tool_spec, wait.state, context) end)
+    end
+
+    :ok
+  end
+
+  defp cancel_parked(_state), do: :ok
 
   defp take_steering(state, messages) do
     with {:ok, steering} <- GenServer.call(state.pid, {:take_steering, state.turn.abort_ref}, :infinity) do

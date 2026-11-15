@@ -6,5 +6,5 @@ defmodule Condukt.Tool.Inline do
   struct directly.
   """
 
-  defstruct [:name, :description, :parameters, :call, on_abort: :kill]
+  defstruct [:name, :description, :parameters, :call, :wake, :cancel, on_abort: :kill]
 end

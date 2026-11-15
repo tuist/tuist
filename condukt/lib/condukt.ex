@@ -490,6 +490,10 @@ defmodule Condukt do
 
   - `:on_abort` - `:kill` (default) or `:finish`, what aborting the turn does
     to a running call. See "Aborts" in `Condukt.Tool`.
+  - `:wake` - 3-arity function `(event, state, context)` that handles the event
+    waking a parked call. See `c:Condukt.Tool.wake/3`.
+  - `:cancel` - 2-arity function `(state, context)` run when the turn is aborted
+    while the call is parked. See `c:Condukt.Tool.cancel/2`.
 
   The `context` map passed to `:call` matches the context received by
   `Condukt.Tool` callbacks: `:agent`, `:sandbox`, `:cwd`, `:opts` (always
@@ -519,7 +523,9 @@ defmodule Condukt do
       description: Keyword.fetch!(opts, :description),
       parameters: Keyword.fetch!(opts, :parameters),
       call: Keyword.fetch!(opts, :call),
-      on_abort: Keyword.get(opts, :on_abort, :kill)
+      on_abort: Keyword.get(opts, :on_abort, :kill),
+      wake: Keyword.get(opts, :wake),
+      cancel: Keyword.get(opts, :cancel)
     }
   end
 
@@ -532,6 +538,8 @@ defmodule Condukt do
   - `{:thinking, chunk}` - Thinking/reasoning chunk
   - `{:tool_call, name, id, args}` - Tool being called
   - `{:tool_result, id, result}` - Tool result
+  - `{:waiting, %{tool_calls: calls, wake_at: deadline}}` - The turn's tool
+    calls are parked, waiting for signals or deadlines; see `Condukt.Park`
   - `{:error, reason}` - Error occurred
   - `:agent_start` - Agent started processing
   - `:agent_end` - Agent finished
@@ -594,4 +602,12 @@ defmodule Condukt do
   the session is idle. Aborting withdraws queued messages.
   """
   defdelegate follow_up(agent, message), to: Condukt.Session
+
+  @doc """
+  Delivers a signal to a session's parked tool calls.
+
+  Returns `:ok`, or `{:error, reason}` with `:duplicate`, `{:invalid, reason}`,
+  `:closed`, `:inbox_full`, or `:not_found`. See `Condukt.Session.signal/4`.
+  """
+  defdelegate signal(agent, kind, key, value), to: Condukt.Session
 end

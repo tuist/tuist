@@ -59,7 +59,7 @@ defmodule Condukt.Telemetry do
 
   - `[:condukt, :tool_call, :stop]` - Tool call completed
     - Measurements: `%{duration: integer}`
-    - Metadata: `%{tool: string, tool_call_id: string, args: map, agent: module, session_id: String.t(), status: :ok | :error, result: term}`
+    - Metadata: `%{tool: string, tool_call_id: string, args: map, agent: module, session_id: String.t(), status: :ok | :error | :parked, result: term}`
 
   - `[:condukt, :tool_call, :exception]` - Tool call raised an exception
     - Measurements: `%{duration: integer}`
@@ -67,8 +67,11 @@ defmodule Condukt.Telemetry do
 
   `:args` is the parsed argument map the model passed to the tool. `:result`
   on `:stop` is the tool's return value after session-secret redaction; on
-  errors it is the `{:error, reason}` tuple. Consumers that ship payloads to
-  external systems should size-limit or sample these fields themselves.
+  errors it is the `{:error, reason}` tuple. A call that parks (see
+  `Condukt.Park`) stops with `status: :parked` and `result: nil`, and its wake
+  runs as another start/stop pair under the same `:tool_call_id`. Consumers
+  that ship payloads to external systems should size-limit or sample these
+  fields themselves.
 
   ### Sub-agent Events
 

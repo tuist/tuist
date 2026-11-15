@@ -290,6 +290,7 @@ For a running agent process, the `Condukt` module also forwards these calls to
 * `Condukt.compact/1` runs the configured compactor
 * `Condukt.steer/2` injects a message into the running turn after its current tool round
 * `Condukt.follow_up/2` queues a message that starts a turn after the current one
+* `Condukt.signal/4` delivers a signal to a parked tool call; see [Waiting for Events](parking.md)
 
 See the [One-Shot Runs guide](one-shot-runs.md) for prompt-first one-shot runs
 without an agent module.
