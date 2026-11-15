@@ -1734,7 +1734,7 @@ defmodule Tuist.Sandboxes do
         state: sandbox.state
       )
 
-      if (sandbox.state == :creating and not is_nil(sandbox.archived_at)) or Archives.loading_disks?(sandbox) do
+      if unfinished_restore?(sandbox) do
         revert_restore(sandbox)
       else
         {released, _} =
@@ -1964,13 +1964,8 @@ defmodule Tuist.Sandboxes do
   # is still the only copy.
   defp error_or_revert(sandbox, message, from_state \\ nil)
 
-  defp error_or_revert(%Sandbox{state: :creating, archived_at: %DateTime{}} = sandbox, _message, _from_state),
-    do: revert_restore(sandbox)
-
-  # So does one running on lazy disks its node had not finished loading: an
-  # errored row on a node is never restored again, which strands its Orb.
   defp error_or_revert(%Sandbox{} = sandbox, message, from_state) do
-    if Archives.loading_disks?(sandbox) do
+    if unfinished_restore?(sandbox) do
       revert_restore(sandbox)
     else
       if mark_error(sandbox.id, message, from_state) == 1 and sandbox.state != :error,
@@ -1979,6 +1974,12 @@ defmodule Tuist.Sandboxes do
       :ok
     end
   end
+
+  # A restore still being created, or running on lazy disks its node had
+  # not finished loading: the archive is its only complete copy, and an
+  # errored row on a node is never restored again, which strands its Orb.
+  defp unfinished_restore?(%Sandbox{state: :creating, archived_at: %DateTime{}}), do: true
+  defp unfinished_restore?(%Sandbox{} = sandbox), do: Archives.loading_disks?(sandbox)
 
   # Guarded by the node the row was read on, so a restore that moved on to
   # another node meanwhile is left alone. A restore that had started running
