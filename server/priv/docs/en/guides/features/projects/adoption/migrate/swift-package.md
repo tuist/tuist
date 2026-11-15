@@ -18,7 +18,7 @@ We often come across developers and organizations that challenge the need for Tu
 > [!TIP]
 > **SwiftPM as just a dependency manager**
 >
-> Tuist treats Swift Package Manager as a dependency manager, and it's a great one. We use it to resolve dependencies and to build them. We don't use it to define projects because it's not designed for that.
+> Tuist treats Swift Package Manager as a dependency manager, and it's a great one. We use it to resolve dependencies and to build them. We don't use it to define projects because it's not designed for that. For a side-by-side comparison, see [Swift Package Manager vs Tuist](https://tuist.dev/compare/swift-package-manager).
 
 
 ## Migrating from Swift Package Manager to Tuist {#migrating-from-swift-package-manager-to-tuist}

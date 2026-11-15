@@ -23,6 +23,10 @@ defmodule Condukt.Tools.Grep do
   @impl true
   def name, do: "Grep"
 
+  # Reads change nothing, so an interrupted call can simply run again.
+  @impl true
+  def replay_safe?, do: true
+
   @impl true
   def description do
     """

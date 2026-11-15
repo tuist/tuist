@@ -28,7 +28,7 @@ Follow the [documentation](/en/docs-markdown/guides/get-started), choose one sup
 
 ## Compare project and build tools
 
-Some evaluations start from a developer tool rather than an infrastructure provider. [XcodeGen vs Tuist](/marketing-markdown/compare/xcodegen) shows how a team that keeps XcodeGen adds Tuist's build infrastructure, such as the Xcode cache, build and test insights, and previews, and when migrating to Tuist generated projects is worth it. [Nx vs Tuist](/marketing-markdown/compare/nx) compares a monorepo task runner with build infrastructure that works inside each build system's own cache.
+Some evaluations start from a developer tool rather than an infrastructure provider. [XcodeGen vs Tuist](/marketing-markdown/compare/xcodegen) shows how a team that keeps XcodeGen adds Tuist's build infrastructure, such as the Xcode cache, build and test insights, and previews, and when migrating to Tuist generated projects is worth it. [Swift Package Manager vs Tuist](/marketing-markdown/compare/swift-package-manager) compares modularizing an app with local packages and with a Tuist project, and shows how Tuist keeps using Swift Package Manager for dependencies. [Nx vs Tuist](/marketing-markdown/compare/nx) compares a monorepo task runner with build infrastructure that works inside each build system's own cache.
 
 ## More existing comparison guides
 

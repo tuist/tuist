@@ -274,6 +274,10 @@ defmodule Condukt do
       - `:session_store` - Session store module or `{module, opts}` tuple
       - `:session_store_key` - Stable key passed to session stores as `:key`
       - `:session_store_opts` - Extra keyword options passed to session stores
+      - `:restart_limit` - How many times in a row an interrupted run may be
+        resumed without making progress before a resume gives it up with
+        `{:error, {:restart_limit, count}}` (default: 5, or `:infinity`).
+        See the Sessions and Persistence guide.
       - `:compactor` - Compactor module or `{module, opts}` tuple
         (see `Condukt.Compactor`)
       - `:background_compaction` - Opt-in native background compaction: `true`
@@ -352,6 +356,10 @@ defmodule Condukt do
   - `:timeout` - Max time in ms (default: 300_000)
   - `:max_turns` - Max tool use cycles (default: 50)
   - `:images` - List of images to include
+  - `:request_id` - Makes the submission run at most once: a retry with the
+    same id gets the first run's stored outcome, or resumes that run when the
+    session's previous process died in it. See the Sessions and Persistence
+    guide.
   - `:trace_context` - A `Condukt.TraceContext`, `true` to create one when the
     caller has none, or `false` to disable propagation for this run. When
     omitted, Condukt captures `Condukt.TraceContext.current/0`.
@@ -506,6 +514,8 @@ defmodule Condukt do
     waking a parked call. See `c:Condukt.Tool.wake/3`.
   - `:cancel` - 2-arity function `(state, context)` run when the turn is aborted
     while the call is parked. See `c:Condukt.Tool.cancel/2`.
+  - `:replay_safe` - `true` when a call interrupted by a crash may run again on
+    `Condukt.Session.resume/2`. Defaults to `false`; see `Condukt.Tool`.
 
   The `context` map passed to `:call` matches the context received by
   `Condukt.Tool` callbacks: `:agent`, `:sandbox`, `:cwd`, `:opts` (always
@@ -537,7 +547,8 @@ defmodule Condukt do
       call: Keyword.fetch!(opts, :call),
       on_abort: Keyword.get(opts, :on_abort, :kill),
       wake: Keyword.get(opts, :wake),
-      cancel: Keyword.get(opts, :cancel)
+      cancel: Keyword.get(opts, :cancel),
+      replay_safe: Keyword.get(opts, :replay_safe, false)
     }
   end
 

@@ -409,6 +409,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       for path <- [
             "/compare/xcodegen",
             "/compare/nx",
+            "/compare/swift-package-manager",
             "/compare/buildbuddy",
             "/compare/engflow",
             "/build-systems/bazel-vs-gradle",

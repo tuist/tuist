@@ -33,6 +33,10 @@ defmodule Condukt.Tools.Read do
   @impl true
   def name, do: "Read"
 
+  # Reads change nothing, so an interrupted call can simply run again.
+  @impl true
+  def replay_safe?, do: true
+
   @impl true
   def description do
     """

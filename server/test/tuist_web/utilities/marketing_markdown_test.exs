@@ -24,7 +24,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   @featured_providers ~w(buildkite develocity namespace)
   @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
   # Developer tools rather than infrastructure providers, compared in the featured format.
-  @tools [{"nx", "Nx"}, {"xcodegen", "XcodeGen"}]
+  @tools [{"nx", "Nx"}, {"xcodegen", "XcodeGen"}, {"swift-package-manager", "Swift Package Manager"}]
   @tool_paths Enum.map(@tools, fn {slug, _name} -> "/compare/" <> slug end)
   @build_system_paths [
     "/build-systems"
@@ -347,6 +347,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert xcodegen =~ "## Keep XcodeGen, add Tuist"
     assert xcodegen =~ "## When to migrate"
     assert xcodegen =~ "### Is Tuist an Xcode project generator?"
+
+    # Tuist keeps using Swift Package Manager for dependencies, so the page adds
+    # Tuist to package-based projects instead of presenting it as a replacement.
+    spm = MarketingMarkdown.get("/compare/swift-package-manager")
+    assert spm =~ "## Keep your packages, add Tuist"
+    assert spm =~ "## When to move modules into Tuist"
+    assert spm =~ "### Does Tuist replace Swift Package Manager?"
   end
 
   test "legacy comparisons keep their existing recommendation contract" do

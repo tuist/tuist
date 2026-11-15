@@ -20,6 +20,10 @@ defmodule Condukt.Tools.Write do
   @impl true
   def name, do: "Write"
 
+  # Writing the same content to the same path again leaves the same file.
+  @impl true
+  def replay_safe?, do: true
+
   @impl true
   def description do
     """

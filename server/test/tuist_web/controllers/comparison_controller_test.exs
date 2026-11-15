@@ -72,18 +72,23 @@ defmodule TuistWeb.Marketing.ComparisonControllerTest do
     hub_links = conn |> get("/compare") |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("a", "href")
     xml = conn |> get("/sitemap.xml") |> response(200)
 
-    for {slug, title, migration_link} <- [
+    for {slug, title, migration_link, reviewed_on} <- [
           {"xcodegen", "XcodeGen vs Tuist: keep XcodeGen, add build infrastructure",
-           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project"},
+           "/en/docs/guides/features/projects/adoption/migrate/xcodegen-project", "2026-11-12"},
           {"nx", "Nx vs Tuist: monorepo task runner and build infrastructure",
-           "/en/docs/guides/features/cache/gradle-cache"}
+           "/en/docs/guides/features/cache/gradle-cache", "2026-11-12"},
+          {"swift-package-manager", "Swift Package Manager vs Tuist: modularize with SPM or a Tuist project",
+           "/en/docs/guides/features/projects/adoption/migrate/swift-package", "2026-11-15"}
         ] do
       path = "/compare/" <> slug
       document = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
       content = Floki.find(document, "#marketing-comparison [data-part=content]")
 
       assert path in hub_links
-      assert xml =~ ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: path))}</loc>\s*<lastmod>2026-11-12</lastmod>|
+
+      assert xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: path))}</loc>\s*<lastmod>#{reviewed_on}</lastmod>|
+
       assert document |> Floki.find("h1") |> Floki.text() == title
       assert Floki.text(content) =~ String.trim_trailing(@definition, ".")
       assert migration_link in Floki.attribute(content, "a", "href")

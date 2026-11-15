@@ -116,6 +116,22 @@ defmodule Condukt.Tool do
   Tools that touch unrelated systems (HTTP APIs, databases, in-process state)
   have nothing to sandbox and are unaffected.
 
+  ## Replay after a crash
+
+  When a session's store keeps a journal (see `Condukt.SessionStore`), each
+  tool call's intent is recorded before the tool runs. If the process dies
+  before the result is recorded, `Condukt.Session.resume/2` cannot know
+  whether the call took effect. By default it does not run the tool again: the
+  model gets an error result saying the call was interrupted and decides what
+  to do. A tool whose call can safely run twice with the same arguments, such
+  as a read or a write of the same content to the same path, declares it:
+
+      @impl true
+      def replay_safe?, do: true
+
+  Parameterized tools can implement `replay_safe?/1` instead. Inline tools
+  pass `replay_safe: true` to `Condukt.tool/1`.
+
   ## Parameterized Tools
 
   Tools can be parameterized when added to an agent:
@@ -217,7 +233,24 @@ defmodule Condukt.Tool do
   """
   @callback cancel(state :: term(), context :: map()) :: term()
 
-  @optional_callbacks [name: 1, description: 1, parameters: 1, on_abort: 1, wake: 3, cancel: 2]
+  @doc """
+  Whether an interrupted call may run again when its session is resumed.
+
+  Defaults to `false`. See "Replay after a crash" above.
+  """
+  @callback replay_safe?() :: boolean()
+  @callback replay_safe?(opts :: keyword()) :: boolean()
+
+  @optional_callbacks [
+    name: 1,
+    description: 1,
+    parameters: 1,
+    on_abort: 1,
+    wake: 3,
+    cancel: 2,
+    replay_safe?: 0,
+    replay_safe?: 1
+  ]
 
   defmacro __using__(_opts) do
     quote do
@@ -235,7 +268,17 @@ defmodule Condukt.Tool do
 
       def parameters([]), do: raise("#{inspect(__MODULE__)} must implement parameters/0 or parameters/1")
 
-      defoverridable name: 0, name: 1, description: 0, description: 1, parameters: 0, parameters: 1
+      def replay_safe?, do: false
+      def replay_safe?(_opts), do: replay_safe?()
+
+      defoverridable name: 0,
+                     name: 1,
+                     description: 0,
+                     description: 1,
+                     parameters: 0,
+                     parameters: 1,
+                     replay_safe?: 0,
+                     replay_safe?: 1
     end
   end
 
@@ -256,6 +299,17 @@ defmodule Condukt.Tool do
 
   defp module_on_abort(module, opts) do
     if function_exported?(module, :on_abort, 1), do: module.on_abort(opts), else: :kill
+  end
+
+  @doc """
+  Whether a tool spec declares its calls safe to run again after a crash.
+  """
+  def replay_safe?(%Condukt.Tool.Inline{replay_safe: replay_safe}), do: replay_safe == true
+  def replay_safe?({module, opts}), do: exported?(module, 1) and module.replay_safe?(opts) == true
+  def replay_safe?(module) when is_atom(module), do: exported?(module, 1) and module.replay_safe?([]) == true
+
+  defp exported?(module, arity) do
+    Code.ensure_loaded?(module) and function_exported?(module, :replay_safe?, arity)
   end
 
   @doc """

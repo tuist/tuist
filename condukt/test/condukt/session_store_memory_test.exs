@@ -1,9 +1,15 @@
 defmodule Condukt.SessionStore.MemoryTest do
   use ExUnit.Case, async: true
+  use Condukt.SessionStore.Conformance, store: Condukt.SessionStore.Memory
 
   alias Condukt.Message
   alias Condukt.SessionStore.Memory
   alias Condukt.SessionStore.Snapshot
+
+  setup do
+    ref = make_ref()
+    %{store_opts: [key: {ref, :a}], other_store_opts: [key: {ref, :b}]}
+  end
 
   test "saves, loads, and clears snapshots" do
     key = make_ref()

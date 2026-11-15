@@ -21,6 +21,10 @@ defmodule Condukt.Tools.Glob do
   @impl true
   def name, do: "Glob"
 
+  # Reads change nothing, so an interrupted call can simply run again.
+  @impl true
+  def replay_safe?, do: true
+
   @impl true
   def description do
     """

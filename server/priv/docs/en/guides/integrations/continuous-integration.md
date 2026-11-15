@@ -9,7 +9,7 @@
 
 To run Tuist commands in your [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows, you'll need to install it in your CI environment. 
 
-Authentication is optional but required if you want to use server-side features like <.localized_link href="/guides/features/cache">cache</.localized_link>. 
+Authentication is optional but required if you want to use server-side features like <.localized_link href="/guides/features/cache">cache</.localized_link>. To shorten CI runs and lower their cost once Tuist is installed, see [Slow builds](https://tuist.dev/solutions/slow-builds) and [CI costs](https://tuist.dev/solutions/ci-costs).
 
 The following sections provide examples of how to do this on different CI platforms. Once connects through its own native Tuist provider; it does not need the Tuist CLI. See [Once](#once) for that workflow.
 

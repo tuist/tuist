@@ -211,7 +211,8 @@ defmodule Condukt.MixProject do
           Condukt.SessionStore,
           Condukt.SessionStore.Snapshot,
           Condukt.SessionStore.Memory,
-          Condukt.SessionStore.Disk
+          Condukt.SessionStore.Disk,
+          Condukt.SessionStore.Conformance
         ],
         Compaction: [
           Condukt.Compactor,
