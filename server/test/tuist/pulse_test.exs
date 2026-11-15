@@ -14,7 +14,7 @@ defmodule Tuist.PulseTest do
   setup do
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: user)
-    config = [account_id: organization.account.id, base_url: "https://pulse.internal/", tenant: "public", token: "secret"]
+    config = [account_id: organization.account.id, base_url: "https://pulse.internal/", token: "secret"]
     stub(Environment, :pulse_config, fn -> config end)
     stub(Tuist.FeatureFlags, :pulse_enabled?, fn _ -> true end)
     %{user: user, account: organization.account, organization: organization, config: config}
@@ -646,36 +646,12 @@ defmodule Tuist.PulseTest do
           base_url: "file:///tmp/pulse",
           base_url: "https://user:pass@pulse.internal",
           base_url: "https://pulse.internal?query=up",
-          tenant: "bad\ntenant",
           token: "",
           token: "bad\rtoken"
         ] do
       stub(Environment, :pulse_config, fn -> Keyword.put(ctx.config, key, value) end)
       assert {:error, :not_configured} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
     end
-  end
-
-  @tag :tmp_dir
-  test "projected token files rotate each request and never fall back to a static token", %{tmp_dir: tmp_dir} = ctx do
-    path = Path.join(tmp_dir, "token")
-    stub(Environment, :pulse_config, fn -> Keyword.put(ctx.config, :token_file, path) end)
-
-    for token <- ["first", "rotated"] do
-      File.write!(path, token <> "\n")
-
-      expect(Req, :request, fn request ->
-        assert request.options.auth == {:basic, "dashboard:" <> token}
-        response(metric_body([]))
-      end)
-
-      assert {:ok, _} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
-    end
-
-    File.rm!(path)
-    reject(Req, :request, 1)
-    assert {:error, :not_configured} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
-    File.write!(path, "\n")
-    assert {:error, :not_configured} = Pulse.query(ctx.user, ctx.account, "metrics", %{})
   end
 
   describe "analytics" do

@@ -248,7 +248,6 @@ jobs:
               enrolled_account_id: Keyword.get(config, :account_id),
               pulse_reader_available: Code.ensure_loaded?(Tuist.Pulse) and function_exported?(Tuist.Pulse, :query, 4),
               expected_endpoint: Keyword.get(config, :base_url) == "http://pulse.observability.svc.cluster.local:4000",
-              expected_database: Keyword.get(config, :tenant) == "public",
               pulse_flag: FunWithFlags.enabled?(:pulse, for: account)
             }))' > "$inspection.out" 2> "$inspection.err"; then
             echo '::error::Staging reader inspection failed; raw runtime output is withheld.'
@@ -259,9 +258,9 @@ jobs:
             select((.account_id | type) == "number" and
               (.enrolled_account_id == null or (.enrolled_account_id | type) == "number") and
               ([.pulse_reader_available,
-                .expected_endpoint, .expected_database, .pulse_flag] | all(type == "boolean"))) |
+                .expected_endpoint, .pulse_flag] | all(type == "boolean"))) |
             {account_id, enrolled_account_id, pulse_reader_available,
-              expected_endpoint, expected_database, pulse_flag}'
+              expected_endpoint, pulse_flag}'
           rm -f "$inspection.out" "$inspection.err"
           helm history pulse -n observability -o json | jq '[.[] | {revision, chart, status}]'
       - name: Check prerequisites, ownership and capacity before creating backend resources

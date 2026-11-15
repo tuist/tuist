@@ -252,8 +252,6 @@ server:
       value: "3"
     - name: TUIST_PULSE_URL
       value: http://pulse.observability.svc.cluster.local:4000
-    - name: TUIST_PULSE_TENANT
-      value: public
     # Registered production plugin; its private signing key stays in ESO.
     - name: TUIST_ENTIRE_PLUGIN_SLUG
       value: tuist

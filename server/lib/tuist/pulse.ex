@@ -395,33 +395,12 @@ defmodule Tuist.Pulse do
   defp credentials do
     config = Environment.pulse_config()
     url = Keyword.get(config, :base_url)
-    # Pulse's database name, sent as x-pulse-db-name.
-    tenant = Keyword.get(config, :tenant)
+    token = Keyword.get(config, :token)
 
-    with true <- valid_url?(url) and header?(tenant),
-         {:ok, token} <- token(Keyword.get(config, :token_file), Keyword.get(config, :token)),
-         true <- header?(token) do
-      {:ok,
-       %{
-         base_url: String.trim_trailing(url, "/"),
-         tenant: tenant,
-         token: token,
-         token_file: Keyword.get(config, :token_file)
-       }}
-    else
-      _ -> {:error, :not_configured}
-    end
+    if valid_url?(url) and header?(token),
+      do: {:ok, %{base_url: String.trim_trailing(url, "/"), token: token}},
+      else: {:error, :not_configured}
   end
-
-  # Projected secrets rotate independently of the application and are authoritative.
-  defp token(path, _token) when is_binary(path) and path != "" do
-    case File.read(path) do
-      {:ok, contents} -> {:ok, String.trim(contents)}
-      _ -> {:error, :not_configured}
-    end
-  end
-
-  defp token(_path, token), do: {:ok, token}
 
   defp header?(value) do
     is_binary(value) and byte_size(value) in 1..16_384 and String.valid?(value) and
@@ -474,16 +453,9 @@ defmodule Tuist.Pulse do
   defp complete_result(_, %{rows: rows}) when length(rows) > 5000, do: {:error, :query_result_limit}
   defp complete_result(_, _), do: :ok
 
+  # Every Pulse signal lives in its `public` database, selected by Pulse's
+  # x-pulse-db-name header.
   defp request(client, path, params) do
-    with {:ok, token} <- token(client.token_file, client.token),
-         true <- header?(token) do
-      do_request(%{client | token: token}, path, params)
-    else
-      _ -> {:error, :not_configured}
-    end
-  end
-
-  defp do_request(client, path, params) do
     # Pulse serves its Prometheus-compatible API under /v1/prometheus.
     path = if String.starts_with?(path, "/api/v1/"), do: "/v1/prometheus" <> path, else: path
 
@@ -492,10 +464,7 @@ defmodule Tuist.Pulse do
         method: :get,
         url: client.base_url <> path,
         auth: {:basic, "dashboard:" <> client.token},
-        headers: [
-          {"accept", "application/json"},
-          {"x-pulse-db-name", client.tenant}
-        ],
+        headers: [{"accept", "application/json"}, {"x-pulse-db-name", "public"}],
         params: params,
         compressed: false,
         into: &bounded_body/2,

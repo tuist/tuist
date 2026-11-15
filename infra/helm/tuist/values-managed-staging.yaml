@@ -190,8 +190,6 @@ server:
       value: "2"
     - name: TUIST_PULSE_URL
       value: http://pulse.observability.svc.cluster.local:4000
-    - name: TUIST_PULSE_TENANT
-      value: public
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Linux runners reuse ordinary regional instances. Before deploying,
       # complete the staging migration in linux-runner-private-cache.md:

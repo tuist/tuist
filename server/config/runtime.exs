@@ -26,9 +26,7 @@ config :tuist, :pulse,
   account_id:
     if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
   base_url: System.get_env("TUIST_PULSE_URL"),
-  tenant: System.get_env("TUIST_PULSE_TENANT"),
-  token: System.get_env("TUIST_PULSE_TOKEN"),
-  token_file: System.get_env("TUIST_PULSE_TOKEN_FILE")
+  token: System.get_env("TUIST_PULSE_TOKEN")
 
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do

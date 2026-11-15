@@ -41,9 +41,7 @@ Pulse appears in organization navigation only for members of the configured orga
 | --- | --- |
 | `TUIST_PULSE_ACCOUNT_ID` | Stable Tuist organization account ID, not its handle. Leave unset to disable the pages. |
 | `TUIST_PULSE_URL` | Pulse base URL reachable from the server. The managed instance is private to the cluster. |
-| `TUIST_PULSE_TENANT` | Pulse database name (`public` in managed environments), sent as `x-pulse-db-name`. |
-| `TUIST_PULSE_TOKEN_FILE` | Preferred path to a mounted, rotating password for the `dashboard` user. Read on every request. |
-| `TUIST_PULSE_TOKEN` | `dashboard` password fallback when no token file is configured. |
+| `TUIST_PULSE_TOKEN` | Password of Pulse's read-only `dashboard` user. |
 
 Pulse is Tuist's observability database ([`pulse/`](../pulse/FORK.md)). The server authenticates with HTTP basic auth as `dashboard`, reads metrics through Pulse's Prometheus-compatible API (PromQL) and logs and traces through its SQL API (literal text search). Credentials and the database are never taken from browser parameters. Public projects do not grant Pulse access. Tables filter and sort bounded complete result sets before pagination (20 rows by default, at most 100 per page); oversized queries fail explicitly rather than presenting partial sorted results. Metric series have at most 361 points; queries cover at most 24 hours. These pages do not ingest or persist a copy of the telemetry. Restart replicas after changing the configuration; a mounted token can rotate without a restart. Flag changes use the existing cross-replica invalidation and bounded evaluation cache, without restarting replicas.
 
