@@ -61,8 +61,7 @@ struct HashSelectiveTestingCommandService {
             destination: nil,
             schemeName: nil,
             coverage: .resolved(config: config),
-            sdkSelection: .all,
-            debuggable: false
+            sdkSelection: .all
         )
         let (_, environment) = try await generator.loadWithEnvironment(
             path: absolutePath,

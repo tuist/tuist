@@ -30,6 +30,10 @@ public enum XcodeBuildTestAction: Equatable {
 /// caller scopes it to one invocation without every `XcodeBuildControlling` method carrying it.
 public enum XcodeBuildEnvironment {
     @TaskLocal public static var additionalVariables: [String: String] = [:]
+
+    /// Set on every xcodebuild invocation Tuist makes. xcodebuild never attaches a debugger, so the cached modules'
+    /// debugger pre-action exits on it instead of linking a dsymutil companion for every test bundle and app.
+    public static let skipCachedModulesDebuggerUpdate = "TUIST_SKIP_CACHED_MODULES_DEBUGGER_UPDATE"
 }
 
 @Mockable

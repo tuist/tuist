@@ -127,8 +127,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?,
             schemeName: String? = nil,
-            sdkSelection: BinaryCacheSDKSelection = .all,
-            debuggable: Bool = false
+            sdkSelection: BinaryCacheSDKSelection = .all
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = []
 
@@ -215,11 +214,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
-            // xcodebuild never attaches LLDB to the tests it runs, yet the debugger pre-action runs dsymutil serially
-            // over every test bundle before each launch.
-            if debuggable {
-                mappers.append(CachedModulesDebuggingGraphMapper(config: config))
-            }
+            mappers.append(CachedModulesDebuggingGraphMapper(config: config))
             mappers.append(CachedMacroPrefixMappingGraphMapper(config: config))
             if sdkSelection == .simulators || sdkSelection == .devices {
                 mappers.append(CacheDestinationGraphMapper(simulator: sdkSelection == .simulators))

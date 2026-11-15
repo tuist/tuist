@@ -924,6 +924,32 @@ struct CachedModulesDebuggingGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func generatedScript_doesNothingWhenTuistRunsXcodebuild() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let action = try #require(mapped.projects[projectPath]?.schemes.first?.testAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(try #require(action.preActions.first?.scriptText), at: scriptPath)
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+        var environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+            XcodeBuildEnvironment.skipCachedModulesDebuggerUpdate: "YES",
+        ]
+        let initPath = try #require(action.customLLDBInitFile)
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+        #expect(try await FileSystem().exists(initPath) == false)
+
+        environment[XcodeBuildEnvironment.skipCachedModulesDebuggerUpdate] = nil
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+        #expect(try await FileSystem().exists(initPath))
+    }
+
+    @Test(.inTemporaryDirectory)
     func generatedScript_ordersSourceMapTheWayTheCompilersResolvePrefixes() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)

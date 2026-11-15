@@ -434,6 +434,10 @@ private struct CacheDebuggerSettingsRenderer {
         return """
         set -eu
 
+        if [ -n "${\(XcodeBuildEnvironment.skipCachedModulesDebuggerUpdate):-}" ]; then
+          exit 0
+        fi
+
         lldb_init_file=\(shellQuoted(lldbInitPath.pathString))
         overlay_file=\(shellQuoted(overlayPath.pathString))
         mkdir -p "$(dirname "$lldb_init_file")"

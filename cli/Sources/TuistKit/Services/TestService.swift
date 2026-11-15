@@ -466,8 +466,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             destination: destination,
             schemeName: schemeName,
             coverage: .resolved(config: config),
-            sdkSelection: cacheDestination.sdkSelection,
-            debuggable: generateOnly
+            sdkSelection: cacheDestination.sdkSelection
         )
 
         Logger.current.info("Generating project for testing", metadata: .section)
