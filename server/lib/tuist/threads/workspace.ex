@@ -12,46 +12,6 @@ defmodule Tuist.Threads.Workspace do
   alias Tuist.Threads.Repository
 
   @root "/workspace/repository"
-  @limit 65_536
-
-  # This is the descriptor-relative O_NOFOLLOW approach used by
-  # ProviderEnvironments. Its helper is private and read-only; writes and edits
-  # additionally open the final component without truncating before validation.
-  @files ~S"""
-  import os, sys, stat
-  op, path = sys.argv[1:3]
-  parts = path.split('/')
-  if path.startswith('/') or any(p in ('', '.', '..', '.git') for p in parts):
-      sys.exit(2)
-  fd = os.open('/workspace', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-  for part in ['repository'] + parts[:-1]:
-      nxt = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-      os.close(fd)
-      fd = nxt
-  flags = os.O_NOFOLLOW | os.O_NONBLOCK
-  flags |= os.O_RDONLY if op == 'read' else os.O_RDWR
-  if op == 'write': flags |= os.O_CREAT
-  file = os.open(parts[-1], flags, 0o644, dir_fd=fd)
-  if not stat.S_ISREG(os.fstat(file).st_mode) or os.fstat(file).st_nlink != 1: sys.exit(2)
-  if op == 'read':
-      print(os.read(file, 65536).decode('utf-8', errors='replace'))
-  else:
-      content = sys.argv[3]
-      if op == 'edit':
-          old = os.read(file, 1048577)
-          if len(old) > 1048576: sys.exit(2)
-          old = old.decode('utf-8')
-          if old.count(content) != 1: sys.exit(2)
-          content = old.replace(content, sys.argv[4], 1)
-      os.lseek(file, 0, os.SEEK_SET)
-      data = content.encode('utf-8')
-      while data:
-          data = data[os.write(file, data):]
-      os.ftruncate(file, os.lseek(file, 0, os.SEEK_CUR))
-      print('File updated.')
-  os.close(file)
-  os.close(fd)
-  """
 
   @initialize ~S"""
   import os, sys
@@ -110,21 +70,6 @@ defmodule Tuist.Threads.Workspace do
     :ok
   end
 
-  def call(context, name, args) do
-    exclusive(context.thread.id, fn ->
-      with true <- Threads.owns_run?(context.run_id, context.attempt),
-           {:ok, argv, timeout} <- command(name, args),
-           {:ok, sandbox} <- resident(context),
-           {:ok, result} <- Sandboxes.exec(sandbox, argv, cwd: @root, env: %{}, timeout_ms: timeout) do
-        {:ok, bounded("exit_code=#{result.exit_code}\n" <> result.stdout <> result.stderr)}
-      else
-        false -> {:error, :stale_run}
-        {:error, :invalid_arguments} = error -> error
-        _ -> {:error, :workspace_command_failed}
-      end
-    end)
-  end
-
   @doc false
   def exclusive(thread_id, fun) do
     # A session lock, not a transaction or row lock, spans external boot/git
@@ -162,17 +107,6 @@ defmodule Tuist.Threads.Workspace do
 
   @doc false
   def sha?(sha), do: is_binary(sha) and Regex.match?(~r/\A[0-9a-f]{40}\z/, sha)
-
-  defp resident(context) do
-    case Sandboxes.get_sandbox_by_id(context.sandbox.id) do
-      %Sandbox{account_id: account_id, residency_work_id: work_id} = sandbox
-      when account_id == context.thread.account_id and work_id == context.residency ->
-        {:ok, sandbox}
-
-      _ ->
-        {:error, :workspace_unavailable}
-    end
-  end
 
   # Retention nilifies the binding. A fresh VM cannot recover unpushed work.
   defp sandbox(%{sandbox_id: nil, workspace_ready: true}, _account), do: {:error, :workspace_missing}
@@ -297,43 +231,4 @@ defmodule Tuist.Threads.Workspace do
         {:error, :workspace_clone_failed}
     end
   end
-
-  defp command("bash", %{"command" => command} = args) do
-    if map_size(args) == 1 and text?(command, 8000),
-      do: {:ok, ["/bin/bash", "--noprofile", "--norc", "-c", command], 60_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command("read", %{"path" => path} = args) do
-    if map_size(args) == 1 and path?(path),
-      do: {:ok, ["python3", "-c", @files, "read", path], 10_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command("write", %{"path" => path, "content" => content} = args) do
-    if map_size(args) == 2 and path?(path) and text?(content, @limit, true),
-      do: {:ok, ["python3", "-c", @files, "write", path, content], 10_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command("edit", %{"path" => path, "old_text" => old, "new_text" => new} = args) do
-    if map_size(args) == 3 and path?(path) and text?(old, @limit) and text?(new, @limit, true),
-      do: {:ok, ["python3", "-c", @files, "edit", path, old, new], 10_000},
-      else: {:error, :invalid_arguments}
-  end
-
-  defp command(_, _), do: {:error, :invalid_arguments}
-
-  defp path?(path) do
-    text?(path, 4096) and not String.starts_with?(path, "/") and
-      Enum.all?(String.split(path, "/"), &(&1 not in ["", ".", "..", ".git"]))
-  end
-
-  defp text?(value, limit, empty \\ false),
-    do:
-      is_binary(value) and String.valid?(value) and byte_size(value) <= limit and (empty or value != "") and
-        not String.contains?(value, <<0>>)
-
-  defp bounded(output) when byte_size(output) <= @limit, do: output
-  defp bounded(output), do: String.replace_invalid(binary_part(output, 0, @limit - 32)) <> "\n[Output truncated]"
 end

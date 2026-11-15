@@ -528,6 +528,9 @@ socket, the poller and the caller share a replica:
   start (`:no_capacity`, `{:host_busy, _}`) is retried inside the request
   every second for 25 s, so a command starts within a second of its host
   freeing.
+  A caller that already holds a residency, such as a thread run
+  (`Tuist.Threads.Sandbox`), passes it as `:residency`: the command joins it
+  instead of `commands`, and `release_if_idle/2` leaves it to its holder.
   `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
   kills each command at its deadline and records commands no client reads.
   The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,

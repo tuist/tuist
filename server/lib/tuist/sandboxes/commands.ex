@@ -199,6 +199,9 @@ defmodule Tuist.Sandboxes.Commands do
 
   Params: `:command` (a shell command, or the program when `:args` is given),
   `:args` (run `command` with these arguments and no shell interpretation),
+  `:residency` (a residency the caller already holds on the sandbox, such
+  as a thread's run, for the command to run under instead of the shared
+  `commands` one; it outlives the command and its holder ends it),
   `:env`, `:cwd` (default the workspace), `:timeout_ms` (default one hour, at
   most six), `:stdin` (`true` to keep stdin open for `write_stdin/5`;
   otherwise the command reads an empty stdin) and `:id` (a UUID the client
@@ -301,7 +304,7 @@ defmodule Tuist.Sandboxes.Commands do
         deadline_at: DateTime.add(DateTime.utc_now(:second), div(timeout_ms, 1000) + 1)
       })
 
-    case hold_and_launch(sandbox, command, env) do
+    case hold_and_launch(sandbox, command, env, params) do
       {:ok, held} ->
         {:ok, _job} =
           %{
@@ -323,9 +326,11 @@ defmodule Tuist.Sandboxes.Commands do
     end
   end
 
-  defp hold_and_launch(sandbox, command, env) do
-    with {:ok, held} <- Sandboxes.begin_shared_residency(sandbox, @residency),
-         :ok <- Sandboxes.hold_host_residency(held, @residency),
+  defp hold_and_launch(sandbox, command, env, params) do
+    residency = Map.get(params, :residency) || @residency
+
+    with {:ok, held} <- Sandboxes.begin_shared_residency(sandbox, residency),
+         :ok <- Sandboxes.hold_host_residency(held, residency),
          :ok <- launch(held, command, env) do
       {:ok, held}
     end
@@ -391,9 +396,10 @@ defmodule Tuist.Sandboxes.Commands do
   @doc """
   Reads the command's state and the output past the given byte offsets,
   waiting up to `:wait_seconds` (default 0, at most #{@max_wait_seconds}) for
-  new output or the exit. Each stream returns at most #{@chunk_bytes} bytes,
-  cut at a UTF-8 boundary; `*_offset` in the answer is where the next read
-  starts. The first read that sees the command gone records how it ended.
+  new output or the exit. Each stream returns at most `:max_bytes` (default
+  and at most #{@chunk_bytes}) bytes, cut at a UTF-8 boundary; `*_offset` in
+  the answer is where the next read starts, and `*_size` how much the stream
+  holds. The first read that sees the command gone records how it ended.
   """
   def read(%Sandbox{} = sandbox, id, opts \\ []) do
     wait = opts |> Keyword.get(:wait_seconds, 0) |> max(0) |> min(@max_wait_seconds)
@@ -405,7 +411,7 @@ defmodule Tuist.Sandboxes.Commands do
       "TUIST_WAIT" => Integer.to_string(wait),
       "TUIST_STDOUT_OFFSET" => Integer.to_string(stdout_offset),
       "TUIST_STDERR_OFFSET" => Integer.to_string(stderr_offset),
-      "TUIST_CHUNK" => Integer.to_string(@chunk_bytes)
+      "TUIST_CHUNK" => opts |> Keyword.get(:max_bytes, @chunk_bytes) |> max(0) |> min(@chunk_bytes) |> Integer.to_string()
     }
 
     with {:ok, command} <- get(sandbox, id) do
@@ -447,7 +453,15 @@ defmodule Tuist.Sandboxes.Commands do
   end
 
   defp empty_read(stdout_offset, stderr_offset),
-    do: %{stdout: "", stderr: "", stdout_offset: stdout_offset, stderr_offset: stderr_offset, complete: true}
+    do: %{
+      stdout: "",
+      stderr: "",
+      stdout_offset: stdout_offset,
+      stderr_offset: stderr_offset,
+      stdout_size: stdout_offset,
+      stderr_size: stderr_offset,
+      complete: true
+    }
 
   @doc """
   Appends `data` to the command's stdin and, with `close`, ends it. With
@@ -704,6 +718,8 @@ defmodule Tuist.Sandboxes.Commands do
          stderr: err,
          stdout_offset: stdout_offset + out_bytes,
          stderr_offset: stderr_offset + err_bytes,
+         stdout_size: stdout_size,
+         stderr_size: stderr_size,
          complete:
            state != "running" and stdout_offset + out_bytes >= stdout_size and
              stderr_offset + err_bytes >= stderr_size

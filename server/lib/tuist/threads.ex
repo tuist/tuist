@@ -406,10 +406,6 @@ defmodule Tuist.Threads do
     end
   end
 
-  def call_tool(run, context, name, args) do
-    call_external_tool(run, context.invocation_id, name, args, fn -> Workspace.call(context, name, args) end)
-  end
-
   def call_external_tool(run, invocation_id, name, args, dispatch) do
     # Condukt may admit a parallel batch. Contention must fail before reserving
     # an effect, not masquerade as an interrupted command that may have run.
@@ -434,7 +430,72 @@ defmodule Tuist.Threads do
     end)
   end
 
-  defp reserve_tool!(run, thread, key, name) do
+  @doc """
+  Reserves a built-in tool call of the run's Condukt session before it runs,
+  as `Tuist.Threads.ToolLog` asks: records its intent and the thread's
+  running tool message. Returns `:ok`, or `{:block, reason}` for a call that
+  already ran or follows one whose outcome is unknown. Condukt orders the
+  session's calls by their effects, so this run's calls to the built-in
+  `tools` that are running or parked do not block it; any other open call
+  does, such as an external tool call whose outcome is unknown.
+  """
+  def begin_tool_call(run, call_id, name, args, tools) do
+    key = fingerprint({:session_call, call_id, name, args})
+
+    case with_attempt(run, fn thread, _ -> reserve_tool!(run, thread, key, name, {:session, tools}) end) do
+      {:ok, {:dispatch, _call}} ->
+        :ok
+
+      {:ok, {:replay, result}} ->
+        {:block, "This tool call already ran. Its result was:\n\n" <> result}
+
+      {:error, :tool_outcome_unknown} ->
+        {:block, "An earlier tool call's outcome is unknown, so this call did not run."}
+
+      {:error, :stale_run} ->
+        {:block, "This run no longer owns the thread."}
+
+      {:error, reason} ->
+        {:block, "The tool call was refused: #{inspect(reason)}"}
+    end
+  end
+
+  @doc """
+  Records the result of a call `begin_tool_call/5` reserved, once it has its
+  final result, after the last wake of a call that parked.
+  """
+  def complete_tool_call(run, call_id, name, args, result) do
+    key = fingerprint({:session_call, call_id, name, args})
+
+    case Repo.get_by(ToolCall, run_id: run.id, fingerprint: key, status: "executing") do
+      nil -> :ok
+      call -> with {:ok, _output} <- complete_tool!(run, call, tool_output(result)), do: :ok
+    end
+  end
+
+  @doc """
+  Records the run's calls to the built-in tools `names` that are still
+  executing as cancelled. Call it once the run's session has stopped:
+  stopping it killed those calls and the commands they started, so no result
+  follows, and an open call would otherwise leave the thread's outcome
+  unknown. Calls to other tools, which record themselves, keep theirs.
+  """
+  def cancel_tool_calls(run, names) do
+    with_attempt(run, fn _thread, _ ->
+      from(c in ToolCall, where: c.run_id == ^run.id and c.status == "executing" and c.name in ^names)
+      |> Repo.all()
+      |> Enum.each(
+        &complete_tool!(run, &1, "Cancelled: the run ended before this call finished, so it may have partly run.")
+      )
+    end)
+  end
+
+  defp tool_output({:ok, text}) when is_binary(text), do: text
+  defp tool_output({:ok, value}), do: inspect(value)
+  defp tool_output({:error, reason}) when is_binary(reason), do: "Tool failed: " <> reason
+  defp tool_output({:error, reason}), do: "Tool failed: " <> inspect(reason)
+
+  defp reserve_tool!(run, thread, key, name, scope \\ :thread) do
     case Repo.get_by(ToolCall, run_id: run.id, fingerprint: key) do
       %ToolCall{status: "completed", result: result} ->
         {:replay, result}
@@ -443,13 +504,19 @@ defmodule Tuist.Threads do
         Repo.rollback(:tool_outcome_unknown)
 
       nil ->
-        if Repo.exists?(
-             from c in ToolCall,
-               join: r in Run,
-               on: r.id == c.run_id,
-               where: r.thread_id == ^thread.id and c.status == "executing"
-           ),
-           do: Repo.rollback(:tool_outcome_unknown)
+        executing =
+          from c in ToolCall,
+            join: r in Run,
+            on: r.id == c.run_id,
+            where: r.thread_id == ^thread.id and c.status == "executing"
+
+        executing =
+          case scope do
+            :thread -> executing
+            {:session, tools} -> where(executing, [c], c.run_id != ^run.id or c.name not in ^tools)
+          end
+
+        if Repo.exists?(executing), do: Repo.rollback(:tool_outcome_unknown)
 
         message = append!(thread, %{kind: "tool", body: "Working…", tool_name: name, tool_state: "running"})
         call = Repo.insert!(%ToolCall{run_id: run.id, message_id: message.id, fingerprint: key, name: name})
@@ -470,20 +537,24 @@ defmodule Tuist.Threads do
     # Transport errors may follow a completed shell side effect. Keep the
     # reservation unresolved and block later tools instead of guessing.
     if match?({:ok, _}, result) or result == {:error, :invalid_arguments} do
-      with_attempt(run, fn thread, _ ->
-        Repo.update!(Changeset.change(call, status: "completed", result: output), log: false)
-        message = Repo.get!(Message, call.message_id)
-
-        Repo.update!(Changeset.change(message, body: String.slice(output, 0, 8000), tool_state: "complete"),
-          log: false
-        )
-
-        update_thread!(thread, %{})
-        output
-      end)
+      complete_tool!(run, call, output)
     else
       {:error, :tool_outcome_unknown}
     end
+  end
+
+  defp complete_tool!(run, call, output) do
+    with_attempt(run, fn thread, _ ->
+      Repo.update!(Changeset.change(call, status: "completed", result: output), log: false)
+      message = Repo.get!(Message, call.message_id)
+
+      Repo.update!(Changeset.change(message, body: String.slice(output, 0, 8000), tool_state: "complete"),
+        log: false
+      )
+
+      update_thread!(thread, %{})
+      output
+    end)
   end
 
   def finish(run, result) do
