@@ -18,7 +18,7 @@ As applications expand to offer more products and support multiple platforms, **
 
 ## The industry's response
 
-The ecosystem is actively addressing these challenges. The growing adoption of SwiftPM as a project manager demonstrates developers' desire for simpler solutions to complex modular projects. While SwiftPM brings clarity by avoiding the complexities of "build phases" or "build settings" terminology, it represents an evolving approach that continues to mature.
+The ecosystem is actively addressing these challenges. The growing adoption of SwiftPM as a project manager demonstrates developers' desire for simpler solutions to complex modular projects. While SwiftPM brings clarity by avoiding the complexities of "build phases" or "build settings" terminology, it represents an evolving approach that continues to mature. Our [Swift Package Manager vs Tuist comparison](/compare/swift-package-manager) covers how the two fit together.
 
 Companies like [Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) have contributed valuable insights by openly sharing benchmarks about developer experience challenges with large modular codebases using SwiftPM. These conversations are crucial for driving improvements in the ecosystem.
 

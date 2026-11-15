@@ -1150,6 +1150,7 @@ defmodule TuistWeb.Marketing.MarketingController do
            "/compare/namespace",
            "/compare/buildkite",
            "/compare/xcodegen",
+           "/compare/swift-package-manager",
            "/compare/nx"
          ],
          do: :comparison,

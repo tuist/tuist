@@ -64,7 +64,7 @@ Tuist also allows you to declare external dependencies in your project.
 
 ### Swift Packages {#swift-packages}
 
-Swift Packages are our recommended way of declaring dependencies in your project.
+Swift Packages are our recommended way of declaring dependencies in your project. Tuist uses Swift Package Manager to resolve them; for how modularizing with local packages compares with a Tuist project, see [Swift Package Manager vs Tuist](https://tuist.dev/compare/swift-package-manager).
 You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
 
 #### Tuist's XcodeProj-based integration {#tuists-xcodeprojbased-integration}
