@@ -39,36 +39,59 @@ defmodule Tuist.Pulse.SQL do
     end
   end
 
-  def aggregate(signal, id, mode, window, request) do
-    {table, expression, filter} = aggregate_expression(signal, id)
-    predicate = bounds(window.start, window.finish) <> filter
+  # One query computes every widget of a signal, so each window is scanned once
+  # rather than once per widget. A widget's filter becomes an aggregate FILTER,
+  # which Pulse pushes down with the partial aggregate to every region, so a
+  # filtered expression must be a single aggregate call. Returns a map from
+  # widget id to its value, or to its points in :range mode.
+  def aggregate(signal, ids, mode, window, request) do
+    {table, _expression, _filter} = aggregate_expression(signal, hd(ids))
+
+    columns =
+      Enum.map_join(ids, ", ", fn id ->
+        {^table, expression, filter} = aggregate_expression(signal, id)
+        filter = if filter, do: " FILTER (WHERE #{filter})", else: ""
+        ~s|#{expression}#{filter} AS "#{id}"|
+      end)
+
+    predicate = bounds(window.start, window.finish)
     # Match (start, end] buckets. Count every span, not only root spans; duration
     # is returned in seconds because Pulse scales its millisecond widgets.
     bucket = "((arrow_cast(timestamp, 'Int64') - 1) / #{window.step * 1_000_000_000} + 1) * #{window.step}"
 
     query =
       if mode == :range do
-        "SELECT #{bucket} AS bucket, #{expression} AS value FROM #{table} WHERE #{predicate} GROUP BY bucket ORDER BY bucket"
+        "SELECT #{bucket} AS bucket, #{columns} FROM #{table} WHERE #{predicate} GROUP BY bucket ORDER BY bucket"
       else
-        "SELECT #{expression} AS value FROM #{table} WHERE #{predicate}"
+        "SELECT #{columns} FROM #{table} WHERE #{predicate}"
       end
 
     with {:ok, rows} <- sql(request, query),
-         true <- Enum.all?(rows, &(is_nil(&1["value"]) or is_number(&1["value"]))) do
-      aggregate_result(rows, mode, id, window)
+         true <-
+           Enum.all?(rows, fn row ->
+             Enum.all?(ids, &(Map.has_key?(row, &1) and (is_nil(row[&1]) or is_number(row[&1]))))
+           end) do
+      aggregate_result(rows, mode, ids, window)
     else
       false -> {:error, :malformed_response}
       error -> error
     end
   end
 
-  defp aggregate_result(rows, :range, id, window) do
+  defp aggregate_result(rows, :range, ids, window) do
     if Enum.all?(rows, &(is_integer(&1["bucket"]) and &1["bucket"] > window.start and &1["bucket"] <= window.finish)) do
-      values = Map.new(rows, &{&1["bucket"], &1["value"]})
-      empty = if id == "duration_p95", do: nil, else: 0
+      rows = Map.new(rows, &{&1["bucket"], &1})
 
       points =
-        for time <- (window.start + window.step)..window.finish//window.step, do: [time, Map.get(values, time, empty)]
+        Map.new(ids, fn id ->
+          empty = if id == "duration_p95", do: nil, else: 0
+
+          {id,
+           for(
+             time <- (window.start + window.step)..window.finish//window.step,
+             do: [time, Map.get(rows[time] || %{}, id, empty)]
+           )}
+        end)
 
       {:ok, points, []}
     else
@@ -76,28 +99,28 @@ defmodule Tuist.Pulse.SQL do
     end
   end
 
-  defp aggregate_result(rows, _mode, _id, _window) do
+  defp aggregate_result(rows, _mode, ids, _window) do
     case rows do
-      [%{"value" => value}] -> {:ok, value, []}
+      [row] -> {:ok, Map.take(row, ids), []}
       _ -> {:error, :malformed_response}
     end
   end
 
-  defp aggregate_expression("logs", "entries"), do: {"opentelemetry_logs", "count(*)", ""}
+  defp aggregate_expression("logs", "entries"), do: {"opentelemetry_logs", "count(*)", nil}
 
   defp aggregate_expression("logs", "errors"),
-    do: {"opentelemetry_logs", "count(*)", " AND upper(severity_text) IN ('ERROR', 'FATAL')"}
+    do: {"opentelemetry_logs", "count(*)", "upper(severity_text) IN ('ERROR', 'FATAL')"}
 
   defp aggregate_expression("logs", "warnings"),
-    do: {"opentelemetry_logs", "count(*)", " AND upper(severity_text) IN ('WARN', 'WARNING')"}
+    do: {"opentelemetry_logs", "count(*)", "upper(severity_text) IN ('WARN', 'WARNING')"}
 
-  defp aggregate_expression("traces", "spans"), do: {"opentelemetry_traces", "count(*)", ""}
+  defp aggregate_expression("traces", "spans"), do: {"opentelemetry_traces", "count(*)", nil}
 
   defp aggregate_expression("traces", "errors"),
-    do: {"opentelemetry_traces", "count(*)", " AND span_status_code = 'STATUS_CODE_ERROR'"}
+    do: {"opentelemetry_traces", "count(*)", "span_status_code = 'STATUS_CODE_ERROR'"}
 
   defp aggregate_expression("traces", "duration_p95"),
-    do: {"opentelemetry_traces", "approx_percentile_cont(duration_nano, 0.95) / 1000000000.0", ""}
+    do: {"opentelemetry_traces", "approx_percentile_cont(duration_nano, 0.95) / 1000000000.0", nil}
 
   def bounds(start, finish),
     do: "timestamp > to_timestamp_seconds(#{start}) AND timestamp <= to_timestamp_seconds(#{finish})"

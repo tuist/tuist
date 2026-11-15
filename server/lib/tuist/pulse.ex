@@ -143,11 +143,12 @@ defmodule Tuist.Pulse do
       window = %{start: finish - seconds, finish: finish, seconds: seconds, step: step}
       previous_window = %{window | start: window.start - seconds, finish: window.start}
 
+      widgets = widget_queries(signal)
+
       signal
-      |> widget_queries()
-      |> Enum.flat_map(&analytics_tasks(client, signal, &1, window, previous_window))
+      |> analytics_tasks(widgets, client, window, previous_window)
       |> Tasks.parallel_tasks(max_concurrency: 3)
-      |> metric_gauges(signal, window)
+      |> widget_results(signal, widgets, window)
       |> analytics_widgets(signal)
     else
       false -> {:error, :forbidden}
@@ -155,56 +156,119 @@ defmodule Tuist.Pulse do
     end
   end
 
-  defp analytics_tasks(client, signal, widget, window, previous_window) do
-    Enum.map(analytics_periods(signal, window, previous_window), fn {period, window} ->
-      fn -> analytics_sample(client, signal, widget, period, window) end
-    end)
+  defp analytics_tasks("metrics", _widgets, client, window, _previous_window) do
+    [fn -> metric_counts(client, window) end]
   end
 
-  defp analytics_periods("metrics", window, _previous), do: [{:range, window}]
-  defp analytics_periods(_signal, window, previous), do: [{:instant, window}, {:range, window}, {:previous, previous}]
+  # One SQL query per period computes every widget, so each window is scanned
+  # once instead of once per widget, and all periods run concurrently.
+  defp analytics_tasks(signal, widgets, client, window, previous_window) do
+    ids = Enum.map(widgets, &elem(&1, 0))
+
+    Enum.map([{:instant, window}, {:range, window}, {:instant, previous_window}], fn {mode, window} ->
+      fn -> SQL.aggregate(signal, ids, mode, window, &request(client, "/v1/sql", &1)) end
+    end)
+  end
 
   # A Prometheus range evaluates the same instant expression at both aligned
-  # endpoints. Reuse those observations instead of scanning the source three
-  # times for each gauge. An absent endpoint stays missing, never carried forward.
-  defp metric_gauges(results, "metrics", window) do
-    Enum.flat_map(results, fn
-      {:ok, {id, unit, :range, points, warnings}} = result ->
-        [
-          {:ok, {id, unit, :instant, metric_endpoint(points, window.finish), warnings}},
-          result,
-          {:ok, {id, unit, :previous, metric_endpoint(points, window.start), []}}
-        ]
-
-      error ->
-        [error]
+  # endpoints. Reuse those observations instead of scanning the source again for
+  # each gauge. An absent endpoint stays missing, never carried forward.
+  defp widget_results([{:ok, points, warnings}], "metrics", widgets, window) do
+    Enum.flat_map(widgets, fn {id, unit} ->
+      [
+        {:ok, {id, unit, :instant, metric_endpoint(points[id], window.finish), warnings}},
+        {:ok, {id, unit, :range, points[id], []}},
+        {:ok, {id, unit, :previous, metric_endpoint(points[id], window.start), []}}
+      ]
     end)
   end
 
-  defp metric_gauges(results, _signal, _window), do: results
+  defp widget_results([{:ok, current, warnings}, {:ok, points, _}, {:ok, previous, _}], _signal, widgets, _window) do
+    Enum.flat_map(widgets, fn {id, unit} ->
+      [
+        {:ok, {id, unit, :instant, current[id], warnings}},
+        {:ok, {id, unit, :range, points[id], []}},
+        {:ok, {id, unit, :previous, previous[id], []}}
+      ]
+    end)
+  end
+
+  defp widget_results(results, _signal, _widgets, _window), do: Enum.filter(results, &match?({:error, _}, &1))
 
   defp metric_endpoint(points, time) do
     Enum.find_value(points, fn [timestamp, value] -> if timestamp == time, do: value end)
   end
 
-  defp analytics_sample(client, "metrics", {id, query, unit}, :range, window) do
-    params = [query: query, start: window.start, end: window.finish, step: window.step]
+  # One count_values query yields every metric widget: per step, its series
+  # count the targets reporting each value of `up`. Reporting is their sum,
+  # healthy the count reporting 1 and unhealthy the count reporting 0, which is
+  # zero rather than missing at a step where other values were reported. This
+  # scans `up` once per load instead of once per widget.
+  @metric_widgets [{"reporting", :any}, {"healthy", 1.0}, {"unhealthy", 0.0}]
+
+  defp metric_counts(client, window) do
+    params = [query: ~s|count_values("value", up)|, start: window.start, end: window.finish, step: window.step]
 
     with {:ok, body} <- request(client, "/api/v1/query_range", params),
          {:ok, warnings} <- warnings(body),
-         {:ok, points} <- metric_points(body),
-         {:ok, points} <- aggregate_points(points, window) do
-      {:ok, {id, unit, :range, points, warnings}}
+         {:ok, series} <- value_series(body, window) do
+      times = series |> Enum.flat_map(fn {_, counts} -> Map.keys(counts) end) |> Enum.uniq() |> Enum.sort()
+
+      count = fn value, time ->
+        series |> Enum.filter(&(value in [:any, elem(&1, 0)])) |> Enum.map(&Map.get(elem(&1, 1), time, 0)) |> Enum.sum()
+      end
+
+      points =
+        Map.new(@metric_widgets, fn {id, value} ->
+          {id, Enum.map(times, &[&1, count.(value, &1)])}
+        end)
+
+      {:ok, points, warnings}
     end
   end
 
-  defp analytics_sample(client, signal, {id, unit}, period, window) do
-    mode = if period == :previous, do: :instant, else: period
-
-    with {:ok, values, warnings} <- SQL.aggregate(signal, id, mode, window, &request(client, "/v1/sql", &1)) do
-      {:ok, {id, unit, period, values, warnings}}
+  # A count_values result has one series per distinct value of `up`, normally
+  # just 0 and 1. More than @limit series, or two for the same value, is a
+  # malformed response, never a truncated one.
+  defp value_series(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => series}}, window)
+       when is_list(series) and length(series) <= @limit do
+    with {:ok, series} <- collect(series, &value_counts(&1, window)) do
+      if length(Enum.uniq_by(series, &elem(&1, 0))) == length(series),
+        do: {:ok, series},
+        else: {:error, :malformed_response}
     end
   end
+
+  defp value_series(_body, _window), do: {:error, :malformed_response}
+
+  defp value_counts(%{"metric" => %{"value" => label}, "values" => values}, window)
+       when is_binary(label) and is_list(values) and length(values) <= @points do
+    value =
+      case Float.parse(label) do
+        {number, ""} -> number
+        _ -> {:other, label}
+      end
+
+    with {:ok, counts} <- collect(values, &value_count(&1, window)),
+         true <- length(Enum.uniq_by(counts, &hd/1)) == length(counts) do
+      {:ok, {value, Map.new(counts, fn [time, count] -> {time, count} end)}}
+    end
+  end
+
+  defp value_counts(_series, _window), do: :error
+
+  # Points fall on the range's step grid, so the merged series stay within
+  # @points steps; a count is a whole number of targets, which Pulse formats as
+  # a float ("2.0") and Prometheus as an integer ("2").
+  defp value_count([time, count], window) when is_number(time) and is_binary(count) do
+    with true <- time == trunc(time) and time >= window.start and time <= window.finish,
+         true <- rem(trunc(time) - window.start, window.step) == 0,
+         {count, ""} when count >= 0 and count == trunc(count) <- Float.parse(count) do
+      {:ok, [trunc(time), trunc(count)]}
+    end
+  end
+
+  defp value_count(_point, _window), do: :error
 
   defp analytics_range(signal, params) when signal in @signals and is_map(params) do
     range = Map.get(params, "range", "1h")
@@ -216,56 +280,11 @@ defmodule Tuist.Pulse do
 
   defp analytics_range(_signal, _params), do: {:error, :invalid_params}
 
-  defp widget_queries("metrics") do
-    [
-      {"reporting", "count(up)", :count},
-      {"healthy", "sum(up == bool 1)", :count},
-      {"unhealthy", "sum(up == bool 0)", :count}
-    ]
-  end
+  defp widget_queries("metrics"), do: Enum.map(@metric_widgets, &{elem(&1, 0), :count})
 
   # Log and trace widget SQL is authored by Tuist.Pulse.SQL from the id.
   defp widget_queries("logs"), do: [{"entries", :count}, {"errors", :count}, {"warnings", :count}]
   defp widget_queries("traces"), do: [{"spans", :count}, {"errors", :count}, {"duration_p95", :milliseconds}]
-
-  defp metric_points(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => []}}), do: {:ok, []}
-
-  defp metric_points(%{"status" => "success", "data" => %{"resultType" => "matrix", "result" => [%{"values" => values}]}})
-       when is_list(values) and length(values) <= @points do
-    collect(values, fn
-      [timestamp, value] when is_number(timestamp) and timestamp >= 0 ->
-        with {:ok, number} <- analytics_number(value), do: {:ok, [timestamp, number]}
-
-      _ ->
-        :error
-    end)
-  end
-
-  defp metric_points(_body), do: {:error, :malformed_response}
-
-  defp analytics_number(value) when is_number(value), do: {:ok, value}
-  defp analytics_number(nil), do: {:ok, nil}
-  defp analytics_number(value) when value in ["NaN", "+Inf", "-Inf", "Inf"], do: {:ok, nil}
-
-  defp analytics_number(value) when is_binary(value) do
-    case Float.parse(value) do
-      {number, ""} -> {:ok, number}
-      _ -> {:error, :malformed_response}
-    end
-  end
-
-  defp analytics_number(_value), do: {:error, :malformed_response}
-
-  defp aggregate_points(points, window) do
-    points = Enum.sort_by(points, &hd/1)
-
-    if length(Enum.uniq_by(points, &hd/1)) == length(points) and
-         Enum.all?(points, fn [timestamp, _] -> timestamp >= window.start and timestamp <= window.finish end) do
-      {:ok, points}
-    else
-      {:error, :malformed_response}
-    end
-  end
 
   defp analytics_widgets(results, signal) do
     case Enum.find(results, &match?({:error, _}, &1)) do
@@ -290,7 +309,7 @@ defmodule Tuist.Pulse do
           end)
 
         # A duration without spans is not a measured zero duration; use the
-        # independently queried span counts as evidence.
+        # span counts of the same period and bucket as evidence.
         widgets = if signal == "traces", do: trace_duration_gaps(widgets), else: widgets
         warnings = Enum.flat_map(results, fn {:ok, {_, _, _, _, warnings}} -> warnings end)
         {:ok, %{widgets: widgets, warnings: warnings |> Enum.uniq() |> Enum.take(@limit)}}
