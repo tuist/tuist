@@ -24,6 +24,10 @@ num_topics = 16
 topic_name_prefix = "{{ include "pulse.walTopicPrefix" . }}"
 replication_factor = 3
 create_topic_timeout = "30s"
+{{- if has .Values.environment .Values.cluster.gc.environments }}
+[gc]
+enable = true
+{{- end }}
 {{ include "pulse.logging" . }}
 {{- end }}
 
@@ -61,6 +65,10 @@ auto_flush_interval = "1m"
 global_write_buffer_size = "128MB"
 global_write_buffer_reject_size = "256MB"
 write_cache_size = {{ .Values.cluster.datanode.writeCacheSize | quote }}
+{{- if has .Values.environment .Values.cluster.gc.environments }}
+[region_engine.mito.gc]
+enable = true
+{{- end }}
 {{ include "pulse.logging" . }}
 {{- end }}
 

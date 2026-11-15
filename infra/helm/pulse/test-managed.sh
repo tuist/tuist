@@ -188,6 +188,16 @@ jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$tmp/edited"
   ($before["pulse-frontend"] == $after["pulse-frontend"])' > /dev/null
 jq -e -n --argjson before "$baseline" --argjson after "$(checksums "$chart" --set cluster.frontend.replicas=3)" \
   '$before == $after' > /dev/null
+# GC runs only where listed, and metasrv and datanodes always agree on it.
+for environment in staging canary production; do
+  helm template pulse "$chart" -n observability --set "environment=$environment,storage.bucket=tuist-pulso-$environment" |
+    yq ea -o=json -I=0 '.' | jq -s --arg env "$environment" '
+      map(select(.kind == "ConfigMap")) | INDEX(.metadata.name) |
+      (.["pulse-metasrv-config"].data | to_entries[0].value | test("\\[gc\\]\nenable = true\n")) as $meta |
+      (.["pulse-datanode-config"].data | to_entries[0].value | test("\\[region_engine\\.mito\\.gc\\]\nenable = true\n")) as $data |
+      $meta == $data and $meta == ($env == "staging")
+    ' | grep -qx true || { echo "FAIL: GC setting for $environment" >&2; exit 1; }
+done
 # Management: standalone on one node's hostPath, its own bucket, no Cilium
 # policy, readers limited to its own PDC agent, and no unsafe overrides.
 # Render it the way Flux does: valuesFiles are merged into the chart's own
