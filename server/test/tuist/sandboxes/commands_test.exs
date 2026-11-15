@@ -84,6 +84,24 @@ defmodule Tuist.Sandboxes.CommandsTest do
       assert {:error, :invalid_command} = Commands.start(sandbox, %{command: "make", id: "not-a-uuid"})
     end
 
+    test "answers concurrent requests with the same id with one command" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+      id = Ecto.UUID.generate()
+      stub(Nodes, :call, started())
+
+      results =
+        1..8
+        |> Enum.map(fn _ -> Task.async(fn -> Commands.start(sandbox, %{command: "make", id: id}) end) end)
+        |> Task.await_many(30_000)
+
+      assert Enum.all?(results, &match?({:ok, %{id: ^id}}, &1))
+      assert sandbox |> Commands.list() |> Enum.map(& &1.id) == [id]
+
+      # Another sandbox cannot take the id.
+      other = sandbox_fixture(state: :running, node_name: "node-a")
+      assert {:error, :command_id_taken} = Commands.start(other, %{command: "make", id: id})
+    end
+
     test "never stores the environment" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       expect(Nodes, :call, started())

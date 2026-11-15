@@ -138,6 +138,10 @@ defmodule Tuist.Sandboxes.Query do
     do: {:conflict, "The write does not continue the command's stdin: its offset is not the number of bytes stdin holds."}
 
   def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
+
+  def error(:command_id_taken),
+    do: {:conflict, "Another command already uses this id. Choose a new id for a new command."}
+
   def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
 
   def error(:archive_store_unavailable),

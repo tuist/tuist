@@ -293,17 +293,34 @@ defmodule Tuist.Sandboxes.Commands do
   defp start_on(sandbox, id, params, script, env, timeout_ms) do
     # The row exists before the sandbox is held, so a command finishing
     # concurrently sees it and keeps the residency.
-    command =
-      Repo.insert!(%SandboxCommand{
-        id: id,
-        sandbox_id: sandbox.id,
-        account_id: sandbox.account_id,
-        command: script,
-        cwd: Map.get(params, :cwd),
-        stdin: Map.get(params, :stdin) == true,
-        deadline_at: DateTime.add(DateTime.utc_now(:second), div(timeout_ms, 1000) + 1)
-      })
+    %SandboxCommand{
+      id: id,
+      sandbox_id: sandbox.id,
+      account_id: sandbox.account_id,
+      command: script,
+      cwd: Map.get(params, :cwd),
+      stdin: Map.get(params, :stdin) == true,
+      deadline_at: DateTime.add(DateTime.utc_now(:second), div(timeout_ms, 1000) + 1)
+    }
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.unique_constraint(:id, name: :sandbox_commands_pkey)
+    |> Repo.insert()
+    |> case do
+      {:ok, command} ->
+        launch_started(sandbox, command, env, params)
 
+      # A start with the same id raced this one past `get/2`: answer with
+      # its command, as a start sent again does. An id another sandbox's
+      # command holds is refused.
+      {:error, _changeset} ->
+        case get(sandbox, id) do
+          {:ok, command} -> {:ok, serialize(command)}
+          {:error, :not_found} -> {:error, :command_id_taken}
+        end
+    end
+  end
+
+  defp launch_started(sandbox, command, env, params) do
     case hold_and_launch(sandbox, command, env, params) do
       {:ok, held} ->
         {:ok, _job} =
