@@ -7,7 +7,7 @@
 ---
 # Bazel cache {#bazel-cache}
 
-Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache. When an action's outputs are already in the cache, Bazel skips the action and pulls the result from Tuist's cache, saving compilation time across your team and CI environments.
+Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache. When an action's outputs are already in the cache, Bazel skips the action and pulls the result from Tuist's cache, saving compilation time across your team and CI environments. For a GitHub Actions setup with caching and remote execution, see [Bazel on GitHub Actions](https://tuist.dev/solutions/bazel-github-actions).
 
 ## Setup {#setup}
 
