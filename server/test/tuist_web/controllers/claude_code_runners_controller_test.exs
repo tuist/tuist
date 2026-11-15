@@ -32,7 +32,7 @@ defmodule TuistWeb.ClaudeCodeRunnersControllerTest do
 
   test "the workload identity alone picks the environment", %{conn: conn, agent_environment: agent_environment} do
     managed_agents = agent_environment_fixture()
-    reject(&Capacity.admissible?/2)
+    reject(&Capacity.admissible?/3)
 
     identity(ClaudeCodeRuntime.name(managed_agents))
     assert conn |> spawn_request() |> response(:unauthorized)
@@ -46,7 +46,7 @@ defmodule TuistWeb.ClaudeCodeRunnersControllerTest do
 
   test "a malformed request is refused for good", %{conn: conn, agent_environment: agent_environment} do
     identity(ClaudeCodeRuntime.name(agent_environment))
-    reject(&Capacity.admissible?/2)
+    reject(&Capacity.admissible?/3)
 
     assert conn |> spawn_request(%{@body | "work_order" => "not a jwt"}) |> response(:bad_request)
     assert build_conn() |> spawn_request(Map.delete(@body, "session_id")) |> response(:bad_request)
@@ -76,7 +76,7 @@ defmodule TuistWeb.ClaudeCodeRunnersControllerTest do
 
   test "a session that does not fit asks the orchestrator to retry", %{conn: conn, agent_environment: agent_environment} do
     identity(ClaudeCodeRuntime.name(agent_environment))
-    stub(Capacity, :admissible?, fn %{id: id}, "session_01abc" when id == agent_environment.id -> false end)
+    stub(Capacity, :admissible?, fn %{id: id}, "session_01abc", _opts when id == agent_environment.id -> false end)
 
     assert conn |> spawn_request() |> response(:too_many_requests)
   end
