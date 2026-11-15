@@ -178,7 +178,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl jq"
+          install_args: "--locked helm kubectl jq yq"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
@@ -453,9 +453,13 @@ jobs:
           trap 'kubectl -n observability delete pod pulse-reset --ignore-not-found --wait=true --timeout=60s > /dev/null || true
             kubectl -n observability delete externalsecret pulse-reset --ignore-not-found --wait=true --timeout=60s > /dev/null || true' EXIT
           kubectl -n observability delete pod pulse-reset --ignore-not-found --wait=true --timeout=60s > /dev/null
-          # The wipe needs the release's S3 key, whose ExternalSecret goes with it.
+          # The wipe needs the release's S3 key. Its references come from the
+          # rendered chart, since the release's ExternalSecret goes with it.
           if [[ -z "$(kubectl -n observability get externalsecret pulse-reset --ignore-not-found -o name)" ]]; then
-            kubectl -n observability get externalsecret pulse-credentials -o json | jq -e '
+            helm template pulse infra/helm/pulse -n observability \
+              -f infra/helm/pulse/values.yaml -f infra/helm/pulse/values-management.yaml |
+              yq -o json 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-credentials")' | jq -se '
+              select(length == 1) | .[0] |
               select([.spec.data[].secretKey] == ["accessKey", "secretKey"]) |
               {apiVersion, kind, metadata:{name:"pulse-reset", namespace:"observability"}, spec:{
                 refreshInterval:"0", secretStoreRef:.spec.secretStoreRef, data:.spec.data,
