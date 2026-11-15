@@ -23,7 +23,7 @@ and the callback method from obfuscation. JNI callback exceptions become sanitiz
 errors, not exception messages. The JNI dependency is Android-only for normal
 builds, and also a test dependency to compile-check marshalling on Linux.
 
-Existing tab IDs (`previews`, `profile`) and catalog C/JNI symbols are unchanged.
+The tab catalog is `threads` (index 0, the default) then `profile`; its C/JNI symbols are unchanged.
 Rust callers can instantiate `MobileClient` and implement `Host` independently.
 
 ## Native host actions
@@ -87,6 +87,7 @@ when an operation reports an error.
 | `select_organization` | profile `id`, `name` (null or account handle selects personal account) | null |
 | `sign_out` | none | null; removes active profile, selects first eligible fallback |
 | `organizations` | none | `[{id:<profile ID>,response:<raw organizations response>},…]` |
+| `threads` | optional nonempty `cursor` | `{available,threads:[{…,state,section},…],next_cursor}` from `/api/accounts/{personal handle}/threads`, whatever organization is selected; `state` is `queued`, `running` (also `compacting` and `shipping`), `completed` (the server's `idle`), `failed` (also `interrupted`), `outcome_unknown` or null for statuses the core doesn't know, and `section` is `in_progress`, `recent` or `archived`; a repeated cursor ends paging; a 404 returns `available:false` and no threads |
 | `projects` | none | `{projects:[…]}`; complete enumeration, deduplicated and account-scoped |
 | `previews` | `project`: `account/project`, optional nullable `track`, `search`, `page` (default 1), `page_size` (default 20, maximum 100) | raw previews response |
 | `tracks` | `project` | raw full-project `{total_count,tracks:[{name,count}]}` |

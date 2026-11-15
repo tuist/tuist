@@ -975,6 +975,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /customers/:slug" do
+    @tag :locale
     test "renders the localized Hyperconnect case study", %{conn: conn} do
       conn = get(conn, ~p"/ko/customers/hyperconnect")
 

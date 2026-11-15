@@ -169,6 +169,63 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
+            "threads" => {
+                // Threads belong to the person, not the selected organization:
+                // the server lists only threads the user owns, and requires
+                // admin rights on an organization account.
+                let index = self.active()?;
+                let handle = &self.vault.profiles[index].handle;
+                if !segment(handle) {
+                    return Err("Invalid account");
+                }
+                let mut url = endpoint(
+                    &server_url(&self.vault.profiles[index].server)?,
+                    &format!("api/accounts/{handle}/threads"),
+                );
+                let cursor = args.get("cursor").and_then(Value::as_str);
+                if let Some(cursor) = cursor {
+                    if cursor.is_empty() {
+                        return Err("Invalid cursor");
+                    }
+                    url.query_pairs_mut().append_pair("cursor", cursor);
+                }
+                // The server answers 404 when threads are off for the user (the
+                // `code` flag) or it predates them.
+                let mut data = match self.api(index, "GET", url, host) {
+                    Err(NOT_FOUND) => {
+                        return Ok(json!({"available":false,"threads":[],"next_cursor":null}));
+                    }
+                    result => result?,
+                };
+                data["available"] = json!(true);
+                // A server repeating the cursor it was given would page forever.
+                if cursor.is_some() && data["next_cursor"].as_str() == cursor {
+                    data["next_cursor"] = Value::Null;
+                }
+                for thread in data["threads"].as_array_mut().ok_or("Invalid threads")? {
+                    // The server's agent statuses, as the person sees them: a run
+                    // that ended (`idle`) is ready to review, and one that stopped
+                    // early (`interrupted`) needs attention like a failure.
+                    let state = match thread["status"].as_str() {
+                        Some("queued") => Some("queued"),
+                        Some("running" | "compacting" | "shipping") => Some("running"),
+                        Some("idle") => Some("completed"),
+                        Some("failed" | "interrupted") => Some("failed"),
+                        Some("outcome_unknown") => Some("outcome_unknown"),
+                        _ => None,
+                    };
+                    let section = if thread["archive_status"] == "archived" {
+                        "archived"
+                    } else if matches!(state, Some("queued" | "running")) {
+                        "in_progress"
+                    } else {
+                        "recent"
+                    };
+                    thread["state"] = json!(state);
+                    thread["section"] = json!(section);
+                }
+                Ok(data)
+            }
             "previews" | "tracks" | "preview" | "delete_preview" => {
                 let index = self.active()?;
                 let project = text(args, "project")?;
@@ -664,11 +721,13 @@ fn http(
     Ok((status, data))
 }
 
+const NOT_FOUND: &str = "Resource not found or server unsupported";
+
 fn successful((status, data): (u64, Value)) -> Result<Value> {
     match status {
         200..=299 => Ok(data),
         401 | 403 => Err("Access denied"),
-        404 => Err("Resource not found or server unsupported"),
+        404 => Err(NOT_FOUND),
         _ => Err("Server request failed"),
     }
 }

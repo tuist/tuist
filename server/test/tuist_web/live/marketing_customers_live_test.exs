@@ -11,6 +11,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
       assert html =~ "/marketing/assets/bundle.css"
     end
 
+    @tag :locale
     test "renders the localized Hyperconnect title for Korean visitors", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/ko/customers")
 

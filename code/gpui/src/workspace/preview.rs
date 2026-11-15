@@ -1,7 +1,7 @@
 use gpui::{ClipboardItem, Context, IntoElement, Window, div, prelude::*};
 use tuist_navigation::{Preview, Route};
 
-use super::Workspace;
+use super::{Workspace, title};
 use crate::keyboard::KeyboardControl;
 use crate::theme::Theme;
 
@@ -17,17 +17,18 @@ impl Workspace {
             .url(&url::Url::parse(&self.server).unwrap())
             .unwrap();
         let copy_url = url.to_string();
+        let back = format!("Back to {}", title(self.navigation.read(cx).tab));
         div().flex().flex_col().p_6().gap_4()
-            .child(div().id("back-to-previews").cursor_pointer().text_color(theme.accent)
-                .keyboard_control("Back to previews", theme, Some(&self.scroll), window, cx)
-                .child("Back to previews")
+            .child(div().id("close-preview").debug_selector(|| "close-preview".into()).cursor_pointer().text_color(theme.accent)
+                .keyboard_control(back.clone(), theme, Some(&self.scroll), window, cx)
+                .child(back)
                 .on_a11y_action(gpui::AccessibleAction::Click, {
-                    let navigation = self.navigation.clone();
-                    move |_, _, cx| navigation.update(cx, |nav, cx| { nav.navigate(Route::Previews); cx.notify(); })
+                    let workspace = cx.weak_entity();
+                    move |_, window, cx| {
+                        let _ = workspace.update(cx, |this, cx| this.close_preview(window, cx));
+                    }
                 })
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.navigation.update(cx, |nav, cx| { nav.navigate(Route::Previews); cx.notify(); });
-                })))
+                .on_click(cx.listener(|this, _, window, cx| this.close_preview(window, cx))))
             .child(div().text_xl().child(gpui::text!(format!("{}/{}", preview.account, preview.project))))
             .child(div().text_color(theme.text_muted).child(gpui::text!(format!("Preview {}", preview.id))))
             .child(gpui::text!("Preview details are available on the web. Opening this link does not install or run the preview."))
@@ -48,5 +49,16 @@ impl Workspace {
                         move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(url.clone()))
                     })
                     .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone())))))
+    }
+
+    /// The Back control disappears with the preview, so focus moves to the
+    /// sidebar row of the destination underneath.
+    fn close_preview(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let tab = self.navigation.update(cx, |nav, cx| {
+            nav.preview = None;
+            cx.notify();
+            nav.tab
+        });
+        window.focus(&self.destination_focus[tab as usize], cx);
     }
 }

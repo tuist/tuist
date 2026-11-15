@@ -38,28 +38,7 @@ struct Entry {
 }
 
 fn avatar(label: &str, theme: Theme) -> impl IntoElement {
-    let initials: String = label
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .take(2)
-        .flat_map(char::to_uppercase)
-        .collect();
-    div()
-        .size(px(28.))
-        .flex_none()
-        .rounded_full()
-        .bg(theme.accent)
-        .text_color(theme.accent_foreground)
-        .text_xs()
-        .font_weight(FontWeight::SEMIBOLD)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(if initials.is_empty() {
-            "?".to_owned()
-        } else {
-            initials
-        })
+    crate::workspace::avatar(label, px(28.), theme).text_xs()
 }
 
 impl Root {
@@ -148,7 +127,7 @@ impl Root {
                 if let Some(status) = self.status.clone() {
                     self.home(self.session.clone(), Ok(status), false, window, cx);
                     self.navigation.update(cx, |navigation, cx| {
-                        navigation.tab = Tab::Profile;
+                        navigation.select(Tab::Profile);
                         cx.notify();
                     });
                 }

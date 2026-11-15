@@ -27,7 +27,7 @@ defmodule Tuist.Threads do
   @active ["queued", "running"]
 
   def authorize(%User{active: true, disabled_at: nil} = user, account) when not is_nil(account) do
-    if FeatureFlags.ai_enabled?(user) and Authorization.authorize(:account_update, user, account) == :ok,
+    if FeatureFlags.code_enabled?(user) and Authorization.authorize(:account_update, user, account) == :ok,
       do: :ok,
       else: {:error, :forbidden}
   end

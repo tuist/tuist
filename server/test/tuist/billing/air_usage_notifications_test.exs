@@ -11,6 +11,9 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
+  # Inserting 8,001 admins takes about 15 seconds alone and can pass the
+  # default 60-second limit when the whole suite shares the database.
+  @tag timeout: 180_000
   test "queues all admins of a large organization once, including the final partial batch" do
     owner = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: owner)

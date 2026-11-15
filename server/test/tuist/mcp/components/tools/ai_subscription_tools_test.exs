@@ -113,7 +113,7 @@ defmodule Tuist.MCP.Components.Tools.AISubscriptionToolsTest do
     assert %{"isError" => true} = CancelChatGPTSubscriptionLogin.call(conn, %{"login_id" => login_id})
   end
 
-  test "requires a user with the ai flag", %{user: user, conn: conn} do
+  test "requires a user with the code flag", %{user: user, conn: conn} do
     account_subject = %Plug.Conn{
       assigns: %{current_subject: %AuthenticatedAccount{account: user.account, scopes: ["mcp"]}}
     }
@@ -121,7 +121,7 @@ defmodule Tuist.MCP.Components.Tools.AISubscriptionToolsTest do
     assert %{"isError" => true} = ListAISubscriptions.call(account_subject, %{})
     assert %{"isError" => true} = ConnectClaudeSubscription.call(account_subject, %{"token" => @claude_token})
 
-    stub(FeatureFlags, :ai_enabled?, fn _user -> false end)
+    stub(FeatureFlags, :code_enabled?, fn _user -> false end)
 
     assert %{"isError" => true} = ListAISubscriptions.call(conn, %{})
     assert %{"isError" => true} = ConnectClaudeSubscription.call(conn, %{"token" => @claude_token})

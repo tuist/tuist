@@ -9,8 +9,6 @@ struct AppProfile: Decodable, Identifiable {
     let server: String
     let handle: String?
     let email: String?
-    let organization: String?
-    let organizations: [String]?
     let rejected: Bool
     /// Uses the Tuist app's session on this Mac.
     let shared: Bool?

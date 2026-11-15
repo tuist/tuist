@@ -105,7 +105,7 @@ fn matches_the_full_server_base_and_legacy_alias_defaults_to_production() {
 fn pending_links_wait_for_authentication_and_oauth_does_not_replace_them() {
     let mut nav = Navigation::default();
     nav.receive("tuist://app/profile", &server());
-    assert_eq!(nav.tab, Tab::Previews);
+    assert_eq!(nav.tab, Tab::Threads);
     nav.receive("tuist://app/a/p/previews/first", &server());
     nav.receive("tuist://oauth-callback?code=secret", &server());
     nav.resume();
@@ -119,12 +119,16 @@ fn pending_links_wait_for_authentication_and_oauth_does_not_replace_them() {
     nav.resume();
     assert_eq!(nav.preview.as_ref().unwrap().id, "second");
     assert_eq!(nav.error, Some(RouteError::DifferentServer));
+    // The handoff page stays over the tab it opened on until a tab is chosen.
+    assert_eq!(nav.tab, Tab::Threads);
     nav.navigate(Route::Profile);
-    assert_eq!(nav.preview.as_ref().unwrap().id, "second");
+    assert_eq!((nav.tab, nav.preview.clone()), (Tab::Profile, None));
+    nav.receive("tuist://app/a/p/previews/third", &server());
+    nav.resume();
+    assert_eq!(nav.tab, Tab::Profile);
     nav.receive("tuist://app/previews", &server());
     nav.resume();
-    assert_eq!(nav.tab, Tab::Previews);
-    assert_eq!(nav.preview, None);
+    assert_eq!((nav.tab, nav.preview.clone()), (Tab::Threads, None));
     nav.navigate(Route::Profile);
     nav.resume();
     assert_eq!(nav.tab, Tab::Profile);

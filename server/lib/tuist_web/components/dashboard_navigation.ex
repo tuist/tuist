@@ -105,8 +105,8 @@ defmodule TuistWeb.DashboardNavigation do
         if(Accounts.organization?(account), do: settings <> "/ai/routing", else: settings <> "/ai"),
         dgettext("dashboard", "Manage AI subscriptions and routing"),
         if(Accounts.organization?(account),
-          do: admin? and FeatureFlags.organization_ai_enabled?(account),
-          else: account.user_id == user.id and FeatureFlags.ai_enabled?(user)
+          do: admin? and FeatureFlags.organization_code_enabled?(account),
+          else: account.user_id == user.id and FeatureFlags.code_enabled?(user)
         )
       )
     ]

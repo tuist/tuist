@@ -2,7 +2,7 @@ defmodule Tuist.MCP.Components.Tools.AISubscriptionTools do
   @moduledoc """
   Shared helpers for the tools that manage the authenticated user's personal AI
   subscriptions (`Tuist.Accounts.AISubscriptions`). They act only for a user,
-  only while `Tuist.FeatureFlags.ai_enabled?/1` holds for them, and never
+  only while `Tuist.FeatureFlags.code_enabled?/1` holds for them, and never
   return credentials. Under a WebMCP account scope, only the user's personal
   account is in scope.
   """
@@ -39,10 +39,10 @@ defmodule Tuist.MCP.Components.Tools.AISubscriptionTools do
   def user(%{assigns: assigns}) do
     with %User{} = user <- assigns[:current_user],
          true <- in_scope?(assigns[:mcp_account_scope], user),
-         true <- FeatureFlags.ai_enabled?(user) do
+         true <- FeatureFlags.code_enabled?(user) do
       {:ok, user}
     else
-      _ -> {:error, "AI subscriptions are only available to an authenticated user with the AI feature flag."}
+      _ -> {:error, "AI subscriptions are only available to an authenticated user with the code feature flag."}
     end
   end
 

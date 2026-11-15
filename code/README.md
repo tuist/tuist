@@ -34,7 +34,9 @@ Mise runs `prepare-native.py` before graph loading. When invoking Once directly,
 
 Every client's signed-out screen copies the shipping app's `LogInView`, titled **Welcome to Tuist Code** (`../app/Sources/TuistOnboarding/LogInView.swift`, `../android/app/src/main/java/dev/tuist/app/ui/login/LoginScreen.kt`): Sign in with Tuist, Apple, Google and GitHub on Tuist-hosted, then **Self-hosted server**, which asks for an HTTPS server URL and prefills the last self-hosted server used. GPUI shows the social providers only while `https://tuist.dev` is selected, signs in with Tuist to the selected server, and opens its account/server form from **Self-hosted server**. Its artwork and brand assets are copied into `apple/Resources/Assets.xcassets` and `android/res/`; GPUI keeps its theme colors. On iOS, macOS and Android, adding a profile shows the same screen with Cancel; GPUI adds accounts from its account menu. The screen scrolls when a landscape phone or large text leaves too little height. Every client keeps several accounts, on one or more servers, and switches between them without signing in again.
 
-Both mobile interfaces support saved profiles, per-profile organizations, hosted/self-hosted sign-in, sign-out and confirmed account deletion. Previews include project selection, full-project track counts, server-side debounced search, pagination, detail metadata and full plain-text release notes. iOS offers confirmed IPA installation; Android offers a confirmed HTTPS APK handoff. Authentication uses an ephemeral system browser, exact single-use callback/state validation, public dynamic client registration and PKCE. Android requires an ephemeral-capable Custom Tabs provider and fails closed when none is available.
+Signed in, iOS, macOS and GPUI share two destinations from the core's tab catalog: **Threads**, then **Profile**. iOS uses a tab bar, with the shipping app's profile switcher on a long press of the Profile tab. macOS follows the HIG with a `NavigationSplitView` sidebar, a toolbar profile menu and a grouped-form Profile; it builds from the same SwiftUI sources as iOS (`apple/Sources`), and only the Info.plist differs. GPUI follows Zed's workspace: a left dock of destinations under the title bar's account menu. On iOS and macOS, Threads lists the signed-in person's threads from `/api/accounts/{handle}/threads`, whatever organization is selected, grouped into In progress, Recent and Archived by the core; GPUI shows a placeholder until it calls the core. The server answers 404 when threads are off for the user (its `code` flag) or it predates them; the core reports `available: false` and the tab explains it. Profile copies the shipping app's `ProfileView`: identity, email, server, legal and help links, app version, sign-out and confirmed account deletion.
+
+Android still shows its earlier Previews/Profile interface: project selection, full-project track counts, server-side debounced search, pagination, detail metadata, full plain-text release notes and a confirmed HTTPS APK handoff. Every client supports saved profiles on one or more servers and hosted/self-hosted sign-in. Authentication uses an ephemeral system browser, exact single-use callback/state validation, public dynamic client registration and PKCE. Android requires an ephemeral-capable Custom Tabs provider and fails closed when none is available.
 
 Session storage follows the existing platform boundaries, but not the shipping app's sandbox:
 
@@ -218,15 +220,16 @@ native build until that job has actually run.
 
 ## Deep links
 
-The app accepts `tuist://app/profile`, `tuist://app/previews`, and canonical
+The app accepts `tuist://app/profile`, `tuist://app/previews` (which opens
+Threads, since Tuist Code has no previews list), and canonical
 preview URLs scoped to the selected server (production by default). The shared wire
 contract and mobile examples are in [navigation.md](../app/navigation.md).
 URLs passed as arguments or delivered by the OS reach the existing window.
 Links received while signed out wait for sign-in; navigation never signs in,
 changes servers, installs, or runs a preview.
 
-A preview link currently opens an identifier/handoff screen with Back, Copy link,
-and Open on web. No preview metadata is requested. Other valid same-server web
+A preview link opens an identifier/handoff screen over the current destination,
+with Back, Copy link, and Open on web. No preview metadata is requested. Other valid same-server web
 pages use the system browser; invalid and wrong-server links leave the current
 destination intact and show a dismissible error.
 

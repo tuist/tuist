@@ -20,6 +20,7 @@ defmodule TuistWeb.Marketing.MarketingBlogIframeControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
     end
 
+    @tag :locale
     test "renders the English template when accessed via a localized route", %{conn: conn} do
       # When
       conn =

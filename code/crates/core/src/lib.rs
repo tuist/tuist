@@ -10,16 +10,16 @@ pub use client::{Host, MobileClient};
 #[repr(i32)]
 pub enum Tab {
     #[default]
-    Previews = 0,
+    Threads = 0,
     Profile = 1,
 }
 
 impl Tab {
-    pub const ALL: [Self; 2] = [Self::Previews, Self::Profile];
+    pub const ALL: [Self; 2] = [Self::Threads, Self::Profile];
 
     pub fn id(self) -> &'static str {
         match self {
-            Self::Previews => "previews",
+            Self::Threads => "threads",
             Self::Profile => "profile",
         }
     }
@@ -27,7 +27,7 @@ impl Tab {
 
 fn tab_id(index: i32) -> Option<&'static core::ffi::CStr> {
     match index {
-        0 => Some(c"previews"),
+        0 => Some(c"threads"),
         1 => Some(c"profile"),
         _ => None,
     }

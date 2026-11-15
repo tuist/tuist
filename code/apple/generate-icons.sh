@@ -26,7 +26,10 @@ ictool="$developer/../Applications/Icon Composer.app/Contents/Executables/ictool
   --platform iOS --rendition Default --width 192 --height 192 --scale 1
 cp "$scratch/icon.png" android/res/drawable-nodpi/app_icon.png
 cp "$scratch/icon.png" gpui/resources/rounded-icon.png
-# Desktop packaging and the unbundled GPUI Dock use the macOS rendition.
+# Desktop packaging and the unbundled GPUI Dock use the macOS rendition. ictool
+# fills the canvas, so pad it to Apple's icon grid (an 824pt body on a 1024pt
+# canvas) or the Dock shows it larger than bundled apps.
 "$ictool" "$source_icon" --export-image --output-file "$scratch/desktop.png" \
-  --platform macOS --rendition Default --width 256 --height 256 --scale 1
+  --platform macOS --rendition Default --width 206 --height 206 --scale 1
+sips --padToHeightWidth 256 256 "$scratch/desktop.png" >/dev/null
 cp "$scratch/desktop.png" gpui/resources/icon.png

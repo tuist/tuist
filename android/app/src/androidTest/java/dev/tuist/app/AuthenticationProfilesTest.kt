@@ -33,7 +33,6 @@ class AuthenticationProfilesTest {
     @Volatile private var oauthCookie: String? = null
     @Volatile private var browserHasCookie = false
     @Volatile private var rejectExchange = false
-    private val threadAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
     private val previewAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
     private val membershipCalls = java.util.concurrent.atomic.AtomicInteger()
 
@@ -72,13 +71,10 @@ class AuthenticationProfilesTest {
             click("Previews")
             visible("org-upgrade/app")
             screenshot("upgrade-authorized-previews")
-            click("Threads")
-            visible("alice")
-            Thread.sleep(1500)
             click("Profile")
             visible("alice@example.invalid")
             assertEquals("alice-refresh", tokens.getRefreshToken())
-            println("UPGRADE_PROOF profile=$id identity=alice@example.invalid origin=${storage.snapshot().origin} threads=alice access_matches_old=true refresh_matches_old=true legacy_keys_removed=true encrypted_on_disk=true")
+            println("UPGRADE_PROOF profile=$id identity=alice@example.invalid origin=${storage.snapshot().origin} access_matches_old=true refresh_matches_old=true legacy_keys_removed=true encrypted_on_disk=true")
         }
     }
 
@@ -117,15 +113,9 @@ class AuthenticationProfilesTest {
                     }
                     path == "/oauth2/token" && rejectExchange -> MockResponse().setResponseCode(503)
                     path == "/oauth2/token" -> MockResponse().setBody("""{"access_token":"${jwt("bob")}","refresh_token":"bob-refresh"}""")
-                    path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
                     path == "/api/organizations" -> {
                         membershipCalls.incrementAndGet()
                         MockResponse().setResponseCode(500)
-                    }
-                    path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
-                    path.contains("/threads") && !path.contains("/socket") -> {
-                        threadAccounts.add(path)
-                        MockResponse().setBody("""{"threads":[],"cursor":null}""")
                     }
                     path.contains("/previews") -> {
                         previewAccounts.add(path)
@@ -152,14 +142,13 @@ class AuthenticationProfilesTest {
                 visible("Profile")
                 assertEquals("alice-refresh", tokens.getRefreshToken())
                 assertFalse(File(context.applicationInfo.dataDir, "shared_prefs/tuist_secure_prefs.xml").readText().contains("alice-refresh"))
-                click("Threads")
                 assertFalse(device.hasObject(By.desc("Switch account")))
                 chooser()
                 assertFalse(device.hasObject(By.text("Workspaces for this login")))
                 assertTrue(device.hasObject(By.textContains("✓ alice@example.invalid")))
                 screenshot("00-personal-upgrade-fallback")
                 click("Cancel")
-                assertThreadsAccount("alice")
+                assertActiveLogin("alice")
                 click("Profile")
                 visible("alice@example.invalid")
                 screenshot("01-legacy-profile")
@@ -189,7 +178,7 @@ class AuthenticationProfilesTest {
                 visible("bob@example.invalid")
                 assertEquals(2, tokens.profiles.value.size)
                 screenshot("05-added-second-profile")
-                assertThreadsAccount("bob")
+                assertActiveLogin("bob")
                 assertProjects("alice/app", "org-b/app", "org-a/app")
 
                 chooser()
@@ -203,7 +192,7 @@ class AuthenticationProfilesTest {
                 click("Profile")
                 visible("alice@example.invalid")
                 screenshot("07-switched-to-legacy")
-                assertThreadsAccount("alice")
+                assertActiveLogin("alice")
                 assertProjects("alice/app", "org-a/app", "shared/app")
                 screenshot("07b-cross-organization-previews-retain-alice")
                 scenario.recreate()
@@ -218,7 +207,7 @@ class AuthenticationProfilesTest {
                 visible("bob@example.invalid")
                 assertEquals(1, tokens.profiles.value.size)
                 screenshot("09-sign-out-removes-only-active")
-                assertThreadsAccount("bob")
+                assertActiveLogin("bob")
                 assertEquals("Profile workflows never discover memberships", 0, membershipCalls.get())
             }
         } finally { server.shutdown() }
@@ -252,17 +241,11 @@ class AuthenticationProfilesTest {
                         membershipCalls.incrementAndGet()
                         MockResponse().setResponseCode(500)
                     }
-                    path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
                     path == "/api/projects" -> MockResponse().setBody("""{"projects":[{"id":1,"full_name":"shared/$project","default_branch":"main","visibility":"private"},{"id":2,"full_name":"other-org/$project","default_branch":"main","visibility":"private"}]}""")
                     path.contains("/previews") -> {
                         previewAccounts.add(path)
                         MockResponse().setBody("""{"previews":[],"pagination_metadata":{"has_next_page":false,"has_previous_page":false,"page_size":10}}""")
                     }
-                    path.contains("/threads") && !path.contains("/socket") -> {
-                        threadAccounts.add(path)
-                        MockResponse().setBody("""{"threads":[]}""")
-                    }
-                    path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
                     else -> MockResponse().setResponseCode(404)
                 }
             }
@@ -286,8 +269,7 @@ class AuthenticationProfilesTest {
                 assertEquals("http://localhost:8081", tokens.snapshot().origin)
                 screenshot("13-selected-other-origin-previews")
                 assertProjects("shared/other-origin", "other-org/other-origin", "shared/other-origin")
-                assertThreadsAccount("bob")
-                assertTrue(otherCalls.any { it.contains("/api/accounts/bob/threads") })
+                assertActiveLogin("bob")
                 assertTrue(otherCalls.any { it.contains("/api/projects/shared/other-origin/previews") })
                 screenshot("14-selected-other-origin-login-identity")
                 chooser()
@@ -311,17 +293,11 @@ class AuthenticationProfilesTest {
                         membershipCalls.incrementAndGet()
                         MockResponse().setResponseCode(500)
                     }
-                    path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
                     path == "/api/projects" -> MockResponse().setBody("""{"projects":[{"id":1,"full_name":"bob/personal","default_branch":"main","visibility":"private"},{"id":2,"full_name":"org-b/app","default_branch":"main","visibility":"private"}]}""")
                     path.contains("/previews") -> {
                         previews.add(path)
                         MockResponse().setBody("""{"previews":[],"pagination_metadata":{"has_next_page":false,"has_previous_page":false,"page_size":10}}""")
                     }
-                    path.contains("/threads") && !path.contains("/socket") -> {
-                        threadAccounts.add(path)
-                        MockResponse().setBody("""{"threads":[]}""")
-                    }
-                    path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
                     else -> MockResponse().setResponseCode(404)
                 }
             }
@@ -336,7 +312,7 @@ class AuthenticationProfilesTest {
                 visible("bob/personal")
                 device.pressBack()
                 screenshot("10-cold-process-restart-saved-project")
-                assertThreadsAccount("bob")
+                assertActiveLogin("bob")
                 chooser()
                 assertTrue(device.hasObject(By.textContains("✓ bob@example.invalid")))
                 click("Cancel")
@@ -346,14 +322,7 @@ class AuthenticationProfilesTest {
         } finally { server.shutdown() }
     }
 
-    private fun assertThreadsAccount(login: String) {
-        click("Profile")
-        visible("$login@example.invalid")
-        threadAccounts.clear()
-        click("Threads")
-        val deadline = System.currentTimeMillis() + 10_000
-        while (threadAccounts.isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(100)
-        assertTrue("Threads default to the saved personal identity: $threadAccounts", threadAccounts.isNotEmpty() && threadAccounts.all { it.contains("/accounts/$login/threads") })
+    private fun assertActiveLogin(login: String) {
         click("Profile")
         visible("$login@example.invalid")
     }

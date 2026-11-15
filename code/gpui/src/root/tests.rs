@@ -140,10 +140,7 @@ fn account_menu_keyboard_exit_restore_settings_and_sign_out(cx: &mut TestAppCont
     press(cx, "shift-tab");
     press(cx, "space");
     root.read_with(cx, |root, cx| {
-        assert_eq!(
-            root.navigation.read(cx).tab,
-            tuist_navigation::Tab::Previews
-        )
+        assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Threads)
     });
     cx.dispatch_action(ToggleAccountMenu);
     draw(cx);
@@ -167,4 +164,35 @@ fn account_menu_keyboard_exit_restore_settings_and_sign_out(cx: &mut TestAppCont
     press(cx, "shift-tab");
     press(cx, "enter");
     root.read_with(cx, |root, _| assert!(root.editing_accounts));
+}
+
+#[gpui::test]
+fn closing_a_preview_returns_focus_to_the_sidebar(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        crate::keyboard::init(cx);
+        crate::input::init(cx);
+        init(cx);
+    });
+    let directory = tempfile::tempdir().unwrap();
+    let (accounts, session) = accounts(directory.path(), true);
+    let status = session.status().map_err(|error| error.to_string());
+    let (root, cx) =
+        cx.add_window_view(|window, cx| Root::new(session, accounts, status, window, cx));
+    cx.update(|window, _| window.activate_window());
+    root.update(cx, |root, cx| {
+        root.receive_urls(vec!["tuist://app/team/app/previews/p1".into()], cx)
+    });
+    draw(cx);
+    let back = cx.debug_bounds("close-preview").unwrap();
+    cx.simulate_click(back.center(), gpui::Modifiers::none());
+    draw(cx);
+    root.read_with(cx, |root, cx| {
+        assert!(root.navigation.read(cx).preview.is_none())
+    });
+    // Focus sits on the Threads row, so the next stop is the Profile row.
+    press(cx, "tab");
+    press(cx, "enter");
+    root.read_with(cx, |root, cx| {
+        assert_eq!(root.navigation.read(cx).tab, tuist_navigation::Tab::Profile)
+    });
 }

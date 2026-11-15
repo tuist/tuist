@@ -9,14 +9,14 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
-  describe "organization_ai_enabled?/1" do
+  describe "organization_code_enabled?/1" do
     test "requires the account flag in every environment, independently of personal AI" do
       account = %Account{id: 42}
 
       for env <- [:dev, :test, :stag, :can, :prod], enabled <- [false, true] do
         stub(Environment, :env, fn -> env end)
-        expect(FunWithFlags, :enabled?, fn :ai, [for: ^account] -> enabled end)
-        assert FeatureFlags.organization_ai_enabled?(account) == enabled
+        expect(FunWithFlags, :enabled?, fn :code, [for: ^account] -> enabled end)
+        assert FeatureFlags.organization_code_enabled?(account) == enabled
       end
     end
   end
@@ -34,12 +34,12 @@ defmodule Tuist.FeatureFlagsTest do
   end
 
   describe "app_flags/1" do
-    test "lists ai only for users with the flag in production" do
+    test "lists code only for users with the flag in production" do
       user = %Tuist.Accounts.User{id: 42}
       stub(Environment, :env, fn -> :prod end)
 
-      for {enabled, flags} <- [{false, []}, {true, ["ai"]}] do
-        expect(FunWithFlags, :enabled?, fn :ai, [for: ^user] -> enabled end)
+      for {enabled, flags} <- [{false, []}, {true, ["code"]}] do
+        expect(FunWithFlags, :enabled?, fn :code, [for: ^user] -> enabled end)
         assert FeatureFlags.app_flags(user) == flags
       end
     end

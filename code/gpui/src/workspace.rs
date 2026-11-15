@@ -1,6 +1,6 @@
 use gpui::{
-    Context, Entity, EventEmitter, FontWeight, IntoElement, Render, ScrollHandle, SharedString,
-    Subscription, Window, div, prelude::*, px, svg,
+    Context, Entity, EventEmitter, FocusHandle, FontWeight, IntoElement, Pixels, Render,
+    ScrollHandle, SharedString, Subscription, Window, div, prelude::*, px, svg,
 };
 use tuist_navigation::{Navigation, Tab as Destination};
 use tuist_session::Account;
@@ -17,17 +17,52 @@ pub enum WorkspaceEvent {
 
 fn title(destination: Destination) -> &'static str {
     match destination {
-        Destination::Previews => "Previews",
+        Destination::Threads => "Threads",
         Destination::Profile => "Profile",
     }
 }
 
-/// The signed-in shell: a sidebar of destinations next to the selected one.
+fn icon(destination: Destination) -> &'static str {
+    match destination {
+        Destination::Threads => assets::THREADS_ICON,
+        Destination::Profile => assets::PROFILE_ICON,
+    }
+}
+
+/// Initials stand in for an avatar image, which the token contract does not provide.
+pub fn avatar(label: &str, size: Pixels, theme: Theme) -> gpui::Div {
+    let initials: String = label
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .take(2)
+        .flat_map(char::to_uppercase)
+        .collect();
+    div()
+        .size(size)
+        .flex_none()
+        .rounded_full()
+        .bg(theme.accent)
+        .text_color(theme.accent_foreground)
+        .font_weight(FontWeight::SEMIBOLD)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(if initials.is_empty() {
+            "?".to_owned()
+        } else {
+            initials
+        })
+}
+
+/// The signed-in shell, laid out like Zed's workspace: a left dock of
+/// destinations next to the selected one, under the application title bar.
 pub struct Workspace {
     navigation: Entity<Navigation>,
     account: Account,
     server: SharedString,
     scroll: ScrollHandle,
+    /// One per destination, so closing a preview can return focus to the sidebar.
+    destination_focus: [FocusHandle; Destination::ALL.len()],
     _appearance: Subscription,
     _navigation: Subscription,
     _theme: Subscription,
@@ -49,6 +84,7 @@ impl Workspace {
             account,
             server,
             scroll: ScrollHandle::new(),
+            destination_focus: Destination::ALL.map(|_| cx.focus_handle().tab_stop(true)),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             _navigation: observer,
             _theme: cx.observe_global::<crate::theme::ThemeState>(|_, cx| cx.notify()),
@@ -61,117 +97,237 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let current = self.navigation.read(cx).tab;
         div()
             .id("primary-navigation")
             .role(gpui::Role::Navigation)
             .aria_label("Primary navigation")
             .flex()
             .flex_col()
-            .w(px(220.))
+            .w(px(200.))
             .h_full()
             .flex_none()
-            .gap_1()
-            .px_2()
-            .pt_4()
+            .gap_0p5()
+            .p_1p5()
             .bg(theme.sidebar)
             .border_r_1()
             .border_color(theme.border)
-            .child(
+            .children(Destination::ALL.into_iter().map(|destination| {
+                let selected = destination == current;
                 div()
+                    .id(title(destination))
                     .flex()
                     .items_center()
                     .gap_2()
-                    .px_2()
-                    .pb_3()
-                    .text_lg()
-                    .font_weight(FontWeight::SEMIBOLD)
+                    .h(px(28.))
+                    .px_1p5()
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .text_color(if selected {
+                        theme.text
+                    } else {
+                        theme.text_muted
+                    })
+                    .when(selected, |row| row.bg(theme.row_selected))
+                    .when(!selected, |row| row.hover(|row| row.bg(theme.row_hover)))
+                    .keyboard_control_focused(
+                        title(destination),
+                        theme,
+                        None,
+                        Some(&self.destination_focus[destination as usize]),
+                        window,
+                        cx,
+                    )
+                    .when(selected, |row| row.aria_description("Current section"))
                     .child(
                         svg()
-                            .path(assets::MARK)
-                            .size(px(22.))
-                            .text_color(theme.accent),
+                            .path(icon(destination))
+                            .size(px(16.))
+                            .flex_none()
+                            .text_color(if selected {
+                                theme.accent
+                            } else {
+                                theme.text_muted
+                            }),
                     )
-                    .child("Tuist Code"),
-            )
-            .children(
-                [Destination::Previews, Destination::Profile]
-                    .into_iter()
-                    .map(|destination| {
-                        let selected = destination == self.navigation.read(cx).tab;
-                        div()
-                            .id(title(destination))
-                            .px_2()
-                            .py_1()
-                            .rounded_md()
-                            .cursor_pointer()
-                            .when(selected, |row| {
-                                row.bg(theme.row_selected).text_color(theme.accent)
-                            })
-                            .when(!selected, |row| row.hover(|row| row.bg(theme.row_hover)))
-                            .keyboard_control(title(destination), theme, None, window, cx)
-                            .when(selected, |row| row.aria_description("Current section"))
-                            .child(title(destination))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.navigation.update(cx, |navigation, cx| {
-                                    navigation.tab = destination;
-                                    cx.notify();
-                                });
-                            }))
-                    }),
-            )
-            .child(div().flex_1())
+                    .child(title(destination))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.navigation.update(cx, |navigation, cx| {
+                            navigation.select(destination);
+                            cx.notify();
+                        });
+                    }))
+            }))
     }
 
+    fn threads(&self, theme: Theme) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap_2()
+            .size_full()
+            .min_h(px(320.))
+            .child(
+                svg()
+                    .path(assets::THREADS_ICON)
+                    .size(px(32.))
+                    .text_color(theme.text_muted),
+            )
+            .child(
+                div()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(gpui::text!("Threads aren't available here yet")),
+            )
+            .child(div().text_color(theme.text_muted).child(gpui::text!(
+                "Use Tuist Code on iOS or macOS to see your threads."
+            )))
+    }
+
+    /// The shipping apps' Profile page (`app/Sources/TuistProfile/ProfileView.swift`),
+    /// laid out as a Zed settings page: sections of rows separated by dividers.
     fn profile(
         &self,
         theme: Theme,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let row = |label: &'static str, value: Option<String>| {
+        let handle = self.account.handle.clone();
+        let email = self.account.email.clone();
+        let name = handle
+            .clone()
+            .or_else(|| email.clone())
+            .unwrap_or_else(|| "Tuist".into());
+        let section = |label: &'static str| {
             div()
-                .id(label)
-                .role(gpui::Role::Group)
-                .aria_label(label)
+                .pt_6()
+                .pb_1()
+                .text_xs()
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(theme.text_muted)
+                .child(gpui::text!(label))
+        };
+        let row = |id: &'static str| {
+            div()
+                .id(id)
                 .flex()
+                .items_center()
                 .justify_between()
                 .gap_4()
-                .py_2()
+                .min_h(px(36.))
                 .border_b_1()
                 .border_color(theme.border)
-                .child(div().text_color(theme.text_muted).child(label))
-                .child(gpui::text!(value.unwrap_or_else(|| "Not provided".into())))
         };
+        let value = |id: &'static str, label: &'static str, value: String| {
+            row(id)
+                .role(gpui::Role::Group)
+                .aria_label(label)
+                .child(div().child(label))
+                .child(
+                    div()
+                        .truncate()
+                        .text_color(theme.text_muted)
+                        .child(gpui::text!(value)),
+                )
+        };
+        let mut link = |id: &'static str, label: &'static str, url: &'static str| {
+            row(id)
+                .cursor_pointer()
+                .hover(|row| row.text_color(theme.accent))
+                .keyboard_control(label, theme, Some(&self.scroll), window, cx)
+                .on_a11y_action(gpui::AccessibleAction::Click, move |_, _, cx| {
+                    cx.open_url(url)
+                })
+                .on_click(move |_, _, cx| cx.open_url(url))
+                .child(label)
+                .child(
+                    svg()
+                        .path(assets::EXTERNAL_LINK_ICON)
+                        .size(px(14.))
+                        .text_color(theme.text_muted),
+                )
+        };
+        let terms = link("terms", "Terms of Service", "https://tuist.dev/terms");
+        let privacy = link("privacy", "Privacy Policy", "https://tuist.dev/privacy");
+        let help = link("help", "Get help", "mailto:contact@tuist.dev");
         div()
             .flex()
             .flex_col()
-            .w(px(420.))
-            .p_6()
-            .child(row("Handle", self.account.handle.clone()))
-            .child(row("Email", self.account.email.clone()))
-            .child(row("Server", Some(self.server.to_string())))
+            .w_full()
+            .max_w(px(640.))
+            .mx_auto()
+            .px_8()
+            .py_6()
             .child(
                 div()
-                    .id("sign-out")
-                    .mt_6()
-                    .px_3()
-                    .py_2()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(theme.border)
-                    .text_color(theme.error)
-                    .text_center()
-                    .cursor_pointer()
-                    .hover(|button| button.bg(theme.row_hover))
-                    .keyboard_control("Sign out", theme, Some(&self.scroll), window, cx)
-                    .child("Sign out")
-                    .on_a11y_action(gpui::AccessibleAction::Click, {
-                        let workspace = cx.weak_entity();
-                        move |_, _, cx| {
-                            let _ = workspace.update(cx, |_, cx| cx.emit(WorkspaceEvent::SignOut));
-                        }
-                    })
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspaceEvent::SignOut))),
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(avatar(&name, px(48.), theme).text_base())
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .text_base()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .truncate()
+                                    .child(gpui::text!(
+                                        id = "profile-handle",
+                                        handle.map_or(name, |handle| format!("@{handle}"))
+                                    )),
+                            )
+                            .child(
+                                div()
+                                    .text_color(theme.text_muted)
+                                    .truncate()
+                                    .child(gpui::text!(self.server.to_string())),
+                            ),
+                    ),
+            )
+            .child(section("Account"))
+            .child(value(
+                "email",
+                "Email",
+                email.unwrap_or_else(|| "Not provided".into()),
+            ))
+            .child(value("server", "Server", self.server.to_string()))
+            .child(section("Legal"))
+            .child(terms)
+            .child(privacy)
+            .child(section("Support"))
+            .child(help)
+            .child(value(
+                "app-version",
+                "App version",
+                env!("CARGO_PKG_VERSION").into(),
+            ))
+            .child(
+                div().flex().pt_6().child(
+                    div()
+                        .id("sign-out")
+                        .px_3()
+                        .py_1()
+                        .rounded_sm()
+                        .border_1()
+                        .border_color(theme.border)
+                        .text_color(theme.error)
+                        .cursor_pointer()
+                        .hover(|button| button.bg(theme.row_hover))
+                        .keyboard_control("Sign out", theme, Some(&self.scroll), window, cx)
+                        .child("Sign out")
+                        .on_a11y_action(gpui::AccessibleAction::Click, {
+                            let workspace = cx.weak_entity();
+                            move |_, _, cx| {
+                                let _ =
+                                    workspace.update(cx, |_, cx| cx.emit(WorkspaceEvent::SignOut));
+                            }
+                        })
+                        .on_click(cx.listener(|_, _, _, cx| cx.emit(WorkspaceEvent::SignOut))),
+                ),
             )
     }
 
@@ -184,25 +340,31 @@ impl Workspace {
         let navigation = self.navigation.read(cx);
         let selected = navigation.tab;
         let preview = navigation.preview.clone();
+        let heading = if preview.is_some() {
+            "Preview"
+        } else {
+            title(selected)
+        };
         div()
             .flex()
             .flex_col()
             .flex_1()
             .h_full()
+            .min_w_0()
             .child(
                 div()
                     .id("workspace-heading")
                     .role(gpui::Role::Heading)
-                    .aria_label(title(selected))
+                    .aria_label(heading)
                     .aria_level(1)
                     .flex()
                     .items_center()
-                    .h(px(44.))
-                    .px_4()
+                    .h(px(32.))
+                    .px_3()
                     .border_b_1()
                     .border_color(theme.border)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(SharedString::from(title(selected))),
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(SharedString::from(heading)),
             )
             .child(
                 div()
@@ -211,19 +373,14 @@ impl Workspace {
                     .min_h_0()
                     .overflow_y_scroll()
                     .track_scroll(&self.scroll)
-                    .child(match selected {
-                        Destination::Previews if preview.is_some() => self
-                            .preview_detail(preview.unwrap(), theme, window, cx)
+                    .child(match (preview, selected) {
+                        (Some(preview), _) => self
+                            .preview_detail(preview, theme, window, cx)
                             .into_any_element(),
-                        Destination::Previews => div()
-                            .flex()
-                            .flex_1()
-                            .items_center()
-                            .justify_center()
-                            .text_color(theme.text_muted)
-                            .child(gpui::text!("Your projects' previews will appear here."))
-                            .into_any_element(),
-                        Destination::Profile => self.profile(theme, window, cx).into_any_element(),
+                        (None, Destination::Threads) => self.threads(theme).into_any_element(),
+                        (None, Destination::Profile) => {
+                            self.profile(theme, window, cx).into_any_element()
+                        }
                     }),
             )
     }

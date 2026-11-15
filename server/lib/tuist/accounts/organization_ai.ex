@@ -123,7 +123,7 @@ defmodule Tuist.Accounts.OrganizationAI do
   @doc "Runs an authorized organization workflow through its current route, without retries or provider fallback."
   def complete(%Account{id: id}, messages) when is_list(messages) do
     with %Account{organization_id: org_id} = account when not is_nil(org_id) <- Repo.get(Account, id),
-         true <- FeatureFlags.organization_ai_enabled?(account),
+         true <- FeatureFlags.organization_code_enabled?(account),
          %{} = route <-
            Repo.one(
              from d in OrganizationAIDefault,
@@ -165,7 +165,7 @@ defmodule Tuist.Accounts.OrganizationAI do
 
   defp authorize(user, %Account{id: id}) do
     with %Account{organization_id: org_id} = account when not is_nil(org_id) <- Repo.get(Account, id),
-         true <- FeatureFlags.organization_ai_enabled?(account),
+         true <- FeatureFlags.organization_code_enabled?(account),
          :ok <- Authorization.authorize(:account_update, user, account) do
       {:ok, account}
     else
