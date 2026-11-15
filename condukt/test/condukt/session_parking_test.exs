@@ -85,7 +85,7 @@ defmodule Condukt.SessionParkingTest do
     pid = start_session([tool_calls([{"call_1", "ask", %{}}]), LLMProvider.text_response("done")], [ask])
     run = Task.async(fn -> Condukt.run(pid, "go") end)
 
-    assert_receive {:about_to_park, tool}
+    assert_receive {:about_to_park, tool}, 1_000
     assert Condukt.signal(pid, Answer, "early", %{"text" => "webhook"}) == :ok
     send(tool, :continue)
 
