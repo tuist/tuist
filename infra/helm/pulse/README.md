@@ -241,18 +241,21 @@ this policy Hubble shows them as `POLICY_DENIED` and Pulse has no
 
 ## Errors
 
-Errors are Sentry events stored one row per event in `errors`. The Tuist server's
-Sentry HTTP client (`TuistCommon.SentryHTTPClient`) copies the `event` items of
-every envelope it sends to Atlas to `/v1/ingest?table=errors&pipeline_name=sentry_errors`
-as the write-only `tuist` identity, when `TUIST_PULSE_ERRORS=true`. The pipeline
-computes Atlas's fingerprint from the raw event, so an issue is
+Errors are Sentry events stored one row per event in `errors`. Pulse accepts
+Sentry envelopes itself (see `pulse/FORK.md`): an SDK whose DSN is
+`http://tuist:<password>@pulse.observability:4000/v1/sentry/<service>/1` posts
+to `/v1/sentry/<service>/api/1/envelope/`, authenticating as the write-only
+`tuist` identity, and Pulse runs each `event` item through the `sentry_errors`
+pipeline into `errors`, tagged with `<service>`. No producer uses such a DSN
+yet; Atlas stays the destination of every SDK until a DSN is switched. The
+pipeline computes Atlas's fingerprint from the raw event, so an issue is
 `(service, fingerprint)` with the fingerprint Atlas has for the same event, and
 stores only a scrubbed projection (no user, request headers, cookies, bodies or
 query strings, frame variables or module lists; credential, contact and
 IP-address keys filtered; credentials in URLs, query strings, emails, bearer and
 Basic credentials, Tuist tokens, JWTs and IPv4 and IPv6 addresses redacted in
-stored text). The table is not
-append-only: retried events with the same issue and timestamp merge on read.
+stored text). The table is not append-only: retried events with the same issue
+and timestamp merge on read.
 
 `sentry-errors-cases.json` holds grouping cases with Atlas's fingerprints. Atlas's
 `fingerprint_test.exs` and `test-sentry-errors.mjs`, which the validate job runs

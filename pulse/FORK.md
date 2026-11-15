@@ -97,6 +97,18 @@ covered by this list.
     this check; Tuist's deployments do not expose the MySQL port.
   - SQL texts over 8 MiB. Parsing runs on a stack sized to the input, so a long
     statement cannot overflow the parser or its drop.
+- **Sentry envelope ingestion** ([`src/servers/src/http/sentry.rs`](src/servers/src/http/sentry.rs)).
+  Sentry SDKs report errors to Pulse with a DSN such as
+  `http://<user>:<password>@pulse.observability:4000/v1/sentry/<service>/1`:
+  they post envelopes to `/v1/sentry/<service>/api/1/envelope/`, and the DSN's
+  key and secret (`X-Sentry-Auth`, or the `sentry_key` and `sentry_secret`
+  query parameters) authenticate as that Pulse user (`http/authorize.rs`).
+  Every `event` item becomes a `{"service", "event"}` row for the
+  `sentry_errors` pipeline and `errors` table that
+  [`infra/helm/pulse`](../infra/helm/pulse) installs; other items
+  are dropped. Responses carry the envelope's event ID, as Sentry's do.
+  `tests-integration`'s `test_sentry_envelope` sends envelopes captured from
+  sentry-elixir and sentry-rust.
 - **Release image protoc** ([`docker/buildx/ubuntu/Dockerfile`](docker/buildx/ubuntu/Dockerfile)).
   The image `pulse-build-publish.yml` builds installed Ubuntu 22.04's protoc 3.12,
   which cannot compile `substrait`'s proto3 optional fields. It now installs

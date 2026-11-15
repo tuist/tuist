@@ -40,6 +40,7 @@ use crate::error::{
 };
 use crate::http::header::{PULSE_TIMEZONE_HEADER_NAME, PulseName};
 use crate::http::result::error_result::ErrorResponse;
+use crate::http::sentry::is_sentry_request;
 use crate::http::splunk::is_splunk_request;
 use crate::http::{AUTHORIZATION_HEADER, HTTP_API_PREFIX, PUBLIC_API_PREFIX};
 use crate::influxdb::{is_influxdb_request, is_influxdb_v2_request};
@@ -289,6 +290,9 @@ pub fn extract_username_and_password<B>(request: &Request<B>) -> Result<(Usernam
         get_influxdb_credentials(request)?.context(NotFoundInfluxAuthSnafu)?
     } else if is_splunk_request(request) {
         get_splunk_credentials(request)?.context(NotFoundAuthHeaderSnafu)?
+    } else if is_sentry_request(request) {
+        // Tuist: a Sentry DSN's key and secret are a Pulse user's name and password.
+        crate::http::sentry::credentials(request).context(NotFoundAuthHeaderSnafu)?
     } else {
         // normal http auth
         let scheme = auth_header(request)?;

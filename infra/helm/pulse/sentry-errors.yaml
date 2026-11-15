@@ -1,6 +1,7 @@
 # Sentry error events -> the `errors` table (errors.sql). Each input row is
-# {"service": "<producer>", "event": <Sentry event payload>}; producers copy the
-# event items of the envelopes they send to Atlas (TuistCommon.SentryHTTPClient).
+# {"service": "<producer>", "event": <Sentry event payload>}, which Pulse's
+# Sentry endpoint (pulse/src/servers/src/http/sentry.rs) builds from the `event`
+# items of the envelopes SDKs post to /v1/sentry/<service>/api/<project>/envelope/.
 #
 # Grouping ports Atlas.Engineering.Errors.Fingerprint, so a Pulse issue
 # (service, fingerprint) carries the fingerprint Atlas computes for the same

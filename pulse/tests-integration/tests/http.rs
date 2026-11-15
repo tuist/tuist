@@ -227,6 +227,7 @@ macro_rules! http_tests {
                 test_elasticsearch_logs_with_index,
                 test_splunk_logs,
                 test_splunk_raw,
+                test_sentry_envelope,
                 test_log_query,
                 test_jaeger_query_api,
                 test_jaeger_query_api_for_trace_v1,
@@ -2876,6 +2877,158 @@ pub async fn test_splunk_raw(store_type: StorageType) {
     .await;
     assert_eq!(StatusCode::BAD_REQUEST, res.status());
     assert!(res.text().await.contains("\"code\":6"));
+
+    guard.remove_all().await;
+}
+
+// Tuist: Sentry SDK envelopes reach the `errors` table through the table and
+// pipeline the Pulse chart installs; see src/servers/src/http/sentry.rs.
+pub async fn test_sentry_envelope(store_type: StorageType) {
+    common_telemetry::init_default_ut_logging();
+
+    let user_provider = user_provider_from_option("static_user_provider:cmd:tuist=t0k3n").unwrap();
+    let (app, mut guard) = setup_test_http_app_with_frontend_and_user_provider(
+        store_type,
+        "test_sentry_envelope",
+        Some(user_provider),
+    )
+    .await;
+    let client = TestClient::new(app).await;
+    let basic = basic_auth("tuist", "t0k3n");
+    let chart = |file: &str| {
+        std::fs::read_to_string(common_test_util::find_workspace_path(&format!(
+            "../infra/helm/pulse/{file}"
+        )))
+        .unwrap()
+    };
+    let resource = |file: &str| {
+        std::fs::read(common_test_util::find_workspace_path(&format!(
+            "tests-integration/resources/{file}"
+        )))
+        .unwrap()
+    };
+    let query = async |sql: &str| {
+        let res = client
+            .post("/v1/sql")
+            .header("Authorization", basic.as_str())
+            .form(&[("sql", sql)])
+            .send()
+            .await;
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.text().await;
+        assert!(!body.contains("\"error\":"), "{sql}: {body}");
+        body
+    };
+
+    query(&chart("errors.sql")).await;
+    let res = client
+        .post("/v1/pipelines/sentry_errors")
+        .header("Authorization", basic.as_str())
+        .header("Content-Type", "application/x-yaml")
+        .body(chart("sentry-errors.yaml"))
+        .send()
+        .await;
+    assert_eq!(res.status(), StatusCode::OK, "{}", res.text().await);
+
+    let auth = |secret: &str| {
+        (
+            HeaderName::from_static("x-sentry-auth"),
+            HeaderValue::from_str(&format!(
+                "Sentry sentry_version=7, sentry_key=tuist, sentry_secret={secret}"
+            ))
+            .unwrap(),
+        )
+    };
+    let envelope = |service: &str| format!("/v1/sentry/{service}/api/1/envelope/");
+
+    // Envelopes captured from sentry-elixir 11.0.4 and sentry-rust 0.47.0, the
+    // second gzipped.
+    let res = send_req(
+        &client,
+        vec![auth("t0k3n")],
+        &envelope("server"),
+        resource("sentry-elixir.envelope"),
+        false,
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.json::<Value>().await,
+        json!({"id": "8859a1d1e8cb494491c58e7a98361053"})
+    );
+    let res = send_req(
+        &client,
+        vec![auth("t0k3n")],
+        &envelope("kura"),
+        resource("sentry-rust.envelope"),
+        true,
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.json::<Value>().await,
+        json!({"id": "8845a801a48e4f3fb420b1b9051e4b28"})
+    );
+
+    // Envelopes without events are accepted and store nothing.
+    let session = b"{}\n{\"type\":\"session\"}\n{\"started\":\"2026-11-15T22:22:42Z\"}\n".to_vec();
+    let res = send_req(
+        &client,
+        vec![auth("t0k3n")],
+        &envelope("kura"),
+        session,
+        false,
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // The DSN's key and secret are a Pulse user; the service is a plain name.
+    let event = resource("sentry-rust.envelope");
+    for (headers, path, status) in [
+        (vec![], envelope("kura"), StatusCode::UNAUTHORIZED),
+        (
+            vec![auth("wrong")],
+            envelope("kura"),
+            StatusCode::UNAUTHORIZED,
+        ),
+        (
+            vec![auth("t0k3n")],
+            envelope("a.b%20c"),
+            StatusCode::BAD_REQUEST,
+        ),
+    ] {
+        let res = send_req(&client, headers, &path, event.clone(), false).await;
+        assert_eq!(res.status(), status, "{path}");
+    }
+    let res = send_req(
+        &client,
+        vec![auth("t0k3n")],
+        &envelope("kura"),
+        b"not an envelope".to_vec(),
+        false,
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    let rows = get_rows_from_output(
+        &query(
+            "SELECT service, event_id, exception_type, exception_value, \"level\", environment, \"release\" \
+             FROM errors ORDER BY service",
+        )
+        .await,
+    );
+    assert_eq!(
+        rows,
+        concat!(
+            r#"[["kura","8845a801a48e4f3fb420b1b9051e4b28","Custom","cache volume full at [REDACTED]","error","staging","kura@0.9.0"],"#,
+            r#"["server","8859a1d1e8cb494491c58e7a98361053","ArgumentError","boom for account 42","error","staging","4.12.0"]]"#
+        )
+    );
+    let stored = query("SELECT json_to_string(event) FROM errors WHERE service = 'server'").await;
+    assert!(
+        stored.contains("[Filtered]") && !stored.contains("edge-1"),
+        "{stored}"
+    );
 
     guard.remove_all().await;
 }
