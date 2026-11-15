@@ -55,7 +55,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
       "http://kura-tuist.ber1.svc.cluster.local:8080"
     end)
 
-    stub(Capacity, :admissible?, fn _environment, "session_01abc" -> true end)
+    stub(Capacity, :admissible?, fn _environment, "session_01abc", _opts -> true end)
     expect(Capacity, :place, fn %Sandbox{platform: :darwin, template: "macos"} -> {:ok, "mac-a"} end)
     expect(Nodes, :call, fn "mac-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 19_000}} end)
     # CI closed the grant while the VM booted; the new VM already holds its slot.
@@ -94,7 +94,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
     agent_environment: agent_environment
   } do
     test_pid = self()
-    stub(Capacity, :admissible?, fn _environment, _session -> true end)
+    stub(Capacity, :admissible?, fn _environment, _session, _opts -> true end)
     stub(Capacity, :admit_turn, fn _sandbox, fun -> fun.() end)
     stub(Capacity, :place, fn _sandbox -> {:ok, "mac-a"} end)
 
@@ -143,7 +143,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
     agent_environment: agent_environment
   } do
     test_pid = self()
-    stub(Capacity, :admissible?, fn _environment, _session -> true end)
+    stub(Capacity, :admissible?, fn _environment, _session, _opts -> true end)
     stub(Capacity, :admit_turn, fn _sandbox, fun -> fun.() end)
     stub(Capacity, :place, fn _sandbox -> {:ok, "mac-a"} end)
     stub(CacheVolumes, :allocate_sandbox_checkout, fn _sandbox, _repository, _work_id -> {:error, :unavailable} end)
@@ -172,14 +172,14 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
       residency_work_id: "claude-code:order-0"
     )
 
-    reject(&Capacity.admissible?/2)
+    reject(&Capacity.admissible?/3)
     reject(&Nodes.call/4)
 
     assert {:ok, :running} = ClaudeCodeRunners.spawn(agent_environment, @order)
   end
 
   test "a session that does not fit is refused for the orchestrator to retry", %{agent_environment: agent_environment} do
-    stub(Capacity, :admissible?, fn _environment, _session_id -> false end)
+    stub(Capacity, :admissible?, fn _environment, _session_id, _opts -> false end)
     reject(&Nodes.call/4)
 
     assert {:error, :no_capacity} = ClaudeCodeRunners.spawn(agent_environment, @order)
@@ -188,7 +188,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
 
   test "an account without sandboxes refuses the session", %{agent_environment: agent_environment} do
     stub(Tuist.FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
-    reject(&Capacity.admissible?/2)
+    reject(&Capacity.admissible?/3)
 
     assert {:error, :disabled} = ClaudeCodeRunners.spawn(agent_environment, @order)
   end
@@ -207,7 +207,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunnersTest do
 
       test_pid = self()
       stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [] end)
-      stub(Capacity, :admissible?, fn _environment, _session -> true end)
+      stub(Capacity, :admissible?, fn _environment, _session, _opts -> true end)
       stub(Capacity, :admit_turn, fn _sandbox, fun -> fun.() end)
       stub(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
       stub(CacheVolumes, :allocate_sandbox_checkout, fn _sandbox, _repository, _work_id -> {:error, :unavailable} end)
