@@ -109,6 +109,62 @@ defmodule Condukt.SessionTest do
     end
   end
 
+  describe "abort/1" do
+    test "stops running tool calls, and lets a tool that asks to finish run to the end" do
+      test_pid = self()
+
+      tool = fn name, on_abort ->
+        Condukt.tool(
+          name: name,
+          description: name,
+          parameters: %{type: "object", properties: %{}},
+          on_abort: on_abort,
+          call: fn _args, _context ->
+            send(test_pid, {:running, name, self()})
+            # Only a call that traps exits hears the abort as a message.
+            receive do: ({:EXIT, _turn, reason} -> send(test_pid, {:exit_seen, name, reason}))
+            receive do: (:continue -> send(test_pid, {:finished, name}))
+            {:ok, name}
+          end
+        )
+      end
+
+      calls = [ToolCall.new("call-1", "killed", "{}"), ToolCall.new("call-2", "finishing", "{}")]
+
+      {model, _id} =
+        LLMProvider.model([
+          LLMProvider.response(%ReqLLM.Message{role: :assistant, content: [], tool_calls: calls}, :tool_calls)
+        ])
+
+      {:ok, pid} =
+        ConfigAgent.start_link(
+          model: model,
+          tools: [tool.("killed", :kill), tool.("finishing", :finish)],
+          load_project_instructions: false
+        )
+
+      task = Task.async(fn -> Condukt.run(pid, "go") end)
+      assert_receive {:running, "killed", killed}, 1_000
+      assert_receive {:running, "finishing", finishing}, 1_000
+      killed_ref = Process.monitor(killed)
+      finishing_ref = Process.monitor(finishing)
+
+      assert :ok = Condukt.abort(pid)
+      assert Task.await(task) == {:error, :aborted}
+
+      assert_receive {:DOWN, ^killed_ref, :process, ^killed, :shutdown}, 1_000
+      assert_receive {:exit_seen, "finishing", :shutdown}, 1_000
+      send(finishing, :continue)
+      assert_receive {:finished, "finishing"}, 1_000
+      assert_receive {:DOWN, ^finishing_ref, :process, ^finishing, :normal}, 1_000
+      refute_received {:exit_seen, "killed", _reason}
+      refute_received {:finished, "killed"}
+      assert Condukt.history(pid) == []
+
+      GenServer.stop(pid)
+    end
+  end
+
   describe "session id" do
     test "generates a UUIDv7 by default" do
       {:ok, pid} = ConfigAgent.start_link(load_project_instructions: false)
@@ -1197,6 +1253,8 @@ defmodule Condukt.SessionTest do
         monitor = if worker, do: Process.monitor(worker)
         assert :ok = apply(Condukt, cancellation, [pid])
         assert {:ok, cancelled_result} = Task.yield(task, 500)
+        # The provider request still blocked, so only the cancellation ends it.
+        assert_receive {:DOWN, ^inference_monitor, :process, ^inference, :shutdown}, 1_000
 
         if cancellation == :clear do
           if worker, do: assert_receive({:DOWN, ^monitor, :process, ^worker, _})
@@ -1215,8 +1273,6 @@ defmodule Condukt.SessionTest do
 
         history = Condukt.history(pid)
         assert history |> List.last() |> Message.text() == "new answer"
-        send(inference, :continue)
-        assert_receive {:DOWN, ^inference_monitor, :process, ^inference, :normal}, 1_000
 
         case mode do
           :run ->
@@ -1251,16 +1307,21 @@ defmodule Condukt.SessionTest do
             end
           )
 
+        stop_chunk =
+          Stream.map([:stop], fn _ ->
+            send(test_pid, {:old_inference, self()})
+            ReqLLM.StreamChunk.text("stop")
+          end)
+
         late_chunks =
           Stream.concat(
             Stream.map([:late], fn _ ->
-              send(test_pid, {:old_inference, self()})
               receive do: (:continue -> ReqLLM.StreamChunk.text("stop"))
             end),
             [ReqLLM.StreamChunk.tool_call("write", %{}, %{id: "stale-call", index: 0})]
           )
 
-        first = compaction_stream(Stream.concat([ReqLLM.StreamChunk.text("stop")], late_chunks), :tool_calls)
+        first = compaction_stream(Stream.concat(stop_chunk, late_chunks), :tool_calls)
 
         second =
           if overlap do
@@ -1287,9 +1348,11 @@ defmodule Condukt.SessionTest do
         assert_receive {:compacting, worker, _, _}, 1_000
         assert_receive :callback_stopped, 1_000
         assert_receive {:old_inference, old_inference}, 1_000
-        on_exit(fn -> send(old_inference, :continue) end)
         old_monitor = Process.monitor(old_inference)
         assert {:ok, cancelled_events} = Task.yield(task, 500)
+        # The rest of the old stream still blocked, so only the stop ends it.
+        assert_receive {:DOWN, ^old_monitor, :process, ^old_inference, reason}, 1_000
+        assert reason in [:shutdown, :noproc]
         assert {:text, "stop"} in cancelled_events
         assert {:error, :aborted} in cancelled_events
         assert_receive {:notified, {:error, :aborted}}
@@ -1306,8 +1369,6 @@ defmodule Condukt.SessionTest do
             {nil, nil}
           end
 
-        send(old_inference, :continue)
-        assert_receive {:DOWN, ^old_monitor, :process, ^old_inference, :normal}, 1_000
         refute_receive :callback_stopped, 20
         refute_receive :stale_tool_executed, 20
         refute_receive {:notified, :done}, 20
@@ -1390,7 +1451,7 @@ defmodule Condukt.SessionTest do
           :stream -> assert {:error, :aborted} in result
         end
 
-        assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+        assert_receive {:DOWN, ^monitor, :process, ^worker, :shutdown}, 1_000
         refute_receive {LLMProvider, ^request, ^model_id, _, _}, 20
         GenServer.stop(pid)
       end

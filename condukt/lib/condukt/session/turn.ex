@@ -9,17 +9,15 @@ defmodule Condukt.Session.Turn do
   stores it as a flat map or a hash map, and, more usefully, makes it obvious
   which parts of a session are per-turn and which outlive one.
 
-  `abort_ref` identifies the running turn. Native loops verify it against the
-  session before each provider attempt, after inference, and before admitting
-  each tool; stream events and results carry it too. Aborting replaces it and
-  wakes retry backoff without killing the worker, so tools already admitted
-  may still finish.
+  `abort_ref` identifies the running turn. Stream events, results, and calls
+  from the turn's worker carry it, so the session can tell a late one from a
+  turn it already ended. Aborting replaces it and shuts the worker down.
 
-  `owned` holds what the turn's tool calls started and must not outlive it:
-  `{:session, pid}` for a foreground sub-agent session and `{:process, pid}`
-  for a tool call waiting on something else. Aborting the turn aborts those
-  first, so an abort runs bottom-up through the ownership tree. Background
-  sub-agents are owned by the session, not a turn, and survive the abort.
+  `worker` runs the turn under the session's turn supervisor. What the turn's
+  tool calls start is not held here: each call is a process linked to the
+  worker, and work it owns, such as a foreground sub-agent's session, is
+  linked below it, so shutting the worker down takes all of it along.
+  Background sub-agents belong to the session, not a turn, and survive.
 
   Input waits in four queues, taken in this order when the session is idle:
   `pending` callers whose `run` or `stream` arrived while a `queued` turn (one
@@ -41,7 +39,6 @@ defmodule Condukt.Session.Turn do
             steering_messages: [],
             follow_up_messages: [],
             subscribers: [],
-            owned: [],
             pending: [],
             reports: [],
             queued: false,
@@ -79,7 +76,6 @@ defmodule Condukt.Session.Turn do
         recipient: nil,
         worker: nil,
         prompt_index: nil,
-        owned: [],
         queued: false,
         history_rewritten: false
     }
@@ -101,7 +97,6 @@ defmodule Condukt.Session.Turn do
         recipient: nil,
         worker: nil,
         prompt_index: nil,
-        owned: [],
         queued: false,
         history_rewritten: false,
         pending: [],
@@ -126,13 +121,6 @@ defmodule Condukt.Session.Turn do
   @doc "Whether input other than reports waits to start a turn."
   def input_waiting?(%__MODULE__{} = turn) do
     turn.pending != [] or turn.steering_messages != [] or turn.follow_up_messages != []
-  end
-
-  @doc """
-  Records work the running turn owns: `{:session, pid}` or `{:process, pid}`.
-  """
-  def own(%__MODULE__{} = turn, {kind, pid} = owned) when kind in [:session, :process] and is_pid(pid) do
-    %{turn | owned: [owned | turn.owned]}
   end
 
   @doc "Records that a compaction replaced the history this turn started from."

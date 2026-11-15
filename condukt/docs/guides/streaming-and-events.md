@@ -73,20 +73,25 @@ wait, and ignores late events and results from that turn, including while a
 replacement turn runs. Clearing history also cancels the current turn.
 
 Once the session processes cancellation, the original `run` caller receives
-`{:error, :aborted}`. A stream receives that error and closes immediately,
-without waiting for inference or admitted tools to finish. For streaming turns,
+`{:error, :aborted}`. A stream receives that error and closes immediately.
+For streaming turns,
 the notifier gets the cancellation error and `:done` before a replacement can start. Late
 worker completion cannot publish another `:done`. A concurrent stream rejected
 with `:already_streaming` closes only its own reader, without publishing an
 error or completion for the active conversation.
 
-Native loops check ownership before every provider attempt, after inference,
-and before admitting each tool. Cancellation also wakes native retry backoff.
-Provider requests already admitted may finish, and admitted tools can still
-produce side effects; cancellation does not roll those back or kill external
-runtime processes. Slow callbacks, snapshot stores, and legacy synchronous
-compactors can delay the session's handling of cancellation. Notifiers run in
-the session's view process, so a slow one delays viewers and the return of
+Each turn runs in its own process under the session, and each tool call in a
+process linked to the turn. Cancellation shuts the turn's process down before
+`Condukt.abort/1` returns, which stops an in-flight provider request, retry
+backoff, an external runtime's command, and running tool calls, together with
+whatever those calls linked to themselves, such as a foreground sub-agent's
+session. Commands run through `MuonTrap`, as the local sandbox and the CLI
+runtimes do, stop with the process that ran them. A tool whose
+`c:Condukt.Tool.on_abort/1` returns `:finish` keeps running to the end, with
+its result discarded. Cancellation does not roll back side effects already
+made. Slow callbacks, snapshot stores, and legacy synchronous compactors can
+delay the session's handling of cancellation. Notifiers run in the session's
+view process, so a slow one delays viewers and the return of
 `Condukt.abort/1`, which waits until the notifier has the abort's events, but
 not the session's handling of cancellation.
 

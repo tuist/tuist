@@ -44,6 +44,16 @@ defmodule Condukt.Tools.SubagentTest do
     def run(_prompt, _context, _opts), do: {:ok, "echo"}
   end
 
+  defmodule ChildNotifier do
+    @behaviour Condukt.Notifier
+
+    @impl true
+    def publish(_session_id, event, opts) do
+      send(Keyword.fetch!(opts, :test_pid), {:child_notified, event})
+      :ok
+    end
+  end
+
   defmodule RecordingNotifier do
     @behaviour Condukt.Notifier
 
@@ -553,7 +563,7 @@ defmodule Condukt.Tools.SubagentTest do
     test_pid = self()
     tool_call = ToolCall.new("call_1", "subagent", JSON.encode!(%{"role" => "researcher", "task" => "write notes"}))
 
-    {parent_model, _parent_model_id} =
+    {parent_model, parent_model_id} =
       LLMProvider.model([
         LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [tool_call]}, :tool_calls),
         LLMProvider.text_response("must not run")
@@ -576,18 +586,22 @@ defmodule Condukt.Tools.SubagentTest do
 
     task = Task.async(fn -> Condukt.run(parent, "delegate") end)
     assert_receive {:child_inference, inference}, 1_000
-    on_exit(fn -> Process.exit(inference, :kill) end)
 
-    parent_state = :sys.get_state(parent)
-    [{_, child, _, _}] = DynamicSupervisor.which_children(parent_state.subagent_supervisor)
-    child_ref = Process.monitor(child)
-    worker_ref = Process.monitor(parent_state.turn.worker)
+    # The child's turn runs under the child session, which runs under the
+    # supervisor the call started: [child turns, child, call's supervisor | _].
+    {:dictionary, dictionary} = Process.info(inference, :dictionary)
+    [_child_turns, child, call_supervisor | _] = Keyword.fetch!(dictionary, :"$ancestors")
+    assert %Condukt.Session{} = :sys.get_state(child)
+    refs = Map.new([inference, child, call_supervisor], &{&1, Process.monitor(&1)})
+    worker_ref = Process.monitor(:sys.get_state(parent).turn.worker)
 
     assert :ok = Condukt.abort(parent)
     assert Task.await(task) == {:error, :aborted}
     # The child's inference is still blocked, so only the abort can end it.
-    assert_receive {:DOWN, ^child_ref, :process, ^child, _reason}, 1_000
-    assert_receive {:DOWN, ^worker_ref, :process, _worker, :normal}, 1_000
+    for {pid, ref} <- refs, do: assert_receive({:DOWN, ^ref, :process, ^pid, :shutdown}, 1_000)
+    assert_receive {:DOWN, ^worker_ref, :process, _worker, :shutdown}, 1_000
+    assert_received {LLMProvider, :request, ^parent_model_id, _context, _opts}
+    refute_receive {LLMProvider, :request, ^parent_model_id, _context, _opts}, 20
 
     GenServer.stop(parent)
   end
@@ -666,14 +680,16 @@ defmodule Condukt.Tools.SubagentTest do
         model: parent_model,
         test_pid: test_pid,
         notifier: {RecordingNotifier, test_pid: test_pid},
-        subagents: [reader: background_role(child_model)],
+        subagents: [reader: background_role(child_model, notifier: {ChildNotifier, test_pid: test_pid})],
         load_project_instructions: false
       )
 
     task = Task.async(fn -> Condukt.run(parent, "start a reader") end)
     assert_receive {:child_inference, :reading, inference}, 1_000
     on_exit(fn -> send(inference, :continue) end)
-    eventually(fn -> :sys.get_state(parent).turn.owned != [] end)
+    # The `wait` call is waiting.
+    {BackgroundSubagent, tool_opts} = Enum.find(:sys.get_state(parent).tools, &match?({BackgroundSubagent, _}, &1))
+    eventually(fn -> :sys.get_state(tool_opts[:manager]).children["reader"].waiters != %{} end)
 
     assert :ok = Condukt.abort(parent)
     assert Task.await(task) == {:error, :aborted}
@@ -691,6 +707,8 @@ defmodule Condukt.Tools.SubagentTest do
 
     assert length(history) == 2
     assert_received {:notified, {:subagent, "call_1", {:text, "a whale"}}}
+    # The notifier the role configured still sees the child's own events.
+    assert_received {:child_notified, {:text, "a whale"}}
 
     GenServer.stop(parent)
   end
@@ -722,6 +740,13 @@ defmodule Condukt.Tools.SubagentTest do
 
     assert {:ok, %{name: "reader", status: "working"}} = call.(JSON.decode!(spawn_args("summarize every chapter")))
     assert {:error, "reader already exists; use send"} = call.(JSON.decode!(spawn_args("again")))
+
+    # Host code reaches the child by parent and name, like any session.
+    reader = BackgroundSubagent.whereis(parent, "reader")
+    assert reader == background_child(parent)
+    assert {:ok, [%{session_id: session_id}]} = call.(%{"action" => "list"})
+    assert Condukt.Session.id(reader) == session_id
+    assert BackgroundSubagent.whereis(parent, "writer") == nil
     assert_receive {:child_inference, :chapters, chapters}, 1_000
     on_exit(fn -> Process.exit(chapters, :kill) end)
 
@@ -953,8 +978,8 @@ defmodule Condukt.Tools.SubagentTest do
     JSON.encode!(%{"action" => "spawn", "name" => "reader", "role" => "reader", "message" => message})
   end
 
-  defp background_role(model) do
-    {StreamAgent, model: model, test_pid: self(), background: true, load_project_instructions: false}
+  defp background_role(model, opts \\ []) do
+    {StreamAgent, [model: model, test_pid: self(), background: true, load_project_instructions: false] ++ opts}
   end
 
   defp background_child(parent) do

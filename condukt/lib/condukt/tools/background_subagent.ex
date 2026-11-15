@@ -12,6 +12,10 @@ defmodule Condukt.Tools.BackgroundSubagent do
   starts a parent turn when the parent is idle and survives an abort of the
   parent's current turn. Roles must run on the native runtime. See the
   [Sub-agents guide](subagents.md).
+
+  Each sub-agent is registered under its parent and name, so host code can
+  reach it with `whereis/2` and drive it with the usual `Condukt` functions,
+  such as `Condukt.history/1`, `Condukt.steer/2`, or `Condukt.abort/1`.
   """
 
   use Condukt.Tool
@@ -21,6 +25,23 @@ defmodule Condukt.Tools.BackgroundSubagent do
   alias Condukt.Tools.Subagent
 
   @actions ["spawn", "send", "wait", "stop", "list"]
+  @registry Condukt.Tools.BackgroundSubagent.Registry
+
+  @doc false
+  def registry, do: @registry
+
+  @doc """
+  Returns the pid of the background sub-agent `name` of the parent session
+  `parent`, a pid or registered name, or `nil` when there is none.
+  """
+  def whereis(parent, name) when is_binary(name) do
+    with parent_pid when is_pid(parent_pid) <- GenServer.whereis(parent),
+         [{pid, _value}] <- Registry.lookup(@registry, {parent_pid, name}) do
+      pid
+    else
+      _missing -> nil
+    end
+  end
 
   @doc false
   # Starts the manager under `supervisor` and returns this tool for the
@@ -85,6 +106,12 @@ defmodule Condukt.Tools.BackgroundSubagent do
     Map.put(properties, :input, %{anyOf: schemas, description: "spawn only. Structured input for the role."})
   end
 
+  # A call that the abort cut short could leave a sub-agent started but not
+  # registered, or an answer delivered to a wait nobody hears, so every call
+  # runs to the end. `wait` stops early on the abort itself.
+  @impl true
+  def on_abort(_opts), do: :finish
+
   @impl true
   def call(args, context) do
     manager = Keyword.fetch!(context.opts, :manager)
@@ -103,17 +130,18 @@ defmodule Condukt.Tools.BackgroundSubagent do
   end
 
   # The child starts here rather than in the manager, so a slow start, such as
-  # MCP servers connecting, holds up only this call.
+  # MCP servers connecting, holds up only this call. Its name is registered as
+  # the process starts, before `init/1`, so two spawns cannot both take it.
   defp run_action("spawn", name, args, manager, context) do
     supervisor = Keyword.fetch!(context.opts, :supervisor)
 
     with {:ok, message} <- fetch_message(args, "spawn"),
-         :ok <- Manager.available(manager, name),
+         nil <- whereis(context.agent, name),
          {:ok, role, registration} <- Subagent.lookup(context, arg(args, :role)),
          {:ok, input} <- Subagent.validate_input(args, registration.input_schema),
          prepared = Subagent.prepare_child(registration, context, manager),
-         opts = Keyword.put(prepared.session_opts, :notifier, {Manager, manager: manager}),
-         {:ok, pid} <- Subagent.start_child(supervisor, registration.agent_module, opts),
+         opts = child_opts(prepared.session_opts, manager, {context.agent, name}),
+         {:ok, pid} <- start_named(supervisor, registration.agent_module, opts, name),
          :ok <- require_native(supervisor, pid, registration.agent_module) do
       spec = %{
         pid: pid,
@@ -129,6 +157,9 @@ defmodule Condukt.Tools.BackgroundSubagent do
         _ = DynamicSupervisor.terminate_child(supervisor, pid)
         error
       end
+    else
+      pid when is_pid(pid) -> {:error, "#{name} already exists; use send"}
+      other -> other
     end
   end
 
@@ -140,30 +171,46 @@ defmodule Condukt.Tools.BackgroundSubagent do
 
   defp run_action("stop", name, _args, manager, _context), do: Manager.stop(manager, name)
 
-  # The call belongs to the parent's turn, so aborting that turn ends the wait,
-  # while the sub-agent, which the turn does not own, keeps working.
-  defp run_action("wait", name, _args, manager, context) do
+  # Aborting the parent's turn ends the wait: the call traps exits (see
+  # `on_abort/1`), so the abort arrives here as the turn's exit, and the call
+  # hands back an answer that crossed it before stopping. The sub-agent,
+  # which belongs to the session, keeps working.
+  defp run_action("wait", name, _args, manager, _context) do
     ref = make_ref()
-    turn_ref = Map.get(context, :turn_ref)
 
-    with :ok <- Session.own(context, {:process, self()}) do
-      case Manager.wait(manager, name, self(), ref) do
-        :waiting ->
-          receive do
-            {^ref, outcome} ->
-              wait_result(name, outcome)
+    case Manager.wait(manager, name, self(), ref) do
+      :waiting ->
+        receive do
+          {^ref, outcome} ->
+            wait_result(name, outcome)
 
-            {:abort, ^turn_ref} ->
-              unwait(manager, name, ref)
-              {:error, :aborted}
-          end
+          {:EXIT, _turn, _reason} ->
+            unwait(manager, name, ref)
+            {:error, :aborted}
+        end
 
-        {:done, outcome} ->
-          wait_result(name, outcome)
+      {:done, outcome} ->
+        wait_result(name, outcome)
 
-        {:error, _reason} = error ->
-          error
-      end
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  # The manager observes the child as its notifier and hands every event on to
+  # the notifier the role configured, if any.
+  defp child_opts(session_opts, manager, key) do
+    {notifier, session_opts} = Keyword.pop(session_opts, :notifier)
+
+    session_opts
+    |> Keyword.put(:notifier, {Manager, manager: manager, notifier: notifier})
+    |> Keyword.put(:name, {:via, Registry, {@registry, key}})
+  end
+
+  defp start_named(supervisor, agent_module, opts, name) do
+    case Subagent.start_child(supervisor, agent_module, opts) do
+      {:error, {:already_started, _pid}} -> {:error, "#{name} already exists; use send"}
+      other -> other
     end
   end
 
@@ -237,7 +284,6 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
     })
   end
 
-  def available(manager, name), do: GenServer.call(manager, {:available, name}, :infinity)
   def register(manager, name, spec), do: GenServer.call(manager, {:register, name, spec}, :infinity)
 
   def send_message(manager, name, message, follow_up?),
@@ -252,19 +298,20 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
   @impl Condukt.Notifier
   def publish(session_id, event, opts) do
     send(Keyword.fetch!(opts, :manager), {:child_event, session_id, event})
-    :ok
+    Condukt.Notifier.publish(opts[:notifier], session_id, event)
   end
 
   # Of the child's view changes, only the input its turns start from and the
   # steering that joins them, which its events do not carry. They are filtered
   # in the child's process, so the rest never reaches the manager.
   @impl Condukt.Notifier
-  def publish_change(session_id, _epoch, _seq, {kind, _message} = change, opts) when kind in [:run_started, :input] do
-    send(Keyword.fetch!(opts, :manager), {:child_input, session_id, change})
-    :ok
-  end
+  def publish_change(session_id, epoch, seq, change, opts) do
+    with {kind, _message} when kind in [:run_started, :input] <- change do
+      send(Keyword.fetch!(opts, :manager), {:child_input, session_id, change})
+    end
 
-  def publish_change(_session_id, _epoch, _seq, _change, _opts), do: :ok
+    Condukt.Notifier.publish_change(opts[:notifier], session_id, epoch, seq, change)
+  end
 
   @impl GenServer
   def init(parent) do
@@ -272,10 +319,6 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
   end
 
   @impl GenServer
-  def handle_call({:available, name}, _from, state) do
-    {:reply, if(Map.has_key?(state.children, name), do: already_exists(name), else: :ok), state}
-  end
-
   def handle_call({:register, name, spec}, _from, state) do
     if Map.has_key?(state.children, name) do
       {:reply, already_exists(name), state}

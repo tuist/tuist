@@ -80,6 +80,22 @@ defmodule Condukt.Tool do
   Within a single batch of tool calls all tools see the same
   start-of-batch snapshot; updates take effect in the next turn.
 
+  ## Aborts
+
+  Each call runs in its own process, linked to the turn that made it.
+  Aborting the turn shuts the turn down, and the link takes the call with it,
+  along with any processes the call linked to itself, such as a sub-agent's
+  session. A call that must not stop halfway, because it would leave a side
+  effect half done, opts out with `c:on_abort/1`:
+
+      @impl true
+      def on_abort(_opts), do: :finish
+
+  Its process then traps exits while it runs, so the abort arrives as an
+  `{:EXIT, pid, :shutdown}` message. The call can ignore it and run to the end,
+  or receive it, clean up, and stop. Either way its result reaches nobody,
+  because the turn is over.
+
   ## Sandbox-aware tools
 
   If your tool reads or writes files, or runs subprocesses, route through
@@ -158,7 +174,13 @@ defmodule Condukt.Tool do
   @callback call(args :: map(), context :: map()) ::
               {:ok, term()} | {:ok, term(), map()} | {:error, term()}
 
-  @optional_callbacks [name: 1, description: 1, parameters: 1]
+  @doc """
+  What happens to a running call when its turn is aborted: `:kill`, the
+  default, stops it, and `:finish` lets it run to the end. See "Aborts".
+  """
+  @callback on_abort(opts :: keyword()) :: :kill | :finish
+
+  @optional_callbacks [name: 1, description: 1, parameters: 1, on_abort: 1]
 
   defmacro __using__(_opts) do
     quote do
@@ -186,6 +208,18 @@ defmodule Condukt.Tool do
   def name(%Condukt.Tool.Inline{name: name}), do: name
   def name({module, opts}), do: module.name(opts)
   def name(module) when is_atom(module), do: module.name()
+
+  @doc """
+  Returns what aborting the turn does to a running call of the tool: `:kill`
+  unless the tool asks to `:finish`.
+  """
+  def on_abort(%Condukt.Tool.Inline{on_abort: on_abort}), do: on_abort
+  def on_abort({module, opts}), do: module_on_abort(module, opts)
+  def on_abort(module) when is_atom(module), do: module_on_abort(module, [])
+
+  defp module_on_abort(module, opts) do
+    if function_exported?(module, :on_abort, 1), do: module.on_abort(opts), else: :kill
+  end
 
   @doc """
   Builds a tool specification for the LLM provider.

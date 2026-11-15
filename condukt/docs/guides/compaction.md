@@ -75,10 +75,9 @@ completed task cannot restore cleared history. Aborting a turn releases its
 wait without cancelling a background task that can still be reused. Returning
 `{:stop, reason, state}` from `handle_event/2` cancels the turn the same way.
 Late responses and stream events from a cancelled turn cannot dispatch tools,
-overwrite an adopted summary, or affect a replacement turn. Cancellation does
-not stop provider requests already in flight or roll back tools already admitted
-to execution. The cancelled caller finishes without waiting for that work;
-native retry backoff wakes and later provider attempts are rejected.
+overwrite an adopted summary, or affect a replacement turn. Cancellation shuts
+the turn's process down, which stops its provider request, retry backoff, and
+running tool calls, but it does not roll back side effects already made.
 
 ### Blocking fallback
 

@@ -67,6 +67,7 @@ defmodule Condukt.Session do
     :tools,
     :subagents,
     :subagent_supervisor,
+    :turn_supervisor,
     :cwd,
     :sandbox,
     :secrets,
@@ -320,16 +321,6 @@ defmodule Condukt.Session do
   end
 
   @doc false
-  # Records work a tool call started as owned by the turn that made the call,
-  # so aborting the turn aborts it first. Returns `{:error, :aborted}` when that
-  # turn is already over; the caller then stops the work itself.
-  def own(%{agent: session, turn_ref: turn_ref}, owned) when is_pid(session) and is_reference(turn_ref) do
-    GenServer.call(session, {:own, turn_ref, owned}, :infinity)
-  end
-
-  def own(_tool_context, _owned), do: :ok
-
-  @doc false
   # Publishes an event from a sub-agent where the session's own events go: the
   # streaming turn `turn_ref` names, or with `nil` the notifier only, for
   # background sub-agents that outlive the turn that started them.
@@ -441,9 +432,12 @@ defmodule Condukt.Session do
   Aborts the current operation.
 
   Replies to a running caller with `{:error, :aborted}`, or closes its stream
-  after that error, without waiting for in-flight inference or admitted tools.
-  Native retry backoff wakes immediately. Already-admitted work may finish,
-  but its late events and results cannot affect the session or a replacement turn.
+  after that error. The turn's process is shut down before this returns, and
+  the processes linked below it go down with it: running tool calls and what
+  they own, such as a foreground sub-agent's session. Tools that ask to
+  `:finish` (see `Condukt.Tool`) run to the end instead. Side effects already
+  made are not rolled back, and late events and results from the turn cannot
+  affect the session or a replacement turn.
   """
   def abort(agent) do
     GenServer.call(agent, :abort)
@@ -507,6 +501,9 @@ defmodule Condukt.Session do
           emit_secret_resolve(id, agent_module, secrets)
           subagents = normalize_subagents(Keyword.get(opts, :subagents, []))
           {:ok, subagent_supervisor} = maybe_start_subagent_supervisor(subagents)
+          # Each turn runs as a child of this supervisor, so the turn and
+          # everything linked below it go down with the session.
+          {:ok, turn_supervisor} = Task.Supervisor.start_link()
           configured_tools = Keyword.fetch!(opts, :tools)
           tools = configured_tools ++ MCP.tools(mcp_registry)
 
@@ -535,6 +532,7 @@ defmodule Condukt.Session do
               tools: tools ++ Subagent.tools(subagents, subagent_supervisor),
               subagents: subagents,
               subagent_supervisor: subagent_supervisor,
+              turn_supervisor: turn_supervisor,
               cwd: cwd,
               sandbox: sandbox,
               secrets: secrets,
@@ -704,14 +702,6 @@ defmodule Condukt.Session do
     state |> abort_turn() |> maybe_start_queued_turn() |> reply_after_view(from, :ok)
   end
 
-  def handle_call({:own, ref, owned}, _from, state) do
-    if state.turn.streaming and ref == state.turn.abort_ref do
-      {:reply, :ok, %{state | turn: Turn.own(state.turn, owned)}}
-    else
-      {:reply, {:error, :aborted}, state}
-    end
-  end
-
   def handle_call({:take_steering, ref}, _from, state) do
     if state.turn.streaming and ref == state.turn.abort_ref do
       {steering, turn} = Turn.take_steering(state.turn)
@@ -731,9 +721,8 @@ defmodule Condukt.Session do
     {:reply, match?({Native, _}, state.runtime), state}
   end
 
-  def handle_call({:check_turn, ref}, _from, state) do
-    result = if state.turn.streaming and ref == state.turn.abort_ref, do: :ok, else: {:error, :aborted}
-    {:reply, result, state}
+  def handle_call(:sync, _from, state) do
+    {:reply, :ok, state}
   end
 
   def handle_call(:compact, from, state) do
@@ -1070,7 +1059,7 @@ defmodule Condukt.Session do
     {result, messages} = llm_request(state, messages, turn, false, fn -> false end, call)
 
     with {:ok, response} <- result,
-         :ok <- check_turn(state) do
+         :ok <- sync(state) do
       record_compaction_usage(state, response, messages)
       assistant_message = Translate.response_to_message(response)
       messages = messages ++ [assistant_message]
@@ -1116,7 +1105,7 @@ defmodule Condukt.Session do
     trace_context = TraceContext.capture(opts)
 
     {:ok, worker} =
-      Task.start(fn ->
+      Task.Supervisor.start_child(state.turn_supervisor, fn ->
         TraceContext.attach(trace_context)
         result = do_run(state, prompt, opts)
         GenServer.cast(parent, {:run_complete, state.turn.abort_ref, from, result})
@@ -1137,7 +1126,7 @@ defmodule Condukt.Session do
     abort_ref = state.turn.abort_ref
     trace_context = TraceContext.capture(opts)
 
-    Task.start(fn ->
+    Task.Supervisor.start_child(state.turn_supervisor, fn ->
       TraceContext.attach(trace_context)
 
       result =
@@ -1172,7 +1161,7 @@ defmodule Condukt.Session do
     {result, messages} = llm_request(state, messages, turn, true, emitted?, call)
 
     with {:ok, response} <- result,
-         :ok <- check_turn(state) do
+         :ok <- sync(state) do
       handle_stream_response(state, response, messages, max_turns, turn, emit, abort_ref)
     else
       {:error, reason} ->
@@ -1292,13 +1281,9 @@ defmodule Condukt.Session do
     {tool_results, assigns_diff} =
       tool_calls
       |> Task.async_stream(
-        fn {id, _name, _args} = tool_call ->
+        fn tool_call ->
           TraceContext.attach(trace_context)
-
-          case check_turn(state) do
-            :ok -> execute_tool_call(tool_map, tool_call, state)
-            {:error, :aborted} -> {Message.tool_result(id, {:error, :aborted}), %{}}
-          end
+          execute_tool_call(tool_map, tool_call, state)
         end,
         ordered: true,
         timeout: tool_timeout(state)
@@ -1385,6 +1370,9 @@ defmodule Condukt.Session do
 
       {:ok, tool_spec} ->
         emit_secret_access(state, name, id)
+        # A tool that must not stop halfway traps exits, so an abort reaches it
+        # as an `{:EXIT, _, _}` message instead of killing it.
+        if Tool.on_abort(tool_spec) == :finish, do: Process.flag(:trap_exit, true)
         execute_known_tool(tool_spec, args, state, id)
     end
   end
@@ -1642,10 +1630,8 @@ defmodule Condukt.Session do
   defp compaction_checkpoint(state, messages, phase \\ :background)
 
   defp compaction_checkpoint(%{compaction: %{policy: nil}} = state, messages, phase) do
-    with :ok <- check_turn(state) do
-      opts = Compaction.compactor_opts(phase)
-      {:ok, Compaction.apply(state.compaction.spec, messages, compaction_metadata(state), opts)}
-    end
+    opts = Compaction.compactor_opts(phase)
+    {:ok, Compaction.apply(state.compaction.spec, messages, compaction_metadata(state), opts)}
   end
 
   defp compaction_checkpoint(state, messages, phase) do
@@ -1677,13 +1663,14 @@ defmodule Condukt.Session do
     context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
 
     attempt = fn ->
-      with :ok <- check_turn(state), do: call.(context)
+      :ok = sync(state)
+      call.(context)
     end
 
     Telemetry.span(
       :llm_turn,
       llm_turn_metadata(state, messages, turn, streaming?),
-      fn -> Retry.with_retry(state.retry, emitted?, attempt, &wait_for_retry(state, &1)) end,
+      fn -> Retry.with_retry(state.retry, emitted?, attempt) end,
       &llm_turn_stop_metadata/1
     )
   end
@@ -1765,9 +1752,10 @@ defmodule Condukt.Session do
 
   defp abort_turn(state) do
     state = release_compaction_waiter(state, {:error, :aborted})
-    if state.turn.worker, do: send(state.turn.worker, {:abort, state.turn.abort_ref})
-    # Bottom-up: what the turn owns is aborted before its own caller hears.
-    Enum.each(state.turn.owned, &abort_owned(&1, state.turn.abort_ref))
+    # The worker does not trap exits, so it is gone when this returns. Its tool
+    # calls are linked to it and go down with it, and so does what they own,
+    # such as a foreground sub-agent's session and that session's own turn.
+    if state.turn.worker, do: Task.Supervisor.terminate_child(state.turn_supervisor, state.turn.worker)
 
     state =
       case state.turn.recipient do
@@ -1795,14 +1783,6 @@ defmodule Condukt.Session do
     state = if state.turn.streaming, do: view_run_finished(state, :aborted), else: state
     %{state | turn: Turn.abort(state.turn)}
   end
-
-  defp abort_owned({:session, pid}, _turn_ref) do
-    GenServer.call(pid, :abort)
-  catch
-    :exit, _reason -> :ok
-  end
-
-  defp abort_owned({:process, pid}, turn_ref), do: send(pid, {:abort, turn_ref})
 
   # Starts the next queued input when the session is idle. A pending caller
   # gets the turn it asked for. Nobody waits on a turn started from a queued
@@ -1937,19 +1917,11 @@ defmodule Condukt.Session do
     end
   end
 
-  defp wait_for_retry(state, delay) do
-    with :ok <- check_turn(state) do
-      abort_ref = state.turn.abort_ref
-
-      receive do
-        {:abort, ^abort_ref} -> {:error, :aborted}
-      after
-        delay -> :ok
-      end
-    end
-  end
-
-  defp check_turn(state), do: GenServer.call(state.pid, {:check_turn, state.turn.abort_ref}, :infinity)
+  # Waits until the session has handled every event this worker sent. An
+  # agent's `handle_event/2` that stops the turn on one of them shuts this
+  # worker down while the session handles it, so the call never returns here
+  # and the provider request or tool batch after it never starts.
+  defp sync(state), do: GenServer.call(state.pid, :sync, :infinity)
 
   defp compaction_metadata(state), do: %{agent: state.agent_module, session_id: state.id}
 

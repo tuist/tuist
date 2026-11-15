@@ -135,8 +135,9 @@ defmodule Condukt do
   Handles events during execution.
 
   Returning `{:stop, reason, state}` cancels the current turn, not the session.
-  Late events and results from that turn are ignored. Already-admitted tools
-  may still finish; cancellation does not roll back their side effects.
+  Late events and results from that turn are ignored. Running tool calls are
+  stopped, except those of tools that ask to finish (see `Condukt.Tool`), and
+  side effects already made are not rolled back.
   """
   @callback handle_event(term(), term()) :: {:noreply, term()} | {:stop, term(), term()}
 
@@ -485,6 +486,11 @@ defmodule Condukt do
   - `:parameters` - JSON Schema map describing the arguments
   - `:call` - 2-arity function `(args, context)` returning `{:ok, result}` or `{:error, reason}`
 
+  ## Optional keys
+
+  - `:on_abort` - `:kill` (default) or `:finish`, what aborting the turn does
+    to a running call. See "Aborts" in `Condukt.Tool`.
+
   The `context` map passed to `:call` matches the context received by
   `Condukt.Tool` callbacks: `:agent`, `:sandbox`, `:cwd`, `:opts` (always
   `[]` for inline tools).
@@ -512,7 +518,8 @@ defmodule Condukt do
       name: Keyword.fetch!(opts, :name),
       description: Keyword.fetch!(opts, :description),
       parameters: Keyword.fetch!(opts, :parameters),
-      call: Keyword.fetch!(opts, :call)
+      call: Keyword.fetch!(opts, :call),
+      on_abort: Keyword.get(opts, :on_abort, :kill)
     }
   end
 
