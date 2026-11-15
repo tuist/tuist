@@ -248,6 +248,7 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.selected_project == project
     end
 
+    @tag :locale
     @tag user_role: :user
     test "uses the session locale for translated dashboard labels", %{
       params: params,
