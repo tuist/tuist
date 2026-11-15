@@ -22,7 +22,7 @@ defmodule Condukt.AnonymousRun do
   alias Condukt.SessionID
   alias Condukt.Telemetry
 
-  @run_opt_keys [:timeout, :max_turns, :images, :trace_context]
+  @run_opt_keys [:timeout, :max_turns, :images, :trace_context, :request_id]
   @runtime_keys [:input, :output, :input_schema]
 
   def run(prompt, opts) when is_binary(prompt) and is_list(opts) do

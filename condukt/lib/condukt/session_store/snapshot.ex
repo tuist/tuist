@@ -14,7 +14,19 @@ defmodule Condukt.SessionStore.Snapshot do
   own terminal and not enough for anything that holds sessions on behalf of
   more than one person. `:actor` is opaque to Condukt: a host puts whatever
   identifies the owner in it and gets it back untouched.
+
+  A session that keeps a journal also records which runs the snapshot holds
+  and the outcomes of its recent request ids, with `put_runs/3`, read back
+  with `runs/1`. They are not struct fields: a term with a field an older
+  build has never seen is one that build cannot decode with
+  `:erlang.binary_to_term(binary, [:safe])`, which would cost it the whole
+  snapshot. They sit under a string key instead, encoded on their own, so an
+  older build reads the snapshot and drops them on its next save, which
+  forgets the stored request outcomes. A store that writes snapshots field by
+  field must keep that entry too; `Condukt.SessionStore.Conformance` checks it.
   """
+
+  require Logger
 
   @current_version 3
 
@@ -28,8 +40,45 @@ defmodule Condukt.SessionStore.Snapshot do
             created_at: nil,
             updated_at: nil
 
+  @runs_key "condukt.runs"
+
   @doc "The snapshot version this build writes."
   def current_version, do: @current_version
+
+  @doc """
+  Records the newest run the snapshot's messages include, and the stored
+  outcomes of recent request ids, newest first.
+  """
+  def put_runs(%__MODULE__{} = snapshot, last_run_id, requests) do
+    Map.put(snapshot, @runs_key, :erlang.term_to_binary(%{"last_run_id" => last_run_id, "requests" => requests}))
+  end
+
+  @doc """
+  Returns `{last_run_id, requests}` as recorded by `put_runs/3`, or
+  `{nil, []}` for a snapshot without them or whose record cannot be read.
+  """
+  def runs(%__MODULE__{} = snapshot) do
+    case Map.get(snapshot, @runs_key) do
+      nil -> {nil, []}
+      binary -> decode_runs(binary)
+    end
+  end
+
+  defp decode_runs(binary) when is_binary(binary) do
+    case :erlang.binary_to_term(binary, [:safe]) do
+      %{"last_run_id" => last_run_id, "requests" => requests} when is_list(requests) -> {last_run_id, requests}
+      _other -> unreadable_runs()
+    end
+  rescue
+    ArgumentError -> unreadable_runs()
+  end
+
+  defp decode_runs(_other), do: unreadable_runs()
+
+  defp unreadable_runs do
+    Logger.warning("ignoring the unreadable run record of a session snapshot")
+    {nil, []}
+  end
 
   @doc """
   Builds a snapshot, stamping the version and timestamps.

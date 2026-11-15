@@ -381,6 +381,74 @@ defmodule Condukt.Tools.SubagentTest do
     GenServer.stop(parent)
   end
 
+  # A child session belongs to the subagent call that started it, below the
+  # parent's turn worker, so a worker that crashes takes it down too.
+  test "stops the child session when the parent turn's worker exits" do
+    test_pid = self()
+    empty = %{type: "object", properties: %{}}
+
+    block =
+      Condukt.tool(
+        name: "block",
+        description: "blocks",
+        parameters: empty,
+        call: fn _args, context ->
+          send(test_pid, {:child_tool_running, self(), context.agent})
+          receive do: (:never -> {:ok, "unreachable"})
+        end
+      )
+
+    crash =
+      Condukt.tool(
+        name: "crash",
+        description: "exits its worker",
+        parameters: empty,
+        call: fn _args, context ->
+          send(test_pid, {:crash_ready, self()})
+          receive do: (:go -> Process.exit(:sys.get_state(context.agent).turn.worker, :boom))
+          receive do: (:never -> {:ok, "unreachable"})
+        end
+      )
+
+    delegate = ToolCall.new("parent_call_1", "subagent", JSON.encode!(%{"role" => "researcher", "task" => "go"}))
+
+    {parent_model, _} =
+      LLMProvider.model([
+        LLMProvider.response(
+          %Message{role: :assistant, content: [], tool_calls: [delegate, ToolCall.new("parent_call_2", "crash", "{}")]},
+          :tool_calls
+        )
+      ])
+
+    child_call = ToolCall.new("child_call_1", "block", "{}")
+
+    {child_model, _} =
+      LLMProvider.model([
+        LLMProvider.response(%Message{role: :assistant, content: [], tool_calls: [child_call]}, :tool_calls)
+      ])
+
+    {:ok, parent} =
+      Condukt.Session.start(ParentAgent,
+        model: parent_model,
+        tools: [crash],
+        subagents: [researcher: {ChildAgent, model: child_model, tools: [block], load_project_instructions: false}],
+        load_project_instructions: false
+      )
+
+    caller = Task.async(fn -> Condukt.run(parent, "delegate") end)
+    assert_receive {:child_tool_running, child_tool, child}, 5_000
+    child_ref = Process.monitor(child)
+    tool_ref = Process.monitor(child_tool)
+
+    assert_receive {:crash_ready, crasher}, 5_000
+    send(crasher, :go)
+
+    assert {:error, {:turn_crashed, _reason}} = Task.await(caller)
+    assert_receive {:DOWN, ^child_ref, :process, ^child, _reason}, 1_000
+    assert_receive {:DOWN, ^tool_ref, :process, ^child_tool, _reason}, 1_000
+    GenServer.stop(parent)
+  end
+
   test "subagent telemetry carries parent and child session ids" do
     handler_id = "subagent-session-ids-#{inspect(make_ref())}"
     test_pid = self()

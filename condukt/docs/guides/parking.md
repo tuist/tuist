@@ -251,8 +251,15 @@ now. A session that stops or crashes while parked loses its waits. Every change
 to them goes through one step in the session as a list of records
 (`{:park, ...}`, `{:signal, ...}`, `{:timeout, ...}`, `{:done, ...}`,
 `:end_turn`), which
-is where a durable turn journal stores them so that a restarted session can
+is where a durable turn journal will store them so that a restarted session can
 resume the wait.
+
+The run journal (see
+[Resuming an interrupted run](sessions-and-persistence.md#resuming-an-interrupted-run))
+does not store these records yet. It stores a parked call's intent when the
+call first runs and its result once it wakes and finishes, so a run resumed
+after a crash while a call was parked treats that call as interrupted, or runs
+it again from the start when its tool is replay-safe.
 
 Only native agent loops park. A tool that returns `{:park, state, opts}` under
 another runtime returns an error to that runtime.

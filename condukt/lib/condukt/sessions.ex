@@ -19,10 +19,12 @@ defmodule Condukt.Sessions do
       Condukt.Sessions.alive?(id)
       Condukt.run(via(id), "hello")
 
-  Sessions are `:temporary`: a conversation that has crashed should not be
-  silently restarted underneath the person having it, because the process would
-  come back without the turn it died in. Restarting is the caller's decision,
-  and `Condukt.SessionStore` is how the messages survive to make it.
+  Sessions are `:temporary`: a conversation that has crashed is not silently
+  restarted underneath the person having it. Restarting is the caller's
+  decision. With a store that keeps a journal (see `Condukt.SessionStore`), the
+  turn it died in survives too: start the session again under the same id and
+  store, and `Condukt.Session.interrupted/1` reports the run, which
+  `Condukt.Session.resume/2` continues where it stopped.
 
   ## Registries
 
