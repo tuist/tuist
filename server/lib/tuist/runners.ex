@@ -118,6 +118,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.LearnedWarmFloors
+  alias Tuist.Runners.MacosSandboxWarmPools
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -707,17 +708,29 @@ defmodule Tuist.Runners do
     occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
     {queued, withheld} = dispatchable_queued_count(fleet_name)
 
-    %{
-      fleet: fleet_name,
-      claimed: claimed,
-      occupied: occupied,
-      queued: queued,
-      withheld: withheld,
-      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
-      learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
-      hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
-      preferred_nodes: preferred_nodes(fleet_name)
-    }
+    Map.merge(
+      %{
+        fleet: fleet_name,
+        claimed: claimed,
+        occupied: occupied,
+        queued: queued,
+        withheld: withheld,
+        p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+        learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
+        hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
+        preferred_nodes: preferred_nodes(fleet_name)
+      },
+      macos_sandbox_warm_signals(fleet_name)
+    )
+  end
+
+  # A warm macOS sandbox pool runs no job; its usage is the sandbox creates
+  # of its shape.
+  defp macos_sandbox_warm_signals(fleet_name) do
+    case MacosSandboxWarmPools.shape(fleet_name) do
+      nil -> %{}
+      shape -> MacosSandboxWarmPools.signals(shape)
+    end
   end
 
   # macOS Pods are placed before a job is assigned, so the queued jobs are the
