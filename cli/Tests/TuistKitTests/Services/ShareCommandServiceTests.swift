@@ -99,7 +99,7 @@ struct ShareCommandServiceTests {
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
-    func shares_a_distribution_with_a_symlinked_entry_point() async throws {
+    func shares_a_distribution_with_a_symlinked_entry_point_and_an_icon() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let distribution = directory.appending(components: "releases", "v1")
         let executable = distribution.appending(components: "libexec", "main")
@@ -114,6 +114,8 @@ struct ShareCommandServiceTests {
         let current = directory.appending(component: "current")
         try FileManager.default.createSymbolicLink(at: current.url, withDestinationURL: distribution.url)
         let resolvedDistribution = try AbsolutePath(validating: distribution.url.resolvingSymlinksInPath().path)
+        let icon = directory.appending(component: "icon.png")
+        try Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00]).write(to: icon.url)
 
         gitController.reset()
         given(gitController)
@@ -124,7 +126,7 @@ struct ShareCommandServiceTests {
         previewsUploadService.reset()
         given(previewsUploadService)
             .uploadPreview(
-                .value(.executable(path: resolvedDistribution, entryPoint: try RelativePath(validating: "bin/tool"))),
+                .value(.executable(path: resolvedDistribution, entryPoint: try RelativePath(validating: "bin/tool"), icon: icon)),
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
                 gitBranch: .value("feature/cli"),
@@ -145,10 +147,40 @@ struct ShareCommandServiceTests {
             json: false,
             track: "pr-123",
             releaseNotes: "Try the CLI changes",
-            executable: "bin/tool"
+            executable: "bin/tool",
+            icon: "icon.png"
         )
 
         #expect(ui().contains(shareURL.absoluteString))
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func rejects_an_executable_icon_that_is_not_a_png() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let executable = directory.appending(component: "tool")
+        try await fileSystem.writeText("#!/bin/sh\nexit 0\n", at: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.pathString)
+        let icon = directory.appending(component: "icon.svg")
+        try await fileSystem.writeText("<svg/>", at: icon)
+
+        await #expect(throws: ShareCommandServiceError.invalidIcon(icon)) {
+            try await subject.run(
+                path: directory.pathString,
+                apps: [executable.pathString],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false,
+                track: nil,
+                icon: icon.pathString
+            )
+        }
+        verify(previewsUploadService)
+            .uploadPreview(
+                .any, fullHandle: .any, serverURL: .any, gitBranch: .any, gitCommitSHA: .any,
+                gitRef: .any, track: .any, releaseNotes: .any, updateProgress: .any
+            )
+            .called(0)
     }
 
     @Test func share_tuist_project_when_multiple_apps_specified() async throws {
