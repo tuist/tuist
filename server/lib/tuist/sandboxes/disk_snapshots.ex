@@ -73,6 +73,12 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # Each reserves a snapshot ceiling (about 22 GiB) of its node's disk budget.
   @max_copies 4
   @copy_unused_hours 24
+  # The proactive disk-pressure sweep leaves copies used this recently alone:
+  # an Orb spawned on a copy pushes its node over the high-water mark, and
+  # dropping that copy then threw it away a minute after its first use
+  # (measured in production, 2026-11: one snapshot was copied seven times in
+  # nine hours).
+  @copy_pressure_idle_minutes 60
   # A copy downloads the whole archive (4.4 GB at p50), as long as the
   # daemon's archive timeout at most.
   @copy_timeout to_timeout(minute: 30)
@@ -774,14 +780,24 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   ready copy on them: a copy is the cheapest thing to give up, since its
   snapshot stays on its own node and in its archive. The row goes at once,
   which is what frees the reservation; the node removes the files right
-  after. Answers whether it dropped one.
+  after. Answers whether it dropped one. With `idle_only: true`, for the
+  proactive disk-pressure sweep, only a copy unused for the last hour goes.
   """
-  def drop_copy(node_names) when is_list(node_names) do
-    from(c in DiskSnapshotCopy,
-      where: c.node_name in ^node_names and c.state == :ready,
-      order_by: [asc: c.last_used_at],
-      limit: 1
-    )
+  def drop_copy(node_names, opts \\ []) when is_list(node_names) do
+    query =
+      from(c in DiskSnapshotCopy,
+        where: c.node_name in ^node_names and c.state == :ready,
+        order_by: [asc: c.last_used_at],
+        limit: 1
+      )
+
+    if_result =
+      if(opts[:idle_only],
+        do: where(query, [c], c.last_used_at < ^DateTime.add(now(), -@copy_pressure_idle_minutes, :minute)),
+        else: query
+      )
+
+    if_result
     |> Repo.one()
     |> case do
       nil ->

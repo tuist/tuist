@@ -279,7 +279,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   node, is admitted only while that node's reserved disk stays under the
   archive high-water mark with it (so it never makes an Orb get archived;
   a node that cannot take it passes it to the next in rendezvous order), and
-  is the first thing `Archives.make_node_room/2` gives up. Copies go with their snapshot
+  is the first thing `Archives.make_node_room/2` gives up (the proactive
+  `disk_pressure` sweep only gives up a copy unused for an hour: an Orb spawned
+  on a copy pushes its node over the high-water mark, and dropping that copy
+  re-downloaded a popular snapshot every hour). Copies go with their snapshot
   (expiry, supersede), after 24 hours unused, after 45 minutes stuck
   copying, and when their node stops listing them.
   A Claude Code repository snapshot has no Amp id: it is keyed by
