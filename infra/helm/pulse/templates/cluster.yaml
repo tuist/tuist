@@ -555,6 +555,26 @@ spec:
             matchLabels:
               app.kubernetes.io/instance: pulse
 ---
+# k8s-monitoring's metrics collector scrapes the datanodes' /metrics for
+# their scan memory and flush health (infra/helm/k8s-monitoring/values.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pulse-datanode-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: pulse
+      app.kubernetes.io/component: datanode
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alloy-metrics
+      ports:
+        - {port: 4000, protocol: TCP}
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

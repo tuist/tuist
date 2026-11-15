@@ -224,6 +224,11 @@ instance=tuist, component=pdc-agent). Namespace and Pod selectors are ANDed:
 `tuist-staging`, `tuist-canary`, **`tuist` for production**. No backend public
 Ingress exists. Parent manages server/PDC endpoint configuration.
 
+`pulse-datanode-metrics` admits only k8s-monitoring's `alloy-metrics` pods to
+the datanodes' TCP 4000, for the `pulse-datanode` scrape of scan memory and
+flush metrics behind the Pulse alerts in
+[`alerts.md`](../k8s-monitoring/alerts.md#pulse-rejecting-scans-for-lack-of-memory).
+
 The `pulse-host-ingress` CiliumNetworkPolicy also admits Cilium's `host` and
 `remote-node` identities to TCP 4000 on the API pods (the frontends in the
 cluster topology). k8s-monitoring's control-plane collector scrapes the local

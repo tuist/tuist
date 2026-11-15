@@ -158,6 +158,10 @@ jq -e '
     "bucket = \"tuist-pulso-production\"", "root = \"pulse/distributed/\"") and (contains("raft_engine") | not)) and
   (config("pulse-frontend-config") | contains("user_provider = \"static_user_provider:file:")) and
   (one("NetworkPolicy"; "pulse-internal").spec.ingress == [{from:[{podSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse"}}}]}]) and
+  # Only the metrics collector reaches the datanodes from outside Pulse.
+  (one("NetworkPolicy"; "pulse-datanode-metrics").spec ==
+    {podSelector:{matchLabels:{"app.kubernetes.io/instance":"pulse","app.kubernetes.io/component":"datanode"}},policyTypes:["Ingress"],
+     ingress:[{from:[{podSelector:{matchLabels:{"app.kubernetes.io/name":"alloy-metrics"}}}],ports:[{port:4000,protocol:"TCP"}]}]}) and
   (one("NetworkPolicy"; "pulse-private") | .spec.podSelector.matchLabels["app.kubernetes.io/component"] == "frontend" and
     .spec.ingress[1].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "tuist") and
   (one("CiliumNetworkPolicy"; "pulse-host-ingress") |
