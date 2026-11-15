@@ -28,21 +28,9 @@ class AppRouteNavigationTest {
                 composable<HomeTabs.Previews> {}
                 composable<HomeTabs.Profile> {}
                 composable<HomeTabs.PreviewDetail> {}
-                composable<HomeTabs.Threads> {}
                 composable<HomeTabs.Notifications> {}
             }
         }
-
-    @Test
-    fun `preview links from threads return Back to previews without retaining threads`() {
-        val nav = controller()
-        nav.navigate(HomeTabs.Threads)
-        nav.navigateAppRoute(AppRoute.PreviewDetail("a", "p", "one"))
-        assertEquals(HomeTabs.PreviewDetail("one", "a/p"), nav.currentBackStackEntry!!.toRoute<HomeTabs.PreviewDetail>())
-        assertTrue(nav.popBackStack())
-        assertTrue(nav.currentDestination!!.hasRoute<HomeTabs.Previews>())
-        assertFalse(nav.popBackStack())
-    }
 
     @Test
     fun `notifications retain profile Back and external routes replace the settings stack`() {
