@@ -229,7 +229,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "description" =>
         dgettext(
           "marketing",
-          "Tuist is build infrastructure for engineering teams and coding agents."
+          "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
         ),
       "url" => Tuist.Environment.app_url(),
       "logo" => Tuist.Environment.app_url(path: "/images/tuist_social.jpeg"),
@@ -270,7 +270,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "description" =>
         dgettext(
           "marketing",
-          "Tuist is build infrastructure for engineering teams and coding agents."
+          "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
         ),
       "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
       "publisher" => get_organization_structured_data(),

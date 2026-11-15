@@ -31,12 +31,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(get_website_structured_data())
     |> assign_structured_data(get_software_application_structured_data())
-    |> assign(:head_title, dgettext("marketing", "Tuist — Build infrastructure for engineering teams and coding agents"))
+    |> assign(:head_title, dgettext("marketing", "Tuist — Faster builds and reliable tests for every build system"))
     |> assign(
       :head_description,
       dgettext(
         "marketing",
-        "Tuist is build infrastructure for engineering teams and coding agents."
+        "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
       )
     )
     |> assign(
