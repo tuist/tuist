@@ -8,8 +8,10 @@
 # fingerprint tests and test-sentry-errors.mjs read it. The fingerprint is
 # computed from the raw event; only the scrubbed projection below is stored: no
 # user, request headers, cookies, bodies, query strings, frame variables, source
-# context beyond the frame's line or SDK module lists. Credential-like keys are
-# filtered and emails, bearer tokens, JWTs and IPv4 addresses redacted.
+# context beyond the frame's line or SDK module lists. Credential, contact and
+# IP-address keys are filtered, and credentials in URLs, query strings, emails,
+# bearer and Basic credentials, Tuist tokens, JWTs and IPv4 and IPv6 addresses
+# are redacted in stored text.
 processors:
   - vrl:
       source: |
@@ -150,8 +152,11 @@ processors:
         sdk = object(ev.sdk) ?? {}
 
         # Scrubbed projection. Credential-like keys anywhere in a flattened
-        # tags/extra/contexts path are filtered; string values are redacted.
-        sensitive = r'(?i)(pass|pwd|secret|token|auth|cookie|session|api[_-]?key|private[_-]?key|credential|email|phone|ip[_-]?addr|remote[_-]?addr|credit|card|ssn|dsn|jwt|bearer|signature|user)'
+        # tags/extra/contexts path are filtered, and so are arrays holding an
+        # object with such a key (flatten keeps arrays whole); string values are
+        # redacted below. The two patterns name the same keys.
+        sensitive = r'(?i)(pass|pwd|secret|token|auth|cookie|session|api[_-]?key|private[_-]?key|credential|email|phone|ip[_-]?addr|remote[_-]?addr|credit|card|ssn|dsn|jwt|bearer|signature|user|forwarded|real[_-]?ip|(^|[._-])ip([._-]|$))'
+        sensitive_json_key = r'(?i)"([^"]*(pass|pwd|secret|token|auth|cookie|session|api[_-]?key|private[_-]?key|credential|email|phone|ip[_-]?addr|remote[_-]?addr|credit|card|ssn|dsn|jwt|bearer|signature|user|forwarded|real[_-]?ip)[^"]*|([^"]*[._-])?ip([._-][^"]*)?)"\s*:'
         scrubbed = {}
         for_each({"tags": tags, "extra": extra, "contexts": contexts}) -> |section, entries| {
           flat = flatten(object!(entries))
@@ -161,6 +166,8 @@ processors:
             if count < 100 {
               safe = value
               if match(path, sensitive) && !includes(["contexts.trace.trace_id", "contexts.trace.span_id"], section + "." + path) {
+                safe = "[Filtered]"
+              } else if is_array(value) && match(encode_json(value), sensitive_json_key) {
                 safe = "[Filtered]"
               } else if is_string(value) {
                 safe = truncate(string(value) ?? "", 1024)
@@ -234,7 +241,9 @@ processors:
           "account_handle": account_handle,
           "sdk": (string(sdk.name) ?? "") + "/" + (string(sdk.version) ?? ""),
         }
-        # Emails, bearer tokens, JWTs and IPv4 addresses in stored text.
+        # Credentials, query strings, emails and IP addresses in stored text.
+        # The IPv6 patterns need eight groups, or a `::` with at least three
+        # groups, so clock times and Rust paths (`a::b`) survive.
         . = merge(., redact({
           "transaction": truncate(transaction, 1024),
           "exception_value": truncate(evalue, 1024),
@@ -242,10 +251,17 @@ processors:
           "culprit": truncate(culprit, 512),
           "event": scrubbed
         }, filters: [
+          r'(?i)\b[a-z][a-z0-9+.-]*://[^\s/?#@]+@',
+          r'\?[A-Za-z0-9_.~%\[\]-]+=[^\s#"]*',
           r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',
           r'(?i)bearer\s+[A-Za-z0-9._~+/=-]+',
+          r'(?i)\bbasic\s+[A-Za-z0-9+/=]{8,}',
+          r'\btuist_[0-9A-Fa-f-]{36}_[A-Za-z0-9_-]+',
           r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',
-          r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+          r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
+          r'(?i)\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b',
+          r'(?i)\b(?:[0-9a-f]{1,4}:){2,6}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,4})?',
+          r'(?i)\b[0-9a-f]{1,4}::(?:[0-9a-f]{1,4}:){1,5}[0-9a-f]{1,4}\b'
         ]))
         .
 transform:

@@ -1294,9 +1294,11 @@ contexts, the request method and URL path, and the message.
 The `sentry_errors` pipeline scrubs before storage: it drops the Sentry `user`
 object, request headers, cookies, bodies, query strings and environment, frame
 variables and module lists; replaces values whose tag, extra or context key path
-names a credential, session, email, phone, IP address, card, user or similar with
-`[Filtered]`; and redacts emails, bearer tokens, JWTs and IPv4 addresses in every
-stored string. Exception messages and breadcrumbs can still contain other
+names a credential, session, email, phone, IP address (including `ip`,
+`client_ip`, `remote_ip` and forwarding headers), card, user or similar with
+`[Filtered]`, as well as arrays holding objects with such keys; and redacts
+credentials in URLs, query strings, emails, bearer and Basic credentials, Tuist
+tokens, JWTs and IPv4 and IPv6 addresses in every stored string. Exception messages and breadcrumbs can still contain other
 identifiers. Production keeps errors for 90 days and staging and canary for 7
 days (table TTL); physical object reclamation can lag logical expiry.
 
