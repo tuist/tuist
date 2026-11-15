@@ -827,6 +827,73 @@ defmodule Tuist.SandboxesTest do
                Repo.reload!(sandbox)
     end
 
+    test "puts a restore whose node lost the lazy disks it was loading back to archived, even once errored" do
+      restore = fn opts ->
+        [
+          node_name: "node-a",
+          archived_at: DateTime.utc_now(),
+          archive_key: "sandbox-archives/x.sbxa",
+          archive_memory: %{"lazy_disks" => true, "loading_since" => DateTime.to_iso8601(DateTime.utc_now())}
+        ]
+        |> Keyword.merge(opts)
+        |> sandbox_fixture()
+      end
+
+      running = restore.(state: :running, amp_orb_id: "amp-1", residency_work_id: "amp:amp-1", residency_epoch: 2)
+      errored = restore.(state: :error, error_message: "daemon restarted while loading")
+      loaded = restore.(state: :running, archive_memory: %{"lazy_disks" => true, "loaded" => true})
+      reject(&Nodes.call/4)
+
+      Sandboxes.reconcile_node_report("node-a", %{
+        "sandboxes" =>
+          for(
+            sandbox <- [running, errored, loaded],
+            do: %{"id" => sandbox.id, "state" => "error", "error" => "restarted"}
+          )
+      })
+
+      for sandbox <- [running, errored] do
+        # The next restore may boot cold, which would never clear `loading_since`.
+        assert %Sandbox{
+                 state: :archived,
+                 node_name: nil,
+                 residency_work_id: nil,
+                 archive_key: "sandbox-archives/x.sbxa",
+                 archive_memory: %{"lazy_disks" => true} = memory
+               } = Repo.reload!(sandbox)
+
+        refute Map.has_key?(memory, "loading_since")
+      end
+
+      assert %Sandbox{residency_epoch: 3} = Repo.reload!(running)
+      # The running restore stopped; the errored one had already.
+      assert events(running) == ["failed"]
+      assert events(errored) == []
+      assert %Sandbox{state: :error, error_message: "restarted", node_name: "node-a"} = Repo.reload!(loaded)
+    end
+
+    test "leaves a restore running on another node alone when its former node reports its stale copy in error" do
+      restored =
+        sandbox_fixture(
+          state: :running,
+          node_name: "node-b",
+          residency_work_id: "amp:amp-1",
+          archived_at: DateTime.utc_now(),
+          archive_key: "sandbox-archives/x.sbxa",
+          archive_memory: %{"lazy_disks" => true, "loading_since" => DateTime.to_iso8601(DateTime.utc_now())}
+        )
+
+      restored_id = restored.id
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^restored_id}, _opts -> {:ok, %{}} end)
+
+      Sandboxes.reconcile_node_report("node-a", %{
+        "sandboxes" => [%{"id" => restored.id, "state" => "error", "error" => "restarted"}]
+      })
+
+      assert %Sandbox{state: :running, node_name: "node-b", residency_work_id: "amp:amp-1", error_message: nil} =
+               Repo.reload!(restored)
+    end
+
     test "errors a creating sandbox the node never got once it has been stuck, and leaves a fresh one alone" do
       stuck = [state: :creating, node_name: "node-a"] |> sandbox_fixture() |> backdate(600)
       fresh = sandbox_fixture(state: :creating, node_name: "node-a")
@@ -848,6 +915,15 @@ defmodule Tuist.SandboxesTest do
       running = on_gone.(state: :running, amp_orb_id: "amp-1", residency_work_id: "amp:amp-1", residency_epoch: 2)
       paused = on_gone.(state: :paused, paused_at: DateTime.utc_now())
       restoring = on_gone.(state: :creating, archived_at: DateTime.utc_now(), archive_key: "sandbox-archives/x.sbxa")
+
+      loading =
+        on_gone.(
+          state: :running,
+          archived_at: DateTime.utc_now(),
+          archive_key: "sandbox-archives/y.sbxa",
+          archive_memory: %{"lazy_disks" => true}
+        )
+
       macos = on_gone.(state: :paused, platform: :darwin)
       execution = on_gone.(state: :running, purpose: :remote_execution)
       away = sandbox_fixture(account: account, state: :running, node_name: "node-away")
@@ -867,6 +943,7 @@ defmodule Tuist.SandboxesTest do
       assert %Sandbox{state: :error, node_name: nil, residency_work_id: nil, residency_epoch: 3} = Repo.reload!(running)
       assert %Sandbox{state: :error, node_name: nil} = Repo.reload!(paused)
       assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(restoring)
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(loading)
       assert %Sandbox{state: :paused, node_name: "node-gone"} = Repo.reload!(macos)
       assert %Sandbox{state: :running, node_name: "node-gone"} = Repo.reload!(execution)
       assert %Sandbox{state: :running, node_name: "node-away"} = Repo.reload!(away)

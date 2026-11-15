@@ -1019,6 +1019,17 @@ defmodule Tuist.Sandboxes.Archives do
   def lazy_disks?(_subject), do: false
 
   @doc """
+  Whether a sandbox restored warm from a lazy-disk archive may still lack
+  part of its disks on its node: they stream from the archive until the
+  node reports `memory_loaded`, so until then the archive is the only
+  complete copy. A daemon that restarts meanwhile cannot finish them.
+  """
+  def loading_disks?(%Sandbox{archived_at: %DateTime{}, archive_memory: %{"lazy_disks" => true} = memory}),
+    do: memory["loaded"] != true
+
+  def loading_disks?(%Sandbox{}), do: false
+
+  @doc """
   Deletes the archive object of a sandbox or a disk snapshot. Answers `:ok`
   when there is none.
   """
@@ -1187,18 +1198,36 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   @doc """
-  Puts a restore whose caller died back to `archived`, so the next spawn
-  restores it again. Guarded by the state, so a restore that finished
-  meanwhile is left alone.
-  """
-  def revert_restore(id) do
-    Repo.update_all(
-      from(s in Sandbox, where: s.id == ^id and s.state == :creating and not is_nil(s.archived_at)),
-      set: [state: :archived, node_name: nil, error_message: "restore interrupted", updated_at: now()],
-      inc: [residency_epoch: 1]
-    )
+  Puts a restore whose caller died, or whose node lost the disks it was
+  still loading (`loading_disks?/1`), back to `archived`, so the next spawn
+  restores it again. Guarded by the state it was read in, and by its node
+  when given, so a restore that finished or moved on meanwhile is left
+  alone. Answers how many rows it reverted.
 
-    :ok
+  It drops the interrupted restore's `loading_since`: a next restore that
+  boots cold never sets it, and a stale one would keep `delete_restored/1`
+  and `loading_disks?/1` treating that sandbox's complete disks as loading.
+  """
+  def revert_restore(id, from_state \\ :creating, node_name \\ nil) do
+    query =
+      from(s in Sandbox,
+        where: s.id == ^id and s.state == ^from_state and not is_nil(s.archived_at),
+        update: [
+          set: [
+            state: ^:archived,
+            node_name: nil,
+            error_message: "restore interrupted",
+            residency_work_id: nil,
+            archive_memory: fragment("? - 'loading_since'", s.archive_memory),
+            updated_at: ^now()
+          ],
+          inc: [residency_epoch: 1]
+        ]
+      )
+
+    query = if node_name, do: where(query, [s], s.node_name == ^node_name), else: query
+    {count, _} = Repo.update_all(query, [])
+    count
   end
 
   defp revert_stuck_restores do
