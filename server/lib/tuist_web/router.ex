@@ -442,6 +442,10 @@ defmodule TuistWeb.Router do
 
     get "/llms.txt", LlmsTxtController, :show, metadata: @marketing_route_metadata
     get "/llms-full.txt", LlmsTxtController, :full, metadata: @docs_route_metadata
+
+    # Context7 only accepts its ownership file under the crawled base URL, so it
+    # lives here instead of /.well-known. Declared before the docs LiveView catch-all.
+    get "/en/docs/context7.json", WellKnownController, :context7_ownership, metadata: %{robots_txt: false}
   end
 
   scope "/", TuistWeb do

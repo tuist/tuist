@@ -291,6 +291,27 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /en/docs/context7.json" do
+    test "serves the Context7 ownership file instead of a docs page on Tuist-hosted deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+
+      conn = get(conn, "/en/docs/context7.json")
+
+      assert json_response(conn, 200) == %{
+               "url" => "https://context7.com/websites/tuist_dev_en",
+               "public_key" => "pk_j1C6JsIPmcYwdZliFNUp7"
+             }
+    end
+
+    test "returns not found for on-premise deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> false end)
+
+      conn = get(conn, "/en/docs/context7.json")
+
+      assert response(conn, 404) == ""
+    end
+  end
+
   describe "GET /.well-known/openai-apps-challenge" do
     test "returns the OpenAI Apps challenge token for Tuist-hosted deployments", %{conn: conn} do
       expect(Environment, :tuist_hosted?, fn -> true end)
