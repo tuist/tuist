@@ -570,6 +570,12 @@ k8s-monitoring:
           action = "drop"
         }
     kube-state-metrics:
+      # One target of about 105k samples, scraped by whichever clustered
+      # alloy-metrics replica owns it, which can be a cache box in another
+      # region. At the 10s default an eu-east owner timed out mid-transfer and
+      # production lost every kube_* series for 14 minutes; half the 60s
+      # interval leaves room for that transfer.
+      scrapeTimeout: 30s
       # Do not blank the `pod` label on kube_pod_* metrics: relabeling
       # cannot aggregate duplicate samples, so that produces colliding
       # series rather than namespace-level totals. Instead, remove the

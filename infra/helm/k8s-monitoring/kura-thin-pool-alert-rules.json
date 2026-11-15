@@ -351,7 +351,7 @@
         "datasourceUid": "grafanacloud-prom",
         "model": {
           "editorMode": "code",
-          "expr": "max by (cluster, node, vg, pool) ({__name__=~\"kura_volumes_thin_pool_(read_only|out_of_data_space)\"})",
+          "expr": "max by (cluster, node, vg, pool) (\n  label_replace(kura_volumes_thin_pool_read_only, \"condition\", \"read_only\", \"\", \"\")\n  or label_replace(kura_volumes_thin_pool_out_of_data_space, \"condition\", \"out_of_data_space\", \"\", \"\")\n)",
           "instant": true,
           "intervalMs": 1000,
           "legendFormat": "__auto",

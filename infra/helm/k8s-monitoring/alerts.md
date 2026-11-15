@@ -2277,8 +2277,17 @@ inspect `lvs -a`. Never run `thin_check` against the live metadata device.
 #### Kura thin pool read-only or out of data space
 
 ```promql
-max by (cluster, node, vg, pool) ({__name__=~"kura_volumes_thin_pool_(read_only|out_of_data_space)"})
+max by (cluster, node, vg, pool) (
+  label_replace(kura_volumes_thin_pool_read_only, "condition", "read_only", "", "")
+  or label_replace(kura_volumes_thin_pool_out_of_data_space, "condition", "out_of_data_space", "", "")
+)
 ```
+
+The `condition` label keeps both metrics through `or`, which ignores
+`__name__` when it matches series. Pulse runs a `__name__` regex selector as
+one query per metric and concatenates the results, so `max by` over
+`{__name__=~"..."}` returns one series per metric there and Grafana rejects the
+duplicate labels.
 
 device-mapper reports the pool as `out_of_data_space`, `ro`, `needs_check` or
 `Fail`. The plugin reports this mode even when its full observation fails.
@@ -3391,20 +3400,35 @@ chart default.
 
 ### Tuist server replicas unavailable
 
+**Provisioned** in the `Alerts` folder, group `Infrastructure`, as
+`Tuist Server - Available Replicas Below Spec` (UID `fft9axi4o7y0we`).
+
 ```promql
-kube_deployment_status_replicas_available{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-server"
-}
-<
-kube_deployment_spec_replicas{
-  namespace=~"tuist|tuist-staging|tuist-canary",
-  deployment="tuist-tuist-server"
-}
+# A
+kube_deployment_status_replicas_available{deployment="tuist-tuist-server", namespace="tuist", cluster="tuist-production"}
+# B
+kube_deployment_spec_replicas{deployment="tuist-tuist-server", namespace="tuist", cluster="tuist-production"}
+# C (math): $A - $B
+# D (threshold): C < 0
 ```
 
-- Pending period: 2 minutes
-- Summary: `Tuist server has unavailable replicas in {{ $labels.namespace }}`
+- Pending period: 5 minutes
+- Severity: warning. No contact point on the rule; the policy tree routes it
+  to `Slack #notifications 2`.
+- **No Data: OK**, **Error: Error**
+
+**This rule does not page.** A replica short of spec is lost capacity, not
+lost service. Users are affected only once the remaining replicas cannot
+serve traffic, and **Tuist production HTTP 5xx rate high**
+(`tuist-production-http-5xx`) pages for that. It counts responses at the
+ingress, so it also sees the 503s nginx returns when no backend is left.
+
+**No Data must stay OK.** Both series come from the kube-state-metrics
+scrape. The rule was first pinned to `Incidents` with No Data = NoData. On
+2026-11-15 the kube-state-metrics `:8080` target went down three times for
+about 15 minutes each (00:13, 01:47 and 04:51 UTC). Each gap raised a
+critical `DatasourceNoData` page through IRM, while all five server
+replicas stayed available.
 
 ### Tuist server fatal VM allocator failures
 
