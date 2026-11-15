@@ -59,7 +59,7 @@ defmodule Condukt.Session.ViewTest do
     ])
 
     stream = Task.async(fn -> pid |> Condukt.stream("go #{@secret}") |> Enum.to_list() end)
-    assert_receive {:tool_running, tool}
+    assert_receive {:tool_running, tool}, 1_000
     assert :ok = Condukt.steer(pid, "steer #{@secret}")
     assert :ok = Condukt.follow_up(pid, "then summarize")
 
@@ -134,7 +134,7 @@ defmodule Condukt.Session.ViewTest do
       Agent.start_link(model: model, tools: [slow_tool(test_pid, "late")], load_project_instructions: false)
 
     run = Task.async(fn -> Condukt.run(pid, "go") end)
-    assert_receive {:tool_running, tool}
+    assert_receive {:tool_running, tool}, 1_000
 
     view = Condukt.view(pid)
     assert View.running?(view)

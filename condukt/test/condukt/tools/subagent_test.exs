@@ -649,6 +649,10 @@ defmodule Condukt.Tools.SubagentTest do
              index.({:subagent, "call_1", :agent_start})
 
     assert index.({:subagent, "call_1", :done}) < index.({:tool_result, "call_1", "field notes"})
+    # The view process publishes to the notifier apart from the stream. It
+    # answers `view/1` after everything the session sent it before, so once
+    # that returns the forwarded event has reached the notifier.
+    _view = Condukt.view(parent)
     assert_received {:notified, {:subagent, "call_1", {:text, "notes"}}}
 
     assert :sys.get_state(parent).subagent_supervisor |> DynamicSupervisor.which_children() == []
