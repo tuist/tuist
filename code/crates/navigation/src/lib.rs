@@ -39,23 +39,24 @@ impl Navigation {
         }
     }
 
+    /// A preview link opens its handoff page over the current tab. Tuist Code has
+    /// no previews list, so the shared previews link opens the first tab.
     pub fn navigate(&mut self, route: Route) {
         self.error = None;
         match route {
-            Route::Previews => {
-                self.tab = Tab::Previews;
-                self.preview = None;
-            }
-            Route::Profile => self.tab = Tab::Profile,
-            Route::Preview(preview) => {
-                self.tab = Tab::Previews;
-                self.preview = Some(preview);
-            }
+            Route::Previews => self.select(Tab::Threads),
+            Route::Profile => self.select(Tab::Profile),
+            Route::Preview(preview) => self.preview = Some(preview),
         }
     }
 
+    pub fn select(&mut self, tab: Tab) {
+        self.tab = tab;
+        self.preview = None;
+    }
+
     pub fn reset(&mut self) {
-        self.tab = Tab::Previews;
+        self.tab = Tab::Threads;
         self.preview = None;
         self.error = None;
     }

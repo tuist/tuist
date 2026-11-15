@@ -156,6 +156,7 @@ jobs:
             signed: ios-device
           - target: TuistCodeMacOS
             rust-target: aarch64-apple-darwin
+            app: Tuist Code.app
             artifact: macos-unsigned
             signed: macos
     env:
@@ -187,10 +188,11 @@ jobs:
       - name: Build the Swift client
         env:
           TARGET: ${{ matrix.target }}
+          APP: ${{ matrix.app || 'TuistCode.app' }}
         run: |
           python3 prepare-native.py
           once build "$TARGET"
-          ditto -c -k --sequesterRsrc --keepParent ".once/out/$TARGET/TuistCode.app" "$RUNNER_TEMP/TuistCode.zip"
+          ditto -c -k --sequesterRsrc --keepParent ".once/out/$TARGET/$APP" "$RUNNER_TEMP/TuistCode.zip"
       - name: Publish internal Tuist preview
         if: env.PUBLISH_PREVIEW == 'true' && matrix.signed == ''
         env:

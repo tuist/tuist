@@ -111,7 +111,7 @@ header_dirs = ["crates/core/include"]
 [[target]]
 name = "TuistCodeIOS"
 kind = "apple_application"
-srcs = ["apple/Sources/**/*.swift", "ios/Sources/**/*.swift"]
+srcs = ["apple/Sources/**/*.swift"]
 deps = ["./TuistCodeCoreIOS", "./TuistCodeCoreFFI"]
 [target.attrs]
 platform = "ios"
@@ -129,7 +129,7 @@ resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.pn
 [[target]]
 name = "TuistCodeIOSDevice"
 kind = "apple_application"
-srcs = ["apple/Sources/**/*.swift", "ios/Sources/**/*.swift"]
+srcs = ["apple/Sources/**/*.swift"]
 deps = ["./TuistCodeCoreIOSDevice", "./TuistCodeCoreFFI"]
 [target.attrs]
 platform = "ios"
@@ -146,12 +146,13 @@ resources = ["apple/Resources/en.lproj/Localizable.strings", "ios/Resources/*.pn
 [[target]]
 name = "TuistCodeMacOS"
 kind = "apple_application"
-srcs = ["apple/Sources/**/*.swift", "macos/Sources/**/*.swift"]
+srcs = ["apple/Sources/**/*.swift"]
 deps = ["./TuistCodeCoreMacOS", "./TuistCodeCoreFFI"]
 [target.attrs]
 platform = "macos"
 bundle_id = "dev.tuist.code"
-product_name = "TuistCode"
+product_name = "Tuist Code"
+module_name = "TuistCode"
 minimum_os = "14.0"
 info_plist = "macos/Info.plist"
 asset_catalogs = ["apple/Resources/Assets.xcassets"]

@@ -8,8 +8,8 @@ Once workspace: Cargo owns the dependency graph and `once.toml` seeds it with a
 `tuist/code` for caching and insights;
 sign in once per machine with `once auth login --provider tuist`.
 
-The app signs in with the browser and shows a Previews/Profile shell; Previews
-has no server data yet.
+The app signs in with the browser and shows a Threads/Profile shell laid out like
+Zed's workspace; Threads has no server data in GPUI yet.
 
 ## Crates
 
@@ -132,9 +132,8 @@ Record native VoiceOver/Narrator/NVDA/Orca acceptance separately in the README.
   `../apple/generate-icons.sh` renders from `app/Resources/TuistApp/AppIcon.icon`
   with Tuist Code's dark background; rerun it when that icon changes. It
   is the Dock icon on macOS, set at launch because the binary is unbundled.
-- `resources/tuist-mark.svg` is the web dashboard's five-petal mark
-  (`tuist_mark` in `server/lib/tuist_web/components/icon_components.ex`). In-app
-  branding uses it, tinted with the theme accent, not the app icon.
+- `resources/icons/` holds [Lucide](https://lucide.dev) icons under the ISC
+  license in `resources/icons/LICENSE`; keep that notice when adding icons.
 - The binary is named `TuistCode` because unbundled macOS apps show the executable
   name in the Dock. Window titles, menus, launchers and the installer use **Tuist Code**.
 

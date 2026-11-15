@@ -5,6 +5,7 @@
     <key>CFBundleExecutable</key><string>TuistCode</string>
     <key>CFBundleName</key><string>TuistCode</string>
     <key>CFBundleDisplayName</key><string>Tuist Code</string>
+    <key>NSAccentColorName</key><string>AccentColor</string>
     <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict>
         <key>CFBundleIconFiles</key><array><string>AppIcon60x60</string></array>
     </dict></dict>

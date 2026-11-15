@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Signs a copy of the TuistCodeMacOS build with Tuist's Developer ID certificate,
-# notarizes and staples it, and leaves delivery/macos/TuistCode.app. A stable
+# notarizes and staples it, and leaves delivery/macos/Tuist Code.app. A stable
 # Developer ID signature lets macOS remember "Always Allow" for the Tuist app's
 # Keychain session; ad-hoc signatures change on every build, so macOS would ask
 # again each time. Follows atlas-native/macos/distribution/bundle.sh without push
@@ -14,7 +14,7 @@ umask 077
 cd "$(dirname "$0")/../.."
 # shellcheck source-path=SCRIPTDIR/../..
 source ios/distribution/keychain.sh
-app_source="$PWD/.once/out/TuistCodeMacOS/TuistCode.app"
+app_source="$PWD/.once/out/TuistCodeMacOS/Tuist Code.app"
 team=U6LC622NKF
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
@@ -30,10 +30,10 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-app="$tmp/TuistCode.app"
+app="$tmp/Tuist Code.app"
 ditto "$app_source" "$app"
 [[ "$("$plist" -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = dev.tuist.code ]] || fail "Expected the Tuist Code app"
-xcrun vtool -show-build "$app/Contents/MacOS/TuistCode" | grep -Eq 'platform MACOS$' || fail "Expected a macOS build"
+xcrun vtool -show-build "$app/Contents/MacOS/Tuist Code" | grep -Eq 'platform MACOS$' || fail "Expected a macOS build"
 # Keep preview versions increasing without putting delivery metadata in cached outputs.
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Contents/Info.plist"
 
@@ -68,6 +68,6 @@ xcrun stapler validate "$app"
 spctl --assess --type execute --verbose=2 "$app"
 
 mkdir -p delivery/macos
-rm -rf delivery/macos/TuistCode.app
-ditto "$app" delivery/macos/TuistCode.app
-echo "Created delivery/macos/TuistCode.app, signed with Tuist's Developer ID and notarized"
+rm -rf "delivery/macos/Tuist Code.app"
+ditto "$app" "delivery/macos/Tuist Code.app"
+echo "Created delivery/macos/Tuist Code.app, signed with Tuist's Developer ID and notarized"

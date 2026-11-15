@@ -311,6 +311,60 @@ fn memberships_use_each_issuer_preserve_cache_on_error_and_scope_requests() {
     let url = h.actions.last().unwrap()["url"].as_str().unwrap();
     assert!(url.starts_with("https://one.test/api/projects/team/app/previews?"));
     assert!(url.contains("track=beta") && url.contains("search=notes"));
+    h.responses.extend([
+        (
+            200,
+            json!({"threads":[
+                {"id":"t1","status":"idle","archive_status":"active"},
+                {"id":"t2","status":"shipping","archive_status":"active"},
+                {"id":"t3","status":"running","archive_status":"archived"},
+                {"id":"t4","status":"interrupted","archive_status":"active"},
+                {"id":"t5","status":"queued","archive_status":"active"},
+                {"id":"t6","status":"something_new","archive_status":"active"}
+            ],"next_cursor":"c+/="}),
+        ),
+        (200, json!({"threads":[],"next_cursor":"c+/="})),
+        (200, json!({"error":"not a page"})),
+        (404, json!({"message":"Not found."})),
+        (403, json!({})),
+    ]);
+    let page = call(&mut c, &mut h, "threads", json!({}));
+    let sections: Vec<_> = page["data"]["threads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| (t["section"].as_str().unwrap(), t["state"].as_str()))
+        .collect();
+    assert_eq!(
+        sections,
+        [
+            ("recent", Some("completed")),
+            ("in_progress", Some("running")),
+            ("archived", Some("running")),
+            ("recent", Some("failed")),
+            ("in_progress", Some("queued")),
+            ("recent", None)
+        ]
+    );
+    // Threads stay on the personal account while the organization "team" is selected.
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/accounts/ana/threads"
+    );
+    let count = h.actions.len();
+    assert!(call(&mut c, &mut h, "threads", json!({"cursor":""}))["error"].is_string());
+    assert_eq!(h.actions.len(), count);
+    let repeated = call(&mut c, &mut h, "threads", json!({"cursor":"c+/="}));
+    assert_eq!(repeated["data"]["next_cursor"], Value::Null);
+    assert_eq!(
+        h.actions.last().unwrap()["url"],
+        "https://one.test/api/accounts/ana/threads?cursor=c%2B%2F%3D"
+    );
+    assert!(call(&mut c, &mut h, "threads", json!({}))["error"].is_string());
+    let unavailable = call(&mut c, &mut h, "threads", json!({}));
+    assert!(unavailable.get("error").is_none(), "{unavailable}");
+    assert_eq!(unavailable["data"]["available"], false);
+    assert!(call(&mut c, &mut h, "threads", json!({}))["error"].is_string());
     h.responses.extend([(503, json!({})), (403, json!({}))]);
     assert!(call(&mut c, &mut h, "organizations", json!({}))["error"].is_string());
     let p = c.vault.profiles.iter().find(|p| p.id == one).unwrap();
