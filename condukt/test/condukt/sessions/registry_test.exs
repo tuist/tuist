@@ -70,6 +70,33 @@ defmodule Condukt.Sessions.RegistryTest do
         end
       end
 
+      test "records children from their own processes, apart from ids, until they exit", %{
+        registry: registry,
+        opts: opts
+      } do
+        {:ok, parent} = Idle.start_link(registry.via("parent", opts))
+        test = self()
+
+        children =
+          for _child <- 1..2 do
+            spawn(fn ->
+              :ok = registry.join_parent("parent", opts)
+              send(test, :joined)
+              receive do: (:exit -> :ok)
+            end)
+          end
+
+        assert_receive :joined
+        assert_receive :joined
+        await(fn -> Enum.sort(registry.children("parent", opts)) == Enum.sort(children) end)
+        assert registry.list(opts) == ["parent"]
+        assert registry.children("other", opts) == []
+
+        Enum.each(children, &send(&1, :exit))
+        await(fn -> registry.children("parent", opts) == [] end)
+        assert registry.whereis("parent", opts) == parent
+      end
+
       test "signals reach a session named through the adapter, and a missing name is not found", %{
         registry: registry,
         opts: opts

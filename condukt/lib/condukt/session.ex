@@ -2961,7 +2961,7 @@ defmodule Condukt.Session do
   # when this process exits, and has it take the input its inbox stored while
   # it was not running once it has started.
   defp join_sessions(state, parent) do
-    :ok = Condukt.Sessions.join_parent(parent, self())
+    :ok = Condukt.Sessions.join_parent(parent)
     if state.inbox, do: send(self(), {Condukt.Sessions, :drain})
     :ok
   end
