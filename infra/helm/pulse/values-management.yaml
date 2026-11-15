@@ -16,6 +16,7 @@ storage:
 # Talos preserves across reboots and in-place upgrades. Replacing that node
 # loses the catalog: purge tuist-pulso-production/management/ before Pulse
 # starts on another node, or a fresh catalog may collide with the old regions.
+# Dispatching mgmt-cluster-apply.yml with reset_pulse empties both.
 persistence:
   hostPath: /var/lib/tuist-pulse
 nodeSelector:

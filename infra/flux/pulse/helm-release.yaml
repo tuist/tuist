@@ -12,6 +12,9 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
+  # Held while mgmt-cluster-apply.yml's reset_pulse empties the release's data,
+  # so Flux never upgrades the old catalog in place onto the renamed release.
+  suspend: true
   releaseName: pulse
   targetNamespace: observability
   storageNamespace: observability
