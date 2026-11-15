@@ -586,10 +586,10 @@ defmodule TuistWeb.AppLayoutComponents do
           if organization_ai?,
             do:
               Authorization.authorize(:account_update, @current_user, @selected_account) == :ok and
-                FeatureFlags.organization_ai_enabled?(@selected_account),
+                FeatureFlags.organization_code_enabled?(@selected_account),
             else:
               @selected_account.user_id == @current_user.id and
-                FeatureFlags.ai_enabled?(@current_user)
+                FeatureFlags.code_enabled?(@current_user)
         }
         label={dgettext("dashboard", "AI")}
         selected={String.starts_with?(@current_path, ai_path)}

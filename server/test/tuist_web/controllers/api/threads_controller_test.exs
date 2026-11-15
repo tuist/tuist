@@ -137,8 +137,8 @@ defmodule TuistWeb.API.ThreadsControllerTest do
     assert token |> request(path <> "/not-a-uuid") |> json_response(404)
   end
 
-  test "a disabled AI flag hides the entire API", %{token: token, path: path} do
-    stub(FeatureFlags, :ai_enabled?, fn _user -> false end)
+  test "a disabled code flag hides the entire API", %{token: token, path: path} do
+    stub(FeatureFlags, :code_enabled?, fn _user -> false end)
     id = Ecto.UUID.generate()
 
     for collection <- ["threads", "jams"],

@@ -87,7 +87,7 @@
 
 - AI subscription tools share `Accounts.AISubscriptions` with the dashboard and
   `/api/me/ai-subscriptions`. They act only for `current_user`, require
-  `FeatureFlags.ai_enabled?/1`, and under a WebMCP scope only answer on the
+  `FeatureFlags.code_enabled?/1`, and under a WebMCP scope only answer on the
   user's personal account; only the read-only list is offered over WebMCP.
   Outputs are metadata only. The Claude `token` argument is a secret the user
   must explicitly provide; Phoenix's `"arguments"` parameter filter keeps MCP

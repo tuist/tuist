@@ -27854,14 +27854,14 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/FeatureFlags`.
         public struct FeatureFlags: Codable, Hashable, Sendable {
-            /// The names of the enabled flags. Known values: `ai`.
+            /// The names of the enabled flags. Known values: `code`.
             ///
             /// - Remark: Generated from `#/components/schemas/FeatureFlags/enabled`.
             public var enabled: [Swift.String]
             /// Creates a new `FeatureFlags`.
             ///
             /// - Parameters:
-            ///   - enabled: The names of the enabled flags. Known values: `ai`.
+            ///   - enabled: The names of the enabled flags. Known values: `code`.
             public init(enabled: [Swift.String]) {
                 self.enabled = enabled
             }
@@ -150451,14 +150451,14 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The names of the enabled flags. Known values: `ai`.
+                        /// The names of the enabled flags. Known values: `code`.
                         ///
                         /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json/enabled`.
                         public var enabled: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - enabled: The names of the enabled flags. Known values: `ai`.
+                        ///   - enabled: The names of the enabled flags. Known values: `code`.
                         public init(enabled: [Swift.String]) {
                             self.enabled = enabled
                         }

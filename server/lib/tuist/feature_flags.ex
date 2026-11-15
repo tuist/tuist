@@ -128,16 +128,17 @@ defmodule Tuist.FeatureFlags do
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether a user may use personal AI features. Canary and production require
-  an explicit `:ai` FunWithFlags toggle. Development, test and staging default
-  to enabled. Organization routing uses `organization_ai_enabled?/1` instead.
+  Whether a user may use Tuist Code's features: threads, AI subscriptions and
+  MCP servers. Canary and production require an explicit `:code` FunWithFlags
+  toggle. Development, test and staging default to enabled. Organization
+  routing uses `organization_code_enabled?/1` instead.
   """
-  def ai_enabled?(actor) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:ai, for: actor)
+  def code_enabled?(actor) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:code, for: actor)
   end
 
-  @doc "Organization AI requires the account's `:ai` flag in every environment."
-  def organization_ai_enabled?(account), do: FunWithFlags.enabled?(:ai, for: account)
+  @doc "Organization AI requires the account's `:code` flag in every environment."
+  def organization_code_enabled?(account), do: FunWithFlags.enabled?(:code, for: account)
 
   @doc """
   The names of the flags enabled for `user` that the Tuist apps read
@@ -146,7 +147,7 @@ defmodule Tuist.FeatureFlags do
   only when an app feature depends on it.
   """
   def app_flags(user) do
-    for {name, true} <- [{"ai", ai_enabled?(user)}], do: name
+    for {name, true} <- [{"code", code_enabled?(user)}], do: name
   end
 
   @doc """
