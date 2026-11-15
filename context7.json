@@ -1,6 +1,6 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Tuist",
-  "description": "Tuist is build infrastructure for Xcode, Gradle, and Bazel projects, with Elixir and Rust support. It provides remote build caching, build and test insights, flaky test detection, selective testing, test sharding, code coverage, app previews, bundle insights, and managed CI runners. It also generates Xcode projects from Swift manifests. An MCP server and agent skills give coding agents access to project data.",
+  "description": "Tuist is build infrastructure for Xcode, Gradle, and Bazel projects, with Elixir and Rust support. It provides remote build caching, build and test insights, flaky test detection, selective testing, test sharding, code coverage, app previews, bundle insights, and managed CI runners. It also generates Xcode projects from Swift manifests. It provides an MCP server that gives coding agents access to project data, and agent skills for common Tuist tasks.",
   "folders": ["server/priv/docs/en"]
 }
