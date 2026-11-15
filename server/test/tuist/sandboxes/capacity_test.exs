@@ -513,6 +513,39 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Repo.get(SandboxNode, free).memory_limit_bytes == 8 * @gib
     end
 
+    test "grows a preferred node's carve-out before taking another node's room", %{template: template} do
+      free = connect_elastic(template)
+      holder = connect_elastic(template)
+      resident(template, holder)
+      apply_resizes(holder)
+
+      # The free node holds the newcomer as it is; the holder needs 9 GiB.
+      assert {:ok, ^holder} = Capacity.place(new_sandbox(template), fn _node -> true end, prefer: [holder])
+      assert Repo.get(SandboxNode, holder).memory_limit_bytes == 9 * @gib
+      assert Repo.get(SandboxNode, free).memory_limit_bytes == 8 * @gib
+    end
+
+    test "an admission growth goes to a preferred node over a freer one", %{template: template} do
+      free = connect_elastic(template)
+      holder = connect_elastic(template)
+      set_grant(holder, allocation_free_bytes: 20 * @gib)
+      resident(template, free)
+      resident(template, holder)
+      agent_environment = agent_environment_fixture(template: template)
+      test_pid = self()
+
+      stub(KubernetesClient, :resize_sandbox_daemon_memory, fn _namespace, pod, _bytes ->
+        send(test_pid, {:resized, pod})
+        {:ok, %{}}
+      end)
+
+      stub(KubernetesClient, :get_pod, fn _namespace, _pod -> {:ok, %{"status" => applied_status("9Gi")}} end)
+
+      assert Capacity.admissible?(agent_environment, "sesn_new", prefer: [holder])
+      assert_received {:resized, "sandboxd-" <> ^holder}
+      refute_received {:resized, "sandboxd-" <> ^free}
+    end
+
     test "pauses idle sandboxes before it grows", %{template: template} do
       node = connect_elastic(template)
       idle = sandbox_fixture(template: template, state: :running, node_name: node, memory_mb: 4096)

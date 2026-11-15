@@ -730,10 +730,11 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  # The plain reservation and growing a carve-out try preferred nodes first;
-  # growing one costs no more than growing another. Pausing idle sandboxes
-  # still goes where it frees the most: a pause takes seconds, about what a
-  # preferred node saves.
+  # Preferred nodes go first: their room, then a growth of their carve-out
+  # (waiting no longer than an admission does, since a preferred node saves
+  # seconds), and only then another node's room. Pausing idle sandboxes still
+  # goes where it frees the most, and the last growth tries preferred nodes
+  # first again.
   defp place_on(candidates, sandbox, prefer \\ []) do
     charge = charge_bytes(sandbox)
     ranked = rank(candidates)
@@ -743,15 +744,51 @@ defmodule Tuist.Sandboxes.Capacity do
       reserve(node, charge, fn -> set_node(sandbox, node.name) end, fn -> disk_room?(node, sandbox) end)
     end
 
-    case Enum.find(preferred ++ others, fn node -> reserve.(node) == :ok end) do
-      %{name: node_name} ->
-        {:ok, node_name}
-
-      nil ->
+    result =
+      with nil <- reserve_first(preferred, reserve),
+           nil <- grow_preferred(preferred, charge, reserve),
+           nil <- reserve_first(others, reserve) do
         case place_by_reclaiming(ranked, charge, reserve) do
-          {:ok, node_name} -> {:ok, node_name}
+          {:ok, node_name} -> {:ok, node_name, :reclaimed}
           {:error, :no_capacity} -> place_by_growing(ranked, charge, reserve, prefer)
         end
+      end
+
+    if prefer != [] do
+      Logger.info("sandboxes: placed a sandbox with checkout nodes",
+        sandbox_id: sandbox.id,
+        node:
+          case result do
+            {:ok, node_name, _path} -> node_name
+            _ -> nil
+          end,
+        checkout_nodes: Enum.join(prefer, " "),
+        placement_path:
+          case result do
+            {:ok, _node_name, path} -> path
+            _ -> :none
+          end
+      )
+    end
+
+    with {:ok, node_name, _path} <- result, do: {:ok, node_name}
+  end
+
+  defp reserve_first(nodes, reserve) do
+    case Enum.find(nodes, &(reserve.(&1) == :ok)) do
+      %{name: node_name} -> {:ok, node_name, :room}
+      nil -> nil
+    end
+  end
+
+  defp grow_preferred([], _charge, _reserve), do: nil
+
+  defp grow_preferred(preferred, charge, reserve) do
+    with {:ok, grown} <- grow_somewhere(preferred, charge, wait_ms(:admission_grow_wait_ms), :reported),
+         :ok <- reserve.(grown) do
+      {:ok, grown.name, :grown}
+    else
+      _no_room -> nil
     end
   end
 
@@ -768,7 +805,7 @@ defmodule Tuist.Sandboxes.Capacity do
   defp place_by_growing(ranked, charge, reserve, prefer) do
     with {:ok, grown} <- grow_somewhere(ranked, charge, wait_ms(:grow_wait_ms), :reported, prefer),
          :ok <- reserve.(grown) do
-      {:ok, grown.name}
+      {:ok, grown.name, :grown}
     else
       _no_room -> {:error, :no_capacity}
     end
@@ -821,8 +858,9 @@ defmodule Tuist.Sandboxes.Capacity do
   until a pause frees memory. When only a growth of an elastic node's
   carve-out would fit it, the growth is asked for here and the item is
   admissible if the kubelet applies it within a couple of seconds on one
-  of the nodes tried; a growth the kubelet defers on the last one stays
-  asked for, and the item, left queued, fits once that node has room. Sessions whose sandbox already holds memory and
+  of the nodes tried, those in `prefer:` first; a growth the kubelet defers
+  on the last one stays asked for, and the item, left queued, fits once
+  that node has room. Sessions whose sandbox already holds memory and
   environments with no connected node at all are admissible; the latter
   fail on dispatch as before.
 
@@ -831,10 +869,12 @@ defmodule Tuist.Sandboxes.Capacity do
   or `:no_room` for a new one. macOS gives per-host reasons
   (`Tuist.Sandboxes.MacosCapacity.admission/2`).
   """
-  def admission(%AgentEnvironment{platform: :darwin} = environment, session_id),
+  def admission(agent_environment, session_id, opts \\ [])
+
+  def admission(%AgentEnvironment{platform: :darwin} = environment, session_id, _opts),
     do: MacosCapacity.admission(environment, session_id)
 
-  def admission(%AgentEnvironment{} = agent_environment, session_id) when is_binary(session_id) do
+  def admission(%AgentEnvironment{} = agent_environment, session_id, opts) when is_binary(session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state, node_name: name} when state in @charged_states ->
         charged_admission(name)
@@ -846,13 +886,13 @@ defmodule Tuist.Sandboxes.Capacity do
 
       _new ->
         with :ok <- quota(agent_environment.account_id, agent_environment) do
-          if placeable?(agent_environment), do: :ok, else: {:error, :no_room}
+          if placeable?(agent_environment, Keyword.get(opts, :prefer, [])), do: :ok, else: {:error, :no_room}
         end
     end
   end
 
   @doc "Whether `admission/2` lets the session's work item through."
-  def admissible?(agent_environment, session_id), do: admission(agent_environment, session_id) == :ok
+  def admissible?(agent_environment, session_id, opts \\ []), do: admission(agent_environment, session_id, opts) == :ok
 
   @doc "The account's CPU and memory quota check for a work item's sandbox."
   def quota(account_id, requested), do: Concurrency.check(account_id, requested)
@@ -880,7 +920,7 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
-  defp placeable?(agent_environment) do
+  defp placeable?(agent_environment, prefer) do
     case ready_nodes(agent_environment.template) do
       [] ->
         true
@@ -888,15 +928,15 @@ defmodule Tuist.Sandboxes.Capacity do
       nodes ->
         with_disk = Enum.filter(nodes, &disk_room?(&1, agent_environment))
         if with_disk == [], do: nodes |> Enum.map(& &1.name) |> Archives.make_node_room()
-        Enum.any?(with_disk, &memory_room?(&1, agent_environment)) or grown_in_time?(with_disk, agent_environment)
+        Enum.any?(with_disk, &memory_room?(&1, agent_environment)) or grown_in_time?(with_disk, agent_environment, prefer)
     end
   end
 
   # The admission check only needs to know the kubelet applied the growth;
   # the placement that follows waits for the daemon to report it.
-  defp grown_in_time?(nodes, sized) when is_list(nodes) do
+  defp grown_in_time?(nodes, sized, prefer) when is_list(nodes) do
     with_space = Enum.filter(nodes, &disk_space?(&1, sized))
-    result = grow_somewhere(with_space, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied)
+    result = grow_somewhere(with_space, charge_bytes(sized), wait_ms(:admission_grow_wait_ms), :applied, prefer)
     match?({:ok, _node}, result)
   end
 

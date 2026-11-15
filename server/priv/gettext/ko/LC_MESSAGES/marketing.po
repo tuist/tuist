@@ -328,7 +328,7 @@ msgstr "Mastodon"
 msgid "Newsletter"
 msgstr "뉴스레터"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1211
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -2967,16 +2967,6 @@ msgstr "테스트 인사이트, 샤딩, 신뢰할 수 있는 피드백 · Tuist"
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Tuist 블로그: 엔지니어링 및 빌드 인프라"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Faster builds. Reliable tests. One platform for your team and coding agents."
-msgstr "더 빠른 빌드. 안정적인 테스트. 팀과 코딩 에이전트를 위한 단일 플랫폼."
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
-#, elixir-autogen, elixir-format
-msgid "Tuist — Build infrastructure for engineering teams and coding agents"
-msgstr "Tuist — 엔지니어링 팀과 코딩 에이전트를 위한 빌드 인프라"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
@@ -2997,13 +2987,10 @@ msgstr "이미 빌드됨."
 msgid "build work."
 msgstr "빌드 작업."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:230
-#: lib/tuist_web/marketing/structured_markup.ex:271
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for engineering teams and coding agents."
 msgstr "Tuist는 엔지니어링 팀과 코딩 에이전트를 위한 빌드 인프라입니다."
@@ -3017,3 +3004,20 @@ msgstr "Tuist는 엔지니어링 팀과 코딩 에이전트를 위한 빌드 인
 #, elixir-autogen, elixir-format
 msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that infrastructure supports both people and coding agents."
 msgstr "Tuist는 오픈소스 개발자 도구로 시작했습니다. 함께 소프트웨어를 만들기 위해 엔지니어링 팀이 필요로 하는 공유 인프라를 구축하기 위해 이를 사업으로 전환했습니다. 오늘날 이 인프라는 사람과 코딩 에이전트 모두를 지원합니다."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
+msgstr "Xcode, Gradle, Bazel 등 다양한 빌드 시스템에서 더 빠른 빌드와 안정적인 테스트를 지원합니다. 팀과 코딩 에이전트를 위한 단일 플랫폼입니다."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
+#: lib/tuist_web/marketing/structured_markup.ex:230
+#: lib/tuist_web/marketing/structured_markup.ex:271
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+msgstr "Tuist는 엔지니어링 팀과 코딩 에이전트를 위한 빌드 인프라입니다. Xcode, Gradle, Bazel 등 다양한 환경에서 빌드를 가속화하고 테스트의 안정성을 높여줍니다."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "Tuist — Faster builds and reliable tests for every build system"
+msgstr "Tuist — 모든 빌드 시스템을 위한 빠른 빌드와 안정적인 테스트"

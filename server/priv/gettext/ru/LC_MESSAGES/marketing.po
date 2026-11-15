@@ -328,7 +328,7 @@ msgstr "Mastodon"
 msgid "Newsletter"
 msgstr "Рассылка"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1211
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -2967,16 +2967,6 @@ msgstr "Аналитика тестов, шардирование и надеж�
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Блог Tuist: инженерия и инфраструктура сборок"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Faster builds. Reliable tests. One platform for your team and coding agents."
-msgstr "Быстрые сборки. Надёжные тесты. Одна платформа для вашей команды и AI-агентов."
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
-#, elixir-autogen, elixir-format
-msgid "Tuist — Build infrastructure for engineering teams and coding agents"
-msgstr "Tuist — инфраструктура сборок для инженерных команд и AI-агентов"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
@@ -2997,13 +2987,10 @@ msgstr "уже собрано."
 msgid "build work."
 msgstr "работа сборки."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:230
-#: lib/tuist_web/marketing/structured_markup.ex:271
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for engineering teams and coding agents."
 msgstr "Tuist — это инфраструктура сборок для инженерных команд и AI-агентов."
@@ -3017,3 +3004,20 @@ msgstr "Tuist — это инфраструктура сборок для инж
 #, elixir-autogen, elixir-format
 msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that infrastructure supports both people and coding agents."
 msgstr "Tuist начинался как набор инструментов для разработчиков с открытым исходным кодом. Мы превратили его в бизнес, чтобы создать общую инфраструктуру, необходимую инженерным командам для совместной разработки программного обеспечения. Сегодня эта инфраструктура поддерживает как людей, так и агентов для написания кода."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
+msgstr "Быстрые сборки и надёжные тесты для Xcode, Gradle, Bazel и других систем. Одна платформа для вашей команды и агентов ИИ-программирования."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
+#: lib/tuist_web/marketing/structured_markup.ex:230
+#: lib/tuist_web/marketing/structured_markup.ex:271
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+msgstr "Tuist — инфраструктура сборок для инженерных команд и агентов ИИ-программирования. Она ускоряет сборки и делает тесты надёжными в Xcode, Gradle, Bazel и других системах."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "Tuist — Faster builds and reliable tests for every build system"
+msgstr "Tuist — быстрые сборки и надёжные тесты для любой системы сборки"

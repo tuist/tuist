@@ -480,5 +480,39 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       refute_enqueued(worker: ArchiveSandboxesWorker)
       assert Capacity.reserved_disk_bytes(copy_node("node-b")) < reserved
     end
+
+    test "the disk-pressure sweep keeps a copy used in the last hour and archives an idle Orb instead" do
+      stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+      stub(Nodes, :call, fn "node-b", "delete_disks", _args, _opts -> {:ok, %{}} end)
+
+      # An Orb was just spawned on this copy, which is what pushed the node over.
+      used = disk_snapshot_copy_fixture(popular_snapshot(), node_name: "node-b")
+
+      sandbox_fixture(
+        amp_orb_id: "amp-idle",
+        node_name: "node-b",
+        state: :paused,
+        paused_at: DateTime.add(DateTime.utc_now(), -3600)
+      )
+
+      assert Archives.make_node_room(["node-b"], disk_pressure: true)
+      assert Repo.reload(used)
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{node_names: ["node-b"], disk_pressure: true})
+
+      # A copy idle for over an hour still goes first.
+      idle =
+        disk_snapshot_copy_fixture(popular_snapshot(),
+          node_name: "node-b",
+          last_used_at: DateTime.add(DateTime.utc_now(), -61 * 60)
+        )
+
+      assert Archives.make_node_room(["node-b"], disk_pressure: true)
+      refute Repo.reload(idle)
+      assert Repo.reload(used)
+
+      # A node that refused a sandbox still gives up even a just-used copy.
+      assert Archives.make_node_room(["node-b"])
+      refute Repo.reload(used)
+    end
   end
 end

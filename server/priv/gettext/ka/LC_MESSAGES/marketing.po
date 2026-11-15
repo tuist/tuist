@@ -328,7 +328,7 @@ msgstr "Mastodon"
 msgid "Newsletter"
 msgstr "ნიუსლეთერი"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1211
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -2967,16 +2967,6 @@ msgstr "ტესტების ანალიტიკა, შარდინ
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Tuist-ის ბლოგი: ინჟინერია და ბილდის ინფრასტრუქტურა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Faster builds. Reliable tests. One platform for your team and coding agents."
-msgstr "სწრაფი ბილდები. საიმედო ტესტები. ერთი პლატფორმა თქვენი გუნდისა და კოდირების აგენტებისთვის."
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
-#, elixir-autogen, elixir-format
-msgid "Tuist — Build infrastructure for engineering teams and coding agents"
-msgstr "Tuist — ბილდ-ინფრასტრუქტურა საინჟინრო გუნდებისა და კოდირების აგენტებისთვის"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
@@ -2997,13 +2987,10 @@ msgstr "უკვე აგებულია."
 msgid "build work."
 msgstr "ბილდის სამუშაოები."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:230
-#: lib/tuist_web/marketing/structured_markup.ex:271
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for engineering teams and coding agents."
 msgstr "Tuist არის ბილდ-ინფრასტრუქტურა საინჟინრო გუნდებისა და კოდირების აგენტებისთვის."
@@ -3017,3 +3004,20 @@ msgstr "Tuist არის ბილდ-ინფრასტრუქტურ�
 #, elixir-autogen, elixir-format
 msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that infrastructure supports both people and coding agents."
 msgstr "Tuist დაიწყო როგორც ღია კოდის ინსტრუმენტთა ნაკრები დეველოპერებისთვის. ჩვენ ის ბიზნესად ვაქციეთ, რათა აგვეშენებინა საერთო ინფრასტრუქტურა, რომელიც საჭიროა ინჟინრულ გუნდებს ერთობლივი პროგრამული უზრუნველყოფის შესაქმნელად. დღეს ეს ინფრასტრუქტურა ემსახურება როგორც ადამიანებს, ასევე კოდირების აგენტებს."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
+msgstr "სწრაფი ბილდები და საიმედო ტესტები Xcode-ის, Gradle-ის, Bazel-ისა და სხვებისთვის. ერთი პლატფორმა თქვენი გუნდისა და კოდირების აგენტებისთვის."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
+#: lib/tuist_web/marketing/structured_markup.ex:230
+#: lib/tuist_web/marketing/structured_markup.ex:271
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+msgstr "Tuist არის ბილდების ინფრასტრუქტურა საინჟინრო გუნდებისა და კოდირების აგენტებისთვის. ის აჩქარებს ბილდებს და უზრუნველყოფს ტესტების საიმედოობას Xcode-ში, Gradle-ში, Bazel-ში და სხვა სისტემებში."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "Tuist — Faster builds and reliable tests for every build system"
+msgstr "Tuist — სწრაფი ბილდები და საიმედო ტესტები ნებისმიერი ბილდის სისტემისთვის"

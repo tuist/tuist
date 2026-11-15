@@ -78,7 +78,12 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   end
 
   defp admit(agent_environment, order) do
-    if Capacity.admissible?(agent_environment, order.session_id) do
+    prefer_nodes = checkout_nodes(agent_environment, repository(Map.get(order, :repository_url)))
+    order = Map.put(order, :prefer_nodes, prefer_nodes)
+
+    # A growth the admission asks for goes to a checkout node first, so the
+    # placement that follows finds its room there.
+    if Capacity.admissible?(agent_environment, order.session_id, prefer: prefer_nodes) do
       {:ok, _pid} =
         Task.Supervisor.start_child(AnthropicSupervisor.task_supervisor(), fn ->
           start_runner(agent_environment, order)
@@ -99,6 +104,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
 
     repository = repository(Map.get(order, :repository_url))
     snapshot = repository && ClaudeCodeSnapshots.find(agent_environment, repository)
+    prefer_nodes = Map.get_lazy(order, :prefer_nodes, fn -> checkout_nodes(agent_environment, repository) end)
 
     started_at = System.monotonic_time()
 
@@ -110,7 +116,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
           with {:ok, sandbox, created?} <-
                  Router.find_or_create_sandbox(agent_environment, session_id,
                    from_disk_snapshot: snapshot,
-                   prefer_nodes: checkout_nodes(agent_environment, repository)
+                   prefer_nodes: prefer_nodes
                  ),
                placement_ms = milliseconds_since(started_at),
                {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
@@ -139,6 +145,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
           node: sandbox.node_name,
           agent_environment_id: agent_environment.id,
           session_id: session_id,
+          checkout_nodes: length(prefer_nodes),
           placement_ms: placement_ms,
           spawn_ms: milliseconds_since(Map.get(order, :received_at, started_at))
         )

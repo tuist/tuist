@@ -201,7 +201,8 @@ defmodule Tuist.Sandboxes.Archives do
   @doc """
   Makes room on nodes whose disk refused a new sandbox, any account's:
   drops a copy of a disk snapshot made for another node's sake
-  (`DiskSnapshots.drop_copy/1`), else queues the archive of the least
+  (`DiskSnapshots.drop_copy/2`; the proactive `disk_pressure` sweep only
+  drops a copy unused for an hour), else queues the archive of the least
   recently paused idle Orb on them. Answers whether room is on its way,
   which is also the case while an archive is uploading from one of them.
   Answers false when archiving is off or they hold no Orb to archive. With
@@ -212,7 +213,7 @@ defmodule Tuist.Sandboxes.Archives do
     node_names = node_names |> Enum.uniq() |> Enum.sort()
 
     cond do
-      DiskSnapshots.drop_copy(node_names) ->
+      DiskSnapshots.drop_copy(node_names, idle_only: opts[:disk_pressure] == true) ->
         true
 
       !Environment.sandbox_archive_after_hours() or node_names == [] ->

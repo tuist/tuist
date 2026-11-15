@@ -223,8 +223,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   last 6 hours (`CacheVolumes.recent_sandbox_checkout_nodes/4`
   into `Capacity.place/3`'s `prefer:`): they hold its master and, for
   sandboxd's `CHECKOUT_WORKSPACES_TTL`, the workspace prepared from that seed.
-  The plain reservation and a carve-out growth prefer them; pausing idle
-  sandboxes for room does not, since a pause costs about what they save.
+  The spawn admission's growth, the plain reservation and a carve-out growth
+  prefer them, and placement grows one (waiting at most the admission's
+  2.5 s) before taking another node's room; pausing idle sandboxes for room
+  does not, since a pause costs about what they save. Placement logs
+  `sandboxes: placed a sandbox with checkout nodes` with the nodes and the
+  path it took (`room`, `grown`, `reclaimed`, `none`).
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was
@@ -275,7 +279,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   node, is admitted only while that node's reserved disk stays under the
   archive high-water mark with it (so it never makes an Orb get archived;
   a node that cannot take it passes it to the next in rendezvous order), and
-  is the first thing `Archives.make_node_room/2` gives up. Copies go with their snapshot
+  is the first thing `Archives.make_node_room/2` gives up (the proactive
+  `disk_pressure` sweep only gives up a copy unused for an hour: an Orb spawned
+  on a copy pushes its node over the high-water mark, and dropping that copy
+  re-downloaded a popular snapshot every hour). Copies go with their snapshot
   (expiry, supersede), after 24 hours unused, after 45 minutes stuck
   copying, and when their node stops listing them.
   A Claude Code repository snapshot has no Amp id: it is keyed by

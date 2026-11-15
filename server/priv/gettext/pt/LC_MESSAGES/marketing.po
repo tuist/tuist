@@ -328,7 +328,7 @@ msgstr "Mastodon"
 msgid "Newsletter"
 msgstr "Newsletter"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1211
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -2967,16 +2967,6 @@ msgstr "Insights de testes, sharding e feedback confiável · Tuist"
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Blog do Tuist: engenharia e infraestrutura de build"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Faster builds. Reliable tests. One platform for your team and coding agents."
-msgstr "Compilações mais rápidas. Testes confiáveis. Uma plataforma para sua equipe e agentes de codificação."
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
-#, elixir-autogen, elixir-format
-msgid "Tuist — Build infrastructure for engineering teams and coding agents"
-msgstr "Tuist — Infraestrutura de build para equipes de engenharia e agentes de codificação"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
@@ -2997,13 +2987,10 @@ msgstr "já compilado."
 msgid "build work."
 msgstr "trabalho de compilação."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:230
-#: lib/tuist_web/marketing/structured_markup.ex:271
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for engineering teams and coding agents."
 msgstr "O Tuist é uma infraestrutura de build para equipes de engenharia e agentes de codificação."
@@ -3017,3 +3004,20 @@ msgstr "O Tuist é uma infraestrutura de build para equipes de engenharia e agen
 #, elixir-autogen, elixir-format
 msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that infrastructure supports both people and coding agents."
 msgstr "O Tuist começou como um kit de ferramentas para desenvolvedores open-source. Transformamos o Tuist em um negócio para que pudéssemos construir a infraestrutura compartilhada que as equipes de engenharia precisam para criar software juntas. Hoje, essa infraestrutura atende tanto pessoas quanto agentes de codificação."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
+msgstr "Compilações mais rápidas e testes confiáveis para Xcode, Gradle, Bazel e muito mais. Uma plataforma para sua equipe e agentes de codificação."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
+#: lib/tuist_web/marketing/structured_markup.ex:230
+#: lib/tuist_web/marketing/structured_markup.ex:271
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+msgstr "Tuist é infraestrutura de compilação para equipes de engenharia e agentes de codificação. Ele torna as compilações mais rápidas e os testes confiáveis em Xcode, Gradle, Bazel e muito mais."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "Tuist — Faster builds and reliable tests for every build system"
+msgstr "Tuist — Compilações mais rápidas e testes confiáveis para qualquer sistema de compilação"

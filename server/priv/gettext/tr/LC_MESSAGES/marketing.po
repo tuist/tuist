@@ -328,7 +328,7 @@ msgstr "Mastodon"
 msgid "Newsletter"
 msgstr "Bülten"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1211
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1212
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -2967,16 +2967,6 @@ msgstr "Test içgörüleri, parçalama ve güvenilir geri bildirim · Tuist"
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Tuist Blog: mühendislik ve derleme altyapısı"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Faster builds. Reliable tests. One platform for your team and coding agents."
-msgstr "Daha hızlı derlemeler. Güvenilir testler. Ekibiniz ve kodlama ajanları için tek bir platform."
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
-#, elixir-autogen, elixir-format
-msgid "Tuist — Build infrastructure for engineering teams and coding agents"
-msgstr "Tuist — Mühendislik ekipleri ve kodlama ajanları için derleme altyapısı"
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
@@ -2997,13 +2987,10 @@ msgstr "zaten derlendi."
 msgid "build work."
 msgstr "derleme işi."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:485
 #: lib/tuist_web/marketing/controllers/marketing_html/compute.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:54
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:69
-#: lib/tuist_web/marketing/structured_markup.ex:230
-#: lib/tuist_web/marketing/structured_markup.ex:271
 #, elixir-autogen, elixir-format
 msgid "Tuist is build infrastructure for engineering teams and coding agents."
 msgstr "Tuist, mühendislik ekipleri ve kodlama ajanları için derleme altyapısıdır."
@@ -3017,3 +3004,20 @@ msgstr "Tuist, mühendislik ekipleri ve kodlama ajanları için derleme altyapı
 #, elixir-autogen, elixir-format
 msgid "Tuist started as an open-source developer toolkit. We turned it into a business so we could build the shared infrastructure engineering teams need to create software together. Today, that infrastructure supports both people and coding agents."
 msgstr "Tuist, açık kaynaklı bir geliştirici araç seti olarak başladı. Mühendislik ekiplerinin birlikte yazılım geliştirmek için ihtiyaç duyduğu ortak altyapıyı oluşturabilmek amacıyla onu bir işletmeye dönüştürdük. Günümüzde bu altyapı hem insanları hem de kodlama ajanlarını destekliyor."
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
+msgstr "Xcode, Gradle, Bazel ve daha fazlası için daha hızlı derlemeler ve güvenilir testler. Ekibiniz ve kodlama ajanlarınız için tek bir platform."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:37
+#: lib/tuist_web/marketing/structured_markup.ex:230
+#: lib/tuist_web/marketing/structured_markup.ex:271
+#, elixir-autogen, elixir-format
+msgid "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+msgstr "Tuist, mühendislik ekipleri ve kodlama ajanları için derleme altyapısıdır. Xcode, Gradle, Bazel ve daha fazlasında derlemeleri hızlandırır ve testleri güvenilir hale getirir."
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
+#, elixir-autogen, elixir-format
+msgid "Tuist — Faster builds and reliable tests for every build system"
+msgstr "Tuist — Her derleme sistemi için daha hızlı derlemeler ve güvenilir testler"

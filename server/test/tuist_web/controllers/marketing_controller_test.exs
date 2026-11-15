@@ -16,6 +16,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.MarketingMarkdown
 
+  @home_description "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
   defp stub_latest_app_release do
@@ -134,8 +136,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert "SoftwareApplication" in types
 
       for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
-        assert entry["description"] ==
-                 "Tuist is build infrastructure for engineering teams and coding agents."
+        assert entry["description"] == @home_description
       end
 
       document = Floki.parse_document!(html)
@@ -145,17 +146,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             ~s(meta[property="og:description"]),
             ~s(meta[name="twitter:description"])
           ] do
-        assert Floki.attribute(document, selector, "content") ==
-                 [
-                   "Tuist is build infrastructure for engineering teams and coding agents."
-                 ]
+        assert Floki.attribute(document, selector, "content") == [@home_description]
       end
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist — Build infrastructure for engineering teams and coding agents"
+      assert html =~ "Tuist — Faster builds and reliable tests for every build system"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 

@@ -35,6 +35,7 @@ defmodule Tuist.VCS do
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
+  @tuist_run_report_footer "\n<sub>Reported by [Tuist](https://tuist.dev), faster builds and reliable tests for Xcode, Gradle, Bazel, and more.</sub>\n"
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
   @test_body_build_systems [
@@ -633,7 +634,7 @@ defmodule Tuist.VCS do
              installation: installation
            }) do
       vcs_comment_body =
-        get_run_report(%{
+        %{
           git_ref: git_ref,
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
@@ -642,7 +643,9 @@ defmodule Tuist.VCS do
           build_url: build_url,
           bundle_url: bundle_url,
           project: project
-        })
+        }
+        |> get_run_report()
+        |> with_run_report_footer()
 
       update_or_create_vcs_comment(%{
         vcs_comment_body: vcs_comment_body,
@@ -662,6 +665,14 @@ defmodule Tuist.VCS do
       _ ->
         :ok
     end
+  end
+
+  # Reviewers who have never heard of Tuist read these comments, so hosted
+  # comments say what Tuist is. Self-hosted instances keep the report alone.
+  defp with_run_report_footer(nil), do: nil
+
+  defp with_run_report_footer(body) do
+    if Environment.tuist_hosted?(), do: body <> @tuist_run_report_footer, else: body
   end
 
   defp get_existing_vcs_comment_id(%{
