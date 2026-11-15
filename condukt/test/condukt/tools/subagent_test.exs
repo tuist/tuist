@@ -696,6 +696,8 @@ defmodule Condukt.Tools.SubagentTest do
 
     child = background_child(parent)
     assert :sys.get_state(child).turn.streaming
+    # Recorded as the parent's child, by the parent's session id.
+    assert Condukt.Sessions.children(Condukt.Session.id(parent)) == [{Condukt.Session.id(child), child}]
 
     send(inference, :continue)
 

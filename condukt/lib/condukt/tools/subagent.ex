@@ -386,6 +386,7 @@ defmodule Condukt.Tools.Subagent do
     opts
     |> Keyword.put_new(:sandbox, Map.fetch!(context, :sandbox))
     |> Keyword.put_new(:cwd, Map.fetch!(context, :cwd))
+    |> put_new_present(:parent, Map.get(context, :session_id))
     |> put_new_present(:secrets, Map.get(context, :secrets))
     |> put_new_present(:model, Map.get(context, :model))
     |> put_new_present(:thinking_level, Map.get(context, :thinking_level))

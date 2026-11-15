@@ -156,7 +156,7 @@ The view holds:
 | `messages` | The committed history, newest last. |
 | `run` | The turn in flight, or `nil`. Its `items` are its input, steering that joined it, the answer and reasoning streamed so far, and each tool call with its arguments, `:running`/`:ok`/`:error` status, result, and a foreground sub-agent's own run under `subagent`. |
 | `error` | Why the last finished turn failed, such as `:aborted`, or `nil`. |
-| `queue` | Input waiting to start or join a turn, in the order it is taken: waiting callers (`:prompt`), `:steer`, `:follow_up`, and background sub-agent answers (`:report`). |
+| `queue` | Input waiting to start or join a turn, in the order it is taken: waiting callers (`:prompt`), `:steer`, `:follow_up`, input submitted by id with `Condukt.Sessions.submit/3` (`:input`), and background sub-agent answers (`:report`). |
 | `background` | [Background sub-agents](subagents.md) by name, each with its role, session id, the `call_id` of the call that spawned it, `:working` or `:idle` status, and the `run` of its current or last turn: the message it started from, steering that joined it, and its steps. |
 | `agent` | The agent module, model name, thinking level, tool names, and runtime. |
 | `epoch`, `seq` | Which session process numbered the changes, and the last change the view holds. |

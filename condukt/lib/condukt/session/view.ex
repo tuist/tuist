@@ -19,7 +19,8 @@ defmodule Condukt.Session.View do
     * `queue` - input waiting to start or join a turn, in the order the session
       takes it, each `%{kind: kind, message: message}` with `kind` one of
       `:prompt` (a caller's `run` or `stream` waiting), `:steer`, `:follow_up`,
-      or `:report` (a background sub-agent's answer)
+      `:input` (submitted by id with `Condukt.Sessions.submit/3`), or `:report`
+      (a background sub-agent's answer)
     * `background` - background sub-agents by name, each
       `%{name: name, role: role, session_id: id, call_id: id, status: status, run: run}`.
       `call_id` is the tool call that spawned it, `status` is `:working` or
@@ -103,6 +104,7 @@ defmodule Condukt.Session.View do
     end) ++
       Enum.map(turn.steering_messages, &%{kind: :steer, message: &1}) ++
       Enum.map(turn.follow_up_messages, &%{kind: :follow_up, message: &1}) ++
+      Enum.map(turn.inputs, fn {_input, message} -> %{kind: :input, message: message} end) ++
       Enum.map(turn.reports, fn {_tag, message} -> %{kind: :report, message: message} end)
   end
 

@@ -49,6 +49,7 @@ defmodule Condukt.Session do
   alias Condukt.Session.Turn
   alias Condukt.Session.View
   alias Condukt.Session.Viewer
+  alias Condukt.Sessions.Inbox
   alias Condukt.SessionStore.Snapshot
   alias Condukt.Tool.Inline
   alias Condukt.Tools.Subagent
@@ -89,6 +90,7 @@ defmodule Condukt.Session do
     :project_context,
     :user_state,
     :viewer,
+    :inbox,
     compaction: %Compaction{},
     messages: [],
     turn: %Condukt.Session.Turn{},
@@ -400,6 +402,12 @@ defmodule Condukt.Session do
     GenServer.cast(session, {:background_input, name, change})
   end
 
+  @doc false
+  # Takes an input submitted by id, see `Condukt.Sessions.submit/3`.
+  def submit(agent, input) do
+    call_session(agent, {:submit, input}, @default_timeout)
+  end
+
   @doc """
   Returns the session's current `Condukt.Session.View`: its history, the turn
   in flight with its partial answer and running tools, queued input, and agent
@@ -627,10 +635,12 @@ defmodule Condukt.Session do
               retry: Retry.normalize(opts[:retry]),
               project_context: project_context,
               user_state: user_state,
+              inbox: Keyword.get(opts, :inbox),
               assigns: Keyword.get(opts, :assigns, %{})
             }
             |> restore_messages(snapshot)
 
+          :ok = join_sessions(state, Keyword.get(opts, :parent))
           {:ok, start_viewer(state)}
         else
           {:runtime, {:error, reason}} ->
@@ -897,6 +907,13 @@ defmodule Condukt.Session do
     {:reply, :ok, maybe_start_queued_turn(%{state | turn: Turn.follow_up(state.turn, msg)})}
   end
 
+  def handle_call({:submit, input}, _from, state) do
+    case Turn.submit(state.turn, input, Message.user(input.text)) do
+      {:ok, turn} -> {:reply, :ok, maybe_start_queued_turn(%{state | turn: turn})}
+      {:error, :duplicate} -> {:reply, {:error, :duplicate}, state}
+    end
+  end
+
   @impl true
   def handle_cast({:stream, prompt, opts, subscriber_ref}, state) when state.turn.streaming and state.turn.queued do
     {:noreply, sync_queue(%{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:stream, subscriber_ref}})})}
@@ -1028,7 +1045,8 @@ defmodule Condukt.Session do
     end
   end
 
-  def handle_cast({:stream_complete, ref, {:ok, messages, _response, assigns}}, state) do
+  def handle_cast({:stream_complete, ref, {:ok, messages, response, assigns}}, state) do
+    settle_input(state, state.turn.input, {:ok, response})
     state = broadcast(state, ref, :done)
     state = state |> adopt_turn_messages(messages, assigns) |> view_run_finished(nil)
     state = finish_turn(state)
@@ -1038,6 +1056,7 @@ defmodule Condukt.Session do
   end
 
   def handle_cast({:stream_complete, ref, result}, state) do
+    settle_input(state, state.turn.input, {:error, run_error(result)})
     state = broadcast(state, ref, :done) |> view_run_finished(run_error(result))
     {:noreply, maybe_start_queued_turn(finish_turn(state))}
   end
@@ -1081,11 +1100,26 @@ defmodule Condukt.Session do
     {:noreply, %{state | turn: Turn.drop_monitored(state.turn, monitor)}}
   end
 
+  # Takes the inputs the inbox stored for this session, as it starts and
+  # whenever `Condukt.Sessions.submit/3` stores another. Inputs the session
+  # already took are dropped as duplicates.
+  def handle_info({Condukt.Sessions, :drain}, %{inbox: inbox} = state) when not is_nil(inbox) do
+    case Inbox.take(inbox, state.id) do
+      {:ok, inputs} ->
+        {:noreply, maybe_start_queued_turn(%{state | turn: Enum.reduce(inputs, state.turn, &take_input/2)})}
+
+      {:error, reason} ->
+        Logger.warning("session #{state.id} could not take its stored input: #{inspect(reason)}")
+        {:noreply, state}
+    end
+  end
+
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
   def terminate(_reason, state) do
     cancel_parked(state)
+    settle_inputs(state, :aborted)
     if state.mcp_registry, do: MCP.stop_all(state.mcp_registry)
     stop_subagent_supervisor(state.subagent_supervisor)
     Compaction.stop(state.compaction)
@@ -2258,6 +2292,7 @@ defmodule Condukt.Session do
       end
 
     cancel_parked(state)
+    settle_inputs(state, :aborted)
 
     # Pending callers never started, so only they hear, not the notifier.
     Enum.each(state.turn.pending, fn
@@ -2293,6 +2328,12 @@ defmodule Condukt.Session do
       {{prompt, opts, {:stream, ref}}, turn} ->
         start_stream(%{state | turn: turn}, prompt, opts, ref)
 
+      # The request id travels with the turn, so a durable journal records
+      # which submission the turn answers.
+      {{:input, input, message}, turn} ->
+        state = start_stream(%{state | turn: turn}, message.content, [request_id: input.request_id], make_ref())
+        %{state | turn: %{state.turn | queued: true, input: input}}
+
       {%Message{} = message, turn} ->
         state = start_stream(%{state | turn: turn}, message.content, [images: message.images], make_ref())
         %{state | turn: %{state.turn | queued: true}}
@@ -2300,6 +2341,38 @@ defmodule Condukt.Session do
   end
 
   defp start_queued_turn(state), do: state
+
+  # Records the session under its parent in the session tree, which drops it
+  # when this process exits, and has it take the input its inbox stored while
+  # it was not running once it has started.
+  defp join_sessions(state, parent) do
+    :ok = Condukt.Sessions.join_parent(parent, self())
+    if state.inbox, do: send(self(), {Condukt.Sessions, :drain})
+    :ok
+  end
+
+  defp take_input(input, turn) do
+    case Turn.submit(turn, input, Message.user(input.text)) do
+      {:ok, turn} -> turn
+      {:error, :duplicate} -> turn
+    end
+  end
+
+  # Settles the input the running turn started from, and with `settle_inputs/2`
+  # the queued ones an abort withdraws. Telling the sender calls another
+  # session, possibly on another node, so it runs in its own process.
+  defp settle_input(_state, nil, _outcome), do: :ok
+  defp settle_input(_state, %{from: nil}, _outcome), do: :ok
+
+  defp settle_input(state, input, outcome) do
+    {:ok, _pid} = Task.start(Condukt.Sessions, :settle, [input, outcome, state.inbox])
+    :ok
+  end
+
+  defp settle_inputs(state, outcome) do
+    if state.turn.streaming, do: settle_input(state, state.turn.input, outcome)
+    Enum.each(state.turn.inputs, fn {input, _message} -> settle_input(state, input, outcome) end)
+  end
 
   # ============================================================================
   # View

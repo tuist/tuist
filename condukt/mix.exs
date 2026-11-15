@@ -105,6 +105,7 @@ defmodule Condukt.MixProject do
         "docs/guides/hooks.md": [title: "Hooks"],
         "docs/guides/subagents.md": [title: "Sub-agents"],
         "docs/guides/parking.md": [title: "Waiting for Events"],
+        "docs/guides/child-sessions.md": [title: "Child Sessions"],
         "docs/guides/mcp.md": [title: "MCP"],
         "docs/guides/http-routes.md": [title: "HTTP Routes"],
         "docs/guides/sandbox.md": [title: "Sandbox"],
@@ -131,7 +132,8 @@ defmodule Condukt.MixProject do
           "docs/guides/tools.md",
           "docs/guides/hooks.md",
           "docs/guides/subagents.md",
-          "docs/guides/parking.md"
+          "docs/guides/parking.md",
+          "docs/guides/child-sessions.md"
         ],
         Integrations: [
           "docs/guides/mcp.md",

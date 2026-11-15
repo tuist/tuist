@@ -236,7 +236,11 @@ Ownership works differently from foreground calls:
   A `:notifier` set on the role still receives the sub-agent's own events.
 
 Background sub-agents live only in memory: they end with the parent session
-and are not restored with its conversation. Their roles must use the native
+and are not restored with its conversation. Sub-agents of both kinds record
+the parent's session id as their parent, so `Condukt.Sessions.children/1`
+lists them and `Condukt.Sessions.abort/2` on the parent reaches them. For
+children that outlive a process, run on other nodes, or are the host's own
+objects, such as threads, see [Child Sessions](child-sessions.md). Their roles must use the native
 runtime, because their turns start from queued input and stream to the
 manager that tracks them; `spawn` returns
 `{:error, {:background_subagent_requires_native_runtime, agent}}` otherwise.

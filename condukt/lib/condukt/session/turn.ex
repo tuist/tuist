@@ -27,12 +27,17 @@ defmodule Condukt.Session.Turn do
   `finish/1` or `abort/1`, keeping only the keys it closed, so `parking`
   outlives the turn as the queues do.
 
-  Input waits in four queues, taken in this order when the session is idle:
+  Input waits in five queues, taken in this order when the session is idle:
   `pending` callers whose `run` or `stream` arrived while a `queued` turn (one
   started from queued input, with nobody waiting on it) ran, steering that
-  arrived too late for its turn, follow-ups, and background sub-agent
-  `reports`. An abort withdraws all but the reports: an answer a sub-agent
-  already gave is not undone by stopping the parent's current work.
+  arrived too late for its turn, follow-ups, `inputs` submitted by id with
+  `Condukt.Sessions.submit/3`, and background sub-agent `reports`. An abort
+  withdraws all but the reports: an answer a sub-agent already gave is not
+  undone by stopping the parent's current work.
+
+  `input` is the submitted input the running turn started from, which the
+  session settles when the turn ends. `request_ids` remembers the request ids
+  of the last 1,000 submitted inputs, so a retry is refused as a duplicate.
 
   `history_rewritten` records that a compaction replaced history the turn
   started from, so the session's view takes the whole history when the turn
@@ -50,8 +55,13 @@ defmodule Condukt.Session.Turn do
             pending: [],
             reports: [],
             parking: nil,
+            inputs: [],
+            input: nil,
+            request_ids: {MapSet.new(), :queue.new()},
             queued: false,
             history_rewritten: false
+
+  @max_request_ids 1_000
 
   @doc "A turn that has not started."
   def new, do: %__MODULE__{}
@@ -67,6 +77,7 @@ defmodule Condukt.Session.Turn do
         recipient: recipient,
         worker: nil,
         prompt_index: prompt_index,
+        input: nil,
         queued: false,
         history_rewritten: false
     }
@@ -85,6 +96,7 @@ defmodule Condukt.Session.Turn do
         recipient: nil,
         worker: nil,
         prompt_index: nil,
+        input: nil,
         queued: false,
         history_rewritten: false
     }
@@ -94,9 +106,10 @@ defmodule Condukt.Session.Turn do
   Abandons the running turn.
 
   Replacing the reference makes the session reject late results, stream events,
-  and further tool admissions from that turn. Pending callers, steering, and
-  follow-ups are withdrawn with it, so an abort does not start another turn;
-  the session answers the pending callers. Reports stay queued for later.
+  and further tool admissions from that turn. Pending callers, steering,
+  follow-ups, and submitted inputs are withdrawn with it, so an abort does not
+  start another turn; the session answers the pending callers and settles the
+  inputs first. Reports stay queued for later.
   """
   def abort(%__MODULE__{} = turn) do
     %{
@@ -108,6 +121,8 @@ defmodule Condukt.Session.Turn do
         prompt_index: nil,
         queued: false,
         history_rewritten: false,
+        input: nil,
+        inputs: [],
         pending: [],
         steering_messages: [],
         follow_up_messages: []
@@ -129,7 +144,29 @@ defmodule Condukt.Session.Turn do
 
   @doc "Whether input other than reports waits to start a turn."
   def input_waiting?(%__MODULE__{} = turn) do
-    turn.pending != [] or turn.steering_messages != [] or turn.follow_up_messages != []
+    turn.pending != [] or turn.steering_messages != [] or turn.follow_up_messages != [] or turn.inputs != []
+  end
+
+  @doc """
+  Queues an input submitted by id as `message`, or returns
+  `{:error, :duplicate}` when its request id was seen before.
+  """
+  def submit(%__MODULE__{request_ids: {seen, order}} = turn, input, message) do
+    if MapSet.member?(seen, input.request_id) do
+      {:error, :duplicate}
+    else
+      request_ids = forget_oldest(MapSet.put(seen, input.request_id), :queue.in(input.request_id, order))
+      {:ok, %{turn | inputs: turn.inputs ++ [{input, message}], request_ids: request_ids}}
+    end
+  end
+
+  defp forget_oldest(seen, order) do
+    if MapSet.size(seen) > @max_request_ids do
+      {{:value, oldest}, order} = :queue.out(order)
+      {MapSet.delete(seen, oldest), order}
+    else
+      {seen, order}
+    end
   end
 
   @doc "Records that a compaction replaced the history this turn started from."
@@ -174,7 +211,8 @@ defmodule Condukt.Session.Turn do
   @doc """
   Takes the next input to start a turn with, or `nil`, in queue order.
 
-  Returns a pending `{prompt, opts, recipient}` or a queued message.
+  Returns a pending `{prompt, opts, recipient}`, a submitted
+  `{:input, input, message}`, or a queued message.
   """
   def next_input(%__MODULE__{pending: [pending | rest]} = turn), do: {pending, %{turn | pending: rest}}
 
@@ -183,6 +221,9 @@ defmodule Condukt.Session.Turn do
 
   def next_input(%__MODULE__{follow_up_messages: [message | rest]} = turn),
     do: {message, %{turn | follow_up_messages: rest}}
+
+  def next_input(%__MODULE__{inputs: [{input, message} | rest]} = turn),
+    do: {{:input, input, message}, %{turn | inputs: rest}}
 
   def next_input(%__MODULE__{reports: [{_tag, message} | rest]} = turn), do: {message, %{turn | reports: rest}}
   def next_input(%__MODULE__{} = turn), do: {nil, turn}
