@@ -7,17 +7,17 @@
 ---
 # Непрерывная интеграция (CI) {#continuous-integration-ci}
 
-Чтобы запускать команды Tuist в ваших рабочих процессах [непрерывной интеграции](https://en.wikipedia.org/wiki/Continuous_integration), необходимо установить её в среде CI. 
+Чтобы запускать команды Tuist в ваших рабочих процессах [непрерывной интеграции](https://en.wikipedia.org/wiki/Continuous_integration), вам нужно установить её в среде CI. 
 
-Аутентификация необязательна, но требуется, если вы хотите использовать серверные функции, такие как <.localized_link href="/guides/features/cache">кэш</.localized_link>. 
+Аутентификация необязательна, но требуется, если вы хотите использовать серверные возможности, такие как <.localized_link href="/guides/features/cache">кэш</.localized_link>. Чтобы сократить время выполнения CI и снизить затраты после установки Tuist, см. [Медленные сборки](https://tuist.dev/solutions/slow-builds) и [Затраты на CI](https://tuist.dev/solutions/ci-costs).
 
 В следующих разделах приведены примеры настройки для разных платформ CI. Once подключается через собственный нативный провайдер Tuist; ему не нужен CLI Tuist. См. [Once](#once) для этого рабочего процесса.
 
 ## Once {#once}
 
-Зафиксируйте провайдер и привязку кэша из руководства <.localized_link href="/guides/get-started/once-project">Начало работы с Once</.localized_link>. Установите Once в задаче, следуя [инструкциям по установке Once](https://buildonce.dev/docs/guide/getting-started), затем выполните аутентификацию перед запуском задач, использующих кэш.
+Зафиксируйте провайдер и привязку кэша из руководства <.localized_link href="/guides/get-started/once-project">Начало работы с Once</.localized_link>. Установите Once в задании, используя [инструкции по установке Once](https://buildonce.dev/docs/guide/getting-started), затем выполните аутентификацию перед запуском задач, поддерживающих кэширование.
 
-GitHub Actions, CircleCI и Bitrise поддерживают безголовый вход через OpenID Connect для Once. Подключите репозиторий к вашему проекту Tuist, как описано в разделе <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC-аутентификация</.localized_link>. В GitHub Actions предоставьте разрешение на работу с токеном идентичности:
+GitHub Actions, CircleCI и Bitrise поддерживают вход через OpenID Connect без интерфейса для Once. Подключите репозиторий к вашему проекту Tuist, как описано в разделе <.localized_link href="/guides/server/authentication#oidc-tokens">Аутентификация OIDC</.localized_link>. В GitHub Actions предоставьте разрешение identity-token:
 
 ```yaml
 permissions:
@@ -36,17 +36,17 @@ jobs:
       - run: once test
 ```
 
-Выберите ОС с тулчейнами, необходимыми вашим таргетам. Замените `MyTarget` на ваш таргет и зафиксируйте версию Once через ваш существующий процесс установки инструментов. Полученная сессия будет повторно использоваться для доступа к кэшу, отчётности и публикации артефактов во время выполнения задачи.
+Выберите ОС с наборами инструментов, требуемыми вашими целями. Замените `MyTarget` на вашу цель и зафиксируйте версию Once через ваш существующий процесс установки инструментов. Полученная сессия будет повторно использоваться для доступа к кэшу, отчётности и публикации артефактов во время задания.
 
-На других провайдерах установите `TUIST_TOKEN` в значение <.localized_link href="/guides/server/authentication#account-tokens">токена аккаунта</.localized_link>, авторизованного для нужных вам операций. Храните его в хранилище секретов CI, никогда не в `once.toml` или исходном коде рабочего процесса. При использовании этого токена интерактивный шаг входа не требуется.
+На других провайдерах установите `TUIST_TOKEN` в значение <.localized_link href="/guides/server/authentication#account-tokens">токена аккаунта</.localized_link>, авторизованного для нужных вам операций. Храните его в хранилище секретов CI, никогда не в `once.toml` или исходном коде рабочего процесса. При использовании этого токена интерактивный вход не требуется.
 
-Для наборов с несколькими воркерами следуйте руководству <.localized_link href="/guides/features/test-sharding/once">Шардирование тестов в Once</.localized_link>. Чтобы публиковать приложения, добавьте явный шаг <.localized_link href="/guides/features/previews/once">публикации превью в Once</.localized_link>. Обычные сборки не публикуют превью неявно.
+Для наборов с несколькими воркерами следуйте руководству <.localized_link href="/guides/features/test-sharding/once">Сегментация тестов Once</.localized_link>. Чтобы публиковать приложения, добавьте явный шаг <.localized_link href="/guides/features/previews/once">Публикация превью Once</.localized_link>. Обычные сборки не публикуют превью автоматически.
 
 ## Примеры {#examples}
 
 ### GitHub Actions {#github-actions}
 
-В [GitHub Actions](https://docs.github.com/en/actions) вы можете использовать <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC-аутентификацию</.localized_link> для безопасного входа без секретов:
+В [GitHub Actions](https://docs.github.com/en/actions) вы можете использовать <.localized_link href="/guides/server/authentication#oidc-tokens">аутентификацию OIDC</.localized_link> для безопасной аутентификации без секретов:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -141,16 +141,16 @@ jobs:
 > [!NOTE]
 > **Настройка OIDC**
 >
-> Перед использованием OIDC-аутентификации необходимо <.localized_link href="/guides/integrations/gitforge/github">подключить ваш GitHub-репозиторий</.localized_link> к проекту Tuist. Для работы OIDC требуется `permissions: id-token: write`. Начиная с Tuist 4.218.0, CLI обменивает токен идентичности при первом запросе, поэтому шаг `tuist auth login` в рабочем процессе не нужен; в более ранних версиях выполняйте `tuist auth login` перед другими командами Tuist. В качестве альтернативы можно использовать <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link> с секретом `TUIST_TOKEN`.
+> Перед использованием аутентификации OIDC вам нужно <.localized_link href="/guides/integrations/gitforge/github">подключить ваш репозиторий GitHub</.localized_link> к вашему проекту Tuist. Для работы OIDC требуется `permissions: id-token: write`. Начиная с Tuist 4.218.0, CLI обменивает токен идентичности при первом запросе, поэтому шаг `tuist auth login` в рабочем процессе не нужен; в более ранних версиях запускайте `tuist auth login` перед другими командами Tuist. В качестве альтернативы можно использовать <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link> с секретом `TUIST_TOKEN`.
 
 
 > [!TIP]
-> Рекомендуем использовать `mise use --pin` в проектах Tuist для фиксации версии Tuist across сред. Эта команда фиксирует версию Tuist в файле `mise.toml`.
+> Мы рекомендуем использовать `mise use --pin` в ваших проектах Tuist, чтобы зафиксировать версию Tuist для всех сред. Команда фиксирует версию Tuist в файле `mise.toml`.
 
 
 ### Xcode Cloud {#xcode-cloud}
 
-В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), где проекты Xcode являются источником истины, необходимо добавить скрипт [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) для установки Tuist и запуска нужных команд, например `tuist generate`:
+В [Xcode Cloud](https://developer.apple.com/xcode-cloud/), где проекты Xcode являются источником истины, вам нужно добавить скрипт [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) для установки Tuist и запуска необходимых команд, например `tuist generate`:
 
 ::: code-group
 
@@ -184,7 +184,7 @@ tuist generate
 
 ### CircleCI {#circleci}
 
-В [CircleCI](https://circleci.com) вы можете использовать <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC-аутентификацию</.localized_link> для безопасного входа без секретов:
+В [CircleCI](https://circleci.com) вы можете использовать <.localized_link href="/guides/server/authentication#oidc-tokens">аутентификацию OIDC</.localized_link> для безопасной аутентификации без секретов:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -235,12 +235,12 @@ jobs:
 > [!NOTE]
 > **Аутентификация**
 >
-> Перед использованием OIDC-аутентификации необходимо <.localized_link href="/guides/integrations/gitforge/github">подключить ваш GitHub-репозиторий</.localized_link> к проекту Tuist. Токены OIDC CircleCI включают подключённый GitHub-репозиторий, который Tuist использует для авторизации доступа к вашим проектам. Начиная с Tuist 4.218.0, CLI обменивает токен идентичности при первом запросе, поэтому шаг `tuist auth login` не нужен; в более ранних версиях выполняйте `mise exec -- tuist auth login` перед другими командами Tuist. В качестве альтернативы можно использовать <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link> с переменной окружения `TUIST_TOKEN`.
+> Перед использованием аутентификации OIDC вам нужно <.localized_link href="/guides/integrations/gitforge/github">подключить ваш репозиторий GitHub</.localized_link> к вашему проекту Tuist. Токены OIDC CircleCI включают ваш подключенный репозиторий GitHub, который Tuist использует для авторизации доступа к вашим проектам. Начиная с Tuist 4.218.0, CLI обменивает токен идентичности при первом запросе, поэтому шаг `tuist auth login` не нужен; в более ранних версиях запускайте `mise exec -- tuist auth login` перед другими командами Tuist. В качестве альтернативы можно использовать <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link> с переменной окружения `TUIST_TOKEN`.
 
 
 ### Bitrise {#bitrise}
 
-В [Bitrise](https://bitrise.io) вы можете использовать <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC-аутентификацию</.localized_link> для безопасного входа без секретов:
+В [Bitrise](https://bitrise.io) вы можете использовать <.localized_link href="/guides/server/authentication#oidc-tokens">аутентификацию OIDC</.localized_link> для безопасной аутентификации без секретов:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -292,12 +292,12 @@ workflows:
 > [!NOTE]
 > **Аутентификация**
 >
-> Перед использованием OIDC-аутентификации необходимо <.localized_link href="/guides/integrations/gitforge/github">подключить ваш GitHub-репозиторий</.localized_link> к проекту Tuist. Токены OIDC Bitrise включают подключённый GitHub-репозиторий, который Tuist использует для авторизации доступа к вашим проектам. Начиная с Tuist 4.218.0, CLI обменивает токен идентичности при первом запросе, поэтому шаг `tuist auth login` не нужен; в более ранних версиях выполняйте `mise exec -- tuist auth login` перед другими командами Tuist. В качестве альтернативы можно использовать <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link> с переменной окружения `TUIST_TOKEN`.
+> Перед использованием аутентификации OIDC вам нужно <.localized_link href="/guides/integrations/gitforge/github">подключить ваш репозиторий GitHub</.localized_link> к вашему проекту Tuist. Токены OIDC Bitrise включают ваш подключенный репозиторий GitHub, который Tuist использует для авторизации доступа к вашим проектам. Начиная с Tuist 4.218.0, CLI обменивает токен идентичности при первом запросе, поэтому шаг `tuist auth login` не нужен; в более ранних версиях запускайте `mise exec -- tuist auth login` перед другими командами Tuist. В качестве альтернативы можно использовать <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link> с переменной окружения `TUIST_TOKEN`.
 
 
 ### Codemagic {#codemagic}
 
-В [Codemagic](https://codemagic.io) вы можете добавить дополнительный шаг в рабочий процесс для установки Tuist:
+В [Codemagic](https://codemagic.io) вы можете добавить дополнительный шаг в ваш рабочий процесс для установки Tuist:
 
 ::: code-group
 ```yaml [Mise]
@@ -364,29 +364,29 @@ tuist setup cache
 > [!NOTE]
 > **Шаги рабочего процесса**
 >
-> Шаг Tuist Install устанавливает Tuist через Homebrew и выполняет `tuist generate`. Укажите входной параметр **Tuist Version**, чтобы зафиксировать версию, затем добавьте шаг Tuist Commands для выполнения команд, таких как `tuist test` или `tuist build`.
+> Шаг Tuist Install устанавливает Tuist через Homebrew и запускает `tuist generate`. Укажите версию в поле ввода **Tuist Version**, чтобы зафиксировать её, затем добавьте шаг Tuist Commands для выполнения команд, таких как `tuist test` или `tuist build`.
 
 > [!NOTE]
 > **Аутентификация**
 >
-> Создайте <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link>, добавьте его как переменную с именем `TUIST_TOKEN` в [группу переменных окружения](https://docs.appcircle.io/build/build-environment-variables) и выберите эту группу в конфигурации сборки. Пометьте переменную как секретную, нажав значок замка.
+> Создайте <.localized_link href="/guides/server/authentication#account-tokens">токен аккаунта</.localized_link>, добавьте его как переменную с именем `TUIST_TOKEN` в [группу переменных окружения](https://docs.appcircle.io/build/build-environment-variables) и выберите эту группу в конфигурации сборки. Отметьте переменную как секретную с помощью значка замка.
 
 ## Форматирование вывода xcodebuild {#xcodebuild-output-formatting}
 
-`tuist build`, `tuist test`, `tuist xcodebuild build` и `tuist xcodebuild test` форматируют вывод `xcodebuild` с помощью форматтера из [xcbeautify](https://github.com/cpisciotta/xcbeautify), поэтому вам не нужно самостоятельно пропускать эти команды через xcbeautify. В GitHub Actions, определяемых по переменной окружения `GITHUB_ACTIONS`, Tuist использует рендерер GitHub Actions от xcbeautify, который выводит предупреждения компилятора, ошибки и сбои тестов как аннотации в сводке запуска и в pull request. В остальных случаях используется терминальный рендерер с цветным выводом, если только вывод не перенаправляется в канал или не установлена переменная `NO_COLOR`.
+`tuist build`, `tuist test`, `tuist xcodebuild build` и `tuist xcodebuild test` форматируют вывод `xcodebuild` с помощью форматтера из [xcbeautify](https://github.com/cpisciotta/xcbeautify), поэтому вам не нужно самостоятельно пропускать эти команды через xcbeautify. В GitHub Actions, определяемых через переменную окружения `GITHUB_ACTIONS`, Tuist использует рендерер GitHub Actions от xcbeautify, который отображает предупреждения компилятора, ошибки и сбои тестов как аннотации в сводке запуска и в пул-реквесте. В остальных случаях используется терминальный рендерер с цветным выводом, если только вывод не перенаправляется или не установлена переменная `NO_COLOR`.
 
-Передайте `--verbose`, чтобы вывести неформатированный вывод `xcodebuild`, например когда сборка завершается с ошибкой без понятного сообщения.
+Передайте `--verbose`, чтобы вывести неформатированный вывод `xcodebuild`, например когда сборка завершается ошибкой без понятного сообщения.
 
-Если задача вызывает `xcodebuild` напрямую, а не через Tuist, самостоятельно пропустите её вывод через xcbeautify и установите `pipefail`, чтобы сбой сборки приводил к ошибке шага:
+Если задача вызывает `xcodebuild` напрямую, а не через Tuist, самостоятельно пропустите вывод через xcbeautify и установите `pipefail`, чтобы сбой сборки приводил к ошибке шага:
 
 ```bash
 set -o pipefail
 xcodebuild test -scheme App | xcbeautify --renderer github-actions
 ```
 
-## Отчёт о запуске {#run-report}
+## Отчет о запуске {#run-report}
 
-Когда Tuist загружает запуск, URL-адреса дашборда для него выводятся в логи. Чтобы получить их без парсинга логов — например, чтобы отправить ссылку на отчёт о тестах в Slack при сбое задачи или передать данные запуска в ваши собственные инструменты — передайте `--run-report-path` (или установите `TUIST_RUN_REPORT_PATH`) в `tuist test`, `tuist xcodebuild test` или `tuist xcodebuild build`. После загрузки запуска Tuist записывает JSON-отчёт по указанному пути:
+Когда Tuist загружает запуск, URL-адреса дашборда для него выводятся в логи. Чтобы получить их без парсинга логов — например, чтобы отправить ссылку на отчет о тестах в Slack при сбое задачи или передать данные запуска в ваши собственные инструменты — передайте `--run-report-path` (или установите `TUIST_RUN_REPORT_PATH`) в `tuist test`, `tuist xcodebuild test` или `tuist xcodebuild build`. Tuist записывает JSON-отчет по этому пути после загрузки запуска:
 
 ```json
 {
@@ -420,17 +420,17 @@ xcodebuild test -scheme App | xcbeautify --renderer github-actions
 | `runURL` | строка | URL-адрес дашборда для запуска. Всегда присутствует. |
 | `testRunURL` | строка? | URL-адрес дашборда для запуска тестов, присутствует, если команда выполняла тесты. |
 | `buildRunURL` | строка? | URL-адрес дашборда для запуска сборки, присутствует, если команда выполняла сборку. |
-| `testRuns` | массив | Результаты тестов по схемам: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` и `skippedTestModules`. Счётчики тестов относятся к тест-кейсам, а `skippedTests` считает те, которые бандл результатов помечает как пропущенные. `skippedTestModules` считает модули тестов, пропущенные благодаря <.localized_link href="/guides/features/selective-testing">выборочному тестированию</.localized_link>, и опускается, если выборочное тестирование не применялось или запуск является шардом тестов. |
+| `testRuns` | массив | Результаты тестов по схемам: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`, `ranTestModules` и `skippedTestModules`. Счетчики тестов относятся к тест-кейсам, а `skippedTests` считает те, которые бандл результатов помечает как пропущенные. `skippedTestModules` считает модули тестов, пропущенные <.localized_link href="/guides/features/selective-testing">выборочным тестированием</.localized_link>, и опускается, если выборочное тестирование не применялось или запуск является шардом тестов. |
 | `buildRuns` | массив | Результаты сборки по схемам: `scheme`, `succeeded`, `durationInSeconds`. |
 
-`testRunURL` и `buildRunURL` независимы: команда, которая одновременно собирает и тестирует, записывает оба URL, чего не могут сделать логи — они выводят только один URL на запуск.
+`testRunURL` и `buildRunURL` независимы: команда, которая одновременно выполняет сборку и тесты, записывает оба URL-адреса, чего не могут сделать логи — они выводят только один URL-адрес на запуск.
 
 > [!NOTE]
-> **Когда записывается отчёт**
+> **Когда записывается отчет**
 >
-> Отчёт записывается только для запусков, которые загружаются на сервер, что требует аутентификации и происходит автоматически в CI. Путь очищается в начале каждого запуска, поэтому запуск, не создавший отчёт, не оставляет ничего, а не устаревший отчёт от предыдущего запуска.
+> Отчет записывается только для запусков, которые загружаются на сервер, что требует аутентификации и происходит автоматически в CI. Путь очищается в начале каждого запуска, поэтому запуск, который не создает отчет, не оставляет ничего, а не устаревший отчет от предыдущего запуска.
 
-В GitLab CI распространённый способ — предоставить URL последующим задачам через [отчёт `dotenv`](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
+В GitLab CI распространенный способ — предоставить URL-адрес последующим задачам через [отчет `dotenv`](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
 
 ```yaml
 test:

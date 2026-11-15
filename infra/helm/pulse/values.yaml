@@ -40,6 +40,14 @@ resources:
 # whose whole standalone backend used about 600 MiB and 0.05 CPU;
 # values-production.yaml sizes production.
 cluster:
+  # Environments whose metasrv and datanodes run object-storage GC. Splitting a
+  # table (ALTER TABLE ... PARTITION ON) requires GC, and after the first split
+  # metasrv refuses to start with GC off, so never remove an environment once
+  # it has split a table. Changing this restarts metasrv and datanodes together;
+  # until both run the same setting, datanode heartbeats fail and writes are
+  # rejected.
+  gc:
+    environments: [staging]
   frontend:
     replicas: 2
     resources:

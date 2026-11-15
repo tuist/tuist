@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "38743f07cafa32f338cb57ae48489bd5a71acde63bf5e27f0e6bb6e77446ff64",
+  "hash": "c96e7d55c13e1216042e2752661ee90f108f52ae345c58582942cb64f117426c",
   "hash_tree": {
     "root": {
       "children": [
@@ -62,7 +62,7 @@
                   "content_hash": "a6666fad705922bbb3b4d7146d3c0d562384ec2074ee39a58dd70a66d7c86aa2"
                 },
                 "### Swift Packages {#swift-packages}": {
-                  "content_hash": "93d6c8e1c29e08aa24730f5da59988e863cac1e58803acc198df18c41b812609"
+                  "content_hash": "7e6fd0ca0d7629d66401fc78dcbf122d45895e07d4434261a800b0863ecb04e9"
                 },
                 "### The Composable Architecture {#the-composable-architecture}": {
                   "content_hash": "b75882c723d8259bc50c5d79fdaa89944d83614eb107c9f1c9a3157a1d1c4270"
@@ -89,11 +89,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "1d2d94cc45fa8fab28dad81cafef91d5de6052463aee9577f2ac56160c0fe6d6",
+          "hash": "ea7d18240f8e3014c3135da0c5c6f4f0416119dc27e5b21b1441e88a92dfa8bd",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/dependencies.md",
           "metadata": {
-            "content_hash": "a63a518d2f8cbe4862ead76e57747bce802af3db9aa0bfe14156b7e581be05c8"
+            "content_hash": "a8873c75de4aac7270bd89f2c77c99d169156b24be7d68281692819ce7657beb"
           }
         },
         {
@@ -302,14 +302,14 @@
         }
       ],
       "details": {},
-      "hash": "38743f07cafa32f338cb57ae48489bd5a71acde63bf5e27f0e6bb6e77446ff64",
+      "hash": "c96e7d55c13e1216042e2752661ee90f108f52ae345c58582942cb64f117426c",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/dependencies.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "60cc3549dd87269b433fbd71464608fab3d968eea41d3aa6c524ea96031bd444",
+  "output_hash": "b425fa6de57ebf541414144c54c4bbd817862cbd99bd3eb5e30af13ed85bb47a",
   "output_path": "server/priv/docs/ko/guides/features/projects/dependencies.md",
   "protection_state": "recorded",
   "provider": "",
@@ -330,8 +330,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "14465c1a9f3a7dabec6b6fe48d0f5ffc0f8bfe99",
+  "source_commit_sha": "4529f1fbf607e59f1caa62769813254a51a5970b",
   "source_path": "server/priv/docs/en/guides/features/projects/dependencies.md",
-  "translated_at": "2026-11-13T16:27:24.835383Z",
-  "translation_session_id": "01a1d5ba-5f82-7922-807e-0ca1e2c420e5"
+  "translated_at": "2026-11-15T19:22:49.951864Z",
+  "translation_session_id": "01a1e0a8-0f9c-7241-966b-be7e142dfef4"
 }

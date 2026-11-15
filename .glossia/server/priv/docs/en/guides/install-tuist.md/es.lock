@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "bfa79f6fbadaec6c908805ad6fb816c21959cae2c70e1df009e17fddad03dbb7",
+  "hash": "b1fb4cff7e0a0644ee988b57c190c7751e34712ee94db072548e0c320ae173df",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "09594ede03ef2120eddcac78e59bdfcff30a06484306210097d117c9a8a40eae"
                 },
                 "## Homebrew (macOS only) {#recommended-homebrew}": {
-                  "content_hash": "913ee63ad3f226b5f6ce7d7f3fe52a49bbb85c12437fd72046b21cba064e35c4"
+                  "content_hash": "54127b9e39c6c79b888a130cca586e282c8f0e0449576a160b235427eec8b671"
                 },
                 "## Mise {#recommended-mise}": {
                   "content_hash": "a2341a1e1b364773356140ea770b474fe4cb23566f10c9564679dc483239b0ea"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "2894e36abcef27b87ec2b3e8aeb446b4032a8a8656f965d73a4402bec1c87e91",
+          "hash": "032f06aee7a943d1950612d654dba2fa72b465557197c59e9616dced4dc8ee64",
           "kind": "source",
           "label": "server/priv/docs/en/guides/install-tuist.md",
           "metadata": {
-            "content_hash": "5b88eb845f49ba7218f304fb2f40d0f9e93069faa1756fe3f24f9e247d5785fc"
+            "content_hash": "808c76d645eb363caf40875cd2ac3b69453c75cd9bf771eeb1b3ca7da07ebe1f"
           }
         },
         {
@@ -229,14 +229,14 @@
         }
       ],
       "details": {},
-      "hash": "bfa79f6fbadaec6c908805ad6fb816c21959cae2c70e1df009e17fddad03dbb7",
+      "hash": "b1fb4cff7e0a0644ee988b57c190c7751e34712ee94db072548e0c320ae173df",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/install-tuist.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "14e6e33fc4cf9c329d0244dee0961d37ea6962431f0fae569b306cdde00927bf",
+  "output_hash": "2c970829d9a3b40f01768c9390f13e69bd4152079e20b0f4addeea525c46e74e",
   "output_path": "server/priv/docs/es/guides/install-tuist.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
+  "source_commit_sha": "4529f1fbf607e59f1caa62769813254a51a5970b",
   "source_path": "server/priv/docs/en/guides/install-tuist.md",
-  "translated_at": "2026-11-13T16:38:14.725746Z",
-  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
+  "translated_at": "2026-11-15T19:22:50.441088Z",
+  "translation_session_id": "01a1e0a8-0f9c-7241-966b-be7e142dfef4"
 }

@@ -8968,6 +8968,66 @@ submissions and queue-time panels first. If nothing is queued, check the
 preparation rule and the `unsupported` lease outcome (nodes without a direct
 exec endpoint).
 
+### Pulse rejecting scans for lack of memory
+
+```promql
+sum by (cluster, pod) (increase(pulse_mito_scan_requests_rejected_total[10m]))
+```
+
+- Condition: above 0
+- Pending period: 5 minutes
+- Severity: warning
+- Rule JSON: [`pulse-capacity-alert-rules.json`](pulse-capacity-alert-rules.json)
+  (`pulse-scan-memory-rejections`), group `Pulse`, Grafana Cloud metrics
+  data source. **No Data: Normal**, **Error: Error**.
+
+Every Pulse read scans regions on the datanode that owns them, and each
+datanode caps scan memory at 25% of its memory limit (`scan_memory_limit`).
+A scan that does not fit fails at once with `Exceeded memory limit ... hard
+limit: ...` in the frontend logs; it does not wait. Each rejection is a
+failed read: Grafana rules on the Pulse data sources go to `DatasourceError`
+and the Tuist Pulse pages fail or stall.
+
+Metrics are one metric engine table with one region, so every PromQL read
+lands on one datanode and shares its budget with whatever other regions it
+serves. On 2026-11-15 production's 1 GiB budget on that datanode sat at
+97-99% and the frontends logged 1,022 rejections in 15 minutes, most from
+Grafana Cloud's rules through the PDC agents.
+
+To respond:
+
+1. `pulse_mito_scan_memory_usage_bytes` per pod shows which datanode is full.
+2. Find what it serves: `SELECT * FROM information_schema.region_peers`.
+3. Raise the datanode memory limit in `infra/helm/pulse/values-production.yaml`
+   (the budget follows it), or migrate other regions off that datanode.
+4. The lasting fix is partitioning the metric table so reads spread over
+   every datanode.
+
+`pulse_mito_flush_requests_total` by `reason` is scraped alongside it. A
+steady `reason="EngineFull"` rate means the 128 MB write buffer forces tiny SST
+files, which makes every scan open more files.
+
+### Pulse datanode telemetry missing
+
+```promql
+absent_over_time(up{cluster="tuist-production", job="pulse-datanode"}[15m])
+or
+absent_over_time(up{cluster="tuist-staging", job="pulse-datanode"}[15m])
+or
+absent_over_time(up{cluster="tuist-canary", job="pulse-datanode"}[15m])
+```
+
+- Pending period: 0 minutes
+- Severity: warning
+- Rule JSON: `pulse-datanode-telemetry-missing` in
+  [`pulse-capacity-alert-rules.json`](pulse-capacity-alert-rules.json).
+  **No Data: Normal** (the healthy result is empty), **Error: Error**.
+
+The paired rule for the one above. The `pulse-datanode` job is the dedicated
+scrape in `values.yaml`, and it reaches the datanodes through the Pulse
+chart's `pulse-datanode-metrics` NetworkPolicy. If either breaks, the
+rejection rule goes quiet instead of firing.
+
 ## Useful investigation queries
 
 Current Kubernetes requests in flight:

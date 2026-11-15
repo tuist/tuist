@@ -6,7 +6,7 @@ environment: production
 topology: cluster
 storage:
   bucket: tuist-pulso-production
-# Sized for production's load: initial requests total 8.6 CPUs and 17 GiB.
+# Sized for production's load: requests total 8.6 CPUs and 23 GiB.
 cluster:
   frontend:
     resources:
@@ -17,9 +17,13 @@ cluster:
       requests: {cpu: 250m, memory: 512Mi}
       limits: {memory: 1Gi}
   datanode:
+    # Pulse caps scan memory at 25% of the limit and fails scans past it, and
+    # every metrics read shares the one datanode holding the metric region. At
+    # 4Gi that 1GiB budget sat at 99% and failed dashboard and alert queries.
+    # Greptime's capacity plan pairs 1 CPU with about 4GB.
     resources:
-      requests: {cpu: "1", memory: 2Gi}
-      limits: {memory: 4Gi}
+      requests: {cpu: "1", memory: 4Gi}
+      limits: {memory: 8Gi}
   etcd:
     resources:
       requests: {cpu: 250m, memory: 512Mi}

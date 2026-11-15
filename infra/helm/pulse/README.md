@@ -85,7 +85,7 @@ backend's objects in the same bucket. The target is surviving one general-node
 failure without losing acknowledged writes; every general node is in
 `fsn1-dc14`, so this is not datacenter resilience.
 
-Production's requests (`values-production.yaml`) total 8.6 CPUs and 17 GiB.
+Production's requests (`values-production.yaml`) total 8.6 CPUs and 23 GiB.
 The chart's defaults size staging and canary, whose whole standalone backend
 used about 600 MiB and 0.05 CPU, at 2 CPUs and 5.75 GiB. The install's capacity
 gate places every replica on a distinct host, keeps the server's 1-CPU surge
@@ -223,6 +223,11 @@ peers for server component pods and exact PDC-agent labels (name=tuist,
 instance=tuist, component=pdc-agent). Namespace and Pod selectors are ANDed:
 `tuist-staging`, `tuist-canary`, **`tuist` for production**. No backend public
 Ingress exists. Parent manages server/PDC endpoint configuration.
+
+`pulse-datanode-metrics` admits only k8s-monitoring's `alloy-metrics` pods to
+the datanodes' TCP 4000, for the `pulse-datanode` scrape of scan memory and
+flush metrics behind the Pulse alerts in
+[`alerts.md`](../k8s-monitoring/alerts.md#pulse-rejecting-scans-for-lack-of-memory).
 
 The `pulse-host-ingress` CiliumNetworkPolicy also admits Cilium's `host` and
 `remote-node` identities to TCP 4000 on the API pods (the frontends in the

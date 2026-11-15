@@ -7,19 +7,19 @@
 ---
 # Caché de Xcode {#xcode-cache}
 
-Tuist ofrece compatibilidad con la caché de compilación de Xcode, lo que permite a los equipos compartir artefactos de compilación aprovechando las capacidades de almacenamiento en caché del sistema de compilación.
+Tuist ofrece soporte para la caché de compilación de Xcode, lo que permite a los equipos compartir artefactos de compilación aprovechando las capacidades de caché del sistema de compilación.
 
-La caché de Xcode se introdujo en Xcode 26. También puedes verla referida como la caché de compilación de Xcode; reutiliza artefactos de compilación indexados por sus entradas, y la caché remota de Tuist hace que esos artefactos sean compartibles entre máquinas.
+La caché de Xcode se introdujo en Xcode 26. También puedes verla referida como la caché de compilación de Xcode; reutiliza artefactos de compilación indexados por sus entradas, y la caché remota de Tuist hace que esos artefactos sean compartibles entre máquinas. Para saber qué parte de una compilación lenta elimina la caché y qué corregir primero en el proyecto, consulta [Compilaciones lentas](https://tuist.dev/solutions/slow-builds).
 
 > [!TIP]
 > **Combínala con la caché de módulos**
 >
-> La caché de Xcode y la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link> funcionan a diferentes niveles de granularidad y se complementan entre sí. La caché de módulos sustituye módulos completos por `.xcframework`s precompilados antes de que se ejecute la compilación, mientras que la caché de Xcode reutiliza los resultados de compilación durante la compilación.
+> La caché de Xcode y la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link> funcionan a distintos niveles de granularidad y se complementan. La caché de módulos sustituye módulos completos por `.xcframework`s precompilados antes de ejecutar la compilación, mientras que la caché de Xcode reutiliza los resultados de compilación durante la compilación.
 
 > [!TIP]
-> **En las máquinas de desarrollo, mantén `CompilationCache.noindex` al limpiar**
+> **En máquinas de desarrollo, mantén `CompilationCache.noindex` al limpiar**
 >
-> De forma predeterminada, el almacén de la caché de compilación reside dentro de `DerivedData`, por lo que eliminar `DerivedData` lo descarta junto con los productos de compilación. En una máquina de desarrollo, es preferible eliminar solo los productos de compilación: la recompilación entonces se reproduce desde el almacén en disco, sin necesidad de descargar nada.
+> De forma predeterminada, el almacén de la caché de compilación reside dentro de `DerivedData`, por lo que eliminar `DerivedData` lo descarta junto con los productos de compilación. En una máquina de desarrollo, es preferible eliminar solo los productos de compilación: así, la recompilación se reproduce desde el almacén en disco sin descargar nada.
 
 ## Configuración {#setup}
 
@@ -35,15 +35,15 @@ Una vez que tengas un archivo `Tuist.swift` que haga referencia a tu `fullHandle
 tuist setup cache
 ```
 
-Este comando crea un [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) para ejecutar un servicio de caché local al inicio, que el [sistema de compilación](https://github.com/swiftlang/swift-build) de Swift utiliza para compartir artefactos de compilación. Ejecútalo inicialmente en tu máquina de desarrollo y como parte de la configuración de cada trabajo de CI.
+Este comando crea un [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) para ejecutar un servicio local de caché al inicio, que el [sistema de compilación](https://github.com/swiftlang/swift-build) de Swift utiliza para compartir artefactos de compilación. Ejecútalo inicialmente en tu máquina de desarrollo y como parte de la configuración de cada trabajo de CI.
 
 Para configurar la caché en la CI, asegúrate de estar <.localized_link href="/guides/server/authentication#continuous-integration">autenticado</.localized_link>.
 
 ### Actualización de los componentes de la caché {#updating-the-cache-components}
 
-El proxy de caché utiliza un lanzador estable en lugar de una ruta anclada a la instalación de Tuist que ejecutó la configuración por última vez. Una vez instalado, `tuist setup cache` y `tuist generate` con caché habilitada avanzan un objetivo utilizable hacia versiones más recientes de Tuist. Por lo tanto, los proyectos anclados a una versión anterior de Tuist no downgraden el proxy compartido. La generación solo actualiza un objetivo de lanzador existente: no instala un servicio, no autentica, no reemplaza el plugin ni reinicia el proxy. Las personalizaciones de plugin, proxy, socket o registro omiten el avance automático.
+El proxy de caché utiliza un lanzador estable en lugar de una ruta fijada a la instalación de Tuist que ejecutó la configuración por última vez. Una vez instalado, `tuist setup cache` y `tuist generate` con caché habilitada avanzan un objetivo utilizable hacia versiones más recientes de Tuist. Por tanto, los proyectos fijados a una versión anterior de Tuist no revierten el proxy compartido. La generación solo actualiza un objetivo de lanzador existente: no instala un servicio, no autentica, no reemplaza el plugin ni reinicia el proxy. Las personalizaciones de plugin, proxy, socket o registro omiten el avance automático.
 
-El proxy en ejecución adopta el nuevo objetivo solo después de al menos 30 segundos sin solicitudes de caché, sin solicitudes ni trabajo en segundo plano en curso y con sus colas de publicación vacías. Luego sale y launchd inicia la CLI seleccionada, conservando los argumentos del servicio y el entorno de credenciales. Solo el proxy que realmente adopta el objetivo actualiza atómicamente el plugin en disco desde su bundle; la configuración no instala un plugin más nuevo mientras el proxy anterior aún está drenando. Si falta el plugin instalado, una configuración explícita en reposo reinicia el proxy seleccionado para volver a intentar su actualización. Sigue habiendo solo un proxy que posee el registro y las colas. Un objetivo no disponible o cargas no drenadas aplazan el cambio en lugar de interrumpir las solicitudes activas. La actualización de credenciales sigue a la CLI seleccionada incluso antes del cambio, por lo que eliminar una instalación anterior de la CLI no deja cargas esperando a ser drenadas.
+El proxy en ejecución adopta el nuevo objetivo solo después de al menos 30 segundos sin solicitudes de caché, sin solicitudes ni trabajo en segundo plano en curso y con sus colas de publicación vaciadas. Entonces sale y launchd inicia la CLI seleccionada, conservando los argumentos y el entorno de credenciales del servicio. Solo el proxy que realmente adopta el objetivo actualiza atómicamente el plugin en disco desde su bundle; la configuración no instala un plugin más nuevo mientras el proxy anterior sigue vaciándose. Si falta el plugin instalado, una configuración explícita en reposo reinicia el proxy seleccionado para reintentar su actualización. Sigue habiendo un único proxy propietario del registro y de las colas. Un objetivo no disponible o cargas no vaciadas posponen el cambio en lugar de interrumpir las solicitudes activas. La actualización de credenciales sigue a la CLI seleccionada incluso antes del cambio, por lo que eliminar una instalación antigua de la CLI no deja cargas esperando a vaciarse.
 
 Una instalación existente creada antes del lanzador estable necesita una migración explícita. Ejecuta lo siguiente cuando no haya compilaciones en ejecución:
 
@@ -51,17 +51,17 @@ Una instalación existente creada antes del lanzador estable necesita una migrac
 tuist setup cache
 ```
 
-Después de esa migración, actualizar Tuist y ejecutar tu habitual `tuist generate` es suficiente para avanzar el proxy y el plugin instalado; no necesitas volver a ejecutar la configuración para cada lanzamiento de la CLI. Aún se necesita una configuración explícita para seleccionar un Xcode diferente, incluido un Xcode actualizado en la misma ruta. La configuración puede reemplazar el servicio compartido cuando cambia su configuración, así que espera primero a que finalicen todas las compilaciones en la máquina. El proxy admite el protocolo de plugin anterior así como el actual, por lo que un plugin compatible ya cargado en Xcode sigue funcionando tras una actualización del proxy. Sal completamente y vuelve a abrir Xcode para cargar el plugin más reciente, pero un plugin compatible cargado no requiere un reinicio inmediato. Regenera los proyectos cuando un lanzamiento cambie la configuración de compilación generada.
+Tras esa migración, actualizar Tuist y ejecutar tu habitual `tuist generate` es suficiente para avanzar el proxy y el plugin instalado; no necesitas volver a ejecutar la configuración para cada lanzamiento de la CLI. Aún se requiere una configuración explícita para seleccionar un Xcode diferente, incluido un Xcode actualizado en la misma ruta. La configuración puede reemplazar el servicio compartido cuando cambia su configuración, así que espera primero a que terminen todas las compilaciones en la máquina. El proxy admite tanto el protocolo de plugin anterior como el actual, por lo que un plugin compatible ya cargado en Xcode sigue funcionando tras una actualización del proxy. Cierra completamente y vuelve a abrir Xcode para cargar el plugin más reciente, pero un plugin compatible ya cargado no requiere un reinicio inmediato. Regenera los proyectos cuando un lanzamiento cambie la configuración de compilación generada.
 
-Mantén disponible la instalación de Tuist seleccionada: el lanzador la utiliza para el inicio, la configuración y la actualización de credenciales. Las instalaciones anteriores se pueden eliminar una vez que el lanzador haya avanzado. Si el ejecutable seleccionado se eliminó o ya no es ejecutable, `tuist setup cache` puede reparar el objetivo utilizando una instalación disponible, incluso una versión anterior, sin desmantelar primero la caché. Los alias estables de ejecutables se conservan entre actualizaciones del gestor de paquetes; los enlaces simbólicos se resuelven solo al comparar la identidad de la instalación. Al inicio, el proxy registra la versión realmente lanzada, incluidas las actualizaciones in situ o las reversiones deliberadas, mientras retiene la versión más alta utilizada para evitar que checkouts antiguos no relacionados cambien una instalación utilizable.
+Mantén disponible la instalación de Tuist seleccionada: el lanzador la utiliza para el inicio, la configuración y la actualización de credenciales. Las instalaciones anteriores pueden eliminarse una vez que el lanzador haya avanzado. Si el ejecutable seleccionado se eliminó o ya no es ejecutable, `tuist setup cache` puede reparar el objetivo usando una instalación disponible, incluso una versión anterior, sin desmontar primero la caché. Los alias estables de ejecutables se conservan entre actualizaciones del gestor de paquetes; los enlaces simbólicos se resuelven solo al comparar la identidad de la instalación. Al inicio, el proxy registra la versión realmente lanzada, incluidas las actualizaciones in situ o las reversiones deliberadas, mientras conserva la versión más alta utilizada para evitar que checkouts antiguos no relacionados cambien una instalación utilizable.
 
-Las CLI compiladas desde el código fuente sin una versión de lanzamiento y las configuraciones explícitas de `TUIST_CAS_PLUGIN_PATH` o `TUIST_CAS_PROXY_PATH` utilizan una configuración de lanzamiento explícita en lugar de la selección automática de versión. Vuelve a ejecutar la configuración después de recompilar esos componentes. La configuración verifica su actualidad y deshabilita el avance gestionado del objetivo solo después de que su reemplazo esté listo.
+Las CLI compiladas desde el código fuente sin una versión de lanzamiento y las configuraciones explícitas de `TUIST_CAS_PLUGIN_PATH` o `TUIST_CAS_PROXY_PATH` utilizan una configuración de lanzamiento explícita en lugar de la selección automática de versión. Vuelve a ejecutar la configuración después de recompilar esos componentes. La configuración comprueba su antigüedad y deshabilita el avance gestionado del objetivo solo cuando su reemplazo está listo.
 
-`tuist teardown cache` detiene el servicio antes de eliminar el objetivo del lanzador, mientras conserva el plugin estable para los proyectos existentes. Si falla la detención del servicio, su lanzador permanece disponible para reiniciar e intentar otro desmantelamiento. La generación no puede recrear el servicio después de un desmantelamiento exitoso.
+`tuist teardown cache` detiene el servicio antes de eliminar el objetivo del lanzador, mientras conserva el plugin estable para los proyectos existentes. Si falla la detención del servicio, su lanzador sigue disponible para reiniciarlo e intentar otro desmontaje. La generación no puede recrear el servicio tras un desmontaje exitoso.
 
-### Configurar los ajustes de compilación de Xcode {#configure-xcode-build-settings}
+### Configurar ajustes de compilación de Xcode {#configure-xcode-build-settings}
 
-Para un proyecto de Xcode existente, copia los ajustes de compilación impresos por `tuist setup cache` en los Ajustes de compilación de tu proyecto o en un archivo `.xcconfig` existente. El comando imprime la configuración para tu cuenta; no genera un archivo de configuración ni edita tu proyecto de Xcode. Mantén `$(inherited)` al extender `OTHER_SWIFT_FLAGS` para que se conserven otras opciones del compilador.
+Para un proyecto de Xcode existente, copia los ajustes de compilación impresos por `tuist setup cache` en los Build Settings de tu proyecto o en un archivo `.xcconfig` existente. El comando imprime la configuración para tu cuenta; no genera un archivo de configuración ni edita tu proyecto de Xcode. Mantén `$(inherited)` al extender `OTHER_SWIFT_FLAGS` para conservar otras opciones del compilador.
 
 Los ajustes incluyen:
 
@@ -75,29 +75,29 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
-Ten en cuenta que `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH` y `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` deben añadirse como **ajustes de compilación definidos por el usuario** ya que no están expuestos directamente en la interfaz de usuario de los ajustes de compilación de Xcode.
+Ten en cuenta que `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH` y `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` deben añadirse como **ajustes de compilación definidos por el usuario** ya que no están expuestos directamente en la interfaz de ajustes de compilación de Xcode.
 
 > [!NOTE]
 > **Ruta del plugin**
 >
-> `libtuist_cas_plugin.dylib` es el plugin de caché de compilación que se distribuye con Tuist, junto al ejecutable `tuist`. `tuist setup cache` lo copia a `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, y `COMPILATION_CACHE_PLUGIN_PATH` apunta a esa copia. La ruta es la misma en cada máquina y no cambia cuando actualizas Tuist, por lo que puedes confirmar el ajuste junto con tu proyecto. La configuración y el proxy recién lanzado actualizan la copia desde el paquete de Tuist seleccionado; ejecutar la configuración desde una copia anterior no degrada un plugin más nuevo.
+> `libtuist_cas_plugin.dylib` es el plugin de caché de compilación que se distribuye con Tuist, junto al ejecutable `tuist`. `tuist setup cache` lo copia a `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, y `COMPILATION_CACHE_PLUGIN_PATH` apunta a esa copia. La ruta es la misma en cada máquina y no cambia cuando actualizas Tuist, por lo que puedes confirmar el ajuste junto con tu proyecto. La configuración y el proxy recién lanzado actualizan la copia desde el bundle seleccionado de Tuist; ejecutar la configuración desde una versión anterior no degrada un plugin más nuevo.
 
 > [!NOTE]
 > **Un socket para cada proyecto**
 >
-> `tuist setup cache` instala un único proxy de caché por máquina, por lo que todos los proyectos utilizan el mismo `COMPILATION_CACHE_REMOTE_SERVICE_PATH`. La opción de plugin `tuist-instance` es la que identifica el proyecto.
+> `tuist setup cache` instala un único proxy de caché por máquina, por lo que cada proyecto usa el mismo `COMPILATION_CACHE_REMOTE_SERVICE_PATH`. La opción de plugin `tuist-instance` es la que identifica el proyecto.
 
 > [!IMPORTANT]
 > **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` es lo que comparte C y Objective-C**
 >
-> Es fácil interpretar este ajuste como "dónde reside el servicio de caché" y tratarlo como opcional. También es el interruptor que decide si se comparten C, Objective-C, módulos precompilados y cabeceras precompiladas: el sistema de compilación solo ejecuta su caché para ellos cuando se configura un servicio de caché remoto. Si lo omites, seguirás compartiendo las compilaciones de Swift, pero cada archivo C/Objective-C y cada módulo se recompilará en cualquier máquina que no haya compilado el proyecto antes.
+> Es fácil interpretar este ajuste como "dónde reside el servicio de caché" y tratarlo como opcional. También es el interruptor que decide si se comparten C, Objective-C, módulos precompilados y cabeceras precompiladas: el sistema de compilación solo ejecuta su caché para ellos cuando se configura un servicio de caché remoto. Si lo omites, las compilaciones de Swift seguirán compartiéndose, pero cada archivo C/Objective-C y cada módulo se recompilará en cualquier máquina que no haya compilado el proyecto antes.
 
 > [!NOTE]
 > **Búsquedas de caché concurrentes**
 >
-> `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` ejecuta las búsquedas de caché remota que el sistema de compilación realiza para cada compilación junto con el resto de la compilación, en lugar de hacerlo de pocas en pocas en los carriles de ejecución de la compilación. Las compilaciones que fallan o restauran muchas compilaciones desde una caché distante finalizan antes.
+> `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` ejecuta las búsquedas de caché remota que el sistema de compilación realiza para cada compilación junto con el resto de la compilación, en lugar de hacerlas de pocas en pocas en los carriles de ejecución de la compilación. Las compilaciones que fallan o restauran muchas compilaciones desde una caché distante finalizan antes.
 
-También puedes especificar estos ajustes al ejecutar `xcodebuild` añadiendo las siguientes banderas, como por ejemplo:
+También puedes especificar estos ajustes al ejecutar `xcodebuild` añadiendo las siguientes banderas, como:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -113,11 +113,11 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > [!NOTE]
 > **Mapeo de prefijos en Xcode 27 y posteriores**
 >
-> En Xcode 27 y posteriores, `tuist setup cache` también imprime `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING` y `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. Hacen que las claves de la caché de compilación sean independientes de dónde residen el proyecto y `DerivedData`. Añádelos como ajustes de compilación definidos por el usuario. Habilitarlos cambia cada clave de caché, por lo que la siguiente compilación vuelve a poblar la caché. `tuist generate` los establece por ti cuando `enableCaching` está activado.
+> En Xcode 27 y posteriores, `tuist setup cache` también imprime `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING` y `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. Hacen que las claves de la caché de compilación sean independientes de dónde residen el proyecto y `DerivedData`. Añádelos como ajustes de compilación definidos por el usuario. Habilitarlos cambia cada clave de caché, por lo que la siguiente compilación volverá a poblar la caché. `tuist generate` los establece por ti cuando `enableCaching` está activado.
 >
-> El compilador también escribe las rutas mapeadas en los datos de cobertura de código, y Xcode no puede resolverlas, por lo que un informe de cobertura omitiría todo el código fuente compilado con mapeo de prefijos. Los ajustes impresos, junto con los de `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*`, desactivan el mapeo de prefijos en las compilaciones que recopilan cobertura de código. `tuist generate` hace lo mismo. Esas compilaciones siguen utilizando la caché de compilación, pero sus claves de caché dependen de las rutas del proyecto y de `DerivedData`.
+> El compilador también escribe las rutas mapeadas en los datos de cobertura de código, y Xcode no puede resolverlas, por lo que un informe de cobertura omitiría todo el código fuente compilado con mapeo de prefijos. Los ajustes impresos, junto con los de `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*`, desactivan el mapeo de prefijos en las compilaciones que recopilan cobertura de código. `tuist generate` hace lo mismo. Esas compilaciones siguen usando la caché de compilación, pero sus claves de caché dependen de las rutas del proyecto y de `DerivedData`.
 >
-> Cuando pases estos ajustes a `xcodebuild` en la línea de comandos, encierra entre comillas simples los valores que contengan `$(...)`, como con `OTHER_SWIFT_FLAGS` arriba. De lo contrario, el shell los expandirá a cadenas vacías y el mapeo de prefijos se desactivará:
+> Cuando pasas estos ajustes a `xcodebuild` en la línea de comandos, encierra entre comillas simples los valores que contienen `$(...)`, como con `OTHER_SWIFT_FLAGS` arriba. De lo contrario, el shell los expande a cadenas vacías y el mapeo de prefijos se desactiva:
 >
 > ```
 > xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -151,7 +151,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ### Cobertura con mapeo de prefijos {#coverage-with-prefix-mapping}
 
-Por defecto, los proyectos generados desactivan el mapeo de prefijos para las compilaciones de cobertura para mantener funcionales los informes de cobertura de Xcode y `xccov`. Puedes activarlo para mantener las compilaciones de cobertura compartibles entre diferentes copias:
+Por defecto, los proyectos generados desactivan el mapeo de prefijos para las compilaciones de cobertura para mantener funcionales los informes de cobertura de Xcode y `xccov`. Puedes activarlo para mantener las compilaciones de cobertura compartibles entre diferentes checkouts:
 
 ```swift
 let tuist = Tuist(
@@ -164,21 +164,21 @@ let tuist = Tuist(
 )
 ```
 
-La variable de entorno `TUIST_COVERAGE_PREFIX_MAPPING` (`1` o `0`) tiene prioridad sobre `prefixMapping`. Esta opción se aplica en Xcode 27 y posteriores y requiere `enableCaching`. La carga de cobertura de `tuist test` la admite: Tuist mide la ejecución con `llvm-cov`, que lee los fuentes con rutas mapeadas y los vincula con los archivos de tu repositorio. El propio informe de cobertura de Xcode y `xccov` pueden seguir omitiendo esos fuentes, al igual que una carga que recurra al informe `xccov` del bundle de resultados porque falló la exportación de `llvm-cov`. Los valores de `#filePath` mapeados también pueden afectar a los tests que localizan fixtures relativos a los archivos de origen; resuelve los fixtures mediante rutas de copia explícitas en tiempo de ejecución en su lugar. Si procesas la cobertura tú mismo, empareja cada binario instrumentado con el `$(TARGET_TEMP_DIR)/compilation-prefix-map.json` de su objetivo, que mapea los prefijos virtuales de vuelta a los directorios locales. No reutilices el mapa de un objetivo para cada binario cuando el mapeo por proyecto esté habilitado.
+La variable de entorno `TUIST_COVERAGE_PREFIX_MAPPING` (`1` o `0`) tiene prioridad sobre `prefixMapping`. Esta opción se aplica en Xcode 27 y posteriores y requiere `enableCaching`. La subida de cobertura de `tuist test` la admite: Tuist mide la ejecución con `llvm-cov`, que lee las fuentes con rutas mapeadas y las vincula a los archivos de tu repositorio. El propio informe de cobertura de Xcode y `xccov` pueden seguir omitiendo esas fuentes, al igual que una subida que recurre al informe `xccov` del bundle de resultados porque falló la exportación de `llvm-cov`. Los valores mapeados de `#filePath` también pueden afectar a los tests que localizan fixtures relativos a los archivos de origen; resuelve los fixtures mediante rutas explícitas de checkout en tiempo de ejecución. Si procesas la cobertura tú mismo, empareja cada binario instrumentado con el `$(TARGET_TEMP_DIR)/compilation-prefix-map.json` de su objetivo, que mapea los prefijos virtuales de vuelta a los directorios locales. No reutilices el mapa de un objetivo para cada binario cuando el mapeo por proyecto está habilitado.
 
 Los ajustes de prefijo de cobertura participan en los hashes de la caché binaria y de las pruebas selectivas porque controlan las rutas escritas en los artefactos de cobertura. Cambiar esta opción, o establecer `TUIST_COVERAGE_PREFIX_MAPPING` de forma diferente, invalida esos hashes incluso para compilaciones ordinarias. Mantén el valor consistente entre desarrolladores y trabajos de CI si deben compartir cachés binarias y resultados de pruebas selectivas.
 
 ### Depuración de proyectos generados {#debugging-generated-projects}
 
-Los módulos nativos restaurados necesitan información de depuración vinculada, así como acceso a la caché de compilación. Tuist prepara los módulos Debug y Release con dSYMs y metadatos de identidad de origen por segmento, luego verifica los metadatos frente a los orígenes declarados por el consumidor antes de reemplazar un objetivo. Si faltan metadatos o son incompatibles, se conservan los orígenes de ese objetivo. Los orígenes `.generated(...)` generados por scripts tienen huellas dactilares de declaración en lugar de sumas de comprobación de contenido verificables, por lo que esos objetivos permanecen compilados desde el origen y no se publican en la caché de módulos nativos. Los accesores de recursos generados con sumas de comprobación de contenido reales siguen siendo elegibles. La información de depuración no compatible omite la publicación del objetivo afectado sin bloquear productos no relacionados; la mutación de origen y la cancelación aún hacen fallar la preparación. El formato de la caché cambia, por lo que los artefactos preparados por versiones anteriores necesitan volver a prepararse.
+Los módulos nativos restaurados necesitan información de depuración vinculada, así como acceso a la caché de compilación. Tuist prepara los módulos Debug y Release con dSYMs y metadatos de identidad de origen por slice, luego verifica los metadatos frente a las fuentes declaradas por el consumidor antes de reemplazar un objetivo. Si faltan metadatos o son incompatibles, se conservan las fuentes de ese objetivo. Las fuentes `.generated(...)` generadas por scripts tienen huellas digitales de declaración en lugar de sumas de comprobación de contenido verificables, por lo que esos objetivos se construyen desde el código fuente y no se publican en la caché de módulos nativos. Los accesores de recursos generados con sumas de comprobación de contenido reales siguen siendo elegibles. La información de depuración no compatible omite la publicación del objetivo afectado sin bloquear productos no relacionados; la mutación de fuentes y la cancelación siguen haciendo fallar la preparación. El formato de la caché cambia, por lo que los artefactos preparados por versiones anteriores necesitan ser preparados de nuevo.
 
-Para los reemplazos verificados, Tuist prepara reubicaciones de origen en listas plist de UUID de dSYM propiedad del consumidor y vincula complementos solo de depuración para el código estático en caché. No reescribe los binarios en caché ni instala rutas de origen del productor en el mapa de origen global persistente de LLDB. Los inicializadores explícitos del depurador y los ajustes del cargador de módulos siguen siendo autoritativos. Los símbolos de depuración y la reubicación de origen no reparan el acceso a archivos en tiempo de ejecución relativo al origen ni los informes de cobertura nativos de Xcode; la selección de variantes de cobertura y la exportación de LLVM siguen siendo características separadas.
+Para reemplazos verificados, Tuist prepara reubicaciones de origen en plists UUID de dSYM propiedad del consumidor y enlaza complementos solo de depuración para código estático en caché. No reescribe binarios en caché ni instala rutas de origen del productor en el mapa global persistente de LLDB. Los inicializadores explícitos del depurador y los ajustes del cargador de módulos siguen siendo autoritativos. Los símbolos de depuración y la reubicación de origen no reparan el acceso a archivos en tiempo de ejecución relativo al origen ni los informes de cobertura nativos de Xcode; la selección de variantes de cobertura y la exportación LLVM siguen siendo características separadas.
 
-Con `enableCaching: true`, Tuist configura los mapas de origen de LLDB para las acciones Run y Test. Cuando una acción tiene un inicializador personalizado de LLDB, Tuist escribe primero su mapa de origen resuelto y luego carga el inicializador personalizado para que pueda ampliar o anular el mapa. De lo contrario, carga `~/.lldbinit-Xcode` si el archivo existe, con fallback a `~/.lldbinit`, antes de reemplazar el mapa de origen. Carga solo un archivo del directorio personal, restaurando la configuración del depurador por usuario sin cargarlo dos veces. El reemplazo elimina asignaciones obsoletas de ejecuciones anteriores y tiene prioridad sobre los mapas de origen del archivo personal; coloca las entradas del mapa de origen que deban conservarse en el inicializador personalizado de la acción. Otras configuraciones del archivo personal se preservan. Las rutas de búsqueda de módulos específicas de la caché de Tuist, la configuración del cargador y las banderas de Clang se aplican después y tienen prioridad sobre los valores de usuario para esas configuraciones. Los errores del archivo personal siguen siendo visibles sin detener la carga de comandos posteriores, y los comandos no se muestran en la salida. Esta preservación del inicializador también se aplica cuando Tuist configura la depuración para binarios restaurados desde la caché de módulos, incluso sin `enableCaching` y en versiones anteriores de Xcode.
+Con `enableCaching: true`, Tuist configura los mapas de origen de LLDB para las acciones Run y Test. Cuando una acción tiene un inicializador personalizado de LLDB, Tuist escribe primero su mapa de origen resuelto y luego carga el inicializador personalizado para que pueda extender o anular el mapa. De lo contrario, carga `~/.lldbinit-Xcode` si el archivo existe, con fallback a `~/.lldbinit`, antes de reemplazar el mapa de origen. Carga solo un archivo de inicio, restaurando la configuración del depurador por usuario sin cargarlo dos veces. El reemplazo elimina asignaciones obsoletas de ejecuciones anteriores y tiene prioridad sobre los mapas de origen del archivo de inicio; coloca las entradas del mapa de origen que deban conservarse en el inicializador personalizado de la acción. Otras configuraciones del archivo de inicio se preservan. Las rutas de búsqueda de módulos específicas de la caché, la configuración del cargador y las banderas de Clang de Tuist se aplican después y tienen prioridad sobre los valores de usuario para esas configuraciones. Los errores del archivo de inicio siguen siendo visibles sin detener la carga de comandos posteriores, y los comandos no se muestran en la salida. Esta preservación del inicializador también se aplica cuando Tuist configura la depuración para binarios restaurados desde la caché de módulos, incluso sin `enableCaching` y en versiones anteriores de Xcode.
 
-En Xcode 27 y posteriores, los proyectos generados dejan desactivadas las asignaciones de prefijo por proyecto de Xcode (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` y `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) a menos que un proyecto las establezca. Sus prefijos, como `/^src`, nombran un directorio diferente en cada proyecto, y LLDB los resuelve únicamente frente al proyecto del objetivo que se está depurando. Los orígenes se registran bajo prefijos de todo el espacio de trabajo en su lugar: `/^root` para el directorio raíz de Tuist, `/^spm` para el directorio temporal del paquete Swift, y `/^intermediates` y `/^products` para los resultados de compilación. Cada uno nombra el mismo directorio en todos los proyectos, por lo que los puntos de interrupción se resuelven en orígenes de cualquier proyecto del espacio de trabajo.
+En Xcode 27 y versiones posteriores, los proyectos generados dejan desactivadas las asignaciones de prefijo por proyecto de Xcode (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` y `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) a menos que un proyecto las configure explícitamente. Sus prefijos, como `/^src`, nombran un directorio diferente en cada proyecto, y LLDB los resuelve únicamente contra el proyecto del objetivo que se está depurando. Las fuentes se registran bajo prefijos de todo el espacio de trabajo: `/^root` para el directorio raíz de Tuist, `/^spm` para el directorio temporal del paquete Swift, y `/^intermediates` y `/^products` para los resultados de compilación. Cada uno nombra el mismo directorio en todos los proyectos, por lo que los puntos de interrupción se resuelven en fuentes de cualquier proyecto del espacio de trabajo.
 
-Las rutas fuera de la raíz de Tuist no están mapeadas. Las claves de caché de un proyecto fuera de la raíz dependen de dónde se haya hecho checkout, por lo que otros checkouts y máquinas no encontrarán la caché para él. Para mantener sus claves independientes de la ubicación del checkout, activa las asignaciones por proyecto en el manifiesto de ese proyecto:
+Las rutas fuera de la raíz de Tuist no se asignan. Las claves de caché de un proyecto fuera de la raíz dependen de dónde se haya hecho el checkout, por lo que otros checkouts y máquinas no encontrarán la caché para él. Para mantener sus claves independientes de la ubicación del checkout, activa las asignaciones por proyecto en el manifiesto de ese proyecto:
 
 ```swift
 let checkoutIndependentSettings = Settings.settings(base: [
@@ -187,9 +187,9 @@ let checkoutIndependentSettings = Settings.settings(base: [
 ])
 ```
 
-Pasa estas configuraciones a ese `Project`. Cuando depures un objetivo de otro proyecto, LLDB no podrá encontrar los orígenes de ese proyecto. Las configuraciones base del proyecto en el manifiesto tienen prioridad sobre los valores de xcconfig a nivel de proyecto, así que configúralas en el propio manifiesto.
+Pasa estas configuraciones a ese `Project`. Cuando depuras un objetivo de otro proyecto, LLDB no podrá encontrar las fuentes de ese proyecto. Las configuraciones base del proyecto en el manifiesto tienen prioridad sobre los valores xcconfig a nivel de proyecto, así que configúralas en el propio manifiesto.
 
-Cambiar estas configuraciones modifica las claves de la caché de compilación, los hashes de la caché binaria y los hashes de las pruebas selectivas, por lo que esas cachés necesitan volver a prepararse. Mantén la elección consistente en todo tu equipo.
+Cambiar estas configuraciones modifica las claves de la caché de compilación, los hashes de la caché binaria y los hashes de pruebas selectivas, por lo que esas cachés necesitan prepararse de nuevo. Mantén la elección consistente en todo tu equipo.
 
 ### Política de subida a la caché {#cache-upload-policy}
 
@@ -211,7 +211,7 @@ let tuist = Tuist(
 )
 ```
 
-Un patrón común es subir artefactos solo desde CI, donde las compilaciones son reproducibles, mientras se mantienen los entornos locales en modo de solo lectura. Puedes lograr esto usando `Environment.isCI`, que verifica la variable de entorno `CI` establecida por la mayoría de los proveedores de CI:
+Un patrón común es subir artefactos solo desde CI, donde las compilaciones son reproducibles, mientras se mantienen los entornos locales en modo de solo lectura. Puedes lograrlo usando `Environment.isCI`, que verifica la variable de entorno `CI` establecida por la mayoría de los proveedores de CI:
 
 ```swift
 import ProjectDescription
@@ -229,9 +229,9 @@ let tuist = Tuist(
 )
 ```
 
-Con esta configuración, las compilaciones locales se benefician de los artefactos en caché sin subirlos, mientras que las compilaciones de CI pueblan la caché para el resto del equipo.
+Con esta configuración, las compilaciones locales se benefician de artefactos en caché sin subirlos, mientras que las compilaciones de CI pueblan la caché para el resto del equipo.
 
-La política de subida se registra por proyecto en la máquina que ejecuta `tuist setup cache`. Para cambiarla, actualiza `upload` y ejecuta `tuist setup cache` de nuevo, y también `tuist generate` si Tuist genera tu proyecto. Las subidas posteriores seguirán la nueva política sin reiniciar la caché en esa máquina. Los trabajos para el mismo proyecto que se ejecutan en una máquina al mismo tiempo comparten su política, por lo que el `tuist setup cache` más reciente la decide para todos ellos.
+La política de subida se registra por proyecto en la máquina que ejecuta `tuist setup cache`. Para cambiarla, actualiza `upload` y ejecuta `tuist setup cache` de nuevo, y también `tuist generate` si Tuist genera tu proyecto. Las subidas posteriores seguirán la nueva política sin reiniciar la caché en esa máquina. Los trabajos para el mismo proyecto que se ejecutan en una misma máquina al mismo tiempo comparten su política, por lo que el `tuist setup cache` más reciente decide la política para todos ellos.
 
 ### Límite de tamaño del almacén {#store-size-limit}
 
@@ -253,28 +253,28 @@ let tuist = Tuist(
 )
 ```
 
-Tuist comprueba cada uno de los almacenes del proyecto cuando se inicia su proxy de caché, antes de que cualquier compilación los use, y cada 10 minutos mientras no hay ninguna compilación en ejecución. `tuist setup cache` inicia el proxy cuando no está en ejecución, por lo que un trabajo de CI que ejecuta `tuist setup cache` antes de sus compilaciones y `tuist teardown cache` después de ellas limita los almacenes de un runner de larga duración al inicio de cada trabajo. Elimina las salidas en caché más antiguas de un almacén una vez que las compilaciones más nuevas han escrito aproximadamente la mitad del límite, por lo que el almacén se estabiliza cerca del límite. Un almacén puede ser mayor que el límite mientras se ejecutan las compilaciones, y un almacén que ya era mayor cuando estableciste el límite se reduce una vez que las nuevas compilaciones han escrito esa cantidad. Cuando varios proyectos usan el mismo almacén, como ocurre con su ubicación predeterminada, se aplica el menor de sus límites. El límite se aplica en cada máquina donde ejecutes `tuist setup cache`, así que ejecútalo de nuevo después de cambiar el límite. Un proxy de caché que ya está en ejecución sigue funcionando y aplica el nuevo límite en su siguiente comprobación.
+Tuist comprueba cada uno de los almacenes del proyecto cuando se inicia su proxy de caché, antes de que cualquier compilación los use, y cada 10 minutos mientras no hay ninguna compilación en ejecución. `tuist setup cache` inicia el proxy cuando no está en ejecución, por lo que un trabajo de CI que ejecuta `tuist setup cache` antes de sus compilaciones y `tuist teardown cache` después de ellas limita los almacenes de un runner de larga duración al inicio de cada trabajo. Elimina las salidas en caché más antiguas de un almacén una vez que las compilaciones más recientes han escrito aproximadamente la mitad del límite, por lo que el almacén se estabiliza cerca del límite. Un almacén puede ser mayor que el límite mientras se ejecutan compilaciones, y un almacén que ya era mayor cuando estableciste el límite se reduce una vez que las nuevas compilaciones han escrito esa cantidad. Cuando varios proyectos usan el mismo almacén, como ocurre con su ubicación predeterminada, se aplica el menor de sus límites. El límite se aplica en cada máquina donde ejecutes `tuist setup cache`, así que ejecútalo de nuevo después de cambiar el límite. Un proxy de caché que ya está en ejecución sigue funcionando y aplica el nuevo límite en su siguiente comprobación.
 
 ### Hashes de la caché de módulos {#module-cache-hashes}
 
 Las configuraciones de la caché de compilación no forman parte de los <.localized_link href="/guides/features/projects/hashing">hashes de la caché de módulos</.localized_link>. Tuist excluye del hash cada configuración de compilación `COMPILATION_CACHE_*` y cada bandera `-cas-plugin-option` con su valor. Activar o desactivar `enableCaching`, o cambiar la política de subida, mantiene los hashes de tus objetivos, por lo que los binarios de la <.localized_link href="/guides/features/cache/module-cache">caché de módulos</.localized_link> que ya has preparado siguen siendo válidos. Puedes comparar compilaciones con y sin la caché de Xcode contra la misma caché de módulos.
 
 > [!NOTE]
-> **Las configuraciones de mapeo de prefijos tienen hash**
+> **Las configuraciones de asignación de prefijos se incluyen en el hash**
 >
-> En Xcode 27 y posteriores, `enableCaching: true` también establece `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING` y las configuraciones `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*`. Estas configuraciones forman parte de los hashes de la caché de módulos, por lo que en Xcode 27 y posteriores, activar o desactivar `enableCaching` cambia los hashes de tus objetivos.
+> En Xcode 27 y versiones posteriores, `enableCaching: true` también establece `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING` y las configuraciones `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*`. Estas configuraciones forman parte de los hashes de la caché de módulos, por lo que en Xcode 27 y versiones posteriores, activar o desactivar `enableCaching` cambia los hashes de tus objetivos.
 
 ### Reutilización de partes de salidas grandes {#reusing-parts-of-large-outputs}
 
 Cuando el servidor lo admite, la caché de Xcode transfiere salidas grandes en fragmentos y solo envía o recupera los fragmentos que han cambiado desde una versión anterior. Los fragmentos se mantienen en una pequeña caché local, separada de `DerivedData`, por lo que sobreviven a la limpieza de la caché de compilación. Las salidas pequeñas, los servidores antiguos y los clientes antiguos utilizan transferencias ordinarias de salida completa.
 
-Esto reduce la cantidad de datos descargados y subidos, no la cantidad recompilada. Una máquina fría sin fragmentos coincidentes sigue descargando la salida completa.
+Esto reduce la cantidad de datos descargados y subidos, no la cantidad de código recompilado. Una máquina fría sin fragmentos coincidentes sigue descargando la salida completa.
 
 ### Integración continua {#continuous-integration}
 
 Para habilitar la caché en tu entorno de CI, necesitas ejecutar el mismo comando que en los entornos locales: `tuist setup cache`.
 
-Para la autenticación, puedes usar <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> (recomendado para proveedores de CI compatibles) o un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> a través de la variable de entorno `TUIST_TOKEN`.
+Para la autenticación, puedes usar <.localized_link href="/guides/server/authentication#oidc-tokens">autenticación OIDC</.localized_link> (recomendada para proveedores de CI compatibles) o un <.localized_link href="/guides/server/authentication#account-tokens">token de cuenta</.localized_link> a través de la variable de entorno `TUIST_TOKEN`.
 
 Un ejemplo de flujo de trabajo para GitHub Actions usando autenticación OIDC:
 ```yaml
@@ -309,13 +309,13 @@ Para mantener un almacén entre compilaciones, apunta `COMPILATION_CACHE_CAS_PAT
 
 ### Las compilaciones advierten que el proxy de caché de Xcode ha fallado {#cas-proxy-failed}
 
-Si una compilación muestra una advertencia como la siguiente, que Xcode precede con `CAS error:` o `CAS operation failed:` dependiendo de qué compilación encuentre el fallo primero:
+Si una compilación muestra una advertencia como la siguiente, que Xcode prefija con `CAS error:` o `CAS operation failed:` dependiendo de qué compilación encuentre el fallo primero:
 
 ```
 warning: CAS error: The Tuist Xcode cache proxy at /Users/you/.local/state/tuist/cas-proxy.sock failed (proxy connect: No such file or directory (os error 2)). Compilations that needed it used the local cache only, without remote cache hits. Their uploads are kept on disk and sent once the proxy is reachable again. Run `tuist setup cache` if the proxy is not running.
 ```
 
-entonces la caché de compilación no pudo alcanzar el proxy de caché local que instala `tuist setup cache`. La compilación sigue teniendo éxito, pero las compilaciones afectadas no obtienen aciertos de caché remota, por lo que se ejecuta como una compilación con una caché vacía. Sus subidas se mantienen en disco y se envían una vez que el proxy vuelve a manejar solicitudes: más tarde en la misma compilación si regresa a tiempo, o durante la siguiente compilación en la misma máquina. Una máquina de CI que se descarta después del trabajo las pierde. La advertencia aparece una vez por compilación, en el navegador de problemas de Xcode y en la salida de `xcodebuild`.
+entonces la caché de compilación no pudo acceder al proxy de caché local que instala `tuist setup cache`. La compilación tiene éxito, pero las compilaciones afectadas no obtienen aciertos de caché remota, por lo que se ejecuta como una compilación con una caché vacía. Sus subidas se mantienen en disco y se envían cuando el proxy vuelve a manejar solicitudes: más tarde en la misma compilación si vuelve a tiempo, o durante la siguiente compilación en la misma máquina. Una máquina de CI que se descarta después del trabajo las pierde. La advertencia aparece una vez por compilación, en el navegador de problemas de Xcode y en la salida de `xcodebuild`.
 
 Para comprobar si el proxy está en ejecución, busca un proceso escuchando en el socket nombrado en la advertencia:
 
@@ -349,9 +349,9 @@ Para solucionarlo:
 
 Si no estás usando la caché de Xcode, elimina las configuraciones de compilación `COMPILATION_CACHE_*` y ejecuta `tuist teardown cache`.
 
-### `uploaded CAS output` aparece localmente aunque las subidas estén desactivadas {#uploaded-cas-output-with-upload-disabled}
+### `uploaded CAS output` aparece localmente aunque las subidas estén deshabilitadas {#uploaded-cas-output-with-upload-disabled}
 
-Cuando `xcodeCache: .xcodeCache(upload: false)` (o `upload: Environment.isCI` en una máquina que no es de CI) está configurado, aún puedes ver `note: uploaded CAS output ...` en el registro de compilación. `xcodebuild` no tiene forma de omitir esas llamadas, por lo que Tuist sigue recibiéndolas, pero no publica nada en el servidor de Tuist. Las métricas del panel tienen esto en cuenta, por lo que no se informa tráfico de subida espurio.
+Cuando `xcodeCache: .xcodeCache(upload: false)` (o `upload: Environment.isCI` en una máquina que no sea de CI) está configurado, aún puedes ver `note: uploaded CAS output ...` en el registro de compilación. `xcodebuild` no tiene forma de omitir esas llamadas, por lo que Tuist sigue recibiéndolas, pero no publica nada en el servidor de Tuist. Las métricas del panel tienen esto en cuenta, por lo que no se reporta tráfico de subida espurio.
 
 ## Relacionado {#related}
 

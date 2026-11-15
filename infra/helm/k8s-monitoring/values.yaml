@@ -2193,6 +2193,73 @@ k8s-monitoring:
           }
         }
 
+        // Pulse datanodes (infra/helm/pulse). Every PromQL read scans the
+        // metric region on one datanode, and a scan fails as soon as that
+        // datanode's scan budget (25% of its memory limit) runs out. These
+        // series show the budget filling and the scans it rejects, plus the
+        // flushes and write buffer behind small-file read amplification.
+        // They go to Grafana Cloud only, so the alert on them still works
+        // when Pulse itself is the thing failing. The datanode exports a
+        // large metric surface, so keep only these names.
+        discovery.kubernetes "tuist_pulse_datanode" {
+          role = "pod"
+          namespaces {
+            names = ["observability"]
+          }
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/instance=pulse,app.kubernetes.io/component=datanode"
+          }
+        }
+
+        discovery.relabel "tuist_pulse_datanode" {
+          targets = discovery.kubernetes.tuist_pulse_datanode.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "http"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+        }
+
+        prometheus.scrape "tuist_pulse_datanode" {
+          targets = discovery.relabel.tuist_pulse_datanode.output
+          forward_to = [prometheus.relabel.tuist_pulse_datanode.receiver]
+          job_name = "pulse-datanode"
+          metrics_path = "/metrics"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_pulse_datanode" {
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "pulse_mito_scan_memory_usage_bytes|pulse_mito_scan_memory_exhausted_total|pulse_mito_scan_requests_rejected_total|pulse_mito_flush_requests_total|pulse_mito_write_buffer_bytes|pulse_mito_write_stall_total|up"
+            action = "keep"
+          }
+        }
+
         // Hubble exposes per-agent counters. Service discovery samples only
         // one backend, so discover each Cilium pod's named port instead.
         discovery.kubernetes "tuist_hubble" {
