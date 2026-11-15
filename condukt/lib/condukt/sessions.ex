@@ -152,12 +152,32 @@ defmodule Condukt.Sessions do
     * `:children` - also stop its children, and theirs, wherever they run.
       Defaults to `false`: a child is a session of its own, which a host may
       keep running after its parent's session stops.
+    * `:drain` - hand the session off instead of ending its work, as a
+      deploy does. The turn is not aborted, parked tool calls are not
+      cancelled, and the sandbox processes they follow, such as a parked
+      `Condukt.Tools.Bash` command, keep running for the node that starts
+      the session again. The session there does not get the parked calls
+      back yet: that needs a durable turn journal (see the Waiting for
+      Events guide). Until then, those commands run until their own
+      timeout with nothing reading or stopping them, and their process
+      state stays in the sandbox. Defaults to `false`.
   """
   def stop(id, opts \\ []) do
     case whereis(id) do
-      nil -> :ok
-      pid -> stop_tree(id, pid, Keyword.get(opts, :children, false), MapSet.new([id]))
+      nil ->
+        :ok
+
+      pid ->
+        if opts[:drain],
+          do: hand_off(pid),
+          else: stop_tree(id, pid, Keyword.get(opts, :children, false), MapSet.new([id]))
     end
+  end
+
+  defp hand_off(pid) do
+    GenServer.stop(pid, {:shutdown, :drain})
+  catch
+    :exit, _reason -> :ok
   end
 
   defp stop_tree(id, pid, children?, seen) do

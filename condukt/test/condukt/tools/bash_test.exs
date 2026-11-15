@@ -3,6 +3,7 @@ defmodule Condukt.Tools.BashTest do
   use Mimic
 
   alias Condukt.Sandbox
+  alias Condukt.Test.OutageSandbox
   alias Condukt.Tools.Bash
 
   @moduletag :tmp_dir
@@ -153,6 +154,26 @@ defmodule Condukt.Tools.BashTest do
       assert await(fn ->
                Sandbox.read_process(sandbox, Bash.process_id("session-1", "call-1"), 0) == {:error, :not_found}
              end)
+    end
+
+    test "a read that fails as the call wakes parks it again, leaving the command running",
+         %{context: context, tmp_dir: tmp_dir} do
+      {:ok, sandbox} = Sandbox.new(OutageSandbox, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "processes"))
+      context = %{context | sandbox: sandbox, opts: [park_after: 50]}
+      command = "while [ ! -e gate ]; do sleep 0.05; done; echo built"
+      assert {:park, state, _opts} = Bash.call(%{"command" => command}, context)
+
+      File.touch!(Path.join(tmp_dir, "outage"))
+      event = {:signal, {Bash.Exited, "bash:call-1"}, {:error, :unavailable}}
+      assert {:park, state, opts} = Bash.wake(event, state, context)
+      assert opts[:signals] == [{Bash.Exited, "bash:call-1:2"}]
+
+      File.rm!(Path.join(tmp_dir, "outage"))
+      File.touch!(Path.join(tmp_dir, "gate"))
+
+      assert_receive {:"$gen_call", from, {:signal, {Bash.Exited, "bash:call-1:2"}, {:exited, 0}}}, 5_000
+      GenServer.reply(from, :ok)
+      assert Bash.wake({:signal, {Bash.Exited, "bash:call-1:2"}, {:exited, 0}}, state, context) == {:ok, "built\n"}
     end
 
     test "parks a command that outlasts :park_after and wakes to its result", %{context: context, tmp_dir: tmp_dir} do

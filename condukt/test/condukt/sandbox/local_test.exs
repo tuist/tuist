@@ -164,6 +164,28 @@ defmodule Condukt.Sandbox.LocalTest do
       assert {:error, :already_started} = Sandbox.start_process(sandbox, "p1", command)
     end
 
+    test "a process whose runner was killed reads as lost and is not run again", %{sandbox: sandbox, tmp_dir: tmp_dir} do
+      assert :ok = Sandbox.start_process(sandbox, "lost", "echo run >> runs; sleep 60")
+      assert await_file(Path.join(tmp_dir, "runs")) == "run"
+
+      dir = Path.join([tmp_dir, "processes", Sandbox.Processes.dir_name("lost")])
+      [{runner, _value}] = Registry.lookup(Sandbox.Local.registry(), dir)
+      Process.exit(runner, :kill)
+
+      assert {:ok, %{status: {:exited, nil}}} = await_exit(sandbox, "lost")
+      assert {:error, :already_started} = Sandbox.start_process(sandbox, "lost", "echo run >> runs; sleep 60")
+      Process.sleep(200)
+      assert File.read!(Path.join(tmp_dir, "runs")) == "run\n"
+      assert :ok = Sandbox.stop_process(sandbox, "lost")
+    end
+
+    test "a close sent again with an empty write at the current offset closes stdin", %{sandbox: sandbox} do
+      assert :ok = Sandbox.start_process(sandbox, "in", "cat; echo end", stdin: true)
+      assert :ok = Sandbox.write_process(sandbox, "in", "ab\n", offset: 0)
+      assert :ok = Sandbox.write_process(sandbox, "in", "", offset: 3, close: true)
+      assert {:ok, %{output: "ab\nend\n", status: {:exited, 0}}} = await_exit(sandbox, "in")
+    end
+
     test "reports a timeout, and stop kills a running command and forgets it", %{sandbox: sandbox, tmp_dir: tmp_dir} do
       assert :ok = Sandbox.start_process(sandbox, "slow", "sleep 5", timeout: 100)
       assert {:ok, %{status: :timeout}} = await_exit(sandbox, "slow")
@@ -173,10 +195,45 @@ defmodule Condukt.Sandbox.LocalTest do
 
       assert :ok = Sandbox.stop_process(sandbox, "long")
       assert {:error, :not_found} = Sandbox.read_process(sandbox, "long", 0)
-      refute match?({_, 0}, System.cmd("kill", ["-0", pid], stderr_to_stdout: true))
+      # MuonTrap kills the OS process once the BEAM process that ran it is gone.
+      assert await_dead(pid)
 
       assert :ok = Sandbox.stop_process(sandbox, "never-started")
       assert {:error, :not_found} = Sandbox.read_process(sandbox, "never-started", 0)
+    end
+
+    test "stop and a timeout kill what the command started in the background, with or without stdin",
+         %{sandbox: sandbox, tmp_dir: tmp_dir} do
+      for {id, opts} <- [{"bg1", []}, {"bg2", [stdin: true]}, {"bg3", [timeout: 60_000]}] do
+        assert :ok = Sandbox.start_process(sandbox, id, "sleep 60 & echo $! > #{id}.pid; wait", opts)
+        sleeper = await_file(Path.join(tmp_dir, id <> ".pid"))
+
+        assert :ok = Sandbox.stop_process(sandbox, id)
+        assert await_dead(sleeper)
+      end
+
+      assert :ok = Sandbox.start_process(sandbox, "bg4", "sleep 60 & echo $! > bg4.pid; wait", timeout: 300)
+      sleeper = await_file(Path.join(tmp_dir, "bg4.pid"))
+      assert {:ok, %{status: :timeout}} = await_exit(sandbox, "bg4")
+      assert await_dead(sleeper)
+
+      # A command's own 124 is an exit, not a timeout.
+      assert :ok = Sandbox.start_process(sandbox, "bg5", "exit 124", timeout: 60_000)
+      assert {:ok, %{status: {:exited, 124}}} = await_exit(sandbox, "bg5")
+    end
+  end
+
+  defp await_dead(pid, attempts \\ 100) do
+    cond do
+      not match?({_, 0}, System.cmd("kill", ["-0", pid], stderr_to_stdout: true)) ->
+        true
+
+      attempts == 0 ->
+        false
+
+      true ->
+        Process.sleep(20)
+        await_dead(pid, attempts - 1)
     end
   end
 
@@ -216,6 +273,34 @@ defmodule Condukt.Sandbox.LocalTest do
   describe "mount/3" do
     test "is unsupported on Local", %{sandbox: sandbox} do
       assert {:error, :not_supported} = Sandbox.mount(sandbox, "/host", "/vfs")
+    end
+  end
+
+  describe "transfer" do
+    test "export streams a directory as tar and import_archive unpacks it elsewhere", %{tmp_dir: tmp_dir} do
+      sandbox = local(tmp_dir)
+      File.mkdir_p!(Path.join(tmp_dir, "src/nested"))
+      # Not a multiple of the 3-byte base64 group or of the write size.
+      blob = :crypto.strong_rand_bytes(1_000_001)
+      File.write!(Path.join(tmp_dir, "src/nested/blob"), blob)
+      File.write!(Path.join(tmp_dir, "src/a.txt"), "a\n")
+
+      chunks = Sandbox.export(sandbox, "src")
+      assert Enum.count(chunks) > 1
+      assert :ok = Sandbox.import_archive(sandbox, "dst/copy", chunks)
+
+      assert File.read!(Path.join(tmp_dir, "dst/copy/nested/blob")) == blob
+      assert File.read!(Path.join(tmp_dir, "dst/copy/a.txt")) == "a\n"
+    end
+
+    test "export of a missing directory raises", %{tmp_dir: tmp_dir} do
+      sandbox = local(tmp_dir)
+      assert_raise RuntimeError, ~r/export failed/, fn -> sandbox |> Sandbox.export("missing") |> Enum.to_list() end
+    end
+
+    defp local(tmp_dir) do
+      {:ok, sandbox} = Sandbox.new(Sandbox.Local, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "processes"))
+      sandbox
     end
   end
 end

@@ -66,6 +66,19 @@ defmodule Condukt.Sandbox.ProcessesTest do
 
     assert :ok = Processes.start(exec, "p4", "sleep 5", [timeout: 200] ++ opts)
     assert {:ok, %{status: :timeout}} = await_status(exec, "p4", 0, opts)
+
+    # A command's own 124 is an exit, not a timeout.
+    assert :ok = Processes.start(exec, "p4b", "exit 124", [timeout: 60_000] ++ opts)
+    assert {:ok, %{status: {:exited, 124}}} = await_status(exec, "p4b", 0, opts)
+  end
+
+  test "a timeout kills what the command started in the background", %{exec: exec, opts: opts, cwd: cwd} do
+    pid_file = Path.join(cwd, "bg.pid")
+    assert :ok = Processes.start(exec, "p8", "sleep 60 & echo $! > #{pid_file}; wait", [timeout: 300] ++ opts)
+    sleeper = await_file(pid_file)
+
+    assert {:ok, %{status: :timeout}} = await_status(exec, "p8", 0, opts)
+    refute alive?(sleeper)
   end
 
   test "stop kills the process with the processes it started, with or without a timeout, and forgets it",
@@ -129,4 +142,66 @@ defmodule Condukt.Sandbox.ProcessesTest do
   end
 
   defp alive?(pid), do: match?({_, 0}, System.cmd("kill", ["-0", pid], stderr_to_stdout: true))
+
+  test "stdin takes writes once by offset, closes, and a read waits for output", %{exec: exec, opts: opts} do
+    assert :ok = Processes.start(exec, "in", "cat; echo end", Keyword.put(opts, :stdin, true))
+
+    assert :ok = Processes.write(exec, "in", "ab\n", Keyword.put(opts, :offset, 0))
+    # The same write sent again, as after a lost reply, lands once.
+    assert :ok = Processes.write(exec, "in", "ab\n", Keyword.put(opts, :offset, 0))
+    assert {:error, :offset_mismatch} = Processes.write(exec, "in", "c", Keyword.put(opts, :offset, 1))
+
+    # Waits for the output instead of answering with nothing at once.
+    assert {:ok, %{output: "ab\n", status: :running}} = Processes.read(exec, "in", 0, Keyword.put(opts, :wait, 5_000))
+
+    # An empty write at the current offset still closes, as a retried close does.
+    assert :ok = Processes.write(exec, "in", "", Keyword.merge(opts, offset: 3, close: true))
+    assert {:error, :stdin_closed} = Processes.write(exec, "in", "x", opts)
+    assert {:ok, %{output: "ab\nend\n", status: {:exited, 0}}} = await_status(exec, "in", 0, opts)
+  end
+
+  test "a process started without stdin reads an empty one and refuses writes", %{exec: exec, opts: opts} do
+    assert :ok = Processes.start(exec, "no-in", "cat; echo end", opts)
+    assert {:ok, %{output: "end\n", status: {:exited, 0}}} = await_status(exec, "no-in", 0, opts)
+    assert {:error, :stdin_closed} = Processes.write(exec, "no-in", "x", opts)
+  end
+end
+
+defmodule Condukt.Sandbox.ProcessesReadTest do
+  # Reads need no setsid: the process directory is written here.
+  use ExUnit.Case, async: true
+
+  alias Condukt.Sandbox.Processes
+
+  @moduletag :tmp_dir
+
+  test "output reads back byte for byte through an exec that answers text only", %{tmp_dir: tmp_dir} do
+    root = Path.join(tmp_dir, "processes")
+    dir = Path.join(root, Processes.dir_name("p"))
+    File.mkdir_p!(dir)
+    output = String.duplicate("€", 1_000) <> <<0xFF, 0>>
+    File.write!(Path.join(dir, "output"), output)
+    File.write!(Path.join(dir, "status"), "0\n")
+
+    # Like Microsandbox's exec, which answers "" for output that is not UTF-8.
+    exec = fn script ->
+      {out, code} = System.cmd("bash", ["-c", script], stderr_to_stdout: true)
+      {:ok, %{output: if(String.valid?(out), do: out, else: ""), exit_code: code}}
+    end
+
+    # Slices of 1001 bytes split the three-byte characters.
+    read =
+      Stream.unfold(0, fn
+        offset when offset == byte_size(output) ->
+          nil
+
+        offset ->
+          {:ok, %{output: slice, offset: next, status: {:exited, 0}}} =
+            Processes.read(exec, "p", offset, root: root, max_bytes: 1_001)
+
+          {slice, next}
+      end)
+
+    assert Enum.join(read) == output
+  end
 end

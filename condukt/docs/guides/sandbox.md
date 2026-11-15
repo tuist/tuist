@@ -420,6 +420,11 @@ Condukt.Sandbox.mount(sandbox, host_path, vfs_path)
 Condukt.Sandbox.start_process(sandbox, id, command, opts)
 Condukt.Sandbox.read_process(sandbox, id, offset, opts)
 Condukt.Sandbox.stop_process(sandbox, id)
+Condukt.Sandbox.write_process(sandbox, id, data, opts)
+Condukt.Sandbox.watch_process(sandbox, id, target)
+Condukt.Sandbox.export(sandbox, path, opts)
+Condukt.Sandbox.import_archive(sandbox, path, chunks, opts)
+Condukt.Sandbox.expose_port(sandbox, port, opts)
 ```
 
 The sandbox is in `context.sandbox` when your tool's `call/2` is invoked.
@@ -450,7 +455,10 @@ named process apart from its caller:
   `{:error, :already_started}` and leaves the process alone. Finding a
   process again is therefore a matter of knowing its id, which is how a
   session that restarts reattaches to the command a tool call started.
-  It takes `exec/3`'s `:cwd`, `:env`, and `:timeout`.
+  It takes `exec/3`'s `:cwd`, `:env`, and `:timeout`, plus `stdin: true`
+  to keep the process's stdin open for `write_process/4`, and `pty: true`
+  to run it under a pseudo-terminal (util-linux `script`), as an
+  interactive shell needs.
 * `read_process/4` reads the combined stdout and stderr from a byte offset,
   at most `:max_bytes` (64 KiB by default), and returns the offset to read
   from next, the log's size so far, and the status: `:running`,
@@ -458,6 +466,20 @@ named process apart from its caller:
   output, so once it is not `:running` the log is complete. `exit_code` is
   `nil` when the process ended without the sandbox recording how, as when a
   container restarts.
+  With `wait: ms` it waits up to that long (at most 25 seconds) for new
+  output or an exit before it returns, so a follower long-polls instead of
+  reading every few hundred milliseconds.
+* `write_process/4` writes to the stdin of a process started with
+  `stdin: true`. Pass `offset:`, the number of bytes written so far, to make
+  a write that is repeated after a lost reply land once
+  (`{:error, :offset_mismatch}` otherwise), and `close: true` to close stdin
+  after it.
+* `watch_process/3` asks the sandbox to signal a session
+  (`Condukt.signal/4` with `target.signal` and `target.key`) when the
+  process exits, from outside the BEAM node that asked. `Condukt.Tools.Bash`
+  calls it when it parks, so a parked command wakes the session even after
+  the node that ran its watcher restarted. None of the built-in sandboxes
+  implement it: their watcher runs on the session's node.
 * `stop_process/2` kills the process and what it started, and discards its
   log and status.
 
@@ -477,6 +499,72 @@ the image needs util-linux, which Debian and Ubuntu images include. Each
 
 `Condukt.Tools.Bash` runs its commands this way when the sandbox allows it,
 streams their output, and parks on long ones. See [Tools](tools.md#long-running-commands).
+
+## Leases: telling the sandbox when it is needed
+
+A sandbox that implements the optional `activity/2` callback learns when the
+session needs it. The session starts a `Condukt.Sandbox.Lease` beside itself,
+which calls `activity(state, :active)` when a turn starts, again every
+`:lease_interval` milliseconds (session option, default `60_000`) while the
+turn runs or is parked, and `activity(state, :idle)` a second after the last
+turn ends. The lease makes the calls, so a slow one, such as resuming a
+paused machine, does not hold up the session.
+
+The lease does not call `:idle` when the session exits. A session drained for
+another node with `Condukt.Sessions.stop(id, drain: true)` leaves its
+sandbox, and the commands its parked calls run, to the session that takes
+over; the sandbox's own expiry covers a session that never comes back.
+
+## A second sandbox for some tools
+
+A tool given `sandbox:` runs against that sandbox instead of the session's,
+and `name:` lets the same tool appear twice:
+
+```elixir
+{:ok, mac} =
+  Condukt.Sandbox.new(Condukt.Sandbox.Lazy,
+    sandbox: {MyApp.MacSandbox, image: "macos-15"},
+    idle_after: :timer.minutes(10),
+    before_use: fn mac -> Condukt.Sandbox.Sync.mirror(linux, ".", mac, "work/repo", exclude: [".build"]) end
+  )
+
+tools: [
+  Condukt.Tools.Bash,
+  Condukt.Tools.Read,
+  {Condukt.Tools.Bash, name: "MacBash", sandbox: mac},
+  {Condukt.Tools.Read, name: "MacRead", sandbox: mac}
+]
+```
+
+`Condukt.Sandbox.Lazy` starts the sandbox it wraps on first use and lets it
+go after `:idle_after`, pausing it through `activity/2` when it takes one and
+shutting it down otherwise. `:before_use` runs before a tool's call reaches
+it, at most once a second; with `Condukt.Sandbox.Sync.mirror/5` it keeps a
+one-way copy of the worktree current. Moving files the other way, such as a
+build product, is `Condukt.Sandbox.export/3` into a file or into another
+sandbox's `import_archive/4`, which stream tar archives through sandbox
+processes without holding them in memory.
+
+## Services, terminals, and setup
+
+Three modules run beside a session, not inside it, and are started by the
+host that starts the session:
+
+* `Condukt.Sandbox.Services` keeps long-lived processes, such as a dev
+  server or a database, running in the sandbox for as long as the session
+  lives. Aborting a turn leaves them alone. It checks their readiness,
+  restarts one that exits with backoff, exposes its port through
+  `expose_port/3` when the sandbox has one, and reports status changes to
+  subscribers.
+* `Condukt.Sandbox.Terminal` runs a shell under a pseudo-terminal that people
+  type into while the agent works, and sends its output to subscribers with
+  64 KiB of scrollback for late joiners.
+* `Condukt.Sandbox.Setup` runs a repository's setup script before the first
+  turn and saves a snapshot through `snapshot/2` when the sandbox has one,
+  and runs a resume script when a paused sandbox comes back.
+
+All three are sandbox processes, so they need `start_process/4`, and the
+terminal and setup need `write_process/4` or `snapshot/2` as noted.
 
 ## Writing a custom sandbox
 
@@ -500,8 +588,11 @@ defmodule MyApp.S3Sandbox do
 end
 ```
 
-`glob/3`, `grep/3`, `mount/3`, and the process callbacks `start_process/4`,
-`read_process/4`, and `stop_process/2` are optional. The facade returns
+`glob/3`, `grep/3`, `mount/3`, the process callbacks `start_process/4`,
+`read_process/4`, `stop_process/2`, `write_process/4`, and
+`watch_process/3`, and `activity/2`, `snapshot/2`, and `expose_port/3` are
+optional. `Condukt.Sandbox.supports?/3` tells whether a sandbox implements
+one. The facade returns
 `{:error, :not_supported}` when a sandbox does not implement them, and
 `Condukt.Tools.Bash` falls back to `exec/3` on a sandbox without processes.
 

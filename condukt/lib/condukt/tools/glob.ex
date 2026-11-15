@@ -19,7 +19,7 @@ defmodule Condukt.Tools.Glob do
   @default_limit 1_000
 
   @impl true
-  def name, do: "Glob"
+  def name(opts), do: Keyword.get(opts, :name, "Glob")
 
   # Reads change nothing, so an interrupted call can simply run again.
   @impl true
@@ -29,7 +29,7 @@ defmodule Condukt.Tools.Glob do
   def read_only?(_opts), do: true
 
   @impl true
-  def description do
+  def description(_opts) do
     """
     Find files by glob pattern (e.g. `**/*.ex`). Returns matching paths
     relative to the search directory. Limited to #{@default_limit} results
@@ -39,7 +39,7 @@ defmodule Condukt.Tools.Glob do
   end
 
   @impl true
-  def parameters do
+  def parameters(_opts) do
     %{
       type: "object",
       properties: %{

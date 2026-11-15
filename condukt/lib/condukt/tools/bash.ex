@@ -34,6 +34,11 @@ defmodule Condukt.Tools.Bash do
       the call holds no process and the session's tool timeout does not cut
       off a long build. Only the command's own `timeout` does.
     * Aborting the turn kills the command, in the foreground or parked.
+      Draining the session for another node (`Condukt.Sessions.stop/2` with
+      `drain: true`) leaves it running.
+    * A sandbox that implements `c:Condukt.Sandbox.watch_process/3` is asked
+      to report the exit itself when the call parks, so the call wakes even
+      when the node that ran its watcher restarted.
     * A call that runs again with the same session and tool call ids, such as
       one a restarted session retries, finds the command by its id and
       follows it instead of starting it twice. On `Kubernetes` the command
@@ -65,7 +70,7 @@ defmodule Condukt.Tools.Bash do
   @timeout_grace 30_000
 
   @impl true
-  def name(_opts), do: "Bash"
+  def name(opts), do: Keyword.get(opts, :name, "Bash")
 
   @impl true
   def description(_opts) do
@@ -164,10 +169,17 @@ defmodule Condukt.Tools.Bash do
     id = process_id(context.session_id, context.tool_call_id)
     deadline = System.os_time(:millisecond) + timeout
 
-    case Sandbox.start_process(sandbox, id, command, exec_opts) do
+    # The watcher starts the command, so a call aborted while it starts
+    # still has it stopped, once it has started.
+    {:ok, watcher} = Watcher.start(sandbox, id, command, exec_opts, context)
+
+    case Watcher.await_start(watcher) do
       started when started in [:ok, {:error, :already_started}] ->
-        {:ok, watcher} = Watcher.start(sandbox, id, 0, context)
         follow(sandbox, %{id: id, timeout: timeout, deadline: deadline, watcher: watcher, attempt: 1}, context)
+
+      # A wrapper such as `Sandbox.Lazy` whose sandbox runs no processes.
+      {:error, :not_supported} ->
+        exec(sandbox, command, exec_opts, timeout)
 
       {:error, reason} ->
         {:error, "Command failed: #{inspect(reason)}"}
@@ -192,7 +204,7 @@ defmodule Condukt.Tools.Bash do
         key = signal_key(context, state.attempt)
 
         case Watcher.park(watcher, key) do
-          :ok -> park(state, key)
+          :ok -> park(sandbox, state, key, context)
           {:done, _status} -> resume(sandbox, state, context)
         end
     end
@@ -201,20 +213,30 @@ defmodule Condukt.Tools.Bash do
   # Whatever reported the command done, the sandbox holds the truth. One
   # still running before its deadline was lost by its watcher, or the call
   # was woken by a signal from elsewhere: follow it again while parked, under
-  # a new key, since a wake uses up its keys.
+  # a new key, since a wake uses up its keys. So is one the sandbox could not
+  # be read for, as while its node restarts: the command goes on there.
   defp resume(sandbox, state, context) do
-    with {:ok, %{status: :running, size: size}} <- Sandbox.read_process(sandbox, state.id, 0, max_bytes: 0),
-         true <- System.os_time(:millisecond) < state.deadline do
-      attempt = state.attempt + 1
-      key = signal_key(context, attempt)
-      {:ok, watcher} = Watcher.start_parked(sandbox, state.id, size, context, key)
-      park(%{state | watcher: watcher, attempt: attempt}, key)
-    else
-      _finished_or_overdue -> finish(sandbox, state.id, state.timeout)
+    before_deadline? = System.os_time(:millisecond) < state.deadline
+
+    case Sandbox.read_process(sandbox, state.id, 0, max_bytes: 0) do
+      {:ok, %{status: :running, size: size}} when before_deadline? -> repark(sandbox, state, size, context)
+      {:error, reason} when reason != :not_found and before_deadline? -> repark(sandbox, state, nil, context)
+      _finished_overdue_or_gone -> finish(sandbox, state.id, state.timeout)
     end
   end
 
-  defp park(state, key) do
+  defp repark(sandbox, state, offset, context) do
+    attempt = state.attempt + 1
+    key = signal_key(context, attempt)
+    {:ok, watcher} = Watcher.start_parked(sandbox, state.id, offset, context, key)
+    park(sandbox, %{state | watcher: watcher, attempt: attempt}, key, context)
+  end
+
+  # The watcher delivers the exit while this node runs. A sandbox that
+  # watches processes itself delivers it too, which wakes the call after a
+  # deploy restarted the node; whichever comes second finds the key used.
+  defp park(sandbox, state, key, context) do
+    _ = Sandbox.watch_process(sandbox, state.id, %{session_id: context.session_id, signal: Exited, key: key})
     {:park, state, signals: [{Exited, key}], until: DateTime.from_unix!(state.deadline + @timeout_grace, :millisecond)}
   end
 
@@ -226,7 +248,8 @@ defmodule Condukt.Tools.Bash do
 
   # Reads the result from the sandbox, which holds the truth whatever woke
   # the call, and releases the process. A command still running here is
-  # overdue, and stopping it kills it.
+  # overdue, and stopping it kills it. One that could not be read is left
+  # alone: it may still be running, and its own timeout ends it.
   defp finish(sandbox, id, timeout) do
     result =
       with {:ok, %{status: status, size: size}} <- Sandbox.read_process(sandbox, id, 0, max_bytes: 0),
@@ -234,7 +257,7 @@ defmodule Condukt.Tools.Bash do
         {status, output}
       end
 
-    Sandbox.stop_process(sandbox, id)
+    if not match?({:error, reason} when reason != :not_found, result), do: Sandbox.stop_process(sandbox, id)
 
     case result do
       {:error, :not_found} ->

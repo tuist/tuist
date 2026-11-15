@@ -254,7 +254,9 @@ to them goes through one step in the session as a list of records
 (`{:park, ...}`, `{:signal, ...}`, `{:timeout, ...}`, `{:done, ...}`,
 `:end_turn`), which
 is where a durable turn journal will store them so that a restarted session can
-resume the wait.
+resume the wait. Until then, a session that hands off to another node with
+`Condukt.Sessions.stop(id, drain: true)` keeps its parked commands running in
+the sandbox but not its waits.
 
 The run journal (see
 [Resuming an interrupted run](sessions-and-persistence.md#resuming-an-interrupted-run))

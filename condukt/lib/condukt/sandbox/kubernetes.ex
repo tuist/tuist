@@ -325,6 +325,9 @@ defmodule Condukt.Sandbox.Kubernetes do
   @impl Sandbox
   def stop_process(state, id), do: Processes.stop(&process_exec(state, &1), id, [])
 
+  @impl Sandbox
+  def write_process(state, id, data, opts), do: Processes.write(&process_exec(state, &1), id, data, opts)
+
   defp process_exec(state, script), do: Exec.run(state, ["bash", "-c", script], timeout: @process_exec_timeout)
 
   # mount/3 intentionally not implemented; running pods cannot accept volumes.

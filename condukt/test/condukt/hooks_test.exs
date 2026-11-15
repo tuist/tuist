@@ -386,7 +386,7 @@ defmodule Condukt.HooksTest do
     pid = start([LLMProvider.text_response("draft")], [{Yield, test_pid: self(), name: :review, action: :wait}])
 
     run = Task.async(fn -> Condukt.run(pid, "go") end)
-    assert_receive {:yield, :review, "draft", 0, hook}
+    assert_receive {:yield, :review, "draft", 0, hook}, 1_000
     hook_ref = Process.monitor(hook)
 
     assert :ok = Condukt.abort(pid)

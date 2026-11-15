@@ -668,6 +668,7 @@ defmodule Condukt.Session do
              {:mcp, {:ok, mcp_registry}} <-
                {:mcp, MCP.start_all(Keyword.get(opts, :mcp_servers, []))} do
           project_context = load_project_context(opts, sandbox)
+          sandbox = Sandbox.Lease.start(sandbox, Keyword.take(opts, [:lease_interval]))
           emit_secret_resolve(id, agent_module, secrets)
           subagents = normalize_subagents(Keyword.get(opts, :subagents, []))
           {:ok, subagent_supervisor} = maybe_start_subagent_supervisor(subagents)
@@ -1273,8 +1274,10 @@ defmodule Condukt.Session do
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
-  def terminate(_reason, state) do
-    cancel_parked(state)
+  # A drained session leaves its parked calls, and the sandbox processes
+  # they follow, for the node that takes the session over.
+  def terminate(reason, state) do
+    if reason != {:shutdown, :drain}, do: cancel_parked(state)
     settle_inputs(state, :aborted)
     if state.mcp_registry, do: MCP.stop_all(state.mcp_registry)
     stop_subagent_supervisor(state.subagent_supervisor)
@@ -1634,6 +1637,7 @@ defmodule Condukt.Session do
   # The native loop does not trap exits, so it stops at once; a custom runtime
   # that traps holds up the abort, and the session, only for `@worker_shutdown`.
   defp start_worker(state, opts, fun) do
+    Sandbox.Lease.active(state.sandbox)
     trace_context = TraceContext.capture(opts)
 
     {:ok, worker} =
@@ -2371,7 +2375,8 @@ defmodule Condukt.Session do
       stream?: match?({:stream, _}, state.turn.recipient),
       agent: state.pid,
       agent_module: state.agent_module,
-      sandbox: state.sandbox,
+      # A tool bound to another sandbox, as `{Bash, sandbox: mac}`, uses it.
+      sandbox: tool_sandbox(opts) || state.sandbox,
       cwd: state.cwd,
       opts: opts,
       secrets: state.secrets,
@@ -2387,6 +2392,18 @@ defmodule Condukt.Session do
       assigns: state.assigns
     }
   end
+
+  defp tool_sandbox(opts) when is_list(opts) do
+    case Keyword.get(opts, :sandbox) do
+      %Sandbox{} = sandbox -> sandbox
+      _other -> nil
+    end
+  end
+
+  defp tool_sandbox(_opts), do: nil
+
+  defp tool_opts({_module, opts}), do: opts
+  defp tool_opts(_tool_spec), do: []
 
   # A fresh call runs `call/2`; a woken one, `wake/3` with its event and state.
   defp execute_tool_spec(tool_spec, {id, _name, args} = call, context, resume) do
@@ -2890,6 +2907,7 @@ defmodule Condukt.Session do
     end)
 
     state = if state.turn.streaming, do: view_run_finished(state, :aborted), else: state
+    Sandbox.Lease.idle(state.sandbox)
     state = end_parking(state)
     state = %{state | turn: Turn.abort(state.turn)}
     if state.durable.current, do: persist_run(state, {:error, :aborted}), else: state
@@ -3114,6 +3132,7 @@ defmodule Condukt.Session do
   defp end_parking(state), do: commit_parking(state, [:end_turn])
 
   defp finish_turn(state) do
+    Sandbox.Lease.idle(state.sandbox)
     state = end_parking(state)
     %{state | turn: Turn.finish(state.turn)}
   end
@@ -3146,7 +3165,7 @@ defmodule Condukt.Session do
     tool_map = build_tool_map(state.tools)
 
     for {id, wait} <- Parking.cancellable(parking), {:ok, tool_spec} <- [Map.fetch(tool_map, wait.tool)] do
-      context = tool_context(state, [], id)
+      context = tool_context(state, tool_opts(tool_spec), id)
       Task.start(fn -> Tool.cancel(tool_spec, wait.state, context) end)
     end
 

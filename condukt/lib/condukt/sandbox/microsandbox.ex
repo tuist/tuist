@@ -162,6 +162,9 @@ defmodule Condukt.Sandbox.Microsandbox do
   @impl Sandbox
   def stop_process(%State{} = state, id), do: Processes.stop(&process_exec(state, &1), id, [])
 
+  @impl Sandbox
+  def write_process(%State{} = state, id, data, opts), do: Processes.write(&process_exec(state, &1), id, data, opts)
+
   defp process_exec(%State{session: session, base_cwd: base_cwd, shell: shell, nif_module: nif_module}, script) do
     session
     |> nif_module.exec(shell, script, base_cwd, [], @process_exec_timeout)

@@ -26,10 +26,10 @@ defmodule Condukt.Tools.Edit do
   alias Condukt.Sandbox
 
   @impl true
-  def name, do: "Edit"
+  def name(opts), do: Keyword.get(opts, :name, "Edit")
 
   @impl true
-  def description do
+  def description(_opts) do
     """
     Edit a file by replacing exact text. The old_text must match exactly (including whitespace).
     Use this for precise, surgical edits.
@@ -38,7 +38,7 @@ defmodule Condukt.Tools.Edit do
   end
 
   @impl true
-  def parameters do
+  def parameters(_opts) do
     %{
       type: "object",
       properties: %{

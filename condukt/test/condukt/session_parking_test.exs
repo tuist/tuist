@@ -1,6 +1,7 @@
 defmodule Condukt.SessionParkingTest do
   use ExUnit.Case, async: true
 
+  alias Condukt.Sandbox.Lease
   alias Condukt.Session
   alias Condukt.Test.LLMProvider
   alias ReqLLM.ToolCall
@@ -18,6 +19,44 @@ defmodule Condukt.SessionParkingTest do
     @impl true
     def cast(%{"text" => text}) when is_binary(text), do: {:ok, text}
     def cast(_value), do: {:error, :expected_text}
+  end
+
+  # A local sandbox that reports the leases and process watches asked of it.
+  defmodule WatchingSandbox do
+    @behaviour Condukt.Sandbox
+
+    alias Condukt.Sandbox.Local
+
+    @impl true
+    def init(opts) do
+      {:ok, local} = Local.init(opts)
+      {:ok, {local, Keyword.fetch!(opts, :test_pid)}}
+    end
+
+    @impl true
+    def watch_process({_local, test_pid}, id, target), do: tap(:ok, fn _ -> send(test_pid, {:watch, id, target}) end)
+
+    @impl true
+    def activity({_local, test_pid}, activity), do: tap(:ok, fn _ -> send(test_pid, {:activity, activity}) end)
+
+    @impl true
+    def shutdown({local, _}), do: Local.shutdown(local)
+    @impl true
+    def read_file({local, _}, path), do: Local.read_file(local, path)
+    @impl true
+    def write_file({local, _}, path, content), do: Local.write_file(local, path, content)
+    @impl true
+    def edit_file({local, _}, path, old, new), do: Local.edit_file(local, path, old, new)
+    @impl true
+    def exec({local, _}, command, opts), do: Local.exec(local, command, opts)
+    @impl true
+    def cwd({local, _}), do: Local.cwd(local)
+    @impl true
+    def start_process({local, _}, id, command, opts), do: Local.start_process(local, id, command, opts)
+    @impl true
+    def read_process({local, _}, id, offset, opts), do: Local.read_process(local, id, offset, opts)
+    @impl true
+    def stop_process({local, _}, id), do: Local.stop_process(local, id)
   end
 
   defmodule RecordingNotifier do
@@ -426,6 +465,114 @@ defmodule Condukt.SessionParkingTest do
         stop_supervised!(ParkingAgent)
       end
     end
+
+    test "a drained session leaves its parked command running, which its sandbox watched under a lease",
+         %{tmp_dir: tmp_dir} do
+      pid_file = Path.join(tmp_dir, "drained.pid")
+      command = "echo $$ > #{pid_file}; exec sleep 60"
+      {model, _id} = LLMProvider.model([tool_calls([{"call_1", "Bash", %{"command" => command}}])])
+
+      {:ok, session} =
+        Condukt.Sessions.start(ParkingAgent,
+          model: model,
+          tools: [{Condukt.Tools.Bash, park_after: 50}],
+          system_prompt: nil,
+          load_project_instructions: false,
+          lease_interval: 50,
+          sandbox: {WatchingSandbox, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "processes"), test_pid: self()}
+        )
+
+      id = Session.id(session)
+      spawn(fn -> Condukt.run(session, "go") end)
+      await(fn -> Session.waiting(session) end)
+      # The call parks after 50 ms, which a loaded machine's shell can take to start.
+      os_pid =
+        await(
+          fn ->
+            case File.read(pid_file) do
+              {:ok, pid} when pid != "" -> String.trim(pid)
+              _ -> nil
+            end
+          end,
+          400
+        )
+
+      on_exit(fn -> System.cmd("kill", [os_pid]) end)
+
+      assert_receive {:watch, "condukt-bash:" <> _,
+                      %{session_id: ^id, signal: Condukt.Tools.Bash.Exited, key: "bash:call_1"}}
+
+      # Taken when the turn started and renewed while it is parked.
+      assert_receive {:activity, :active}
+      assert_receive {:activity, :active}, 1_000
+
+      assert Condukt.Sessions.stop(id, drain: true) == :ok
+      refute Process.alive?(session)
+      Process.sleep(100)
+      assert os_alive?(os_pid)
+      # A drained session leaves the sandbox to the node taking it over.
+      refute_received {:activity, :idle}
+    end
+
+    test "a session gives its sandbox's lease back once its turn ends", %{tmp_dir: tmp_dir} do
+      pid =
+        start_session([LLMProvider.text_response("done")], [],
+          sandbox: {WatchingSandbox, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "processes"), test_pid: self()}
+        )
+
+      assert Condukt.run(pid, "go") == {:ok, "done"}
+      assert_receive {:activity, :active}
+      assert_receive {:activity, :idle}, 3_000
+    end
+
+    test "a sandbox that sessions share stays leased until none of them has a turn", %{tmp_dir: tmp_dir} do
+      {:ok, sandbox} =
+        Condukt.Sandbox.new(WatchingSandbox, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "p"), test_pid: self())
+
+      parent = Lease.start(sandbox, [])
+      # A sub-agent given the parent's sandbox holds the same lease.
+      child = Lease.start(parent, [])
+      assert child.lease == parent.lease
+
+      holder = fn -> spawn(fn -> receive do: (fun -> fun.()) end) end
+      run_in = fn pid, fun -> send(pid, fun) end
+      parent_session = holder.()
+      child_session = holder.()
+
+      run_in.(parent_session, fn -> Lease.active(parent) && Process.sleep(:infinity) end)
+      run_in.(child_session, fn -> Lease.active(child) && Process.sleep(:infinity) end)
+      assert_receive {:activity, :active}
+
+      # The parent's turn ends while the child works on.
+      Process.exit(parent_session, :kill)
+      refute_receive {:activity, _activity}, 1_500
+
+      # A holder that exits counts as idle.
+      Process.exit(child_session, :kill)
+      assert_receive {:activity, :idle}, 3_000
+    end
+  end
+
+  @tag :tmp_dir
+  test "a tool given its own sandbox runs there, beside the session's", %{tmp_dir: tmp_dir} do
+    File.mkdir_p!(Path.join(tmp_dir, "mac"))
+    File.write!(Path.join(tmp_dir, "mac/where"), "mac")
+    File.write!(Path.join(tmp_dir, "where"), "linux")
+    {:ok, mac} = Condukt.Sandbox.new(Condukt.Sandbox.Local, cwd: Path.join(tmp_dir, "mac"))
+
+    pid =
+      start_session(
+        [
+          tool_calls([{"c1", "Read", %{"path" => "where"}}, {"c2", "MacRead", %{"path" => "where"}}]),
+          LLMProvider.text_response("done")
+        ],
+        [Condukt.Tools.Read, {Condukt.Tools.Read, name: "MacRead", sandbox: mac}],
+        sandbox: {Condukt.Sandbox.Local, cwd: tmp_dir}
+      )
+
+    assert Condukt.run(pid, "go") == {:ok, "done"}
+    assert tool_result(pid, "c1") =~ "linux"
+    assert tool_result(pid, "c2") =~ "mac"
   end
 
   defp local_sandbox(tmp_dir), do: {Condukt.Sandbox.Local, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "processes")}

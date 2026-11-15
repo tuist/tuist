@@ -62,7 +62,11 @@ as `Local`, `Kubernetes`, and `Microsandbox` do:
   `timeout` argument does. A watcher process follows the command meanwhile
   and wakes the call when it exits.
 * Aborting the turn kills the command, whether it runs in the foreground or
-  the call is parked.
+  the call is parked. Draining the session for another node
+  (`Condukt.Sessions.stop(id, drain: true)`) leaves it running.
+* When the call parks on a sandbox that implements
+  `Condukt.Sandbox.watch_process/3`, the sandbox also reports the exit, so the
+  call wakes even when the node that ran the watcher is gone.
 * The result is bounded: output within 2000 lines and 50KB comes back whole,
   and longer output keeps its first and last lines.
 * The process id comes from the session id and the tool call id
@@ -75,6 +79,11 @@ Change how long a command runs in the foreground with `:park_after`:
 ```elixir
 def tools, do: [{Condukt.Tools.Bash, park_after: 30_000}, Condukt.Tools.Read]
 ```
+
+The built-in file tools and `Bash` take `name:` and `sandbox:`, so a session
+can offer the same tool against a second machine, as
+[A second sandbox for some tools](sandbox.md#a-second-sandbox-for-some-tools)
+shows.
 
 On `Condukt.Sandbox.Virtual`, on a custom sandbox without processes, and
 outside a session, `Bash` runs the command through `Condukt.Sandbox.exec/3`

@@ -9,9 +9,14 @@ defmodule Condukt.Sandbox.Processes do
   # machine rather than in the BEAM, so it survives the node that started it:
   #
   #     pid      the runner's pid, which leads its own session and process group
-  #     child    with a timeout, the pid of `timeout`, which leads another group
+  #     child    the command's pid, which leads a session and group of its own,
+  #              so stopping it or its timeout reaches everything it started
+  #     timed_out  exists once the timeout fired, so the status says `timeout`
+  #              whatever exit code the killed command left
   #     output   combined stdout and stderr
   #     status   written once the command ends: its exit code, or `timeout`
+  #     stdin    what `write/5` appended, which a feeder copies into the command
+  #     stdin_closed  exists once stdin ended, at once without `stdin: true`
   #
   # `mkdir` of the directory is the atomic step that makes starting idempotent
   # on the id. The status file is written before the runner exits, so a reader
@@ -19,7 +24,73 @@ defmodule Condukt.Sandbox.Processes do
 
   @default_root "/tmp/condukt-processes"
   @default_max_bytes 64 * 1024
-  @timeout_exit_code 124
+  # How long a command has to stop after the TERM its timeout sends.
+  @kill_after_seconds 5
+  # One exec answers within the remote sandboxes' 30 s exec timeout.
+  @max_wait 25_000
+
+  # Copies what `write/5` appends to `$1/stdin` into its stdout, the
+  # command's stdin, and ends once `stdin_closed` exists and everything is
+  # copied, the command has ended (`status` or `ended` exists), or the
+  # process was stopped and its directory removed. `stdin_closed` is checked
+  # before the size is taken: a writer appends its last bytes before it
+  # creates that file, so seeing it first means the size includes them.
+  @feeder ~S"""
+  condukt_feed() {
+    o=0
+    while :; do
+      [ -d "$1" ] || return 0
+      c=; [ -e "$1/stdin_closed" ] && c=1
+      s=$(wc -c < "$1/stdin" 2>/dev/null | tr -d ' ')
+      [ -n "$s" ] || return 0
+      if [ "$s" -gt "$o" ]; then
+        tail -c +$((o + 1)) "$1/stdin" | head -c $((s - o)) || return 0
+        o=$s
+      elif [ -n "$c" ] || [ -e "$1/status" ] || [ -e "$1/ended" ]; then
+        return 0
+      else
+        sleep 0.05
+      fi
+    done
+  }
+  """
+
+  @doc false
+  def feeder, do: @feeder
+
+  @doc false
+  # Shell that runs the command, already started in the background as `$c`
+  # under its own session, to its end: kills its group `seconds` after it
+  # started, recording `timed_out` in `$d`, and leaves its exit code, or
+  # `timeout`, in `$code`. The watchdog waits with `read -t`, a builtin, so
+  # killing it leaves no `sleep` behind.
+  def await_child(timeout) do
+    if is_integer(timeout) and timeout > 0 do
+      seconds = timeout |> Kernel./(1_000) |> :erlang.float_to_binary(decimals: 3)
+
+      """
+      ( read -t #{seconds} <> <(:)
+        : > "$d/timed_out"
+        kill -TERM -- -$c 2>/dev/null
+        read -t #{@kill_after_seconds} <> <(:)
+        kill -KILL -- -$c 2>/dev/null ) >/dev/null 2>&1 &
+      w=$!
+      wait $c; code=$?
+      kill $w 2>/dev/null
+      [ -e "$d/timed_out" ] && code=timeout
+      """
+    else
+      "wait $c; code=$?\n"
+    end
+  end
+
+  @doc """
+  The command a process runs: on a pseudo-terminal through util-linux
+  `script` when `:pty` is set, so a shell behaves as it does for a person.
+  """
+  def command(command, opts) do
+    if Keyword.get(opts, :pty), do: "script -qfec #{q(command)} /dev/null", else: command
+  end
 
   @doc "The directory name for a process id: any string maps to a safe name."
   def dir_name(id), do: :sha256 |> :crypto.hash(id) |> Base.encode16(case: :lower) |> binary_part(0, 32)
@@ -31,6 +102,8 @@ defmodule Condukt.Sandbox.Processes do
     mkdir -p #{q(Path.dirname(dir))} || exit 1
     mkdir #{q(dir)} 2>/dev/null || { echo condukt:already_started; exit 0; }
     : > #{q(dir <> "/output")}
+    : > #{q(dir <> "/stdin")}
+    #{if Keyword.get(opts, :stdin), do: ":", else: ": > " <> q(dir <> "/stdin_closed")}
     setsid -f bash -c #{q(runner(command, opts))} condukt-process #{q(dir)} </dev/null >/dev/null 2>&1 || exit 1
     echo condukt:started
     """
@@ -45,6 +118,8 @@ defmodule Condukt.Sandbox.Processes do
   def read(exec, id, offset, opts) when is_integer(offset) and offset >= 0 do
     dir = q(dir(id, opts))
     max_bytes = Keyword.get(opts, :max_bytes, @default_max_bytes)
+    # Tenths of a second to wait for output past `offset` or the end.
+    wait = opts |> Keyword.get(:wait, 0) |> min(@max_wait) |> div(100)
 
     # The status comes first: a process that ends after it was taken shows as
     # running, and the next read gets the rest.
@@ -54,13 +129,18 @@ defmodule Condukt.Sandbox.Processes do
     d=#{dir}
     [ -d "$d" ] || { echo condukt:not_found; exit 0; }
     alive() { kill -0 "$1" 2>/dev/null && [ "$(cut -d' ' -f3 "/proc/$1/stat" 2>/dev/null)" != Z ]; }
-    if [ -f "$d/status" ]; then s="exited $(cat "$d/status")"
-    elif [ ! -f "$d/pid" ] || alive "$(cat "$d/pid")"; then s=running
-    elif [ -f "$d/status" ]; then s="exited $(cat "$d/status")"
-    else s=lost
-    fi
+    i=0
+    while :; do
+      if [ -f "$d/status" ]; then s="exited $(cat "$d/status")"
+      elif [ ! -f "$d/pid" ] || alive "$(cat "$d/pid")"; then s=running
+      elif [ -f "$d/status" ]; then s="exited $(cat "$d/status")"
+      else s=lost
+      fi
+      [ "$s" = running ] && [ "$(wc -c < "$d/output")" -le #{offset} ] && [ $i -lt #{wait} ] || break
+      i=$((i + 1)); sleep 0.1
+    done
     printf 'condukt:%s %s\\n' "$s" "$(wc -c < "$d/output" | tr -d ' ')"
-    tail -c +#{offset + 1} "$d/output" | head -c #{max_bytes}
+    tail -c +#{offset + 1} "$d/output" | head -c #{max_bytes} | base64 | tr -d '\\n'
     """
 
     case exec.(script) do
@@ -94,22 +174,51 @@ defmodule Condukt.Sandbox.Processes do
     end
   end
 
-  # Runs as `bash -c runner condukt-process <dir>` in its own session. It leads
-  # its process group, so stopping it signals the group; `timeout` leads one of
-  # its own, recorded as `child`.
+  @doc """
+  Appends `data` to a process's stdin. See `c:Condukt.Sandbox.write_process/4`.
+  """
+  def write(exec, id, data, opts) do
+    offset = Keyword.get(opts, :offset)
+    # A write sent again closes too, so a close is not lost to a retry.
+    close = if Keyword.get(opts, :close), do: ~s(: > "$d/stdin_closed"), else: ":"
+
+    script = """
+    d=#{q(dir(id, opts))}
+    [ -d "$d" ] || { echo condukt:not_found; exit 0; }
+    size=$(wc -c < "$d/stdin" | tr -d ' ')
+    #{if offset, do: "[ \"$size\" = #{offset + byte_size(data)} ] && { #{close}; echo condukt:ok; exit 0; }", else: ":"}
+    [ -e "$d/stdin_closed" ] && { echo condukt:stdin_closed; exit 0; }
+    #{if offset, do: "[ \"$size\" = #{offset} ] || { echo condukt:offset_mismatch; exit 0; }", else: ":"}
+    printf '%s' #{q(Base.encode64(data))} | base64 -d >> "$d/stdin" || exit 1
+    #{close}
+    echo condukt:ok
+    """
+
+    case exec.(script) do
+      {:ok, %{output: output, exit_code: 0}} -> written(output)
+      {:ok, %{output: output}} -> {:error, {:write_failed, String.trim(output)}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp written(output) do
+    cond do
+      output =~ "condukt:ok" -> :ok
+      output =~ "condukt:not_found" -> {:error, :not_found}
+      output =~ "condukt:stdin_closed" -> {:error, :stdin_closed}
+      output =~ "condukt:offset_mismatch" -> {:error, :offset_mismatch}
+      true -> {:error, {:write_failed, String.trim(output)}}
+    end
+  end
+
+  # Runs as `bash -c runner condukt-process <dir>` in its own session. The
+  # command runs under `setsid` in a session and group of its own, recorded
+  # as `child`, so stopping it, or its timeout, signals everything it
+  # started; the runner's group holds the feeder and the timeout's watchdog.
   defp runner(command, opts) do
     cwd = Keyword.get(opts, :cwd)
-    timeout = Keyword.get(opts, :timeout)
-
-    {run, after_run} =
-      if is_integer(timeout) and timeout > 0 do
-        seconds = timeout |> Kernel./(1_000) |> :erlang.float_to_binary(decimals: 3)
-
-        {"timeout --kill-after=5s #{seconds}s bash -c #{q(command)}",
-         ~s(echo $! > "$d/child"; wait $!; code=$?; [ "$code" = #{@timeout_exit_code} ] && code=timeout)}
-      else
-        {"bash -c #{q(command)}", "wait $!; code=$?"}
-      end
+    command = command(command, opts)
+    feed = if Keyword.get(opts, :stdin), do: ~s(condukt_feed "$d" | ), else: ""
 
     cd =
       if cwd,
@@ -119,10 +228,13 @@ defmodule Condukt.Sandbox.Processes do
     """
     d="$1"
     echo $$ > "$d/pid"
+    #{@feeder}
     #{exports(Keyword.get(opts, :env, []))}
     #{cd}
-    #{run} >> "$d/output" 2>&1 &
-    #{after_run}
+    #{feed}setsid bash -c #{q(command)} >> "$d/output" 2>&1 &
+    c=$!
+    echo $c > "$d/child"
+    #{await_child(Keyword.get(opts, :timeout))}
     echo "$code" > "$d/status.tmp" && mv "$d/status.tmp" "$d/status"
     """
   end
@@ -145,8 +257,11 @@ defmodule Condukt.Sandbox.Processes do
   defp parse_read("condukt:not_found" <> _rest, _offset), do: {:error, :not_found}
 
   defp parse_read("condukt:" <> rest, offset) do
-    with [header, output] <- String.split(rest, "\n", parts: 2),
-         {:ok, status, size} <- parse_header(header) do
+    # The slice is cut at byte offsets, so it travels base64-encoded: an exec
+    # that answers text only would drop one that splits a character.
+    with [header, encoded] <- String.split(rest, "\n", parts: 2),
+         {:ok, status, size} <- parse_header(header),
+         {:ok, output} <- Base.decode64(encoded, ignore: :whitespace) do
       {:ok, %{output: output, offset: offset + byte_size(output), size: size, status: status}}
     else
       _other -> {:error, {:read_failed, rest}}

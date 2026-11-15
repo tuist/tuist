@@ -267,7 +267,7 @@ defmodule Condukt.Session.CompactionTest do
       assert_receive {:compacting, [@old, "old answer"]}
       assert_receive {:gated, worker}
       monitor = Process.monitor(worker)
-      assert_receive {:inference, inference}
+      assert_receive {:inference, inference}, 1_000
       send(inference, :continue)
 
       assert_receive {:DOWN, ^monitor, :process, ^worker, :killed}
@@ -288,7 +288,7 @@ defmodule Condukt.Session.CompactionTest do
       task = Task.async(fn -> Condukt.stream(pid, "new prompt") |> Enum.to_list() end)
 
       assert_receive {:compacting, [@old, "old answer"]}
-      assert_receive {:inference, inference}
+      assert_receive {:inference, inference}, 1_000
       await_compaction_result(pid)
       send(inference, :continue)
 
