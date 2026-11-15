@@ -1,6 +1,7 @@
 defmodule Condukt.Tools.SubagentTest do
   use ExUnit.Case, async: true
 
+  alias Condukt.Session.View
   alias Condukt.Test.LLMProvider
   alias Condukt.Tool
   alias Condukt.Tools.BackgroundSubagent
@@ -743,6 +744,85 @@ defmodule Condukt.Tools.SubagentTest do
     # The answer went to the caller that waited, so the parent gets no report.
     refute_receive {:notified, :agent_start}, 50
     assert Condukt.history(parent) == []
+
+    GenServer.stop(parent)
+  end
+
+  # A viewer of the parent sees each background sub-agent by name, its status,
+  # and what its turn did, from changes that fold into the parent's own view.
+  test "the parent's view shows background sub-agents and their turns" do
+    test_pid = self()
+    {parent_model, parent_model_id} = LLMProvider.model([])
+    {child_model, child_model_id} = LLMProvider.model([])
+
+    stub_streams(%{
+      parent_model_id => [stream_response([StreamChunk.text("noted")])],
+      child_model_id => [
+        stream_response(blocking_chunks(test_pid, :chapters, "Chapter 1")),
+        stream_response([StreamChunk.text("Chapter 2")])
+      ]
+    })
+
+    {:ok, parent} =
+      StreamAgent.start_link(
+        model: parent_model,
+        test_pid: test_pid,
+        subagents: [reader: background_role(child_model)],
+        load_project_instructions: false
+      )
+
+    watched = Condukt.watch(parent)
+    assert watched.background == %{}
+
+    state = :sys.get_state(parent)
+    tool = Enum.find(state.tools, &match?({BackgroundSubagent, _opts}, &1))
+    context = %{agent: parent, sandbox: state.sandbox, cwd: state.cwd, tool_call_id: "call_1"}
+    call = fn args -> Tool.execute(tool, args, context) end
+
+    assert {:ok, %{status: "working"}} = call.(JSON.decode!(spawn_args("summarize every chapter")))
+    assert_receive {:child_inference, :chapters, chapters}, 1_000
+
+    assert %{"reader" => %{role: :reader, call_id: "call_1", status: :working, session_id: session_id}} =
+             Condukt.view(parent).background
+
+    assert is_binary(session_id)
+
+    # The wait claims the answer, so no report starts a parent turn.
+    waiter = Task.async(fn -> call.(%{"action" => "wait", "name" => "reader"}) end)
+    send(chapters, :continue)
+    assert {:ok, %{answer: "Chapter 1"}} = Task.await(waiter)
+
+    eventually(fn -> Condukt.view(parent).background["reader"].status == :idle end)
+
+    assert [%{type: :user, message: %{content: "summarize every chapter"}}, %{type: :assistant, text: "Chapter 1"}] =
+             Condukt.view(parent).background["reader"].run.items
+
+    # A later turn replaces the run, starting from the message it was sent.
+    assert {:ok, _view} = call.(%{"action" => "send", "name" => "reader", "message" => "And chapter 2?"})
+    assert {:ok, %{answer: "Chapter 2"}} = call.(%{"action" => "wait", "name" => "reader"})
+    eventually(fn -> Condukt.view(parent).background["reader"].status == :idle end)
+    final = Condukt.view(parent)
+
+    assert [%{type: :user, message: %{content: "And chapter 2?"}}, %{type: :assistant, text: "Chapter 2"}] =
+             final.background["reader"].run.items
+
+    folded =
+      Enum.reduce((watched.seq + 1)..final.seq//1, watched, fn seq, view ->
+        assert_receive {:condukt_change, _id, epoch, ^seq, change}
+        {:ok, view} = View.advance(view, epoch, seq, change)
+        view
+      end)
+
+    assert folded == final
+
+    child = background_child(parent)
+    monitor = Process.monitor(child)
+    Process.exit(child, :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^child, :killed}
+    eventually(fn -> Condukt.view(parent).background == %{} end)
+
+    # The crash is reported to the parent, which answers it in a turn of its own.
+    await_history(parent, &match?([_report, %{role: :assistant}], &1))
 
     GenServer.stop(parent)
   end

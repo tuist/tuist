@@ -540,6 +540,22 @@ defmodule Condukt do
   defdelegate history(agent), to: Condukt.Session
 
   @doc """
+  Returns the session's current view. See `Condukt.Session.view/1`.
+  """
+  defdelegate view(agent), to: Condukt.Session
+
+  @doc """
+  Returns the session's current view and subscribes to the changes after it.
+  See `Condukt.Session.watch/1`.
+  """
+  defdelegate watch(agent), to: Condukt.Session
+
+  @doc """
+  Stops the changes `watch/1` subscribed the caller to.
+  """
+  defdelegate unwatch(agent), to: Condukt.Session
+
+  @doc """
   Clears conversation history.
   """
   defdelegate clear(agent), to: Condukt.Session

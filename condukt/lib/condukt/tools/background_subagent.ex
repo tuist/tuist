@@ -255,6 +255,17 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
     :ok
   end
 
+  # Of the child's view changes, only the input its turns start from and the
+  # steering that joins them, which its events do not carry. They are filtered
+  # in the child's process, so the rest never reaches the manager.
+  @impl Condukt.Notifier
+  def publish_change(session_id, _epoch, _seq, {kind, _message} = change, opts) when kind in [:run_started, :input] do
+    send(Keyword.fetch!(opts, :manager), {:child_input, session_id, change})
+    :ok
+  end
+
+  def publish_change(_session_id, _epoch, _seq, _change, _opts), do: :ok
+
   @impl GenServer
   def init(parent) do
     {:ok, %{parent: parent, children: %{}}}
@@ -353,6 +364,15 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
     end
   end
 
+  def handle_info({:child_input, session_id, change}, state) do
+    case Enum.find(Map.values(state.children), &(&1.session_id == session_id)) do
+      nil -> :ok
+      child -> Session.background_input(state.parent, child.name, change)
+    end
+
+    {:noreply, state}
+  end
+
   def handle_info({ref, :operation_submit, submitted}, state) do
     case Enum.find(Map.values(state.children), &(&1.submit_ref == ref)) do
       nil -> {:noreply, state}
@@ -368,6 +388,7 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
 
       child ->
         deliver(%{child | status: :idle}, {:error, {:session_exit, reason}}, state)
+        Session.background_changed(state.parent, child.name, nil)
         {:noreply, %{state | children: Map.delete(state.children, child.name)}}
     end
   end
@@ -473,7 +494,18 @@ defmodule Condukt.Tools.BackgroundSubagent.Manager do
     %{child | waiters: Map.reject(child.waiters, fn {_ref, {_pid, m}} -> m == monitor end)}
   end
 
-  defp put_child(state, child), do: %{state | children: Map.put(state.children, child.name, child)}
+  # Tells the parent session when what its view shows of a child changes.
+  defp put_child(state, child) do
+    entry = entry(child)
+    if entry(state.children[child.name]) != entry, do: Session.background_changed(state.parent, child.name, entry)
+    %{state | children: Map.put(state.children, child.name, child)}
+  end
+
+  defp entry(nil), do: nil
+
+  defp entry(child) do
+    %{name: child.name, role: child.role, session_id: child.session_id, call_id: child.call_id, status: child.status}
+  end
 
   defp view(child) do
     %{name: child.name, role: child.role, session_id: child.session_id, status: Atom.to_string(child.status)}

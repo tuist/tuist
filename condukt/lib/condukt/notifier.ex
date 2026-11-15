@@ -35,9 +35,36 @@ defmodule Condukt.Notifier do
 
   Publishing happens inside the session process, so an implementation must not
   block: hand the event to something else and return.
+
+  ## Changes to the view
+
+  Events tell a viewer what happens from the moment it subscribes. A viewer
+  that joins mid-turn or reconnects also needs what happened before, which
+  `Condukt.Session.view/1` returns as a `Condukt.Session.View`, numbered by
+  the last change it holds. Implement the optional `c:publish_change/5` to
+  carry the numbered changes after it, so a viewer on another node can apply
+  them in order and notice one it missed:
+
+      @impl true
+      def publish_change(session_id, epoch, seq, change, _opts) do
+        MyAppWeb.Endpoint.broadcast("session:" <> session_id, "change", {epoch, seq, change})
+        :ok
+      end
+
+  A notifier without it publishes events only, as before.
   """
 
   @callback publish(session_id :: String.t(), event :: term(), opts :: keyword()) :: :ok
+
+  @callback publish_change(
+              session_id :: String.t(),
+              epoch :: pos_integer(),
+              seq :: pos_integer(),
+              change :: term(),
+              opts :: keyword()
+            ) :: :ok
+
+  @optional_callbacks publish_change: 5
 
   @doc """
   Publishes one event through a notifier spec.
@@ -53,5 +80,23 @@ defmodule Condukt.Notifier do
 
   def publish(module, session_id, event) when is_atom(module) do
     module.publish(session_id, event, [])
+  end
+
+  @doc """
+  Publishes one numbered view change through a notifier spec, when the
+  notifier implements `c:publish_change/5`.
+  """
+  def publish_change(nil, _session_id, _epoch, _seq, _change), do: :ok
+
+  def publish_change({module, opts}, session_id, epoch, seq, change) when is_atom(module) and is_list(opts) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :publish_change, 5) do
+      module.publish_change(session_id, epoch, seq, change, opts)
+    else
+      :ok
+    end
+  end
+
+  def publish_change(module, session_id, epoch, seq, change) when is_atom(module) do
+    publish_change({module, []}, session_id, epoch, seq, change)
   end
 end

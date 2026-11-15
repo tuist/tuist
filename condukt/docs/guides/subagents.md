@@ -221,7 +221,9 @@ Ownership works differently from foreground calls:
   that turn ends the wait, and the answer is reported as a follow-up instead.
 - The sub-agent's events are forwarded to the parent's notifier, tagged with
   the `spawn` call's id, for as long as it lives. They do not go to a parent
-  stream, which ends with its turn.
+  stream, which ends with its turn. A viewer of the parent sees each
+  sub-agent under its name in the view's `background`, with its status and
+  current turn; see [Watching a session](streaming-and-events.md#watching-a-session).
 
 Background sub-agents live only in memory: they end with the parent session
 and are not restored with its conversation. Their roles must use the native

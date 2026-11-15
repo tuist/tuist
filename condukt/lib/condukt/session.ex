@@ -43,6 +43,7 @@ defmodule Condukt.Session do
   alias Condukt.Session.Compaction
   alias Condukt.Session.Translate
   alias Condukt.Session.Turn
+  alias Condukt.Session.View
   alias Condukt.SessionStore.Snapshot
   alias Condukt.Tool.Inline
   alias Condukt.Tools.Subagent
@@ -77,6 +78,7 @@ defmodule Condukt.Session do
     :project_context,
     :user_state,
     compaction: %Compaction{},
+    view: %Condukt.Session.View{},
     messages: [],
     turn: %Condukt.Session.Turn{},
     assigns: %{}
@@ -359,6 +361,55 @@ defmodule Condukt.Session do
     GenServer.cast(session, {:withdraw_report, tag})
   end
 
+  @doc false
+  # Records in the view what a background sub-agent's manager reports of it:
+  # its name, role, session id, spawning call, and status, or `nil` once it
+  # is gone.
+  def background_changed(session, name, entry) do
+    GenServer.cast(session, {:background_subagent, name, entry})
+  end
+
+  @doc false
+  # Records in the view the message a background sub-agent's turn started
+  # from, `{:run_started, message}`, or steering that joined it,
+  # `{:input, message}`. Nothing is published: the notifier's events are
+  # unchanged.
+  def background_input(session, name, change) do
+    GenServer.cast(session, {:background_input, name, change})
+  end
+
+  @doc """
+  Returns the session's current `Condukt.Session.View`: its history, the turn
+  in flight with its partial answer and running tools, queued input, and agent
+  configuration, free of secrets.
+
+  Pair it with numbered changes from a notifier on another node; see
+  `Condukt.Notifiers.PubSub`. In the same node, or with the session's pid,
+  `watch/1` returns the view and subscribes in one step.
+  """
+  def view(agent) do
+    GenServer.call(agent, :view)
+  end
+
+  @doc """
+  Returns the session's current `Condukt.Session.View` and subscribes the
+  caller to the changes after it.
+
+  The caller receives `{:condukt_change, session_id, epoch, seq, change}` for
+  every change, starting with the one numbered after the view's `seq`, and
+  applies them with `Condukt.Session.View.advance/4`. Nothing between the view
+  and the first change is lost or repeated. Watching again only returns the
+  current view. The subscription ends with `unwatch/1` or the caller's exit.
+  """
+  def watch(agent) do
+    GenServer.call(agent, {:watch, self()})
+  end
+
+  @doc "Stops the changes `watch/1` subscribed the caller to."
+  def unwatch(agent) do
+    GenServer.cast(agent, {:unsubscribe, self(), :view})
+  end
+
   @doc """
   Returns the conversation history.
   """
@@ -498,7 +549,7 @@ defmodule Condukt.Session do
             }
             |> restore_messages(snapshot)
 
-          {:ok, state}
+          {:ok, init_view(state)}
         else
           {:runtime, {:error, reason}} ->
             {:stop, {:runtime_init_failed, reason}}
@@ -598,7 +649,7 @@ defmodule Condukt.Session do
   def handle_call({:run, prompt, opts}, from, state) do
     cond do
       state.turn.streaming and state.turn.queued ->
-        {:noreply, %{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:run, from}})}}
+        {:noreply, sync_queue(%{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:run, from}})})}
 
       state.turn.streaming or not is_nil(state.compaction.waiter) ->
         {:reply, {:error, :already_streaming}, state}
@@ -617,6 +668,21 @@ defmodule Condukt.Session do
     {:reply, :ok, %{state | turn: Turn.subscribe(state.turn, pid, ref, monitor)}}
   end
 
+  def handle_call(:view, _from, state) do
+    {:reply, state.view, state}
+  end
+
+  # Watchers listen under `:view`. Replying with the view in the same call that
+  # subscribes is what leaves no gap and no repeat between the two.
+  def handle_call({:watch, pid}, _from, state) do
+    if pid in Turn.listeners(state.turn, :view) do
+      {:reply, state.view, state}
+    else
+      turn = Turn.subscribe(state.turn, pid, :view, Process.monitor(pid))
+      {:reply, state.view, %{state | turn: turn}}
+    end
+  end
+
   def handle_call(:history, _from, state) do
     {:reply, state.messages, state}
   end
@@ -628,7 +694,7 @@ defmodule Condukt.Session do
   def handle_call(:clear, _from, state) do
     state = abort_turn(state)
     compaction = %{Compaction.cancel(state.compaction) | attempted: nil, usage: nil}
-    state = %{state | messages: [], compaction: compaction}
+    state = sync_messages(%{state | messages: [], compaction: compaction})
     persist_or_clear_snapshot(state, :clear)
     {:reply, :ok, maybe_start_queued_turn(state)}
   end
@@ -648,7 +714,9 @@ defmodule Condukt.Session do
   def handle_call({:take_steering, ref}, _from, state) do
     if state.turn.streaming and ref == state.turn.abort_ref do
       {steering, turn} = Turn.take_steering(state.turn)
-      {:reply, {:ok, steering}, %{state | turn: turn}}
+      state = sync_queue(%{state | turn: turn})
+      state = Enum.reduce(View.redact(steering, outbound_redactor(state)), state, &record(&2, {:input, &1}))
+      {:reply, {:ok, steering}, state}
     else
       {:reply, {:error, :aborted}, state}
     end
@@ -672,7 +740,7 @@ defmodule Condukt.Session do
       not Compaction.enabled?(state.compaction) ->
         state = maybe_compact(state)
         persist_snapshot(state)
-        {:reply, :ok, state}
+        {:reply, :ok, sync_messages(state)}
 
       state.turn.streaming or not is_nil(state.compaction.waiter) ->
         {:reply, {:error, :already_streaming}, state}
@@ -706,7 +774,7 @@ defmodule Condukt.Session do
 
   @impl true
   def handle_cast({:stream, prompt, opts, subscriber_ref}, state) when state.turn.streaming and state.turn.queued do
-    {:noreply, %{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:stream, subscriber_ref}})}}
+    {:noreply, sync_queue(%{state | turn: Turn.enqueue(state.turn, {prompt, opts, {:stream, subscriber_ref}})})}
   end
 
   def handle_cast({:stream, _prompt, _opts, subscriber_ref}, state)
@@ -725,7 +793,7 @@ defmodule Condukt.Session do
   end
 
   def handle_cast({:withdraw_report, tag}, state) do
-    {:noreply, %{state | turn: Turn.withdraw_report(state.turn, tag)}}
+    {:noreply, sync_queue(%{state | turn: Turn.withdraw_report(state.turn, tag)})}
   end
 
   def handle_cast({:unsubscribe, pid, ref}, state) do
@@ -736,25 +804,53 @@ defmodule Condukt.Session do
 
   def handle_cast({:broadcast_event, turn_ref, event, ref}, state) do
     if turn_ref == state.turn.abort_ref do
-      broadcast(state, ref, event)
+      state = broadcast(state, ref, event)
       {:noreply, maybe_dispatch_event(state, event)}
     else
       {:noreply, state}
     end
   end
 
+  # A turn run without streaming publishes no events, as before, but its
+  # steps and tool calls still reach the view as each finishes.
+  def handle_cast({:view_event, turn_ref, event}, state) do
+    if turn_ref == state.turn.abort_ref do
+      {:noreply, record(state, View.redact(event, outbound_redactor(state)))}
+    else
+      {:noreply, state}
+    end
+  end
+
+  def handle_cast({:background_subagent, name, entry}, state) do
+    {:noreply, record(state, {:background, name, entry})}
+  end
+
+  def handle_cast({:background_input, name, change}, state) do
+    if Map.has_key?(state.view.background, name) do
+      {:noreply, record(state, {:background_event, name, View.redact(change, outbound_redactor(state))})}
+    else
+      {:noreply, state}
+    end
+  end
+
+  # Background sub-agents outlive turns, so their events build each one's run
+  # under its name in the view rather than under a call of the current turn.
   def handle_cast({:subagent_event, nil, event}, state) do
     Notifier.publish(state.notifier, state.id, event)
-    {:noreply, state}
+
+    with {:subagent, call_id, child_event} <- event,
+         {name, _entry} <- Enum.find(state.view.background, &match?({_name, %{call_id: ^call_id}}, &1)) do
+      {:noreply, record(state, {:background_event, name, View.redact(child_event, outbound_redactor(state))})}
+    else
+      _other -> {:noreply, state}
+    end
   end
 
   def handle_cast({:subagent_event, turn_ref, event}, state) do
     case state.turn.recipient do
-      {:stream, ref} when turn_ref == state.turn.abort_ref -> broadcast(state, ref, event)
-      _other -> :ok
+      {:stream, ref} when turn_ref == state.turn.abort_ref -> {:noreply, broadcast(state, ref, event)}
+      _other -> {:noreply, state}
     end
-
-    {:noreply, state}
   end
 
   def handle_cast({:compaction_usage, ref, response, messages}, state) do
@@ -786,7 +882,7 @@ defmodule Condukt.Session do
       if match?({:ok, _}, result) or not Compaction.enabled?(state.compaction), do: maybe_compact(state), else: state
 
     persist_snapshot(state)
-    {:noreply, maybe_start_queued_turn(state)}
+    {:noreply, state |> view_run_finished(run_error(result)) |> maybe_start_queued_turn()}
   end
 
   def handle_cast({:stream_complete, turn_ref, ref, result}, state) do
@@ -798,15 +894,16 @@ defmodule Condukt.Session do
   end
 
   def handle_cast({:stream_complete, ref, {:ok, messages, _response, assigns}}, state) do
-    broadcast(state, ref, :done)
+    state = broadcast(state, ref, :done)
     state = %{state | turn: Turn.finish(state.turn), messages: messages, assigns: assigns} |> maybe_compact()
     persist_snapshot(state)
-    {:noreply, maybe_start_queued_turn(state)}
+    {:noreply, state |> view_run_finished(nil) |> maybe_start_queued_turn()}
   end
 
-  def handle_cast({:stream_complete, ref, _result}, state) do
-    broadcast(state, ref, :done)
-    {:noreply, maybe_start_queued_turn(%{state | turn: Turn.finish(state.turn)})}
+  def handle_cast({:stream_complete, ref, result}, state) do
+    state = broadcast(state, ref, :done)
+    state = %{state | turn: Turn.finish(state.turn)} |> view_run_finished(run_error(result))
+    {:noreply, maybe_start_queued_turn(state)}
   end
 
   @impl true
@@ -993,9 +1090,12 @@ defmodule Condukt.Session do
       record_compaction_usage(state, response, messages)
       assistant_message = Translate.response_to_message(response)
       messages = messages ++ [assistant_message]
+      view_event = &GenServer.cast(state.pid, {:view_event, state.turn.abort_ref, &1})
+      text = Message.text(assistant_message)
+      if text != "", do: view_event.({:text, text})
 
       if Message.has_tool_calls?(assistant_message) do
-        {tool_results, messages, assigns_diff} = execute_tool_calls(state, assistant_message, messages)
+        {tool_results, messages, assigns_diff} = execute_tool_calls(state, assistant_message, messages, view_event)
         messages = messages ++ tool_results
         state = %{state | assigns: Map.merge(state.assigns, assigns_diff)}
         agent_loop(state, messages, max_turns, turn + 1)
@@ -1026,6 +1126,7 @@ defmodule Condukt.Session do
   end
 
   defp start_run(state, prompt, opts, from) do
+    state = view_run_started(state, prompt, opts)
     state = %{state | turn: Turn.start(state.turn, {:run, from}, length(state.messages))}
     parent = self()
     trace_context = TraceContext.capture(opts)
@@ -1041,6 +1142,7 @@ defmodule Condukt.Session do
   end
 
   defp start_stream(state, prompt, opts, subscriber_ref) do
+    state = view_run_started(state, prompt, opts)
     state = %{state | turn: Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))}
     {:ok, worker} = start_stream_task(state, prompt, opts, subscriber_ref)
     %{state | turn: %{state.turn | worker: worker}}
@@ -1205,10 +1307,10 @@ defmodule Condukt.Session do
     end)
   end
 
-  # One path for both callers. The streaming one differs only in announcing the
-  # calls before they run and each result as it lands, so it passes an emitter
-  # rather than duplicating the pipeline; the plain one passes a no-op.
-  defp execute_tool_calls(state, assistant_message, messages, emit \\ &noop_emit/1) do
+  # One path for both callers. Each announces the calls before they run and
+  # each result as it lands through its emitter: the streaming one to its
+  # subscribers and notifier, the plain one to the view only.
+  defp execute_tool_calls(state, assistant_message, messages, emit) do
     tool_calls = Message.tool_calls(assistant_message)
     tool_map = build_tool_map(state.tools)
     trace_context = TraceContext.current()
@@ -1239,8 +1341,6 @@ defmodule Condukt.Session do
 
     {tool_results, messages, assigns_diff}
   end
-
-  defp noop_emit(_event), do: :ok
 
   # A tool that never returns used to hang the turn forever, which a person at
   # a terminal can interrupt and a server-side run cannot. Bounded by the
@@ -1415,9 +1515,11 @@ defmodule Condukt.Session do
     end
   end
 
+  # Returns the state, since every published event is also a view change.
   defp broadcast(state, ref, event) do
     broadcast_subscribers(state, ref, event)
     Notifier.publish(state.notifier, state.id, event)
+    record(state, View.redact(event, outbound_redactor(state)))
   end
 
   defp broadcast_subscribers(state, ref, event) do
@@ -1625,7 +1727,7 @@ defmodule Condukt.Session do
 
     updated = %{state | compaction: compaction, messages: messages, turn: turn}
     if messages != state.messages, do: persist_snapshot(updated)
-    updated
+    sync_messages(updated)
   end
 
   defp release_compaction_waiter(%{compaction: %{waiter: nil}} = state, _result), do: state
@@ -1641,17 +1743,18 @@ defmodule Condukt.Session do
     # Bottom-up: what the turn owns is aborted before its own caller hears.
     Enum.each(state.turn.owned, &abort_owned(&1, state.turn.abort_ref))
 
-    case state.turn.recipient do
-      {:run, from} ->
-        GenServer.reply(from, {:error, :aborted})
+    state =
+      case state.turn.recipient do
+        {:run, from} ->
+          GenServer.reply(from, {:error, :aborted})
+          state
 
-      {:stream, ref} ->
-        broadcast(state, ref, {:error, :aborted})
-        broadcast(state, ref, :done)
+        {:stream, ref} ->
+          state |> broadcast(ref, {:error, :aborted}) |> broadcast(ref, :done)
 
-      nil ->
-        :ok
-    end
+        nil ->
+          state
+      end
 
     # Pending callers never started, so only they hear, not the notifier.
     Enum.each(state.turn.pending, fn
@@ -1663,7 +1766,7 @@ defmodule Condukt.Session do
         broadcast_subscribers(state, ref, :done)
     end)
 
-    %{state | turn: Turn.abort(state.turn)}
+    view_run_finished(%{state | turn: Turn.abort(state.turn)}, :aborted)
   end
 
   defp abort_owned({:session, pid}, _turn_ref) do
@@ -1678,8 +1781,10 @@ defmodule Condukt.Session do
   # gets the turn it asked for. Nobody waits on a turn started from a queued
   # message, so it streams to the notifier and the agent's `handle_event/2`
   # only. Other runtimes cannot stream, so input queued for them keeps
-  # waiting, as before.
-  defp maybe_start_queued_turn(%{runtime: {Native, _}} = state)
+  # waiting, as before. Either way the view's queue follows what is left.
+  defp maybe_start_queued_turn(state), do: state |> start_queued_turn() |> sync_queue()
+
+  defp start_queued_turn(%{runtime: {Native, _}} = state)
        when not state.turn.streaming and is_nil(state.compaction.waiter) do
     case Turn.next_input(state.turn) do
       {nil, _turn} ->
@@ -1697,7 +1802,88 @@ defmodule Condukt.Session do
     end
   end
 
-  defp maybe_start_queued_turn(state), do: state
+  defp start_queued_turn(state), do: state
+
+  # ============================================================================
+  # View
+  # ============================================================================
+
+  defp init_view(state) do
+    {runtime, _opts} = state.runtime
+
+    agent = %{
+      module: state.agent_module,
+      model: model_name(state.llm.model),
+      thinking_level: state.llm.thinking_level,
+      tools: Enum.map(state.tools, &Tool.name/1),
+      runtime: runtime
+    }
+
+    %{state | view: View.new(state.id, agent, View.redact(state.messages, outbound_redactor(state)))}
+  end
+
+  # Only the name: a model spec can carry provider options a viewer must not see.
+  defp model_name(model) when is_binary(model), do: model
+  defp model_name(%{provider: provider, id: id}), do: "#{provider}:#{id}"
+  defp model_name(_model), do: nil
+
+  # Numbers a change, folds it into the view, and sends it to the watchers and
+  # the notifier. Every change goes through here, in the session process, so
+  # its order is the order every viewer applies it in.
+  defp record(state, change) do
+    %View{epoch: epoch, seq: seq} = state.view
+    {:ok, view} = View.advance(state.view, epoch, seq + 1, change)
+
+    for pid <- Turn.listeners(state.turn, :view) do
+      send(pid, {:condukt_change, state.id, epoch, seq + 1, change})
+    end
+
+    Notifier.publish_change(state.notifier, state.id, epoch, seq + 1, change)
+    %{state | view: view}
+  end
+
+  defp sync_queue(state) do
+    items = state.turn |> View.queue() |> View.redact(outbound_redactor(state))
+    if items == state.view.queue, do: state, else: record(state, {:queue, items})
+  end
+
+  defp view_run_started(state, prompt, opts) do
+    [message] = View.redact([Message.user(prompt, opts[:images] || [])], outbound_redactor(state))
+    state |> sync_queue() |> record({:run_started, message})
+  end
+
+  # Ends the view's run, adding to the history what the turn added. History a
+  # compaction rewrote during the turn is replaced after the run ends.
+  defp view_run_finished(%{view: %View{run: nil}} = state, _error), do: sync_messages(state)
+
+  defp view_run_finished(state, error) do
+    messages = View.redact(state.messages, outbound_redactor(state))
+    held = state.view.messages
+
+    if List.starts_with?(messages, held) do
+      record(state, {:run_finished, error, Enum.drop(messages, length(held))})
+    else
+      state |> record({:run_finished, error, []}) |> record({:messages, :replace, messages})
+    end
+  end
+
+  # A turn in flight owns the history until it ends, including what a
+  # compaction checkpoint adopts mid-turn, so only an idle session syncs it.
+  defp sync_messages(%{turn: %{streaming: true}} = state), do: state
+
+  defp sync_messages(state) do
+    messages = View.redact(state.messages, outbound_redactor(state))
+    held = state.view.messages
+
+    cond do
+      messages == held -> state
+      List.starts_with?(messages, held) -> record(state, {:messages, :append, Enum.drop(messages, length(held))})
+      true -> record(state, {:messages, :replace, messages})
+    end
+  end
+
+  defp run_error({:error, reason}), do: reason
+  defp run_error(_result), do: nil
 
   defp take_steering(state, messages) do
     with {:ok, steering} <- GenServer.call(state.pid, {:take_steering, state.turn.abort_ref}, :infinity) do
