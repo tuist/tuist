@@ -128,8 +128,9 @@ Record native VoiceOver/Narrator/NVDA/Orca acceptance separately in the README.
 - Brand assets live in `gpui/resources/` relative to the Once workspace. `img()` treats a path that parses as
   a URI (a bare `name.png` is a valid host) as a network URL, so keep embedded
   image paths inside a directory.
-- `resources/icon.png` is the app icon, the 256px flat export of
-  `app/Resources/TuistApp/AppIcon.icon`; refresh it when that icon changes. It
+- `resources/icon.png` is the app icon, the 256px flat export that
+  `../apple/generate-icons.sh` renders from `app/Resources/TuistApp/AppIcon.icon`
+  with Tuist Code's dark background; rerun it when that icon changes. It
   is the Dock icon on macOS, set at launch because the binary is unbundled.
 - `resources/tuist-mark.svg` is the web dashboard's five-petal mark
   (`tuist_mark` in `server/lib/tuist_web/components/icon_components.ex`). In-app

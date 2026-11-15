@@ -71,9 +71,9 @@ Linux executables built through Once can be published with the Tuist CLI's `shar
 
 ## Icons and names
 
-Native Apple/Android bundles declare **Tuist Code** as their display name and use the isolated `dev.tuist.code` identity. Their icons are rendered from the shipping `../app/Resources/TuistApp/AppIcon.icon`; regenerate the checked-in raster/ICNS resources on a Mac with Xcode 26+ using `bash apple/generate-icons.sh`. Shipping resources are read-only inputs. Explicit PNG/ICNS resources keep icons in Once's cached outputs, including the iOS fallback icons.
+Native Apple/Android bundles declare **Tuist Code** as their display name and use the isolated `dev.tuist.code` identity. Their icons are the shipping `../app/Resources/TuistApp/AppIcon.icon` layers on a dark editor background, so Tuist Code is distinguishable from the shipping app; regenerate the checked-in raster/ICNS resources on a Mac with Xcode 26+ using `bash apple/generate-icons.sh`. Shipping resources are read-only inputs. Explicit PNG/ICNS resources keep icons in Once's cached outputs, including the iOS fallback icons.
 
-Once (0.81.0 and later) publishes each Apple and Android bundle's icon and display name with the artifact, and the server shows them on the preview. Raw Linux executable previews published with `tuist share` are labeled CLI regardless of whether they open a GUI and carry no icon. Bundle icon changes do not repair existing hosted previews; a fresh upload is needed.
+Once (0.81.0 and later) publishes each Apple and Android bundle's icon and display name with the artifact, and the server shows them on the preview. Raw Linux executable previews published with `tuist share` are labeled CLI regardless of whether they open a GUI; pass `--icon gpui/resources/rounded-icon.png` to give them the app icon. Bundle icon changes do not repair existing hosted previews; a fresh upload is needed.
 
 ## GPUI frontend
 
