@@ -3,6 +3,7 @@ defmodule Condukt.Application do
 
   use Application
 
+  alias Condukt.Sandbox.Local
   alias Condukt.Tools.BackgroundSubagent
 
   # The control channel for a `:decide` network policy is a per-session
@@ -21,7 +22,11 @@ defmodule Condukt.Application do
     children =
       [
         Condukt.SessionStore.Memory.Table,
-        {Registry, keys: :unique, name: BackgroundSubagent.registry()}
+        {Registry, keys: :unique, name: BackgroundSubagent.registry()},
+        # Processes that outlive the tool call that started them: the local
+        # sandbox's commands, by id, and the watchers that follow them.
+        {Registry, keys: :unique, name: Local.registry()},
+        {Task.Supervisor, name: Condukt.TaskSupervisor}
       ] ++
         Condukt.Sessions.child_specs() ++
         [

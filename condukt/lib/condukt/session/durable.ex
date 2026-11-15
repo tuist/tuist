@@ -178,6 +178,7 @@ defmodule Condukt.Session.Durable do
     %{
       run_id: run_id,
       request_id: start[:request_id],
+      input: start[:input],
       max_turns: start[:max_turns],
       messages: messages ++ [start.message],
       prompt_index: length(messages),

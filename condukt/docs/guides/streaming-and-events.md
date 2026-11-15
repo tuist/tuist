@@ -13,6 +13,7 @@ right shape for chat UIs, LiveView, Phoenix Channels, and CLI output.
 | `{:text, chunk}` | A chunk of model text. |
 | `{:thinking, chunk}` | A chunk of model reasoning (if the provider exposes it). |
 | `{:tool_call, name, id, args}` | The model is calling a tool. |
+| `{:tool_output, id, chunk}` | A running tool streamed some output, such as a `Bash` command's. See `Condukt.Tool.output/2`. |
 | `{:tool_result, id, result}` | A tool returned a result. |
 | `{:waiting, %{tool_calls: calls, wake_at: deadline}}` | The turn's pending tool calls are parked, waiting for signals or deadlines. See [Waiting for Events](parking.md). |
 | `:turn_end` | The current LLM turn finished. |
@@ -154,7 +155,7 @@ The view holds:
 | Field | Description |
 | ----- | ----------- |
 | `messages` | The committed history, newest last. |
-| `run` | The turn in flight, or `nil`. Its `items` are its input, steering that joined it, the answer and reasoning streamed so far, and each tool call with its arguments, `:running`/`:ok`/`:error` status, result, and a foreground sub-agent's own run under `subagent`. |
+| `run` | The turn in flight, or `nil`. Its `items` are its input, steering that joined it, the answer and reasoning streamed so far, and each tool call with its arguments, `:running`/`:ok`/`:error` status, result, the last 64 KiB of the output it streamed under `output`, and a foreground sub-agent's own run under `subagent`. |
 | `error` | Why the last finished turn failed, such as `:aborted`, or `nil`. |
 | `queue` | Input waiting to start or join a turn, in the order it is taken: waiting callers (`:prompt`), `:steer`, `:follow_up`, input submitted by id with `Condukt.Sessions.submit/3` (`:input`), and background sub-agent answers (`:report`). |
 | `background` | [Background sub-agents](subagents.md) by name, each with its role, session id, the `call_id` of the call that spawned it, `:working` or `:idle` status, and the `run` of its current or last turn: the message it started from, steering that joined it, and its steps. |
@@ -217,7 +218,8 @@ unchanged.
 
 The view and its changes pass user input and tool results through the session's
 redactors, `Condukt.Secrets` included, the same way as on the way to the model.
-Structured tool results keep their shape with each string redacted. Each
+Structured tool results keep their shape with each string redacted, and
+each streamed `{:tool_output, id, chunk}` is redacted as it arrives. Each
 change is redacted once, as it arrives, so a turn ending costs what the turn
 added, not the whole history. A compaction or `Condukt.clear/1` sends the whole
 history again as `{:messages, :replace, messages}`. The agent

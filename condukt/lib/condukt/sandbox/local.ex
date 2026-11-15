@@ -10,12 +10,29 @@ defmodule Condukt.Sandbox.Local do
   ## Initializing
 
       {:ok, sandbox} = Condukt.Sandbox.new(Condukt.Sandbox.Local, cwd: "/tmp")
+
+  Options:
+
+    * `:cwd` — base directory for paths and commands (default `File.cwd!/0`)
+    * `:process_dir` — where `start_process/4` keeps each process's log and
+      status (default `condukt-processes` in the system temporary directory)
+
+  ## Processes
+
+  `start_process/4` runs a command through `MuonTrap` in a process under
+  Condukt's own supervisor, registered by the id, rather than in the caller.
+  The command outlives the caller and is found again by its id on the same
+  node, but not across a node restart: `MuonTrap` stops it with the node, as
+  it stops every command this sandbox runs. The command runs in a process
+  group of its own, which stopping it and its timeout kill whole, so what it
+  started in the background goes with it.
   """
 
   @behaviour Condukt.Sandbox
 
   alias Condukt.Sandbox
   alias Condukt.Sandbox.Local.State
+  alias Condukt.Sandbox.Processes
 
   @base_env %{
     "TERM" => "dumb",
@@ -42,8 +59,16 @@ defmodule Condukt.Sandbox.Local do
         path -> Path.expand(path)
       end
 
-    {:ok, %State{cwd: cwd}}
+    process_dir =
+      opts
+      |> Keyword.get_lazy(:process_dir, fn -> Path.join(System.tmp_dir!(), "condukt-processes") end)
+      |> Path.expand()
+
+    {:ok, %State{cwd: cwd, process_dir: process_dir}}
   end
+
+  @doc false
+  def registry, do: Condukt.Sandbox.Local.Registry
 
   @impl Sandbox
   def shutdown(_state), do: :ok
@@ -160,6 +185,345 @@ defmodule Condukt.Sandbox.Local do
       {:ok, matches}
     end
   end
+
+  # A process is a task under `Condukt.TaskSupervisor`, registered under its
+  # directory, which the id names, that runs the command through MuonTrap with output going to a file
+  # and writes the exit status to another once it ends. Registration is the
+  # atomic step that makes starting idempotent; the status file is written
+  # before the task unregisters, so a reader that finds neither knows the
+  # task was killed. Its directory stays until `stop_process/2`, so a process
+  # whose task was killed, as by a node restart, is not started again either.
+  @impl Sandbox
+  def start_process(%State{} = state, id, command, opts) do
+    dir = process_path(state, id)
+
+    if Registry.lookup(registry(), dir) != [] or File.exists?(dir) do
+      {:error, :already_started}
+    else
+      run_opts = [
+        cd: opts |> Keyword.get(:cwd) |> resolve_optional(state.cwd),
+        env: build_env(Keyword.get(opts, :env, [])),
+        timeout: Keyword.get(opts, :timeout),
+        stdin: Keyword.get(opts, :stdin, false)
+      ]
+
+      command = process_command(command, opts)
+
+      caller = self()
+      ref = make_ref()
+
+      {:ok, pid} =
+        Task.Supervisor.start_child(Condukt.TaskSupervisor, fn -> run_process(caller, ref, dir, command, run_opts) end)
+
+      monitor = Process.monitor(pid)
+
+      receive do
+        {^ref, reply} ->
+          Process.demonitor(monitor, [:flush])
+          reply
+
+        {:DOWN, ^monitor, :process, _pid, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  @impl Sandbox
+  def read_process(%State{} = state, id, offset, opts) do
+    dir = process_path(state, id)
+    max_bytes = Keyword.get(opts, :max_bytes, 64 * 1024)
+    await_output(dir, offset, System.monotonic_time(:millisecond) + Keyword.get(opts, :wait, 0))
+
+    with {:ok, status} <- process_status(dir),
+         {:ok, %File.Stat{size: size}} <- File.stat(Path.join(dir, "output")),
+         {:ok, output} <- read_range(Path.join(dir, "output"), offset, min(max_bytes, max(size - offset, 0))) do
+      {:ok, %{output: output, offset: offset + byte_size(output), size: size, status: status}}
+    else
+      {:error, :enoent} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl Sandbox
+  def stop_process(%State{} = state, id) do
+    dir = process_path(state, id)
+
+    case Registry.lookup(registry(), dir) do
+      [{pid, _value}] ->
+        # MuonTrap signals only the capture shell, so the command's group is
+        # killed here, TERM and then KILL, before the task that ran it goes.
+        kill_group(dir, pid)
+        monitor = Process.monitor(pid)
+        Process.exit(pid, :kill)
+
+        receive do
+          {:DOWN, ^monitor, :process, _pid, _reason} -> :ok
+        end
+
+      [] ->
+        :ok
+    end
+
+    case File.rm_rf(dir) do
+      {:ok, _paths} -> :ok
+      {:error, reason, _path} -> {:error, reason}
+    end
+  end
+
+  @impl Sandbox
+  def write_process(%State{} = state, id, data, opts) do
+    dir = process_path(state, id)
+    stdin = Path.join(dir, "stdin")
+    offset = Keyword.get(opts, :offset)
+
+    # One writer at a time per process, on this node, as the registry holds it.
+    :global.trans({{__MODULE__, dir}, self()}, fn -> append_stdin(dir, stdin, data, offset, opts) end)
+  end
+
+  defp append_stdin(dir, stdin, data, offset, opts) do
+    with {:ok, %File.Stat{size: size}} <- stdin_size(stdin),
+         :write <- stdin_write(size, offset, byte_size(data), File.exists?(Path.join(dir, "stdin_closed"))),
+         :ok <- File.write(stdin, data, [:append]) do
+      close_stdin(dir, opts)
+    else
+      # A write sent again closes too, so a close is not lost to a retry.
+      :written -> close_stdin(dir, opts)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp close_stdin(dir, opts) do
+    if Keyword.get(opts, :close), do: File.write(Path.join(dir, "stdin_closed"), ""), else: :ok
+  end
+
+  defp stdin_size(stdin) do
+    case File.stat(stdin) do
+      {:error, :enoent} -> {:error, :not_found}
+      other -> other
+    end
+  end
+
+  defp stdin_write(size, offset, bytes, _closed?) when is_integer(offset) and size == offset + bytes, do: :written
+  defp stdin_write(_size, _offset, _bytes, true), do: {:error, :stdin_closed}
+
+  defp stdin_write(size, offset, _bytes, _closed?) when is_integer(offset) and size != offset,
+    do: {:error, :offset_mismatch}
+
+  defp stdin_write(_size, _offset, _bytes, _closed?), do: :write
+
+  # Waits until the log grows past `offset` or the process ends.
+  defp await_output(dir, offset, deadline) do
+    running? = Registry.lookup(registry(), dir) != []
+
+    size =
+      case File.stat(Path.join(dir, "output")) do
+        {:ok, %File.Stat{size: size}} -> size
+        _ -> offset + 1
+      end
+
+    if running? and size <= offset and System.monotonic_time(:millisecond) < deadline do
+      Process.sleep(50)
+      await_output(dir, offset, deadline)
+    end
+  end
+
+  defp run_process(caller, ref, dir, command, run_opts) do
+    case Registry.register(registry(), dir, nil) do
+      {:ok, _owner} ->
+        {stdin?, run_opts} = Keyword.pop(run_opts, :stdin)
+
+        case prepare_process_dir(dir, stdin?) do
+          :ok ->
+            send(caller, {ref, :ok})
+            write_status(dir, run_command(command, dir, stdin?, run_opts))
+
+          {:error, reason} ->
+            send(caller, {ref, {:error, reason}})
+        end
+
+      {:error, {:already_registered, _pid}} ->
+        send(caller, {ref, {:error, :already_started}})
+    end
+  end
+
+  defp prepare_process_dir(dir, stdin?) do
+    with :ok <- File.mkdir_p(dir),
+         File.rm(Path.join(dir, "status")),
+         :ok <- File.write(Path.join(dir, "output"), ""),
+         :ok <- File.write(Path.join(dir, "stdin"), "") do
+      if stdin?, do: :ok, else: File.write(Path.join(dir, "stdin_closed"), "")
+    end
+  end
+
+  defp run_command(command, dir, stdin?, run_opts) do
+    output = Path.join(dir, "output")
+    {timeout, run_opts} = Keyword.pop(run_opts, :timeout)
+    run_opts = [stderr_to_stdout: true, parallelism: false] ++ run_opts
+    args = ["-c", capture_script(stdin?, timeout), "condukt-capture", output, command, dir]
+
+    case MuonTrap.cmd("bash", args, run_opts) do
+      {_output, exit_code} ->
+        if File.exists?(Path.join(dir, "timed_out")), do: "timeout", else: Integer.to_string(exit_code)
+    end
+  catch
+    :error, error ->
+      File.write(Path.join(dir, "output"), format_error(error), [:append])
+      "127"
+  end
+
+  # The capture shell starts the command as a job under bash's job control,
+  # which puts it, with its stdin feeder, in a process group of its own,
+  # recorded as `child`; it then waits for it. A TERM from MuonTrap, as when
+  # the node stops, passes on to the group. The timeout's watchdog is a job
+  # too, so killing its group leaves no `sleep` behind. Job control, `sleep`,
+  # and `jobs -p` behave alike in the bash 3.2 macOS ships and in Linux's, so
+  # no `setsid` or bash 4 `read -t` is needed. Only the command writes
+  # `output`. The shell's own job notices go nowhere: written to MuonTrap as
+  # the shell exits, they race its exit, and MuonTrap's port then fails with
+  # `:epipe`, taking the task, and the status it was about to write, with it.
+  defp capture_script(stdin?, timeout) do
+    command =
+      if stdin?,
+        do: ~s(condukt_feed "$d" | bash -c "$2" >> "$1" 2>&1 &),
+        else: ~s(bash -c "$2" < /dev/null >> "$1" 2>&1 &)
+
+    Processes.feeder() <>
+      """
+      d="$3"
+      exec > /dev/null 2>&1
+      set -m
+      #{command}
+      c=$!
+      jobs -p > "$d/child"
+      read g < "$d/child"
+      trap 'kill -TERM -- -$g 2>/dev/null; : > "$d/ended"; exit 143' TERM
+      #{watchdog(timeout)}
+      wait $c
+      code=$?
+      [ -n "$w" ] && kill -- -$w 2>/dev/null
+      : > "$d/ended"
+      [ -e "$d/timed_out" ] && exit 124
+      exit $code
+      """
+  end
+
+  # Kills the command's group once `timeout` passes, recording `timed_out`,
+  # and with KILL if it is still there 5 seconds later.
+  defp watchdog(timeout) when is_integer(timeout) and timeout > 0 do
+    seconds = timeout |> Kernel./(1_000) |> :erlang.float_to_binary(decimals: 3)
+
+    """
+    ( sleep #{seconds}
+      : > "$d/timed_out"
+      kill -TERM -- -$g 2>/dev/null
+      sleep 5
+      kill -KILL -- -$g 2>/dev/null ) > /dev/null 2>&1 &
+    w=$!
+    """
+  end
+
+  defp watchdog(_timeout), do: "w="
+
+  # A pseudo-terminal through `script`, whose flags differ between the BSD
+  # one macOS ships and util-linux's.
+  defp process_command(command, opts) do
+    case {Keyword.get(opts, :pty), :os.type()} do
+      {true, {:unix, :darwin}} -> "script -q /dev/null bash -c " <> shell_quote(command)
+      _other -> Processes.command(command, opts)
+    end
+  end
+
+  defp shell_quote(value), do: "'" <> String.replace(value, "'", ~S('"'"')) <> "'"
+
+  # Kills the command's group, waiting for its pid while the task that
+  # starts it (`task`) is still getting there.
+  defp kill_group(dir, task) do
+    case await_child(Path.join(dir, "child"), task, 50) do
+      {:ok, group} ->
+        signal_group("TERM", group)
+        if await_group_exit(group, 40), do: :ok, else: signal_group("KILL", group)
+
+      :error ->
+        :ok
+    end
+  end
+
+  defp await_child(path, task, attempts) do
+    case File.read(path) do
+      {:ok, pid} ->
+        {:ok, String.trim(pid)}
+
+      {:error, _reason} when attempts > 0 ->
+        if Process.alive?(task) do
+          Process.sleep(20)
+          await_child(path, task, attempts - 1)
+        else
+          :error
+        end
+
+      {:error, _reason} ->
+        :error
+    end
+  end
+
+  defp await_group_exit(group, attempts) do
+    cond do
+      not group_alive?(group) ->
+        true
+
+      attempts == 0 ->
+        false
+
+      true ->
+        Process.sleep(50)
+        await_group_exit(group, attempts - 1)
+    end
+  end
+
+  defp group_alive?(group), do: match?({_, 0}, System.cmd("kill", ["-0", "--", "-" <> group], stderr_to_stdout: true))
+
+  defp signal_group(signal, group), do: System.cmd("kill", ["-" <> signal, "--", "-" <> group], stderr_to_stdout: true)
+
+  defp write_status(dir, status) do
+    tmp = Path.join(dir, "status.tmp")
+    File.write!(tmp, status)
+    File.rename!(tmp, Path.join(dir, "status"))
+  end
+
+  defp process_status(dir) do
+    cond do
+      Registry.lookup(registry(), dir) != [] -> {:ok, :running}
+      File.exists?(Path.join(dir, "status")) -> read_status(dir)
+      File.exists?(Path.join(dir, "output")) -> {:ok, {:exited, nil}}
+      true -> {:error, :not_found}
+    end
+  end
+
+  defp read_status(dir) do
+    case File.read(Path.join(dir, "status")) do
+      {:ok, "timeout"} -> {:ok, :timeout}
+      {:ok, code} -> {:ok, {:exited, String.to_integer(code)}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp read_range(_path, _offset, 0), do: {:ok, ""}
+
+  defp read_range(path, offset, bytes) do
+    with {:ok, file} <- File.open(path, [:read, :binary]) do
+      try do
+        case :file.pread(file, offset, bytes) do
+          {:ok, data} -> {:ok, data}
+          :eof -> {:ok, ""}
+          {:error, reason} -> {:error, reason}
+        end
+      after
+        File.close(file)
+      end
+    end
+  end
+
+  defp process_path(%State{process_dir: root}, id), do: Path.join(root, Processes.dir_name(id))
 
   # mount/3 intentionally not implemented — host fs is the sandbox.
 

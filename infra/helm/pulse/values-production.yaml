@@ -9,9 +9,13 @@ storage:
 # Sized for production's load: requests total 8.6 CPUs and 23 GiB.
 cluster:
   frontend:
+    # PromQL runs in a query pool of 50% of the limit, shared by every query on
+    # the frontend. At 2Gi that 1GiB pool filled when Grafana evaluated many
+    # rules at once and rejected them. Frontends idle near 200Mi, so only the
+    # limit grows.
     resources:
       requests: {cpu: 500m, memory: 1Gi}
-      limits: {memory: 2Gi}
+      limits: {memory: 4Gi}
   metasrv:
     resources:
       requests: {cpu: 250m, memory: 512Mi}

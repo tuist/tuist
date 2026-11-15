@@ -44,7 +44,14 @@ defmodule Condukt.Sessions.Registry.PG do
   end
 
   @impl Condukt.Sessions.Registry
-  def list(opts), do: :pg.which_groups(scope(opts))
+  def list(opts), do: opts |> scope() |> :pg.which_groups() |> Enum.filter(&is_binary/1)
+
+  # A child joins its parent's group, which `:pg` drops it from when it exits.
+  @impl Condukt.Sessions.Registry
+  def join_parent(parent, opts), do: :pg.join(scope(opts), {:child, parent}, self())
+
+  @impl Condukt.Sessions.Registry
+  def children(parent, opts), do: :pg.get_members(scope(opts), {:child, parent})
 
   # The `:via` name contract. OTP calls `register_name/2` and
   # `unregister_name/1` from the process being started, so the pid joining or

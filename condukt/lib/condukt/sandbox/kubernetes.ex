@@ -101,6 +101,14 @@ defmodule Condukt.Sandbox.Kubernetes do
 
   See `docs/guides/sandbox.md` for a full sample `Role` + `RoleBinding`.
 
+  ## Processes
+
+  `start_process/4` runs a command detached inside the pod, with its log and
+  exit status under `/tmp/condukt-processes`, so it keeps running while the
+  BEAM node that started it restarts. A sandbox reopened with the same `:id`
+  adopts the pod and finds the process by its id. The image needs `setsid`
+  from util-linux, which the default image includes.
+
   ## Limitations
 
   * `mount/3` is not supported. Volumes cannot be added to a running pod.
@@ -122,6 +130,7 @@ defmodule Condukt.Sandbox.Kubernetes do
   alias Condukt.Sandbox.NetworkPolicy
   alias Condukt.Sandbox.NetworkPolicy.K8s, as: NetK8s
   alias Condukt.Sandbox.NetworkPolicy.K8s.ControlBridge
+  alias Condukt.Sandbox.Processes
 
   @default_image "debian:bookworm-slim"
   @default_cwd "/workspace"
@@ -134,6 +143,7 @@ defmodule Condukt.Sandbox.Kubernetes do
   @ready_poll_interval 1_000
   @timeout_exit_code 124
   @timeout_grace_ms 5_000
+  @process_exec_timeout 30_000
 
   @managed_by_label "app.kubernetes.io/managed-by"
   @managed_by_value "condukt"
@@ -299,6 +309,26 @@ defmodule Condukt.Sandbox.Kubernetes do
       {:error, _} = err -> err
     end
   end
+
+  # Processes live in the pod, under /tmp/condukt-processes, so they keep
+  # running while the BEAM node that started them restarts, and a new node
+  # finds them by id. See `Condukt.Sandbox.Processes`.
+  @impl Sandbox
+  def start_process(state, id, command, opts) do
+    cwd = Path.expand(Keyword.get(opts, :cwd) || state.base_cwd, state.base_cwd)
+    Processes.start(&process_exec(state, &1), id, command, Keyword.put(opts, :cwd, cwd))
+  end
+
+  @impl Sandbox
+  def read_process(state, id, offset, opts), do: Processes.read(&process_exec(state, &1), id, offset, opts)
+
+  @impl Sandbox
+  def stop_process(state, id), do: Processes.stop(&process_exec(state, &1), id, [])
+
+  @impl Sandbox
+  def write_process(state, id, data, opts), do: Processes.write(&process_exec(state, &1), id, data, opts)
+
+  defp process_exec(state, script), do: Exec.run(state, ["bash", "-c", script], timeout: @process_exec_timeout)
 
   # mount/3 intentionally not implemented; running pods cannot accept volumes.
 

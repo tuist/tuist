@@ -64,6 +64,22 @@ defmodule Condukt.Tools.SubagentTest do
     end
   end
 
+  test "a call runs with read-only calls only when its role cannot change what later calls observe" do
+    opts = [
+      subagents: [
+        reader: {ChildAgent, tools: [Condukt.Tools.Read, Condukt.Tools.Grep]},
+        editor: {ChildAgent, tools: [Condukt.Tools.Read, Condukt.Tools.Write]},
+        shared: {ChildAgent, tools: [Condukt.Tools.Bash], sandbox: %Condukt.Sandbox{module: Condukt.Sandbox.Local}},
+        isolated: {ChildAgent, tools: [Condukt.Tools.Bash], sandbox: {Condukt.Sandbox.Local, cwd: "."}}
+      ]
+    ]
+
+    assert Subagent.read_only_call?(opts, %{"role" => "reader"})
+    refute Subagent.read_only_call?(opts, %{"role" => "editor"})
+    refute Subagent.read_only_call?(opts, %{"role" => "shared"})
+    assert Subagent.read_only_call?(opts, %{"role" => "isolated"})
+  end
+
   test "builds a role enum from registered subagents" do
     input_schema = %{
       type: "object",
@@ -398,24 +414,12 @@ defmodule Condukt.Tools.SubagentTest do
         end
       )
 
-    crash =
-      Condukt.tool(
-        name: "crash",
-        description: "exits its worker",
-        parameters: empty,
-        call: fn _args, context ->
-          send(test_pid, {:crash_ready, self()})
-          receive do: (:go -> Process.exit(:sys.get_state(context.agent).turn.worker, :boom))
-          receive do: (:never -> {:ok, "unreachable"})
-        end
-      )
-
     delegate = ToolCall.new("parent_call_1", "subagent", JSON.encode!(%{"role" => "researcher", "task" => "go"}))
 
     {parent_model, _} =
       LLMProvider.model([
         LLMProvider.response(
-          %Message{role: :assistant, content: [], tool_calls: [delegate, ToolCall.new("parent_call_2", "crash", "{}")]},
+          %Message{role: :assistant, content: [], tool_calls: [delegate]},
           :tool_calls
         )
       ])
@@ -430,7 +434,6 @@ defmodule Condukt.Tools.SubagentTest do
     {:ok, parent} =
       Condukt.Session.start(ParentAgent,
         model: parent_model,
-        tools: [crash],
         subagents: [researcher: {ChildAgent, model: child_model, tools: [block], load_project_instructions: false}],
         load_project_instructions: false
       )
@@ -440,8 +443,7 @@ defmodule Condukt.Tools.SubagentTest do
     child_ref = Process.monitor(child)
     tool_ref = Process.monitor(child_tool)
 
-    assert_receive {:crash_ready, crasher}, 5_000
-    send(crasher, :go)
+    Process.exit(:sys.get_state(parent).turn.worker, :boom)
 
     assert {:error, {:turn_crashed, _reason}} = Task.await(caller)
     assert_receive {:DOWN, ^child_ref, :process, ^child, _reason}, 1_000

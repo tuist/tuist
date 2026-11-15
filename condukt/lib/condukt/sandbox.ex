@@ -44,9 +44,19 @@ defmodule Condukt.Sandbox do
   ## Writing a custom sandbox
 
   Implement the `Condukt.Sandbox` behaviour. `init/1` builds the per-session
-  state; `shutdown/1` releases it; the rest are I/O primitives. Tools dispatch
+  state; `shutdown/1` releases it; the rest are I/O primitives. `glob/3`,
+  `grep/3`, `mount/3`, and the process callbacks are optional. Tools dispatch
   through this module's facade (`Condukt.Sandbox.read/2`, `.exec/3`, etc.) so
   custom sandboxes work with every built-in tool automatically.
+
+  ## Processes that outlive their caller
+
+  The optional `c:start_process/4`, `c:read_process/4`, and `c:stop_process/2`
+  run a command under a stable id, apart from the BEAM process that started
+  it: a caller reads its output from an offset as it runs, learns its exit
+  status, and kills it, and anyone who knows the id finds it again.
+  `Local`, `Kubernetes`, and `Microsandbox` implement them;
+  `Condukt.Tools.Bash` uses them when they are there and `exec/3` otherwise.
 
   ## Tool authoring rule
 
@@ -57,7 +67,7 @@ defmodule Condukt.Sandbox do
   databases, in-process state) have nothing to sandbox and are unaffected.
   """
 
-  defstruct [:module, :state, :opts]
+  defstruct [:module, :state, :opts, :lease]
 
   @doc "Initializes per-session sandbox state."
   @callback init(opts :: keyword()) :: {:ok, state :: term()} | {:error, term()}
@@ -127,7 +137,143 @@ defmodule Condukt.Sandbox do
   """
   @callback cwd(state :: term()) :: binary()
 
-  @optional_callbacks [mount: 3, grep: 3, glob: 3]
+  @doc """
+  Starts `command` as a process named `id` that runs on its own, apart from
+  the BEAM process that started it, and returns at once.
+
+  `id` is any string. Starting is idempotent on it: when the sandbox already
+  holds a process under `id`, running or exited, it returns
+  `{:error, :already_started}` and leaves it alone, so a caller that lost
+  track of a process, such as a restarted session, finds it again by starting
+  it again. Output goes to a log the sandbox keeps, combined stdout and
+  stderr, until `c:stop_process/2`. Options are those of `c:exec/3`:
+
+    * `:cwd` — working directory
+    * `:env` — list of `{key, value}` strings to layer onto the base env
+    * `:timeout` — milliseconds after which the sandbox kills the command and
+      reports its status as `:timeout`
+
+  and, where the sandbox supports them:
+
+    * `:stdin` — `true` keeps the command's stdin open for
+      `c:write_process/4`; otherwise it reads an empty stdin
+    * `:pty` — `true` runs the command on a pseudo-terminal, as an
+      interactive shell for a person needs (see `Condukt.Sandbox.Terminal`)
+  """
+  @callback start_process(state :: term(), id :: binary(), command :: binary(), opts :: keyword()) ::
+              :ok | {:error, :already_started | term()}
+
+  @doc """
+  Reads a process's output from byte `offset`, and its status.
+
+  With `:wait` (milliseconds), waits up to that long for output past
+  `offset` or the process's end before answering, so a follower does not
+  poll; a sandbox may answer sooner.
+
+  Returns at most `:max_bytes` (default 64 KiB) as `output`, the `offset` to
+  read from next, the `size` of the whole log so far, and `status`:
+
+    * `:running`
+    * `{:exited, exit_code}` — `exit_code` is `nil` when the process ended
+      without the sandbox recording how, such as when its container restarted
+    * `:timeout` — the sandbox killed it after its `:timeout`
+
+  The status is taken before the output, so once it is not `:running`, the
+  log is complete and reading up to `size` gets all of it. Returns
+  `{:error, :not_found}` for an id the sandbox holds nothing for.
+  """
+  @callback read_process(state :: term(), id :: binary(), offset :: non_neg_integer(), opts :: keyword()) ::
+              {:ok,
+               %{
+                 output: binary(),
+                 offset: non_neg_integer(),
+                 size: non_neg_integer(),
+                 status: :running | {:exited, integer() | nil} | :timeout
+               }}
+              | {:error, :not_found | term()}
+
+  @doc """
+  Kills a process if it still runs, with the processes it started, and
+  discards its log and status. Stopping an unknown id returns `:ok`.
+  """
+  @callback stop_process(state :: term(), id :: binary()) :: :ok | {:error, term()}
+
+  @doc """
+  Appends `data` to the stdin of a process started with `stdin: true`.
+
+  Options:
+
+    * `:close` — end its stdin after this write
+    * `:offset` — the bytes stdin held before this write. With it, a write
+      sent again, such as after a lost reply, lands once: when stdin already
+      ends with it the call returns `:ok` without appending, and when stdin
+      holds anything else than `offset` bytes it returns
+      `{:error, :offset_mismatch}`.
+
+  Returns `{:error, :stdin_closed}` once stdin ended, and
+  `{:error, :not_found}` for an unknown id.
+  """
+  @callback write_process(state :: term(), id :: binary(), data :: binary(), opts :: keyword()) ::
+              :ok | {:error, :not_found | :stdin_closed | :offset_mismatch | term()}
+
+  @doc """
+  Asks the sandbox to deliver a process's end itself, as
+  `Condukt.signal(session_id, signal, key, status)`, where `status` is what
+  `c:read_process/4` reports once it is no longer `:running`.
+
+  Return `:ok` only when the delivery survives the BEAM process, and the
+  node, that asked for it, such as when the sandbox's own control plane
+  watches the process. A parked `Condukt.Tools.Bash` call then wakes even
+  after a deploy restarted the node its watcher ran on. A process that has
+  already ended is delivered at once.
+  """
+  @callback watch_process(
+              state :: term(),
+              id :: binary(),
+              target :: %{session_id: binary(), signal: module(), key: binary()}
+            ) ::
+              :ok | {:error, term()}
+
+  @doc """
+  Tells the sandbox whether a session needs it.
+
+  A session calls it with `:active` when a turn starts, again every
+  `:lease_interval` milliseconds while the turn runs or is parked, and with
+  `:idle` when the turn ends, however it ends. A sandbox that bills, pauses,
+  or reaps idle machines maps these onto its lease: Tuist's onto a residency,
+  `Kubernetes` onto its pod heartbeat. Errors are logged and otherwise
+  ignored; the turn goes on.
+  """
+  @callback activity(state :: term(), activity :: :active | :idle) :: :ok | {:error, term()}
+
+  @doc """
+  Saves the sandbox's disks so a later sandbox can boot from them, and
+  returns an id that the sandbox's `init/1` takes as `:snapshot`. See
+  `Condukt.Sandbox.Setup` for the preparation phase that uses it.
+  """
+  @callback snapshot(state :: term(), opts :: keyword()) :: {:ok, snapshot_id :: binary()} | {:error, term()}
+
+  @doc """
+  Makes `port` inside the sandbox reachable from outside it and returns the
+  URL, as a supervised service's portal. Options are the sandbox's own, such
+  as who may open the URL.
+  """
+  @callback expose_port(state :: term(), port :: pos_integer(), opts :: keyword()) ::
+              {:ok, url :: binary()} | {:error, term()}
+
+  @optional_callbacks [
+    mount: 3,
+    grep: 3,
+    glob: 3,
+    start_process: 4,
+    read_process: 4,
+    stop_process: 2,
+    write_process: 4,
+    watch_process: 3,
+    activity: 2,
+    snapshot: 2,
+    expose_port: 3
+  ]
 
   # ============================================================================
   # Construction & resolution
@@ -199,4 +345,74 @@ defmodule Condukt.Sandbox do
   end
 
   def cwd(%__MODULE__{module: module, state: state}), do: module.cwd(state)
+
+  @doc """
+  Whether the sandbox runs processes apart from their caller, through
+  `start_process/4`, `read_process/4`, and `stop_process/2`.
+  """
+  def processes?(%__MODULE__{module: module}) do
+    Code.ensure_loaded?(module) and function_exported?(module, :start_process, 4) and
+      function_exported?(module, :read_process, 4) and function_exported?(module, :stop_process, 2)
+  end
+
+  @doc "Starts a process named `id`. See `c:start_process/4`."
+  def start_process(%__MODULE__{} = sandbox, id, command, opts \\ []) when is_binary(id) do
+    if processes?(sandbox),
+      do: sandbox.module.start_process(sandbox.state, id, command, opts),
+      else: {:error, :not_supported}
+  end
+
+  @doc "Reads a process's output from `offset`, and its status. See `c:read_process/4`."
+  def read_process(%__MODULE__{} = sandbox, id, offset, opts \\ []) when is_binary(id) do
+    if processes?(sandbox),
+      do: sandbox.module.read_process(sandbox.state, id, offset, opts),
+      else: {:error, :not_supported}
+  end
+
+  @doc "Kills a process and discards its log. See `c:stop_process/2`."
+  def stop_process(%__MODULE__{} = sandbox, id) when is_binary(id) do
+    if processes?(sandbox), do: sandbox.module.stop_process(sandbox.state, id), else: {:error, :not_supported}
+  end
+
+  @doc "Writes to a process's stdin. See `c:write_process/4`."
+  def write_process(%__MODULE__{} = sandbox, id, data, opts \\ []) when is_binary(id) and is_binary(data),
+    do: optional(sandbox, :write_process, [id, data, opts])
+
+  @doc "Asks the sandbox to deliver a process's end. See `c:watch_process/3`."
+  def watch_process(%__MODULE__{} = sandbox, id, %{session_id: _, signal: _, key: _} = target) when is_binary(id),
+    do: optional(sandbox, :watch_process, [id, target])
+
+  @doc "Tells the sandbox whether a session needs it. See `c:activity/2`."
+  def activity(%__MODULE__{} = sandbox, activity) when activity in [:active, :idle],
+    do: optional(sandbox, :activity, [activity])
+
+  @doc "Saves the sandbox's disks for later sandboxes to boot from. See `c:snapshot/2`."
+  def snapshot(%__MODULE__{} = sandbox, opts \\ []), do: optional(sandbox, :snapshot, [opts])
+
+  @doc "Exposes a port in the sandbox and returns its URL. See `c:expose_port/3`."
+  def expose_port(%__MODULE__{} = sandbox, port, opts \\ []) when is_integer(port) and port > 0,
+    do: optional(sandbox, :expose_port, [port, opts])
+
+  @doc """
+  Streams the directory `path` out of the sandbox as a tar archive, in
+  chunks, without holding it in memory. See `Condukt.Sandbox.Transfer`.
+  """
+  defdelegate export(sandbox, path, opts \\ []), to: Condukt.Sandbox.Transfer
+
+  @doc """
+  Unpacks a tar archive, an enumerable of chunks such as `export/3` returns,
+  into the directory `path` in the sandbox. See `Condukt.Sandbox.Transfer`.
+  """
+  defdelegate import_archive(sandbox, path, chunks, opts \\ []), to: Condukt.Sandbox.Transfer
+
+  @doc "Whether the sandbox implements the optional callback `name/arity`."
+  def supports?(%__MODULE__{module: module}, name, arity) do
+    Code.ensure_loaded?(module) and function_exported?(module, name, arity)
+  end
+
+  defp optional(%__MODULE__{module: module, state: state} = sandbox, name, args) do
+    if supports?(sandbox, name, length(args) + 1),
+      do: apply(module, name, [state | args]),
+      else: {:error, :not_supported}
+  end
 end

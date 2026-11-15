@@ -25,6 +25,17 @@ defmodule Condukt.Sessions.Registry do
   and `send/2`. An adapter for a library that already does, such as
   `Horde.Registry` or `:syn`, only builds the tuple and wraps its lookups;
   `Condukt.Sessions.Registry.Horde` is one such adapter.
+
+  ## Child sessions
+
+  The registry also records which sessions are children of which, for
+  `Condukt.Sessions.children/1` and the aborts and stops that follow the
+  link. A child calls `c:join_parent/2` once, from its own process, as it
+  starts, and the link must go when that process exits. Sub-agents are
+  linked too, though they are not registered under an id. An adapter built
+  before these callbacks existed records no links, and `Condukt.Sessions`
+  logs a warning as it starts it: `children/1` is empty, and aborting or
+  stopping a session leaves its children alone.
   """
 
   @doc "The child that runs the registry, started under `:condukt`'s supervisor."
@@ -38,4 +49,13 @@ defmodule Condukt.Sessions.Registry do
 
   @doc "Every session id the registry sees, in no particular order."
   @callback list(opts :: keyword()) :: [String.t()]
+
+  @doc """
+  Records the calling process as a child of the session `parent`, until the
+  process exits. Called once per process.
+  """
+  @callback join_parent(parent :: String.t(), opts :: keyword()) :: :ok
+
+  @doc "The pids of the session `parent`'s running children, wherever the registry sees them."
+  @callback children(parent :: String.t(), opts :: keyword()) :: [pid()]
 end

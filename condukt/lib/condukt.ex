@@ -516,6 +516,8 @@ defmodule Condukt do
     while the call is parked. See `c:Condukt.Tool.cancel/2`.
   - `:replay_safe` - `true` when a call interrupted by a crash may run again on
     `Condukt.Session.resume/2`. Defaults to `false`; see `Condukt.Tool`.
+  - `:read_only` - `true` when calls only read, so they may run alongside
+    other read-only calls. See "Concurrency" in `Condukt.Tool`.
 
   The `context` map passed to `:call` matches the context received by
   `Condukt.Tool` callbacks: `:agent`, `:sandbox`, `:cwd`, `:opts` (always
@@ -548,7 +550,8 @@ defmodule Condukt do
       on_abort: Keyword.get(opts, :on_abort, :kill),
       wake: Keyword.get(opts, :wake),
       cancel: Keyword.get(opts, :cancel),
-      replay_safe: Keyword.get(opts, :replay_safe, false)
+      replay_safe: Keyword.get(opts, :replay_safe, false),
+      read_only: Keyword.get(opts, :read_only, false)
     }
   end
 
@@ -561,6 +564,8 @@ defmodule Condukt do
   - `{:thinking, chunk}` - Thinking/reasoning chunk
   - `{:tool_call, name, id, args}` - Tool being called
   - `{:tool_result, id, result}` - Tool result
+  - `{:tool_output, id, chunk}` - Output a running tool streamed, such as a
+    command's; see `Condukt.Tool.output/2`
   - `{:waiting, %{tool_calls: calls, wake_at: deadline}}` - The turn's tool
     calls are parked, waiting for signals or deadlines; see `Condukt.Park`
   - `{:error, reason}` - Error occurred

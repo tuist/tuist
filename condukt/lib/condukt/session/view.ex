@@ -10,9 +10,10 @@ defmodule Condukt.Session.View do
       `items` are the turn's steps in order, starting with its input:
       `%{type: :user, message: message}`,
       `%{type: :assistant, text: text, thinking: thinking}`, or
-      `%{type: :tool, id: id, name: name, args: args, status: status, result: result, subagent: run}`.
+      `%{type: :tool, id: id, name: name, args: args, status: status, result: result, output: output, subagent: run}`.
       A tool's `status` is `:running` until its result arrives, then `:ok` or
-      `:error`. `subagent` holds a foreground sub-agent's own run, folded from
+      `:error`. `output` is what the call streamed while it ran, as
+      `{:tool_output, tool_call_id, chunk}` events, up to its last 64 KiB. `subagent` holds a foreground sub-agent's own run, folded from
       the `{:subagent, tool_call_id, event}` events of that call. Its `error`
       holds an `{:error, reason}` the turn reported.
     * `error` - why the last finished turn failed, or `nil`
@@ -66,6 +67,10 @@ defmodule Condukt.Session.View do
   alias Condukt.Redactor
 
   defstruct [:session_id, :epoch, :agent, seq: 0, messages: [], run: nil, error: nil, queue: [], background: %{}]
+
+  # How much of a call's streamed output the view keeps: the end, where a
+  # running command is.
+  @max_output 64 * 1024
 
   @doc false
   def new(session_id, agent, messages) do
@@ -134,6 +139,7 @@ defmodule Condukt.Session.View do
   def redact({:background_event, name, event}, spec), do: {:background_event, name, redact(event, spec)}
 
   def redact({:tool_result, id, result}, spec), do: {:tool_result, id, redact_value(result, spec)}
+  def redact({:tool_output, id, chunk}, spec), do: {:tool_output, id, redact_value(chunk, spec)}
   def redact({:subagent, id, event}, spec), do: {:subagent, id, redact(event, spec)}
   def redact(event, _spec), do: event
 
@@ -185,7 +191,11 @@ defmodule Condukt.Session.View do
   defp fold_run(run, {:thinking, chunk}), do: update_assistant(run, :thinking, chunk)
 
   defp fold_run(run, {:tool_call, name, id, args}) do
-    push(run, %{type: :tool, id: id, name: name, args: args, status: :running, result: nil, subagent: nil})
+    push(run, %{type: :tool, id: id, name: name, args: args, status: :running, result: nil, output: "", subagent: nil})
+  end
+
+  defp fold_run(run, {:tool_output, id, chunk}) do
+    update_tool(run, id, &%{&1 | output: keep_end(&1.output <> chunk)})
   end
 
   defp fold_run(run, {:tool_result, id, result}) do
@@ -204,6 +214,19 @@ defmodule Condukt.Session.View do
   defp fold_run(run, _event), do: run
 
   defp push(run, item), do: %{run | items: run.items ++ [item]}
+
+  # Keeps the last `@max_output` bytes, from a line start where there is one
+  # so a cut does not split a character.
+  defp keep_end(output) when byte_size(output) <= @max_output, do: output
+
+  defp keep_end(output) do
+    kept = binary_part(output, byte_size(output) - @max_output, @max_output)
+
+    case :binary.match(kept, "\n") do
+      {position, 1} -> binary_part(kept, position + 1, byte_size(kept) - position - 1)
+      :nomatch -> kept
+    end
+  end
 
   defp update_assistant(run, field, chunk) do
     case List.last(run.items) do

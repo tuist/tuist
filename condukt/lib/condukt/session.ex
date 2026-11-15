@@ -426,6 +426,13 @@ defmodule Condukt.Session do
   end
 
   @doc false
+  # Publishes `{:tool_output, tool_call_id, chunk}` from a call of the turn
+  # `turn_ref` names. See `Condukt.Tool.output/2`.
+  def tool_output(session, turn_ref, event) do
+    GenServer.cast(session, {:tool_output, turn_ref, event})
+  end
+
+  @doc false
   # Whether a turn runs or input other than reports waits to start one.
   def busy?(agent) do
     GenServer.call(agent, :busy?)
@@ -612,7 +619,9 @@ defmodule Condukt.Session do
   No-op when no compactor is configured. The compacted snapshot is
   immediately persisted if a session store is configured. With background
   compaction enabled, waits without blocking the session process, and returns
-  `{:error, :already_streaming}` if a turn is active.
+  `{:error, :already_streaming}` if a turn is active. Returns
+  `{:error, :interrupted}` while the session has an interrupted run, which
+  `resume/2` continues and a new run gives up.
   """
   def compact(agent) do
     GenServer.call(agent, :compact, @default_timeout)
@@ -661,6 +670,7 @@ defmodule Condukt.Session do
              {:mcp, {:ok, mcp_registry}} <-
                {:mcp, MCP.start_all(Keyword.get(opts, :mcp_servers, []))} do
           project_context = load_project_context(opts, sandbox)
+          sandbox = Sandbox.Lease.start(sandbox, Keyword.take(opts, [:lease_interval]))
           emit_secret_resolve(id, agent_module, secrets)
           subagents = normalize_subagents(Keyword.get(opts, :subagents, []))
           {:ok, subagent_supervisor} = maybe_start_subagent_supervisor(subagents)
@@ -887,6 +897,7 @@ defmodule Condukt.Session do
     state = abort_turn(state)
     compaction = %{Compaction.cancel(state.compaction) | attempted: nil, usage: nil}
     if state.messages != [], do: view_change(state, {:messages, :replace, []})
+    if state.durable.interrupted, do: settle_input(state, state.durable.interrupted.input, :aborted)
     state = %{state | messages: [], compaction: compaction, durable: Durable.reset(state.durable)}
 
     # A journal that could not be cleared still holds runs the cleared history
@@ -985,6 +996,12 @@ defmodule Condukt.Session do
       false -> {:reply, {:error, :aborted}, state}
       nil -> {:reply, {:ok, %{}}, state}
     end
+  end
+
+  # The interrupted run's journal follows the history it started from, so a
+  # snapshot of a compacted history would make a restart drop the run.
+  def handle_call(:compact, _from, %{durable: %{interrupted: run}} = state) when run != nil do
+    {:reply, {:error, :interrupted}, state}
   end
 
   def handle_call(:compact, from, state) do
@@ -1099,6 +1116,16 @@ defmodule Condukt.Session do
     end
   end
 
+  # Streamed like the turn's own events, or, for a turn run without
+  # streaming, to the view only, as its other steps are.
+  def handle_cast({:tool_output, turn_ref, event}, state) do
+    case state.turn.recipient do
+      _recipient when turn_ref != state.turn.abort_ref -> {:noreply, state}
+      {:stream, ref} -> {:noreply, broadcast(state, ref, event)}
+      _run -> {:noreply, tap(state, &view_change(&1, event))}
+    end
+  end
+
   def handle_cast({:background_subagent, name, entry}, state) do
     view_change(state, {:background, name, entry})
     {:noreply, state}
@@ -1148,7 +1175,10 @@ defmodule Condukt.Session do
     end
   end
 
+  # A run started from input is a resumed one: input is otherwise streamed.
   def handle_cast({:run_complete, from, {result, messages, assigns}}, state) do
+    settle_input(state, state.turn.input, result)
+
     # A failed native run may have already adopted a prefix at a checkpoint.
     # Its original captured history must not restore that discarded prefix.
     messages =
@@ -1256,8 +1286,10 @@ defmodule Condukt.Session do
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
-  def terminate(_reason, state) do
-    cancel_parked(state)
+  # A drained session leaves its parked calls, and the sandbox processes
+  # they follow, for the node that takes the session over.
+  def terminate(reason, state) do
+    if reason != {:shutdown, :drain}, do: cancel_parked(state)
     settle_inputs(state, :aborted)
     if state.mcp_registry, do: MCP.stop_all(state.mcp_registry)
     stop_subagent_supervisor(state.subagent_supervisor)
@@ -1597,7 +1629,8 @@ defmodule Condukt.Session do
       :new ->
         state = begin_durable_run(state, opts[:request_id])
         state = view_run_started(state, prompt, opts)
-        state = %{state | turn: Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))}
+        turn = Turn.start(state.turn, {:stream, subscriber_ref}, length(state.messages))
+        state = %{state | turn: %{turn | input: opts[:input]}}
         start_stream_task(state, opts, subscriber_ref, &do_stream(&1, prompt, opts, &2, &3))
     end
   end
@@ -1617,6 +1650,7 @@ defmodule Condukt.Session do
   # The native loop does not trap exits, so it stops at once; a custom runtime
   # that traps holds up the abort, and the session, only for `@worker_shutdown`.
   defp start_worker(state, opts, fun) do
+    Sandbox.Lease.active(state.sandbox)
     trace_context = TraceContext.capture(opts)
 
     {:ok, worker} =
@@ -1647,10 +1681,16 @@ defmodule Condukt.Session do
     end
   end
 
+  # The input the run started from is journaled with it, so it is settled
+  # however the run ends, after a restart as well. One redelivered by an inbox
+  # takes its place.
   defp start_resume(state, recipient, opts) do
+    input = opts[:input] || state.durable.interrupted.input
+
     case Durable.resume(state.durable, &replay_safe_tool?(state, &1)) do
       {:give_up, durable, messages, reason} ->
         previous = state.messages
+        settle_input(state, input, {:error, reason})
         state = persist_run(%{state | durable: durable, messages: messages}, {:error, reason})
         state |> view_history_changed(previous) |> answer(recipient, {:error, reason})
 
@@ -1663,11 +1703,14 @@ defmodule Condukt.Session do
             view_change(state, {:run_started, Enum.at(plan.messages, plan.prompt_index)})
             # What the interrupted run stored is history from here on, so a
             # resumed run that is aborted, like one that is abandoned, keeps it.
-            turn = Turn.start(state.turn, recipient, plan.prompt_index)
+            turn = %{Turn.start(state.turn, recipient, plan.prompt_index) | input: input}
             state = %{state | durable: durable, turn: turn, messages: Durable.close(plan.messages)}
             start_resume_worker(state, recipient, opts, plan)
 
+          # The run stays interrupted, and a later resume settles its own
+          # input. A redelivered one is answered now, as its caller would be.
           {:error, reason} ->
+            settle_input(state, opts[:input], {:error, reason})
             answer(state, recipient, {:error, reason})
         end
     end
@@ -1706,20 +1749,22 @@ defmodule Condukt.Session do
   # A journaled run whose worker died is what a restart would find: the run
   # is read back from the store as interrupted, for the caller to resume or
   # give up, just as when the whole session process dies. Any other run ends
-  # with the error.
+  # with the error. The input a journaled run started from is journaled too,
+  # and is settled when the run is resumed, given up, or abandoned.
   defp worker_exited(state, error) do
     state = release_compaction_waiter(state, error)
-    settle_input(state, state.turn.input, error)
+    input = state.turn.input
     state = answer(state, state.turn.recipient, error)
     cancel_parked(state)
     state = state |> view_run_finished(run_error(error)) |> finish_turn()
     previous = state.messages
 
     state =
-      cond do
-        Durable.journaling?(state.durable) -> reload_interrupted(state, error)
-        state.durable.current -> persist_run(state, error)
-        true -> state
+      if Durable.journaling?(state.durable) do
+        reload_interrupted(state, input, error)
+      else
+        settle_input(state, input, error)
+        if state.durable.current, do: persist_run(state, error), else: state
       end
 
     state |> view_history_changed(previous) |> maybe_start_queued_turn()
@@ -1731,16 +1776,22 @@ defmodule Condukt.Session do
   defp exit_summary(_state, reason) when is_atom(reason), do: reason
   defp exit_summary(state, reason), do: Secrets.redact_text(state.secrets, Exception.format_exit(reason))
 
-  defp reload_interrupted(state, error) do
+  defp reload_interrupted(state, input, error) do
     store_opts = session_store_opts(state)
     snapshot = read_snapshot(state.session_store, store_opts)
 
     case Durable.load(state.session_store, store_opts, snapshot) do
       {:ok, reloaded, messages} ->
+        # A worker that died before its start record was stored left no run
+        # to resume with the input.
+        if not match?(%{run_id: id} when id == state.durable.current.run_id, reloaded.interrupted),
+          do: settle_input(state, input, error)
+
         %{state | durable: %{reloaded | restart_limit: state.durable.restart_limit}, messages: messages}
 
       {:error, reason} ->
         Logger.warning("failed to read the journal of a run whose worker exited: #{inspect(reason)}")
+        settle_input(state, input, error)
         persist_run(state, error)
     end
   end
@@ -1904,7 +1955,7 @@ defmodule Condukt.Session do
     # even if a provider repeats an id.
     calls = Enum.with_index(tool_calls)
 
-    with {:ok, results} <- await_tool_round(state, calls, run_tool_calls(state, calls, %{}, emit), emit) do
+    with {:ok, results} <- run_batches(state, tool_batches(state, calls), %{}, emit) do
       {tool_results, assigns_diff} =
         split_results_and_assigns(Enum.map(calls, fn {_call, index} -> Map.fetch!(results, index) end))
 
@@ -1912,8 +1963,39 @@ defmodule Condukt.Session do
     end
   end
 
+  # Consecutive calls of read-only tools form one batch and run together, as
+  # do sub-agent calls whose role cannot change what a later call observes
+  # (`Subagent.read_only_call?/2`); any other call is a batch of its own, so
+  # calls that change the sandbox run one at a time, in call order. A batch
+  # ends once each of its calls has a result, after waking from a park if it
+  # parked.
+  defp tool_batches(state, calls) do
+    tool_map = build_tool_map(state.tools)
+
+    Enum.chunk_by(calls, &batch_key(tool_map, &1))
+  end
+
+  # Unknown tools only answer with an error, so they change nothing.
+  defp batch_key(tool_map, {{_id, name, args}, index}) do
+    case Map.fetch(tool_map, name) do
+      {:ok, {Subagent, opts}} -> if Subagent.read_only_call?(opts, args), do: :read, else: index
+      {:ok, tool_spec} -> if Tool.read_only?(tool_spec), do: :read, else: index
+      :error -> :read
+    end
+  end
+
+  defp run_batches(_state, [], results, _emit), do: {:ok, results}
+
+  defp run_batches(state, [batch | batches], results, emit) do
+    results = Map.merge(results, run_tool_calls(state, batch, %{}, emit))
+
+    with {:ok, results} <- await_tool_round(state, batch, results, emit) do
+      run_batches(state, batches, results, emit)
+    end
+  end
+
   defp await_tool_round(state, calls, results, emit) do
-    if map_size(results) == length(calls) do
+    if Enum.all?(calls, fn {_call, index} -> Map.has_key?(results, index) end) do
       {:ok, results}
     else
       with {:ok, resumes} <- await_wakes(state) do
@@ -2323,7 +2405,8 @@ defmodule Condukt.Session do
       stream?: match?({:stream, _}, state.turn.recipient),
       agent: state.pid,
       agent_module: state.agent_module,
-      sandbox: state.sandbox,
+      # A tool bound to another sandbox, as `{Bash, sandbox: mac}`, uses it.
+      sandbox: tool_sandbox(opts) || state.sandbox,
       cwd: state.cwd,
       opts: opts,
       secrets: state.secrets,
@@ -2339,6 +2422,18 @@ defmodule Condukt.Session do
       assigns: state.assigns
     }
   end
+
+  defp tool_sandbox(opts) when is_list(opts) do
+    case Keyword.get(opts, :sandbox) do
+      %Sandbox{} = sandbox -> sandbox
+      _other -> nil
+    end
+  end
+
+  defp tool_sandbox(_opts), do: nil
+
+  defp tool_opts({_module, opts}), do: opts
+  defp tool_opts(_tool_spec), do: []
 
   # A fresh call runs `call/2`; a woken one, `wake/3` with its event and state.
   defp execute_tool_spec(tool_spec, {id, _name, args} = call, context, resume) do
@@ -2498,6 +2593,7 @@ defmodule Condukt.Session do
       if state.durable.interrupted do
         previous = state.messages
         {durable, messages, outcome} = Durable.abandon(state.durable)
+        settle_input(state, state.durable.interrupted.input, outcome)
         state = persist_run(%{state | durable: durable, messages: messages}, outcome)
         view_history_changed(state, previous)
       else
@@ -2542,9 +2638,17 @@ defmodule Condukt.Session do
   end
 
   # The history the run starts from is fingerprinted, so a restart does not
-  # replay a journal left behind by another history onto this one.
+  # replay a journal left behind by another history onto this one. The input
+  # the run answers is kept with it, so a restart still settles it.
   defp journal_start(%{durable: %{current: %{journaled: true, request_id: request_id}}} = state, message, max_turns) do
-    start = %{message: message, request_id: request_id, max_turns: max_turns, base: Durable.fingerprint(state.messages)}
+    start = %{
+      message: message,
+      request_id: request_id,
+      input: state.turn.input,
+      max_turns: max_turns,
+      base: Durable.fingerprint(state.messages)
+    }
+
     journal(state, [{:run_start, start}])
   end
 
@@ -2795,6 +2899,12 @@ defmodule Condukt.Session do
         if not Durable.journaling?(updated.durable), do: persist_snapshot(updated)
         %{updated | turn: Turn.rewrite_history(updated.turn)}
 
+      # A background compaction that finishes while a run is interrupted is
+      # dropped, as `compact/1` refuses one: the run's journal follows the
+      # history it started from.
+      updated.durable.interrupted ->
+        %{state | compaction: compaction}
+
       true ->
         persist_snapshot(updated)
         view_history_changed(updated, state.messages)
@@ -2842,6 +2952,7 @@ defmodule Condukt.Session do
     end)
 
     state = if state.turn.streaming, do: view_run_finished(state, :aborted), else: state
+    Sandbox.Lease.idle(state.sandbox)
     state = end_parking(state)
     state = %{state | turn: Turn.abort(state.turn)}
     if state.durable.current, do: persist_run(state, {:error, :aborted}), else: state
@@ -2867,21 +2978,8 @@ defmodule Condukt.Session do
       {{prompt, opts, {:stream, ref}}, turn} ->
         %{state | turn: turn} |> start_stream(prompt, opts, ref) |> start_queued_turn()
 
-      # The request id travels with the turn, so a durable journal records
-      # which submission the turn answers. An input redelivered after its run
-      # finished is settled with the stored outcome instead of running again.
       {{:input, input, message}, turn} ->
-        state = %{state | turn: turn}
-
-        case prior_request(state, input.request_id) do
-          {:done, result} ->
-            settle_input(state, input, result)
-            start_queued_turn(state)
-
-          _new_or_resume ->
-            state = start_stream(state, message.content, [request_id: input.request_id], make_ref())
-            %{state | turn: %{state.turn | queued: true, input: input}}
-        end
+        start_queued_input(%{state | turn: turn}, input, message)
 
       {%Message{} = message, turn} ->
         state = start_stream(%{state | turn: turn}, message.content, [images: message.images], make_ref())
@@ -2891,11 +2989,31 @@ defmodule Condukt.Session do
 
   defp start_queued_turn(state), do: state
 
+  # The input travels with the turn, so a durable journal records which
+  # submission the turn answers and who hears how it ends. An input
+  # redelivered after its run finished is settled with the stored outcome
+  # instead of running again, and one whose interrupted run could not be
+  # resumed was settled by the attempt, so the next input goes.
+  defp start_queued_input(state, input, message) do
+    case prior_request(state, input.request_id) do
+      {:done, result} ->
+        settle_input(state, input, settled(result))
+        start_queued_turn(state)
+
+      _new_or_resume ->
+        state = start_stream(state, message.content, [request_id: input.request_id, input: input], make_ref())
+
+        if state.turn.streaming,
+          do: %{state | turn: %{state.turn | queued: true}},
+          else: start_queued_turn(state)
+    end
+  end
+
   # Records the session under its parent in the session tree, which drops it
   # when this process exits, and has it take the input its inbox stored while
   # it was not running once it has started.
   defp join_sessions(state, parent) do
-    :ok = Condukt.Sessions.join_parent(parent, self())
+    :ok = Condukt.Sessions.join_parent(parent)
     if state.inbox, do: send(self(), {Condukt.Sessions, :drain})
     :ok
   end
@@ -2917,6 +3035,11 @@ defmodule Condukt.Session do
     {:ok, _pid} = Task.start(Condukt.Sessions, :settle, [input, outcome, state.inbox])
     :ok
   end
+
+  # An aborted run is stored as an error, but its input settles as `:aborted`,
+  # as it does when the abort happens live.
+  defp settled({:error, :aborted}), do: :aborted
+  defp settled(result), do: result
 
   defp settle_inputs(state, outcome) do
     if state.turn.streaming, do: settle_input(state, state.turn.input, outcome)
@@ -3066,6 +3189,7 @@ defmodule Condukt.Session do
   defp end_parking(state), do: commit_parking(state, [:end_turn])
 
   defp finish_turn(state) do
+    Sandbox.Lease.idle(state.sandbox)
     state = end_parking(state)
     %{state | turn: Turn.finish(state.turn)}
   end
@@ -3098,7 +3222,7 @@ defmodule Condukt.Session do
     tool_map = build_tool_map(state.tools)
 
     for {id, wait} <- Parking.cancellable(parking), {:ok, tool_spec} <- [Map.fetch(tool_map, wait.tool)] do
-      context = tool_context(state, [], id)
+      context = tool_context(state, tool_opts(tool_spec), id)
       Task.start(fn -> Tool.cancel(tool_spec, wait.state, context) end)
     end
 

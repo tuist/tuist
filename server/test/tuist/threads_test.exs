@@ -12,9 +12,12 @@ defmodule Tuist.ThreadsTest do
   alias Tuist.Threads.Run
   alias Tuist.Threads.Shipping
   alias Tuist.Threads.Thread
+  alias Tuist.Threads.ToolCall
   alias Tuist.Threads.Worker
-  alias Tuist.Threads.Workspace
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  # The built-in tools whose open calls of a run do not block each other.
+  @tools ["Read", "Glob", "Grep", "Write", "Edit", "Bash"]
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -124,30 +127,91 @@ defmodule Tuist.ThreadsTest do
     {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
     {:ok, effects} = Agent.start_link(fn -> 0 end)
 
-    stub(Workspace, :call, fn _, "write", _ ->
+    write = fn ->
       count = Agent.get_and_update(effects, &{&1 + 1, &1 + 1})
       {:ok, "writes=#{count}"}
-    end)
+    end
 
     args = %{"path" => "example.txt", "content" => "new"}
-    context = %{invocation_id: Ecto.UUID.generate()}
-    assert {:ok, "writes=1"} = Threads.call_tool(run, context, "write", args)
-    assert {:ok, "writes=1"} = Threads.call_tool(run, context, "write", args)
+    invocation = Ecto.UUID.generate()
+    assert {:ok, "writes=1"} = Threads.call_external_tool(run, invocation, "write", args, write)
+    assert {:ok, "writes=1"} = Threads.call_external_tool(run, invocation, "write", args, write)
     assert Agent.get(effects, & &1) == 1
     raw = Repo.one!(from c in "thread_tool_calls", select: c.result)
     refute raw =~ "writes=1"
-    assert {:ok, "writes=2"} = Threads.call_tool(run, %{invocation_id: Ecto.UUID.generate()}, "write", args)
+    assert {:ok, "writes=2"} = Threads.call_external_tool(run, Ecto.UUID.generate(), "write", args, write)
+  end
+
+  test "the session's built-in tool calls are reserved before they run and completed after",
+       %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    args = %{"command" => "make"}
+
+    assert :ok = Threads.begin_tool_call(run, "call_1", "Bash", args, @tools)
+    {:ok, running} = Threads.get(user, account, thread.id)
+    assert %{tool_name: "Bash", tool_state: "running"} = List.last(running.messages)
+
+    # A call of the same run that is still running or parked holds back
+    # nothing: Condukt orders the session's calls by their effects.
+    assert :ok = Threads.begin_tool_call(run, "call_2", "Read", %{"path" => "a"}, @tools)
+
+    assert :ok = Threads.complete_tool_call(run, "call_1", "Bash", args, {:ok, "built"})
+    {:ok, done} = Threads.get(user, account, thread.id)
+    assert Enum.any?(done.messages, &match?(%{tool_name: "Bash", tool_state: "complete", body: "built"}, &1))
+
+    # The same call again replays its result instead of running twice.
+    assert {:block, "This tool call already ran. Its result was:\n\nbuilt"} =
+             Threads.begin_tool_call(run, "call_1", "Bash", args, @tools)
+
+    assert :ok = Threads.complete_tool_call(run, "call_2", "Read", %{"path" => "a"}, {:error, "missing"})
+    assert Repo.one!(from c in ToolCall, where: c.name == "Read", select: c.status) == "completed"
+  end
+
+  test "an external call whose outcome is unknown blocks the run's later built-in calls",
+       %{user: user, account: account} do
+    {:ok, _thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+
+    assert {:error, :tool_outcome_unknown} =
+             Threads.call_external_tool(run, Ecto.UUID.generate(), "deploy", %{}, fn -> {:error, :timeout} end)
+
+    assert {:block, "An earlier tool call's outcome is unknown, so this call did not run."} =
+             Threads.begin_tool_call(run, "call_1", "Bash", %{"command" => "make"}, @tools)
+  end
+
+  test "cancelling a stopped session's calls closes only the named open calls",
+       %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+
+    assert :ok = Threads.begin_tool_call(run, "call_1", "Bash", %{"command" => "make"}, @tools)
+    assert :ok = Threads.begin_tool_call(run, "call_2", "Read", %{"path" => "a"}, @tools)
+    assert :ok = Threads.begin_tool_call(run, "call_3", "Grep", %{"pattern" => "x"}, @tools)
+    assert :ok = Threads.complete_tool_call(run, "call_2", "Read", %{"path" => "a"}, {:ok, "contents"})
+
+    Threads.cancel_tool_calls(run, ["Bash", "Read"])
+
+    calls = Map.new(Repo.all(ToolCall), &{&1.name, {&1.status, &1.result}})
+    assert {"completed", "Cancelled: " <> _} = calls["Bash"]
+    assert calls["Read"] == {"completed", "contents"}
+    assert {"executing", _} = calls["Grep"]
+
+    {:ok, %{messages: messages}} = Threads.get(user, account, thread.id)
+    assert Enum.any?(messages, &match?(%{tool_name: "Bash", tool_state: "complete", body: "Cancelled: " <> _}, &1))
   end
 
   test "an ambiguous tool effect blocks later writes and survives archiving", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
     {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
-    stub(Workspace, :call, fn _, _, _ -> {:error, :workspace_command_failed} end)
-    context = %{invocation_id: Ecto.UUID.generate()}
-    assert {:error, :tool_outcome_unknown} = Threads.call_tool(run, context, "bash", %{"command" => "change-files"})
+    failed = fn -> {:error, :workspace_command_failed} end
+    invocation = Ecto.UUID.generate()
 
     assert {:error, :tool_outcome_unknown} =
-             Threads.call_tool(run, context, "write", %{"path" => "other", "content" => "changed"})
+             Threads.call_external_tool(run, invocation, "bash", %{"command" => "change-files"}, failed)
+
+    assert {:error, :tool_outcome_unknown} =
+             Threads.call_external_tool(run, invocation, "write", %{"path" => "other", "content" => "changed"}, failed)
 
     assert {:ok, _} = Threads.finish(run, {:ok, "Pretend success"})
     assert {:ok, fresh} = Threads.get(user, account, thread.id)
@@ -181,10 +245,11 @@ defmodule Tuist.ThreadsTest do
   test "recovery never regenerates effects missing from a protocol checkpoint", %{user: user, account: account} do
     {:ok, _} = Threads.create(user, account, request())
     {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
-    stub(Workspace, :call, fn _, _, _ -> {:ok, "changed once"} end)
 
     assert {:ok, _} =
-             Threads.call_tool(run, %{invocation_id: Ecto.UUID.generate()}, "bash", %{"command" => "change-files"})
+             Threads.call_external_tool(run, Ecto.UUID.generate(), "bash", %{"command" => "change-files"}, fn ->
+               {:ok, "changed once"}
+             end)
 
     Repo.update_all(from(r in Run, where: r.id == ^run.id),
       set: [heartbeat_at: DateTime.add(DateTime.utc_now(:second), -120)]

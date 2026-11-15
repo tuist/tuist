@@ -16,7 +16,29 @@ defmodule Tuist.Threads.Worker do
   alias Tuist.Threads.ModelFence
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Shipping
+  alias Tuist.Threads.ToolLog
   alias Tuist.Threads.Workspace
+
+  # Condukt's built-in tools, run in the thread's sandbox through
+  # `Tuist.Threads.Sandbox`. `ToolLog` records their calls on the thread.
+  @repository_tools [
+    Condukt.Tools.Read,
+    Condukt.Tools.Glob,
+    Condukt.Tools.Grep,
+    Condukt.Tools.Write,
+    Condukt.Tools.Edit,
+    Condukt.Tools.Bash
+  ]
+  @logged_tools Enum.map(@repository_tools, & &1.name())
+
+  # A run's whole budget, then how much of it stays after the session answers,
+  # to record the outcome, and after the last command it runs ends, for the
+  # model to answer. A command's timeout is cut to end before the session's
+  # call does, so a long build ends with a result rather than an abort that
+  # leaves its call's outcome unknown.
+  @run_ms 900_000
+  @finish_ms 30_000
+  @answer_ms 60_000
 
   @impl true
   def perform(%Oban.Job{args: %{"run_id" => id}}) do
@@ -31,15 +53,17 @@ defmodule Tuist.Threads.Worker do
     Process.flag(:trap_exit, true)
     parent = self()
 
+    now = System.monotonic_time(:millisecond)
+    deadline = now + @run_ms
+
     task =
       Task.Supervisor.async_nolink(Tuist.Threads.Tasks, fn ->
         Process.link(parent)
-        run(run, thread, parent)
+        run(run, thread, parent, deadline)
       end)
 
     try do
-      now = System.monotonic_time(:millisecond)
-      await(task, run, now + 900_000, now + 5_000, [])
+      await(task, run, deadline, now + 5_000, [])
     after
       Task.shutdown(task, :brutal_kill)
     end
@@ -92,22 +116,22 @@ defmodule Tuist.Threads.Worker do
 
   defp stop_models(models), do: Enum.each(models, &Process.exit(&1, :kill))
 
-  defp run(%{kind: "ship", approval_id: id} = run, thread, _parent),
+  defp run(%{kind: "ship", approval_id: id} = run, thread, _parent, _deadline),
     do: Shipping.execute(thread, Repo.get!(Approval, id), run)
 
-  defp run(run, %{repository: nil} = thread, parent), do: infer(run, thread, nil, parent)
+  defp run(run, %{repository: nil} = thread, parent, deadline), do: infer(run, thread, nil, parent, deadline)
 
-  defp run(run, thread, parent) do
+  defp run(run, thread, parent, deadline) do
     with {:ok, context} <- Workspace.prepare(thread, run) do
       try do
-        infer(run, context.thread, context, parent)
+        infer(run, context.thread, context, parent, deadline)
       after
         Workspace.release(context)
       end
     end
   end
 
-  defp infer(run, thread, context, parent) do
+  defp infer(run, thread, context, parent, deadline) do
     user = Accounts.get_user_by_id(thread.owner_id)
 
     with {:ok, prompt, store_opts} <- conversation(run, thread),
@@ -120,15 +144,46 @@ defmodule Tuist.Threads.Worker do
             id: run.session_id,
             system_prompt: if(context, do: Agent.prompt(thread), else: Agent.system_prompt()),
             tools: tools(run, context) ++ mcp_tools,
+            hooks: [{ToolLog, run: run, tools: @logged_tools}],
             load_project_instructions: false,
             max_tokens: 8192
-          ]
+          ] ++ sandbox(thread, context, deadline)
 
-      Condukt.Session.with_transient(Agent, opts, fn pid ->
+      # Registered under its id in the cluster-wide registry (see
+      # `config/config.exs`), so a parked command's exit reaches it from any
+      # node (`Tuist.Threads.ExitWatchWorker`).
+      with {:ok, pid} <- Condukt.Sessions.start(Agent, opts) do
         Process.link(pid)
-        Condukt.run(pid, prompt, max_turns: 12, timeout: 240_000)
-      end)
+
+        try do
+          # Taken from the deadline now, after the setup above, which the
+          # budget does not count, so the session answers before it.
+          Condukt.run(pid, prompt, max_turns: 12, timeout: left(deadline, @finish_ms))
+        after
+          Process.unlink(pid)
+          # Stopping aborts calls still running or parked, and their commands.
+          Condukt.Sessions.stop(run.session_id)
+          Threads.cancel_tool_calls(run, @logged_tools)
+        end
+      end
     end
+  end
+
+  defp left(deadline, margin), do: max(deadline - margin - System.monotonic_time(:millisecond), 1)
+
+  defp sandbox(_thread, nil, _deadline), do: []
+
+  defp sandbox(thread, context, deadline) do
+    [
+      cwd: "/workspace/repository",
+      sandbox:
+        {Tuist.Threads.Sandbox,
+         sandbox_id: context.sandbox.id,
+         account_id: thread.account_id,
+         residency: context.residency,
+         cwd: "/workspace/repository",
+         commands_end_by: System.os_time(:millisecond) + left(deadline, @finish_ms + @answer_ms)}
+    ]
   end
 
   defp mcp_tools(user, run) do
@@ -165,34 +220,7 @@ defmodule Tuist.Threads.Worker do
         call: fn args, _ -> Threads.rename(run, args["name"]) end
       )
 
-    if context do
-      [
-        naming
-        | Enum.map(
-            [
-              {"read", "Read a UTF-8 file relative to the repository.", %{path: %{type: "string"}}},
-              {"write", "Write a UTF-8 file relative to the repository.",
-               %{path: %{type: "string"}, content: %{type: "string"}}},
-              {"edit", "Replace one unique exact occurrence in a repository file.",
-               %{path: %{type: "string"}, old_text: %{type: "string"}, new_text: %{type: "string"}}},
-              {"bash", "Run a bounded shell command in the repository. No push, deployment or external writes.",
-               %{command: %{type: "string"}}}
-            ],
-            fn {name, description, properties} ->
-              Condukt.tool(
-                name: name,
-                description: description,
-                parameters: schema(properties),
-                call: fn args, _ ->
-                  Threads.call_tool(run, Map.put(context, :invocation_id, Ecto.UUID.generate()), name, args)
-                end
-              )
-            end
-          )
-      ]
-    else
-      [naming]
-    end
+    if context, do: [naming | @repository_tools], else: [naming]
   end
 
   defp schema(properties),

@@ -787,6 +787,9 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # they take turns on their own queue instead of filling :default.
 base_queues = [
   threads: 10,
+  # A parked thread command's exit watch long-polls its sandbox, so the watches
+  # take turns here instead of holding `threads` slots that runs need.
+  thread_exit_watches: 20,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,

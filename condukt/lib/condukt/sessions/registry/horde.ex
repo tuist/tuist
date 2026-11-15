@@ -48,7 +48,20 @@ defmodule Condukt.Sessions.Registry.Horde do
   end
 
   @impl true
-  def list(opts), do: Horde.Registry.select(name(opts), [{{:"$1", :_, :_}, [], [:"$1"]}])
+  def list(opts), do: Horde.Registry.select(name(opts), [{{:"$1", :_, :_}, [{:is_binary, :"$1"}], [:"$1"]}])
+
+  # A child is a key of its own, with its pid in it, so the process holds it
+  # and it goes when the process does. Finding a parent's children scans the
+  # registry, and a child that has just joined may take a moment to show,
+  # as Horde's ids do.
+  @impl true
+  def join_parent(parent, opts) do
+    {:ok, _owner} = Horde.Registry.register(name(opts), {:child, parent, self()}, nil)
+    :ok
+  end
+
+  @impl true
+  def children(parent, opts), do: Horde.Registry.select(name(opts), [{{{:child, parent, :"$1"}, :_, :_}, [], [:"$1"]}])
 
   defp name(opts), do: Keyword.get(opts, :name, __MODULE__)
 end

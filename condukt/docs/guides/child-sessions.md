@@ -9,7 +9,7 @@ Condukt provides:
 
 * **Parent links.** A session started with `parent: parent_id` is that
   session's child, and `Condukt.Sessions.children/1` lists a session's
-  children on every connected node.
+  children wherever the session registry sees them.
 * **Input by id, at most once.** `Condukt.Sessions.submit/3` delivers a
   message to a session by id under a request id, so a retry never delivers
   twice, whether the session runs on this node, on another, or not at all.
@@ -36,10 +36,13 @@ Condukt.Sessions.children(parent_id)
 #=> [{child_id, #PID<...>}]
 ```
 
-The link is recorded in a `:pg` scope that `:condukt` starts on every node:
-the child's process joins a group named by its parent's id and leaves it when
-it exits. `children/1` sees children on every connected node, whatever
-registry is configured, and whether or not the parent itself runs. The link
+The link is recorded by the configured `Condukt.Sessions.Registry`, so
+Condukt brings no process-group or messaging layer of its own: the child's
+process registers under its parent's id and the registry drops it when the
+process exits. `children/1` sees what the registry sees, whether or not the
+parent itself runs: this node's children with the default
+`Condukt.Sessions.Registry.Local`, and those of every connected node with
+`Condukt.Sessions.Registry.PG` or `Condukt.Sessions.Registry.Horde`. The link
 lives as long as the child's process; a host that restarts a child passes
 `:parent` again, from its own records.
 

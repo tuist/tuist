@@ -44,4 +44,25 @@ defmodule Condukt.Sandbox.MicrosandboxLiveTest do
     assert %{path: "guest.txt", line_number: 1, line: "guest"} in matches
     assert %{path: "written.txt", line_number: 1, line: "from write"} in matches
   end
+
+  test "runs a process in the guest apart from the exec that started it", %{sandbox: sandbox} do
+    assert :ok = Sandbox.start_process(sandbox, "p1", "echo one; sleep 1; echo two; exit 3")
+    assert {:error, :already_started} = Sandbox.start_process(sandbox, "p1", "true")
+    assert {:ok, %{status: :running}} = Sandbox.read_process(sandbox, "p1", 0)
+
+    assert {:ok, %{output: "one\ntwo\n", status: {:exited, 3}}} = await_exit(sandbox, "p1")
+    assert :ok = Sandbox.stop_process(sandbox, "p1")
+    assert {:error, :not_found} = Sandbox.read_process(sandbox, "p1", 0)
+  end
+
+  defp await_exit(sandbox, id, attempts \\ 50) do
+    case Sandbox.read_process(sandbox, id, 0) do
+      {:ok, %{status: :running}} when attempts > 0 ->
+        Process.sleep(200)
+        await_exit(sandbox, id, attempts - 1)
+
+      result ->
+        result
+    end
+  end
 end

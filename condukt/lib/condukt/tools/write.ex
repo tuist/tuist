@@ -18,14 +18,14 @@ defmodule Condukt.Tools.Write do
   alias Condukt.Sandbox
 
   @impl true
-  def name, do: "Write"
+  def name(opts), do: Keyword.get(opts, :name, "Write")
 
   # Writing the same content to the same path again leaves the same file.
   @impl true
   def replay_safe?, do: true
 
   @impl true
-  def description do
+  def description(_opts) do
     """
     Write content to a file. Creates the file if it doesn't exist, overwrites if it does.
     Automatically creates parent directories.
@@ -34,7 +34,7 @@ defmodule Condukt.Tools.Write do
   end
 
   @impl true
-  def parameters do
+  def parameters(_opts) do
     %{
       type: "object",
       properties: %{

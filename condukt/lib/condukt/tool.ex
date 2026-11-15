@@ -107,6 +107,31 @@ defmodule Condukt.Tool do
   or receive it, clean up, and stop. Either way its result reaches nobody,
   because the turn is over.
 
+  ## Streaming output
+
+  A tool that runs for a while can show its progress before it returns:
+  `output/2` sends a chunk of text as a `{:tool_output, tool_call_id, chunk}`
+  event to the turn's stream subscribers and notifier, and into the call's
+  `output` in the session's view. `Condukt.Tools.Bash` streams a command's
+  output this way.
+
+  ## Concurrency
+
+  The calls in one model response run in call order, one at a time, except
+  that consecutive calls of tools that only read run together. A tool that
+  does not change the sandbox or anything else a later call could observe
+  says so with `c:read_only?/1`:
+
+      @impl true
+      def read_only?(_opts), do: true
+
+  Inline tools take `read_only: true`. `Condukt.Tools.Read`, `Tools.Glob`, and
+  `Tools.Grep` are read-only. A sub-agent call runs with them when its role
+  cannot change what a later call observes: it starts a sandbox of its own,
+  or has only read-only tools and no sub-agents of its own. A sub-agent that
+  shares the parent's sandbox and can change it runs alone. A call that parks
+  holds its place in the order until it wakes and returns.
+
   ## Sandbox-aware tools
 
   If your tool reads or writes files, or runs subprocesses, route through
@@ -241,6 +266,13 @@ defmodule Condukt.Tool do
   @callback replay_safe?() :: boolean()
   @callback replay_safe?(opts :: keyword()) :: boolean()
 
+  @doc """
+  Whether calls of the tool only read, so they may run alongside other
+  read-only calls of the same response. Defaults to `false`. See
+  "Concurrency".
+  """
+  @callback read_only?(opts :: keyword()) :: boolean()
+
   @optional_callbacks [
     name: 1,
     description: 1,
@@ -249,7 +281,8 @@ defmodule Condukt.Tool do
     wake: 3,
     cancel: 2,
     replay_safe?: 0,
-    replay_safe?: 1
+    replay_safe?: 1,
+    read_only?: 1
   ]
 
   defmacro __using__(_opts) do
@@ -311,6 +344,38 @@ defmodule Condukt.Tool do
   defp exported?(module, arity) do
     Code.ensure_loaded?(module) and function_exported?(module, :replay_safe?, arity)
   end
+
+  @doc """
+  Whether calls of a tool only read: `false` unless the tool says so.
+  """
+  def read_only?(%Condukt.Tool.Inline{read_only: read_only}), do: read_only == true
+  def read_only?({module, opts}), do: module_read_only?(module, opts)
+  def read_only?(module) when is_atom(module), do: module_read_only?(module, [])
+
+  defp module_read_only?(module, opts) do
+    Code.ensure_loaded?(module) and function_exported?(module, :read_only?, 1) and module.read_only?(opts) == true
+  end
+
+  @doc """
+  Streams a chunk of a running call's output, from the call's `context`.
+
+  The session publishes it as `{:tool_output, tool_call_id, chunk}` to the
+  turn's stream subscribers and notifier, and appends it to the call's
+  `output` in its view, for a turn run with `Condukt.run/3` too. Session
+  secrets in `chunk` are redacted first. Send text a line at a time where you
+  can: each chunk is redacted on its own, so a secret split across two
+  chunks would not be found.
+
+  Any process may call it with the call's context, also after the call
+  parked, as long as the turn runs. Outside a session it does nothing.
+  """
+  def output(%{agent: session, turn_ref: turn_ref, tool_call_id: id} = context, chunk)
+      when is_pid(session) and is_binary(id) and is_binary(chunk) do
+    chunk = Condukt.Secrets.redact_text(context[:secrets], chunk)
+    Condukt.Session.tool_output(session, turn_ref, {:tool_output, id, chunk})
+  end
+
+  def output(_context, _chunk), do: :ok
 
   @doc """
   Builds a tool specification for the LLM provider.

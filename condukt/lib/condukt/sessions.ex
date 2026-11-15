@@ -40,8 +40,8 @@ defmodule Condukt.Sessions do
   ## Child sessions and input by id
 
   A session started with `parent: parent_id` is that session's child.
-  `children/1` lists a session's children on every connected node, and
-  `abort/2` reaches them. `submit/3` delivers input to a session by id at
+  `children/1` lists a session's children wherever the registry sees them,
+  and `abort/2` reaches them. `submit/3` delivers input to a session by id at
   most once, whether it runs on this node, another one, or nowhere yet, and
   tells the sender when the turn it started has settled. A host builds its
   own notion of a thread, with its own storage and tools, on these; see the
@@ -56,10 +56,9 @@ defmodule Condukt.Sessions do
   alias Condukt.Sessions.Resumer
   alias Condukt.Sessions.Settled
 
+  require Logger
+
   @supervisor Condukt.Sessions.Supervisor
-  # The `:pg` scope that records parent links: each child joins the group
-  # named by its parent's id, and leaves it when it exits.
-  @tree Condukt.Sessions.Tree
 
   @doc false
   def supervisor, do: @supervisor
@@ -149,15 +148,36 @@ defmodule Condukt.Sessions do
 
   Options:
 
-    * `:children` - also stop its children, and theirs, wherever they run.
-      Defaults to `false`: a child is a session of its own, which a host may
-      keep running after its parent's session stops.
+    * `:children` - also stop its children, and theirs, wherever the
+      registry sees them (see `children/1`). Defaults to `false`: a child is
+      a session of its own, which a host may keep running after its parent's
+      session stops.
+    * `:drain` - hand the session off instead of ending its work, as a
+      deploy does. The turn is not aborted, parked tool calls are not
+      cancelled, and the sandbox processes they follow, such as a parked
+      `Condukt.Tools.Bash` command, keep running for the node that starts
+      the session again. The session there does not get the parked calls
+      back yet: that needs a durable turn journal (see the Waiting for
+      Events guide). Until then, those commands run until their own
+      timeout with nothing reading or stopping them, and their process
+      state stays in the sandbox. Defaults to `false`.
   """
   def stop(id, opts \\ []) do
     case whereis(id) do
-      nil -> :ok
-      pid -> stop_tree(id, pid, Keyword.get(opts, :children, false), MapSet.new([id]))
+      nil ->
+        :ok
+
+      pid ->
+        if opts[:drain],
+          do: hand_off(pid),
+          else: stop_tree(id, pid, Keyword.get(opts, :children, false), MapSet.new([id]))
     end
+  end
+
+  defp hand_off(pid) do
+    GenServer.stop(pid, {:shutdown, :drain})
+  catch
+    :exit, _reason -> :ok
   end
 
   defp stop_tree(id, pid, children?, seen) do
@@ -188,8 +208,8 @@ defmodule Condukt.Sessions do
   Options:
 
     * `:children` - also abort the turns of its children, and theirs,
-      wherever they run. Defaults to `true`. Each child keeps running and
-      takes new input afterwards.
+      wherever the registry sees them (see `children/1`). Defaults to
+      `true`. Each child keeps running and takes new input afterwards.
   """
   def abort(id, opts \\ []) do
     case whereis(id) do
@@ -225,14 +245,21 @@ defmodule Condukt.Sessions do
 
   @doc """
   The running children of the session `id`, as `{child_id, pid}` pairs sorted
-  by id, on every node connected to this one.
+  by id, wherever the registry sees them: on this node with the default
+  `Condukt.Sessions.Registry.Local`, on every connected node with
+  `Condukt.Sessions.Registry.PG` or `Condukt.Sessions.Registry.Horde`.
 
   A child is listed from when it starts until it exits, whatever started it
-  and whether or not `id` itself runs.
+  and whether or not `id` itself runs. With `Condukt.Sessions.Registry.Horde`
+  a child that has just started may take a moment to be listed, as its ids
+  do.
   """
   def children(id) when is_binary(id) do
-    @tree
-    |> :pg.get_members(id)
+    {registry, opts} = registry()
+
+    pids = if function_exported?(registry, :children, 2), do: registry.children(id, opts), else: []
+
+    pids
     |> Enum.uniq()
     |> Enum.flat_map(fn pid ->
       case session_id(pid) do
@@ -250,10 +277,14 @@ defmodule Condukt.Sessions do
   end
 
   @doc false
-  # Records `pid` as a child of the session `parent`, from the child's own
-  # process, so the link goes when the child does.
-  def join_parent(nil, _pid), do: :ok
-  def join_parent(parent, pid) when is_binary(parent), do: :pg.join(@tree, parent, pid)
+  # Records the calling process as a child of the session `parent`, in the
+  # registry, so the link goes when the child does.
+  def join_parent(nil), do: :ok
+
+  def join_parent(parent) when is_binary(parent) do
+    {registry, opts} = registry()
+    if function_exported?(registry, :join_parent, 2), do: registry.join_parent(parent, opts), else: :ok
+  end
 
   @doc """
   Submits `text` to the session `id` as input, at most once per request id.
@@ -369,10 +400,17 @@ defmodule Condukt.Sessions do
   @doc false
   def child_specs do
     {registry, opts} = registry()
+    Code.ensure_loaded(registry)
+
+    if not (function_exported?(registry, :join_parent, 2) and function_exported?(registry, :children, 2)) do
+      Logger.warning(
+        "#{inspect(registry)} does not implement join_parent/2 and children/2, so child sessions are not linked: " <>
+          "children/1 is empty, and aborting or stopping a session leaves its children alone"
+      )
+    end
 
     [
       registry.child_spec(opts),
-      %{id: @tree, start: {:pg, :start_link, [@tree]}},
       {DynamicSupervisor, name: @supervisor, strategy: :one_for_one}
     ]
   end

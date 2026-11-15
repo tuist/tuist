@@ -147,6 +147,11 @@ config :boruta, Boruta.Oauth,
   ],
   token_generator: Tuist.OAuth.TokenGenerator
 
+# Condukt sessions are registered cluster-wide, so a thread run's session is
+# reached by id from any node, as `Tuist.Threads.ExitWatchWorker` does when it
+# runs on another pod than the session.
+config :condukt, session_registry: Condukt.Sessions.Registry.PG
+
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
