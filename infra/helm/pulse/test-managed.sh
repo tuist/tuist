@@ -144,6 +144,7 @@ jq -e '
     .spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.44.0-canary.4" and
     .spec.template.spec.containers[0].envFrom[0].secretRef.name == "pulse-credentials") and
   (one("Deployment"; "pulse-frontend") | .spec.replicas == 2 and spread("frontend") and
+    .spec.template.spec.containers[0].resources == {requests:{cpu:"500m",memory:"1Gi"},limits:{memory:"4Gi"}} and
     .spec.template.spec.initContainers[0].name == "combine-auth") and
   ([.[] | select(.kind == "PodDisruptionBudget") | .spec.maxUnavailable] == [1,1,1,1,1]) and
   # Readers keep the standalone Service name, now served by the frontends.
