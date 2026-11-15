@@ -6,6 +6,7 @@ defmodule Condukt.SessionDurableTest do
 
   alias Condukt.Message
   alias Condukt.Session.Durable
+  alias Condukt.Sessions.Inbox
   alias Condukt.SessionStore.Memory
   alias Condukt.SessionStore.Snapshot
   alias Condukt.Test.LLMProvider
@@ -1504,6 +1505,116 @@ defmodule Condukt.SessionDurableTest do
     assert {_last_run_id, [{"r", {:ok, "ok"}}]} = Snapshot.runs(snapshot)
   end
 
+  describe "a submitted input" do
+    setup do
+      inbox_name = :"durable_inbox_#{System.unique_integer([:positive])}"
+      start_supervised!({Inbox.Memory, name: inbox_name})
+
+      %{
+        id: "durable-#{System.unique_integer([:positive])}",
+        inbox: {Inbox.Memory, name: inbox_name},
+        sender: "sender-#{System.unique_integer([:positive])}"
+      }
+    end
+
+    test "is settled by the run a restart resumes", %{key: key, id: id, inbox: inbox, sender: sender} do
+      # A queued input streams; the session dies while the response is held.
+      {model, model_id} = LLMProvider.model([LLMProvider.stream_response([{:text, "Let me "}, :hold])])
+      {:ok, pid} = start_supervised_session(id, key, model, inbox: inbox)
+
+      assert Condukt.Sessions.submit(id, "question", request_id: "req-1", from: sender, report: true, inbox: inbox) ==
+               :ok
+
+      assert_receive {LLMProvider, :stream_request, ^model_id, _context, _opts}, 1_000
+      kill(pid)
+
+      {model, _} = LLMProvider.model([LLMProvider.text_response("answer")])
+      {:ok, pid} = start_supervised_session(id, key, model, inbox: inbox)
+      assert %{request_id: "req-1"} = Condukt.Session.interrupted(pid)
+
+      assert {:ok, "answer"} = Condukt.Session.resume(pid)
+      assert await_reports(inbox, sender, 1) == ["[session #{id} answered] answer"]
+    end
+
+    test "waits for the resume of a run whose worker exited", %{key: key, id: id, inbox: inbox, sender: sender} do
+      crash =
+        Condukt.tool(
+          name: "crash",
+          description: "exits",
+          parameters: %{type: "object", properties: %{}},
+          call: fn _args, context -> exit_worker(context, :boom) end
+        )
+
+      {model, _} =
+        LLMProvider.model([
+          LLMProvider.stream_response([{:tool_call, "call_1", "crash", %{}}]),
+          LLMProvider.text_response("It crashed.")
+        ])
+
+      {:ok, pid} = start_supervised_session(id, key, model, inbox: inbox, tools: [crash])
+      assert Condukt.Sessions.submit(id, "crash it", request_id: "c", from: sender, report: true, inbox: inbox) == :ok
+      assert %{request_id: "c"} = await(fn -> Condukt.Session.interrupted(pid) end)
+
+      # The run is not over: the sender hears how it ends, once.
+      assert {:ok, "It crashed."} = Condukt.Session.resume(pid)
+      assert await_reports(inbox, sender, 1) == ["[session #{id} answered] It crashed."]
+    end
+
+    test "that cannot resume its run is settled, and the next input starts", %{
+      key: key,
+      id: id,
+      inbox: inbox,
+      sender: sender
+    } do
+      :ok = Memory.append_journal([{:run_start, 1, %{message: Message.user("one"), request_id: "r1"}}], key: key)
+
+      # Both wait in the inbox, so the session takes them together as it starts.
+      assert Condukt.Sessions.submit(id, "one", request_id: "r1", from: sender, report: true, inbox: inbox) == :ok
+      assert Condukt.Sessions.submit(id, "two", request_id: "r2", inbox: inbox) == :ok
+
+      {model, _} = LLMProvider.model([LLMProvider.stream_response([{:text, "second"}])])
+      {:ok, pid} = start_supervised_session(id, key, model, inbox: inbox, restart_limit: 0)
+
+      assert await_reports(inbox, sender, 1) == ["[session #{id} failed: {:restart_limit, 0}]"]
+
+      assert await(fn -> match?([_, _, %Message{role: :assistant}], Condukt.history(pid)) end)
+      assert [%Message{content: "one"}, %Message{content: "two"}, %Message{role: :assistant}] = Condukt.history(pid)
+    end
+
+    test "redelivered after its run was aborted settles as aborted", %{key: key, id: id, inbox: inbox, sender: sender} do
+      :ok =
+        Memory.append_journal(
+          [{:run_start, 1, %{message: Message.user("one"), request_id: "r1"}}, {:run_end, 1, {:error, :aborted}}],
+          key: key
+        )
+
+      {model, _} = LLMProvider.model([LLMProvider.stream_response([{:text, "ok"}])])
+      {:ok, _pid} = start_supervised_session(id, key, model, inbox: inbox)
+
+      # An aborted input sends no report. The second input's report comes after
+      # the first input was settled.
+      assert Condukt.Sessions.submit(id, "one", request_id: "r1", from: sender, report: true, inbox: inbox) == :ok
+      assert Condukt.Sessions.submit(id, "two", request_id: "r2", from: sender, report: true, inbox: inbox) == :ok
+      assert await_reports(inbox, sender, 1) == ["[session #{id} answered] ok"]
+      assert await_reports(inbox, sender, 0) == []
+    end
+  end
+
+  # The journal of an interrupted run follows the history it started from, so
+  # compacting that history would make the next restart drop the run.
+  test "refuses to compact while a run is interrupted", %{key: key} do
+    :ok = Memory.append_journal([{:run_start, 1, %{message: Message.user("one"), request_id: "r1"}}], key: key)
+
+    {model, _} = LLMProvider.model([])
+    opts = [compactor: {Condukt.Compactor.Sliding, keep: 0}]
+    {:ok, pid} = start_session(key, model, [], opts)
+    assert Condukt.Session.compact(pid) == {:error, :interrupted}
+    kill(pid)
+
+    {:ok, pid} = start_session(key, model, [], opts)
+    assert %{request_id: "r1"} = Condukt.Session.interrupted(pid)
+  end
+
   # Unlinked, so a test can kill the session, and stopped when the test ends.
   defp exit_worker(context, reason) do
     Process.exit(:sys.get_state(context.agent).turn.worker, reason)
@@ -1543,7 +1654,8 @@ defmodule Condukt.SessionDurableTest do
         session_store: Memory,
         session_store_key: key,
         load_project_instructions: false
-      ] ++ opts
+      ]
+      |> Keyword.merge(opts)
     )
   end
 
@@ -1574,6 +1686,34 @@ defmodule Condukt.SessionDurableTest do
   defp tool_call_response(calls) do
     calls = Enum.map(calls, fn {id, name} -> ToolCall.new(id, name, JSON.encode!(%{})) end)
     LLMProvider.response(%ReqLLM.Message{role: :assistant, content: [], tool_calls: calls}, :tool_calls)
+  end
+
+  # Takes the reports the sender's inbox got, waiting until there are `count`.
+  defp await_reports(inbox, sender, count, taken \\ [], attempts \\ 200) do
+    {:ok, inputs} = Inbox.take(inbox, sender)
+    taken = taken ++ Enum.map(inputs, & &1.text)
+
+    if length(taken) < count and attempts > 0 do
+      receive do
+      after
+        5 -> await_reports(inbox, sender, count, taken, attempts - 1)
+      end
+    else
+      taken
+    end
+  end
+
+  defp await(fun, attempts \\ 200) do
+    case fun.() do
+      falsy when falsy in [nil, false] and attempts > 0 ->
+        receive do
+        after
+          5 -> await(fun, attempts - 1)
+        end
+
+      result ->
+        result
+    end
   end
 
   # Called from inside a tool, to crash only once another record is stored.
