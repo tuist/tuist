@@ -36,9 +36,11 @@ defmodule Condukt.Session.View do
 
   ## Changes
 
-  The session numbers each change. `epoch` names the session process, so a
-  restarted session's numbers are not mistaken for the old one's, and `seq`
-  counts its changes; the view records the position of the last one it holds.
+  The session's view process numbers each change. It is linked to the
+  session and lives as long as it does. `epoch` is drawn when the session
+  starts, so a restarted session's numbers are not mistaken for the old
+  one's, and `seq` counts its changes; the view records the position of the
+  last one it holds.
   A change is an event the session published, with tool results redacted, or
   one of:
 
@@ -106,7 +108,9 @@ defmodule Condukt.Session.View do
 
   @doc false
   # Redacts what a redactor would catch on its way to the model: user input
-  # and tool results, in messages and in events, sub-agents' included. Unlike
+  # and tool results, in messages, events, and changes, sub-agents' included.
+  # The view process redacts each change once, as it arrives, so the cost
+  # follows the change, not the length of the history. Unlike
   # `Condukt.Redactor.redact_messages/2`, structured results keep their shape,
   # so a viewer still tells `{:error, reason}` apart. Model output and tool
   # arguments pass through, as they do in the events themselves.
@@ -121,6 +125,11 @@ defmodule Condukt.Session.View do
   def redact(%Message{} = message, _spec), do: message
   def redact(%{message: message} = item, spec), do: %{item | message: redact(message, spec)}
   def redact({kind, %Message{} = message}, spec) when kind in [:run_started, :input], do: {kind, redact(message, spec)}
+
+  def redact({:run_finished, error, messages}, spec), do: {:run_finished, error, redact(messages, spec)}
+  def redact({:messages, mode, messages}, spec), do: {:messages, mode, redact(messages, spec)}
+  def redact({:queue, items}, spec), do: {:queue, redact(items, spec)}
+  def redact({:background_event, name, event}, spec), do: {:background_event, name, redact(event, spec)}
 
   def redact({:tool_result, id, result}, spec), do: {:tool_result, id, redact_value(result, spec)}
   def redact({:subagent, id, event}, spec), do: {:subagent, id, redact(event, spec)}

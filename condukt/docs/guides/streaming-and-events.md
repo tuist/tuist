@@ -84,8 +84,11 @@ Native loops check ownership before every provider attempt, after inference,
 and before admitting each tool. Cancellation also wakes native retry backoff.
 Provider requests already admitted may finish, and admitted tools can still
 produce side effects; cancellation does not roll those back or kill external
-runtime processes. Slow callbacks, notifiers, snapshot stores, and legacy
-synchronous compactors can delay the session's handling of cancellation.
+runtime processes. Slow callbacks, snapshot stores, and legacy synchronous
+compactors can delay the session's handling of cancellation. Notifiers run in
+the session's view process, so a slow one delays viewers and the return of
+`Condukt.abort/1`, which waits until the notifier has the abort's events, but
+not the session's handling of cancellation.
 
 ## Steering and follow-ups
 
@@ -135,6 +138,11 @@ the two. Any number of viewers can watch one session, and any of them can call
 and when it is taken. `Condukt.unwatch/1` stops the changes, as does the
 watcher's exit.
 
+A session that stops sends nothing more, so a gap never reveals it. Monitor
+the session's pid alongside watching it, with `Process.monitor/1`, and treat
+its `:DOWN` as the end of the view. A viewer on another node monitors it the
+same way, since monitors work across nodes.
+
 The view holds:
 
 | Field | Description |
@@ -163,9 +171,19 @@ that started it and joined it. The parent's notifier events are unchanged.
 `View.advance/4` folds them in; a client in another language can apply the same
 rules, and only the changes travel after the first view.
 
-The session numbers every change with `seq`, counting from 1 in each `epoch`.
-`epoch` names the session process, so numbers from a session that restarted are
-never mistaken for the old one's. `advance/4` returns `:stale` for a change the
+The view lives in its own process, linked to the session so that neither
+outlives the other's crash. The session sends it each change as it happens
+and goes on with the turn. The view process redacts the change, folds it into
+the view, numbers it, and sends it to the watchers and the notifier, so a slow
+redactor, viewer, or notifier holds up the view instead of the session.
+`Condukt.view/1` and `Condukt.watch/1` still go through the session, which
+passes them on behind the changes it already sent, so a view reflects
+everything the session did before the request, including the caller's own
+`Condukt.steer/2`.
+
+The view process numbers every change with `seq`, counting from 1 in each
+`epoch`. `epoch` is drawn when the session starts, so numbers from a session
+that restarted are never mistaken for the old one's. `advance/4` returns `:stale` for a change the
 view already holds and `:gap` for one that does not follow it, including one
 from another epoch. On a gap, fetch the view again and continue from there.
 
@@ -193,7 +211,10 @@ unchanged.
 
 The view and its changes pass user input and tool results through the session's
 redactors, `Condukt.Secrets` included, the same way as on the way to the model.
-Structured tool results keep their shape with each string redacted. The agent
+Structured tool results keep their shape with each string redacted. Each
+change is redacted once, as it arrives, so a turn ending costs what the turn
+added, not the whole history. A compaction or `Condukt.clear/1` sends the whole
+history again as `{:messages, :replace, messages}`. The agent
 configuration leaves out keys, base URLs, request options, and the system
 prompt. Events sent to `Condukt.stream/3` subscribers and `c:Condukt.Notifier.publish/3`
 are unchanged.

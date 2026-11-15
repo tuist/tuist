@@ -149,6 +149,32 @@ defmodule Condukt.Session.ViewTest do
     GenServer.stop(pid)
   end
 
+  # Compacts before inference only, so a turn ends with history the turn's
+  # worker rewrote and no compaction after it to cover for it.
+  defmodule PromptCompactor do
+    @moduledoc false
+    @behaviour Condukt.Compactor
+
+    @impl true
+    def compact(messages, _opts) do
+      if length(messages) > 2 and List.last(messages).role == :user,
+        do: {:ok, Enum.take(messages, -1)},
+        else: {:ok, messages}
+    end
+  end
+
+  test "the view's history follows a compactor that runs inside the turn" do
+    {model, _id} = LLMProvider.model(Enum.map(["one", "two", "three"], &LLMProvider.text_response/1))
+    {:ok, pid} = Agent.start_link(model: model, compactor: PromptCompactor, load_project_instructions: false)
+
+    for prompt <- ["a", "b", "c"] do
+      assert {:ok, _answer} = Condukt.run(pid, prompt)
+      assert Condukt.view(pid).messages == Condukt.history(pid)
+    end
+
+    GenServer.stop(pid)
+  end
+
   defp slow_tool(test_pid, result) do
     Condukt.tool(
       name: "slow",

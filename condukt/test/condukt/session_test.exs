@@ -1517,6 +1517,9 @@ defmodule Condukt.SessionTest do
         assert_receive {LLMProvider, :request, ^model_id, context, _}
         assert context_text(context) =~ "summary"
         refute context_text(context) =~ String.duplicate("o", 2_000)
+        # The compaction rewrote history the turn started from, so the view
+        # takes the whole history when the turn ends, not only what it added.
+        assert Condukt.view(pid).messages == Condukt.history(pid)
         GenServer.stop(pid)
       end
     end

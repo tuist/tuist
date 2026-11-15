@@ -33,8 +33,11 @@ defmodule Condukt.Notifier do
         end
       end
 
-  Publishing happens inside the session process, so an implementation must not
-  block: hand the event to something else and return.
+  Publishing happens in the session's view process, which publishes events
+  and view changes in one order. A slow notifier then delays what viewers see,
+  not the session's turn. `Condukt.abort/1` and `Condukt.clear/1` still return
+  only once the notifier has the events they published. An implementation
+  still must not block: hand the event to something else and return.
 
   ## Changes to the view
 

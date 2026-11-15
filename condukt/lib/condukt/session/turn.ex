@@ -27,6 +27,10 @@ defmodule Condukt.Session.Turn do
   arrived too late for its turn, follow-ups, and background sub-agent
   `reports`. An abort withdraws all but the reports: an answer a sub-agent
   already gave is not undone by stopping the parent's current work.
+
+  `history_rewritten` records that a compaction replaced history the turn
+  started from, so the session's view takes the whole history when the turn
+  ends rather than only what the turn added after `prompt_index`.
   """
 
   defstruct streaming: false,
@@ -40,7 +44,8 @@ defmodule Condukt.Session.Turn do
             owned: [],
             pending: [],
             reports: [],
-            queued: false
+            queued: false,
+            history_rewritten: false
 
   @doc "A turn that has not started."
   def new, do: %__MODULE__{}
@@ -56,7 +61,8 @@ defmodule Condukt.Session.Turn do
         recipient: recipient,
         worker: nil,
         prompt_index: prompt_index,
-        queued: false
+        queued: false,
+        history_rewritten: false
     }
   end
 
@@ -66,8 +72,18 @@ defmodule Condukt.Session.Turn do
   Those outlive a single turn: a subscriber stays attached for the next one, and
   a message queued while this turn ran is meant for the one after it.
   """
-  def finish(%__MODULE__{} = turn),
-    do: %{turn | streaming: false, recipient: nil, worker: nil, prompt_index: nil, owned: [], queued: false}
+  def finish(%__MODULE__{} = turn) do
+    %{
+      turn
+      | streaming: false,
+        recipient: nil,
+        worker: nil,
+        prompt_index: nil,
+        owned: [],
+        queued: false,
+        history_rewritten: false
+    }
+  end
 
   @doc """
   Abandons the running turn.
@@ -87,6 +103,7 @@ defmodule Condukt.Session.Turn do
         prompt_index: nil,
         owned: [],
         queued: false,
+        history_rewritten: false,
         pending: [],
         steering_messages: [],
         follow_up_messages: []
@@ -117,6 +134,9 @@ defmodule Condukt.Session.Turn do
   def own(%__MODULE__{} = turn, {kind, pid} = owned) when kind in [:session, :process] and is_pid(pid) do
     %{turn | owned: [owned | turn.owned]}
   end
+
+  @doc "Records that a compaction replaced the history this turn started from."
+  def rewrite_history(%__MODULE__{} = turn), do: %{turn | history_rewritten: true}
 
   @doc "Adds a subscriber and the monitor watching it."
   def subscribe(%__MODULE__{} = turn, pid, ref, monitor) do
