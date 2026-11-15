@@ -2277,8 +2277,17 @@ inspect `lvs -a`. Never run `thin_check` against the live metadata device.
 #### Kura thin pool read-only or out of data space
 
 ```promql
-max by (cluster, node, vg, pool) ({__name__=~"kura_volumes_thin_pool_(read_only|out_of_data_space)"})
+max by (cluster, node, vg, pool) (
+  label_replace(kura_volumes_thin_pool_read_only, "condition", "read_only", "", "")
+  or label_replace(kura_volumes_thin_pool_out_of_data_space, "condition", "out_of_data_space", "", "")
+)
 ```
+
+The `condition` label keeps both metrics through `or`, which ignores
+`__name__` when it matches series. Pulse runs a `__name__` regex selector as
+one query per metric and concatenates the results, so `max by` over
+`{__name__=~"..."}` returns one series per metric there and Grafana rejects the
+duplicate labels.
 
 device-mapper reports the pool as `out_of_data_space`, `ro`, `needs_check` or
 `Fail`. The plugin reports this mode even when its full observation fails.
