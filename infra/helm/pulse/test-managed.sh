@@ -137,7 +137,7 @@ jq -e '
     .spec.template.spec.initContainers[0].name == "wait-for-wal" and
     (.spec.template.spec.initContainers[0].args[0] | contains("pulse_wal_topic_", "-ge 3"))) and
   # Production keeps its own sizing whatever the staging/canary defaults are.
-  (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources.requests == {cpu:"1",memory:"2Gi"}) and
+  (one("StatefulSet"; "pulse-datanode").spec.template.spec.containers[0].resources == {requests:{cpu:"1",memory:"4Gi"},limits:{memory:"8Gi"}}) and
   (one("StatefulSet"; "pulse-kafka") | .spec.volumeClaimTemplates[0].spec.resources.requests.storage == "20Gi" and
     any(.spec.template.spec.containers[0].env[]; .name == "KAFKA_HEAP_OPTS" and .value == "-Xms1g -Xmx1g")) and
   (one("StatefulSet"; "pulse-datanode") | .spec.replicas == 3 and spread("datanode") and
