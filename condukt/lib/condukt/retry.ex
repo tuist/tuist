@@ -132,6 +132,88 @@ defmodule Condukt.Retry do
 
   def default_classify(_), do: :stop
 
+  # Provider messages for requests whose input exceeds the context window.
+  # Each pattern names an overflow, not a generic invalid request: output limits
+  # such as "max_tokens is too large" and rate limits must not match.
+  @context_overflow_patterns [
+    # Anthropic: "prompt is too long: 213462 tokens > 200000 maximum"
+    ~r/prompt is too long/i,
+    # Anthropic: "input length and `max_tokens` exceed context limit: 188240 + 21333 > 200000"
+    ~r/exceed context limit/i,
+    # OpenAI Responses: "Your input exceeds the context window of this model"
+    ~r/exceeds the context window/i,
+    # OpenAI error code, also used by OpenAI-compatible providers
+    ~r/context_length_exceeded/i,
+    # OpenAI Chat Completions, OpenRouter, vLLM: "This model's maximum context length is 128000 tokens"
+    ~r/maximum context length is \d+/i,
+    # LiteLLM and OpenAI-compatible servers: "exceeds model's maximum context length (262144)"
+    ~r/exceeds (?:the )?(?:model'?s )?maximum context length/i,
+    # Google Gemini and Vertex AI: "The input token count (1196265) exceeds the maximum number of tokens allowed"
+    ~r/input token count.*exceeds the maximum/i,
+    # Google Gemini and Vertex AI: "the input token count is 106244 but model only supports up to 65536"
+    ~r/input token count is \d+ but model only supports up to/i,
+    # Amazon Bedrock
+    ~r/input is too long for requested model/i,
+    # xAI: "This model's maximum prompt length is 131072 but the request contains 537812 tokens"
+    ~r/maximum prompt length is \d+/i,
+    # Groq: "Please reduce the length of the messages or completion"
+    ~r/reduce the length of the messages/i,
+    # Mistral: "... too large for model with 131072 maximum context length"
+    ~r/too large for model with \d+ maximum context length/i
+  ]
+
+  @doc """
+  Returns `true` when a provider rejected a request because its input exceeds
+  the model's context window.
+
+  Native sessions with a compactor compact and retry such a request once. A
+  provider error matches when it has HTTP status `413`, or status `400` (or
+  none, for stream failures) together with a known context-length message or
+  error code from Anthropic, OpenAI, Google, Amazon Bedrock, xAI, Groq,
+  Mistral, or an OpenAI-compatible server. A stream that fails with an error
+  event, such as OpenAI's `response.failed`, matches on its message. Only the
+  provider's error message, code, and type are inspected, never the request
+  that was sent or input that the provider echoes back.
+  """
+  def context_overflow?(%ReqLLM.Error.API.Stream{cause: cause}) when not is_nil(cause), do: context_overflow?(cause)
+  def context_overflow?(%ReqLLM.Error.API.Stream{reason: reason}) when is_binary(reason), do: overflow_text?([reason])
+  def context_overflow?(reason) when is_binary(reason), do: overflow_text?([reason])
+
+  def context_overflow?(%module{status: 413}) when module in [ReqLLM.Error.API.Request, ReqLLM.Error.API.Response],
+    do: true
+
+  def context_overflow?(%module{status: status} = error)
+      when module in [ReqLLM.Error.API.Request, ReqLLM.Error.API.Response] and status in [nil, 400] do
+    overflow_text?([error.reason, Map.get(error, :provider_code) | response_strings(error.response_body)])
+  end
+
+  def context_overflow?(_reason), do: false
+
+  defp overflow_text?(texts) do
+    Enum.any?(texts, fn text -> is_binary(text) and Enum.any?(@context_overflow_patterns, &Regex.match?(&1, text)) end)
+  end
+
+  defp response_strings(body) when is_binary(body) do
+    case JSON.decode(body) do
+      {:ok, decoded} -> response_strings(decoded)
+      {:error, _reason} -> [body]
+    end
+  end
+
+  # Vertex AI Gemini decodes an error body into a response whose context holds
+  # the sent messages; only its provider metadata carries the error.
+  defp response_strings(%ReqLLM.Response{provider_meta: meta}), do: response_strings(meta)
+  defp response_strings(%_{}), do: []
+
+  # Fields such as `input` or `detail` may echo the request, so only the
+  # error envelope and its message, code, and type are read.
+  defp response_strings(body) when is_map(body) do
+    body |> Map.take(["error", "message", "code", "type"]) |> Map.values() |> Enum.flat_map(&response_strings/1)
+  end
+
+  defp response_strings(body) when is_list(body), do: Enum.flat_map(body, &response_strings/1)
+  defp response_strings(_body), do: []
+
   defp transient_reason?(reason) do
     needles = ["overloaded", "rate limit", "timeout", "timed out", " 503", " 504", " 429"]
     downcased = String.downcase(reason)

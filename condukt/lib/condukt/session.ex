@@ -752,11 +752,11 @@ defmodule Condukt.Session do
     end
   end
 
-  def handle_call({:compaction_checkpoint, ref, messages, trace_context}, from, state) do
+  def handle_call({:compaction_checkpoint, ref, messages, trace_context, phase}, from, state) do
     if state.turn.streaming and ref == state.turn.abort_ref do
       compaction = %{state.compaction | trace_context: trace_context}
       state = %{state | messages: messages, compaction: compaction}
-      compaction_checkpoint_reply(state, from, compaction_overhead(state), compaction_metadata(state))
+      compaction_checkpoint_reply(state, from, compaction_overhead(state), compaction_metadata(state), phase)
     else
       {:reply, {:error, :aborted}, state}
     end
@@ -1061,29 +1061,10 @@ defmodule Condukt.Session do
   end
 
   defp agent_turn(state, messages, max_turns, turn) do
-    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
     tools = build_req_llm_tools(state.tools, state)
 
-    attempt = fn ->
-      with :ok <- check_turn(state) do
-        ReqLLM.generate_text(state.llm.model, context, llm_opts(state, tools))
-      end
-    end
-
-    result =
-      Telemetry.span(
-        :llm_turn,
-        llm_turn_metadata(state, messages, turn, false),
-        fn ->
-          Retry.with_retry(
-            state.retry,
-            fn -> false end,
-            attempt,
-            &wait_for_retry(state, &1)
-          )
-        end,
-        &llm_turn_stop_metadata/1
-      )
+    call = &ReqLLM.generate_text(state.llm.model, &1, llm_opts(state, tools))
+    {result, messages} = llm_request(state, messages, turn, false, fn -> false end, call)
 
     with {:ok, response} <- result,
          :ok <- check_turn(state) do
@@ -1174,7 +1155,6 @@ defmodule Condukt.Session do
   end
 
   defp stream_turn(state, messages, max_turns, turn, emit, abort_ref) do
-    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
     tools = build_req_llm_tools(state.tools, state)
 
     emitted_counter = :counters.new(1, [:atomics])
@@ -1185,19 +1165,8 @@ defmodule Condukt.Session do
       emit.(event)
     end
 
-    attempt = fn ->
-      with :ok <- check_turn(state) do
-        run_stream_attempt(state.llm.model, context, llm_opts(state, tools), tracked_emit)
-      end
-    end
-
-    result =
-      Telemetry.span(
-        :llm_turn,
-        llm_turn_metadata(state, messages, turn, true),
-        fn -> Retry.with_retry(state.retry, emitted?, attempt, &wait_for_retry(state, &1)) end,
-        &llm_turn_stop_metadata/1
-      )
+    call = &run_stream_attempt(state.llm.model, &1, llm_opts(state, tools), tracked_emit)
+    {result, messages} = llm_request(state, messages, turn, true, emitted?, call)
 
     with {:ok, response} <- result,
          :ok <- check_turn(state) do
@@ -1660,17 +1629,52 @@ defmodule Condukt.Session do
     %{state | messages: messages, compaction: compaction}
   end
 
-  defp compaction_checkpoint(%{compaction: %{policy: nil}} = state, messages) do
+  defp compaction_checkpoint(state, messages, phase \\ :background)
+
+  defp compaction_checkpoint(%{compaction: %{policy: nil}} = state, messages, phase) do
     with :ok <- check_turn(state) do
-      {:ok, Compaction.apply(state.compaction.spec, messages, compaction_metadata(state))}
+      opts = Compaction.compactor_opts(phase)
+      {:ok, Compaction.apply(state.compaction.spec, messages, compaction_metadata(state), opts)}
     end
   end
 
-  defp compaction_checkpoint(state, messages) do
+  defp compaction_checkpoint(state, messages, phase) do
     GenServer.call(
       state.pid,
-      {:compaction_checkpoint, state.turn.abort_ref, messages, TraceContext.current()},
+      {:compaction_checkpoint, state.turn.abort_ref, messages, TraceContext.current(), phase},
       :infinity
+    )
+  end
+
+  # Sends one model request with transient retries and returns the result with
+  # the messages it used. Token estimates can admit a request the provider
+  # rejects as too long, so that rejection is compacted and retried once.
+  defp llm_request(state, messages, turn, streaming?, emitted?, call) do
+    result = llm_attempts(state, messages, turn, streaming?, emitted?, call)
+
+    with {:error, reason} <- result,
+         true <- not is_nil(state.compaction.spec) and not emitted?.() and Retry.context_overflow?(reason),
+         {:ok, compacted} when compacted != messages <- compaction_checkpoint(state, messages, :overflow) do
+      Logger.warning("provider rejected the request as too long; retrying once after compaction")
+      {llm_attempts(state, compacted, turn, streaming?, emitted?, call), compacted}
+    else
+      {:error, :aborted} = aborted -> {aborted, messages}
+      _no_retry -> {result, messages}
+    end
+  end
+
+  defp llm_attempts(state, messages, turn, streaming?, emitted?, call) do
+    context = Translate.context(messages, outbound_redactor(state), state.system_prompt)
+
+    attempt = fn ->
+      with :ok <- check_turn(state), do: call.(context)
+    end
+
+    Telemetry.span(
+      :llm_turn,
+      llm_turn_metadata(state, messages, turn, streaming?),
+      fn -> Retry.with_retry(state.retry, emitted?, attempt, &wait_for_retry(state, &1)) end,
+      &llm_turn_stop_metadata/1
     )
   end
 
@@ -1681,7 +1685,7 @@ defmodule Condukt.Session do
     GenServer.cast(state.pid, {:compaction_usage, state.turn.abort_ref, %{usage: response.usage}, messages})
   end
 
-  defp compaction_checkpoint_reply(state, from, overhead, metadata, phase \\ :background) do
+  defp compaction_checkpoint_reply(state, from, overhead, metadata, phase) do
     protected_count = if state.turn.prompt_index, do: length(state.messages) - state.turn.prompt_index, else: 1
 
     case Compaction.checkpoint(state.compaction, state.messages, overhead, from, metadata, phase, protected_count) do

@@ -36,6 +36,37 @@ defmodule Condukt.Compactor.SlidingTest do
     assert length(kept) == 3
   end
 
+  describe "after a context-length rejection" do
+    test "keeps half of :keep" do
+      messages = for i <- 1..30, do: Message.user("hi #{i}")
+      {:ok, kept} = Sliding.compact(messages, keep: 10, context_overflow: true)
+      assert Enum.map(kept, & &1.content) == ["hi 26", "hi 27", "hi 28", "hi 29", "hi 30"]
+    end
+
+    test "keeps half of a history shorter than :keep, and at least one message" do
+      messages = for i <- 1..7, do: Message.user("hi #{i}")
+      {:ok, kept} = Sliding.compact(messages, keep: 20, context_overflow: true)
+      assert Enum.map(kept, & &1.content) == ["hi 5", "hi 6", "hi 7"]
+
+      single = [Message.user("only")]
+      assert Sliding.compact(single, keep: 20, context_overflow: true) == {:ok, single}
+    end
+
+    test "starts before a batch of tool results instead of orphaning it" do
+      call =
+        Message.assistant([
+          {:tool_call, "x", "read", %{}},
+          {:tool_call, "y", "read", %{}},
+          {:tool_call, "z", "read", %{}}
+        ])
+
+      results = for id <- ["x", "y", "z"], do: Message.tool_result(id, "result #{id}")
+      messages = [Message.user("u1"), Message.assistant("a1"), Message.user("u2"), call | results]
+
+      assert Sliding.compact(messages, keep: 20, context_overflow: true) == {:ok, [call | results]}
+    end
+  end
+
   test "uses default keep when no option is provided" do
     messages = for i <- 1..50, do: Message.user("hi #{i}")
     {:ok, kept} = Sliding.compact(messages, [])
