@@ -426,6 +426,13 @@ defmodule Condukt.Session do
   end
 
   @doc false
+  # Publishes `{:tool_output, tool_call_id, chunk}` from a call of the turn
+  # `turn_ref` names. See `Condukt.Tool.output/2`.
+  def tool_output(session, turn_ref, event) do
+    GenServer.cast(session, {:tool_output, turn_ref, event})
+  end
+
+  @doc false
   # Whether a turn runs or input other than reports waits to start one.
   def busy?(agent) do
     GenServer.call(agent, :busy?)
@@ -1096,6 +1103,16 @@ defmodule Condukt.Session do
       {:noreply, state}
     else
       {:noreply, state}
+    end
+  end
+
+  # Streamed like the turn's own events, or, for a turn run without
+  # streaming, to the view only, as its other steps are.
+  def handle_cast({:tool_output, turn_ref, event}, state) do
+    case state.turn.recipient do
+      _recipient when turn_ref != state.turn.abort_ref -> {:noreply, state}
+      {:stream, ref} -> {:noreply, broadcast(state, ref, event)}
+      _run -> {:noreply, tap(state, &view_change(&1, event))}
     end
   end
 
@@ -1904,7 +1921,7 @@ defmodule Condukt.Session do
     # even if a provider repeats an id.
     calls = Enum.with_index(tool_calls)
 
-    with {:ok, results} <- await_tool_round(state, calls, run_tool_calls(state, calls, %{}, emit), emit) do
+    with {:ok, results} <- run_batches(state, tool_batches(state, calls), %{}, emit) do
       {tool_results, assigns_diff} =
         split_results_and_assigns(Enum.map(calls, fn {_call, index} -> Map.fetch!(results, index) end))
 
@@ -1912,8 +1929,39 @@ defmodule Condukt.Session do
     end
   end
 
+  # Consecutive calls of read-only tools form one batch and run together, as
+  # do sub-agent calls whose role cannot change what a later call observes
+  # (`Subagent.read_only_call?/2`); any other call is a batch of its own, so
+  # calls that change the sandbox run one at a time, in call order. A batch
+  # ends once each of its calls has a result, after waking from a park if it
+  # parked.
+  defp tool_batches(state, calls) do
+    tool_map = build_tool_map(state.tools)
+
+    Enum.chunk_by(calls, &batch_key(tool_map, &1))
+  end
+
+  # Unknown tools only answer with an error, so they change nothing.
+  defp batch_key(tool_map, {{_id, name, args}, index}) do
+    case Map.fetch(tool_map, name) do
+      {:ok, {Subagent, opts}} -> if Subagent.read_only_call?(opts, args), do: :read, else: index
+      {:ok, tool_spec} -> if Tool.read_only?(tool_spec), do: :read, else: index
+      :error -> :read
+    end
+  end
+
+  defp run_batches(_state, [], results, _emit), do: {:ok, results}
+
+  defp run_batches(state, [batch | batches], results, emit) do
+    results = Map.merge(results, run_tool_calls(state, batch, %{}, emit))
+
+    with {:ok, results} <- await_tool_round(state, batch, results, emit) do
+      run_batches(state, batches, results, emit)
+    end
+  end
+
   defp await_tool_round(state, calls, results, emit) do
-    if map_size(results) == length(calls) do
+    if Enum.all?(calls, fn {_call, index} -> Map.has_key?(results, index) end) do
       {:ok, results}
     else
       with {:ok, resumes} <- await_wakes(state) do

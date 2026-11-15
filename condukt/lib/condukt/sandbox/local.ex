@@ -10,12 +10,27 @@ defmodule Condukt.Sandbox.Local do
   ## Initializing
 
       {:ok, sandbox} = Condukt.Sandbox.new(Condukt.Sandbox.Local, cwd: "/tmp")
+
+  Options:
+
+    * `:cwd` — base directory for paths and commands (default `File.cwd!/0`)
+    * `:process_dir` — where `start_process/4` keeps each process's log and
+      status (default `condukt-processes` in the system temporary directory)
+
+  ## Processes
+
+  `start_process/4` runs a command through `MuonTrap` in a process under
+  Condukt's own supervisor, registered by the id, rather than in the caller.
+  The command outlives the caller and is found again by its id on the same
+  node, but not across a node restart: `MuonTrap` stops it with the node, as
+  it stops every command this sandbox runs.
   """
 
   @behaviour Condukt.Sandbox
 
   alias Condukt.Sandbox
   alias Condukt.Sandbox.Local.State
+  alias Condukt.Sandbox.Processes
 
   @base_env %{
     "TERM" => "dumb",
@@ -42,8 +57,16 @@ defmodule Condukt.Sandbox.Local do
         path -> Path.expand(path)
       end
 
-    {:ok, %State{cwd: cwd}}
+    process_dir =
+      opts
+      |> Keyword.get_lazy(:process_dir, fn -> Path.join(System.tmp_dir!(), "condukt-processes") end)
+      |> Path.expand()
+
+    {:ok, %State{cwd: cwd, process_dir: process_dir}}
   end
+
+  @doc false
+  def registry, do: Condukt.Sandbox.Local.Registry
 
   @impl Sandbox
   def shutdown(_state), do: :ok
@@ -160,6 +183,158 @@ defmodule Condukt.Sandbox.Local do
       {:ok, matches}
     end
   end
+
+  # A process is a task under `Condukt.TaskSupervisor`, registered under its
+  # directory, which the id names, that runs the command through MuonTrap with output going to a file
+  # and writes the exit status to another once it ends. Registration is the
+  # atomic step that makes starting idempotent; the status file is written
+  # before the task unregisters, so a reader that finds neither knows the
+  # task was killed.
+  @impl Sandbox
+  def start_process(%State{} = state, id, command, opts) do
+    dir = process_path(state, id)
+
+    if Registry.lookup(registry(), dir) != [] or File.exists?(Path.join(dir, "status")) do
+      {:error, :already_started}
+    else
+      run_opts = [
+        cd: opts |> Keyword.get(:cwd) |> resolve_optional(state.cwd),
+        env: build_env(Keyword.get(opts, :env, [])),
+        timeout: Keyword.get(opts, :timeout)
+      ]
+
+      caller = self()
+      ref = make_ref()
+
+      {:ok, pid} =
+        Task.Supervisor.start_child(Condukt.TaskSupervisor, fn -> run_process(caller, ref, dir, command, run_opts) end)
+
+      monitor = Process.monitor(pid)
+
+      receive do
+        {^ref, reply} ->
+          Process.demonitor(monitor, [:flush])
+          reply
+
+        {:DOWN, ^monitor, :process, _pid, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  @impl Sandbox
+  def read_process(%State{} = state, id, offset, opts) do
+    dir = process_path(state, id)
+    max_bytes = Keyword.get(opts, :max_bytes, 64 * 1024)
+
+    with {:ok, status} <- process_status(dir),
+         {:ok, %File.Stat{size: size}} <- File.stat(Path.join(dir, "output")),
+         {:ok, output} <- read_range(Path.join(dir, "output"), offset, min(max_bytes, max(size - offset, 0))) do
+      {:ok, %{output: output, offset: offset + byte_size(output), size: size, status: status}}
+    else
+      {:error, :enoent} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl Sandbox
+  def stop_process(%State{} = state, id) do
+    dir = process_path(state, id)
+
+    case Registry.lookup(registry(), dir) do
+      [{pid, _value}] ->
+        # MuonTrap kills the command when the process that runs it dies.
+        monitor = Process.monitor(pid)
+        Process.exit(pid, :kill)
+
+        receive do
+          {:DOWN, ^monitor, :process, _pid, _reason} -> :ok
+        end
+
+      [] ->
+        :ok
+    end
+
+    case File.rm_rf(dir) do
+      {:ok, _paths} -> :ok
+      {:error, reason, _path} -> {:error, reason}
+    end
+  end
+
+  defp run_process(caller, ref, dir, command, run_opts) do
+    case Registry.register(registry(), dir, nil) do
+      {:ok, _owner} ->
+        output = Path.join(dir, "output")
+
+        with :ok <- File.mkdir_p(dir),
+             File.rm(Path.join(dir, "status")),
+             :ok <- File.write(output, "") do
+          send(caller, {ref, :ok})
+          write_status(dir, run_command(command, output, run_opts))
+        else
+          {:error, reason} -> send(caller, {ref, {:error, reason}})
+        end
+
+      {:error, {:already_registered, _pid}} ->
+        send(caller, {ref, {:error, :already_started}})
+    end
+  end
+
+  defp run_command(command, output, run_opts) do
+    {timeout, run_opts} = Keyword.pop(run_opts, :timeout)
+    run_opts = [stderr_to_stdout: true, parallelism: false] ++ run_opts
+    run_opts = if timeout, do: Keyword.put(run_opts, :timeout, timeout), else: run_opts
+
+    case MuonTrap.cmd("bash", ["-c", @capture_script, "condukt-capture", output, command], run_opts) do
+      {_output, :timeout} -> "timeout"
+      {_output, exit_code} -> Integer.to_string(exit_code)
+    end
+  catch
+    :error, error ->
+      File.write(output, format_error(error), [:append])
+      "127"
+  end
+
+  defp write_status(dir, status) do
+    tmp = Path.join(dir, "status.tmp")
+    File.write!(tmp, status)
+    File.rename!(tmp, Path.join(dir, "status"))
+  end
+
+  defp process_status(dir) do
+    cond do
+      Registry.lookup(registry(), dir) != [] -> {:ok, :running}
+      File.exists?(Path.join(dir, "status")) -> read_status(dir)
+      File.exists?(Path.join(dir, "output")) -> {:ok, {:exited, nil}}
+      true -> {:error, :not_found}
+    end
+  end
+
+  defp read_status(dir) do
+    case File.read(Path.join(dir, "status")) do
+      {:ok, "timeout"} -> {:ok, :timeout}
+      {:ok, code} -> {:ok, {:exited, String.to_integer(code)}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp read_range(_path, _offset, 0), do: {:ok, ""}
+
+  defp read_range(path, offset, bytes) do
+    with {:ok, file} <- File.open(path, [:read, :binary]) do
+      try do
+        case :file.pread(file, offset, bytes) do
+          {:ok, data} -> {:ok, data}
+          :eof -> {:ok, ""}
+          {:error, reason} -> {:error, reason}
+        end
+      after
+        File.close(file)
+      end
+    end
+  end
+
+  defp process_path(%State{process_dir: root}, id), do: Path.join(root, Processes.dir_name(id))
 
   # mount/3 intentionally not implemented — host fs is the sandbox.
 

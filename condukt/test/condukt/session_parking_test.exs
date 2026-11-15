@@ -336,6 +336,113 @@ defmodule Condukt.SessionParkingTest do
     assert List.last(events) == :agent_end
   end
 
+  test "a parked call that may change the sandbox holds back the calls after it until it wakes" do
+    test_pid = self()
+
+    deploy =
+      Condukt.tool(
+        name: "deploy",
+        description: "deploy",
+        parameters: %{type: "object", properties: %{}},
+        call: fn _args, _ctx -> {:park, nil, signals: [{Answer, "deployed"}]} end,
+        wake: fn {:signal, _key, text}, nil, _ctx -> {:ok, text} end
+      )
+
+    check = tool("check", fn _args, _ctx -> send(test_pid, :check_started) && {:ok, "checked"} end)
+
+    pid =
+      start_session(
+        [tool_calls([{"call_d", "deploy", %{}}, {"call_c", "check", %{}}]), LLMProvider.text_response("done")],
+        [deploy, check]
+      )
+
+    run = Task.async(fn -> Condukt.run(pid, "go") end)
+
+    assert %{tool_calls: [%{tool_call_id: "call_d"}]} = await(fn -> Session.waiting(pid) end)
+    refute_receive :check_started, 100
+
+    assert Condukt.signal(pid, Answer, "deployed", %{"text" => "live"}) == :ok
+    assert_receive :check_started, 1_000
+    assert Task.await(run) == {:ok, "done"}
+    assert tool_result(pid, "call_d") == "live"
+  end
+
+  describe "Bash on a sandbox that runs processes" do
+    @describetag :tmp_dir
+
+    test "a long command parks, streams its output to subscribers, the notifier, and the view, and wakes when it exits",
+         %{tmp_dir: tmp_dir} do
+      command = "echo first; while [ ! -e gate ]; do sleep 0.05; done; echo second"
+
+      responses = [
+        stream_response(
+          [ReqLLM.StreamChunk.tool_call("Bash", %{"command" => command}, %{id: "call_1", index: 0})],
+          :tool_calls
+        ),
+        stream_response([ReqLLM.StreamChunk.text("done")])
+      ]
+
+      pid = start_session([], [{Condukt.Tools.Bash, park_after: 50}], sandbox: local_sandbox(tmp_dir))
+      stub_stream(pid, responses)
+      stream = Task.async(fn -> pid |> Condukt.stream("go") |> Enum.to_list() end)
+
+      assert %{tool_calls: [%{tool_call_id: "call_1", signals: [{Condukt.Tools.Bash.Exited, "bash:call_1"}]}]} =
+               await(fn -> Session.waiting(pid) end)
+
+      assert await(fn -> match?(%{output: "first\n"}, view_tool(pid, "call_1")) end)
+      File.touch!(Path.join(tmp_dir, "gate"))
+
+      events = Task.await(stream)
+
+      assert [
+               {:tool_output, "call_1", "first\n"},
+               {:tool_output, "call_1", "second\n"},
+               {:tool_result, "call_1", "first\nsecond\n"}
+             ] = Enum.filter(events, &(elem_tag(&1) in [:tool_output, :tool_result]))
+
+      assert {:text, "done"} in events
+      assert_received {:notified, {:tool_output, "call_1", "first\n"}}
+    end
+
+    test "aborting the turn kills its command, whether parked or in the foreground", %{tmp_dir: tmp_dir} do
+      for {park_after, call_id} <- [{50, "parked"}, {60_000, "foreground"}] do
+        pid_file = Path.join(tmp_dir, call_id <> ".pid")
+        command = "echo $$ > #{pid_file}; exec sleep 60"
+
+        pid =
+          start_session(
+            [tool_calls([{call_id, "Bash", %{"command" => command}}])],
+            [{Condukt.Tools.Bash, park_after: park_after}],
+            sandbox: local_sandbox(tmp_dir)
+          )
+
+        run = Task.async(fn -> Condukt.run(pid, "go") end)
+        os_pid = await(fn -> File.read(pid_file) |> then(&(match?({:ok, <<_, _::binary>>}, &1) && elem(&1, 1))) end)
+        if park_after == 50, do: await(fn -> Session.waiting(pid) end)
+
+        assert Condukt.abort(pid) == :ok
+        assert Task.await(run) == {:error, :aborted}
+        assert await(fn -> not os_alive?(String.trim(os_pid)) end)
+        stop_supervised!(ParkingAgent)
+      end
+    end
+  end
+
+  defp local_sandbox(tmp_dir), do: {Condukt.Sandbox.Local, cwd: tmp_dir, process_dir: Path.join(tmp_dir, "processes")}
+
+  defp view_tool(pid, id) do
+    case Condukt.view(pid).run do
+      %{items: items} -> Enum.find(items, &match?(%{type: :tool, id: ^id}, &1))
+      nil -> nil
+    end
+  end
+
+  defp elem_tag(event) when is_tuple(event), do: elem(event, 0)
+  defp elem_tag(event), do: event
+
+  defp os_alive?(pid), do: match?({_, 0}, System.cmd("kill", ["-0", pid], stderr_to_stdout: true))
+
+  # Read-only, so the calls of one round run together and park side by side.
   defp tool(name, call, wake \\ nil, cancel \\ nil) do
     Condukt.tool(
       name: name,
@@ -343,7 +450,8 @@ defmodule Condukt.SessionParkingTest do
       parameters: %{type: "object", properties: %{}},
       call: call,
       wake: wake,
-      cancel: cancel
+      cancel: cancel,
+      read_only: true
     )
   end
 
@@ -352,16 +460,18 @@ defmodule Condukt.SessionParkingTest do
     LLMProvider.response(%ReqLLM.Message{role: :assistant, content: [], tool_calls: tool_calls}, :tool_calls)
   end
 
-  defp start_session(responses, tools) do
+  defp start_session(responses, tools, opts \\ []) do
     {model, _model_id} = LLMProvider.model(responses)
 
     start_supervised!(
       {ParkingAgent,
-       model: model,
-       tools: tools,
-       system_prompt: nil,
-       load_project_instructions: false,
-       notifier: {RecordingNotifier, test_pid: self()}}
+       [
+         model: model,
+         tools: tools,
+         system_prompt: nil,
+         load_project_instructions: false,
+         notifier: {RecordingNotifier, test_pid: self()}
+       ] ++ opts}
     )
   end
 

@@ -89,10 +89,12 @@ own chain:
 Each tool call runs in its own process, linked below the turn's worker, and
 each hook chain runs in a process of its own, linked below the work it
 decides. Processes are cheap, so a hook that waits for a person simply waits,
-with `receive`. Without hooks, a session runs one tool call per scheduler at
-a time. With hooks, every call in a model response runs at once, up to 64, so
-a waiting hook holds up nothing but its own call. Beyond 64, later calls wait
-for a slot, and calls held by waiting hooks keep theirs.
+with `receive`. Calls that may change something run one at a time (see
+[Concurrency](tools.md#concurrency)); a run of consecutive read-only calls
+runs together. Without hooks, such a run takes one call per scheduler at a
+time. With hooks, every call in it runs at once, up to 64, so a waiting hook
+holds up nothing but its own call. Beyond 64, later calls wait for a slot,
+and calls held by waiting hooks keep theirs.
 
 - **Crashes fail their own unit.** A hook that raises, exits, or returns
   anything else ends its chain. A failed `before_tool` blocks the call, a

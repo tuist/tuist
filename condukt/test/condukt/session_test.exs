@@ -119,6 +119,7 @@ defmodule Condukt.SessionTest do
           description: name,
           parameters: %{type: "object", properties: %{}},
           on_abort: on_abort,
+          read_only: true,
           call: fn _args, _context ->
             send(test_pid, {:running, name, self()})
             # Only a call that traps exits hears the abort as a message.
@@ -215,6 +216,65 @@ defmodule Condukt.SessionTest do
       events = pid |> Condukt.stream("go") |> Enum.to_list()
       assert {:error, {:turn_crashed, :boom}} = List.last(events)
       assert Condukt.history(pid) == []
+    end
+  end
+
+  describe "tool calls of one response" do
+    test "read-only calls run together, and other calls one at a time in call order" do
+      test_pid = self()
+
+      tool = fn name, read_only ->
+        Condukt.tool(
+          name: name,
+          description: name,
+          parameters: %{type: "object", properties: %{}},
+          read_only: read_only,
+          call: fn _args, context ->
+            send(test_pid, {:started, context.tool_call_id, self()})
+            receive do: (:go -> {:ok, context.tool_call_id})
+          end
+        )
+      end
+
+      calls =
+        for {id, name} <- [r1: "read", r2: "read", w1: "write", r3: "read", w2: "write", w3: "write"],
+            do: ToolCall.new(Atom.to_string(id), name, "{}")
+
+      {model, _id} =
+        LLMProvider.model([
+          LLMProvider.response(%ReqLLM.Message{role: :assistant, content: [], tool_calls: calls}, :tool_calls),
+          LLMProvider.text_response("done")
+        ])
+
+      {:ok, pid} =
+        ConfigAgent.start_link(
+          model: model,
+          tools: [tool.("read", true), tool.("write", false)],
+          load_project_instructions: false
+        )
+
+      run = Task.async(fn -> Condukt.run(pid, "go") end)
+
+      assert_receive {:started, "r1", r1}, 1_000
+      assert_receive {:started, "r2", r2}, 1_000
+      refute_receive {:started, _id, _pid}, 100
+
+      send(r1, :go)
+      refute_receive {:started, _id, _pid}, 100
+      send(r2, :go)
+
+      # Each of the rest runs alone, in call order, a read-only call between
+      # two others included.
+      for id <- ~w(w1 r3 w2 w3) do
+        assert_receive {:started, ^id, current}, 1_000
+        refute_receive {:started, _id, _pid}, 100
+        send(current, :go)
+      end
+
+      assert Task.await(run) == {:ok, "done"}
+
+      assert pid |> Condukt.history() |> Enum.filter(&(&1.role == :tool_result)) |> Enum.map(& &1.content) ==
+               ~w(r1 r2 w1 r3 w2 w3)
     end
   end
 

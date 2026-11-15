@@ -38,6 +38,9 @@ defmodule Condukt.Tools.Read do
   def replay_safe?, do: true
 
   @impl true
+  def read_only?(_opts), do: true
+
+  @impl true
   def description do
     """
     Read the contents of a file. Supports text files and images (jpg, png, gif, webp).

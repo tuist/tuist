@@ -20,6 +20,7 @@ defmodule Condukt.Tools.Subagent do
 
   alias Condukt.Message
   alias Condukt.Operation.SubmitTool
+  alias Condukt.Sandbox
   alias Condukt.Session
   alias Condukt.Telemetry
   alias Condukt.Tools.BackgroundSubagent
@@ -274,6 +275,35 @@ defmodule Condukt.Tools.Subagent do
   end
 
   defp normalize_registration(registration), do: {:error, {:invalid_subagent_registration, registration}}
+
+  @doc false
+  # Whether a call to the role in `args` changes nothing a later call could
+  # observe, so consecutive such calls run together: the role starts a
+  # sandbox of its own, from a spec, or has only read-only tools and no
+  # sub-agents of its own. A role that shares its parent's sandbox and can
+  # change it runs alone, in call order.
+  def read_only_call?(opts, args) do
+    role = Map.get(args, "role") || Map.get(args, :role)
+
+    case lookup(%{opts: opts}, role) do
+      {:ok, _role, %{agent_module: module, opts: role_opts}} ->
+        own_sandbox?(role_opts) or
+          (Code.ensure_loaded?(module) and module.subagents() == [] and
+             Enum.all?(Keyword.get_lazy(role_opts, :tools, &module.tools/0), &Condukt.Tool.read_only?/1))
+
+      # It only answers with an error.
+      {:error, _reason} ->
+        true
+    end
+  end
+
+  defp own_sandbox?(role_opts) do
+    case Keyword.get(role_opts, :sandbox) do
+      nil -> false
+      %Sandbox{} -> false
+      _spec -> true
+    end
+  end
 
   defp subagents(context) do
     context

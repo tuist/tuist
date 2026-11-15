@@ -117,6 +117,27 @@ defmodule Condukt.Session.ViewTest do
     assert View.advance(view, 8, 4, {:queue, []}) == :gap
   end
 
+  test "a tool's streamed output is redacted and folds into its item, keeping the last 64 KiB from a line start" do
+    {:ok, view} =
+      View.advance(%View{epoch: 1, seq: 0}, 1, 1, {:run_started, %Condukt.Message{role: :user, content: "go"}})
+
+    {:ok, view} = View.advance(view, 1, 2, {:tool_call, "Bash", "call_1", %{}})
+
+    chunk = View.redact({:tool_output, "call_1", "token #{@secret}\n"}, SecretRedactor)
+    assert chunk == {:tool_output, "call_1", "token [REDACTED]\n"}
+    {:ok, view} = View.advance(view, 1, 3, chunk)
+
+    # 70,000 bytes of 7-byte lines: the first kept line starts after a newline.
+    lines = for i <- 1..10_000, into: "", do: String.pad_leading(Integer.to_string(i), 6, "0") <> "\n"
+    {:ok, view} = View.advance(view, 1, 4, {:tool_output, "call_1", lines})
+
+    [_user, %{type: :tool, output: output}] = view.run.items
+    assert byte_size(output) <= 64 * 1024
+    assert byte_size(output) > 64 * 1024 - 7
+    assert String.ends_with?(output, "010000\n")
+    assert output =~ ~r/\A\d{6}\n/
+  end
+
   # A turn run without streaming publishes no events, but its running tools
   # still show in the view, and an abort ends the run there.
   test "a non-streaming turn shows its running tool, and an abort ends it" do

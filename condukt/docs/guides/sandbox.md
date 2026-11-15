@@ -417,10 +417,66 @@ Condukt.Sandbox.exec(sandbox, command, opts)
 Condukt.Sandbox.glob(sandbox, pattern, opts)
 Condukt.Sandbox.grep(sandbox, pattern, opts)
 Condukt.Sandbox.mount(sandbox, host_path, vfs_path)
+Condukt.Sandbox.start_process(sandbox, id, command, opts)
+Condukt.Sandbox.read_process(sandbox, id, offset, opts)
+Condukt.Sandbox.stop_process(sandbox, id)
 ```
 
 The sandbox is in `context.sandbox` when your tool's `call/2` is invoked.
 See the [Tools guide](tools.md) for an example.
+
+## Processes that outlive their caller
+
+`exec/3` runs a command and returns its whole output when it ends, in the
+process that asked. That suits short commands. A build or a test run that
+takes minutes needs more: its output while it runs, and a way to keep going
+when the process that started it is gone, such as a tool call that parked or
+a BEAM node that was redeployed.
+
+A sandbox that implements the optional process callbacks runs a command as a
+named process apart from its caller:
+
+```elixir
+:ok = Condukt.Sandbox.start_process(sandbox, "build-42", "mix test", cwd: "app", timeout: 600_000)
+
+{:ok, %{output: output, offset: offset, size: size, status: status}} =
+  Condukt.Sandbox.read_process(sandbox, "build-42", 0)
+
+:ok = Condukt.Sandbox.stop_process(sandbox, "build-42")
+```
+
+* `start_process/4` returns at once. It is idempotent on the id: starting an
+  id the sandbox already holds, running or exited, returns
+  `{:error, :already_started}` and leaves the process alone. Finding a
+  process again is therefore a matter of knowing its id, which is how a
+  session that restarts reattaches to the command a tool call started.
+  It takes `exec/3`'s `:cwd`, `:env`, and `:timeout`.
+* `read_process/4` reads the combined stdout and stderr from a byte offset,
+  at most `:max_bytes` (64 KiB by default), and returns the offset to read
+  from next, the log's size so far, and the status: `:running`,
+  `{:exited, exit_code}`, or `:timeout`. The status is taken before the
+  output, so once it is not `:running` the log is complete. `exit_code` is
+  `nil` when the process ended without the sandbox recording how, as when a
+  container restarts.
+* `stop_process/2` kills the process and what it started, and discards its
+  log and status.
+
+`Condukt.Sandbox.processes?/1` tells whether a sandbox has them. Where the
+process lives decides what it survives:
+
+| Sandbox | Process lives in | Survives the BEAM node restarting |
+| ------- | ---------------- | --------------------------------- |
+| `Local` | A task under Condukt's supervisor, running the command through `MuonTrap` | No: `MuonTrap` stops it with the node |
+| `Kubernetes` | The session's pod, under `/tmp/condukt-processes` | Yes, while the pod lives |
+| `Microsandbox` | The guest, under `/tmp/condukt-processes` | No: the microVM ends with the sandbox |
+| `Virtual` | Not supported: bashkit runs commands to completion | - |
+
+`Kubernetes` and `Microsandbox` start the process detached with `setsid`, so
+the image needs util-linux, which Debian and Ubuntu images include. Each
+`read_process/4` is one exec call into the pod or guest.
+
+`Condukt.Tools.Bash` runs its commands this way when the sandbox allows it,
+streams their output, and parks on long ones. See [Tools](tools.md#long-running-commands).
 
 ## Writing a custom sandbox
 
@@ -444,8 +500,10 @@ defmodule MyApp.S3Sandbox do
 end
 ```
 
-`glob/3`, `grep/3`, and `mount/3` are optional callbacks. The facade returns
-`{:error, :not_supported}` when a sandbox does not implement them.
+`glob/3`, `grep/3`, `mount/3`, and the process callbacks `start_process/4`,
+`read_process/4`, and `stop_process/2` are optional. The facade returns
+`{:error, :not_supported}` when a sandbox does not implement them, and
+`Condukt.Tools.Bash` falls back to `exec/3` on a sandbox without processes.
 
 ## Why sandboxes
 

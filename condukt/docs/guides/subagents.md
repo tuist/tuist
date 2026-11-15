@@ -354,8 +354,13 @@ Properties:
   is removed, and its failure is reported like an answer.
 - Foreground child sessions are one-shot. They are started for one task and
   terminated once it finishes or is aborted.
-- When a model emits multiple tool calls in one turn, Condukt executes them
-  concurrently and preserves result order in the conversation history.
+- When a model emits several sub-agent calls in a row in one turn, Condukt
+  runs them concurrently if none can change what a later call observes: each
+  role starts a sandbox of its own (`sandbox:` given as a spec in its
+  registration), or has only read-only tools and no sub-agents of its own.
+  A sub-agent that shares the parent's sandbox and can change it runs alone,
+  in call order. Result order in the conversation history is kept either
+  way, as "Concurrency" in `Condukt.Tool` describes.
 
 ## Events
 

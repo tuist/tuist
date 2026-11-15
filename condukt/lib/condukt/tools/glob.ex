@@ -26,6 +26,9 @@ defmodule Condukt.Tools.Glob do
   def replay_safe?, do: true
 
   @impl true
+  def read_only?(_opts), do: true
+
+  @impl true
   def description do
     """
     Find files by glob pattern (e.g. `**/*.ex`). Returns matching paths

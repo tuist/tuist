@@ -95,8 +95,10 @@ to `:call`.
   the wait's other keys, and a later park on any of them fails with
   `{:invalid_park, {:signal_key_used, key}}`. A second wait for the same kind
   of event uses a new key, such as `ci-1`, `ci-2`.
-* Other calls in the same round run as usual. Their results are kept, and the
-  model sees the whole round once every call has a result.
+* A parked call keeps its place in its round: calls after it start once it
+  wakes and returns, unless it and they are read-only, in which case they run
+  alongside it (see [Concurrency](tools.md#concurrency)). The model sees the
+  whole round once every call has a result.
 * Parks belong to the turn. When the turn ends, its keys close, and they stay
   closed in later turns of the session.
 

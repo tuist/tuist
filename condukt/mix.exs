@@ -179,6 +179,7 @@ defmodule Condukt.MixProject do
           Condukt.Tools,
           Condukt.Tools.Read,
           Condukt.Tools.Bash,
+          Condukt.Tools.Bash.Exited,
           Condukt.Tools.Command,
           Condukt.Tools.Edit,
           Condukt.Tools.Write,

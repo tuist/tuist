@@ -44,9 +44,19 @@ defmodule Condukt.Sandbox do
   ## Writing a custom sandbox
 
   Implement the `Condukt.Sandbox` behaviour. `init/1` builds the per-session
-  state; `shutdown/1` releases it; the rest are I/O primitives. Tools dispatch
+  state; `shutdown/1` releases it; the rest are I/O primitives. `glob/3`,
+  `grep/3`, `mount/3`, and the process callbacks are optional. Tools dispatch
   through this module's facade (`Condukt.Sandbox.read/2`, `.exec/3`, etc.) so
   custom sandboxes work with every built-in tool automatically.
+
+  ## Processes that outlive their caller
+
+  The optional `c:start_process/4`, `c:read_process/4`, and `c:stop_process/2`
+  run a command under a stable id, apart from the BEAM process that started
+  it: a caller reads its output from an offset as it runs, learns its exit
+  status, and kills it, and anyone who knows the id finds it again.
+  `Local`, `Kubernetes`, and `Microsandbox` implement them;
+  `Condukt.Tools.Bash` uses them when they are there and `exec/3` otherwise.
 
   ## Tool authoring rule
 
@@ -127,7 +137,57 @@ defmodule Condukt.Sandbox do
   """
   @callback cwd(state :: term()) :: binary()
 
-  @optional_callbacks [mount: 3, grep: 3, glob: 3]
+  @doc """
+  Starts `command` as a process named `id` that runs on its own, apart from
+  the BEAM process that started it, and returns at once.
+
+  `id` is any string. Starting is idempotent on it: when the sandbox already
+  holds a process under `id`, running or exited, it returns
+  `{:error, :already_started}` and leaves it alone, so a caller that lost
+  track of a process, such as a restarted session, finds it again by starting
+  it again. Output goes to a log the sandbox keeps, combined stdout and
+  stderr, until `c:stop_process/2`. Options are those of `c:exec/3`:
+
+    * `:cwd` — working directory
+    * `:env` — list of `{key, value}` strings to layer onto the base env
+    * `:timeout` — milliseconds after which the sandbox kills the command and
+      reports its status as `:timeout`
+  """
+  @callback start_process(state :: term(), id :: binary(), command :: binary(), opts :: keyword()) ::
+              :ok | {:error, :already_started | term()}
+
+  @doc """
+  Reads a process's output from byte `offset`, and its status.
+
+  Returns at most `:max_bytes` (default 64 KiB) as `output`, the `offset` to
+  read from next, the `size` of the whole log so far, and `status`:
+
+    * `:running`
+    * `{:exited, exit_code}` — `exit_code` is `nil` when the process ended
+      without the sandbox recording how, such as when its container restarted
+    * `:timeout` — the sandbox killed it after its `:timeout`
+
+  The status is taken before the output, so once it is not `:running`, the
+  log is complete and reading up to `size` gets all of it. Returns
+  `{:error, :not_found}` for an id the sandbox holds nothing for.
+  """
+  @callback read_process(state :: term(), id :: binary(), offset :: non_neg_integer(), opts :: keyword()) ::
+              {:ok,
+               %{
+                 output: binary(),
+                 offset: non_neg_integer(),
+                 size: non_neg_integer(),
+                 status: :running | {:exited, integer() | nil} | :timeout
+               }}
+              | {:error, :not_found | term()}
+
+  @doc """
+  Kills a process if it still runs, with the processes it started, and
+  discards its log and status. Stopping an unknown id returns `:ok`.
+  """
+  @callback stop_process(state :: term(), id :: binary()) :: :ok | {:error, term()}
+
+  @optional_callbacks [mount: 3, grep: 3, glob: 3, start_process: 4, read_process: 4, stop_process: 2]
 
   # ============================================================================
   # Construction & resolution
@@ -199,4 +259,32 @@ defmodule Condukt.Sandbox do
   end
 
   def cwd(%__MODULE__{module: module, state: state}), do: module.cwd(state)
+
+  @doc """
+  Whether the sandbox runs processes apart from their caller, through
+  `start_process/4`, `read_process/4`, and `stop_process/2`.
+  """
+  def processes?(%__MODULE__{module: module}) do
+    Code.ensure_loaded?(module) and function_exported?(module, :start_process, 4) and
+      function_exported?(module, :read_process, 4) and function_exported?(module, :stop_process, 2)
+  end
+
+  @doc "Starts a process named `id`. See `c:start_process/4`."
+  def start_process(%__MODULE__{} = sandbox, id, command, opts \\ []) when is_binary(id) do
+    if processes?(sandbox),
+      do: sandbox.module.start_process(sandbox.state, id, command, opts),
+      else: {:error, :not_supported}
+  end
+
+  @doc "Reads a process's output from `offset`, and its status. See `c:read_process/4`."
+  def read_process(%__MODULE__{} = sandbox, id, offset, opts \\ []) when is_binary(id) do
+    if processes?(sandbox),
+      do: sandbox.module.read_process(sandbox.state, id, offset, opts),
+      else: {:error, :not_supported}
+  end
+
+  @doc "Kills a process and discards its log. See `c:stop_process/2`."
+  def stop_process(%__MODULE__{} = sandbox, id) when is_binary(id) do
+    if processes?(sandbox), do: sandbox.module.stop_process(sandbox.state, id), else: {:error, :not_supported}
+  end
 end

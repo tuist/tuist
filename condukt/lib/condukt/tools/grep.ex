@@ -28,6 +28,9 @@ defmodule Condukt.Tools.Grep do
   def replay_safe?, do: true
 
   @impl true
+  def read_only?(_opts), do: true
+
+  @impl true
   def description do
     """
     Search file contents by regex. Returns matching lines as

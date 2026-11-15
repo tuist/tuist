@@ -394,7 +394,7 @@ defmodule Condukt.HooksTest do
     assert_receive {:DOWN, ^hook_ref, :process, ^hook, _reason}
   end
 
-  test "with hooks, every tool call in a response runs at once, more than there are schedulers" do
+  test "with hooks, every read-only tool call in a response runs at once, more than there are schedulers" do
     test_pid = self()
     count = System.schedulers_online() + 1
 
@@ -403,6 +403,7 @@ defmodule Condukt.HooksTest do
         name: "barrier",
         description: "waits for the test",
         parameters: %{type: "object", properties: %{}},
+        read_only: true,
         call: fn _args, _context ->
           send(test_pid, {:started, self()})
           receive(do: (:go -> {:ok, "passed"}))
