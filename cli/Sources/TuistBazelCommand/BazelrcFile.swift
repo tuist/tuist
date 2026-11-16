@@ -6,6 +6,10 @@ import TuistServer
 struct BazelExecutionConfiguration {
     let endpoint: GRPCEndpoint
     let image: String
+    /// Bazel's `--jobs`, which also caps remote actions in flight and otherwise
+    /// defaults to the client's CPU count: a 2 vCPU runner would execute 2 actions
+    /// at a time however much capacity the account has.
+    let jobs: Int?
 
     /// Accepts only a gRPC endpoint without credentials and an immutable image tag, the two values written
     /// verbatim into `.bazelrc.tuist`.
@@ -19,8 +23,16 @@ struct BazelExecutionConfiguration {
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path.isEmpty || url.path == "/"
         else { return nil }
-        return Self(endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"), image: image)
+        return Self(
+            endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"),
+            image: image,
+            jobs: capabilities.maxConcurrency.flatMap { $0 > 0 ? $0 * jobsPerSlot : nil }
+        )
     }
+
+    /// Actions kept in flight per execution slot, so each slot has its next action queued while
+    /// the previous one's result travels back. The server queues up to four per slot.
+    static let jobsPerSlot = 2
 }
 
 /// The `.bazelrc.tuist` that `tuist bazel setup` generates, and the one thing
@@ -100,7 +112,7 @@ enum BazelrcFile {
             build --remote_default_exec_properties=Arch=amd64
             build --remote_default_exec_properties=tuist-image=\(execution.image)
             build --noremote_local_fallback
-            \(helper)
+            \(execution.jobs.map { "build --jobs=\($0)\n" } ?? "")\(helper)
             """
         } else {
             executionConfiguration = ""

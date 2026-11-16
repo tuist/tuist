@@ -2,6 +2,8 @@ Mimic.copy(MuonTrap)
 Mimic.copy(ReqLLM)
 
 Code.require_file("support/llm_provider.ex", __DIR__)
+Code.require_file("support/outage_sandbox.ex", __DIR__)
+Condukt.Test.LLMProvider.start_event_server()
 
 # Virtual sandbox tests are tagged `:virtual_sandbox` and excluded by
 # default. They rely on the bashkit NIF and run reliably locally, but on

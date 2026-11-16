@@ -13,6 +13,7 @@
         private var serverSessionController: MockServerSessionControlling!
         private var subject: WhoamiService!
         private var configLoader: MockConfigLoading!
+        private var serverEnvironmentService: MockServerEnvironmentServicing!
         private var serverURL: URL!
 
         override func setUp() {
@@ -20,9 +21,12 @@
             serverSessionController = MockServerSessionControlling()
             configLoader = MockConfigLoading()
             serverURL = URL(string: "https://test.tuist.dev")!
+            serverEnvironmentService = MockServerEnvironmentServicing()
             given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
+            given(serverEnvironmentService).url(configServerURL: .value(serverURL)).willReturn(serverURL)
             subject = WhoamiService(
                 serverSessionController: serverSessionController,
+                serverEnvironmentService: serverEnvironmentService,
                 configLoader: configLoader
             )
         }
@@ -30,6 +34,7 @@
         override func tearDown() {
             serverSessionController = nil
             configLoader = nil
+            serverEnvironmentService = nil
             serverURL = nil
             subject = nil
             super.tearDown()

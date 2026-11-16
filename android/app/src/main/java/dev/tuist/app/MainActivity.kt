@@ -16,7 +16,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.TuistEnvironment
 import dev.tuist.app.data.auth.AuthRepository
-import dev.tuist.app.data.featureflags.FeatureFlagsRepository
 import dev.tuist.app.data.model.AuthState
 import dev.tuist.app.data.push.PushRegistrationManager
 import dev.tuist.app.navigation.TuistNavGraph
@@ -25,8 +24,6 @@ import dev.tuist.app.navigation.openWebTab
 import dev.tuist.app.ui.theme.TuistTheme
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -42,9 +39,6 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var environmentConfig: EnvironmentConfig
-
-    @Inject
-    lateinit var featureFlags: FeatureFlagsRepository
 
     @Inject
     lateinit var pushRegistrationManager: PushRegistrationManager
@@ -63,16 +57,6 @@ class MainActivity : ComponentActivity() {
 
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "Environment: ${environmentConfig.current.name} (${environmentConfig.serverUrl})")
-        }
-
-        // Refreshes the flags on launch, whenever the session changes, and when the app returns to the foreground.
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(authRepository.authState, authRepository.session) { state, session -> state to session }
-                    .distinctUntilChanged().collectLatest { (state, session) ->
-                        featureFlags.refresh(state, session)
-                    }
-            }
         }
 
         if (savedInstanceState == null) intent?.data?.let { uri ->

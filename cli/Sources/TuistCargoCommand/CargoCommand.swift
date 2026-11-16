@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistAlert
 import TuistProcess
 
 public struct CargoCommand: AsyncParsableCommand {
@@ -8,7 +9,7 @@ public struct CargoCommand: AsyncParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "cargo",
         abstract: "Run Cargo with Tuist build and test insights.",
-        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it."
+        discussion: "Cargo arguments are forwarded unchanged except Tuist shard options. Use 'test --no-run --shard-max N' to plan target-level shards, then set TUIST_SHARD_INDEX and TUIST_SHARD_PLAN_ID for 'test'. Plain tests apply mute/skip quarantine; TUIST_TEST_SKIP_QUARANTINE=1 disables it. With '[test_insights.coverage] upload = true' in tuist.toml, test runs report code coverage; once every test job of a commit has finished, 'coverage-complete [--commit <sha>]' marks the commit's coverage complete."
     )
 
     private static let testBuildHelp = """
@@ -65,10 +66,19 @@ public struct CargoCommand: AsyncParsableCommand {
             FileHandle.standardOutput.write(Data(Self.testBuildHelp.utf8))
             return
         }
+        let hook = ["__compiler", "__native", "__script"].contains(arguments.first ?? "")
+        // `tuist cargo` skips the CLI's completion output, which prints collected warnings; stdout is Cargo's.
+        defer {
+            if !hook {
+                for warning in AlertController.current.warnings() {
+                    FileHandle.standardError.write(Data("warning: Tuist: \(warning.message.plain())\n".utf8))
+                }
+            }
+        }
         do {
             try await CargoCommandService().run(arguments: arguments)
         } catch let CommandError.terminated(code, stderr, _) {
-            if !["__compiler", "__native", "__script"].contains(arguments.first ?? ""), !stderr.isEmpty {
+            if !hook, !stderr.isEmpty {
                 FileHandle.standardError.write(Data(stderr.utf8))
             }
             throw ExitCode(code)

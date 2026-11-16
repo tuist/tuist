@@ -420,7 +420,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		case isAlive(p):
 			alive++
 			staleImage := isStaleImage(p, pool)
-			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool) || isStaleExclusiveCPUs(p, pool)
 			switch {
 			case staleImage || staleRuntimeClassRevision:
 				staleAlive++

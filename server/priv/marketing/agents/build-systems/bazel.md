@@ -1,4 +1,4 @@
-# Tuist with Bazel
+# Bazel remote cache and build insights with Tuist
 
 Tuist brings Bazel-native depth to one productivity platform for organizations with diverse build systems. Its remote action cache and build/test insights use protocols Bazel already supports, alongside the platform's supported Gradle, Xcode, Mix, and canary Once workflows. Keep your `BUILD` files, language rules, toolchains, and ordinary build commands; no migration to generated Xcode projects or Tuist Runners is required.
 
@@ -28,15 +28,15 @@ Remote caching reuses an action's existing outputs. Remote execution runs a cach
 
 ## How Tuist augments it
 
-- **Reuse compatible action outputs across machines.** The [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) supplies the cache portion of the Remote Execution API. A matching action can download results produced elsewhere rather than execute again.
-- **Run eligible Linux actions remotely.** `tuist bazel setup --remote-execution` opts into the separate execution service for accounts with execution enabled and available capacity. Setup discovers the advertised executor and image; unavailable execution leaves cache-only configuration with a warning. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
+- **Reuse compatible action outputs across machines.** The [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) supplies the cache portion of the Remote Execution API. A matching action can download results produced elsewhere rather than execute again. The [Bazel remote cache guide](/marketing-markdown/solutions/bazel-remote-cache) explains how it works and compares self-hosted and managed caches.
+- **Run actions remotely.** For enabled accounts, `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it. Setup discovers the current executor and image and sizes `--jobs` to the remote capacity. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
 - **Investigate recorded build work.** [Build insights](/en/docs-markdown/guides/features/build-insights/bazel) collects build events and recorded profile data. Compare invocations, targets, cache behavior, and operations before changing execution capacity.
 - **Correlate tests over time.** [Test insights](/en/docs-markdown/guides/features/test-insights/bazel) collects outcomes and individual cases from supported reports. Reporting works with normal `bazel test` after setup.
 - **Apply explicit flaky-test policies.** The `tuist bazel test` wrapper retrieves and enforces documented quarantine policies. Muting and skipping have different boundaries; skipping a target also excludes its healthy sibling cases.
 
 ## First experiment
 
-Follow the [Bazel getting-started guide](/en/docs-markdown/guides/get-started/bazel-project). Run `tuist init` and select the Bazel workspace. If your CLI does not offer that option, authenticate and run `tuist bazel setup`.
+The Bazel remote cache is free on the Air plan within its tier limits, with no credit card required; the live [pricing table](/pricing) lists the allowance. Follow the [Bazel getting-started guide](/en/docs-markdown/guides/get-started/bazel-project). Run `tuist init` and select the Bazel workspace. If your CLI does not offer that option, authenticate and run `tuist bazel setup`.
 
 Commit `tuist.toml` and the generated `try-import %workspace%/.bazelrc.tuist` line in `.bazelrc`. Ignore `.bazelrc.tuist`: it contains a per-environment cache region and credential-helper path. Each machine needs its own setup.
 
@@ -45,7 +45,7 @@ bazel build //...
 bazel test //...
 ```
 
-Check build/test reports in Tuist and demonstrate remote reuse in a second compatible environment. Use the [flaky-test guide](/en/docs-markdown/guides/features/test-insights/flaky-tests/bazel) if you want quarantine applied through `tuist bazel test -- //...`. Follow provider-specific CI authentication, rather than copying a developer's local configuration.
+Check build/test reports in Tuist and demonstrate remote reuse in a second compatible environment. Use the [flaky-test guide](/en/docs-markdown/guides/features/test-insights/flaky-tests/bazel) if you want quarantine applied through `tuist bazel test -- //...`. Follow provider-specific CI authentication, rather than copying a developer's local configuration. For GitHub Actions, see [Bazel on GitHub Actions](/marketing-markdown/solutions/bazel-github-actions).
 
 ## Open infrastructure you can improve
 
@@ -57,4 +57,4 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 Written by Tuist. Sources reviewed on **2026-10-09**: [Bazel remote caching](https://bazel.build/remote/caching), [remote execution](https://bazel.build/remote/rbe), [Build Event Protocol](https://bazel.build/remote/bep), and the linked Tuist references. Compare the build system at bazel.build, not a remote-infrastructure vendor's offering.
 
-[All build systems](/marketing-markdown/build-systems) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)
+[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Bazel cache for GitHub Actions](/marketing-markdown/solutions/bazel-github-actions) · [BuildBuddy alternative](/marketing-markdown/compare/buildbuddy) · [EngFlow alternative](/marketing-markdown/compare/engflow) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)

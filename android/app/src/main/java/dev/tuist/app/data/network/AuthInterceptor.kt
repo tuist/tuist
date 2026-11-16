@@ -30,15 +30,6 @@ class AuthInterceptor @Inject constructor(
         }
         fun valid() = if (discovery != null) tokenStorage.credentials(discovery.profileId) != null else tokenStorage.isCurrent(session)
         val origin = session.origin?.toHttpUrl() ?: request.url
-        val path = request.url.pathSegments
-        val scopedAccount = when {
-            path.size >= 4 && path.take(2) == listOf("api", "accounts") && path[3] in listOf("jams", "threads") -> path[2]
-            else -> null
-        }
-        if (discovery == null && scopedAccount != null) {
-            val account = token?.let { dev.tuist.app.data.auth.JwtParser.parseAccount(it)?.handle }
-            if (account != null && scopedAccount != account) throw java.io.IOException("Organization changed")
-        }
 
         val authenticatedRequest = if (token != null) {
             request.newBuilder()

@@ -75,10 +75,9 @@ completed task cannot restore cleared history. Aborting a turn releases its
 wait without cancelling a background task that can still be reused. Returning
 `{:stop, reason, state}` from `handle_event/2` cancels the turn the same way.
 Late responses and stream events from a cancelled turn cannot dispatch tools,
-overwrite an adopted summary, or affect a replacement turn. Cancellation does
-not stop provider requests already in flight or roll back tools already admitted
-to execution. The cancelled caller finishes without waiting for that work;
-native retry backoff wakes and later provider attempts are rejected.
+overwrite an adopted summary, or affect a replacement turn. Cancellation shuts
+the turn's process down, which stops its provider request, retry backoff, and
+running tool calls, but it does not roll back side effects already made.
 
 ### Blocking fallback
 
@@ -108,7 +107,9 @@ as their rendered provider text, including JSON structure and rendered errors;
 tool arguments and schemas include their serialized structure too.
 These are heuristics, not exact tokenization, especially for images and
 non-English text. Leave headroom and
-bound large tool outputs for your model and workload.
+bound large tool outputs for your model and workload. A request the provider
+still rejects as too long is compacted and retried once, as described in
+[Context-length rejections](#context-length-rejections).
 
 Successful replacements are persisted through the existing session store.
 Pending tasks are not persisted and are recomputed after a restart.
@@ -123,6 +124,48 @@ finishes, reaches its worker timeout, or is explicitly aborted or cleared.
 The public manual call has a 300-second deadline, so use a shorter worker
 timeout when its caller must receive the result rather than time out first.
 
+## Context-length rejections
+
+Token estimates can admit a request that the provider then rejects for
+exceeding the model's context window. When a native model request fails that
+way and a compactor is configured, Condukt compacts and retries that request
+once, in buffered and streaming runs alike. A streaming request is retried
+only if it has not emitted any text or thinking yet. If compaction cannot
+change the history, fails, or the retry is rejected again, the run returns the
+provider's error and a stream emits it. Without a compactor, the error is
+returned as before.
+
+`Condukt.Retry.context_overflow?/1` decides what counts as a context-length
+rejection: HTTP `413`, a `400` whose provider message or error code names an
+exceeded context window, or a stream error event with such a message, such as
+OpenAI's `response.failed`. It recognizes Anthropic, OpenAI, Google (Gemini API
+and Vertex AI), Amazon Bedrock, xAI, Groq, Mistral, and OpenAI-compatible
+servers. It reads only the error's message, code, and type, never the request
+that was sent or input the provider echoes back. Other rejections, such as
+`max_tokens` above the model's output limit, are returned without compaction.
+
+With background compaction, a rejection bypasses the thresholds. A finished
+background result is adopted first, and when it shrinks the history the
+request is retried with it. Otherwise Condukt cancels any running speculative
+task and compacts the largest prefix before the active prompt, which keeps the
+prompt and everything appended during the turn, and waits for it as at the
+blocking threshold. The request is not retried when no history precedes the
+active prompt, that compaction fails, or its result still reaches
+`:blocking_threshold` by estimate.
+
+In synchronous mode the compactor has already run on the rejected history, so
+it runs once more on the full history, active prompt included. The request is
+retried only if that pass changes it.
+
+The previous pass produced a history that did not fit, so every compaction a
+rejection triggers, in either mode, adds `context_overflow: true` to the
+compactor's options. The built-in compactors shrink harder when they see it,
+as described below. A custom compactor can read the option too; one that
+ignores it runs as usual, and its rejection is returned when the history
+stays the same.
+
+Each overflow compaction emits the same telemetry as other compactions.
+
 ## Built-in compactors
 
 ### `Condukt.Compactor.Sliding`
@@ -131,12 +174,22 @@ Keeps the most recent N messages and drops everything older. Orphaned tool
 result messages (whose paired tool call was dropped) are removed so the
 conversation stays valid.
 
+With `context_overflow: true` it keeps half as many messages as it otherwise
+would: half of `:keep`, or half of a shorter history, and at least one. The
+window starts before a batch of tool results rather than inside it, so the
+newest tool calls keep their results.
+
 ### `Condukt.Compactor.ToolResultPrune`
 
 Replaces oversized historical tool result payloads with a short placeholder.
 The surrounding reasoning, user messages, and recent tool results are left
 intact. This is the right choice when tool output is large but the model
 still benefits from seeing what it asked and what it concluded.
+
+With `context_overflow: true` it also elides recent tool results larger than
+`:max_size`, since one of them may be what no longer fits. A rejection caused
+by user text or small tool results leaves the history unchanged, so the error
+is returned.
 
 ## Implementing a compactor
 
@@ -157,7 +210,9 @@ MyApp.CodingAgent.start_link(compactor: MyApp.SummarisingCompactor)
 ```
 
 `compact/2` returns `{:ok, messages}` on success or `{:error, reason}` to
-abort compaction (the original history is kept).
+abort compaction (the original history is kept). Its options include
+`context_overflow: true` when a provider rejected the previous history as too
+long; see [Context-length rejections](#context-length-rejections).
 
 In background mode, recent-history retention belongs to the session instead.
 A summarising callback can summarise its entire input prefix:
@@ -184,6 +239,10 @@ also contains `:status` (`:ok` or `:error`) and `:changed` (whether the messages
 actually changed). Pruning payloads can reduce bytes without changing the message
 count. No message content is included. Failed compactors preserve the original
 history and emit `status: :error, changed: false`.
+
+A compaction that a provider's context-length rejection triggered also carries
+`trigger: :overflow` in both events' metadata. Other compactions have no
+`:trigger` key.
 
 Use start/stop to show activity, and only report successful pruning when
 `changed: true`. A no-op is not a context summary. Manual compaction and completion

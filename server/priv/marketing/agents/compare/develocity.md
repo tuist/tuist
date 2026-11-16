@@ -1,6 +1,6 @@
-# Tuist vs Develocity: build infrastructure and build intelligence
+# Tuist vs Develocity: a Develocity alternative for Gradle build caching and insights
 
-Compare Tuist and Develocity for shared build infrastructure, caching, test visibility, and agent access to build evidence. Both help teams work from recorded results; the right choice depends on the environment and responsibilities you need.
+Tuist is a Develocity alternative for teams that want Gradle's remote build cache, build insights, and test history on the same platform as their Xcode and Bazel builds. Start with [Tuist Gradle Cache](/en/docs-markdown/guides/features/cache/gradle-cache) and [Gradle build insights](/en/docs-markdown/guides/features/build-insights/gradle). Develocity also records builds and shares cached outputs, so compare the two on the builds you run.
 
 ## What is Develocity?
 

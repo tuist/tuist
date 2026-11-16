@@ -30,7 +30,17 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   dispatch-poll rollout-bridge path does too), so it samples for the
   job's lifetime and its last line lands in the Pod logs -> Loki even
   after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
-  guest-wide memory (`/proc/meminfo`), cgroup memory
+  guest-wide memory (`/proc/meminfo`: total and available, then anon,
+  page cache, shmem, dirty/writeback and slab), the dind sidecar's
+  cgroup (`dind.*`, job containers included; `tuist-cache-volume`'s
+  `dind` and `mount-server` modes write it to the shared
+  `/var/run/tuist-dind-memory` every 3s, so pools without cache volumes
+  omit it, and `dind.age.s` exposes a stale sample), the guest's
+  OOM-kill count (`vm.oom_kill`, `/proc/vmstat`, any container) and,
+  once the kernel has killed something, its victim (`oom.victim`,
+  `oom.victim.anon.kb`, read by the sidecar from the kernel log, which
+  the runner cannot read, plus `oom.victim.container`/`.image`, or
+  `docker-build` for a build step), cgroup memory
   (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
   deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
   (`/proc/pressure/*`) avg10 fields are appended only when the guest
@@ -40,6 +50,34 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   (guest OOM vs CPU/memory starvation), which is otherwise invisible
   from outside the guest. Interval via
   `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
+- `/usr/local/bin/memory-report.sh` — the GitHub job-completed hook
+  (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED`, exported by `run-job.sh`). It
+  annotates a job the guest kernel killed a process in with an
+  `::error` naming the victim, and a job whose lowest `MemAvailable`
+  (which `vitals.sh` records in `/tmp/tuist-runner-memory-low`) fell
+  under 5% of the VM with a `::warning`; both suggest using less memory
+  or a larger runner, naming the JVM heap only when the victim was
+  `java`. It always exits 0: a
+  failing job-completed hook fails the job. Covered by
+  `memory-report_test.sh`.
+- The same `tuist-cache-volume` sidecar modes raise every process in
+  dockerd's cgroup tree (`0::/docker/...`: job and service containers,
+  BuildKit steps) to `oom_score_adj` 1000, sweeping every second. The
+  kernel log cannot name a victim's container (Docker's cgroups here
+  have no memory controller, and its PIDs are from a namespace the
+  sidecar cannot see), so the sweep remembers each container process's
+  name and memory, and the victim is the same-named process that a
+  sweep before the kill saw and one after it does not. Never match by
+  memory size alone: a runaway process grows by gigabytes per second.
+  `metrics-sampler.sh` reads the report through a read-only mount on
+  cache-volume pools and sends the victim with the job's metrics.
+  Docker starts containers at 0 while the Pod's processes run at the
+  kubelet's ~870, so a VM filled by container JVMs used to kill the
+  runner ("lost communication") and then dockerd. Now the largest
+  container process goes first, its step exits 137 and the runner
+  survives to run the hook above. Pools without cache volumes run
+  dockerd directly and keep the old order; adding the sweep there
+  would change the sidecar command and replace every Pod.
 - `/usr/local/bin/metrics-sampler.sh` — machine-metrics sampler for
   the job detail page's Metrics tab. Unlike `vitals.sh` (which logs to
   stdout from the runner container), this POSTs structured
@@ -57,6 +95,14 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   and `MemAvailable` in the same pass — kata hot-plugs the sandbox up
   to the shape's memory after boot, so a total cached at sidecar
   start goes stale mid-job. `metrics-sampler_test.sh` covers both.
+- `externals/node{20,24}{,_alpine}/bin/node` — the node shim
+  (`cmd/tuist-node-shim`), with the runner's node renamed to `node.real` beside
+  it. The runner sets `ACTIONS_RESULTS_URL` immediately before it starts each
+  JavaScript action, so only the shim can point it at the cache agent
+  (`TUIST_CACHE_VOLUME_URL`). It does so only for GitHub's own results URL,
+  after `/actions-cache/healthz` answered within 150 ms, and not when the job
+  sets `TUIST_ACTIONS_CACHE` to `0` or `false`. A runner release that changes
+  its node externals fails the image build until the shim covers them.
 - `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
   Built from the Go source in `cmd/runner-shell-agent/`. The trusted
   `shell` native sidecar waits for the poller to stage a JIT (claimed

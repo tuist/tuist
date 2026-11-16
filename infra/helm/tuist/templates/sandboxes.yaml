@@ -14,6 +14,10 @@
 {{- end }}
 {{- $serverName := include "tuist.componentName" (dict "root" . "component" "server") }}
 {{- $serverURL := printf "http://%s.%s.svc.cluster.local:%v" $serverName .Release.Namespace (.Values.server.service.port | default 80) }}
+{{- /* The node-local runner-cache agent serves workers' repository checkouts. */}}
+{{- $checkoutAgent := and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
+{{- $checkoutAgentName := include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
+{{- $checkoutAgentNamespace := include "tuist.runnerCacheVolumesNamespace" . }}
 {{- /*
 Sandboxes run in their own namespace, like runners: the daemon Pod is
 privileged (it drives /dev/kvm and creates tap devices and network
@@ -206,6 +210,8 @@ spec:
               value: {{ $templateTag | quote }}
             - name: TEMPLATE_DIR
               value: "/host/templates/{{ .Values.sandboxes.templateName }}/{{ $templateTag }}"
+            - name: ROOTFS_SIZE
+              value: "{{ .Values.sandboxes.rootfsGiB }}G"
           volumeMounts:
             - name: data
               mountPath: /host
@@ -262,10 +268,24 @@ spec:
             {{- if .Values.sandboxes.networkPolicy.archiveStoreEgress }}
             {{- $daemonOnlyPorts = append $daemonOnlyPorts 3900 }}
             {{- end }}
+            {{- if $checkoutAgent }}
+            {{- $daemonOnlyPorts = append $daemonOnlyPorts 8090 }}
+            {{- end }}
             - name: DAEMON_ONLY_TCP_PORTS
               value: {{ join "," $daemonOnlyPorts | quote }}
             - name: GUESTS_REACH_SERVER
               value: {{ .Values.sandboxes.networkPolicy.guestServerAccess | default false | quote }}
+            {{- if $checkoutAgent }}
+            # Seeds workers' repositories from the node's checkout masters and
+            # takes their exports; the Service keeps traffic on this node.
+            - name: CHECKOUT_AGENT_URL
+              value: "http://{{ $checkoutAgentName }}.{{ $checkoutAgentNamespace }}.svc.cluster.local:8090"
+            {{- if .Values.sandboxes.checkoutWorkspacesGiB }}
+            # Prepared workspaces built from those seeds, out of DISK_BUDGET_GIB.
+            - name: CHECKOUT_WORKSPACES_GIB
+              value: {{ .Values.sandboxes.checkoutWorkspacesGiB | quote }}
+            {{- end }}
+            {{- end }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}
@@ -371,7 +391,8 @@ spec:
 # Gates the daemon Pod and, through the NAT, every sandbox on the node:
 # ingress only for metrics scraping and the admin API, egress to DNS, the
 # in-cluster server (the daemon's node connection; the daemon drops guest
-# traffic to it unless guestServerAccess is set), and the public internet
+# traffic to it unless guestServerAccess is set), the node's runner-cache
+# agent when Linux cache volumes are on (guest traffic dropped too), and the public internet
 # on 80/443 with the cluster ranges carved out.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -439,6 +460,20 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+    {{- if $checkoutAgent }}
+    # The node's runner-cache agent, for workers' checkouts; the daemon drops
+    # guest traffic to its port.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $checkoutAgentNamespace | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: runner-cache-volumes
+      ports:
+        - protocol: TCP
+          port: 8090
+    {{- end }}
     {{- if .Values.sandboxes.networkPolicy.kuraEgress }}
     - to:
         - namespaceSelector:

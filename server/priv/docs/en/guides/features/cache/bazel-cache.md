@@ -7,7 +7,7 @@
 ---
 # Bazel cache {#bazel-cache}
 
-Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache. When an action's outputs are already in the cache, Bazel skips the action and pulls the result from Tuist's cache, saving compilation time across your team and CI environments.
+Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache. When an action's outputs are already in the cache, Bazel skips the action and pulls the result from Tuist's cache, saving compilation time across your team and CI environments. For a GitHub Actions setup, see [Bazel on GitHub Actions](https://tuist.dev/solutions/bazel-github-actions). For how remote caching works and how self-hosted and managed caches compare, see [Bazel remote cache](https://tuist.dev/solutions/bazel-remote-cache).
 
 ## Setup {#setup}
 
@@ -38,6 +38,20 @@ bazel build //...
 Cache activity then appears on the project's **Bazel Cache** page in the Tuist dashboard, which shows cache transfer, downloads and uploads, read and write latency, throughput, and the action-cache hit rate. The project **Overview** carries a summary of the same action-cache hit rate alongside build duration.
 
 To see how one command used the cache, open it from **Invocations**. The invocation page separates action-cache lookups from content-object requests, so you can tell a cold action cache apart from a slow artifact download.
+
+## Remote execution {#remote-execution}
+
+Tuist can also run your Bazel actions on its Linux executors, so cache misses run remotely instead of on the local machine or CI runner. Remote execution is available for enabled accounts; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it for yours. Then pass `--remote-execution` to setup:
+
+```bash
+tuist bazel setup --remote-execution
+```
+
+Setup then points Bazel at Tuist's executor in `.bazelrc.tuist`, next to the remote cache. It looks up the current executor and image each time it runs, so rerun setup rather than copying the generated values. Actions run with the executor's Linux toolchain, not the tools installed on your machine, so declare the toolchains your actions need in the workspace.
+
+Setup also sets `--jobs` to twice the number of remote actions your account can run at once, so each one has the next action waiting. Without that, Bazel runs as many actions in parallel as the machine has cores, and a 2-core CI runner keeps only two remote actions in flight.
+
+To use a different value, pass `--jobs` on the command line, or set it in `.bazelrc` after the `try-import` line. Bazel uses the last value it reads, so a `--jobs` before that line is replaced by the generated one.
 
 ## Build insights {#build-insights}
 

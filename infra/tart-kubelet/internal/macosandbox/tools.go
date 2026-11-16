@@ -93,16 +93,78 @@ func provisionAmpCLI(ctx context.Context, tools string, client *http.Client) err
 	return os.Rename(staged, path)
 }
 
-// keepAmpCLI retries the download until it succeeds. Guests bootstrap with
-// Amp's installer meanwhile, so a failure only costs Orb startup time.
-func keepAmpCLI(ctx context.Context, tools string) {
+// claudeCodeBase is where Anthropic publishes Claude Code builds. The host
+// shares the build sbx-worker pins (claudeCodeVersion in
+// infra/sandbox-image/cmd/sbx-worker/claude_code.go; keep the two in step), so
+// a new Claude Code session copies it from the share instead of downloading
+// it in every new guest.
+var claudeCodeBase = "https://downloads.claude.ai/claude-code-releases"
+
+var (
+	claudeCodeVersion      = "2.1.311"
+	claudeCodeDarwinSHA256 = "85d8c08707fcfd1e78ffa0204eefbc6ec9e4fe22f375fb2767ef85d957ed3161"
+)
+
+// provisionClaudeCode keeps the pinned, checksum-verified darwin-arm64 build at
+// claude-code/<version>/claude in the tools directory, where sbx-worker looks
+// for it. The binary is a few hundred MB, so it is streamed to disk.
+func provisionClaudeCode(ctx context.Context, tools string, client *http.Client) error {
+	dir := filepath.Join(tools, "claude-code", claudeCodeVersion)
+	path := filepath.Join(dir, "claude")
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, claudeCodeBase+"/"+claudeCodeVersion+"/darwin-arm64/claude", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET Claude Code %s: %s", claudeCodeVersion, resp.Status)
+	}
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	staged, err := os.CreateTemp(dir, ".claude-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(staged.Name())
+	hash := sha256.New()
+	_, err = io.Copy(io.MultiWriter(staged, hash), io.LimitReader(resp.Body, 1<<30))
+	if err == nil {
+		err = staged.Sync()
+	}
+	if closeErr := staged.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	if fmt.Sprintf("%x", hash.Sum(nil)) != claudeCodeDarwinSHA256 {
+		return errors.New("Claude Code checksum mismatch")
+	}
+	// Make it executable before it appears under its shared name.
+	if err = os.Chmod(staged.Name(), 0755); err != nil {
+		return err
+	}
+	return os.Rename(staged.Name(), path)
+}
+
+// keepProvisioned retries a guest download until it succeeds. Guests fetch
+// the tool themselves meanwhile, so a failure only costs session startup time.
+func keepProvisioned(ctx context.Context, tools, name string, provision func(context.Context, string, *http.Client) error) {
 	client := &http.Client{Timeout: 10 * time.Minute}
 	for {
-		err := provisionAmpCLI(ctx, tools, client)
+		err := provision(ctx, tools, client)
 		if err == nil {
 			return
 		}
-		slog.Warn("macOS sandbox Amp CLI download", "error", err)
+		slog.Warn("macOS sandbox guest tool download", "tool", name, "error", err)
 		select {
 		case <-ctx.Done():
 			return

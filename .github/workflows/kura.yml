@@ -9,6 +9,7 @@ on:
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
+      - .github/scripts/tuist-bazel-setup.sh
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +17,7 @@ on:
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
+      - .github/scripts/tuist-bazel-setup.sh
   merge_group: {}
 
 permissions:
@@ -81,10 +83,8 @@ jobs:
       # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
       # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking the merge.
       # (Bazel has no local fallback for a gRPC cache that errors mid-build.)
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -148,10 +148,8 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -216,10 +214,8 @@ jobs:
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       # Remote cache is best-effort here too (see bazel-compile): falls back to a cold local build.
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -316,10 +312,8 @@ jobs:
       # zstd (for the image archive below) is on ubuntu-latest but not the tuist-linux runner.
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen) and zstd
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config zstd
-      - name: Set up the Tuist remote cache
-        run: |
-          tuist auth login
-          tuist bazel setup
+      - name: Set up the Tuist remote cache and remote execution
+        run: ../.github/scripts/tuist-bazel-setup.sh
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}

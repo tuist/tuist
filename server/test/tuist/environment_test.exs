@@ -4,6 +4,14 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  test "handle policies exempt app only for projects and preserve migration reservations" do
+    account_handles = Environment.blocked_account_handles()
+
+    assert "app" in account_handles
+    assert Environment.blocked_project_handles() == account_handles -- ["app"]
+    assert Application.fetch_env!(:tuist, :blocked_handles) == account_handles
+  end
+
   describe "mail_configured?/1" do
     setup do
       stub(System, :get_env, fn name, default ->
@@ -818,6 +826,23 @@ defmodule Tuist.EnvironmentTest do
     # tells certificates from online keys.
     test "reads the unified license value" do
       assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
+    end
+  end
+
+  describe "sentry_pulse_dsn/2" do
+    # The processors and registry sync share the web pods' config Secret, but
+    # Pulse admits only web pods, so only they may copy errors there.
+    test "returns the Pulse DSN only in web mode" do
+      secrets = %{"sentry" => %{"pulse_dsn" => "http://sentry:pw@pulse:4000/v1/sentry/server/1"}}
+
+      assert Environment.sentry_pulse_dsn(secrets, :web) ==
+               "http://sentry:pw@pulse:4000/v1/sentry/server/1"
+
+      for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
+        assert Environment.sentry_pulse_dsn(secrets, mode) == nil
+      end
+
+      assert Environment.sentry_pulse_dsn(%{"sentry" => %{"pulse_dsn" => ""}}, :web) == nil
     end
   end
 end

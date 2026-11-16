@@ -57,7 +57,8 @@ Each entry is `role: AgentModule`, `role: {AgentModule, opts}`, or
 `role: opts` for an anonymous child agent. The role atom is the identifier the
 parent model uses. Most registration opts are passed to the child session
 startup call. `:input`, `:input_schema`, `:output`, and `:output_schema` are
-reserved for the sub-agent contract.
+reserved for the sub-agent contract, and `:background` makes the role a
+[background sub-agent](#background-sub-agents).
 
 Anonymous child agents use the internal anonymous agent module, so you can
 configure the child inline with session options such as `:model`,
@@ -122,6 +123,127 @@ The model sees a role-specific schema. Fields listed in the JSON Schema
 When the model calls the tool, Condukt validates the optional structured input,
 starts a child session, runs the task, returns the final result as the tool
 result, and then terminates the child session.
+
+## Ownership and cancellation
+
+Ownership follows the process tree. Each turn runs in its own process under
+the parent session, each tool call in a process linked to the turn, and a
+`subagent` call starts a supervisor linked to itself and runs its child session
+under it. The child's turn and tool calls hang below the child the same way.
+
+- `Condukt.abort/1` on the parent, a `{:stop, reason, state}` from its
+  `handle_event/2`, and `Condukt.clear/1` shut the turn's process down before
+  they return. Its tool calls go down with it through their links. When a
+  `subagent` call goes down, its supervisor shuts the child session down,
+  which takes the child's own turn, tool calls, and sub-agents with it, all
+  the way down the tree.
+- The parent's turn ends only once its tool calls have returned, so it is
+  never idle while a foreground child still runs.
+- A tool that must not stop halfway opts out with `c:Condukt.Tool.on_abort/1`
+  returning `:finish`, and runs to the end with its result discarded. See
+  "Aborts" in `Condukt.Tool`.
+
+Background sub-agents are owned by the parent session, not a turn, and keep
+working through an abort. The `background_subagent` tool asks to finish, so an
+abort never leaves a sub-agent started but unregistered. A `wait` in progress
+ends with `{:error, :aborted}`.
+
+## Streaming child events
+
+When the parent streams, a foreground child streams too, and each of its
+events reaches the parent's stream and notifier tagged with the parent's tool
+call:
+
+```elixir
+{:subagent, tool_call_id, event}
+```
+
+`event` is any event from the
+[event vocabulary](streaming-and-events.md#event-vocabulary), including the
+child's `:done`. The `tool_call_id` matches the `{:tool_call, "subagent", id,
+args}` event the parent emitted, so a UI can render the child's work under the
+call that started it:
+
+```elixir
+parent
+|> Condukt.stream("Research the release notes")
+|> Enum.each(fn
+  {:tool_call, "subagent", id, %{"role" => role}} -> IO.puts("[#{id}] #{role} started")
+  {:subagent, id, {:text, chunk}} -> IO.write("[#{id}] " <> chunk)
+  {:tool_result, id, _result} -> IO.puts("\n[#{id}] finished")
+  {:text, chunk} -> IO.write(chunk)
+  _event -> :ok
+end)
+```
+
+Forwarded events are not passed to the parent's `handle_event/2`. When the
+parent uses `Condukt.run/3`, children run without streaming and nothing is
+forwarded. A child whose runtime cannot stream runs without streaming too.
+
+## Background sub-agents
+
+A role registered with `background: true` is a persistent sub-agent: a named
+session that keeps its conversation, works while the parent answers, and
+reports back when it is done.
+
+```elixir
+def subagents do
+  [
+    researcher: MyApp.ResearchAgent,
+    reader: {MyApp.ReaderAgent, background: true}
+  ]
+end
+```
+
+Background roles are offered through a second built-in tool,
+`background_subagent`, and one-shot roles through `subagent`; an agent with
+both kinds gets both tools. The parent model calls `background_subagent` with
+an `action`:
+
+| Action | Arguments | Effect |
+| ------ | --------- | ------ |
+| `spawn` | `name`, `role`, `message`, optional `input` | Starts a sub-agent called `name` and gives it its first task. |
+| `send` | `name`, `message`, optional `follow_up` | Steers the sub-agent's current work, or with `follow_up: true` queues the message after its current answer. An idle sub-agent starts on it at once. |
+| `wait` | `name` | Returns the sub-agent's latest answer once it is idle. |
+| `stop` | `name` | Aborts its current work and drops its queued messages. The sub-agent stays usable. |
+| `list` | | Every sub-agent with its role, session id, and `working` or `idle` status. |
+
+Every answer the parent did not `wait` for is posted back to the parent as a
+user message, such as `[subagent reader answered] ...`, or
+`[subagent reader failed: ...]` when its turn failed. It starts a parent turn
+when the parent is idle, or waits behind the current one and any queued input.
+A report still waiting when `wait` returns the same answer is withdrawn, so
+the parent hears each answer once. Aborting the parent's turn keeps waiting
+reports: an answer already given still arrives. A stopped turn reports
+nothing. With an `:output` schema, the report and `wait` carry the validated
+structured result.
+
+Ownership works differently from foreground calls:
+
+- A background sub-agent belongs to the parent session. Aborting a parent turn
+  does not stop it; only `stop`, or stopping the parent session, does.
+- It is registered under its parent and name. Host code finds it with
+  `Condukt.Tools.BackgroundSubagent.whereis(parent, name)` and drives it with
+  the usual functions, such as `Condukt.history/1`, `Condukt.steer/2`, or
+  `Condukt.abort/1`. Two spawns cannot take the same name.
+- A `wait` call belongs to the turn that made it, like any tool call. Aborting
+  that turn ends the wait, and the answer is reported as a follow-up instead.
+- The sub-agent's events are forwarded to the parent's notifier, tagged with
+  the `spawn` call's id, for as long as it lives. They do not go to a parent
+  stream, which ends with its turn. A viewer of the parent sees each
+  sub-agent under its name in the view's `background`, with its status and
+  current turn; see [Watching a session](streaming-and-events.md#watching-a-session).
+  A `:notifier` set on the role still receives the sub-agent's own events.
+
+Background sub-agents live only in memory: they end with the parent session
+and are not restored with its conversation. Sub-agents of both kinds record
+the parent's session id as their parent, so `Condukt.Sessions.children/1`
+lists them and `Condukt.Sessions.abort/2` on the parent reaches them. For
+children that outlive a process, run on other nodes, or are the host's own
+objects, such as threads, see [Child Sessions](child-sessions.md). Their roles must use the native
+runtime, because their turns start from queued input and stream to the
+manager that tracks them; `spawn` returns
+`{:error, {:background_subagent_requires_native_runtime, agent}}` otherwise.
 
 ## Structured input and output
 
@@ -219,19 +341,26 @@ connections across agents.
 
 ## Supervision
 
-A parent session with sub-agents starts a linked `DynamicSupervisor`.
-Sub-agent sessions are started on demand under that supervisor with
-`restart: :temporary`.
+A foreground child runs under a `DynamicSupervisor` its tool call starts and
+stops, with `restart: :temporary`. A parent session with sub-agents also starts
+a linked `DynamicSupervisor` for its background sub-agents and their manager.
 
 Properties:
 
-- Stopping the parent session stops the sub-agent supervisor and its children.
+- Stopping the parent session stops the sub-agent supervisor and its children,
+  background ones included.
 - A child that fails to start or crashes returns an error to the parent tool
-  call. The parent session keeps running.
-- Child sessions are one-shot in this version. They are started for one task
-  and terminated after `Condukt.run/2` returns.
-- When a model emits multiple tool calls in one turn, Condukt executes them
-  concurrently and preserves result order in the conversation history.
+  call. The parent session keeps running. A background sub-agent that crashes
+  is removed, and its failure is reported like an answer.
+- Foreground child sessions are one-shot. They are started for one task and
+  terminated once it finishes or is aborted.
+- When a model emits several sub-agent calls in a row in one turn, Condukt
+  runs them concurrently if none can change what a later call observes: each
+  role starts a sandbox of its own (`sandbox:` given as a spec in its
+  registration), or has only read-only tools and no sub-agents of its own.
+  A sub-agent that shares the parent's sandbox and can change it runs alone,
+  in call order. Result order in the conversation history is kept either
+  way, as "Concurrency" in `Condukt.Tool` describes.
 
 ## Events
 
@@ -241,12 +370,11 @@ metadata identifies the parent agent, role, child agent, whether structured
 input and output contracts are configured, and the final `:status`.
 
 The telemetry never includes task text, structured input values, or structured
-output values.
+output values. Background sub-agents emit the child sessions' own telemetry,
+and no `[:condukt, :subagent, ...]` span.
 
-For now, child stream events are not forwarded to the parent stream. The parent
-stream observes the `subagent` tool call and the matching tool result.
-Forwarding child events as tagged parent events can be added later without
-changing the declaration API.
+Child stream events reach the parent as `{:subagent, tool_call_id, event}`; see
+[Streaming child events](#streaming-child-events).
 
 ## Errors
 
@@ -258,4 +386,5 @@ Unknown roles return:
 
 Child start failures and child crashes return `{:error, reason}` from the
 tool call. The model receives that error as the tool result and can recover in
-the next turn.
+the next turn. An aborted call returns nothing; the parent's caller gets
+`{:error, :aborted}`.

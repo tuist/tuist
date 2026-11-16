@@ -216,12 +216,10 @@ defmodule Tuist.ObservabilityTest do
     account = %Account{id: 42}
     stub(Environment, :env, fn -> :prod end)
     ref = TelemetryCapture.attach_event_handlers([[:tuist, :feature_flag, :evaluation]])
-    expect(FunWithFlags, :enabled?, fn :immutable_shard_reports, [for: ^account] -> true end)
-    expect(FunWithFlags, :enabled?, fn :xcode_coverage, [for: ^account] -> true end)
+    stub(FunWithFlags, :enabled?, fn :immutable_shard_reports, [for: ^account] -> true end)
 
     refute FeatureFlags.immutable_shard_reports_enabled?(account)
 
-    assert_receive {[:tuist, :feature_flag, :evaluation], ^ref, _, %{flag: "xcode_coverage", enabled: true}}
     assert_receive {[:tuist, :feature_flag, :evaluation], ^ref, _, %{flag: "immutable_shard_reports", enabled: false}}
   end
 

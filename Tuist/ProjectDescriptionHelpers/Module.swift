@@ -306,6 +306,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystemTesting"),
                     .external(name: "Mockable"),
                     .external(name: "TSCTestSupport"),
+                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -547,7 +548,9 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies
+        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies + [
+            .external(name: "TestCoverageAttribution"),
+        ]
     }
 
     public var strictConcurrencySetting: String? {
@@ -1312,6 +1315,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.ci.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),
@@ -1651,6 +1655,7 @@ public enum Module: String, CaseIterable {
             case .sandboxCommand:
                 [
                     .target(name: Module.server.targetName),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.nooraExtension.targetName),

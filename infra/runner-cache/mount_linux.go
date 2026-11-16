@@ -200,3 +200,9 @@ func FilesystemSpace(path string) (available, capacity uint64, err error) {
 	}
 	return st.Bavail * uint64(st.Bsize), st.Blocks * uint64(st.Bsize), nil
 }
+
+// startWriteback writes file's dirty pages out and waits for them, without the
+// journal commit and device flush of an fsync.
+func startWriteback(file *os.File) error {
+	return unix.SyncFileRange(int(file.Fd()), 0, 0, unix.SYNC_FILE_RANGE_WAIT_BEFORE|unix.SYNC_FILE_RANGE_WRITE|unix.SYNC_FILE_RANGE_WAIT_AFTER)
+}

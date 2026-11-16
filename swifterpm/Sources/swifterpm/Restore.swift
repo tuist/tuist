@@ -561,7 +561,7 @@ enum WorkspaceRestorer {
         } else {
             artifactPath = packagePath
                 .appendingPathComponent(path)
-                .standardizedFileURL
+                .syntacticallyStandardizedFileURL
         }
         return canonicalize ? PathCanonicalizer.realpath(artifactPath) : artifactPath
     }
@@ -1358,10 +1358,12 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
+                // These repositories are stripped below; detached maintenance must not
+                // keep creating and deleting objects while we remove their Git metadata.
                 do {
                     try await SystemProcess.run(
                         "/usr/bin/git",
-                        ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                        ["-C", destination.path, "fetch", "--no-auto-maintenance", "--depth=1", "origin", revision],
                         environment: SystemProcess.nonInteractiveGitEnvironment
                     )
                 } catch {
@@ -1372,7 +1374,7 @@ enum WorkspaceRestorer {
                     }
                     try await SystemProcess.run(
                         "/usr/bin/git",
-                        ["-C", destination.path, "fetch", "origin", revision],
+                        ["-C", destination.path, "fetch", "--no-auto-maintenance", "origin", revision],
                         environment: SystemProcess.nonInteractiveGitEnvironment
                     )
                 }
@@ -1394,8 +1396,8 @@ enum WorkspaceRestorer {
 
     private static func removeGitMetadata(in source: URL) async throws {
         for path in try await submodulePaths(in: source) {
-            let child = source.appendingPathComponent(path).standardizedFileURL
-            guard child.path.hasPrefix(source.standardizedFileURL.path + "/"),
+            let child = source.appendingPathComponent(path).syntacticallyStandardizedFileURL
+            guard child.path.hasPrefix(source.syntacticallyStandardizedFileURL.path + "/"),
                   fileSystem.isDirectoryAndNotSymlink(child) else { continue }
             try await removeGitMetadata(in: child)
         }
@@ -1409,7 +1411,7 @@ enum WorkspaceRestorer {
         guard try await !submodulePaths(in: destination).isEmpty else {
             return
         }
-        var arguments = ["-C", destination.path]
+        var arguments = ["-C", destination.path, "-c", "maintenance.auto=false"]
         if allowFileProtocol {
             arguments.append(contentsOf: ["-c", "protocol.file.allow=always"])
         }

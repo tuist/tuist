@@ -39,6 +39,19 @@ defmodule AtlasWeb.LabelsLive do
     end
   end
 
+  def handle_event("relay_token", %{"clientId" => client}, socket) do
+    case Labels.request(
+           socket.assigns.current_user,
+           :relay_token,
+           socket.assigns.session_id,
+           %{"clientId" => client},
+           "dashboard"
+         ) do
+      {:ok, %{"relayToken" => token}} -> {:reply, %{token: token}, socket}
+      {:error, _, message} -> {:reply, %{error: message}, socket}
+    end
+  end
+
   defp refresh(socket) do
     case Labels.request(socket.assigns.current_user, :status, socket.assigns.session_id, %{}, "dashboard") do
       {:ok, state} ->
@@ -123,7 +136,7 @@ defmodule AtlasWeb.LabelsLive do
           <.card title="While this tab is connected" icon="lock_open_2">
             <.card_section>
               <p>
-                Your agent can print batches and cut through this tab without asking. Disconnect or close the tab to stop it.
+                Your agent can print batches of up to 20 labels and cut through this tab without asking, one batch at a time; a larger batch waits for your review. Disconnect or close the tab to stop it.
               </p>
               <p>
                 Labels print one at a time in order and are cut after each label unless the agent turns cutting off. When your agent asks for a review, it sends an Atlas link showing the whole batch first.
@@ -181,19 +194,34 @@ defmodule AtlasWeb.LabelsLive do
 
   defp labels_table(assigns) do
     ~H"""
-    <.table id={@id} rows={@jobs} row_key={& &1["id"]}>
-      <:col :let={job} label="#">{(job["batchIndex"] || 0) + 1}</:col>
-      <:col :let={job} label="Label">
+    <.table id={@id} rows={Enum.with_index(@jobs, 1)} row_key={fn {job, _} -> job["id"] end}>
+      <:col :let={{_, position}} label="#">
+        <span data-part="label-position">{position}</span>
+      </:col>
+      <:col :let={{job, _}} label="Label">
         <img
           :if={job["action"] == "print"}
           data-part="label-preview"
           src={"/operations/labels/#{@session_id}/jobs/#{job["id"]}/preview"}
           alt={job["title"]}
         />
+        <div :if={job["sizing"]} data-part="label-sizing">
+          <p>
+            Bitmap: {job["sizing"]["bitmapWidthPx"]} × {job["sizing"]["bitmapHeightPx"]} px.
+            Preview request: {job["widthMm"]} × {job["heightMm"]} mm.
+          </p>
+          <p :if={job["sizing"]["mode"] == "continuous"}>
+            Nominal SDK page length before feed/trailer: {Float.round(
+              job["sizing"]["nominalLengthMm"],
+              1
+            )} mm (before margin adjustments).
+          </p>
+          <p>{job["sizing"]["notice"]}</p>
+        </div>
         <span :if={job["action"] == "cut"}>Cut only</span>
       </:col>
-      <:col :let={job} label="Text">{job["title"]}</:col>
-      <:col :let={job} label="State">
+      <:col :let={{job, _}} label="Text">{job["title"]}</:col>
+      <:col :let={{job, _}} label="State">
         <span data-part="label-state" data-state={job["state"]}>{result(job)}</span>
         <span :if={job["note"] && job["state"] == "preview-only"} data-part="label-note">
           {job["note"]}

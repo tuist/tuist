@@ -38,7 +38,7 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayNameTest do
 
     assert {:error, message} = SetOVHServerDisplayName.execute(conn, @rename)
     assert [%{id: id, server_name: "ovh-services"}] = MCP.list_pending_tool_approvals(owner)
-    assert message =~ "/admin/mcps#mcp-approval-#{id}"
+    assert message =~ "/approvals/#{id}"
     refute_received {:put, _}
 
     assert {:ok, _} = MCP.decide_tool_approval(owner, id, "approved")

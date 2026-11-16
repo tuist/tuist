@@ -60,7 +60,7 @@ msgstr "平均"
 msgid "Bad request"
 msgstr "请求无效"
 
-#: lib/tuist_web/components/app_layout_components.ex:585
+#: lib/tuist_web/components/app_layout_components.ex:617
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "账单"
@@ -104,7 +104,7 @@ msgstr "创建组织"
 msgid "Download macOS app"
 msgstr "下载 macOS 应用"
 
-#: lib/tuist_web/components/app_layout_components.ex:711
+#: lib/tuist_web/components/app_layout_components.ex:743
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "邮件"
@@ -116,12 +116,13 @@ msgstr "邮件"
 msgid "Error"
 msgstr "错误"
 
-#: lib/tuist_web/components/app_layout_components.ex:726
+#: lib/tuist_web/components/app_layout_components.ex:595
+#: lib/tuist_web/components/app_layout_components.ex:758
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "错误"
 
-#: lib/tuist_web/components/app_layout_components.ex:704
+#: lib/tuist_web/components/app_layout_components.ex:736
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "标志"
@@ -137,13 +138,13 @@ msgstr "开始使用"
 msgid "Go to dashboard"
 msgstr "前往控制台"
 
-#: lib/tuist_web/components/app_layout_components.ex:734
+#: lib/tuist_web/components/app_layout_components.ex:766
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:632
+#: lib/tuist_web/components/app_layout_components.ex:664
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "集成"
@@ -160,7 +161,7 @@ msgid "Invalid installation request. Please try again."
 msgstr "安装请求无效。请重试。"
 
 #: lib/tuist_web/components/app_layout_components.ex:518
-#: lib/tuist_web/components/app_layout_components.ex:698
+#: lib/tuist_web/components/app_layout_components.ex:730
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "任务"
@@ -170,7 +171,7 @@ msgstr "任务"
 msgid "Learn more"
 msgstr "了解更多"
 
-#: lib/tuist_web/components/app_layout_components.ex:692
+#: lib/tuist_web/components/app_layout_components.ex:724
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "LiveDashboard"
@@ -208,6 +209,8 @@ msgstr "不适用"
 
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
+#: lib/tuist_web/live/pulse_error_live.ex:303
+#: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "下一步"
@@ -245,6 +248,8 @@ msgstr "操作"
 
 #: lib/tuist_web/components/app_layout_components.ex:32
 #: lib/tuist_web/live/ops_database_live.html.heex:8
+#: lib/tuist_web/live/pulse_error_live.ex:155
+#: lib/tuist_web/live/pulse_error_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "概览"
@@ -255,6 +260,8 @@ msgid "Please, make sure you are accessing the right resource and that you have 
 msgstr "请确保你访问的是正确的资源，并且拥有相应的访问权限。"
 
 #: lib/tuist_web/components/app_components.ex:53
+#: lib/tuist_web/live/pulse_error_live.ex:294
+#: lib/tuist_web/live/pulse_live.ex:541
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr "上一页"
@@ -279,7 +286,7 @@ msgstr "项目"
 msgid "Server error"
 msgstr "服务器错误"
 
-#: lib/tuist_web/components/app_layout_components.ex:598
+#: lib/tuist_web/components/app_layout_components.ex:630
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "设置"
@@ -304,7 +311,7 @@ msgstr "抱歉，您访问的页面不存在或已被移动。"
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "抱歉，您的请求过于频繁。请稍后重试。"
 
-#: lib/tuist_web/components/app_layout_components.ex:718
+#: lib/tuist_web/components/app_layout_components.ex:750
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "存储"
@@ -392,8 +399,8 @@ msgstr "请求过多"
 msgid "Too many requests."
 msgstr "请求过多。"
 
-#: lib/tuist_web/components/app_layout_components.ex:773
-#: lib/tuist_web/components/app_layout_components.ex:811
+#: lib/tuist_web/components/app_layout_components.ex:805
+#: lib/tuist_web/components/app_layout_components.ex:843
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist 图标"
@@ -502,8 +509,8 @@ msgstr "Gradle 缓存"
 msgid "Create project"
 msgstr "创建项目"
 
-#: lib/tuist_web/components/app_layout_components.ex:578
-#: lib/tuist_web/components/app_layout_components.ex:661
+#: lib/tuist_web/components/app_layout_components.ex:610
+#: lib/tuist_web/components/app_layout_components.ex:693
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -515,6 +522,7 @@ msgstr "缓存"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "预览 APK 不存在或已过期。"
 
+#: lib/tuist_web/components/app_layout_components.ex:577
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
 msgid "Metrics"
@@ -637,7 +645,7 @@ msgstr "你的身份提供商返回了身份验证错误。请重试或联系组
 msgid "Dashboard"
 msgstr "仪表盘"
 
-#: lib/tuist_web/components/app_layout_components.ex:674
+#: lib/tuist_web/components/app_layout_components.ex:706
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -645,7 +653,7 @@ msgstr "仪表盘"
 msgid "Accounts"
 msgstr "账户"
 
-#: lib/tuist_web/components/app_layout_components.ex:638
+#: lib/tuist_web/components/app_layout_components.ex:670
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "身份验证"
@@ -921,7 +929,7 @@ msgstr "意大利"
 msgid "Japan"
 msgstr "日本"
 
-#: lib/tuist_web/components/app_layout_components.ex:667
+#: lib/tuist_web/components/app_layout_components.ex:699
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1323,7 +1331,7 @@ msgstr "GitHub Enterprise Server 在转换清单时返回 404。临时注册码�
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr "GitHub Enterprise Server 在转换清单时返回 HTTP %{status}。请检查服务器日志中的请求正文并重试。"
 
-#: lib/tuist_web/components/app_layout_components.ex:620
+#: lib/tuist_web/components/app_layout_components.ex:652
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "常规"
@@ -1333,7 +1341,7 @@ msgstr "常规"
 msgid "Runners"
 msgstr "Runner"
 
-#: lib/tuist_web/components/app_layout_components.ex:571
+#: lib/tuist_web/components/app_layout_components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr "Webhook"
@@ -1431,7 +1439,7 @@ msgstr "复制为 Markdown"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "无法从 Kubernetes API 读取集群的 Backup 资源，请检查服务器 ServiceAccount 在 postgresql.cnpg.io 上的 RBAC 权限。"
 
-#: lib/tuist_web/components/app_layout_components.ex:686
+#: lib/tuist_web/components/app_layout_components.ex:718
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1479,6 +1487,7 @@ msgid "Export"
 msgstr "导出"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:42
+#: lib/tuist_web/live/pulse_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "筛选"
@@ -1731,6 +1740,7 @@ msgid "Size"
 msgstr "大小"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:49
+#: lib/tuist_web/live/pulse_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr "排序方式："
@@ -1812,17 +1822,17 @@ msgstr "WAL 归档"
 msgid "Write lag (bytes)"
 msgstr "写入延迟（字节）"
 
-#: lib/tuist_web/components/app_layout_components.ex:591
+#: lib/tuist_web/components/app_layout_components.ex:623
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "用量"
 
-#: lib/tuist_web/components/app_layout_components.ex:794
+#: lib/tuist_web/components/app_layout_components.ex:826
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "文档"
 
-#: lib/tuist_web/components/app_layout_components.ex:626
+#: lib/tuist_web/components/app_layout_components.ex:658
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "令牌"
@@ -2905,6 +2915,7 @@ msgstr "启动开源计划"
 msgid "Invalid Origin installation request. Please try again."
 msgstr "无效的 Origin 安装请求。请重试。"
 
+#: lib/tuist_web/live/pulse_live.ex:255
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -2961,6 +2972,7 @@ msgstr "混合缓存"
 
 #: lib/tuist_web/live/mix_build_live.ex:278
 #: lib/tuist_web/live/mix_build_live.ex:319
+#: lib/tuist_web/live/pulse_live.ex:565
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -3107,7 +3119,7 @@ msgstr "磁盘限制（GB）"
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
 msgstr "沙盒限制独立于 CI。创建、恢复和运行沙盒均计入 CPU 和内存限制。节点上的每个沙盒（包括已暂停的沙盒）都以其工作区和内存镜像计入磁盘限制；已归档的沙盒不计入。"
 
-#: lib/tuist_web/components/app_layout_components.ex:647
+#: lib/tuist_web/components/app_layout_components.ex:679
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "AI"
@@ -3147,3 +3159,13 @@ msgstr "你在登录期间账户信息发生了变更。请重试。"
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "测试选择"
+
+#: lib/tuist_web/components/app_layout_components.ex:583
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr "日志"
+
+#: lib/tuist_web/components/app_layout_components.ex:589
+#, elixir-autogen, elixir-format
+msgid "Traces"
+msgstr "追踪"

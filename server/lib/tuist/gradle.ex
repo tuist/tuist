@@ -182,6 +182,8 @@ defmodule Tuist.Gradle do
           network_bytes_out: metric.network_bytes_out,
           disk_bytes_read: metric.disk_bytes_read,
           disk_bytes_written: metric.disk_bytes_written,
+          disk_total_bytes: Map.get(metric, :disk_total_bytes),
+          disk_available_bytes: Map.get(metric, :disk_available_bytes),
           inserted_at: now
         }
       end)
@@ -616,6 +618,8 @@ defmodule Tuist.Gradle do
   Returns aggregate cache metrics for a build's tasks.
 
   Used for cache summary widgets (download/upload bytes, throughput).
+  `cache_consulted_tasks` counts the tasks Gradle's build cache computed a
+  key for, which it only does while caching is enabled.
   """
   def task_cache_aggregates(build_id, project_id \\ nil) do
     project_id = project_id || build_project_id(build_id)
@@ -626,6 +630,7 @@ defmodule Tuist.Gradle do
         select: %{
           cache_download_bytes: fragment("sumIf(ifNull(?, 0), ? = 'remote_hit')", t.cache_artifact_size, t.outcome),
           cache_upload_bytes: fragment("sumIf(ifNull(?, 0), ? = true)", t.cache_artifact_size, t.remote_cache_stored),
+          cache_consulted_tasks: fragment("toUInt64(countIf(? != ''))", t.cache_key),
           timed_download_bytes:
             fragment(
               "sumIf(ifNull(?, 0), ? = 'remote_hit' AND ? > 0)",

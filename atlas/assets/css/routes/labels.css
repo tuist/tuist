@@ -59,6 +59,10 @@
     width: auto;
     padding: 4px;
   }
+  [data-part="label-sizing"] {
+    width: min(28rem, 40vw);
+    white-space: normal;
+  }
   [data-part="label-note"] {
     display: block;
     color: var(--noora-surface-label-secondary);

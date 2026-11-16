@@ -233,7 +233,7 @@ defmodule TuistEx.Analytics.Shards do
   download the build from when one was uploaded.
   """
   def fetch(reference, index, options) do
-    HTTP.project_request(
+    retrying_request(
       :get,
       "/tests/shards/#{URI.encode(reference, &URI.char_unreserved?/1)}/#{index}",
       nil,
@@ -250,7 +250,7 @@ defmodule TuistEx.Analytics.Shards do
 
       with :ok <- archive(build_path, archive),
            {:ok, %{"data" => %{"upload_id" => upload_id}}} <-
-             HTTP.project_request(
+             retrying_request(
                :post,
                "/tests/shards/upload/start",
                %{reference: reference},
@@ -258,7 +258,7 @@ defmodule TuistEx.Analytics.Shards do
              ),
            {:ok, parts} <- upload_parts(archive, reference, upload_id, options),
            {:ok, _} <-
-             HTTP.project_request(
+             retrying_request(
                :post,
                "/tests/shards/upload/complete",
                %{reference: reference, upload_id: upload_id, parts: parts},
@@ -269,20 +269,33 @@ defmodule TuistEx.Analytics.Shards do
     end)
   end
 
+  # Replaying a lookup or a completion is safe: the server answers a completion
+  # it already made with success. A replayed start leaves an unused upload,
+  # which the store's lifecycle aborts.
+  defp retrying_request(method, suffix, body, options) do
+    ShardUpload.retry(
+      fn -> HTTP.project_request(method, suffix, body, options) end,
+      Keyword.get(options, :sleep, &Process.sleep/1)
+    )
+  end
+
   defp upload_parts(archive, reference, upload_id, options) do
     archive
     |> File.stream!(@part_bytes)
-    |> ShardUpload.upload(fn chunk, part_number ->
-      with {:ok, %{"data" => %{"url" => url}}} <-
-             HTTP.project_request(
-               :post,
-               "/tests/shards/upload/generate-url",
-               %{reference: reference, upload_id: upload_id, part_number: part_number},
-               options
-             ) do
-        RawHTTP.put_binary(url, chunk)
-      end
-    end)
+    |> ShardUpload.upload(
+      fn chunk, part_number ->
+        with {:ok, %{"data" => %{"url" => url}}} <-
+               HTTP.project_request(
+                 :post,
+                 "/tests/shards/upload/generate-url",
+                 %{reference: reference, upload_id: upload_id, part_number: part_number},
+                 options
+               ) do
+          RawHTTP.put_binary(url, chunk)
+        end
+      end,
+      Keyword.take(options, [:sleep])
+    )
   end
 
   @doc """

@@ -70,7 +70,7 @@ defmodule TuistWeb.SSOLinkControllerTest do
     test "sends a signed-out visitor to log in", %{conn: conn} do
       conn = get(conn, ~p"/auth/sso/link")
 
-      assert redirected_to(conn) == ~p"/users/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/auth/sso/link"}}"
     end
   end
 

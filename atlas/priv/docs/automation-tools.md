@@ -93,6 +93,13 @@ asks you to reconnect; Atlas first refreshes a rejected token once. A Google
 Workspace policy, names Google's reason and needs an administrator, because
 reconnecting cannot fix it.
 
+`get_my_gmail_message` also lists the message's attachments, each with a
+`part_id`. `save_my_gmail_attachment` copies one of them into the document
+library and returns its `document_id`, for example to attach a receipt to a
+finance transaction with `finance_add_transaction_attachment`. The saved
+document is visible to everyone with document access, so this tool also needs
+the `documents:write` scope, and it is processed like any other upload.
+
 ## Prepare and send Gmail drafts
 
 Choose **Allow Gmail drafts** in Settings → Connections to grant the separate

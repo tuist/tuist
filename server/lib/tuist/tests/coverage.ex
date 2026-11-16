@@ -57,9 +57,10 @@ defmodule Tuist.Tests.Coverage do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
+  alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.ExcludedPaths
@@ -70,6 +71,10 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.Tests.Workers.PublishCoverageWorker
 
   @insert_chunk_size 2_000
+
+  # The build systems whose clients report coverage (`supported?/1`). Add one
+  # here once its client does.
+  @build_systems [:xcode, :mix, :cargo, :gradle]
 
   # ClickHouse sends every query parameter as an HTTP form field and refuses a
   # request carrying more than `http_max_fields`, which defaults to 1000. A
@@ -191,11 +196,18 @@ defmodule Tuist.Tests.Coverage do
     if is_nil(value(coverage, :storage_key, nil)) and enabled_for_project?(project_id), do: rows(coverage)
   end
 
+  @doc """
+  Whether the project's build system reports code coverage, so Tuist ingests,
+  serves and shows it: Xcode, Mix, Cargo and Gradle projects, in every account. The
+  ingestion, the API, the MCP tools, the pages and the sidebar all follow it.
+  """
+  def supported?(%Project{build_system: build_system}), do: build_system in @build_systems
+
   @doc false
   def enabled_for_project?(project_id) do
     case Projects.get_project_by_id(project_id) do
       nil -> false
-      project -> FeatureFlags.coverage_enabled?(project.account, project)
+      project -> supported?(project)
     end
   end
 
@@ -540,7 +552,6 @@ defmodule Tuist.Tests.Coverage do
   @retention_tables %{
     files: [
       "coverage_files",
-      "git_commit_files",
       "coverage_target_sources",
       "coverage_test_sources",
       "test_impact_diffs",
@@ -557,7 +568,9 @@ defmodule Tuist.Tests.Coverage do
   per table: the detail by when it was inserted, and the commits' file
   deltas and targets with the commit totals, by when the commit was made
   (`Tuist.Environment.coverage_commit_retention_days/1`). The tables get it
-  at creation; this re-applies it after the configuration changed.
+  at creation; this re-applies it after the configuration changed. The
+  commits' uploaded listings keep their own fixed days
+  (`Tuist.GitHistory.listing_retention_days/0`).
   """
   def apply_retention do
     detail =
@@ -574,7 +587,10 @@ defmodule Tuist.Tests.Coverage do
         {table, days}
       end
 
-    detail ++ commits
+    listing_days = GitHistory.listing_retention_days()
+    IngestRepo.query!("ALTER TABLE git_commit_files MODIFY TTL toDateTime(inserted_at) + INTERVAL #{listing_days} DAY")
+
+    detail ++ commits ++ [{"git_commit_files", listing_days}]
   end
 
   def percentage(_covered, 0), do: 0.0

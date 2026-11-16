@@ -132,6 +132,16 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       end
     end
 
+    test "sandbox archiving checks disk pressure every minute" do
+      for hosted? <- [true, false] do
+        assert {"* * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker} in RuntimeConfig.crontab(
+                 :web,
+                 :prod,
+                 hosted?
+               )
+      end
+    end
+
     test ":web + prod-like env, self-hosted without retention configuration: shared crons only" do
       for env <- [:prod, :stag, :can] do
         workers =

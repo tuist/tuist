@@ -11,52 +11,27 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:485
-#, elixir-autogen, elixir-format
-msgid "Additional data"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:972
-#, elixir-autogen, elixir-format
-msgid "Affected services"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:887
+#: lib/tuist_web/live/pulse_live.ex:877
 #, elixir-autogen, elixir-format
 msgid "All log entries with a service name in the selected period, independently of table search. The chart shows entries per interval."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:921
+#: lib/tuist_web/live/pulse_live.ex:911
 #, elixir-autogen, elixir-format
 msgid "All recorded spans in the selected period, not distinct traces. The chart shows spans per interval."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:941
+#: lib/tuist_web/live/pulse_live.ex:931
 #, elixir-autogen, elixir-format
 msgid "Approximate 95th percentile of span durations over the entire selected period, in milliseconds. The chart shows the percentile per interval."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:86
-#, elixir-autogen, elixir-format
-msgid "Back to issue"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:986
+#: lib/tuist_web/live/pulse_live.ex:976
 #, elixir-autogen, elixir-format
 msgid "Check your query and time range, then try again."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:466
-#, elixir-autogen, elixir-format
-msgid "Contexts"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:975
-#, elixir-autogen, elixir-format
-msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:727
+#: lib/tuist_web/live/pulse_live.ex:729
 #, elixir-autogen, elixir-format
 msgid "Duration (ms)"
 msgstr ""
@@ -66,225 +41,92 @@ msgstr ""
 msgid "Each point is the p95 span duration for one interval, not an individual span."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:123
-#: lib/tuist_web/live/pulse_error_live.ex:271
-#: lib/tuist_web/live/pulse_error_live.ex:378
-#: lib/tuist_web/live/pulse_live.ex:761
-#, elixir-autogen, elixir-format
-msgid "Environment"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:42
-#: lib/tuist_web/live/pulse_error_live.ex:95
-#: lib/tuist_web/live/pulse_error_live.ex:105
-#, elixir-autogen, elixir-format
-msgid "Error details"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:99
-#, elixir-autogen, elixir-format
-msgid "Error details unavailable"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:952
-#, elixir-autogen, elixir-format
-msgid "Error events"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:894
+#: lib/tuist_web/live/pulse_live.ex:884
 #, elixir-autogen, elixir-format
 msgid "Error logs"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:928
+#: lib/tuist_web/live/pulse_live.ex:918
 #, elixir-autogen, elixir-format
 msgid "Error spans"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:87
-#: lib/tuist_web/live/pulse_live.ex:837
-#, elixir-autogen, elixir-format
-msgid "Errors"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:131
-#: lib/tuist_web/live/pulse_error_live.ex:277
-#, elixir-autogen, elixir-format
-msgid "Event ID"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:111
-#, elixir-autogen, elixir-format
-msgid "Event details"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:224
-#: lib/tuist_web/live/pulse_live.ex:515
-#: lib/tuist_web/live/pulse_live.ex:735
-#, elixir-autogen, elixir-format
-msgid "Events"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:190
-#, elixir-autogen, elixir-format
-msgid "Events in this period"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:491
-#, elixir-autogen, elixir-format
-msgid "Events over the selected period"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:392
-#, elixir-autogen, elixir-format
-msgid "Exception"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:419
-#, elixir-autogen, elixir-format
-msgid "External"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:962
-#, elixir-autogen, elixir-format
-msgid "Fatal events"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:410
-#, elixir-autogen, elixir-format
-msgid "File"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:687
-#: lib/tuist_web/live/pulse_live.ex:736
-#, elixir-autogen, elixir-format
-msgid "First seen"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:201
-#, elixir-autogen, elixir-format
-msgid "First seen in this period"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:405
-#, elixir-autogen, elixir-format
-msgid "Function"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:864
+#: lib/tuist_web/live/pulse_live.ex:854
 #, elixir-autogen, elixir-format
 msgid "Healthy targets"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:418
-#, elixir-autogen, elixir-format
-msgid "In app"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:450
-#: lib/tuist_web/live/pulse_live.ex:733
-#, elixir-autogen, elixir-format
-msgid "Issue"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:718
+#: lib/tuist_web/live/pulse_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Labels"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:845
+#: lib/tuist_web/live/pulse_live.ex:835
 #, elixir-autogen, elixir-format
 msgid "Last 15 minutes"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:847
+#: lib/tuist_web/live/pulse_live.ex:837
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:846
+#: lib/tuist_web/live/pulse_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Last 6 hours"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:848
+#: lib/tuist_web/live/pulse_live.ex:838
 #, elixir-autogen, elixir-format
 msgid "Last hour"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:206
-#: lib/tuist_web/live/pulse_live.ex:686
-#: lib/tuist_web/live/pulse_live.ex:737
-#, elixir-autogen, elixir-format
-msgid "Last seen"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:374
-#, elixir-autogen, elixir-format
-msgid "Latest event"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:719
+#: lib/tuist_web/live/pulse_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Latest value"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:177
-#: lib/tuist_web/live/pulse_error_live.ex:265
-#: lib/tuist_web/live/pulse_live.ex:744
-#: lib/tuist_web/live/pulse_live.ex:759
+#: lib/tuist_web/live/pulse_error_live.ex:173
+#: lib/tuist_web/live/pulse_error_live.ex:261
+#: lib/tuist_web/live/pulse_live.ex:746
+#: lib/tuist_web/live/pulse_live.ex:753
 #, elixir-autogen, elixir-format
 msgid "Level"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:884
+#: lib/tuist_web/live/pulse_live.ex:874
 #, elixir-autogen, elixir-format
 msgid "Log entries"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:897
+#: lib/tuist_web/live/pulse_live.ex:887
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled error or fatal in the selected period. The chart shows entries per interval."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:907
+#: lib/tuist_web/live/pulse_live.ex:897
 #, elixir-autogen, elixir-format
 msgid "Log entries labelled warn or warning in the selected period. The chart shows entries per interval."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:835
+#: lib/tuist_web/live/pulse_live.ex:825
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:745
+#: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Message"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:717
+#: lib/tuist_web/live/pulse_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:834
+#: lib/tuist_web/live/pulse_live.ex:824
 #, elixir-autogen, elixir-format
 msgid "Metrics"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:510
-#, elixir-autogen, elixir-format
-msgid "Module"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:501
-#, elixir-autogen, elixir-format
-msgid "Modules"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:388
-#, elixir-autogen, elixir-format
-msgid "No exception recorded"
 msgstr ""
 
 #: lib/tuist_web/live/pulse_live.ex:324
@@ -292,42 +134,9 @@ msgstr ""
 msgid "No measurements in this period"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:282
-#, elixir-autogen, elixir-format
-msgid "No occurrences in this period"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:397
-#, elixir-autogen, elixir-format
-msgid "No stack frames recorded"
-msgstr ""
-
 #: lib/tuist_web/live/pulse_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "No telemetry matches this query and time range."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:186
-#: lib/tuist_web/live/pulse_live.ex:674
-#, elixir-autogen, elixir-format
-msgid "Not recorded"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:289
-#, elixir-autogen, elixir-format
-msgid "Occurrence pages"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:162
-#: lib/tuist_web/live/pulse_error_live.ex:215
-#: lib/tuist_web/live/pulse_error_live.ex:252
-#, elixir-autogen, elixir-format
-msgid "Occurrences"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:413
-#, elixir-autogen, elixir-format
-msgid "Origin"
 msgstr ""
 
 #: lib/tuist_web/live/pulse_live.ex:243
@@ -335,36 +144,12 @@ msgstr ""
 msgid "Period:"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:194
-#, elixir-autogen, elixir-format
-msgid "Platform"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:115
-#: lib/tuist_web/live/pulse_live.ex:760
-#, elixir-autogen, elixir-format
-msgid "Project"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:999
+#: lib/tuist_web/live/pulse_live.ex:986
 #, elixir-autogen, elixir-format
 msgid "Pulse could not complete this query. Adjust the query or refresh to try again."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:593
-#, elixir-autogen, elixir-format
-msgid "Pulse could not load these details. Return to Errors and try again."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:127
-#: lib/tuist_web/live/pulse_error_live.ex:274
-#: lib/tuist_web/live/pulse_error_live.ex:382
-#: lib/tuist_web/live/pulse_live.ex:762
-#, elixir-autogen, elixir-format
-msgid "Release"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:854
+#: lib/tuist_web/live/pulse_live.ex:844
 #, elixir-autogen, elixir-format
 msgid "Reporting targets"
 msgstr ""
@@ -374,7 +159,7 @@ msgstr ""
 msgid "Resume live"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:726
+#: lib/tuist_web/live/pulse_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Root span"
 msgstr ""
@@ -394,65 +179,40 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:955
-#, elixir-autogen, elixir-format
-msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:965
-#, elixir-autogen, elixir-format
-msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:725
-#: lib/tuist_web/live/pulse_live.ex:734
-#: lib/tuist_web/live/pulse_live.ex:743
-#: lib/tuist_web/live/pulse_live.ex:758
+#: lib/tuist_web/live/pulse_live.ex:727
+#: lib/tuist_web/live/pulse_live.ex:736
+#: lib/tuist_web/live/pulse_live.ex:745
+#: lib/tuist_web/live/pulse_live.ex:753
 #, elixir-autogen, elixir-format
 msgid "Service"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:141
-#, elixir-autogen, elixir-format
-msgid "Span ID"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:918
+#: lib/tuist_web/live/pulse_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "Spans"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:931
+#: lib/tuist_web/live/pulse_live.ex:921
 #, elixir-autogen, elixir-format
 msgid "Spans with error status in the selected period. The chart shows spans per interval."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:362
-#, elixir-autogen, elixir-format
-msgid "Stack trace"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:724
+#: lib/tuist_web/live/pulse_live.ex:726
 #, elixir-autogen, elixir-format
 msgid "Started (UTC)"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:450
-#, elixir-autogen, elixir-format
-msgid "Tags"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:873
+#: lib/tuist_web/live/pulse_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 0 at the end of the period. Missing samples are not counted as unhealthy."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:866
+#: lib/tuist_web/live/pulse_live.ex:856
 #, elixir-autogen, elixir-format
 msgid "Targets reporting up = 1 at the end of the period."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:857
+#: lib/tuist_web/live/pulse_live.ex:847
 #, elixir-autogen, elixir-format
 msgid "Targets with an up sample at the end of the period. The chart shows the target count over time."
 msgstr ""
@@ -467,71 +227,46 @@ msgstr ""
 msgid "Telemetry unavailable"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:983
+#: lib/tuist_web/live/pulse_live.ex:973
 #, elixir-autogen, elixir-format
 msgid "The Pulse connection is not configured. Contact your administrator."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:996
-#, elixir-autogen, elixir-format
-msgid "The results changed while loading. Resume live or retry the query."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:590
-#, elixir-autogen, elixir-format
-msgid "This issue or event was not found in the selected period."
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:990
+#: lib/tuist_web/live/pulse_live.ex:980
 #, elixir-autogen, elixir-format
 msgid "This query exceeds the result limit. Narrow the time range or native query and try again."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:119
-#: lib/tuist_web/live/pulse_error_live.ex:262
-#: lib/tuist_web/live/pulse_live.ex:742
+#: lib/tuist_web/live/pulse_error_live.ex:115
+#: lib/tuist_web/live/pulse_error_live.ex:258
+#: lib/tuist_web/live/pulse_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "Time (UTC)"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:136
-#: lib/tuist_web/live/pulse_live.ex:728
-#: lib/tuist_web/live/pulse_live.ex:746
+#: lib/tuist_web/live/pulse_error_live.ex:132
+#: lib/tuist_web/live/pulse_live.ex:730
+#: lib/tuist_web/live/pulse_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "Trace ID"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:836
+#: lib/tuist_web/live/pulse_live.ex:826
 #, elixir-autogen, elixir-format
 msgid "Traces"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:488
-#, elixir-autogen, elixir-format
-msgid "Trend"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:870
+#: lib/tuist_web/live/pulse_live.ex:860
 #, elixir-autogen, elixir-format
 msgid "Unhealthy targets"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:513
-#, elixir-autogen, elixir-format
-msgid "Version"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:367
-#, elixir-autogen, elixir-format
-msgid "View event"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_live.ex:904
+#: lib/tuist_web/live/pulse_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Warning logs"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:938
+#: lib/tuist_web/live/pulse_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "p95 span duration"
 msgstr ""
@@ -554,4 +289,251 @@ msgstr ""
 #: lib/tuist_web/live/pulse_live.ex:599
 #, elixir-autogen, elixir-format
 msgid "vs previous hour"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:829
+#, elixir-autogen, elixir-format
+msgid "Text search (* for all)"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:489
+#, elixir-autogen, elixir-format
+msgid "Additional data"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:470
+#, elixir-autogen, elixir-format
+msgid "Contexts"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:119
+#: lib/tuist_web/live/pulse_error_live.ex:267
+#: lib/tuist_web/live/pulse_error_live.ex:368
+#, elixir-autogen, elixir-format
+msgid "Environment"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:942
+#, elixir-autogen, elixir-format
+msgid "Error events"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:87
+#: lib/tuist_web/live/pulse_live.ex:827
+#, elixir-autogen, elixir-format
+msgid "Errors"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:127
+#: lib/tuist_web/live/pulse_error_live.ex:273
+#, elixir-autogen, elixir-format
+msgid "Event ID"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:220
+#: lib/tuist_web/live/pulse_live.ex:531
+#: lib/tuist_web/live/pulse_live.ex:737
+#, elixir-autogen, elixir-format
+msgid "Events"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:186
+#, elixir-autogen, elixir-format
+msgid "Events in this period"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Exception"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:413
+#, elixir-autogen, elixir-format
+msgid "External"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:404
+#, elixir-autogen, elixir-format
+msgid "File"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:689
+#: lib/tuist_web/live/pulse_live.ex:738
+#, elixir-autogen, elixir-format
+msgid "First seen"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "First seen in this period"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:399
+#, elixir-autogen, elixir-format
+msgid "Function"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:412
+#, elixir-autogen, elixir-format
+msgid "In app"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:466
+#: lib/tuist_web/live/pulse_live.ex:735
+#, elixir-autogen, elixir-format
+msgid "Issue"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:202
+#: lib/tuist_web/live/pulse_live.ex:688
+#: lib/tuist_web/live/pulse_live.ex:739
+#, elixir-autogen, elixir-format
+msgid "Last seen"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "Latest event"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:378
+#, elixir-autogen, elixir-format
+msgid "No exception recorded"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:391
+#, elixir-autogen, elixir-format
+msgid "No stack frames recorded"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:158
+#: lib/tuist_web/live/pulse_error_live.ex:211
+#: lib/tuist_web/live/pulse_error_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Occurrences"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:407
+#, elixir-autogen, elixir-format
+msgid "Origin"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:123
+#: lib/tuist_web/live/pulse_error_live.ex:270
+#: lib/tuist_web/live/pulse_error_live.ex:372
+#, elixir-autogen, elixir-format
+msgid "Release"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:351
+#, elixir-autogen, elixir-format
+msgid "Stack trace"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:454
+#, elixir-autogen, elixir-format
+msgid "Tags"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:962
+#, elixir-autogen, elixir-format
+msgid "Affected services"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "Back to issue"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:965
+#, elixir-autogen, elixir-format
+msgid "Distinct named services with Sentry events in the selected period. The chart shows affected services per interval."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:42
+#: lib/tuist_web/live/pulse_error_live.ex:95
+#: lib/tuist_web/live/pulse_error_live.ex:105
+#, elixir-autogen, elixir-format
+msgid "Error details"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:99
+#, elixir-autogen, elixir-format
+msgid "Error details unavailable"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:111
+#, elixir-autogen, elixir-format
+msgid "Event details"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:507
+#, elixir-autogen, elixir-format
+msgid "Events over the selected period"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:952
+#, elixir-autogen, elixir-format
+msgid "Fatal events"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:278
+#, elixir-autogen, elixir-format
+msgid "No occurrences in this period"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:182
+#: lib/tuist_web/live/pulse_live.ex:676
+#, elixir-autogen, elixir-format
+msgid "Not recorded"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:285
+#, elixir-autogen, elixir-format
+msgid "Occurrence pages"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:190
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:592
+#, elixir-autogen, elixir-format
+msgid "Pulse could not load these details. Return to Errors and try again."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:945
+#, elixir-autogen, elixir-format
+msgid "Sentry events in the selected period, not grouped issues. The chart shows events per interval."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:955
+#, elixir-autogen, elixir-format
+msgid "Sentry events labelled fatal in the selected period. The chart shows events per interval."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:137
+#, elixir-autogen, elixir-format
+msgid "Span ID"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "This issue or event was not found in the selected period."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_live.ex:504
+#, elixir-autogen, elixir-format
+msgid "Trend"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:356
+#, elixir-autogen, elixir-format
+msgid "View event"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:381
+#, elixir-autogen, elixir-format
+msgid "This event recorded a message, not an exception."
 msgstr ""

@@ -22,7 +22,6 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Anthropic.Client
-  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
   alias Tuist.Sandboxes.Workers.DispatchWorkItemWorker
 
@@ -147,7 +146,7 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   # seconds apart, then stops, and the turn hangs.
   defp handle_item(%{"id" => work_id, "data" => %{"type" => "session", "id" => session_id}} = item, agent_environment)
        when is_binary(session_id) do
-    case Capacity.admission(Router.session_environment(agent_environment, item), session_id) do
+    case Router.admission(agent_environment, item) do
       :ok -> ack_and_dispatch(work_id, item, agent_environment)
       {:error, reason} -> ack_and_defer(work_id, item, agent_environment, reason)
     end

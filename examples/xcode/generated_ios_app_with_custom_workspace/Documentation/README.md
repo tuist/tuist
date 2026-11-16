@@ -5,7 +5,7 @@
 
 Reference url docs [Tuist][0]
 
-[0]:https://docs.tuist.io
+[0]:https://tuist.dev/en/docs
 
 - Note: Set notes
 

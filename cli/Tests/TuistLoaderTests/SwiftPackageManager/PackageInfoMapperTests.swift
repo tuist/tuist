@@ -9046,6 +9046,8 @@ struct PackageInfoMapperTests {
             ]
         )
 
+        // `Library` builds `Shared` into apps on every platform, macOS included, where `Library` and the apps would also need
+        // the prebuilt's module search paths and library, so the package keeps its source dependencies.
         let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
         #expect(macroTarget.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
         #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == nil)
@@ -9054,41 +9056,1575 @@ struct PackageInfoMapperTests {
         #expect(sharedTarget.settings?.base["OTHER_LDFLAGS"] == nil)
     }
 
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroOnlyReachesPrebuiltProductThroughSupportTarget_linksThePrebuilt() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MacrosSupport"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .remote, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        .init(name: "MacrosSupport", type: .library(.automatic), targets: ["MacrosSupport"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(name: "MyMacro", type: .macro, dependencies: [.target(name: "MacrosSupport", condition: nil)]),
+                        .test(name: "MacrosSupport", dependencies: [swiftSyntaxProductDependency]),
+                    ],
+                    platforms: [.ios, .macos]
+                ),
+            ]
+        )
+
+        // The macro imports `MacrosSupport`, whose module imports swift-syntax, and links it statically, so it needs the
+        // prebuilt's module search paths and library even though it doesn't depend on swift-syntax itself.
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.dependencies == [.target(name: "MacrosSupport", condition: nil)])
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        #expect(macroTarget.settings?.base["LIBRARY_SEARCH_PATHS"] == .array([
+            "$(inherited)",
+            "$(SRCROOT)/../.build/prebuilts/swift-syntax/lib",
+        ]))
+        let supportTarget = try #require(project?.targets.first(where: { $0.name == "MacrosSupport" }))
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(supportTarget)
+    }
+
+    /// Mirrors swift-case-paths' `CasePathsMacrosSupport`: a library product that depends on swift-syntax and that macros
+    /// consume. https://github.com/tuist/tuist/issues/15703
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroSupportLibraryProductDependsOnPrebuiltProduct_usesPrebuiltOnlyOnMacOS() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MacrosSupport"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .remote, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        .init(name: "MacrosSupport", type: .library(.automatic), targets: ["MacrosSupport"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [.target(name: "MacrosSupport", condition: nil), swiftSyntaxProductDependency]
+                        ),
+                        .test(name: "MacrosSupport", dependencies: [swiftSyntaxProductDependency]),
+                    ],
+                    platforms: [.ios, .macos]
+                ),
+            ]
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.dependencies == [.target(name: "MacrosSupport", condition: nil)])
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        let supportTarget = try #require(project?.targets.first(where: { $0.name == "MacrosSupport" }))
+        #expect(supportTarget.dependencies == [.external(name: "SwiftSyntax", condition: nonMacOSPlatformCondition)])
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(supportTarget)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroReachedTargetHasPlatformConditionedPrebuiltProducts_keepsSourceOnlyOnOtherPlatforms() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MacrosSupport"))
+        )
+        let swiftSyntaxPrebuilt = SwiftPackageManagerPrebuilt(
+            identity: "swift-syntax",
+            version: "601.0.0",
+            libraryName: "SwiftSyntax",
+            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+            checkoutPath: nil,
+            products: ["SwiftSyntax", "SwiftParser"],
+            includePath: nil,
+            cModules: ["_SwiftSyntaxCShims"]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                artifactPaths: [:],
+                packagePrebuilts: ["swift-syntax": ["SwiftSyntax": swiftSyntaxPrebuilt, "SwiftParser": swiftSyntaxPrebuilt]]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "MacrosSupport", type: .library(.automatic), targets: ["MacrosSupport"]),
+                    ],
+                    targets: [
+                        .test(name: "MyMacro", type: .macro, dependencies: [.target(name: "MacrosSupport", condition: nil)]),
+                        .test(
+                            name: "MacrosSupport",
+                            dependencies: [
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: .init(platformNames: ["ios", "macos"], config: nil)
+                                ),
+                                .product(
+                                    name: "SwiftParser",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: .init(platformNames: ["macos"], config: nil)
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios, .macos]
+                ),
+            ]
+        )
+
+        let supportTarget = try #require(project?.targets.first(where: { $0.name == "MacrosSupport" }))
+        #expect(supportTarget.dependencies == [.external(name: "SwiftSyntax", condition: .when([.ios]))])
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(supportTarget)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroOnlyReachesPrebuiltProductThroughSupportChain_usesPrebuiltOnlyOnMacOSForTheChain() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath, targets: ["SupportA", "SupportB"])
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .remote, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        .init(name: "SupportA", type: .library(.automatic), targets: ["SupportA"]),
+                    ],
+                    targets: [
+                        .test(name: "Library", dependencies: [.target(name: "MyMacro", condition: nil)]),
+                        .test(name: "MyMacro", type: .macro, dependencies: [.target(name: "SupportA", condition: nil)]),
+                        .test(name: "SupportA", dependencies: [.target(name: "SupportB", condition: nil)]),
+                        .test(name: "SupportB", dependencies: [swiftSyntaxProductDependency]),
+                    ],
+                    platforms: [.ios, .macos]
+                ),
+            ]
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        let supportA = try #require(project?.targets.first(where: { $0.name == "SupportA" }))
+        #expect(supportA.dependencies == [.target(name: "SupportB", condition: nil)])
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(supportA)
+        let supportB = try #require(project?.targets.first(where: { $0.name == "SupportB" }))
+        #expect(supportB.dependencies == [.external(name: "SwiftSyntax", condition: nonMacOSPlatformCondition)])
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(supportB)
+        let library = try #require(project?.targets.first(where: { $0.name == "Library" }))
+        expectNoSwiftSyntaxPrebuiltSettings(library)
+    }
+
+    /// A macro test that also tests a library using swift-syntax links that library, which apps build from source, so the
+    /// test can't link the prebuilt as well.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroTestAlsoDependsOnLibraryUsingPrebuiltProduct_keepsSourceDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(basePath: basePath, targets: ["Lint", "LintMacros"], testTargets: ["LintTests"])
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .local, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Lint", type: .library(.automatic), targets: ["Lint"]),
+                    ],
+                    targets: [
+                        .test(name: "Lint", dependencies: [swiftSyntaxProductDependency]),
+                        .test(name: "LintMacros", type: .macro, dependencies: [swiftSyntaxProductDependency]),
+                        .test(
+                            name: "LintTests",
+                            type: .test,
+                            dependencies: [
+                                .target(name: "Lint", condition: nil),
+                                .target(name: "LintMacros", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios, .macos]
+                ),
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        let lint = try #require(project?.targets.first(where: { $0.name == "Lint" }))
+        #expect(lint.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(lint)
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "LintMacros" }))
+        #expect(macroTarget.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(macroTarget)
+        let testTarget = try #require(project?.targets.first(where: { $0.name == "LintTests" }))
+        expectNoSwiftSyntaxPrebuiltSettings(testTarget)
+    }
+
+    /// Targets that use a macro don't link it, so a library that a test reaches on its way to a macro doesn't link the
+    /// macro's prebuilts.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTestReachesMacroThroughLibrary_doesNotLinkPrebuiltIntoLibrary() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await makeMacroPackageDirectories(
+            basePath: basePath,
+            targets: ["Feature", "FeatureMacros"],
+            testTargets: ["FeatureTests"]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .local, basePath: basePath),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Feature", type: .library(.automatic), targets: ["Feature"]),
+                    ],
+                    targets: [
+                        .test(name: "Feature", dependencies: [.target(name: "FeatureMacros", condition: nil)]),
+                        .test(name: "FeatureMacros", type: .macro, dependencies: [swiftSyntaxProductDependency]),
+                        .test(
+                            name: "FeatureTests",
+                            type: .test,
+                            dependencies: [.target(name: "Feature", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios, .macos]
+                ),
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "FeatureMacros" }))
+        #expect(macroTarget.dependencies.isEmpty)
+        #expect(macroTarget.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        let feature = try #require(project?.targets.first(where: { $0.name == "Feature" }))
+        #expect(feature.dependencies == [.target(name: "FeatureMacros", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(feature)
+        let testTarget = try #require(project?.targets.first(where: { $0.name == "FeatureTests" }))
+        expectNoSwiftSyntaxPrebuiltSettings(testTarget)
+    }
+
+    /// Macros in other packages import and link the macro support libraries that swift-case-paths' and other packages'
+    /// products vend, which link the prebuilt on macOS, so they need the prebuilt even when they don't depend on
+    /// swift-syntax themselves.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacrosConsumeMacroSupportProductsOfOtherPackages_linkThePrebuilt() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            // Packages are named so that the consumer comes first, before the packages whose products it consumes.
+            "a-macros": .test(
+                name: "a-macros",
+                products: [.init(name: "AMacrosLibrary", type: .library(.automatic), targets: ["AMacrosLibrary"])],
+                targets: [
+                    .test(name: "AMacrosLibrary", dependencies: [.target(name: "AMacros", condition: nil)]),
+                    .test(
+                        name: "AMacros",
+                        type: .macro,
+                        dependencies: [
+                            .product(name: "MacrosKit", package: "b-macros-kit", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "b-macros-kit": .test(
+                name: "b-macros-kit",
+                products: [.init(name: "MacrosKit", type: .library(.automatic), targets: ["MacrosKit"])],
+                targets: [
+                    .test(name: "KitMacros", type: .macro, dependencies: [.target(name: "MacrosKit", condition: nil)]),
+                    .test(
+                        name: "MacrosKit",
+                        dependencies: [
+                            .product(name: "CasePathsMacrosSupport", package: "c-case-paths", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "c-case-paths": casePathsPackageInfo(name: "c-case-paths"),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(basePath: basePath, packageInfos: packageInfos)
+
+        let consumerMacro = try #require(projects["a-macros"]?.targets.first(where: { $0.name == "AMacros" }))
+        #expect(consumerMacro.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        #expect(consumerMacro.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+            "$(inherited)",
+            "-I", "$(SRCROOT)/../.build/prebuilts/swift-syntax/Modules",
+            "-I", "$(SRCROOT)/../.build/prebuilts/swift-syntax/include/_SwiftSyntaxCShims",
+        ]))
+        let consumerLibrary = try #require(projects["a-macros"]?.targets.first(where: { $0.name == "AMacrosLibrary" }))
+        expectNoSwiftSyntaxPrebuiltSettings(consumerLibrary)
+        let macrosKit = try #require(projects["b-macros-kit"]?.targets.first(where: { $0.name == "MacrosKit" }))
+        #expect(macrosKit.dependencies == [.external(name: "CasePathsMacrosSupport", condition: nil)])
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(macrosKit)
+        let support = try #require(projects["c-case-paths"]?.targets.first(where: { $0.name == "CasePathsMacrosSupport" }))
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+    }
+
+    /// A target that apps build, macOS apps included, can't import a product that links the prebuilt on macOS, so the
+    /// package that vends it keeps its source products, as it did before such products linked the prebuilt.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenLibraryOfAnotherPackageConsumesMacroSupportProduct_keepsSourceDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "a-codegen": .test(
+                name: "a-codegen",
+                products: [.init(name: "Codegen", type: .library(.automatic), targets: ["Codegen"])],
+                targets: [
+                    .test(
+                        name: "Codegen",
+                        dependencies: [
+                            .product(name: "CasePathsMacrosSupport", package: "c-case-paths", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "c-case-paths": casePathsPackageInfo(name: "c-case-paths"),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(basePath: basePath, packageInfos: packageInfos)
+
+        let codegen = try #require(projects["a-codegen"]?.targets.first(where: { $0.name == "Codegen" }))
+        expectNoSwiftSyntaxPrebuiltSettings(codegen)
+        let support = try #require(projects["c-case-paths"]?.targets.first(where: { $0.name == "CasePathsMacrosSupport" }))
+        #expect(support.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(support)
+        let macro = try #require(projects["c-case-paths"]?.targets.first(where: { $0.name == "CasePathsMacros" }))
+        #expect(macro.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        expectNoSwiftSyntaxPrebuiltSettings(macro)
+    }
+
+    /// A test that links a library apps build, as well as a target only macros reach, builds for the apps' platforms, where
+    /// it can't link the macOS-only prebuilt. Like SwiftPM, which only treats tests of macros as host-only, the package
+    /// keeps its source products.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenLocalPackageTestLinksAppLibraryAndMacroOnlyTarget_keepsSourceDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos = [
+            "case-paths": casePathsPackageInfo(name: "case-paths", testTargets: [
+                .test(
+                    name: "CasePathsTests",
+                    type: .test,
+                    dependencies: [
+                        .target(name: "CasePaths", condition: nil),
+                        .target(name: "CasePathsMacrosSupport", condition: nil),
+                    ]
+                ),
+            ]),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let project = try await subject.map(
+            package: "case-paths",
+            basePath: basePath,
+            packageType: swiftSyntaxPrebuiltPackageType(origin: .local, basePath: basePath),
+            packageInfos: packageInfos,
+            packageSettings: .test(includeLocalPackageTestTargets: true)
+        )
+
+        let testTarget = try #require(project?.targets.first(where: { $0.name == "CasePathsTests" }))
+        expectNoSwiftSyntaxPrebuiltSettings(testTarget)
+        let support = try #require(project?.targets.first(where: { $0.name == "CasePathsMacrosSupport" }))
+        #expect(support.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(support)
+        let macro = try #require(project?.targets.first(where: { $0.name == "CasePathsMacros" }))
+        #expect(macro.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        expectNoSwiftSyntaxPrebuiltSettings(macro)
+    }
+
+    /// The planner doesn't see the targets of the workspace's projects. One that depends on a product that links the
+    /// prebuilt on macOS, such as a macOS tool importing `CasePathsMacrosSupport`, would get neither its search paths nor
+    /// its library, so the package that vends it keeps its source products. Other products leave it unchanged.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [("CasePathsMacrosSupport", true), ("CasePaths", false)]
+    ) func map_whenProjectsDependOnProducts_keepSourceDependenciesOnlyForProductsLinkingThePrebuilt(
+        externalDependencyName: String,
+        keepsSourceDependencies: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos = ["c-case-paths": casePathsPackageInfo(name: "c-case-paths")]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            externalDependencyNames: [externalDependencyName]
+        )
+
+        let support = try #require(projects["c-case-paths"]?.targets.first(where: { $0.name == "CasePathsMacrosSupport" }))
+        let macro = try #require(projects["c-case-paths"]?.targets.first(where: { $0.name == "CasePathsMacros" }))
+        if keepsSourceDependencies {
+            #expect(support.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+            expectNoSwiftSyntaxPrebuiltSettings(support)
+            expectNoSwiftSyntaxPrebuiltSettings(macro)
+        } else {
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+            #expect(macro.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+        }
+    }
+
+    /// A target only macros reach that links another package's product, here reaching swift-syntax through a third
+    /// package. When only macros reach those packages, they link the prebuilt on macOS like swift-build. When the
+    /// workspace's projects link the third package's product, it keeps source swift-syntax, so the second package's
+    /// product is built against source swift-syntax too, and the macro, which can't link both, keeps its source products.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [[], ["CSyntax"]] as [Set<String>]
+    ) func map_whenMacroOnlyTargetConsumesProductOfPackageWithoutMacros_linksThePrebuiltUnlessProjectsLinkIt(
+        externalDependencyNames: Set<String>
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "a-macros": .test(
+                name: "a-macros",
+                products: [.init(name: "AMacrosLibrary", type: .library(.automatic), targets: ["AMacrosLibrary"])],
+                targets: [
+                    .test(name: "AMacrosLibrary", dependencies: [.target(name: "AMacros", condition: nil)]),
+                    .test(
+                        name: "AMacros",
+                        type: .macro,
+                        dependencies: [.target(name: "AMacrosSupport", condition: nil), swiftSyntaxProductDependency]
+                    ),
+                    .test(
+                        name: "AMacrosSupport",
+                        dependencies: [
+                            swiftSyntaxProductDependency,
+                            .product(name: "BKit", package: "b-kit", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            // Has no macros, and only reaches swift-syntax through `c-syntax`.
+            "b-kit": .test(
+                name: "b-kit",
+                products: [.init(name: "BKit", type: .library(.automatic), targets: ["BKit"])],
+                targets: [
+                    .test(
+                        name: "BKit",
+                        dependencies: [.product(name: "CSyntax", package: "c-syntax", moduleAliases: nil, condition: nil)]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "c-syntax": .test(
+                name: "c-syntax",
+                products: [.init(name: "CSyntax", type: .library(.automatic), targets: ["CSyntax"])],
+                targets: [.test(name: "CSyntax", dependencies: [swiftSyntaxProductDependency])],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            externalDependencyNames: externalDependencyNames
+        )
+
+        let macro = try target("AMacros", in: "a-macros", of: projects)
+        let support = try target("AMacrosSupport", in: "a-macros", of: projects)
+        let bKit = try target("BKit", in: "b-kit", of: projects)
+        let cSyntax = try target("CSyntax", in: "c-syntax", of: projects)
+        if externalDependencyNames.isEmpty {
+            #expect(macro.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+            #expect(!macro.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+            #expect(support.dependencies == [
+                .external(name: "SwiftSyntax", condition: nonMacOSPlatformCondition),
+                .external(name: "BKit", condition: nil),
+            ])
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+            #expect(bKit.dependencies == [.external(name: "CSyntax", condition: nil)])
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(bKit)
+            #expect(cSyntax.dependencies == [.external(name: "SwiftSyntax", condition: nonMacOSPlatformCondition)])
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(cSyntax)
+        } else {
+            #expect(macro.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+            #expect(support.dependencies == [
+                .external(name: "SwiftSyntax", condition: nil),
+                .external(name: "BKit", condition: nil),
+            ])
+            #expect(cSyntax.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+            for target in [macro, support, bKit, cSyntax] {
+                expectNoSwiftSyntaxPrebuiltSettings(target)
+            }
+        }
+    }
+
+    /// A macro links the targets it shares with app libraries too, so one that links another package's product built
+    /// against source swift-syntax can't link the prebuilt alongside it.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTargetSharedByMacroAndLibraryConsumesProductUsingSourceSwiftSyntax_keepsSourceDependencies(
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "a-macros": .test(
+                name: "a-macros",
+                products: [.init(name: "ALib", type: .library(.automatic), targets: ["ALib"])],
+                targets: [
+                    .test(
+                        name: "ALib",
+                        dependencies: [.target(name: "AMacros", condition: nil), .target(name: "Core", condition: nil)]
+                    ),
+                    .test(
+                        name: "AMacros",
+                        type: .macro,
+                        dependencies: [.target(name: "Core", condition: nil), swiftSyntaxProductDependency]
+                    ),
+                    .test(
+                        name: "Core",
+                        dependencies: [.product(name: "BKit", package: "b-kit", moduleAliases: nil, condition: nil)]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "b-kit": .test(
+                name: "b-kit",
+                products: [.init(name: "BKit", type: .library(.automatic), targets: ["BKit"])],
+                targets: [.test(name: "BKit", dependencies: [swiftSyntaxProductDependency])],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(basePath: basePath, packageInfos: packageInfos)
+
+        let macro = try #require(projects["a-macros"]?.targets.first(where: { $0.name == "AMacros" }))
+        #expect(macro.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        expectNoSwiftSyntaxPrebuiltSettings(macro)
+    }
+
+    /// An app library sends swift-case-paths back to source products, so a macro of another package that links
+    /// `CasePathsMacrosSupport` links source swift-syntax through it and keeps its source products too.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenAppSendsMacroSupportProviderToSource_macrosConsumingItKeepSourceDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "a-macros": .test(
+                name: "a-macros",
+                products: [.init(name: "AMacrosLibrary", type: .library(.automatic), targets: ["AMacrosLibrary"])],
+                targets: [
+                    .test(name: "AMacrosLibrary", dependencies: [.target(name: "AMacros", condition: nil)]),
+                    .test(
+                        name: "AMacros",
+                        type: .macro,
+                        dependencies: [
+                            swiftSyntaxProductDependency,
+                            .product(name: "CasePathsMacrosSupport", package: "c-case-paths", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "b-codegen": .test(
+                name: "b-codegen",
+                products: [.init(name: "Codegen", type: .library(.automatic), targets: ["Codegen"])],
+                targets: [
+                    .test(
+                        name: "Codegen",
+                        dependencies: [
+                            .product(name: "CasePathsMacrosSupport", package: "c-case-paths", moduleAliases: nil, condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "c-case-paths": casePathsPackageInfo(name: "c-case-paths"),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(basePath: basePath, packageInfos: packageInfos)
+
+        let support = try #require(projects["c-case-paths"]?.targets.first(where: { $0.name == "CasePathsMacrosSupport" }))
+        expectNoSwiftSyntaxPrebuiltSettings(support)
+        let macro = try #require(projects["a-macros"]?.targets.first(where: { $0.name == "AMacros" }))
+        #expect(macro.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        expectNoSwiftSyntaxPrebuiltSettings(macro)
+    }
+
+    // MARK: - Real package graphs
+
+    //
+    // These transcribe the swift-syntax-related parts of real manifests (swift-case-paths 1.10.0, swift-navigation
+    // 2.11.2, swift-composable-architecture 1.26.2, swift-dependencies 1.17.2, swift-perception 2.0.12,
+    // swift-macro-testing 0.7.0, swift-snapshot-testing 1.19.7, and SwiftPM 6.4's prebuilts tests). The expectations
+    // follow SwiftPM main with swift-build, which links MacroSupport into every macOS module that uses swift-syntax and
+    // builds swift-syntax from source for other platforms. Tuist can't pass the prebuilt's settings on to the targets of
+    // the workspace's projects, so where those reach a module that uses swift-syntax, it keeps source swift-syntax.
+
+    /// An app that depends on The Composable Architecture: every macro links the prebuilt, and swift-navigation's macro
+    /// takes the prebuilt of swift-case-paths' `CasePathsMacrosSupport`, which links it on macOS only. No library that
+    /// apps link uses swift-syntax, so neither the app nor its tests, which may use the snapshot and macro testing
+    /// libraries that do, change that.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [
+            (["ComposableArchitecture"], true),
+            (["ComposableArchitecture", "InlineSnapshotTesting", "MacroTesting"], true),
+            (["ComposableArchitecture"], false),
+        ] as [(Set<String>, Bool)]
+    ) func map_whenAppDependsOnTheComposableArchitecture_linksThePrebuiltLikeSwiftBuild(
+        externalDependencyNames: Set<String>,
+        enablesCasePathsTrait: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos = composableArchitecturePackageInfos()
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            externalDependencyNames: externalDependencyNames,
+            enabledTraits: ["swift-navigation": enablesCasePathsTrait ? ["CasePaths"] : []],
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        for (package, macro) in [
+            ("swift-case-paths", "CasePathsMacros"),
+            ("swift-navigation", "SwiftNavigationMacros"),
+            ("swift-composable-architecture", "ComposableArchitectureMacros"),
+            ("swift-dependencies", "DependenciesMacrosPlugin"),
+            ("swift-perception", "PerceptionMacros"),
+        ] {
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(try target(macro, in: package, of: projects))
+        }
+        let support = try target("CasePathsMacrosSupport", in: "swift-case-paths", of: projects)
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+        #expect(Set(support.dependencies) == Set([
+            "SwiftSyntaxMacros", "SwiftCompilerPlugin", "SwiftDiagnostics", "SwiftSyntax", "SwiftSyntaxBuilder",
+        ].map { ProjectDescription.TargetDependency.external(name: $0, condition: nonMacOSPlatformCondition) }))
+        let navigationMacros = try target("SwiftNavigationMacros", in: "swift-navigation", of: projects)
+        #expect(navigationMacros.dependencies
+            .contains(.external(name: "CasePathsMacrosSupport", condition: nil)) == enablesCasePathsTrait)
+        for (package, library) in [
+            ("swift-case-paths", "CasePaths"),
+            ("swift-navigation", "SwiftNavigation"),
+            ("swift-navigation", "SwiftUINavigation"),
+            ("swift-composable-architecture", "ComposableArchitecture"),
+            ("swift-dependencies", "Dependencies"),
+            ("swift-dependencies", "DependenciesMacros"),
+            ("swift-perception", "Perception"),
+            ("swift-macro-testing", "MacroTesting"),
+            ("swift-snapshot-testing", "InlineSnapshotTesting"),
+        ] {
+            expectNoSwiftSyntaxPrebuiltSettings(try target(library, in: package, of: projects))
+        }
+    }
+
+    /// A local macro package whose macro tests use swift-macro-testing, as pointfree's packages do. swift-build links
+    /// the prebuilt into the macro, its tests, and on macOS, `MacroTesting` and `InlineSnapshotTesting`, which the tests
+    /// link. When the workspace's own tests link `InlineSnapshotTesting` too, Tuist can't pass the prebuilt on to them,
+    /// so the snapshot and macro testing libraries, and the macro tests and macro that link them, keep source swift-syntax.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [([], true), (["InlineSnapshotTesting"], false)] as [(Set<String>, Bool)]
+    ) func map_whenLocalMacroTestsUseMacroTesting_linksThePrebuiltLikeSwiftBuild(
+        externalDependencyNames: Set<String>,
+        linksPrebuilt: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        var packageInfos = composableArchitecturePackageInfos().filter {
+            ["swift-macro-testing", "swift-snapshot-testing"].contains($0.key)
+        }
+        packageInfos["my-macros"] = .test(
+            name: "my-macros",
+            products: [packageLibrary("MyLibrary")],
+            targets: [
+                .test(name: "MyLibrary", dependencies: [.target(name: "MyMacros", condition: nil)]),
+                .test(name: "MyMacros", type: .macro, dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin")),
+                .test(
+                    name: "MyMacrosTests",
+                    type: .test,
+                    dependencies: [
+                        .target(name: "MyMacros", condition: nil),
+                        product("MacroTesting", "swift-macro-testing"),
+                    ] + syntax("SwiftSyntaxMacrosTestSupport")
+                ),
+            ],
+            platforms: [.ios, .macos]
+        )
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            externalDependencyNames: externalDependencyNames,
+            localPackages: ["my-macros"],
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        let macro = try target("MyMacros", in: "my-macros", of: projects)
+        let macroTests = try target("MyMacrosTests", in: "my-macros", of: projects)
+        let macroTesting = try target("MacroTesting", in: "swift-macro-testing", of: projects)
+        let inlineSnapshotTesting = try target("InlineSnapshotTesting", in: "swift-snapshot-testing", of: projects)
+        if linksPrebuilt {
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(macro)
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(macroTests)
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(macroTesting)
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(inlineSnapshotTesting)
+        } else {
+            for target in [macro, macroTests, macroTesting, inlineSnapshotTesting] {
+                expectNoSwiftSyntaxPrebuiltSettings(target)
+            }
+        }
+        expectNoSwiftSyntaxPrebuiltSettings(try target("MyLibrary", in: "my-macros", of: projects))
+    }
+
+    /// SwiftPM 6.4's `testIndirectLibrary` and `testLeakyLibrary`: a macro uses another package's library, which uses
+    /// swift-syntax through a library of its own. Only macros reach them, so like swift-build, they link the prebuilt on
+    /// macOS. Once apps build them too, because the macro's package exports a library that uses them (`exported`),
+    /// another package's library uses them (`otherPackage`), or the workspace's projects link them (`project`), they and
+    /// the macro keep source swift-syntax.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [nil, "exported", "otherPackage", "project"] as [String?]
+    ) func map_whenMacroUsesLibraryOfAnotherPackage_linksThePrebuiltLikeSwiftPM(leak: String?) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let leaks = leak == "exported"
+        var packageInfos: [String: PackageInfo] = [
+            "foo": .test(
+                name: "foo",
+                products: [.init(name: "Library", type: .library(.automatic), targets: leaks ? ["Foo", "Leaking"] : ["Foo"])],
+                targets: [
+                    .test(
+                        name: "FooMacros",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin") + [product("Intermediate", "library")]
+                    ),
+                    .test(name: "Foo", dependencies: [.target(name: "FooMacros", condition: nil)]),
+                    .test(
+                        name: "FooTests",
+                        type: .test,
+                        dependencies: [.target(name: "FooMacros", condition: nil)] + syntax("SwiftSyntaxMacrosTestSupport")
+                    ),
+                ] + (leaks ? [.test(name: "Leaking", dependencies: [product("Intermediate", "library")])] : []),
+                platforms: [.ios, .macos]
+            ),
+            "library": .test(
+                name: "library",
+                products: [packageLibrary("Intermediate")],
+                targets: [
+                    .test(name: "Base", dependencies: syntax("SwiftSyntaxMacros")),
+                    .test(name: "Intermediate", dependencies: [.target(name: "Base", condition: nil)]),
+                ],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        if leak == "otherPackage" {
+            packageInfos["app-kit"] = .test(
+                name: "app-kit",
+                products: [packageLibrary("AppKitLibrary")],
+                targets: [.test(name: "AppKitLibrary", dependencies: [product("Intermediate", "library")])],
+                platforms: [.ios, .macos]
+            )
+        }
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            externalDependencyNames: leak == "project" ? ["Intermediate"] : [],
+            localPackages: ["foo"],
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        let fooMacros = try target("FooMacros", in: "foo", of: projects)
+        let fooTests = try target("FooTests", in: "foo", of: projects)
+        let base = try target("Base", in: "library", of: projects)
+        let intermediate = try target("Intermediate", in: "library", of: projects)
+        if leak != nil {
+            for target in [fooMacros, fooTests, base, intermediate] {
+                expectNoSwiftSyntaxPrebuiltSettings(target)
+            }
+        } else {
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(fooMacros)
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(fooTests)
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(base)
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(intermediate)
+        }
+        expectNoSwiftSyntaxPrebuiltSettings(try target("Foo", in: "foo", of: projects))
+    }
+
+    /// A package's library that uses swift-syntax outside its macros' closure, which another package's library links,
+    /// builds into apps with source swift-syntax, as it did before. Only libraries that macros alone consume link the
+    /// prebuilt, so this one doesn't, and the package's macros keep linking it.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenAnotherPackagesLibraryUsesSwiftSyntaxLibraryOfMacroPackage_keepsThePrebuiltForTheMacros() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "p-macros": .test(
+                name: "p-macros",
+                products: [packageLibrary("PMacrosLibrary"), packageLibrary("PSyntaxKit")],
+                targets: [
+                    .test(name: "PMacrosLibrary", dependencies: [.target(name: "PMacros", condition: nil)]),
+                    .test(name: "PMacros", type: .macro, dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin")),
+                    .test(name: "PSyntaxKit", dependencies: syntax("SwiftSyntax")),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "q-kit": .test(
+                name: "q-kit",
+                products: [packageLibrary("QKit")],
+                targets: [.test(name: "QKit", dependencies: [product("PSyntaxKit", "p-macros")])],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        expectSwiftSyntaxPrebuiltOnEveryPlatform(try target("PMacros", in: "p-macros", of: projects))
+        let syntaxKit = try target("PSyntaxKit", in: "p-macros", of: projects)
+        #expect(syntaxKit.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(syntaxKit)
+        expectNoSwiftSyntaxPrebuiltSettings(try target("QKit", in: "q-kit", of: projects))
+    }
+
+    // MARK: - Consumers in other packages
+
+    /// SwiftPM resolves a by-name dependency that names no target of its package to the product of that name in one of
+    /// the package's dependencies, so Tuist counts it like a product dependency. A product that only a macro consumes,
+    /// by name or not, links the prebuilt on macOS. One that an app library consumes by name keeps source swift-syntax,
+    /// and so does a macro that consumes it by name while an app library consumes it as a product.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: ["macroOnlyByName", "appByName", "macroByNameAppByProduct"]
+    ) func map_whenByNameDependencyConsumesProductOfAnotherPackage_countsItLikeSwiftPM(consumers: String) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let macroDependency: PackageInfo.Target.Dependency = consumers == "appByName"
+            ? product("SyntaxUtils", "SyntaxUtils")
+            : .byName(name: "SyntaxUtils", condition: nil)
+        var packageInfos: [String: PackageInfo] = [
+            // Keyed by the identity of its URL, while its manifest names it after its product, as by-name requires.
+            "syntax-utils": .test(
+                name: "SyntaxUtils",
+                products: [packageLibrary("SyntaxUtils")],
+                targets: [.test(name: "SyntaxUtils", dependencies: syntax("SwiftSyntax"))],
+                platforms: [.ios, .macos]
+            ),
+            "labels": .test(
+                name: "labels",
+                products: [packageLibrary("Labels")],
+                targets: [
+                    .test(name: "Labels", dependencies: [.target(name: "LabelsMacros", condition: nil)]),
+                    .test(
+                        name: "LabelsMacros",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin") + [macroDependency]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        if consumers != "macroOnlyByName" {
+            let appDependency: PackageInfo.Target.Dependency = consumers == "appByName"
+                ? .byName(name: "SyntaxUtils", condition: nil)
+                : product("SyntaxUtils", "SyntaxUtils")
+            packageInfos["reporting"] = .test(
+                name: "reporting",
+                products: [packageLibrary("Reporting")],
+                targets: [.test(name: "Reporting", dependencies: [appDependency])],
+                platforms: [.ios, .macos]
+            )
+        }
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        let macro = try target("LabelsMacros", in: "labels", of: projects)
+        let utils = try target("SyntaxUtils", in: "syntax-utils", of: projects)
+        if consumers == "macroOnlyByName" {
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(macro)
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(utils)
+            #expect(utils.dependencies == [.external(name: "SwiftSyntax", condition: nonMacOSPlatformCondition)])
+        } else {
+            expectNoSwiftSyntaxPrebuiltSettings(macro)
+            #expect(macro.dependencies.contains(.external(name: "SwiftSyntaxMacros", condition: nil)))
+            expectNoSwiftSyntaxPrebuiltSettings(utils)
+            #expect(utils.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+            expectNoSwiftSyntaxPrebuiltSettings(try target("Reporting", in: "reporting", of: projects))
+        }
+    }
+
+    /// A macro package `p` whose macro uses a helper package's library, and whose own library `PL`, which uses
+    /// swift-syntax outside the macro's closure, another package's library links. `PL` builds into apps with source
+    /// swift-syntax, but that doesn't stop the macro, or the helper that only it uses, from linking the prebuilt.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenAppLibraryLinksLibraryOfMacroPackageUsingHelperPackage_keepsThePrebuiltForTheMacro() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "p": .test(
+                name: "p",
+                products: [packageLibrary("PMacrosLibrary"), .init(name: "PL", type: .library(.automatic), targets: ["L"])],
+                targets: [
+                    .test(name: "PMacrosLibrary", dependencies: [.target(name: "M", condition: nil)]),
+                    .test(
+                        name: "M",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin") + [product("HP", "h")]
+                    ),
+                    .test(name: "L", dependencies: syntax("SwiftParser")),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "h": .test(
+                name: "h",
+                products: [.init(name: "HP", type: .library(.automatic), targets: ["HT"])],
+                targets: [.test(name: "HT", dependencies: syntax("SwiftSyntax"))],
+                platforms: [.ios, .macos]
+            ),
+            "r": .test(
+                name: "r",
+                products: [packageLibrary("X")],
+                targets: [.test(name: "X", dependencies: [product("PL", "p")])],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        expectSwiftSyntaxPrebuiltOnEveryPlatform(try target("M", in: "p", of: projects))
+        expectMacOSOnlySwiftSyntaxPrebuiltSettings(try target("HT", in: "h", of: projects))
+        let library = try target("L", in: "p", of: projects)
+        #expect(library.dependencies == [.external(name: "SwiftParser", condition: nil)])
+        expectNoSwiftSyntaxPrebuiltSettings(library)
+        expectNoSwiftSyntaxPrebuiltSettings(try target("X", in: "r", of: projects))
+    }
+
+    /// An app library's dependency on a product that links the prebuilt on macOS only counts when the build uses it: its
+    /// traits are enabled and Tuist supports one of its platforms.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [
+            (.init(platformNames: [], config: nil, traits: ["Disabled"]), false),
+            (.init(platformNames: ["linux"], config: nil, traits: nil), false),
+            (.init(platformNames: [], config: nil, traits: ["Enabled"]), true),
+            (nil, true),
+        ] as [(PackageInfo.PackageConditionDescription?, Bool)]
+    ) func map_whenAppLibraryConsumesMacroOnlyProductUnderCondition_keepsSourceOnlyWhenTheBuildUsesIt(
+        condition: PackageInfo.PackageConditionDescription?,
+        keepsSource: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "c-case-paths": casePathsPackageInfo(name: "c-case-paths"),
+            "app-kit": .test(
+                name: "app-kit",
+                products: [packageLibrary("AppKitLibrary")],
+                targets: [.test(
+                    name: "AppKitLibrary",
+                    dependencies: [.product(
+                        name: "CasePathsMacrosSupport",
+                        package: "c-case-paths",
+                        moduleAliases: nil,
+                        condition: condition
+                    )]
+                )],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            enabledTraits: ["app-kit": ["Enabled"]]
+        )
+
+        let support = try target("CasePathsMacrosSupport", in: "c-case-paths", of: projects)
+        if keepsSource {
+            #expect(support.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+            expectNoSwiftSyntaxPrebuiltSettings(support)
+        } else {
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+        }
+    }
+
+    /// Registry packages are keyed by `scope.name`, while manifests can reference them by name, and a local package that
+    /// overrides a registry package is keyed by name while manifests reference its `scope.name`. Either way, the
+    /// consumers of its products count.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [
+            ("pointfreeco.swift-case-paths", "swift-case-paths", false),
+            ("pointfreeco.swift-case-paths", "swift-case-paths", true),
+            ("swift-case-paths", "pointfreeco.swift-case-paths", false),
+            ("swift-case-paths", "pointfreeco.swift-case-paths", true),
+        ]
+    ) func map_whenProductIsReferencedByAnotherSpellingOfItsPackage_countsItsConsumers(
+        packageKey: String,
+        reference: String,
+        appConsumesSupport: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        var packageInfos: [String: PackageInfo] = [
+            packageKey: casePathsPackageInfo(name: "swift-case-paths"),
+            "navigation": .test(
+                name: "navigation",
+                products: [packageLibrary("Navigation")],
+                targets: [
+                    .test(name: "Navigation", dependencies: [.target(name: "NavigationMacros", condition: nil)]),
+                    .test(
+                        name: "NavigationMacros",
+                        type: .macro,
+                        dependencies: [swiftSyntaxProductDependency, product("CasePathsMacrosSupport", reference)]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        if appConsumesSupport {
+            packageInfos["app-kit"] = .test(
+                name: "app-kit",
+                products: [packageLibrary("AppKitLibrary")],
+                targets: [.test(name: "AppKitLibrary", dependencies: [product("CasePathsMacrosSupport", reference)])],
+                platforms: [.ios, .macos]
+            )
+        }
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(basePath: basePath, packageInfos: packageInfos)
+
+        let support = try target("CasePathsMacrosSupport", in: packageKey, of: projects)
+        let navigationMacros = try target("NavigationMacros", in: "navigation", of: projects)
+        if appConsumesSupport {
+            expectNoSwiftSyntaxPrebuiltSettings(support)
+            expectNoSwiftSyntaxPrebuiltSettings(navigationMacros)
+        } else {
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(navigationMacros)
+        }
+    }
+
+    /// A test of a local package that links one of its libraries builds for the apps' platforms, so when Tuist maps local
+    /// packages' tests, its dependency on a product that links the prebuilt on macOS keeps that product's package on
+    /// source swift-syntax. Remote packages' tests aren't mapped, so theirs doesn't.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [true, false]
+    ) func map_whenPackageTestConsumesMacroOnlyProduct_keepsSourceOnlyWhenTheTestIsMapped(local: Bool) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packageInfos: [String: PackageInfo] = [
+            "c-case-paths": casePathsPackageInfo(name: "c-case-paths"),
+            "app-lib": .test(
+                name: "app-lib",
+                products: [packageLibrary("AppLib")],
+                targets: [
+                    .test(name: "AppLib"),
+                    .test(
+                        name: "AppLibTests",
+                        type: .test,
+                        dependencies: [
+                            .target(name: "AppLib", condition: nil),
+                            product("CasePathsMacrosSupport", "c-case-paths"),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            localPackages: local ? ["app-lib"] : []
+        )
+
+        let support = try target("CasePathsMacrosSupport", in: "c-case-paths", of: projects)
+        if local {
+            #expect(support.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+            expectNoSwiftSyntaxPrebuiltSettings(support)
+        } else {
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(support)
+        }
+    }
+
+    /// Products that share a target share its prebuilts, so an app library that consumes one of them keeps the target, and
+    /// the macro that consumes the other, on source swift-syntax.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [false, true]
+    ) func map_whenProductsShareATarget_countsTheConsumersOfEach(appConsumesOtherProduct: Bool) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        var packageInfos: [String: PackageInfo] = [
+            "helpers": .test(
+                name: "helpers",
+                products: [
+                    .init(name: "HelpersA", type: .library(.automatic), targets: ["Helpers"]),
+                    .init(name: "HelpersB", type: .library(.automatic), targets: ["Helpers"]),
+                ],
+                targets: [.test(name: "Helpers", dependencies: syntax("SwiftSyntax"))],
+                platforms: [.ios, .macos]
+            ),
+            "m": .test(
+                name: "m",
+                products: [packageLibrary("MLibrary")],
+                targets: [
+                    .test(name: "MLibrary", dependencies: [.target(name: "MMacros", condition: nil)]),
+                    .test(
+                        name: "MMacros",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin") + [product("HelpersA", "helpers")]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+        ]
+        if appConsumesOtherProduct {
+            packageInfos["app"] = .test(
+                name: "app",
+                products: [packageLibrary("AppLibrary")],
+                targets: [.test(name: "AppLibrary", dependencies: [product("HelpersB", "helpers")])],
+                platforms: [.ios, .macos]
+            )
+        }
+        try await makePackageDirectories(basePath: basePath, packageInfos: packageInfos)
+
+        let projects = try await mapPackages(
+            basePath: basePath,
+            packageInfos: packageInfos,
+            prebuiltProducts: swiftSyntaxProducts
+        )
+
+        let helpers = try target("Helpers", in: "helpers", of: projects)
+        let macro = try target("MMacros", in: "m", of: projects)
+        if appConsumesOtherProduct {
+            #expect(helpers.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+            expectNoSwiftSyntaxPrebuiltSettings(helpers)
+            expectNoSwiftSyntaxPrebuiltSettings(macro)
+        } else {
+            expectMacOSOnlySwiftSyntaxPrebuiltSettings(helpers)
+            expectSwiftSyntaxPrebuiltOnEveryPlatform(macro)
+        }
+    }
+
+    /// The swift-syntax products that the real packages use, all of which SwiftPM's prebuilt replaces.
+    private var swiftSyntaxProducts: [String] {
+        [
+            "SwiftCompilerPlugin", "SwiftDiagnostics", "SwiftOperators", "SwiftParser", "SwiftParserDiagnostics",
+            "SwiftSyntax", "SwiftSyntaxBuilder", "SwiftSyntaxMacros", "SwiftSyntaxMacrosTestSupport",
+        ]
+    }
+
+    private func syntax(_ products: String...) -> [PackageInfo.Target.Dependency] {
+        products.map { .product(name: $0, package: "swift-syntax", moduleAliases: nil, condition: nil) }
+    }
+
+    private func product(_ name: String, _ package: String, traits: [String]? = nil) -> PackageInfo.Target.Dependency {
+        .product(
+            name: name,
+            package: package,
+            moduleAliases: nil,
+            condition: traits.map { .init(platformNames: [], config: nil, traits: $0) }
+        )
+    }
+
+    private func packageLibrary(_ name: String) -> PackageInfo.Product {
+        .init(name: name, type: .library(.automatic), targets: [name])
+    }
+
+    private func target(
+        _ name: String,
+        in package: String,
+        of projects: [String: ProjectDescription.Project],
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws -> ProjectDescription.Target {
+        try #require(projects[package]?.targets.first(where: { $0.name == name }), sourceLocation: sourceLocation)
+    }
+
+    private func expectSwiftSyntaxPrebuiltOnEveryPlatform(
+        _ target: ProjectDescription.Target,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        #expect(
+            target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]),
+            sourceLocation: sourceLocation
+        )
+        let swiftSyntaxDependencies = target.dependencies.filter { dependency in
+            guard case let .external(name, _) = dependency else { return false }
+            return swiftSyntaxProducts.contains(name)
+        }
+        #expect(swiftSyntaxDependencies.isEmpty, sourceLocation: sourceLocation)
+    }
+
+    /// The parts of the manifests of The Composable Architecture and the packages it and pointfree's macro tests depend on
+    /// that relate to swift-syntax, at the versions the section lists.
+    private func composableArchitecturePackageInfos() -> [String: PackageInfo] {
+        [
+            "swift-case-paths": .test(
+                name: "swift-case-paths",
+                products: [
+                    packageLibrary("CasePaths"),
+                    packageLibrary("CasePathsCore"),
+                    packageLibrary("CasePathsMacrosSupport"),
+                ],
+                targets: [
+                    .test(
+                        name: "CasePaths",
+                        dependencies: [
+                            .target(name: "CasePathsCore", condition: nil),
+                            .target(name: "CasePathsMacros", condition: nil),
+                        ]
+                    ),
+                    .test(name: "CasePathsCore"),
+                    .test(
+                        name: "CasePathsMacrosSupport",
+                        dependencies: syntax(
+                            "SwiftSyntaxMacros", "SwiftCompilerPlugin", "SwiftDiagnostics", "SwiftSyntax", "SwiftSyntaxBuilder"
+                        )
+                    ),
+                    .test(
+                        name: "CasePathsMacros",
+                        type: .macro,
+                        dependencies: [.target(name: "CasePathsMacrosSupport", condition: nil)]
+                            + syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin", "SwiftSyntax")
+                    ),
+                    .test(
+                        name: "CasePathsTests",
+                        type: .test,
+                        dependencies: [
+                            .target(name: "CasePaths", condition: nil), .target(name: "CasePathsMacrosSupport", condition: nil),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "swift-navigation": .test(
+                name: "swift-navigation",
+                products: [packageLibrary("SwiftNavigation"), packageLibrary("SwiftUINavigation")],
+                targets: [
+                    .test(
+                        name: "SwiftNavigation",
+                        dependencies: [
+                            .target(name: "SwiftNavigationMacros", condition: nil),
+                            product("CasePaths", "swift-case-paths", traits: ["CasePaths"]),
+                        ]
+                    ),
+                    .test(
+                        name: "SwiftNavigationMacros",
+                        type: .macro,
+                        dependencies: [product("CasePathsMacrosSupport", "swift-case-paths", traits: ["CasePaths"])] + syntax(
+                            "SwiftCompilerPlugin", "SwiftDiagnostics", "SwiftSyntax", "SwiftSyntaxBuilder", "SwiftSyntaxMacros"
+                        )
+                    ),
+                    .test(
+                        name: "SwiftUINavigation",
+                        dependencies: [
+                            .target(name: "SwiftNavigation", condition: nil),
+                            product("CasePaths", "swift-case-paths", traits: ["CasePaths"]),
+                        ]
+                    ),
+                    .test(
+                        name: "SwiftNavigationMacrosTests",
+                        type: .test,
+                        dependencies: [
+                            .target(name: "SwiftNavigationMacros", condition: nil), product(
+                                "MacroTesting",
+                                "swift-macro-testing"
+                            ),
+                        ]
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "swift-composable-architecture": .test(
+                name: "swift-composable-architecture",
+                products: [packageLibrary("ComposableArchitecture")],
+                targets: [
+                    .test(
+                        name: "ComposableArchitecture",
+                        dependencies: [
+                            .target(name: "ComposableArchitectureMacros", condition: nil),
+                            product("CasePaths", "swift-case-paths"),
+                            product("Dependencies", "swift-dependencies"),
+                            product("DependenciesMacros", "swift-dependencies"),
+                            product("Perception", "swift-perception"),
+                            product("SwiftUINavigation", "swift-navigation"),
+                        ]
+                    ),
+                    .test(
+                        name: "ComposableArchitectureMacros",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin")
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "swift-dependencies": .test(
+                name: "swift-dependencies",
+                products: [packageLibrary("Dependencies"), packageLibrary("DependenciesMacros")],
+                targets: [
+                    .test(name: "Dependencies"),
+                    .test(name: "DependenciesMacros", dependencies: [.target(name: "DependenciesMacrosPlugin", condition: nil)]),
+                    .test(
+                        name: "DependenciesMacrosPlugin",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin")
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "swift-perception": .test(
+                name: "swift-perception",
+                products: [packageLibrary("Perception"), packageLibrary("PerceptionCore")],
+                targets: [
+                    .test(
+                        name: "Perception",
+                        dependencies: [
+                            .target(name: "PerceptionCore", condition: nil),
+                            .target(name: "PerceptionMacros", condition: nil),
+                        ]
+                    ),
+                    .test(name: "PerceptionCore"),
+                    .test(
+                        name: "PerceptionMacros",
+                        type: .macro,
+                        dependencies: syntax("SwiftSyntaxMacros", "SwiftCompilerPlugin")
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "swift-macro-testing": .test(
+                name: "swift-macro-testing",
+                products: [packageLibrary("MacroTesting")],
+                targets: [
+                    .test(
+                        name: "MacroTesting",
+                        dependencies: [product("InlineSnapshotTesting", "swift-snapshot-testing")] + syntax(
+                            "SwiftDiagnostics", "SwiftOperators", "SwiftParserDiagnostics", "SwiftSyntaxMacros",
+                            "SwiftSyntaxMacrosTestSupport"
+                        )
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+            "swift-snapshot-testing": .test(
+                name: "swift-snapshot-testing",
+                products: [packageLibrary("SnapshotTesting"), packageLibrary("InlineSnapshotTesting")],
+                targets: [
+                    .test(name: "SnapshotTesting"),
+                    .test(
+                        name: "InlineSnapshotTesting",
+                        dependencies: [.target(name: "SnapshotTesting", condition: nil)]
+                            + syntax("SwiftParser", "SwiftSyntax", "SwiftSyntaxBuilder")
+                    ),
+                ],
+                platforms: [.ios, .macos]
+            ),
+        ]
+    }
+
+    /// Mirrors swift-case-paths: `CasePaths` uses the `CasePathsMacros` macro, which links the `CasePathsMacrosSupport`
+    /// library product.
+    private func casePathsPackageInfo(name: String, testTargets: [PackageInfo.Target] = []) -> PackageInfo {
+        .test(
+            name: name,
+            products: [
+                .init(name: "CasePaths", type: .library(.automatic), targets: ["CasePaths"]),
+                .init(name: "CasePathsMacrosSupport", type: .library(.automatic), targets: ["CasePathsMacrosSupport"]),
+            ],
+            targets: [
+                .test(name: "CasePaths", dependencies: [.target(name: "CasePathsMacros", condition: nil)]),
+                .test(
+                    name: "CasePathsMacros",
+                    type: .macro,
+                    dependencies: [.target(name: "CasePathsMacrosSupport", condition: nil), swiftSyntaxProductDependency]
+                ),
+                .test(name: "CasePathsMacrosSupport", dependencies: [swiftSyntaxProductDependency]),
+            ] + testTargets,
+            platforms: [.ios, .macos]
+        )
+    }
+
+    private func makePackageDirectories(basePath: AbsolutePath, packageInfos: [String: PackageInfo]) async throws {
+        for (package, packageInfo) in packageInfos {
+            for target in packageInfo.targets {
+                try await fileSystem.makeDirectory(
+                    at: basePath.appending(components: package, target.type == .test ? "Tests" : "Sources", target.name)
+                )
+            }
+        }
+    }
+
+    /// Maps every package like `SwiftPackageManagerGraphLoader` does, with the prebuilts each package's targets link
+    /// across packages.
+    private func mapPackages(
+        basePath: AbsolutePath,
+        packageInfos: [String: PackageInfo],
+        externalDependencyNames: Set<String> = [],
+        enabledTraits: [String: Set<String>] = [:],
+        localPackages: Set<String> = [],
+        prebuiltProducts: [String] = ["SwiftSyntax"]
+    ) async throws -> [String: ProjectDescription.Project] {
+        let packageTypes = Dictionary(uniqueKeysWithValues: packageInfos.keys.map { package in
+            (package, swiftSyntaxPrebuiltPackageType(
+                origin: localPackages.contains(package) ? .local : .remote,
+                basePath: basePath,
+                products: prebuiltProducts
+            ))
+        })
+        let includeLocalPackageTestTargets = !localPackages.isEmpty
+        let prebuiltTargets = try PackageInfoMapper.prebuiltTargets(
+            packageInfos: packageInfos,
+            packageTypes: packageTypes,
+            enabledTraits: enabledTraits,
+            includeLocalPackageTestTargets: includeLocalPackageTestTargets,
+            externalDependencyNames: externalDependencyNames
+        )
+        var projects: [String: ProjectDescription.Project] = [:]
+        for (package, packageInfo) in packageInfos {
+            projects[package] = try await subject.map(
+                packageInfo: packageInfo,
+                path: basePath.appending(component: package),
+                packageType: packageTypes[package]!.withPrebuiltTargets(prebuiltTargets[package] ?? [:]),
+                packageSettings: .test(baseSettings: .default, includeLocalPackageTestTargets: includeLocalPackageTestTargets),
+                packageModuleAliases: [:],
+                packageProducts: [:],
+                enabledTraits: enabledTraits[package] ?? []
+            )
+        }
+        return projects
+    }
+
+    private func expectNoSwiftSyntaxPrebuiltSettings(
+        _ target: ProjectDescription.Target,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        let settings = target.settings?.base ?? [:]
+        #expect(settings["OTHER_LDFLAGS"] == nil, sourceLocation: sourceLocation)
+        #expect(settings["LIBRARY_SEARCH_PATHS"] == nil, sourceLocation: sourceLocation)
+        #expect(!settings.keys.contains(where: { $0.hasPrefix("TUIST_SWIFTPM_PREBUILTS_") }), sourceLocation: sourceLocation)
+    }
+
+    private var nonMacOSPlatformCondition: ProjectDescription.PlatformCondition? {
+        .when([.ios, .catalyst, .tvos, .watchos, .visionos])
+    }
+
+    private func expectMacOSOnlySwiftSyntaxPrebuiltSettings(
+        _ target: ProjectDescription.Target,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        let settings = target.settings?.base ?? [:]
+        for (key, values) in [
+            ("OTHER_SWIFT_FLAGS", [
+                "-I", "$(SRCROOT)/../.build/prebuilts/swift-syntax/Modules",
+                "-I", "$(SRCROOT)/../.build/prebuilts/swift-syntax/include/_SwiftSyntaxCShims",
+            ]),
+            ("LIBRARY_SEARCH_PATHS", ["$(SRCROOT)/../.build/prebuilts/swift-syntax/lib"]),
+            ("LD_RUNPATH_SEARCH_PATHS", ["$(SRCROOT)/../.build/prebuilts/swift-syntax/lib"]),
+            ("OTHER_LDFLAGS", ["-lSwiftSyntax"]),
+        ] {
+            // Mac Catalyst also builds with the macOS SDK, so `[sdk=macosx*]` can't scope these to macOS.
+            #expect(
+                settings[key] == .array([
+                    "$(inherited)",
+                    "$(TUIST_SWIFTPM_PREBUILTS_\(key)_$(PLATFORM_NAME)_$(IS_MACCATALYST:default=NO))",
+                ]),
+                sourceLocation: sourceLocation
+            )
+            #expect(settings["TUIST_SWIFTPM_PREBUILTS_\(key)_macosx_NO"] == .array(values), sourceLocation: sourceLocation)
+        }
+    }
+
     private var swiftSyntaxProductDependency: PackageInfo.Target.Dependency {
         .product(name: "SwiftSyntax", package: "swift-syntax", moduleAliases: nil, condition: nil)
     }
 
+    /// SwiftPM's prebuilt replaces every library product of swift-syntax, so `products` lists the ones a test uses.
     private func swiftSyntaxPrebuiltPackageType(
         origin: PackageType.ExternalOrigin,
-        basePath: AbsolutePath
+        basePath: AbsolutePath,
+        products: [String] = ["SwiftSyntax"]
     ) -> PackageType {
-        .external(
+        let prebuilt = SwiftPackageManagerPrebuilt(
+            identity: "swift-syntax",
+            version: "601.0.0",
+            libraryName: "SwiftSyntax",
+            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+            checkoutPath: nil,
+            products: products,
+            includePath: nil,
+            cModules: ["_SwiftSyntaxCShims"]
+        )
+        return .external(
             origin: origin,
             artifactPaths: [:],
-            packagePrebuilts: [
-                "swift-syntax": [
-                    "SwiftSyntax": SwiftPackageManagerPrebuilt(
-                        identity: "swift-syntax",
-                        version: "601.0.0",
-                        libraryName: "SwiftSyntax",
-                        path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
-                        checkoutPath: nil,
-                        products: ["SwiftSyntax"],
-                        includePath: nil,
-                        cModules: ["_SwiftSyntaxCShims"]
-                    ),
-                ],
-            ]
+            packagePrebuilts: ["swift-syntax": Dictionary(uniqueKeysWithValues: products.map { ($0, prebuilt) })]
         )
     }
 
-    private func makeMacroPackageDirectories(basePath: AbsolutePath) async throws {
-        for path in [
+    private func makeMacroPackageDirectories(
+        basePath: AbsolutePath,
+        targets: [String] = [],
+        testTargets: [String] = []
+    ) async throws {
+        let paths = [
             "Package/Sources/Library",
             "Package/Sources/MyMacro",
             "Package/Tests/LibraryTests",
             "Package/Tests/MyMacroTests",
-        ] {
+        ] + targets.map { "Package/Sources/\($0)" } + testTargets.map { "Package/Tests/\($0)" }
+        for path in paths {
             try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: path)))
         }
     }

@@ -31,10 +31,17 @@ defmodule Condukt.Tools.Read do
   @image_extensions ~w(.jpg .jpeg .png .gif .webp)
 
   @impl true
-  def name, do: "Read"
+  def name(opts), do: Keyword.get(opts, :name, "Read")
+
+  # Reads change nothing, so an interrupted call can simply run again.
+  @impl true
+  def replay_safe?, do: true
 
   @impl true
-  def description do
+  def read_only?(_opts), do: true
+
+  @impl true
+  def description(_opts) do
     """
     Read the contents of a file. Supports text files and images (jpg, png, gif, webp).
     Images are sent as attachments. For text files, output is truncated to #{@max_lines} lines
@@ -44,7 +51,7 @@ defmodule Condukt.Tools.Read do
   end
 
   @impl true
-  def parameters do
+  def parameters(_opts) do
     %{
       type: "object",
       properties: %{

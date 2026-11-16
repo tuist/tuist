@@ -475,6 +475,44 @@ func TestPauseSnapshotFailureKeepsRunning(t *testing.T) {
 	}
 }
 
+func TestPauseWhileDisksLoadKeepsRunning(t *testing.T) {
+	h := newHarness(t)
+	h.create(t, testID, 0)
+	inst := h.launcher.Last()
+	sb, err := h.m.get(testID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A warm restore whose disks still arrive from its archive.
+	ld := &lazyDisks{loaded: make(chan struct{}), filled: make(chan struct{})}
+	sb.mu.Lock()
+	sb.lazy, sb.disksPending = ld, true
+	sb.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := h.m.Pause(ctx, testID); !errors.Is(err, ErrDisksLoading) {
+		t.Fatalf("pause while the disks load answered %v", err)
+	}
+	if info, _ := h.m.Status(context.Background(), testID); info.State != protocol.StateRunning || inst.Killed() {
+		t.Fatalf("a refused pause must leave the guest running: %+v killed=%v", info, inst.Killed())
+	}
+	for _, path := range callPaths(inst) {
+		if path == "PATCH /vm" || path == "PUT /snapshot/create" {
+			t.Fatalf("a refused pause must not touch the vm: %v", callPaths(inst))
+		}
+	}
+
+	close(ld.loaded)
+	close(ld.filled)
+	if _, err := h.m.Pause(context.Background(), testID); err != nil {
+		t.Fatalf("pause once the disks loaded: %v", err)
+	}
+	if loaded := h.events.wait(t, protocol.EventMemoryLoaded, 5*time.Second); loaded.SandboxID != testID {
+		t.Fatalf("memory_loaded for %q", loaded.SandboxID)
+	}
+}
+
 func TestRecover(t *testing.T) {
 	h := newHarness(t)
 	base := filepath.Join(h.jailBase, "firecracker")
@@ -746,6 +784,10 @@ func (f *fakeOps) Archive(ctx context.Context, args protocol.ArchiveArgs) (proto
 func (f *fakeOps) ArchiveDisks(ctx context.Context, args protocol.ArchiveDisksArgs) (protocol.ArchiveResult, error) {
 	f.calls = append(f.calls, fmt.Sprintf("archive_disks %s parts=%d", args.SnapshotID, len(args.PartURLs)))
 	return protocol.ArchiveResult{Bytes: 3}, nil
+}
+func (f *fakeOps) CopyDisks(ctx context.Context, args protocol.CopyDisksArgs) (protocol.SaveDisksResult, error) {
+	f.calls = append(f.calls, "copy_disks "+args.SnapshotID)
+	return protocol.SaveDisksResult{DurationMs: 9}, nil
 }
 func (f *fakeOps) Delete(ctx context.Context, id string) error {
 	f.calls = append(f.calls, "delete "+id)

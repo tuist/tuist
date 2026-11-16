@@ -11,17 +11,22 @@
 msgid ""
 msgstr "Language: yue_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: \n"
 
-#: lib/tuist_web/components/chart_type_toggle.ex:39
+#: lib/tuist_web/components/chart_type_toggle.ex:40
 #, elixir-autogen, elixir-format
 msgid "Group by:"
 msgstr "分組依據："
 
-#: lib/tuist_web/components/chart_type_toggle.ex:53
+#: lib/tuist_web/components/chart_type_toggle.ex:65
 #, elixir-autogen, elixir-format
 msgid "Line"
 msgstr "線條"
 
-#: lib/tuist_web/components/chart_type_toggle.ex:59
+#: lib/tuist_web/components/chart_type_toggle.ex:66
 #, elixir-autogen, elixir-format
 msgid "Scatter plot"
 msgstr "散點圖"
+
+#: lib/tuist_web/components/chart_type_toggle.ex:67
+#, elixir-autogen, elixir-format
+msgid "Bar"
+msgstr "酒吧"

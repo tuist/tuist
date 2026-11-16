@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
+import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -53,11 +54,13 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 
 /// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphLoading {
+    /// - Parameter externalDependencyNames: The products that the workspace's projects depend on with `.external(name:)`.
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
-        swiftPackageManagerArguments: [String]
+        swiftPackageManagerArguments: [String],
+        externalDependencyNames: Set<String>
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue])
 }
 
@@ -93,7 +96,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
-        swiftPackageManagerArguments: [String] = []
+        swiftPackageManagerArguments: [String] = [],
+        externalDependencyNames: Set<String> = []
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let scratchDirectory = try await swiftPackageManagerScratchDirectory(
             packagePath: packagePath.parentDirectory,
@@ -117,7 +121,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packageSettings: packageSettings,
             disableSandbox: disableSandbox,
             scratchDirectory: scratchDirectory,
-            workspaceState: workspaceState
+            workspaceState: workspaceState,
+            externalDependencyNames: externalDependencyNames
         )
     }
 
@@ -127,7 +132,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
         scratchDirectory: AbsolutePath,
-        workspaceState: SwiftPackageManagerWorkspaceState
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        externalDependencyNames: Set<String>
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -160,13 +166,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
                         throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
                     }
-                    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
-                    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
-                    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
                     // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
                     // absolute paths from older swifterpm output pass through unchanged.
                     packageFolder = try AbsolutePath(
-                        validating: sanitizedSwiftPackageManagerPath(path),
+                        validating: sanitizedSwiftPackageManagerPath(path, spelledLike: scratchDirectory),
                         relativeTo: scratchDirectory
                     )
                     hash = nil
@@ -205,7 +208,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     .filter { $0.packageRef.identity == dependency.packageRef.identity }
                     .reduce(into: [:]) { result, artifact in
                         result[artifact.targetName] = try AbsolutePath(
-                            validating: sanitizedSwiftPackageManagerPath(artifact.path),
+                            validating: sanitizedSwiftPackageManagerPath(artifact.path, spelledLike: scratchDirectory),
                             relativeTo: scratchDirectory
                         )
                     }
@@ -268,7 +271,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         let packagePrebuilts = try mapPackagePrebuilts(
             packageInfos: packageInfos,
-            prebuilts: workspaceState.object.prebuilts,
+            prebuilts: await prebuiltsForXcodeCompiler(workspaceState.object.prebuilts),
             scratchDirectory: scratchDirectory
         )
 
@@ -312,6 +315,15 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
 
         let packageModuleAliases = mutablePackageModuleAliases
+        let packageTypes = try Self.packageTypes(
+            packageInfos: packageInfos,
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
+            packagePrebuilts: packagePrebuilts,
+            scratchDirectory: scratchDirectory,
+            enabledTraits: enabledTraitsPerPackage,
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets,
+            externalDependencyNames: externalDependencyNames
+        )
         let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
             (
                 packageInfo: packageInfo,
@@ -319,15 +331,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 projectManifest: try await packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
-                    packageType: .external(
-                        origin: Self.packageOrigin(for: packageInfo.kind),
-                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.id] ?? [:],
-                        packagePrebuilts: packagePrebuilts,
-                        derivedXCFrameworksPath: scratchDirectory.appending(
-                            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
-                        )
-                    ),
+                    packageType: packageTypes[packageInfo.id]!,
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageProducts: externalDependencies.packageProducts,
@@ -473,6 +477,45 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     }
 }
 
+extension SwiftPackageManagerGraphLoader {
+    /// Returns the package type of each package. The targets of a package that link SwiftPM's prebuilts depend on the
+    /// products of the other packages, so they are planned for every package before any is mapped.
+    fileprivate static func packageTypes(
+        packageInfos: [SwiftPackageManagerResolvedPackageInfo],
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
+        packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]],
+        scratchDirectory: AbsolutePath,
+        enabledTraits: [String: Set<String>],
+        includeLocalPackageTestTargets: Bool,
+        externalDependencyNames: Set<String>
+    ) throws -> [String: PackageType] {
+        let packageTypes = Dictionary(uniqueKeysWithValues: packageInfos.map { packageInfo in
+            (
+                packageInfo.id,
+                PackageType.external(
+                    origin: packageOrigin(for: packageInfo.kind),
+                    artifactPaths: packageToTargetsToArtifactPaths[packageInfo.id] ?? [:],
+                    packagePrebuilts: packagePrebuilts,
+                    derivedXCFrameworksPath: scratchDirectory.appending(
+                        components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                        Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+                    )
+                )
+            )
+        })
+        let prebuiltTargets = try PackageInfoMapper.prebuiltTargets(
+            packageInfos: Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) }),
+            packageTypes: packageTypes,
+            enabledTraits: enabledTraits,
+            includeLocalPackageTestTargets: includeLocalPackageTestTargets,
+            externalDependencyNames: externalDependencyNames
+        )
+        return packageTypes.reduce(into: [:]) { result, packageType in
+            result[packageType.key] = packageType.value.withPrebuiltTargets(prebuiltTargets[packageType.key] ?? [:])
+        }
+    }
+}
+
 private struct SwiftPackageManagerResolvedPackageInfo {
     /// The Swift Package Manager identity of the package, lowercased.
     let id: String
@@ -493,6 +536,39 @@ private struct SwiftPackageManagerResolvedPackageInfo {
         guard kind == "registry" else { return id }
         return String(id.split(separator: ".").last ?? "")
     }
+}
+
+/// SwiftPM records the prebuilts of the `swift` that `tuist install` resolved with, in a directory named after that
+/// compiler's tag (`<tag>-<platform>-<library>`), and their binary modules only load in that compiler. When it isn't the
+/// one Xcode builds with, for example when swiftly's `swift` comes first in `PATH`, linking them fails the build with
+/// "found incompatible module", so those packages keep their source products. Toolchains whose tag can't be determined
+/// keep the prebuilts unchecked, like SwifterPM does when it carries them over.
+private func prebuiltsForXcodeCompiler(
+    _ prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt]
+) async -> [SwiftPackageManagerWorkspaceState.Prebuilt] {
+    guard !prebuilts.isEmpty,
+          let swiftlangVersion = try? await SwiftVersionProvider.current.swiftlangVersion()
+    else { return prebuilts }
+    let compilerTag = "swiftlang-\(swiftlangVersion)"
+    var compatible: [SwiftPackageManagerWorkspaceState.Prebuilt] = []
+    var incompatibleDirectories: [String] = []
+    for prebuilt in prebuilts {
+        let directoryName = sanitizedSwiftPackageManagerPath(prebuilt.path).split(separator: "/").last.map(String.init) ?? ""
+        // SwiftPM 6.1 names directories after the language version only (`6.1-MacroSupport-macos_aarch64`), so those
+        // can't be checked and are kept, as before the check.
+        let hasCompilerTag = directoryName.hasPrefix("swiftlang-") || directoryName.hasPrefix("swift-")
+        if !hasCompilerTag || directoryName.hasPrefix("\(compilerTag)-") {
+            compatible.append(prebuilt)
+        } else {
+            incompatibleDirectories.append(directoryName)
+        }
+    }
+    if !incompatibleDirectories.isEmpty {
+        AlertController.current.warning(.alert(
+            "SwiftPM's prebuilt libraries \(incompatibleDirectories.sorted().joined(separator: ", ")) were built for another Swift compiler than Xcode's (\(compilerTag)), so those packages build from source. Run 'tuist install' with Xcode's Swift toolchain, for example without swiftly's 'swift' first in PATH, to use them."
+        ))
+    }
+    return compatible
 }
 
 private func mapPackagePrebuilts(
@@ -518,13 +594,13 @@ private func mapPackagePrebuilts(
                 version: prebuilt.version,
                 libraryName: prebuilt.libraryName,
                 path: try AbsolutePath(
-                    validating: sanitizedSwiftPackageManagerPath(prebuilt.path),
+                    validating: sanitizedSwiftPackageManagerPath(prebuilt.path, spelledLike: scratchDirectory),
                     relativeTo: scratchDirectory
                 ),
                 checkoutPath: try prebuilt.checkoutPath
                     .map {
                         try AbsolutePath(
-                            validating: sanitizedSwiftPackageManagerPath($0),
+                            validating: sanitizedSwiftPackageManagerPath($0, spelledLike: scratchDirectory),
                             relativeTo: scratchDirectory
                         )
                     },
@@ -717,14 +793,35 @@ private struct SwifterPMPackageInfoCache {
         )
     }
 
+    /// A lookup key that matches either spelling of a temporary directory (see `sanitizedSwiftPackageManagerPath`).
     private static func normalizedPackagePath(_ path: String) -> String {
-        sanitizedSwiftPackageManagerPath(path)
+        let path = sanitizedSwiftPackageManagerPath(path)
+        return path.hasPrefix("/private/var/") ? String(path.dropFirst("/private".count)) : path
     }
 }
 
 private func sanitizedSwiftPackageManagerPath(_ path: String) -> String {
     String(path.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
-        .replacingOccurrences(of: "/private/var", with: "/var")
+}
+
+/// On macOS `/var` and `/tmp` are symlinks into `/private`, so a directory under them has two spellings. SwiftPM keeps
+/// the spelling it is given, as `AbsolutePath` normalizes lexically, but some recorded paths are real paths, so a
+/// workspace state can mix both. Tuist relativizes paths lexically too, and a relative path between the two spellings
+/// crosses the symlink, which clang and Xcode resolve to a directory that doesn't exist. Spelling absolute paths like the
+/// scratch directory, which the checkouts and Tuist's own paths derive from, keeps them comparable.
+private func sanitizedSwiftPackageManagerPath(_ path: String, spelledLike scratchDirectory: AbsolutePath) -> String {
+    let path = sanitizedSwiftPackageManagerPath(path)
+    let scratchDirectory = scratchDirectory.pathString
+    for directory in ["/var", "/tmp"] {
+        let realDirectory = "/private\(directory)"
+        if scratchDirectory.hasPrefix("\(realDirectory)/"), path.hasPrefix("\(directory)/") {
+            return "/private\(path)"
+        }
+        if scratchDirectory.hasPrefix("\(directory)/"), path.hasPrefix("\(realDirectory)/") {
+            return String(path.dropFirst("/private".count))
+        }
+    }
+    return path
 }
 
 extension ProjectDescription.Platform {

@@ -84,6 +84,13 @@ run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
 job. Do not use the deployments API: other workflows record deployments to the
 same environment. When the base cannot be resolved, the push deploys.
 
+tart-kubelet (with its embedded macOS sandbox tools) ships inside the
+`capi-scaleway@` operator image, and the operator's drift loop pushes it to the
+macOS hosts after the Helm upgrade. Canary's deploy waits up to 20 minutes for
+every serving host to report the operator's binary
+(`scripts/tart-kubelet-rollout-gate.sh`, tested by its `.test.sh` in Helm CI)
+and fails closed; staging only reports and production does not wait.
+
 Sandbox guest templates and Amp provider images publish as one immutable version through `sandbox-image.yml`, called by both
 server deployment workflows. Keep template-only changes in the production
 path gate, require publication before every deploy leg, and promote one source
@@ -723,7 +730,7 @@ Macrobenchmark iterations. The pinned fixture and its contract live in
 `infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
 on failure too; do not accept a successful build that executed no tests.
 
-Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.
+Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources, then the kvm-nri-plugin DaemonSet when the release renders it; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.
 
 ## macOS maintenance validation
 

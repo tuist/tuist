@@ -223,7 +223,9 @@ defmodule TuistWeb.API.GradleController do
                  network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
                  network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
                  disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
-                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."},
+                 disk_total_bytes: %Schema{type: :integer, minimum: 0, nullable: true},
+                 disk_available_bytes: %Schema{type: :integer, minimum: 0, nullable: true}
                },
                required: [
                  :timestamp,

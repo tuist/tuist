@@ -2,6 +2,8 @@ defmodule Tuist.EntireTrailsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Entire.Client, as: Entire
   alias Tuist.Entire.Installation
   alias Tuist.Entire.Workers.DeliveryWorker
@@ -44,7 +46,16 @@ defmodule Tuist.EntireTrailsTest do
           reviews: %{},
           writes: 0,
           fail_after_create: false,
-          revoked: false
+          revoked: false,
+          # Someone quoting Tuist's marker must not have their comment edited.
+          discussions: %{
+            "human" => %{
+              "identity" => %{"kind" => "user", "username" => "octocat"},
+              "messages" => [%{"id" => "human-message", "body" => "<!-- tuist-project:#{project.id} -->"}]
+            }
+          },
+          lose_comment: false,
+          deny_discussions: false
         }
       end)
 
@@ -69,11 +80,19 @@ defmodule Tuist.EntireTrailsTest do
 
     assert :ok = EntireTrails.sync(context.connection.id)
     [summary] = Agent.get(context.remote, &Map.values(&1.summaries))
+    [%{"id" => comment_id} = comment] = comments(context)
+    assert comment["title"] == "Tuist insights for #{context.account.name}/#{context.project.name}"
+    assert comment["body"] == summary["body"] <> "\n\n<!-- tuist-project:#{context.project.id} -->"
     assert summary["body"] =~ "Current"
     refute summary["body"] =~ "Stale"
     assert summary["body"] =~ "`aaaaaaaaa`"
     refute summary["body"] =~ "/commit/"
     assert summary["body"] =~ "/#{context.account.name}/#{context.project.name}/builds/build-runs/"
+    handle = "#{context.account.name}/#{context.project.name}"
+    [%{check_suite: suite, check_runs: [run]}] = Agent.get(context.remote, &Map.values(&1.checks))
+    assert suite.key == handle
+    assert suite.details_url == Environment.app_url(path: "/" <> handle)
+    assert run.details_url == suite.details_url
 
     build(context.project, @sha, "Later", 3)
     assert :ok = EntireTrails.sync(context.connection.id)
@@ -82,6 +101,8 @@ defmodule Tuist.EntireTrailsTest do
     body = Enum.find_value(summaries, fn summary -> if summary["body"] =~ "Later", do: summary["body"] end)
     assert body =~ "Current"
     assert body =~ "Later"
+    assert [%{"id" => ^comment_id, "body" => comment_body}] = comments(context)
+    assert comment_body =~ "Later"
 
     assert :ok = EntireTrails.sync(context.connection.id)
     assert map_size(Agent.get(context.remote, & &1.summaries)) == 2
@@ -108,6 +129,44 @@ defmodule Tuist.EntireTrailsTest do
     assert Repo.aggregate(Summary, :count) == 1
     assert :ok = EntireTrails.sync(context.connection.id)
     assert map_size(Agent.get(context.remote, & &1.summaries)) == 2
+  end
+
+  test "keeps one Trail comment after a lost create response or a deleted comment", context do
+    build(context.project, @sha, "App", 1)
+    Agent.update(context.remote, &%{&1 | lose_comment: true})
+
+    assert {:error, :unavailable} = EntireTrails.sync(context.connection.id)
+    build(context.project, @sha, "Arrived during retry", 2)
+    # The retry recovers the started attempt; the follow-up edits the same comment.
+    assert :ok = EntireTrails.sync(context.connection.id)
+    assert [%{"id" => id}] = comments(context)
+    assert %{discussion_id: ^id, message_id: "message-" <> ^id} = Repo.one!(Summary)
+    assert :ok = EntireTrails.sync(context.connection.id)
+    assert [%{"id" => ^id, "body" => body}] = comments(context)
+    assert body =~ "Arrived during retry"
+
+    Agent.update(context.remote, &%{&1 | discussions: Map.delete(&1.discussions, id)})
+    build(context.project, @sha, "After deletion", 3)
+    assert :ok = EntireTrails.sync(context.connection.id)
+    assert [%{"id" => new_id, "body" => body}] = comments(context)
+    assert new_id != id
+    assert body =~ "After deletion"
+
+    human = Agent.get(context.remote, & &1.discussions["human"])
+    assert human["messages"] == [%{"id" => "human-message", "body" => "<!-- tuist-project:#{context.project.id} -->"}]
+  end
+
+  test "publishes checks and findings for installations that have not granted discussions", context do
+    build(context.project, @sha, "App", 1)
+    Agent.update(context.remote, &%{&1 | deny_discussions: true})
+
+    assert :ok = EntireTrails.sync(context.connection.id)
+    assert comments(context) == []
+    assert map_size(Agent.get(context.remote, & &1.checks)) == 1
+    assert map_size(Agent.get(context.remote, & &1.summaries)) == 1
+    summary = Repo.one!(Summary)
+    assert summary.published_at == summary.reported_at
+    assert summary.discussion_id == nil
   end
 
   for insights_available? <- [false, true] do
@@ -214,6 +273,22 @@ defmodule Tuist.EntireTrailsTest do
     assert map_size(Agent.get(context.remote, & &1.reviews)) == 1
   end
 
+  test "distinguishes an empty Trail list from a missing items field", context do
+    for body <- [%{"items" => []}, %{"trails" => [%{"number" => 7}]}] do
+      stub(Req, :request, fn opts ->
+        if opts[:url] == @api <> "/api/v1/repos/repo_selected/trails" do
+          response(200, body)
+        else
+          request(opts, context.remote, context.installation)
+        end
+      end)
+
+      log = capture_log(fn -> assert :ok = EntireTrails.sync(context.connection.id) end)
+      assert log =~ "response missing items" == not Map.has_key?(body, "items")
+      assert Agent.get(context.remote, & &1.writes) == 0
+    end
+  end
+
   test "links to Tuist when the report exceeds Entire's UTF-8 byte limit", context do
     stub(VCS, :get_run_report_sections, fn _ ->
       %{summary: String.duplicate("é", 32_768), failed_tests: nil, flaky_tests: nil}
@@ -224,6 +299,8 @@ defmodule Tuist.EntireTrailsTest do
     assert body =~ "[View the full report]"
     assert body =~ @sha
     assert byte_size(body) <= 65_535
+    assert [%{"body" => comment}] = comments(context)
+    assert String.length(comment) <= 65_536
   end
 
   test "stops publishing for disabled, suspended, or revoked installations", context do
@@ -435,30 +512,42 @@ defmodule Tuist.EntireTrailsTest do
         end
 
       String.ends_with?(path, "/access-tokens") ->
-        assert opts[:json] == %{
-                 repository_id: "repo_selected",
-                 permissions: %{"contents" => "read", "checks" => "write", "findings" => "write"}
-               }
+        %{repository_id: "repo_selected", permissions: permissions} = opts[:json]
+        discussions = %{"contents" => "read", "discussions" => "write"}
+        assert permissions in [%{"contents" => "read", "checks" => "write", "findings" => "write"}, discussions]
 
-        response(201, %{"token" => "repository-scoped"})
+        if permissions == discussions and Agent.get(remote, & &1.deny_discussions),
+          do: response(403, %{}),
+          else: response(201, %{"token" => "repository-scoped"})
 
       true ->
         assert uri.host == URI.parse(@api).host
         assert {"authorization", "Bearer repository-scoped"} in opts[:headers]
-        region_request(opts, remote, installation, path, params)
+        api_request(opts, remote, installation, path, params)
     end
   end
 
-  defp region_request(opts, remote, _installation, path, params) do
+  defp api_request(opts, remote, installation, path, params) do
+    case String.split(path, "/api/v1/repos/repo_selected/trails/7/discussions", parts: 2) do
+      ["", rest] ->
+        tuist = %{"kind" => "automation", "automation" => %{"installation_id" => installation.remote_id}}
+        discussion_request(opts[:method], rest, opts, remote, tuist)
+
+      _ ->
+        region_request(opts, remote, path, params)
+    end
+  end
+
+  defp region_request(opts, remote, path, params) do
     base = "/api/v1/repos/repo_selected/trails"
 
     case {opts[:method], String.replace_prefix(path, base, "")} do
       {:post, "/api/v1/repos/repo_selected/commits/" <> rest} ->
         assert rest in [@sha <> "/check-runs", @other_sha <> "/check-runs"]
         %{check_suite: suite, check_runs: [run]} = opts[:json]
+        assert opts[:json][:branch] == "feature/insights"
         assert suite.status == "completed"
         assert suite.conclusion == "neutral"
-        assert String.starts_with?(suite.key, "tuist-insights-")
         assert run.key == "report"
         assert run.output.title == "Tuist insights"
         assert byte_size(run.output.summary) <= 65_535
@@ -477,7 +566,14 @@ defmodule Tuist.EntireTrailsTest do
 
       {:get, "/7"} ->
         state = Agent.get(remote, & &1)
-        response(200, %{"id" => "trail_stable", "number" => 7, "head_sha" => state.head, "status" => state.status})
+
+        response(200, %{
+          "id" => "trail_stable",
+          "number" => 7,
+          "head_sha" => state.head,
+          "branch" => "feature/insights",
+          "status" => state.status
+        })
 
       {:post, "/7/reviews"} ->
         assert opts[:json] in [%{head_sha: @sha}, %{head_sha: @other_sha}]
@@ -517,6 +613,60 @@ defmodule Tuist.EntireTrailsTest do
 
         response(200, %{})
     end
+  end
+
+  defp discussion_request(method, path, opts, remote, tuist) do
+    case {method, path} do
+      {:get, ""} ->
+        items =
+          Enum.map(Agent.get(remote, & &1.discussions), fn {id, discussion} ->
+            %{"id" => id, "created_by_identity" => discussion["identity"]}
+          end)
+
+        response(200, %{"items" => items, "next_cursor" => ""})
+
+      {:get, "/" <> id} ->
+        %{"identity" => identity, "messages" => messages} = Agent.get(remote, & &1.discussions[id])
+        response(200, %{"messages" => Enum.map(messages, &Map.put(&1, "identity", identity))})
+
+      {:post, ""} ->
+        id = "discussion-#{System.unique_integer([:positive])}"
+        message = %{"id" => "message-" <> id, "body" => opts[:json][:body]}
+        discussion = %{"identity" => tuist, "title" => opts[:json][:title], "messages" => [message]}
+
+        lost? =
+          Agent.get_and_update(
+            remote,
+            &{&1.lose_comment, %{&1 | discussions: Map.put(&1.discussions, id, discussion), lose_comment: false}}
+          )
+
+        if lost?,
+          do: {:error, :closed},
+          else: response(201, %{"discussion" => %{"id" => id}, "message" => %{"id" => message["id"]}})
+
+      {:patch, "/" <> rest} ->
+        [id, "messages", message_id] = String.split(rest, "/")
+
+        Agent.get_and_update(remote, fn state ->
+          case state.discussions[id] do
+            %{"identity" => ^tuist, "messages" => [%{"id" => ^message_id} = message]} = discussion ->
+              discussion = %{discussion | "messages" => [%{message | "body" => opts[:json][:body]}]}
+              {response(200, %{"message" => %{"id" => message_id}}), put_in(state.discussions[id], discussion)}
+
+            _ ->
+              {response(404, %{}), state}
+          end
+        end)
+    end
+  end
+
+  defp comments(context) do
+    context.remote
+    |> Agent.get(& &1.discussions)
+    |> Enum.reject(fn {id, _} -> id == "human" end)
+    |> Enum.map(fn {id, %{"title" => title, "messages" => [message]}} ->
+      %{"id" => id, "title" => title, "body" => message["body"]}
+    end)
   end
 
   defp repository(id, name) do

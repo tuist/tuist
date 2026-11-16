@@ -205,6 +205,16 @@ export default {
     this.el.addEventListener("keydown", this.handleSearchKeydown);
     this.applySearchFilter();
 
+    // Portaled options can be patched after this hook's updated callback.
+    const items = this.el.querySelector('[data-part="items"]');
+    if (items) {
+      this.itemsObserver = new MutationObserver(() => {
+        this.menu.render();
+        this.applySearchFilter();
+      });
+      this.itemsObserver.observe(items, { childList: true, subtree: true });
+    }
+
     this.handleOpenDropdown = (event) => {
       if (event.detail.id == this.el.id) {
         this.menu.api.setOpen(true);
@@ -373,6 +383,7 @@ export default {
   },
 
   beforeDestroy() {
+    this.itemsObserver?.disconnect();
     this.menu.destroy();
   },
 

@@ -10,11 +10,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     {"buildbuddy", "BuildBuddy"},
     {"buildjet", "BuildJet"},
     {"buildkite", "Buildkite"},
+    {"cachely", "Cachely"},
     {"circleci", "CircleCI"},
     {"cirun", "Cirun"},
     {"codemagic", "Codemagic"},
     {"depot", "Depot"},
     {"develocity", "Develocity"},
+    {"engflow", "EngFlow"},
     {"namespace", "Namespace"},
     {"runs-on", "RunsOn"},
     {"ubicloud", "Ubicloud"},
@@ -22,8 +24,12 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   ]
   @featured_providers ~w(buildkite develocity namespace)
   @comparison_paths Enum.map(@providers, fn {slug, _name} -> "/compare/" <> slug end)
+  # Developer tools rather than infrastructure providers, compared in the featured format.
+  @tools [{"nx", "Nx"}, {"xcodegen", "XcodeGen"}, {"swift-package-manager", "Swift Package Manager"}]
+  @tool_paths Enum.map(@tools, fn {slug, _name} -> "/compare/" <> slug end)
   @build_system_paths [
-    "/build-systems" | Enum.map(["xcode", "gradle", "bazel", "elixir", "once"], &"/build-systems/#{&1}")
+    "/build-systems"
+    | Enum.map(["xcode", "gradle", "bazel", "elixir", "once", "bazel-vs-gradle"], &"/build-systems/#{&1}")
   ]
 
   test "covers every marketing landing page with an authored guide" do
@@ -48,12 +54,14 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/previews",
                  "/pricing",
                  "/security",
+                 "/solutions/bazel-github-actions",
+                 "/solutions/bazel-remote-cache",
                  "/solutions/ci-costs",
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests",
                  "/tests"
-               ] ++ @comparison_paths ++ @build_system_paths
+               ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
 
     for path <- MarketingMarkdown.guide_paths() do
@@ -140,11 +148,13 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
              Enum.sort(
                [
                  "/compare",
+                 "/solutions/bazel-github-actions",
+                 "/solutions/bazel-remote-cache",
                  "/solutions/ci-costs",
                  "/solutions/flaky-tests",
                  "/solutions/slow-builds",
                  "/solutions/slow-tests"
-               ] ++ @comparison_paths ++ @build_system_paths
+               ] ++ @comparison_paths ++ @tool_paths ++ @build_system_paths
              )
 
     for page <- MarketingMarkdown.decision_guides() do
@@ -265,7 +275,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
-    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs"] do
+    for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs", "bazel-github-actions", "bazel-remote-cache"] do
       path = "/solutions/" <> slug
       markdown = MarketingMarkdown.get(path)
       [_heading, introduction | _rest] = String.split(markdown, "\n\n")
@@ -275,6 +285,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "## First experiment"
       refute markdown =~ "## Limitations"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
+
+      [_before, faq] = String.split(markdown, "## Frequently asked questions\n", parts: 2)
+      assert length(Regex.scan(~r/^### /m, faq)) in 4..6, path
 
       for [_match, tool] <- Regex.scan(~r/`((?:list|get|update)_[a-z_]+)`/, markdown) do
         assert mcp_docs =~ "`#{tool}`", tool
@@ -293,7 +306,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   end
 
   test "comparisons disclose their perspective, primary sources, and review date" do
-    for path <- ["/compare" | @comparison_paths] do
+    for path <- ["/compare" | @comparison_paths ++ @tool_paths] do
       markdown = MarketingMarkdown.get(path)
       assert String.downcase(markdown) =~ "written by tuist"
       assert markdown =~ ~r/Sources checked on \*\*\d{4}-\d{2}-\d{2}\*\*/
@@ -318,6 +331,32 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     end
 
     assert MarketingMarkdown.get("/compare/bitrise") =~ "Agent access and insights are not unique to Tuist"
+
+    for {slug, tool} <- @tools do
+      markdown = MarketingMarkdown.get("/compare/" <> slug)
+      assert markdown =~ "# #{tool} vs Tuist:"
+      assert markdown =~ "## What is #{tool}?"
+      assert markdown =~ "## First experiment"
+      assert markdown =~ "## Frequently asked questions"
+    end
+
+    nx = MarketingMarkdown.get("/compare/nx")
+    assert nx =~ "## Choose Nx when"
+    assert nx =~ "## Choose Tuist when"
+
+    # XcodeGen projects can adopt Tuist's build infrastructure without migrating,
+    # so the page leads with that path and presents migration as optional.
+    xcodegen = MarketingMarkdown.get("/compare/xcodegen")
+    assert xcodegen =~ "## Keep XcodeGen, add Tuist"
+    assert xcodegen =~ "## When to migrate"
+    assert xcodegen =~ "### Is Tuist an Xcode project generator?"
+
+    # Tuist keeps using Swift Package Manager for dependencies, so the page adds
+    # Tuist to package-based projects instead of presenting it as a replacement.
+    spm = MarketingMarkdown.get("/compare/swift-package-manager")
+    assert spm =~ "## Keep your packages, add Tuist"
+    assert spm =~ "## When to move modules into Tuist"
+    assert spm =~ "### Does Tuist replace Swift Package Manager?"
   end
 
   test "legacy comparisons keep their existing recommendation contract" do
@@ -343,7 +382,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "comparison overview links every detailed provider guide" do
     overview = MarketingMarkdown.get("/compare")
 
-    for {slug, vendor} <- @providers do
+    for {slug, vendor} <- @providers ++ @tools do
       path = "/compare/" <> slug
       assert overview =~ vendor
       assert overview =~ MarketingMarkdown.alternate_path(path)
@@ -373,6 +412,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "MIT-licensed"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "not remote execution"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "explicitly separates `enterprise/`"
+    assert MarketingMarkdown.get("/compare/cachely") =~ "enforced by the server"
+    assert MarketingMarkdown.get("/compare/cachely") =~ "Cloudflare R2"
     assert MarketingMarkdown.get("/compare/develocity") =~ "Read-only MCP servers"
     assert MarketingMarkdown.get("/compare/buildkite") =~ "hosted and self-hosted execution"
     assert MarketingMarkdown.get("/compare/circleci") =~ "OAuth organizations"
@@ -399,7 +440,14 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     for path <-
           ["/", "/cache", "/compute", "/pricing"] ++
             Enum.reject(@comparison_paths, &(Path.basename(&1) in @featured_providers)) ++
-            ["/solutions/slow-builds", "/solutions/slow-tests", "/solutions/flaky-tests", "/solutions/ci-costs"] do
+            [
+              "/solutions/slow-builds",
+              "/solutions/slow-tests",
+              "/solutions/flaky-tests",
+              "/solutions/ci-costs",
+              "/solutions/bazel-github-actions",
+              "/solutions/bazel-remote-cache"
+            ] do
       markdown = MarketingMarkdown.get(path)
       assert markdown =~ ~r/[Pp]roject (?:optimization )?first/, path
       assert markdown =~ "environment", path

@@ -183,7 +183,12 @@ defmodule TuistWeb.UsageLive do
     }
   end
 
-  @repository_colors ["primary", "secondary", "tertiary", "quaternary", "p50", "p90", "p99"]
+  # Stacked segments sit next to each other, so neighbors alternate hues:
+  # the purple primary and blue secondary tokens share a lightness and are
+  # only ~27° apart, which made the two largest series hard to tell apart.
+  # Blue is left out for that reason, and p99 because it is the same green
+  # as tertiary.
+  @repository_colors ["primary", "p50", "tertiary", "p90", "quaternary"]
 
   @doc """
   One stacked bar series per repository, valued in dollars.

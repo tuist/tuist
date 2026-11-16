@@ -199,7 +199,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
 
   test "signed-out installers return to setup after login" do
     conn = get(build_conn(), ~p"/integrations/github/setup", installation_id: "12345")
-    assert redirected_to(conn) == "/users/log_in"
+    assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/integrations/github/setup?installation_id=12345"}}"
     assert get_session(conn, :user_return_to) == "/integrations/github/setup?installation_id=12345"
   end
 

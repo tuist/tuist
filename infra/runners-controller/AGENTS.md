@@ -81,8 +81,8 @@ cancellable and leaves the reserve intact. See
   competes. The reconciler runs the per-pool target through
   `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
-  (1) real load (`occupied + queued`), (2) each pool's
-  `minWarmPoolFloor` above its load, then (3) the speculative
+  (1) real load (`occupied + queued`, plus one withheld contender),
+  (2) baselines and learned warm spare, then (3) the speculative
   95th-percentile buffer above that. `occupied` is the distinct union of
   live claims and open runner sessions, so post-job cache and teardown
   work keeps its host funded after the GitHub completion webhook releases
@@ -99,20 +99,9 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  The floor tier funds pools in use (load now, or a runner session in the
-  last hour: `Signals.InUse`) before pools that only hold a learned floor,
-  in `capByShape` too. Learned floors on a busy rack sum past its seats, and
-  an even split left the pools whose jobs were arriving short of warm
-  runners while pools with no job in an hour stayed warm.
-
-  A tier that cannot be funded in full is split proportionally to cost,
-  and the whole Pods the rounding leaves go one per pool per round to the
-  pools with the largest target (which includes the hourly peak), then by
-  name (`grantRemainder`). Every rack image keeps a one-Pod floor, and
-  without this one queued job past capacity rounded every floor to zero:
-  all images went cold for one job, and the freed slots sat unassigned.
-  Now only as many floors yield as the load needs, least recently used
-  image first.
+  - Keep byte allocation and `capByShape` warm priorities aligned: baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. All warm stock yields to real load.
+  - Fund each warm tier whole in `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors frequently used pools over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
+  - Split only speculative p95 headroom proportionally to cost; grant whole Pods left by rounding to the largest targets, then by name (`grantRemainder`). Do not raise learned caps to hide an unfunded warm budget.
 
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
   damps a pool's own oscillation, but it must not hold idle runners
@@ -122,7 +111,7 @@ cancellable and leaves the reserve intact. See
   idle runners at once instead of deferring:
 
   - *Starved* means the sibling has Pods the scheduler refused with
-    `Insufficient …` for at least `preemptionWait` (30s), backed by
+    `Insufficient …` for at least `preemptionWait` (5s), backed by
     dispatchable `queued` jobs its own idle bound Pods cannot absorb:
     `min(rejected, queued - idleBound)`. `withheld` work (accounts at
     their concurrency limit) never preempts. Entitlement is not checked
@@ -264,9 +253,8 @@ cancellable and leaves the reserve intact. See
     This has to be a shared cap rather than `maxReplicas`, because a
     macOS shape renders one pool per Xcode version: five pools each
     capped at the two M4-XL hosts compose to ten. Inside the cap, seats
-    go load first, then warm floor, then headroom, one Pod per pool per
-    round (so contenders do not both lose a seat) in name order (so the
-    split is stable across reconciles).
+    follow the byte allocator's baseline and burst priorities. Load and
+    headroom remain one Pod per pool per round in name order.
 
     Both platforms. It was darwin-only until 2026-09-02, on the grounds
     that kata pins memory and oversubscribes CPU so the byte budget was
@@ -334,6 +322,8 @@ cancellable and leaves the reserve intact. See
     seat, and reserving a one-host fleet would take every pool out of
     service until it cleared. Waiting is correct there, and the
     allocator's cross-pool reclaim already arranges it.
+
+    Before the ordinary reservation graces, a five-second sustained `Insufficient` rejection may reserve a host only when fresh dispatchable demand exceeds bound idle runners and its idle victims are warm, nonstale, past their grace, and entirely surplus to their pools' current replica allocations. Confirm fit with uncached Pods across namespaces, including native sandbox VM slots; never accelerate a reservation that must wait for a running job or count a deleting runner's seat twice. Keep the slower paths below.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), or past `idleHostReservationGrace` (30s) when the best
@@ -1112,7 +1102,28 @@ apiserver patch fails. `isIdle` additionally treats a terminated
 `poller` init container as proof of a claim, so a Pod running a job
 survives even when the label never landed.
 
-To replace a box, delete its Machine and follow the release:
+The release wait covers CI only. A Linux box also hosts agent sandboxes
+(Amp Orbs, Claude Code sessions) in `tuist-sandboxes`, and the release
+deletes them with it. Drain them first, the **sandbox drain step**: cordon
+the Node (`kubectl cordon <node>`), which makes the runners-controller's
+allocation ask the server to reclaim it, so the server pauses idle
+sandboxes and archives paused ones, one upload at a time
+(`Tuist.Sandboxes.Archives.node_drain/1`). Then run the check until it
+prints `DRAINED` and exits 0:
+
+```bash
+kubectl -n tuist exec deploy/tuist-tuist-server -- \
+  bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
+```
+
+It lists each sandbox still on the node (state, account, Orb, whether a
+turn holds it, upload state) and queues the next archive. A sandbox in a
+turn waits for the turn to end; errored rows are listed but do not block.
+Nothing enforces this: deleting the Machine earlier loses the sandboxes
+still listed.
+
+To replace a box, drain its sandboxes, then delete its Machine and follow
+the release:
 
 ```bash
 kubectl -n <namespace> delete machine <machine-name>
@@ -1523,8 +1534,19 @@ fractional CPU count, since the hosts allocate whole two-thread cores.
 
 Keep every container free of its own CPU and memory: a container with its own
 Guaranteed CPU takes an exclusive slice out of the budget and leaves the others
-on an empty shared pool, which the kubelet rejects. Device resources such as
-`devices.tuist.dev/kvm` stay on the runner container. Code that sizes a Pod
+on an empty shared pool, which the kubelet rejects. Never give a Pod with a
+Pod-level budget a `devices.tuist.dev/kvm` request: kubelet's pod-level
+admission skips device allocation and can panic on concurrent starts
+(kubernetes/kubernetes#143490). A pool with both `exclusiveCPUs` and
+`nestedVirtualization` gets `/dev/kvm` from `cmd/kvm-nri-plugin` instead, a
+containerd NRI plugin (`internal/kvmnri`) that adds the device to the
+containers a kata-qemu Pod in the runners namespace names in
+`tuist.dev/kvm-containers`. Build sets that annotation to `poller,runner`,
+requests no device, and has the poller exit before claiming a job when
+`/dev/kvm` is missing, since a stopped plugin adds nothing. dind keeps creating
+the guest's node with `mknod`. Helm combines the two only with
+`runnersFleetLinux.nestedVirtualization.nri.enabled`, which deploys the
+DaemonSet. Code that sizes a Pod
 (`podFootprint`, `podMemory`, `allocationPodMemory`) must read the Pod-level
 budget when it is set, or a running job looks nearly free.
 `isStaleExclusiveCPUs` rolls idle Pods when a pool turns the flag on or off.

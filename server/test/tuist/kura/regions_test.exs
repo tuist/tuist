@@ -680,24 +680,9 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "private runner-cache regions" do
-    test "the scaleway runner region is registered as private" do
-      assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
-      assert scw_config.private == true
-      assert scw_config.storage_class == "scw-local-nvme"
-      assert scw_config.replicas == 2
-
-      # The ring derives from the account's pinned claim, without a fixed
-      # region-wide budget or an envelope that bypasses measured sizing.
-      assert scw_config.storage_size == "50Gi"
-      assert scw_config.disk_envelope_size == nil
-      assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
-      refute Map.has_key?(scw_config, :public_host_template)
-      assert scw_config.ingress_class_name == "kura-runners"
-      assert scw_config.private_host_template =~ "-runners"
-      refute Map.has_key?(scw_config, :rollout_policy)
-
-      # The retired Hetzner entry remains fetchable only so old resources can
-      # be deleted. It is not an available serving region.
+    test "only the rack sites serve; the retired regions remain for teardown" do
+      # The retired entries remain fetchable only so old resources can be
+      # deleted, which needs the cluster and node pool they were created on.
       assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
                "scw-fr-par-runners",
                "ber1-runners",
@@ -706,7 +691,24 @@ defmodule Tuist.Kura.RegionsTest do
              ]
 
       assert Regions.retired?(Regions.get("hetzner-staging-runners"))
-      refute Regions.retired?(Regions.get("scw-fr-par-runners"))
+      assert Regions.retired?(Regions.get("scw-fr-par-runners"))
+      refute Regions.retired?(Regions.get("ber1-runners"))
+      refute Regions.retired?(Regions.get("larch-runners"))
+
+      assert %{cluster_id: "scw-fr-par", node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}} =
+               Regions.get("scw-fr-par-runners").provisioner_config
+    end
+
+    test "a retired region is never available, even when the gate still names it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+      end)
+
+      assert Enum.map(Regions.available(), & &1.id) == ["eu-west", "ber1-runners"]
+      refute Regions.available?("scw-fr-par-runners")
     end
   end
 
@@ -746,7 +748,7 @@ defmodule Tuist.Kura.RegionsTest do
 
   describe "private?/1" do
     test "is true only for private regions" do
-      assert Regions.private?(Regions.get("scw-fr-par-runners"))
+      assert Regions.private?(Regions.get("ber1-runners"))
       refute Regions.private?(Regions.get("eu-west"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
@@ -766,12 +768,16 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "serves_runner_platform?/2" do
-    test "scaleway region serves only the co-located macOS fleet" do
-      scw = Regions.get("scw-fr-par-runners")
+    test "a rack site region serves only the macOS fleet racked beside it" do
+      ber1 = Regions.get("ber1-runners")
 
-      assert scw.runner_platforms == [:macos]
-      assert Regions.serves_runner_platform?(scw, :macos)
-      refute Regions.serves_runner_platform?(scw, :linux)
+      assert ber1.runner_platforms == [:macos]
+      assert Regions.serves_runner_platform?(ber1, :macos)
+      refute Regions.serves_runner_platform?(ber1, :linux)
+    end
+
+    test "a retired region serves no runner platform" do
+      refute Regions.serves_runner_platform?(Regions.get("scw-fr-par-runners"), :macos)
     end
 
     test "no region serves the linux fleet" do
@@ -781,9 +787,8 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "runner gateway readiness is observed independently of the image rollout" do
-      region = Regions.get("scw-fr-par-runners")
+      region = Regions.get("ber1-runners")
       assert region.provisioner_config.data_plane == :private_gateway
-      assert region.provisioner_config.expose_node_port
       assert Regions.observed_private_endpoint?(region)
       refute Regions.observed_private_endpoint?(Regions.get("eu-west"))
       refute Regions.observed_private_endpoint?(nil)
@@ -793,7 +798,7 @@ defmodule Tuist.Kura.RegionsTest do
       for {environment, suffix} <- [prod: "", stag: "-staging", can: "-canary"] do
         stub(Tuist.Environment, :env, fn -> environment end)
 
-        assert Regions.get("scw-fr-par-runners").provisioner_config.private_host_template ==
+        assert Regions.get("ber1-runners").provisioner_config.private_host_template ==
                  "{account_handle}-{cluster_id}-runners#{suffix}.kura.tuist.dev"
       end
     end
@@ -809,13 +814,13 @@ defmodule Tuist.Kura.RegionsTest do
     test "excludes private regions a customer cannot pick" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "scw-fr-par-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ber1-runners"] end)
 
       available_ids = Enum.map(Regions.available(), & &1.id)
       selectable_ids = Enum.map(Regions.selectable(), & &1.id)
 
-      assert "scw-fr-par-runners" in available_ids
-      refute "scw-fr-par-runners" in selectable_ids
+      assert "ber1-runners" in available_ids
+      refute "ber1-runners" in selectable_ids
       assert "eu-west" in selectable_ids
     end
   end

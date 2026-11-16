@@ -57,8 +57,8 @@ func TestAppleRuntimeAcceptance(t *testing.T) {
 	m.Root = filepath.Join(directory, "records")
 	m.RuntimePath = binary
 	m.ToolsPath = tools
-	m.TemplateTag = image
-	m.Runtime = &TartRuntime{Client: c, Image: image, Template: "macos", Tools: tools}
+	m.Templates = NewTemplates(map[string]string{"macos": image})
+	m.Runtime = &TartRuntime{Client: c, Templates: m.Templates, Tools: tools}
 	if err = m.Load(ctx); err != nil {
 		t.Fatal(err)
 	}

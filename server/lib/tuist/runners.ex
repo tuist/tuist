@@ -118,6 +118,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.LearnedWarmFloors
+  alias Tuist.Runners.MacosSandboxWarmPools
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
@@ -685,6 +686,10 @@ defmodule Tuist.Runners do
       when it had no job in the last day (`LearnedWarmFloors`). The
       controller keeps up to that many runners idle above load, capped per
       pool by `maxLearnedWarmPoolFloor`.
+    * `hours_with_jobs` — how many hours of the last 14 days had one of
+      this fleet's jobs, or 0 when it had no job in the last day
+      (`LearnedWarmFloors`). The controller funds idle pools' floors on a
+      full fleet in this order, most used first.
     * `preferred_nodes` — for a macOS fleet, one Node per oldest queued
       job, most imminent first, that holds the custom volumes the job is
       predicted to attach and has cache room for them
@@ -703,16 +708,29 @@ defmodule Tuist.Runners do
     occupied = max(Map.get(RunnerSessions.occupied_counts_per_fleet(), fleet_name, 0), claimed)
     {queued, withheld} = dispatchable_queued_count(fleet_name)
 
-    %{
-      fleet: fleet_name,
-      claimed: claimed,
-      occupied: occupied,
-      queued: queued,
-      withheld: withheld,
-      p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
-      learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
-      preferred_nodes: preferred_nodes(fleet_name)
-    }
+    Map.merge(
+      %{
+        fleet: fleet_name,
+        claimed: claimed,
+        occupied: occupied,
+        queued: queued,
+        withheld: withheld,
+        p95_concurrent_last_hour: RunnerSessions.p95_concurrent_last_hour(fleet_name),
+        learned_warm_floor: LearnedWarmFloors.for_fleet(fleet_name),
+        hours_with_jobs: LearnedWarmFloors.hours_with_jobs(fleet_name),
+        preferred_nodes: preferred_nodes(fleet_name)
+      },
+      macos_sandbox_warm_signals(fleet_name)
+    )
+  end
+
+  # A warm macOS sandbox pool runs no job; its usage is the sandbox creates
+  # of its shape.
+  defp macos_sandbox_warm_signals(fleet_name) do
+    case MacosSandboxWarmPools.shape(fleet_name) do
+      nil -> %{}
+      shape -> MacosSandboxWarmPools.signals(shape)
+    end
   end
 
   # macOS Pods are placed before a job is assigned, so the queued jobs are the

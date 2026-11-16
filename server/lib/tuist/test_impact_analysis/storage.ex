@@ -56,17 +56,29 @@ defmodule Tuist.TestImpactAnalysis.Storage do
       )
 
     case IngestRepo.with_retry(fn -> IngestRepo.one(query) end) do
-      nil ->
-        {:error, :not_found}
-
-      diff ->
-        changed_files =
-          Enum.map(diff.changed_files, fn {path, status, blob, affected_modules} ->
-            %{path: path, status: status, blob: blob, affected_modules: affected_modules}
-          end)
-
-        {:ok, %{diff | changed_files: changed_files}}
+      nil -> {:error, :not_found}
+      diff -> {:ok, with_changed_files(diff)}
     end
+  end
+
+  @doc """
+  The stored diffs of the checked-out `commit_shas`, one per commit and
+  baseline, as `get_diff/3` returns them.
+  """
+  def list_diffs(_project_id, []), do: []
+
+  def list_diffs(project_id, commit_shas) do
+    query = from(d in Diff, where: d.project_id == ^project_id and d.commit_sha in ^commit_shas)
+    query |> IngestRepo.all() |> Enum.uniq_by(&{&1.commit_sha, &1.baseline_sha}) |> Enum.map(&with_changed_files/1)
+  end
+
+  defp with_changed_files(diff) do
+    changed_files =
+      Enum.map(diff.changed_files, fn {path, status, blob, affected_modules} ->
+        %{path: path, status: status, blob: blob, affected_modules: affected_modules}
+      end)
+
+    %{diff | changed_files: changed_files}
   end
 
   @doc """

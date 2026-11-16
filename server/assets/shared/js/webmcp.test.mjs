@@ -225,7 +225,7 @@ test("an aborted call rejects with the abort", async () => {
 
 // A dashboard page with the elements the navigation tools read, keyed by the
 // selectors they use.
-function fakeDashboard({ endpoint = accountEndpoint } = {}) {
+function fakeDashboard({ endpoint = accountEndpoint, catalog } = {}) {
   const clicks = [];
   const link = (href, label, { live = true, group } = {}) => ({
     href,
@@ -261,7 +261,16 @@ function fakeDashboard({ endpoint = accountEndpoint } = {}) {
         : [],
   };
   const document = {
-    querySelector: (selector) => (selector === "header[data-webmcp-endpoint]" && endpoint ? headerbar : null),
+    querySelector: (selector) => {
+      if (selector === "#dashboard-search" && catalog) return { dataset: { pages: JSON.stringify(catalog) } };
+      return selector === "header[data-webmcp-endpoint]" && endpoint ? headerbar : null;
+    },
+    createElement: () => ({
+      click() {
+        clicks.push(this.href);
+      },
+      hasAttribute: () => false,
+    }),
     querySelectorAll: (selector) => (selector === ".layout .noora-sidebar a[href^='/']" ? sidebar : []),
   };
   return { document, clicks };
@@ -330,4 +339,26 @@ test("navigates only to listed pages, and resolves once a live navigation has re
     reloading: true,
   });
   assert.deepEqual(clicks, ["/acme/app", "/other/projects"]);
+});
+
+test("includes authorized catalog pages, and a page also in the sidebar keeps its live link", async () => {
+  const catalog = [
+    { path: "/acme/app", title: "Project Overview", description: "app analytics" },
+    { path: "/acme/settings/tokens", title: "Tokens", description: "API keys" },
+  ];
+  const { tools, clicks, target, location } = await navigationTools({ catalog });
+  const navigate = tools.get("navigate_to_dashboard_page");
+  const { pages } = await tools.get("list_dashboard_pages").execute({});
+  assert.equal(pages.filter((page) => page.path === "/acme/app").length, 1);
+  assert.equal(pages[0].description, "app analytics");
+  assert.equal(pages[1].description, "API keys");
+
+  // The sidebar's LiveView link navigates in place rather than reloading.
+  const navigation = navigate.execute({ path: "/acme/app" });
+  location.pathname = "/acme/app";
+  target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind: "initial" } }));
+  assert.deepEqual(await navigation, { path: "/acme/app", title: "Project Overview" });
+
+  assert.equal((await navigate.execute({ path: "/acme/settings/tokens" })).reloading, true);
+  assert.deepEqual(clicks, ["/acme/app", "/acme/settings/tokens"]);
 });

@@ -61,7 +61,9 @@ import TuistServer
                 ServerCredentialsStore.$current.withValue(
                     ServerCredentialsStore(backend: .keychain)
                 ) {
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
+                    // File locks serialize Keychain session refreshes with Tuist Guild, which takes
+                    // the same `credential-refresh-<hash>` lock under ~/.local/state/tuist.
+                    CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
                         MenuBarView(
                             appDelegate: appDelegate,
                             updaterController: updaterController
@@ -77,7 +79,6 @@ import TuistServer
     import ArgumentParser
     import SafariServices
     import TuistErrorHandling
-    import TuistFeatureFlags
     import TuistNavigation
     import TuistNoora
     import TuistNotifications
@@ -97,15 +98,11 @@ import TuistServer
                 Group {
                     if bootstrapper.isReady {
                         #if DEBUG
-                            if ProcessInfo.processInfo.arguments.contains("--layout-preview") ||
-                                Bundle.main.object(forInfoDictionaryKey: "TuistJamsPreview") as? Bool == true
-                            {
+                            if ProcessInfo.processInfo.arguments.contains("--layout-preview") {
                                 AccountHomeView(
                                     account: Account(email: "preview@example.com", handle: "pedro"),
                                     isLayoutPreview: true
                                 )
-                                .environment(FeatureFlags(enabled: ProcessInfo.processInfo.arguments
-                                        .contains("--without-ai") ? [] : [.ai]))
                             } else {
                                 RootView()
                             }
@@ -135,7 +132,6 @@ import TuistServer
 
     private struct RootView: View {
         @StateObject private var authenticationService = AuthenticationService(profilesEnabled: true)
-        @State private var featureFlags = FeatureFlags()
         @State private var hasLoadedProfiles = false
         @Environment(AppNavigation.self) private var navigation
         @Environment(\.scenePhase) private var scenePhase
@@ -150,7 +146,6 @@ import TuistServer
             }
             .id(ServerAuthenticationSession.current.id)
             .environmentObject(authenticationService)
-            .environment(featureFlags)
             .withErrorHandling()
             .onChange(of: navigation.pendingURL) { _, _ in
                 openPendingURL()
@@ -199,13 +194,9 @@ import TuistServer
             .task(id: authenticationService.authenticationState) {
                 await PushNotifications.shared.refresh()
             }
-            .task(id: authenticationService.authenticationState) {
-                await featureFlags.refresh(for: authenticationService.authenticationState)
-            }
             .onChange(of: scenePhase) { _, scenePhase in
                 guard scenePhase == .active else { return }
                 Task { await PushNotifications.shared.refresh() }
-                Task { await featureFlags.refresh(for: authenticationService.authenticationState) }
             }
             .task {
                 TuistSDK(

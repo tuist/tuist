@@ -2,12 +2,16 @@ defmodule TuistWeb.API.TestCasesControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Utilities
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases" do
     setup %{conn: conn} do
@@ -70,6 +74,74 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       second_test_case = Enum.find(response["test_cases"], &(&1["name"] == "testExample2"))
       assert second_test_case["module"]["name"] == "OtherTests"
       assert second_test_case["is_flaky"] == true
+    end
+
+    test "names muted nested suites by their innermost suite for CLIs that parse them that way", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # A legacy test case whose test now has a test case under its whole path, unmuted there.
+      legacy =
+        RunsFixtures.test_case_fixture(
+          id: Tests.generate_test_case_id(project.id, "unmuted()", "AppTests", "Inner"),
+          project_id: project.id,
+          module_name: "AppTests",
+          suite_name: "Inner",
+          name: "unmuted()",
+          state: "muted"
+        )
+
+      successor =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          module_name: "AppTests",
+          suite_name: "Outer/Inner",
+          name: "unmuted()"
+        )
+
+      nested =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          module_name: "AppTests",
+          suite_name: "Outer/Inner",
+          name: "muted()",
+          state: "muted"
+        )
+
+      flat =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          module_name: "AppTests",
+          suite_name: "Flat",
+          name: "flat()",
+          state: "muted"
+        )
+
+      IngestRepo.insert_all(TestCase, Enum.map([legacy, successor, nested, flat], &Utilities.insertable_attrs/1))
+
+      muted = fn cli_version ->
+        conn
+        |> Headers.put_cli_version(cli_version)
+        |> get("/api/projects/#{user.account.name}/#{project.name}/tests/test-cases?state=muted&page_size=500")
+        |> json_response(:ok)
+        |> Map.fetch!("test_cases")
+        |> MapSet.new(&"#{&1["module"]["name"]}/#{&1["suite"]["name"]}/#{&1["name"]}")
+      end
+
+      innermost = MapSet.new(["AppTests/Inner/muted()", "AppTests/Flat/flat()"])
+      whole = MapSet.new(["AppTests/Outer/Inner/muted()", "AppTests/Inner/unmuted()", "AppTests/Flat/flat()"])
+
+      # The parser that names suites by their whole path shipped in 4.216.7,
+      # 4.217.0-rc.5 and 4.218.0-canary.44, so each release line has its own cutoff.
+      for version <- ~w(4.215.1 4.216.0-rc.2 4.216.6 4.217.0-canary.54 4.217.0-rc.4 4.218.0-canary.43) do
+        assert {version, muted.(version)} == {version, innermost}
+      end
+
+      for version <-
+            ~w(4.216.7 4.216.8 4.217.0-rc.5 4.217.0 4.217.1 4.218.0-canary.44 4.218.0-rc.1 4.218.0 4.219.0-canary.1 5.0.0) do
+        assert {version, muted.(version)} == {version, whole}
+      end
     end
 
     test "lists no test cases when there are none", %{conn: conn, user: user, project: project} do

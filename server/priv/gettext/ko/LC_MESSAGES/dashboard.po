@@ -60,7 +60,7 @@ msgstr "평균"
 msgid "Bad request"
 msgstr "잘못된 요청"
 
-#: lib/tuist_web/components/app_layout_components.ex:585
+#: lib/tuist_web/components/app_layout_components.ex:617
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "결제"
@@ -104,7 +104,7 @@ msgstr "조직 생성"
 msgid "Download macOS app"
 msgstr "macOS 앱 다운로드"
 
-#: lib/tuist_web/components/app_layout_components.ex:711
+#: lib/tuist_web/components/app_layout_components.ex:743
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "이메일"
@@ -116,12 +116,13 @@ msgstr "이메일"
 msgid "Error"
 msgstr "오류"
 
-#: lib/tuist_web/components/app_layout_components.ex:726
+#: lib/tuist_web/components/app_layout_components.ex:595
+#: lib/tuist_web/components/app_layout_components.ex:758
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "오류"
 
-#: lib/tuist_web/components/app_layout_components.ex:704
+#: lib/tuist_web/components/app_layout_components.ex:736
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "플래그"
@@ -137,13 +138,13 @@ msgstr "시작하기"
 msgid "Go to dashboard"
 msgstr "대시보드로 이동"
 
-#: lib/tuist_web/components/app_layout_components.ex:734
+#: lib/tuist_web/components/app_layout_components.ex:766
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:632
+#: lib/tuist_web/components/app_layout_components.ex:664
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "통합"
@@ -160,7 +161,7 @@ msgid "Invalid installation request. Please try again."
 msgstr "설치 요청이 유효하지 않습니다. 다시 시도해 주세요."
 
 #: lib/tuist_web/components/app_layout_components.ex:518
-#: lib/tuist_web/components/app_layout_components.ex:698
+#: lib/tuist_web/components/app_layout_components.ex:730
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "작업"
@@ -170,7 +171,7 @@ msgstr "작업"
 msgid "Learn more"
 msgstr "자세히 알아보기"
 
-#: lib/tuist_web/components/app_layout_components.ex:692
+#: lib/tuist_web/components/app_layout_components.ex:724
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "실시간 대시보드"
@@ -208,6 +209,8 @@ msgstr "해당 없음"
 
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
+#: lib/tuist_web/live/pulse_error_live.ex:303
+#: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "다음"
@@ -245,6 +248,8 @@ msgstr "작업"
 
 #: lib/tuist_web/components/app_layout_components.ex:32
 #: lib/tuist_web/live/ops_database_live.html.heex:8
+#: lib/tuist_web/live/pulse_error_live.ex:155
+#: lib/tuist_web/live/pulse_error_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "개요"
@@ -255,6 +260,8 @@ msgid "Please, make sure you are accessing the right resource and that you have 
 msgstr "올바른 리소스에 접근하고 있으며 해당 리소스에 대한 권한이 있는지 확인하세요."
 
 #: lib/tuist_web/components/app_components.ex:53
+#: lib/tuist_web/live/pulse_error_live.ex:294
+#: lib/tuist_web/live/pulse_live.ex:541
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr "이전"
@@ -279,7 +286,7 @@ msgstr "프로젝트"
 msgid "Server error"
 msgstr "서버 오류"
 
-#: lib/tuist_web/components/app_layout_components.ex:598
+#: lib/tuist_web/components/app_layout_components.ex:630
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "설정"
@@ -304,7 +311,7 @@ msgstr "죄송합니다. 요청하신 페이지가 존재하지 않거나 이동
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "죄송합니다. 너무 많은 요청을 보냈습니다. 잠시 후 다시 시도해 주세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:718
+#: lib/tuist_web/components/app_layout_components.ex:750
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "저장소"
@@ -392,8 +399,8 @@ msgstr "요청이 너무 많습니다"
 msgid "Too many requests."
 msgstr "요청이 너무 많습니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:773
-#: lib/tuist_web/components/app_layout_components.ex:811
+#: lib/tuist_web/components/app_layout_components.ex:805
+#: lib/tuist_web/components/app_layout_components.ex:843
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist 아이콘"
@@ -502,8 +509,8 @@ msgstr "Gradle 캐시"
 msgid "Create project"
 msgstr "프로젝트 생성"
 
-#: lib/tuist_web/components/app_layout_components.ex:578
-#: lib/tuist_web/components/app_layout_components.ex:661
+#: lib/tuist_web/components/app_layout_components.ex:610
+#: lib/tuist_web/components/app_layout_components.ex:693
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -515,6 +522,7 @@ msgstr "캐시"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "프리뷰 APK가 존재하지 않거나 만료되었습니다."
 
+#: lib/tuist_web/components/app_layout_components.ex:577
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
 msgid "Metrics"
@@ -637,7 +645,7 @@ msgstr "ID 공급자에서 인증 오류가 발생했습니다. 다시 시도하
 msgid "Dashboard"
 msgstr "대시보드"
 
-#: lib/tuist_web/components/app_layout_components.ex:674
+#: lib/tuist_web/components/app_layout_components.ex:706
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -645,7 +653,7 @@ msgstr "대시보드"
 msgid "Accounts"
 msgstr "계정"
 
-#: lib/tuist_web/components/app_layout_components.ex:638
+#: lib/tuist_web/components/app_layout_components.ex:670
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "인증"
@@ -921,7 +929,7 @@ msgstr "이탈리아"
 msgid "Japan"
 msgstr "일본"
 
-#: lib/tuist_web/components/app_layout_components.ex:667
+#: lib/tuist_web/components/app_layout_components.ex:699
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1323,7 +1331,7 @@ msgstr "매니페스트를 변환하는 동안 GitHub Enterprise Server에서 40
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr "매니페스트를 변환하는 동안 GitHub Enterprise Server에서 HTTP %{status} 오류가 반환되었습니다. 서버 로그에서 요청 본문을 확인하고 다시 시도하세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:620
+#: lib/tuist_web/components/app_layout_components.ex:652
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "일반"
@@ -1333,7 +1341,7 @@ msgstr "일반"
 msgid "Runners"
 msgstr "러너"
 
-#: lib/tuist_web/components/app_layout_components.ex:571
+#: lib/tuist_web/components/app_layout_components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr "웹훅"
@@ -1431,7 +1439,7 @@ msgstr "Markdown으로 복사"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "Kubernetes API에서 클러스터의 백업 리소스를 읽을 수 없습니다. postgresql.cnpg.io에서 서버 서비스 계정의 RBAC를 확인하세요."
 
-#: lib/tuist_web/components/app_layout_components.ex:686
+#: lib/tuist_web/components/app_layout_components.ex:718
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1479,6 +1487,7 @@ msgid "Export"
 msgstr "내보내기"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:42
+#: lib/tuist_web/live/pulse_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "필터"
@@ -1731,6 +1740,7 @@ msgid "Size"
 msgstr "크기"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:49
+#: lib/tuist_web/live/pulse_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr "정렬 기준:"
@@ -1812,17 +1822,17 @@ msgstr "WAL 아카이브"
 msgid "Write lag (bytes)"
 msgstr "쓰기 지연 (바이트)"
 
-#: lib/tuist_web/components/app_layout_components.ex:591
+#: lib/tuist_web/components/app_layout_components.ex:623
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "사용량"
 
-#: lib/tuist_web/components/app_layout_components.ex:794
+#: lib/tuist_web/components/app_layout_components.ex:826
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "문서"
 
-#: lib/tuist_web/components/app_layout_components.ex:626
+#: lib/tuist_web/components/app_layout_components.ex:658
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "토큰"
@@ -2905,6 +2915,7 @@ msgstr "오픈 소스 플랜 시작"
 msgid "Invalid Origin installation request. Please try again."
 msgstr "잘못된 Origin 설치 요청입니다. 다시 시도하세요."
 
+#: lib/tuist_web/live/pulse_live.ex:255
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -2961,6 +2972,7 @@ msgstr "캐시 혼합"
 
 #: lib/tuist_web/live/mix_build_live.ex:278
 #: lib/tuist_web/live/mix_build_live.ex:319
+#: lib/tuist_web/live/pulse_live.ex:565
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -3107,7 +3119,7 @@ msgstr "디스크 제한(GB)"
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
 msgstr "샌드박스 제한은 CI와 독립적입니다. 샌드박스 생성, 재개 및 실행은 CPU 및 메모리 제한에 포함됩니다. 노드의 모든 샌드박스(일시 중지된 것 포함)는 작업 공간과 메모리 이미지로 디스크 제한에 계산되며, 아카이브된 샌드박스는 제외됩니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:647
+#: lib/tuist_web/components/app_layout_components.ex:679
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "AI"
@@ -3147,3 +3159,13 @@ msgstr "로그인하는 동안 계정이 변경되었습니다. 다시 시도하
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "테스트 선택"
+
+#: lib/tuist_web/components/app_layout_components.ex:583
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr "로그"
+
+#: lib/tuist_web/components/app_layout_components.ex:589
+#, elixir-autogen, elixir-format
+msgid "Traces"
+msgstr "추적"

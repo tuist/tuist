@@ -225,22 +225,22 @@ defmodule TuistWeb.RunnersControllerTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners"]
+        ["ber1-runners"]
       end)
 
-      # The only private runner-cache region, serving macOS. Linux has none.
-      scw_url = "http://kura-#{account.name}-scw-fr-par.kura.svc.cluster.local:4000"
+      # A site's private runner-cache region, serving macOS. Linux has none.
+      site_url = "https://#{account.name}-ber1-runners.kura.tuist.dev"
 
       Tuist.Repo.insert!(%Tuist.Kura.Server{
         account_id: account.id,
-        region: "scw-fr-par-runners",
+        region: "ber1-runners",
         status: :active,
-        url: scw_url,
+        url: site_url,
         # Fresh readiness heartbeat so the node-port server is served
         # rather than failed over to the public cache (see
         # Kura.runner_cache_endpoint_url/3).
         last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
-        provisioner_node_ref: "kura-#{account.name}-scw-fr-par-runners"
+        provisioner_node_ref: "kura-#{account.name}-ber1-runners"
       })
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
@@ -256,7 +256,8 @@ defmodule TuistWeb.RunnersControllerTest do
              runner_name: "pod-1",
              workflow_job_id: 4242,
              fleet_on_cluster_network: fleet_on_cluster_network,
-             fleet_platform: fleet_platform
+             fleet_platform: fleet_platform,
+             fleet_site: "ber1"
            }}
         end)
 
@@ -267,11 +268,11 @@ defmodule TuistWeb.RunnersControllerTest do
       end
 
       # Locality: each platform only ever sees a region that serves it. The
-      # Linux fleet must never receive the Scaleway URL — that node is
-      # co-located with the macOS fleet on the other side of a WAN — and since
-      # no region serves Linux, it gets no URL rather than the wrong one.
+      # Linux fleet must never receive the site's URL — that node serves the
+      # site's macOS fleet — and since no region serves Linux, it gets no URL
+      # rather than the wrong one.
       refute Map.has_key?(dispatch.(true, :linux), "cache_endpoint_url")
-      assert dispatch.(true, :macos)["cache_endpoint_url"] == scw_url
+      assert dispatch.(true, :macos)["cache_endpoint_url"] == site_url
 
       # Reachability: a fleet off the cluster network gets no URL at
       # all — clients treat TUIST_CACHE_ENDPOINT as a hard override,

@@ -57,7 +57,8 @@ public protocol ServerSessionControlling {
     /// - Returns: Account handle for the signed-in user for the server with the given URL. Returns nil if no user is logged in.
     func whoami(serverURL: URL) async throws -> String?
 
-    /// - Returns: Account handle for the signed-in user for the server with the given URL. Throws if no user is logged in.
+    /// - Returns: Account handle for the signed-in user, or for an account token's account, for the server with the given
+    /// URL. Throws if neither is signed in.
     func authenticatedHandle(serverURL: URL) async throws -> String
 
     /// Removes the session for the server with the given URL.
@@ -189,7 +190,14 @@ public struct ServerSessionController: ServerSessionControlling {
                 throw ServerSessionControllerError.unauthenticated
             }
             return username
-        case .project, .account:
+        case let .account(accessToken):
+            // A workload identity exchange, such as an Amp orb's or a Claude Code session's, signs in
+            // as the account, which tokens from newer servers name in `preferred_username`.
+            guard let handle = accessToken.preferredUsername else {
+                throw ServerSessionControllerError.unauthenticated
+            }
+            return handle
+        case .project:
             throw ServerSessionControllerError.unauthenticated
         }
     }

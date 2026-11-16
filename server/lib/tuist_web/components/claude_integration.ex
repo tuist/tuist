@@ -67,18 +67,15 @@ defmodule TuistWeb.Components.ClaudeIntegration do
     socket = if auth == :federation, do: assign(socket, ids: Map.take(params, @id_fields)), else: socket
 
     with {:ok, credential, credential_attrs} <- credential(auth, params),
-         {:ok, environment} <- Sandboxes.fetch_anthropic_environment(account, credential, environment_id),
          attrs =
            Map.merge(credential_attrs, %{
-             kind: :managed_agents,
              anthropic_environment_id: environment_id,
              environment_key: trimmed(params, "environment_key"),
-             name: String.slice(environment["name"] || environment_id, 0, 100),
              platform: platform,
              vcpus: vcpus,
              memory_mb: memory_mb
            }),
-         {:ok, _agent_environment} <- Sandboxes.create_agent_environment(account, attrs) do
+         {:ok, _agent_environment} <- Sandboxes.connect_managed_agents_environment(account, credential, attrs) do
       {:noreply, socket |> reset() |> load() |> push_event("close-modal", %{id: "connect-claude-modal"})}
     else
       {:field_errors, errors} ->

@@ -87,6 +87,45 @@ defmodule TuistWeb.API.RunnersController do
     ]
   }
 
+  @runner_job_detail_schema %{
+    @runner_job_schema
+    | title: "RunnerJobDetail",
+      properties:
+        Map.put(@runner_job_schema.properties, :out_of_memory, %Schema{
+          title: "RunnerJobOutOfMemory",
+          type: :object,
+          nullable: true,
+          description:
+            "What the runner VM killed for running out of memory during the job, or null when it killed nothing.",
+          properties: %{
+            kill_count: %Schema{type: :integer, description: "Processes the runner VM killed."},
+            first_kill_at: %Schema{type: :string, format: "date-time", description: "When the first kill was reported."},
+            victim: %Schema{
+              title: "RunnerJobOutOfMemoryVictim",
+              type: :object,
+              nullable: true,
+              description: "The process killed last, or null when the runner did not name it.",
+              properties: %{
+                process: %Schema{type: :string},
+                memory_bytes: %Schema{type: :integer, description: "Memory the process was using."},
+                container: %Schema{
+                  type: :string,
+                  nullable: true,
+                  description: "Its Docker container: null outside a container, docker-build for a docker build step."
+                },
+                image: %Schema{type: :string, nullable: true, description: "That container's image."}
+              },
+              required: [:process, :memory_bytes, :container, :image]
+            },
+            description: %Schema{
+              type: :string,
+              description: "What happened and what to change, as the job page's \"Ran out of memory\" alert says it."
+            }
+          },
+          required: [:kill_count, :first_kill_at, :victim, :description]
+        })
+  }
+
   @workflow_schema %Schema{
     title: "RunnerWorkflow",
     type: :object,
@@ -194,7 +233,21 @@ defmodule TuistWeb.API.RunnersController do
       network_bytes_in: %Schema{type: :integer},
       network_bytes_out: %Schema{type: :integer},
       disk_used_bytes: %Schema{type: :integer},
-      disk_total_bytes: %Schema{type: :integer}
+      disk_total_bytes: %Schema{type: :integer},
+      oom_kill_count: %Schema{
+        type: :integer,
+        description: "Processes the runner VM killed for running out of memory since the job started."
+      },
+      oom_victim_process: %Schema{
+        type: :string,
+        description: "The process the runner VM killed last for running out of memory, or empty."
+      },
+      oom_victim_memory_bytes: %Schema{type: :integer, description: "Memory that process was using."},
+      oom_victim_container: %Schema{
+        type: :string,
+        description: "That process's Docker container: empty outside a container, docker-build for a docker build step."
+      },
+      oom_victim_image: %Schema{type: :string, description: "That container's image, or empty."}
     },
     required: [
       :timestamp,
@@ -205,7 +258,12 @@ defmodule TuistWeb.API.RunnersController do
       :network_bytes_in,
       :network_bytes_out,
       :disk_used_bytes,
-      :disk_total_bytes
+      :disk_total_bytes,
+      :oom_kill_count,
+      :oom_victim_process,
+      :oom_victim_memory_bytes,
+      :oom_victim_container,
+      :oom_victim_image
     ]
   }
 
@@ -435,7 +493,7 @@ defmodule TuistWeb.API.RunnersController do
           ]
         ],
     responses: %{
-      ok: {"Runner job", "application/json", @runner_job_schema},
+      ok: {"Runner job", "application/json", @runner_job_detail_schema},
       forbidden: {"Forbidden", "application/json", Error},
       not_found: {"Runner job was not found", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
@@ -445,8 +503,11 @@ defmodule TuistWeb.API.RunnersController do
   def show_job(%{assigns: %{selected_account: account}, params: %{workflow_job_id: workflow_job_id}} = conn, _params) do
     if FeatureFlags.runners_enabled?(account) do
       case Jobs.get_for_account(account.id, workflow_job_id) do
-        {:ok, job} -> json(conn, serialize_job(job))
-        {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{message: "Runner job not found."})
+        {:ok, job} ->
+          json(conn, Map.put(serialize_job(job), :out_of_memory, JobMetrics.out_of_memory_report(job.workflow_job_id)))
+
+        {:error, :not_found} ->
+          conn |> put_status(:not_found) |> json(%{message: "Runner job not found."})
       end
     else
       runners_unavailable(conn)

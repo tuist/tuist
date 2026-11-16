@@ -48,7 +48,7 @@ defmodule Atlas.MCP.ToolApprovalTest do
 
     assert {:error, message} = Proxy.call_hoisted_tool(conn, "ovh-servers__reinstall-dedicated-server", @reinstall)
     assert [%{id: id}] = MCP.list_pending_tool_approvals(owner)
-    assert message =~ "/admin/mcps#mcp-approval-#{id}"
+    assert message =~ "/approvals/#{id}"
     refute_received {:tools_call, _}
 
     # Asking again before anyone decides reuses the open request.
@@ -161,7 +161,7 @@ defmodule Atlas.MCP.ToolApprovalTest do
 
       assert {:error, message} = Proxy.call_hoisted_tool(conn, "stripe__stripe_api_write", live)
       assert [%{id: id}] = MCP.list_pending_tool_approvals(owner)
-      assert message =~ "/admin/mcps#mcp-approval-#{id}"
+      assert message =~ "/approvals/#{id}"
       refute_received {:tools_call, _}
 
       assert {:ok, _} = MCP.decide_tool_approval(owner, id, "approved")

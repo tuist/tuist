@@ -373,6 +373,12 @@ defmodule Tuist.Docs.Sidebar do
                 label: "Elixir",
                 slug: "/en/guides/features/test-code-coverage/elixir",
                 icon: "brand_elixir"
+              },
+              %Item{label: "Rust", slug: "/en/guides/features/test-code-coverage/rust", icon: "brand_rust"},
+              %Item{
+                label: "Gradle",
+                slug: "/en/guides/features/test-code-coverage/gradle",
+                icon: "brand_gradle"
               }
             ]
           },

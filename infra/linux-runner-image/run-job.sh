@@ -308,6 +308,11 @@ exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"
 export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
+# After the job's steps, annotate a job that ran the VM out of memory or came
+# close, so its author sees the cause instead of an unexplained exit 137.
+if [ -x /usr/local/bin/memory-report.sh ]; then
+  export ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/usr/local/bin/memory-report.sh
+fi
 
 idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
 

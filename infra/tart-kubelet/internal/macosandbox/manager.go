@@ -23,6 +23,10 @@ import (
 
 var ErrCapacity = errors.New("macOS sandbox capacity unavailable")
 
+// ErrVMLost is a VM the runtime proved has no process and no checkpoint. It
+// holds no CPU or memory and can never resume; only a delete remains.
+var ErrVMLost = errors.New("cold-boot fallback refused")
+
 // Runtime must fence its process before Save or Delete succeeds. Recover must
 // never cold boot or accept an old checkpoint for a disk that has since run.
 type Runtime interface {
@@ -37,6 +41,8 @@ type Runtime interface {
 	Save(context.Context, *Record) error
 	Delete(context.Context, *Record) error
 	Recover(context.Context, *Record) error
+	// Archive uploads an evicted sandbox's disk; it changes nothing on the host.
+	Archive(context.Context, *Record, protocol.ArchiveArgs) (protocol.ArchiveResult, error)
 	Exec(context.Context, *Record, protocol.ExecArgs, func(protocol.Stream)) (protocol.ExecResult, error)
 	Worker(context.Context, *Record, string, map[string]string) (WorkerStatus, error)
 	// GuestCPU is the guest's recent CPU use by its sandbox user, in
@@ -73,8 +79,9 @@ type Record struct {
 	WorkerID    string `json:"worker_id,omitempty"`
 	// HoldID is detached guest work the host cannot observe, such as an Amp
 	// Orb's turn. It protects the running VM from idle eviction until a pause
-	// or a release with the same ID.
+	// or a release with the same ID, or until HoldUntil when that is set.
 	HoldID         string    `json:"hold_id,omitempty"`
+	HoldUntil      time.Time `json:"hold_until"`
 	FinishedWorkID string    `json:"finished_work_id,omitempty"`
 	IdleAt         time.Time `json:"idle_at"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -85,6 +92,19 @@ type Record struct {
 	// VM names a claimed warm VM (`sbw-<pod UID>`), which keeps the name and
 	// env share it booted with. Cold-created sandboxes leave it empty.
 	VM string `json:"vm,omitempty"`
+	// WorkspaceVolumeGB is the quota of the workspace volume the VM already
+	// has, 0 before it has one. Warm VMs add it before a sandbox claims them.
+	WorkspaceVolumeGB int `json:"workspace_volume_gb,omitempty"`
+	// CheckoutShare is the VM's checkout share, bound when it first boots, or
+	// empty for a VM that booted without one (checkout.go).
+	CheckoutShare string `json:"checkout_share,omitempty"`
+	// Checkout is the grant of the session whose export the host takes at the
+	// VM's next fence.
+	Checkout *protocol.CheckoutGrant `json:"checkout,omitempty"`
+	// DisksSynced: the guest flushed its file systems to disk right before the
+	// VM last stopped running, so its disk files alone hold what it wrote. An
+	// archive carries no checkpoint, so only such a sandbox is archived.
+	DisksSynced bool `json:"disks_synced,omitempty"`
 }
 
 // Warm VMs carry their own prefix: a host restart deletes the unclaimed ones
@@ -115,17 +135,23 @@ type Manager struct {
 	Root, NodeUID string
 	RuntimePath   string
 	ToolsPath     string
-	TemplateTag   string
-	published     atomic.Value
-	Runtime       Runtime
-	Capacity      Capacity
-	Emit          func(protocol.Event)
-	Grace         time.Duration
+	// Templates are the host's prepared templates; a create's TemplateTag
+	// is its template's image.
+	Templates *Templates
+	published atomic.Value
+	Runtime   Runtime
+	Capacity  Capacity
+	Emit      func(protocol.Event)
+	Grace     time.Duration
+	// Checkouts is nil on a host without the runner cache.
+	Checkouts Checkouts
 	// The same gate is used by the CI launcher. TryLock there avoids putting
 	// a slow checkpoint or restore on the single Pod reconcile worker.
 	Gate    sync.Mutex
 	records map[string]*Record
 	active  map[string]int
+	// archiving cancels each sandbox's upload in progress (archive.go).
+	archiving map[string]context.CancelFunc
 	// Ready and booting warm VMs by Pod UID, and whether one is booting.
 	warm        map[types.UID]*warmVM
 	warmBooting bool
@@ -177,9 +203,11 @@ func (m *Manager) Load(ctx context.Context) error {
 			m.publish()
 			continue
 		}
-		if err = m.Runtime.Recover(ctx, &r); err != nil {
+		if lost, err := m.recover(ctx, &r); err != nil {
 			r.State = "error"
 			r.Error = err.Error()
+		} else if lost {
+			continue
 		}
 		// A reservation is removed only when the runtime positively recovered a
 		// fenced checkpoint. Unknown/error VMs keep their previous Pod charge.
@@ -193,6 +221,27 @@ func (m *Manager) Load(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// recover asks the runtime what became of an interrupted VM. A lost VM
+// (ErrVMLost) gives its reservation back at once and stays in error, with its
+// disk, until the server deletes it, so it neither holds a slot CI or another
+// sandbox could use nor is retried on every reconcile. It reports lost=true
+// once that is journaled; any other failure keeps the reservation.
+func (m *Manager) recover(ctx context.Context, r *Record) (bool, error) {
+	err := m.Runtime.Recover(ctx, r)
+	if !errors.Is(err, ErrVMLost) {
+		return false, err
+	}
+	if releaseErr := m.Capacity.Release(ctx, r); releaseErr != nil {
+		return false, errors.Join(err, releaseErr)
+	}
+	slog.Warn("a macOS sandbox VM was lost; released its reservation until the server deletes it", "sandbox", r.SandboxID, "error", err)
+	r.State = "error"
+	r.Error = err.Error()
+	r.Operation = ""
+	r.Resident = false
+	return true, m.persist(r)
 }
 
 func validID(id string) bool {
@@ -261,6 +310,16 @@ func (m *Manager) get(id string) (*Record, error) {
 	}
 	return r, nil
 }
+
+// sameCreate compares create arguments by value, archive source included,
+// so a retried create from an archive matches its journal.
+func sameCreate(a, b protocol.CreateArgs) bool {
+	if (a.FromArchive == nil) != (b.FromArchive == nil) || (a.FromArchive != nil && *a.FromArchive != *b.FromArchive) {
+		return false
+	}
+	a.FromArchive, b.FromArchive = nil, nil
+	return a == b
+}
 func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
@@ -268,10 +327,10 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 		return errors.New("invalid macOS sandbox shape")
 	}
 	if a.TemplateTag == "" {
-		a.TemplateTag = m.TemplateTag
+		a.TemplateTag, _ = m.Templates.Image(a.Template)
 	}
 	if r := m.records[a.SandboxID]; r != nil {
-		if r.CreateArgs != a {
+		if !sameCreate(r.CreateArgs, a) {
 			return errors.New("sandbox already exists with different configuration")
 		}
 		if r.State == "running" && r.Operation == "" {
@@ -325,7 +384,7 @@ func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *wa
 		return err
 	}
 	now := time.Now().UTC()
-	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, Resident: true, CreatedAt: now, IdleAt: now}
+	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CheckoutShare: w.rec.CheckoutShare, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, WorkspaceVolumeGB: w.rec.WorkspaceVolumeGB, Resident: true, CreatedAt: now, IdleAt: now}
 	m.records[a.SandboxID] = r
 	if err := m.begin(r, "claim"); err != nil {
 		delete(m.records, a.SandboxID)
@@ -357,14 +416,16 @@ func (m *Manager) Resume(ctx context.Context, id string) error {
 // an idle eviction. Reservations are reacquired before any guest instruction.
 func (m *Manager) resume(ctx context.Context, r *Record) error {
 	var err error
+	m.interruptArchive(r.SandboxID)
 	if r.Operation != "" || r.State == "error" {
 		return errors.New("sandbox requires reconciliation")
 	}
-	if err = m.Capacity.Allow(ctx, r); err != nil {
-		return err
-	}
+	// A running VM already holds its charge; only a paused one asks for it.
 	if r.State == "running" {
 		return nil
+	}
+	if err = m.Capacity.Allow(ctx, r); err != nil {
+		return err
 	}
 	if r.State != "paused" {
 		return errors.New("sandbox is not paused")
@@ -411,6 +472,7 @@ func (m *Manager) Pause(ctx context.Context, id string) error {
 		r.State = "paused"
 		r.Resident = true
 		r.HoldID = "" // The held work paused with the VM; its owner asked for this pause.
+		r.HoldUntil = time.Time{}
 		r.IdleAt = time.Now().UTC()
 	}
 	return m.finish(r, err)
@@ -425,6 +487,7 @@ func (m *Manager) evict(ctx context.Context, r *Record) error {
 	if err := m.Runtime.Save(ctx, r); err != nil {
 		return m.finish(r, err)
 	}
+	m.collectCheckout(r)
 	r.State = "paused"
 	r.Resident = false
 	r.PID = 0
@@ -444,6 +507,7 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	if r == nil {
 		return nil
 	}
+	m.interruptArchive(id)
 	if err := m.begin(r, "delete"); err != nil {
 		return err
 	}
@@ -489,8 +553,11 @@ func (m *Manager) Snapshot() []protocol.SandboxInfo {
 var holdIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,255}$`)
 
 // Hold protects a running sandbox from idle eviction for detached guest work,
-// resuming it first like a worker start. Retrying with the same ID succeeds.
-func (m *Manager) Hold(ctx context.Context, id, work string) error {
+// resuming it first like a worker start. A positive ttl ends the hold that
+// long from now unless it is renewed; zero keeps it until a release or pause.
+// A hold on a running VM takes no capacity it does not already hold, so it
+// needs no grant; only resuming a paused one does.
+func (m *Manager) Hold(ctx context.Context, id, work string, ttl time.Duration) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	r, err := m.get(id)
@@ -508,13 +575,12 @@ func (m *Manager) Hold(ctx context.Context, id, work string) error {
 	if r.State != "running" || r.Operation != "" {
 		return errors.New("sandbox is not running")
 	}
-	if err = m.Capacity.Allow(ctx, r); err != nil {
-		return err
-	}
-	if r.HoldID == work {
-		return nil
+	until := time.Time{}
+	if ttl > 0 {
+		until = time.Now().UTC().Add(ttl)
 	}
 	r.HoldID = work
+	r.HoldUntil = until
 	return m.persist(r)
 }
 
@@ -528,6 +594,7 @@ func (m *Manager) Release(id, work string) error {
 		return err
 	}
 	r.HoldID = ""
+	r.HoldUntil = time.Time{}
 	r.IdleAt = time.Now().UTC()
 	return m.persist(r)
 }
@@ -576,8 +643,9 @@ func (m *Manager) SampleCPU(ctx context.Context) {
 	m.cpuMu.Unlock()
 }
 
-// Reconcile retries interrupted operations and checkpoints idle residents when
-// CI demand is queued, unknown, stale, or their bounded grace expires.
+// Reconcile retries interrupted operations and checkpoints idle residents once
+// their bounded grace expires. CI and sandboxes are first come, first served:
+// CI demand arriving later does not checkpoint a VM before its grace is up.
 func (m *Manager) Reconcile(ctx context.Context) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
@@ -631,9 +699,12 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 			continue
 		}
 		if r.Operation != "" || r.State == "error" {
-
-			if err := m.Runtime.Recover(ctx, r); err != nil {
+			lost, err := m.recover(ctx, r)
+			if err != nil {
 				errs = append(errs, err)
+				continue
+			}
+			if lost {
 				continue
 			}
 			if err := m.finish(r, nil); err != nil {
@@ -661,7 +732,19 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 				}
 			}
 		}
-		if r.Resident && r.WorkerID == "" && r.HoldID == "" && m.active[r.SandboxID] == 0 && (time.Since(r.IdleAt) >= grace || m.Capacity.Allow(ctx, r) != nil) {
+		// The server ends a timed hold itself; this only covers a server that
+		// never does. The VM then waits out the idle grace like any other.
+		if r.HoldID != "" && !r.HoldUntil.IsZero() && !time.Now().Before(r.HoldUntil) {
+			slog.Info("a macOS sandbox hold expired", "sandbox", r.SandboxID, "hold", r.HoldID)
+			r.HoldID = ""
+			r.HoldUntil = time.Time{}
+			r.IdleAt = time.Now().UTC()
+			if err := m.persist(r); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+		}
+		if r.Resident && r.WorkerID == "" && r.HoldID == "" && m.active[r.SandboxID] == 0 && time.Since(r.IdleAt) >= grace {
 			if err := m.evict(ctx, r); err != nil {
 				errs = append(errs, err)
 			}
@@ -705,6 +788,15 @@ func (m *Manager) Exec(ctx context.Context, a protocol.ExecArgs, out func(protoc
 	return m.Runtime.Exec(ctx, &copy, a, out)
 }
 func (m *Manager) Worker(ctx context.Context, id, action string, env map[string]string) (WorkerStatus, error) {
+	return m.worker(ctx, id, action, env, nil)
+}
+
+// StartWorker starts a worker whose session has a checkout grant (checkout.go).
+func (m *Manager) StartWorker(ctx context.Context, id string, env map[string]string, checkout *protocol.CheckoutGrant) (WorkerStatus, error) {
+	return m.worker(ctx, id, "start", env, checkout)
+}
+
+func (m *Manager) worker(ctx context.Context, id, action string, env map[string]string, checkout *protocol.CheckoutGrant) (WorkerStatus, error) {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	r, err := m.get(id)
@@ -720,9 +812,6 @@ func (m *Manager) Worker(ctx context.Context, id, action string, env map[string]
 		if r.State != "running" || r.Operation != "" {
 			return WorkerStatus{}, errors.New("sandbox is not running")
 		}
-		if err = m.Capacity.Allow(ctx, r); err != nil {
-			return WorkerStatus{}, err
-		}
 		work := env["ANTHROPIC_WORK_ID"]
 		if work == "" {
 			return WorkerStatus{}, errors.New("worker identity is required")
@@ -731,6 +820,7 @@ func (m *Manager) Worker(ctx context.Context, id, action string, env map[string]
 			return WorkerStatus{}, errors.New("another worker owns the sandbox")
 		}
 		r.WorkerID = work // Persist before sending credentials; retries use the same identity.
+		env = m.checkoutEnv(ctx, r, env, checkout)
 		if err = m.persist(r); err != nil {
 			return WorkerStatus{}, err
 		}

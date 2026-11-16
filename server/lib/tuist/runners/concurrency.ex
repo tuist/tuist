@@ -35,6 +35,11 @@ defmodule Tuist.Runners.Concurrency do
   @limit_form_types Map.new(@limit_form_fields, &{&1, :integer})
 
   @doc """
+  The limits every new account starts with, per platform.
+  """
+  def default_limits, do: @default_limits
+
+  @doc """
   Returns platform summaries with current claimed resources and limits.
   """
   def summaries(%Account{} = account) do

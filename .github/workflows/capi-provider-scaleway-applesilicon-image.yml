@@ -265,4 +265,8 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=capi-scaleway-applesilicon
-          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
+          # A failed cache export must not fail the image build. On
+          # 2026-11-16 one layer's export failed three
+          # attempts in a row with "failed to reserve cache: cache entry
+          # already exists".
+          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon,ignore-error=true

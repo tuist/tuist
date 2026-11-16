@@ -20,11 +20,11 @@ struct CLIPath: Equatable, Sendable {
 
     func resolved(relativeTo baseDirectory: URL) -> URL {
         if rawValue.hasPrefix("/") {
-            return URL(fileURLWithPath: rawValue).standardizedFileURL
+            return URL(fileURLWithPath: rawValue).syntacticallyStandardizedFileURL
         }
         return baseDirectory
             .appendingPathComponent(rawValue)
-            .standardizedFileURL
+            .syntacticallyStandardizedFileURL
     }
 }
 
@@ -511,7 +511,7 @@ struct CLIPathResolver {
             isDirectory: true
         )
         guard let chdir else {
-            baseDirectory = currentDirectory.standardizedFileURL
+            baseDirectory = currentDirectory.syntacticallyStandardizedFileURL
             return
         }
 
@@ -519,7 +519,7 @@ struct CLIPathResolver {
         guard try await fileSystem.exists(resolvedChdir.absolutePath, isDirectory: true) else {
             throw ToolError.message("failed to change directory to \(resolvedChdir.path)")
         }
-        baseDirectory = resolvedChdir.standardizedFileURL
+        baseDirectory = resolvedChdir.syntacticallyStandardizedFileURL
     }
 
     func resolve(_ path: CLIPath?) -> URL? {
@@ -800,6 +800,17 @@ enum CLIRunner {
                     disableSandbox: cli.disableSandbox,
                     scmToRegistryTransformation: try scmToRegistryTransformation(cli)
                 )
+            } else if shouldWrite(write: write, printOnly: printOnly) {
+                try await PackageResolver.recordMissingPrebuilts(
+                    resolved: resolved,
+                    packageDir: package,
+                    scratchDir: scratch,
+                    cacheDir: cache.root,
+                    registryConfigurationPath: paths.resolve(cli.configPath),
+                    defaultRegistryURL: cli.defaultRegistryURL,
+                    disableSandbox: cli.disableSandbox,
+                    scmToRegistryTransformation: try scmToRegistryTransformation(cli)
+                )
             }
         }
     }
@@ -895,6 +906,6 @@ enum CLIRunner {
     }
 
     static func canonicalPackageDir(_ packageDir: URL) -> URL {
-        packageDir.standardizedFileURL
+        packageDir.syntacticallyStandardizedFileURL
     }
 }

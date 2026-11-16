@@ -59,16 +59,23 @@ defmodule Condukt.Telemetry do
 
   - `[:condukt, :tool_call, :stop]` - Tool call completed
     - Measurements: `%{duration: integer}`
-    - Metadata: `%{tool: string, tool_call_id: string, args: map, agent: module, session_id: String.t(), status: :ok | :error, result: term}`
+    - Metadata: `%{tool: string, tool_call_id: string, args: map, agent: module, session_id: String.t(), status: :ok | :error | :parked, result: term}`
 
-  - `[:condukt, :tool_call, :exception]` - Tool call raised an exception
+  - `[:condukt, :tool_call, :exception]` - The tool call pipeline itself raised.
+    A tool that raises, throws, exits, or times out runs in its own process and
+    is reported on `:stop` with `status: :error` instead.
     - Measurements: `%{duration: integer}`
     - Metadata: `%{tool: string, tool_call_id: string, args: map, agent: module, session_id: String.t(), kind: atom, reason: term, stacktrace: list}`
 
-  `:args` is the parsed argument map the model passed to the tool. `:result`
+  `:args` is the parsed argument map the model passed to the tool; on `:stop`
+  it is the map the call ran with, after `Condukt.Hooks` rewrites, except on
+  the stop of a parked call's wake, which has the model's arguments. `:result`
   on `:stop` is the tool's return value after session-secret redaction; on
-  errors it is the `{:error, reason}` tuple. Consumers that ship payloads to
-  external systems should size-limit or sample these fields themselves.
+  errors it is the `{:error, reason}` tuple. A call that parks (see
+  `Condukt.Park`) stops with `status: :parked` and `result: nil`, and its wake
+  runs as another start/stop pair under the same `:tool_call_id`. Consumers
+  that ship payloads to external systems should size-limit or sample these
+  fields themselves.
 
   ### Sub-agent Events
 

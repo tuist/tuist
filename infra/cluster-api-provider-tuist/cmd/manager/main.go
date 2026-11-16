@@ -127,6 +127,7 @@ func main() {
 		orphanReclaimClaimNamePrefix string
 		orphanReclaimZonesRaw        string
 		orphanReclaimInterval        time.Duration
+		ovhPoolPrepInterval          time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -258,9 +259,7 @@ func main() {
 			"resolves it to an ID (creating the PN from the CIDR if absent), "+
 			"attaches every Mac mini to it, resolves the per-host VLAN, and "+
 			"bootstrap materializes the VLAN interface + VM egress pass + NAT. "+
-			"The same name as the kura fleet's privateNetworkName, so the Macs "+
-			"and the Elastic Metal cache node share one PN per env. Flows from "+
-			"the chart's macosFleet.vmCachePrivateNetwork.name.")
+			"Flows from the chart's macosFleet.vmCachePrivateNetwork.name.")
 	flag.StringVar(&vmCachePNCIDR, "vm-cache-pn-cidr",
 		envOrDefault("CAPI_VM_CACHE_PN_CIDR", ""),
 		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22), "+
@@ -499,6 +498,10 @@ func main() {
 	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
 		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
 			"ListServers per zone plus a CR list, so keep it coarse.")
+	flag.DurationVar(&ovhPoolPrepInterval, "ovh-pool-prep-interval", 5*time.Minute,
+		"How often the OVH pool prep pass looks for boxes named prep-<adoptDisplayNamePrefix> "+
+			"and moves them on. Each pass reads every unclaimed box's displayName; an install "+
+			"takes 20 to 40 minutes. 0 disables it.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -733,8 +736,8 @@ func main() {
 		Minter: ghAppClient,
 	}
 
-	// Shared by both reconcilers so the Apple Silicon and Elastic Metal fleets
-	// resolve the runner-cache Private Network by name to one PN per env.
+	// Resolves the Apple Silicon fleet's runner-cache Private Network by name
+	// to one PN per env.
 	vpcClient, err := scaleway.NewVPCClientFromEnv()
 	if err != nil {
 		setupLog.Error(err, "scaleway vpc client")
@@ -996,33 +999,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
-	// provider, separate reconciler from Apple Silicon: bare-metal servers
-	// ordered through the Baremetal API that pass through an OS-install wait,
-	// attach the PN as a tagged VLAN, then SSH-bootstrap a rendered self-join.
-	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
-	if err != nil {
-		setupLog.Error(err, "scaleway baremetal client")
-		os.Exit(1)
-	}
-	if err := (&linux.ScalewayElasticMetalMachineReconciler{
-		Client:             mgr.GetClient(),
-		APIReader:          mgr.GetAPIReader(),
-		Scheme:             mgr.GetScheme(),
-		ScalewayClient:     baremetalClient,
-		VPC:                vpcClient,
-		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),
-		CredentialsManager: credsManager,
-		Kubeconfig:         kubeconfigBuilder,
-		KubernetesMinor:    "v1.34",
-		DefaultOfferType:   "EM-B220E-NVME",
-		DefaultOS:          "ubuntu_noble",
-		DefaultZone:        "fr-par-1",
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup ScalewayElasticMetalMachineReconciler")
-		os.Exit(1)
-	}
-
 	// OVH dedicated (bare-metal) machines (customer-facing Kura cache regions).
 	// Per-vendor failover-IP movers, populated below for whichever vendors have
 	// creds in this environment. The FailoverIP placement reconciler (registered
@@ -1063,6 +1039,24 @@ func main() {
 			os.Exit(1)
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
+		if ovhPoolPrepInterval > 0 {
+			if err := mgr.Add(&linux.OVHPoolPrep{
+				Client:    mgr.GetClient(),
+				APIReader: mgr.GetAPIReader(),
+				OVH:       ovhClient,
+				FleetKey: func(ctx context.Context, fleet string) (string, error) {
+					return linux.FleetPublicKey(ctx, credsManager, fleet)
+				},
+				Recorder:          mgr.GetEventRecorderFor("ovh-pool-prep"),
+				Interval:          ovhPoolPrepInterval,
+				DefaultDatacenter: "vin",
+				DefaultOS:         "ubuntu_24.04",
+				Log:               ctrl.Log.WithName("ovh-pool-prep"),
+			}); err != nil {
+				setupLog.Error(err, "setup OVHPoolPrep")
+				os.Exit(1)
+			}
+		}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 

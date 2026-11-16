@@ -596,3 +596,16 @@ tests_count = seeded |> Enum.map(&length(&1.selected)) |> Enum.sum()
 
 IO.puts("  - test selection: #{length(seeded)} impact runs, #{tests_count} selected tests, #{length(plans)} shard plans")
 IO.puts("    /tuist/tuist/tests/test-selection")
+
+# Record how many tests each of the project's runs avoided, the effectiveness
+# the dashboards read (`Tuist.Tests.RunSelections`): the runs hashing selected,
+# from their command events, and the impact runs pointed to above.
+backfill_selections = fn backfill_selections, cursor ->
+  case Tuist.Tests.RunSelections.backfill(project.id, cursor) do
+    :done -> :ok
+    {:continue, next} -> backfill_selections.(backfill_selections, next)
+  end
+end
+
+backfill_selections.(backfill_selections, nil)
+IO.puts("  - test run selections: the dashboards' test selection effectiveness")

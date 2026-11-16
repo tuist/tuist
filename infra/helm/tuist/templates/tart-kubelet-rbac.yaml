@@ -1,4 +1,4 @@
-{{- if or .Values.macosFleet.enabled .Values.kuraFleet.enabled }}
+{{- if .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
 {{- /*
 ClusterRole every per-machine tart-kubelet ServiceAccount binds to.

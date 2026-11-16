@@ -68,6 +68,15 @@ base namespace, while GitHub's platform/lockfile suffixes still apply.
 Use a stable name for an explicit key, not a content hash.
 Paths and keys are passed as literal arguments, not evaluated as shell code.
 
+## SHA-only action policies
+
+All nested actions are pinned to full commit SHAs. If your organization requires
+an action allowlist, pin `tuist/install` to a distribution commit and allowlist
+the exact `uses:` references in that commit's `action.yml` as well. GitHub checks
+nested actions before evaluating step conditions, so those references must be
+allowed even with `cache: external`, which does not execute either cache backend.
+Updating `tuist/install` may require approving new nested action SHAs.
+
 ## Automatic cache selection
 
 With the default `cache: auto`:

@@ -213,10 +213,6 @@ url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-x64.tar.gz"
 checksum = "sha256:1054540bce22b54ec7e50ebc078ec5d090700a77657607a58f6a64df21f49fdd"
 url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-win-x64.zip"
 
-[[tools."npm:appium"]]
-version = "3.0.1"
-backend = "npm:appium"
-
 [[tools."npm:prettier"]]
 version = "3.4.2"
 backend = "npm:prettier"

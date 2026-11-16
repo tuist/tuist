@@ -104,6 +104,31 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       end
     end
 
+    test "lets crawlers follow public legacy redirects and reach the pages behind them" do
+      patterns = RobotsTxt.disallow_patterns()
+
+      matches? = fn path ->
+        Enum.any?(patterns, fn pattern ->
+          regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
+          Regex.match?(Regex.compile!("^" <> regex), path)
+        end)
+      end
+
+      for path <- [
+            "/blog/2025/11/27/teaching-ai-to-read-xcode-builds",
+            "/blog/2025/11/27/teaching-ai-to-r",
+            "/case-studies/acme",
+            "/flaky-tests",
+            "/rss.xml",
+            "/docs/en/guides/quick-start",
+            "/pt/docs/guides/features/projects/dependencies"
+          ] do
+        refute matches?.(path), "robots.txt blocks #{path}"
+      end
+
+      assert matches?.("/docs/login")
+    end
+
     test "opts llms.txt and llms-full.txt into the public content usage", %{conn: conn} do
       conn = get(conn, "/robots.txt")
 

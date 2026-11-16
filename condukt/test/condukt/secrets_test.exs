@@ -68,6 +68,13 @@ defmodule Condukt.SecretsTest do
              Secrets.redact_result(secrets, %{"token" => "secret-token", "list" => ["secret-token"]})
   end
 
+  test "redacts resolved secrets from error tool results" do
+    {:ok, secrets} = Secrets.resolve(API_TOKEN: {:static, "secret-token"})
+
+    assert {:error, "failed with [REDACTED:API_TOKEN]"} =
+             Secrets.redact_result(secrets, {:error, "failed with secret-token"})
+  end
+
   test "does not redact very short values" do
     {:ok, secrets} = Secrets.resolve(PIN: {:static, "123"})
 

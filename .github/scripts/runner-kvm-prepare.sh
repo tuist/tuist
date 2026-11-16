@@ -39,6 +39,20 @@ plugin_name="$(jq -r '.items[] | select(.kind == "DaemonSet") | .metadata.name' 
 plugin_namespace="$(jq -r '.items[] | select(.kind == "DaemonSet") | .metadata.namespace' "$work/plugin.json")"
 kubectl -n "$plugin_namespace" rollout status "daemonset/$plugin_name" --timeout=10m
 
+# Exclusive-CPU pools get /dev/kvm from the NRI plugin instead, when the
+# release renders it; the gate below covers only the device plugin.
+jq --arg release "$release" --arg ns "$namespace" '{apiVersion:"v1",kind:"List",items:[.[] |
+  select(.kind == "DaemonSet" and .metadata.labels["app.kubernetes.io/component"] == "kvm-nri-plugin") |
+  .metadata.annotations["meta.helm.sh/release-name"] = $release |
+  .metadata.annotations["meta.helm.sh/release-namespace"] = $ns |
+  .metadata.labels["app.kubernetes.io/managed-by"] = "Helm"]}' "$render" > "$work/nri.json"
+if jq -e '.items | length == 1' "$work/nri.json" >/dev/null; then
+  kubectl --request-timeout=30s apply -f "$work/nri.json"
+  nri_name="$(jq -r '.items[0].metadata.name' "$work/nri.json")"
+  nri_namespace="$(jq -r --arg ns "$namespace" '.items[0].metadata.namespace // $ns' "$work/nri.json")"
+  kubectl -n "$nri_namespace" rollout status "daemonset/$nri_name" --timeout=10m
+fi
+
 # Re-read through the wait: newly joined/rebooted hosts must carry current-boot
 # preparation, and enough healthy device allocations for their whole Pod limit.
 deadline=$((SECONDS + ${KVM_PREPARE_TIMEOUT_SECONDS:-600}))

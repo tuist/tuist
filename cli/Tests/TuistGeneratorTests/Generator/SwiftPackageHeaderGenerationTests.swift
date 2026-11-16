@@ -1,12 +1,16 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
+import struct TSCUtility.Version
 import TuistCore
+import TuistSupport
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
+@testable import TuistTesting
 
 struct SwiftPackageHeaderGenerationTests {
     @Test(arguments: [1, 10000]) func headerCountDoesNotIncreaseBuildGraph(count: Int) throws {
@@ -91,6 +95,85 @@ struct SwiftPackageHeaderGenerationTests {
         #expect(!pbx.groups.contains { $0.children.contains(reference) })
         #expect(!pbx.groups.contains { $0.path == "CLib" })
         #expect(files.folderReferences[root] != nil)
+    }
+
+    /// Like SwiftPM's PIF builder, a model shares one navigator element between the module (code generation) and its
+    /// resource bundle, so it needs its version group even when it lives inside the header tree.
+    @Test func coreDataModelsInsideHeaderTreesKeepTheirVersionGroup() throws {
+        let root: AbsolutePath = "/Package/Sources/CLib"
+        let model = root.appending(components: "Resources", "Example.xcdatamodeld")
+        let version = model.appending(component: "Example.xcdatamodel")
+        let target = Target.test(
+            name: "CLib",
+            coreDataModels: [CoreDataModel(path: model, versions: [version], currentVersion: "Example")],
+            headers: .test(sourceLayout: .init(
+                root: root, publicHeaders: root.appending(component: "include"),
+                moduleMap: root.appending(components: "include", "module.modulemap"),
+                moduleName: "CLib", usesDirectoryModuleMap: false
+            ))
+        )
+        let project = Project.test(
+            path: "/Package",
+            sourceRootPath: "/Package",
+            xcodeProjPath: "/Derived/CLib/CLib.xcodeproj",
+            targets: [target]
+        )
+        let files = ProjectFileElements()
+        let pbx = PBXProj()
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbx)
+        try files.generateProjectFiles(
+            project: project,
+            graphTraverser: GraphTraverser(graph: .test(projects: [project.path: project])),
+            groups: groups,
+            pbxproj: pbx
+        )
+
+        let versionGroup = try #require(files.group(path: model) as? XCVersionGroup)
+        let versionReference = try #require(files.file(path: version))
+        #expect(versionGroup.children == [versionReference])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory,
+        arguments: ProjectFormat.allCases
+    ) func writtenProjectsKeepCompileOnlySourcesInSourcesPhase(format: ProjectFormat) async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.0")
+        given(try #require(XcodeController.mocked)).selectedVersion().willReturn(Version(27, 2, 0))
+        let root = temporaryPath.appending(components: "Package", "Sources", "CLib")
+        let source = root.appending(component: "PlatformMutex.c")
+        let target = Target.test(name: "CLib", product: .staticLibrary, sources: [.init(path: source)], headers: .test(
+            sourceLayout: .init(
+                root: root, publicHeaders: root.appending(component: "include"),
+                moduleMap: root.appending(components: "include", "module.modulemap"),
+                moduleName: "CLib", usesDirectoryModuleMap: false
+            )
+        ))
+        let project = Project.test(
+            path: temporaryPath.appending(component: "Package"),
+            sourceRootPath: temporaryPath.appending(component: "Package"),
+            xcodeProjPath: temporaryPath.appending(components: "Derived", "CLib.xcodeproj"),
+            name: "CLib",
+            targets: [target]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let descriptor = try await ProjectDescriptorGenerator().generate(
+            project: project,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+        descriptor.xcodeProj.projectFormat = format
+
+        try await XcodeProjWriter().write(project: descriptor)
+
+        let written = try XcodeProj(pathString: project.xcodeProjPath.pathString)
+        let writtenTarget = try #require(written.pbxproj.nativeTargets.first { $0.name == "CLib" })
+        let sources = try #require(try writtenTarget.sourcesBuildPhase()?.files)
+        let sourcePaths = try sources.compactMap {
+            try $0.file?.fullPath(sourceRoot: project.xcodeProjPath.parentDirectory.pathString)
+        }
+        #expect(try sourcePaths.map { try AbsolutePath(validating: $0) } == [source])
     }
 
     /// Xcode resolves a referenced folder that directly contains `Package.swift` as a local package, along with its

@@ -123,6 +123,7 @@ defmodule TuistWeb.DocsLive do
 
         public_path = Paths.public_path_from_slug(path)
         locale = socket.assigns.locale
+        canonical_slug = Docs.canonical_slug(path)
 
         {:noreply,
          socket
@@ -136,6 +137,10 @@ defmodule TuistWeb.DocsLive do
          |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")
          |> assign(:head_markdown_path, Paths.markdown_path_from_slug(path))
+         |> assign(
+           :head_canonical_path,
+           if(canonical_slug != path, do: Paths.public_path_from_slug(canonical_slug))
+         )
          |> load_release_status(path)
          |> StructuredMarkup.put_structured_data([
            StructuredMarkup.get_documentation_structured_data(page.title, page.description, public_path),

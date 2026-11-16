@@ -21,6 +21,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Push
+  alias TuistWeb.BrowserSession
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
 
@@ -28,6 +29,7 @@ defmodule TuistWeb.Authentication do
   @current_project_key :current_project
   @remember_me_cookie "_tuist_web_user_remember_me"
   @reconnect_recovery_ms 5_000
+  @max_return_to_bytes 2048
   # The origin serves plain HTTP behind Cloudflare, so Plug would not add
   # Secure on its own; follow the session cookie's setting instead.
   @remember_me_options [
@@ -227,9 +229,7 @@ defmodule TuistWeb.Authentication do
 
       conn
       |> configure_session(renew: true)
-      |> delete_session(:user_token)
-      |> delete_session(:live_socket_id)
-      |> delete_session(:auth_method)
+      |> BrowserSession.clear_authentication()
       |> delete_remember_me_cookie()
       |> put_session(:pending_mfa, challenge)
       |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
@@ -273,8 +273,7 @@ defmodule TuistWeb.Authentication do
 
     conn
     |> renew_session()
-    |> put_token_in_session(token)
-    |> put_session(:auth_method, auth_method)
+    |> BrowserSession.put_authentication(token, auth_method, params["remember_me"] == "true")
     |> maybe_put_post_invitation_context(
       post_invitation_return_to,
       user.id,
@@ -300,7 +299,7 @@ defmodule TuistWeb.Authentication do
   end
 
   defp maybe_write_remember_me_cookie(conn, _token, _params) do
-    conn
+    delete_remember_me_cookie(conn)
   end
 
   @doc """
@@ -337,6 +336,7 @@ defmodule TuistWeb.Authentication do
   It clears all session data for safety. See renew_session.
   """
   def log_out_user(conn, opts \\ []) do
+    conn = BrowserSession.fetch(conn)
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
     if challenge = get_session(conn, :pending_mfa), do: UserMFA.delete_challenge(challenge)
@@ -349,6 +349,7 @@ defmodule TuistWeb.Authentication do
 
     conn
     |> renew_session()
+    |> BrowserSession.clear_authentication()
     |> delete_remember_me_cookie()
     |> redirect(to: return_to)
     |> halt()
@@ -362,6 +363,48 @@ defmodule TuistWeb.Authentication do
   end
 
   def local_return_to(_path), do: nil
+
+  @doc """
+  Returns `path` when it can be remembered in the session as the page to
+  return to: a local path (see `local_return_to/1`) of at most 2048 bytes.
+
+  The session lives in a cookie capped at 4096 bytes and these paths come
+  from the request, so storing an oversized one (scanners send huge query
+  strings) made the response raise `Plug.Conn.CookieOverflowError`. Such a
+  path is not remembered; the visitor lands on the default page instead.
+  """
+  def session_return_to(path) when is_binary(path) and byte_size(path) <= @max_return_to_bytes, do: local_return_to(path)
+
+  def session_return_to(_path), do: nil
+
+  @doc """
+  Remembers `path` under `key` when `session_return_to/1` accepts it, and
+  otherwise clears `key` so an earlier destination is not used instead.
+  """
+  def put_return_to(conn, key, path) do
+    case session_return_to(path) do
+      nil -> delete_session(conn, key)
+      path -> put_session(conn, key, path)
+    end
+  end
+
+  # Keep navigation state in the tab, not just in the shared session cookie.
+  def login_path(path, return_to) do
+    case session_return_to(return_to) do
+      nil ->
+        path
+
+      return_to ->
+        path <> if(String.contains?(path, "?"), do: "&", else: "?") <> URI.encode_query(%{return_to: return_to})
+    end
+  end
+
+  def restore_login_return_to(conn, params) do
+    case Map.fetch(params, "return_to") do
+      {:ok, return_to} -> put_return_to(conn, :user_return_to, return_to)
+      :error -> conn
+    end
+  end
 
   @doc """
   Authenticates the user by looking into the session
@@ -381,7 +424,6 @@ defmodule TuistWeb.Authentication do
         |> delete_session(:user_token)
         |> delete_session(:live_socket_id)
         |> delete_session(:auth_method)
-        |> delete_remember_me_cookie()
       else
         conn
       end
@@ -390,17 +432,8 @@ defmodule TuistWeb.Authentication do
   end
 
   defp ensure_user_token(conn) do
-    if token = get_session(conn, :user_token) do
-      {token, conn}
-    else
-      conn = fetch_cookies(conn, signed: [@remember_me_cookie])
-
-      if token = conn.cookies[@remember_me_cookie] do
-        {token, put_token_in_session(conn, token)}
-      else
-        {nil, conn}
-      end
-    end
+    conn = BrowserSession.fetch(conn)
+    {get_session(conn, :user_token), conn}
   end
 
   @doc """
@@ -457,14 +490,14 @@ defmodule TuistWeb.Authentication do
     end
   end
 
-  def on_mount(:redirect_if_user_is_authenticated, _params, session, socket) do
+  def on_mount(:redirect_if_user_is_authenticated, params, session, socket) do
     socket = mount_current_user(socket, session)
     user = socket.assigns.current_user
 
     if is_nil(user) do
       {:cont, socket}
     else
-      {:halt, LiveView.redirect(socket, to: signed_in_path(user))}
+      {:halt, LiveView.redirect(socket, to: session_return_to(params["return_to"]) || signed_in_path(user))}
     end
   end
 
@@ -677,7 +710,7 @@ defmodule TuistWeb.Authentication do
       conn
     else
       conn
-      |> redirect(to: signed_in_path(user))
+      |> redirect(to: session_return_to(conn.params["return_to"]) || signed_in_path(user))
       |> halt()
     end
   end
@@ -692,9 +725,10 @@ defmodule TuistWeb.Authentication do
     if TuistWeb.Authentication.authenticated?(conn) do
       conn
     else
+      conn = maybe_store_return_to(conn)
+
       conn
-      |> maybe_store_return_to()
-      |> redirect(to: ~p"/users/log_in")
+      |> redirect(to: login_path(~p"/users/log_in", get_session(conn, :user_return_to)))
       |> halt()
     end
   end
@@ -810,8 +844,8 @@ defmodule TuistWeb.Authentication do
 
   defp redirect_to_sso_sign_in(conn, organization) do
     conn
-    |> put_session(:user_return_to, current_path(conn))
-    |> redirect(to: sso_provider_path(organization))
+    |> put_return_to(:user_return_to, current_path(conn))
+    |> redirect(to: login_path(sso_provider_path(organization), current_path(conn)))
     |> halt()
   end
 
@@ -885,15 +919,7 @@ defmodule TuistWeb.Authentication do
     end
   end
 
-  defp put_token_in_session(conn, token) do
-    conn
-    |> put_session(:user_token, token)
-    |> put_session(:live_socket_id, "users_sessions:#{Base.url_encode64(token)}")
-  end
-
-  defp maybe_store_return_to(%{method: "GET"} = conn) do
-    put_session(conn, :user_return_to, current_path(conn))
-  end
+  defp maybe_store_return_to(%{method: "GET"} = conn), do: put_return_to(conn, :user_return_to, current_path(conn))
 
   defp maybe_store_return_to(conn), do: conn
 

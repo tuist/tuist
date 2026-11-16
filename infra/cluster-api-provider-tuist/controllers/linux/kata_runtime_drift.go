@@ -116,9 +116,10 @@ set -euxo pipefail
 # The install below pulls zstd. The bootstrap gets its noninteractive frontend
 # and a fresh package index from the steps that precede it; this script has no
 # such steps, and a months-stale index on a long-running box no longer resolves
-# the version it lists.
+# the version it lists. apt_retry waits out unattended-upgrades' locks.
 export DEBIAN_FRONTEND=noninteractive
-%[4]sapt-get update
+%[5]s
+apt_retry %[4]sapt-get update
 %[3]s
 # Check the shim and the handler BEFORE the restart: containerd must never
 # reload into a config naming a binary that is not on disk.
@@ -144,7 +145,7 @@ export DEBIAN_FRONTEND=noninteractive
 %[1]stee /etc/systemd/system/kubelet.service > /dev/null <<'TUIST_EOF'
 %[2]sTUIST_EOF
 %[1]ssystemctl daemon-reload
-`, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true, podLevel), sudoE)
+`, sudo, ensureTrailingNewline(kubeletUnit), kataSetup(sudo, sudoE, true, podLevel), sudoE, aptRetry)
 }
 
 // labelKataRuntimeNode patches the kata labels onto the live Node, which is the

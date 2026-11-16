@@ -310,7 +310,64 @@ defmodule Tuist.RemoteExecutionTest do
     assert %{"inputs" => "cHJlZmV0Y2hlZA=="} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
   end
 
+  describe "VM sizes" do
+    test "an action that asks for more memory runs in a VM of that size outside the warm pool", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{done: true, code: 0}} = submit(project, %{"memory_gb" => 8})
+      assert_received {:node, "create", %{vcpus: 4, memory_mb: 8192, sandbox_id: large}}
+      assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^large, env: env}}
+      assert %{"memory_gb" => 8} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+
+      # The warm pool refills with default VMs once the large one is deleted.
+      eventually(fn ->
+        rows = vm_rows(project)
+        rows != [] and Enum.all?(rows, &(&1.memory_mb == 4096 and &1.id != large))
+      end)
+    end
+
+    test "a larger action takes the room idle warm VMs hold", %{project: project} do
+      # 4 vCPUs and 8 GB: two warm default VMs fill the account.
+      stub_node()
+      assert {:ok, %{done: true}} = submit(project)
+      eventually(fn -> match?([%{state: :running}, %{state: :running}], vm_rows(project)) end)
+      flush_node_messages()
+
+      assert {:ok, %{done: true, code: 0}} = submit(project, %{"size" => 11, "memory_gb" => 8})
+      assert_received {:node, "create", %{memory_mb: 8192}}
+    end
+
+    test "an action larger than the account's limits fails without a VM", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{done: true, code: 9, message: message}} = submit(project, %{"memory_gb" => 16})
+      assert message =~ "larger VM"
+      refute_received {:node, "create", %{memory_mb: 16_384}}
+    end
+
+    test "a larger action waits for the room a running action holds", %{project: project} do
+      # 4 vCPUs and 8 GB, with a default action holding half.
+      stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+      first = Task.async(fn -> submit(project) end)
+      assert_receive {:holding, held}, 5_000
+
+      assert {:ok, %{done: false, state: "queued", id: large}} =
+               submit(project, %{"size" => 11, "memory_gb" => 8}, wait: 300)
+
+      refute_received {:node, "create", %{memory_mb: 8192}}
+
+      stub_node()
+      send(held, :release)
+      assert {:ok, %{done: true}} = Task.await(first)
+      assert {:ok, %{id: ^large}} = RemoteExecution.await(project, large, "queued", wait: 5_000)
+      assert {:ok, %{id: ^large, done: true, code: 0}} = RemoteExecution.await(project, large, "executing", wait: 5_000)
+      assert_received {:node, "create", %{memory_mb: 8192}}
+    end
+  end
+
   test "invalid requests are rejected before scheduling", %{project: project} do
+    assert {:error, :invalid_request} = submit(project, %{"memory_gb" => 6})
+    assert {:error, :invalid_request} = submit(project, %{"memory_gb" => "8"})
     assert {:error, :invalid_request} = submit(project, %{"hash" => "short"})
     assert {:error, :invalid_request} = submit(project, %{"size" => -1})
     assert {:error, :invalid_request} = submit(project, %{"skip_cache" => "yes"})

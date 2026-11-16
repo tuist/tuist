@@ -438,6 +438,58 @@ struct CachedModuleDebuggingMetadataTests {
         #expect(try await CachedModuleDebuggingMetadata.capture(target: original, validateGeneratedSources: true) != before)
     }
 
+    @Test(.inTemporaryDirectory, arguments: ["sources", "buildable-folder", "sibling-inclusion"])
+    func documentationGenerationDoesNotChangeDebuggingSourceIdentities(layout: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let base = try await target(at: root)
+        let source = try #require(base.target.sources.first?.path)
+        let catalog = root.appending(components: "Feature", "Feature.docc")
+        let article = catalog.appending(component: "Generated.md")
+        let example = catalog.appending(component: "Example.swift")
+        let header = catalog.appending(component: "Feature.h")
+        try await FileSystem().makeDirectory(at: catalog)
+        try await FileSystem().writeText("# Feature", at: article)
+        try await FileSystem().writeText("let example = 1", at: example)
+        try await FileSystem().writeText("int feature(void);", at: header)
+        var target = base.target
+        target.headers = .test(public: [header])
+        var project = base.project
+        if layout == "sources" {
+            target.sources.append(SourceFile(path: catalog))
+            target.sources.append(SourceFile(path: example))
+        } else if layout == "buildable-folder" {
+            target.buildableFolders = [.init(path: catalog, exceptions: [], resolvedFiles: [
+                .init(path: article, compilerFlags: nil), .init(path: example, compilerFlags: nil),
+            ])]
+        } else {
+            project.targets["Sibling"] = .test(name: "Sibling", buildableFolders: [.init(
+                path: root, exceptions: [.init(
+                    excluded: [], compilerFlags: [:], publicHeaders: [], privateHeaders: [],
+                    target: "Feature", included: [article, example]
+                )], resolvedFiles: []
+            )])
+        }
+        project.targets["Feature"] = target
+        let graphTarget = GraphTarget(path: root, target: target, project: project)
+        let before = try await CachedModuleDebuggingMetadata.capture(target: graphTarget)
+        #expect(Set(before.sources.keys) == [
+            "Feature/Feature.swift", "Feature/Feature.docc/Feature.h", "Feature/Feature.docc/Example.swift",
+        ])
+
+        try await FileSystem().writeText("# Generated documentation", at: article)
+        try await FileSystem().writeText("# New article", at: catalog.appending(component: "New.md"))
+        #expect(try await CachedModuleDebuggingMetadata.capture(target: graphTarget, validateGeneratedSources: true) == before)
+
+        try await FileSystem().writeText("int changed(void);", at: header)
+        #expect(try await CachedModuleDebuggingMetadata.capture(target: graphTarget, validateGeneratedSources: true) != before)
+        try await FileSystem().writeText("int feature(void);", at: header)
+        try await FileSystem().writeText("let example = 2", at: example)
+        #expect(try await CachedModuleDebuggingMetadata.capture(target: graphTarget, validateGeneratedSources: true) != before)
+        try await FileSystem().writeText("let example = 1", at: example)
+        try await FileSystem().writeText("public let changed = 99", at: source)
+        #expect(try await CachedModuleDebuggingMetadata.capture(target: graphTarget, validateGeneratedSources: true) != before)
+    }
+
     @Test(.inTemporaryDirectory)
     func placeholderGeneratedOutputsCannotBypassSourceVerification() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)

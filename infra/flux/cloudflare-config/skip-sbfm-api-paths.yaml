@@ -40,10 +40,10 @@
 # Path list justification (see server/lib/tuist_web/router.ex):
 #   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
 #                      previews, runners) — every managed-CI call.
-#   GET /jams/socket/websocket  Native iOS/Android Jam updates.
-#   GET /threads/socket/websocket  Compatibility for older native clients.
+#   GET /threads/socket/websocket  Native iOS/Android Thread updates.
+#   GET /jams/socket/websocket  Compatibility for older native clients.
 #                      Phoenix authenticates the bearer subprotocol and
-#                      authorizes each account/private-Jam subscription.
+#                      authorizes each account/private-Thread subscription.
 #   /open-graph-images/* Signed social-preview images; crawlers cannot
 #                      solve JavaScript challenges. The application
 #                      verifies signatures and current project visibility.
@@ -61,6 +61,9 @@
 #   /.well-known/*     Protocol discovery (Apple app-site-association
 #                      fetched by Apple's CDN, MCP server card,
 #                      OAuth authorization-server metadata).
+#   GET /oidc/accounts/*  Per-account OpenID Connect issuer discovery and
+#                      JWKS, fetched by Anthropic to verify the tokens
+#                      Tuist signs for workload identity federation.
 #   /mcp (exact)       Model Context Protocol
 #                      (https://modelcontextprotocol.io/) server
 #                      endpoint reached by AI-assistant clients.
@@ -159,6 +162,7 @@ spec:
     starts_with(http.request.uri.path, "/agent/") or
     starts_with(http.request.uri.path, "/_internal/") or
     starts_with(http.request.uri.path, "/.well-known/") or
+    (http.request.method in {"GET" "HEAD"} and starts_with(http.request.uri.path, "/oidc/accounts/")) or
     http.request.uri.path eq "/mcp" or
     http.request.uri.path eq "/auth.md" or
     http.request.uri.path eq "/ready" or

@@ -139,9 +139,6 @@ defmodule TuistWeb.SandboxLive do
   defp error_message(:sandbox_concurrency_limit),
     do: dgettext("dashboard_sandboxes", "Resuming would exceed this account's vCPU or memory limit.")
 
-  defp error_message(:archive_storage_full),
-    do: dgettext("dashboard_sandboxes", "This account's archive storage is full. Delete archived sandboxes to make room.")
-
   defp error_message(reason) when reason in [:not_connected, :node_disconnected, :no_node, :timeout],
     do: dgettext("dashboard_sandboxes", "The machine running this sandbox is unreachable. Please retry.")
 
@@ -160,6 +157,7 @@ defmodule TuistWeb.SandboxLive do
   end
 
   defp assign_sandbox(socket, sandbox) do
+    [sandbox] = Sandboxes.preload_creators([sandbox])
     assign(socket, sandbox: sandbox)
   end
 

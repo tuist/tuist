@@ -177,7 +177,7 @@ defmodule TuistWeb.API.AuthController do
       {:ok, refresh_token, _opts} =
         Authentication.encode_and_sign(user, claims, token_type: :refresh, ttl: @refresh_token_ttl)
 
-      {:ok, %{token: user.token, access_token: access_token, refresh_token: refresh_token}}
+      {:ok, %{access_token: access_token, refresh_token: refresh_token}}
     end
   end
 

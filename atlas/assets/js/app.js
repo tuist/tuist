@@ -2,6 +2,7 @@ import "../css/fonts.css"
 import "noora/noora.css"
 import "../css/routes/auth.css"
 import "../css/routes/native_links.css"
+import "../css/routes/oauth_consent.css"
 import "../css/layouts/dashboard.css"
 import "../css/layouts/account.css"
 import "../css/routes/demo.css"
@@ -95,6 +96,9 @@ const embedded = window.self !== window.top
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => {
   if (!embedded) topbar.show(300)
+
+  const mobileNavigationToggle = document.getElementById("mobile-navigation-toggle")
+  if (mobileNavigationToggle) mobileNavigationToggle.checked = false
 })
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 

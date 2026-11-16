@@ -8,7 +8,7 @@
     "condition": "D",
     "data": [
       {
-        "datasourceUid": "grafanacloud-prom",
+        "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
           "editorMode": "code",
           "expr": "sum by (platform) (increase(tuist_runners_job_executor_queue_time_milliseconds_bucket{env=\"production\", platform=~\"linux|macos\", limit_held=\"false\", le=\"10000.0\"}[1h]))",
@@ -26,7 +26,7 @@
         }
       },
       {
-        "datasourceUid": "grafanacloud-prom",
+        "datasourceUid": "cg3i1jh2k1v5sb",
         "model": {
           "editorMode": "code",
           "expr": "sum by (platform) (increase(tuist_runners_job_executor_queue_time_milliseconds_count{env=\"production\", platform=~\"linux|macos\", limit_held=\"false\"}[1h]))",

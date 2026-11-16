@@ -530,6 +530,55 @@ defmodule Tuist.GitHistoryTest do
       assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
       assert owned(repository, "pull/1") == [{"p1", 5}]
     end
+
+    test "detach a commit no ref owns, unowned to commit coverage, until a ref takes it over", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      main = GitHistory.ref(repository, "main").id
+      measure(project, repository, ["e"])
+      detach = fn sha -> GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, sha) end) end
+
+      assert detach.("e")
+      refute detach.("e")
+      refute detach.("d")
+
+      assert %{detached: true, parent_ref_id: ^main, fork_position: 2, head_sha: "e"} =
+               GitHistory.ref(repository, "detached:e")
+
+      GitHistory.sync_coverage_places(repository, ["e"])
+      assert coverage_places(project) == [{"e", nil, nil}]
+      assert GitHistory.position(repository, "e") == nil
+
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert owned(repository, "feature") == [{"e", 3}]
+      assert GitHistory.ref(repository, "detached:e") == nil
+      assert coverage_places(project) == [{"e", feature, 3}]
+    end
+
+    test "ignore a branch head named as a detached ref is", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("x", ["e"], 10)])
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "feature", "main", "e")
+      feature = GitHistory.ref(repository, "feature").id
+      assert GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "x") end)
+
+      GitHistory.advance_ref(repository, "detached:x", "main", "d")
+      assert %{parent_ref_id: ^feature, fork_position: 3, head_sha: "x"} = GitHistory.ref(repository, "detached:x")
+
+      GitHistory.advance_ref(repository, "detached:d", "main", "d")
+      assert GitHistory.ref(repository, "detached:d") == nil
+    end
+
+    test "leave a commit whose first parents reach no ref undetached", %{repository: repository} do
+      seed(repository)
+      refute GitHistory.with_refs_lock(repository, fn -> GitHistory.detach(repository, "e") end)
+      assert GitHistory.ref(repository, "detached:e") == nil
+    end
   end
 
   describe "shallow clones" do
@@ -647,11 +696,11 @@ defmodule Tuist.GitHistoryTest do
 
     test "count as missing once the files outlived their retention, and are stored again", %{repository: repository} do
       GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
-      age_listing(repository, "c", 30)
       assert GitHistory.listing_complete?(repository, "c")
 
-      # The files are kept 90 days by default (TUIST_COVERAGE_FILE_RETENTION_DAYS).
-      age_listing(repository, "c", 90)
+      # The files are kept two days: no ref owns the commit, so its file
+      # changes were never written from them.
+      age_listing(repository, "c", 2)
       refute GitHistory.listing_complete?(repository, "c")
       assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
 
@@ -666,6 +715,34 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.missing_listings(repository, ["c"]) == []
       assert %{files_count: 2} = CoverageFixtures.listing(repository, "c")
     end
+
+    test "a commit whose file changes are written outlives its listing's files", %{repository: repository} do
+      GitHistory.record_commits(repository, "sha1", [commit("c", [], 0)])
+      GitHistory.record_branch_head(repository, "main", "c", "main")
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
+      assert GitHistory.FileChanges.write(repository, "c") == :written
+
+      age_listing(repository, "c", 30)
+
+      assert GitHistory.listing_complete?(repository, "c")
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+      assert GitHistory.blobs_at(repository, "c", ["Sources/A.swift"]) == %{"Sources/A.swift" => "a1"}
+
+      # An upload repeated all the same leaves the listing as it is.
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], truncated: true)
+      assert %{truncated: false} = CoverageFixtures.listing(repository, "c")
+      assert GitHistory.listing_complete?(repository, "c")
+    end
+
+    test "a truncated listing is asked for again only after the file retention", %{repository: repository} do
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], truncated: true)
+
+      age_listing(repository, "c", 30)
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+
+      age_listing(repository, "c", 90)
+      assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
+    end
   end
 
   describe "settings/1 and prune/2" do
@@ -675,7 +752,7 @@ defmodule Tuist.GitHistoryTest do
                window_commits: 5_000,
                upload_batch_size: 500,
                tracked_file_globs: ["**/Package.resolved" | _],
-               commit_file_limit: 50_000
+               commit_file_limit: 200_000
              } = GitHistory.settings(project)
 
       {:ok, project} = Projects.update_project(project, %{git_history_window_days: 30})

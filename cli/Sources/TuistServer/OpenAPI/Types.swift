@@ -333,7 +333,7 @@ public protocol APIProtocol: Sendable {
     func createCommandEvent(_ input: Operations.createCommandEvent.Input) async throws -> Operations.createCommandEvent.Output
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -712,11 +712,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/cargo/builds`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cargo/builds/post(createCargoBuild)`.
     func createCargoBuild(_ input: Operations.createCargoBuild.Input) async throws -> Operations.createCargoBuild.Output
-    /// Get a grouped Pulse error issue and its paginated events.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)`.
-    func getPulseErrorIssue(_ input: Operations.getPulseErrorIssue.Input) async throws -> Operations.getPulseErrorIssue.Output
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds`.
@@ -1013,7 +1008,7 @@ public protocol APIProtocol: Sendable {
     func pauseSandbox(_ input: Operations.pauseSandbox.Input) async throws -> Operations.pauseSandbox.Output
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -1251,7 +1246,7 @@ public protocol APIProtocol: Sendable {
     func listSandboxAgentSessions(_ input: Operations.listSandboxAgentSessions.Input) async throws -> Operations.listSandboxAgentSessions.Output
     /// Start an agent session.
     ///
-    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
@@ -1361,11 +1356,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets/get(listTestTargets)`.
     func listTestTargets(_ input: Operations.listTestTargets.Input) async throws -> Operations.listTestTargets.Output
-    /// Get a projected event belonging to a Pulse error issue.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)`.
-    func getPulseErrorEvent(_ input: Operations.getPulseErrorEvent.Input) async throws -> Operations.getPulseErrorEvent.Output
     /// List generations associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
@@ -1581,6 +1571,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
+    /// Create an upload for a sandbox.
+    ///
+    /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)`.
+    func createSandboxUpload(_ input: Operations.createSandboxUpload.Input) async throws -> Operations.createSandboxUpload.Output
     /// List Bazel invocations for a project, newest first.
     ///
     /// Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
@@ -2418,7 +2415,7 @@ extension APIProtocol {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -3339,21 +3336,6 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Get a grouped Pulse error issue and its paginated events.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)`.
-    public func getPulseErrorIssue(
-        path: Operations.getPulseErrorIssue.Input.Path,
-        query: Operations.getPulseErrorIssue.Input.Query = .init(),
-        headers: Operations.getPulseErrorIssue.Input.Headers = .init()
-    ) async throws -> Operations.getPulseErrorIssue.Output {
-        try await getPulseErrorIssue(Operations.getPulseErrorIssue.Input(
-            path: path,
-            query: query,
-            headers: headers
-        ))
-    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds`.
@@ -4066,7 +4048,7 @@ extension APIProtocol {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -4650,7 +4632,7 @@ extension APIProtocol {
     }
     /// Start an agent session.
     ///
-    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
@@ -4911,21 +4893,6 @@ extension APIProtocol {
         headers: Operations.listTestTargets.Input.Headers = .init()
     ) async throws -> Operations.listTestTargets.Output {
         try await listTestTargets(Operations.listTestTargets.Input(
-            path: path,
-            query: query,
-            headers: headers
-        ))
-    }
-    /// Get a projected event belonging to a Pulse error issue.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)`.
-    public func getPulseErrorEvent(
-        path: Operations.getPulseErrorEvent.Input.Path,
-        query: Operations.getPulseErrorEvent.Input.Query = .init(),
-        headers: Operations.getPulseErrorEvent.Input.Headers = .init()
-    ) async throws -> Operations.getPulseErrorEvent.Output {
-        try await getPulseErrorEvent(Operations.getPulseErrorEvent.Input(
             path: path,
             query: query,
             headers: headers
@@ -5438,6 +5405,21 @@ extension APIProtocol {
         try await createProject(Operations.createProject.Input(
             headers: headers,
             body: body
+        ))
+    }
+    /// Create an upload for a sandbox.
+    ///
+    /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)`.
+    public func createSandboxUpload(
+        path: Operations.createSandboxUpload.Input.Path,
+        headers: Operations.createSandboxUpload.Input.Headers = .init()
+    ) async throws -> Operations.createSandboxUpload.Output {
+        try await createSandboxUpload(Operations.createSandboxUpload.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// List Bazel invocations for a project, newest first.
@@ -7548,21 +7530,29 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/WriteSandboxCommandStdin/data`.
             public var data: OpenAPIRuntime.Base64EncodedData?
+            /// The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+            ///
+            /// - Remark: Generated from `#/components/schemas/WriteSandboxCommandStdin/offset`.
+            public var offset: Swift.Int?
             /// Creates a new `WriteSandboxCommandStdin`.
             ///
             /// - Parameters:
             ///   - close: End the command's stdin after the data.
             ///   - data: Base64-encoded bytes, at most 256 KiB decoded.
+            ///   - offset: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
             public init(
                 close: Swift.Bool? = nil,
-                data: OpenAPIRuntime.Base64EncodedData? = nil
+                data: OpenAPIRuntime.Base64EncodedData? = nil,
+                offset: Swift.Int? = nil
             ) {
                 self.close = close
                 self.data = data
+                self.offset = offset
             }
             public enum CodingKeys: String, CodingKey {
                 case close
                 case data
+                case offset
             }
         }
         /// - Remark: Generated from `#/components/schemas/CacheActionItemUploadParams`.
@@ -9721,6 +9711,10 @@ public enum Components {
             public var title: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/updated_at`.
             public var updated_at: Foundation.Date
+            /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSession/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `SandboxAgentSession`.
             ///
             /// - Parameters:
@@ -9739,6 +9733,7 @@ public enum Components {
             ///   - stop_reason: The stop reason of the latest idle event the server saw.
             ///   - title:
             ///   - updated_at:
+            ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
             public init(
                 agent_environment_id: Swift.Int,
                 anthropic_agent_id: Swift.String,
@@ -9754,7 +9749,8 @@ public enum Components {
                 status: Swift.String? = nil,
                 stop_reason: Swift.String? = nil,
                 title: Swift.String? = nil,
-                updated_at: Foundation.Date
+                updated_at: Foundation.Date,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_environment_id = agent_environment_id
                 self.anthropic_agent_id = anthropic_agent_id
@@ -9771,6 +9767,7 @@ public enum Components {
                 self.stop_reason = stop_reason
                 self.title = title
                 self.updated_at = updated_at
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
@@ -9788,6 +9785,7 @@ public enum Components {
                 case stop_reason
                 case title
                 case updated_at
+                case xcode_version
             }
         }
         /// Represents a single build run.
@@ -13664,8 +13662,6 @@ public enum Components {
         public struct SandboxAnalyticsConcurrency: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
             public struct in_usePayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/vcpus`.
@@ -13673,29 +13669,21 @@ public enum Components {
                 /// Creates a new `in_usePayload`.
                 ///
                 /// - Parameters:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
-                    )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
                         forKey: .memory_gb
@@ -13705,7 +13693,6 @@ public enum Components {
                         forKey: .vcpus
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -13715,8 +13702,6 @@ public enum Components {
             public var in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
             public struct limitsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/vcpus`.
@@ -13724,29 +13709,21 @@ public enum Components {
                 /// Creates a new `limitsPayload`.
                 ///
                 /// - Parameters:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
-                    )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
                         forKey: .memory_gb
@@ -13756,7 +13733,6 @@ public enum Components {
                         forKey: .vcpus
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -13768,8 +13744,6 @@ public enum Components {
             public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/at`.
                 public var at: Foundation.Date
-                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/disk_gb`.
-                public var disk_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/memory_gb`.
                 public var memory_gb: Swift.Double
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/vcpus`.
@@ -13778,23 +13752,19 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - at:
-                ///   - disk_gb:
                 ///   - memory_gb:
                 ///   - vcpus:
                 public init(
                     at: Foundation.Date,
-                    disk_gb: Swift.Double,
                     memory_gb: Swift.Double,
                     vcpus: Swift.Int
                 ) {
                     self.at = at
-                    self.disk_gb = disk_gb
                     self.memory_gb = memory_gb
                     self.vcpus = vcpus
                 }
                 public enum CodingKeys: String, CodingKey {
                     case at
-                    case disk_gb
                     case memory_gb
                     case vcpus
                 }
@@ -13803,10 +13773,6 @@ public enum Components {
                     self.at = try container.decode(
                         Foundation.Date.self,
                         forKey: .at
-                    )
-                    self.disk_gb = try container.decode(
-                        Swift.Double.self,
-                        forKey: .disk_gb
                     )
                     self.memory_gb = try container.decode(
                         Swift.Double.self,
@@ -13818,7 +13784,6 @@ public enum Components {
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                         "at",
-                        "disk_gb",
                         "memory_gb",
                         "vcpus"
                     ])
@@ -14126,6 +14091,94 @@ public enum Components {
                     "jobs",
                     "pagination_metadata"
                 ])
+            }
+        }
+        /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory`.
+        public struct RunnerJobOutOfMemory: Codable, Hashable, Sendable {
+            /// What happened and what to change, as the job page's "Ran out of memory" alert says it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/description`.
+            public var description: Swift.String
+            /// When the first kill was reported.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/first_kill_at`.
+            public var first_kill_at: Foundation.Date
+            /// Processes the runner VM killed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/kill_count`.
+            public var kill_count: Swift.Int
+            /// The process killed last, or null when the runner did not name it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim`.
+            public struct victimPayload: Codable, Hashable, Sendable {
+                /// Its Docker container: null outside a container, docker-build for a docker build step.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/container`.
+                public var container: Swift.String?
+                /// That container's image.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/image`.
+                public var image: Swift.String?
+                /// Memory the process was using.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/memory_bytes`.
+                public var memory_bytes: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim/process`.
+                public var process: Swift.String
+                /// Creates a new `victimPayload`.
+                ///
+                /// - Parameters:
+                ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+                ///   - image: That container's image.
+                ///   - memory_bytes: Memory the process was using.
+                ///   - process:
+                public init(
+                    container: Swift.String? = nil,
+                    image: Swift.String? = nil,
+                    memory_bytes: Swift.Int,
+                    process: Swift.String
+                ) {
+                    self.container = container
+                    self.image = image
+                    self.memory_bytes = memory_bytes
+                    self.process = process
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case container
+                    case image
+                    case memory_bytes
+                    case process
+                }
+            }
+            /// The process killed last, or null when the runner did not name it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemory/victim`.
+            public var victim: Components.Schemas.RunnerJobOutOfMemory.victimPayload?
+            /// Creates a new `RunnerJobOutOfMemory`.
+            ///
+            /// - Parameters:
+            ///   - description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+            ///   - first_kill_at: When the first kill was reported.
+            ///   - kill_count: Processes the runner VM killed.
+            ///   - victim: The process killed last, or null when the runner did not name it.
+            public init(
+                description: Swift.String,
+                first_kill_at: Foundation.Date,
+                kill_count: Swift.Int,
+                victim: Components.Schemas.RunnerJobOutOfMemory.victimPayload? = nil
+            ) {
+                self.description = description
+                self.first_kill_at = first_kill_at
+                self.kill_count = kill_count
+                self.victim = victim
+            }
+            public enum CodingKeys: String, CodingKey {
+                case description
+                case first_kill_at
+                case kill_count
+                case victim
             }
         }
         /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination`.
@@ -14846,6 +14899,49 @@ public enum Components {
                 case suite_name
             }
         }
+        /// The process killed last, or null when the runner did not name it.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim`.
+        public struct RunnerJobOutOfMemoryVictim: Codable, Hashable, Sendable {
+            /// Its Docker container: null outside a container, docker-build for a docker build step.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/container`.
+            public var container: Swift.String?
+            /// That container's image.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/image`.
+            public var image: Swift.String?
+            /// Memory the process was using.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/memory_bytes`.
+            public var memory_bytes: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobOutOfMemoryVictim/process`.
+            public var process: Swift.String
+            /// Creates a new `RunnerJobOutOfMemoryVictim`.
+            ///
+            /// - Parameters:
+            ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+            ///   - image: That container's image.
+            ///   - memory_bytes: Memory the process was using.
+            ///   - process:
+            public init(
+                container: Swift.String? = nil,
+                image: Swift.String? = nil,
+                memory_bytes: Swift.Int,
+                process: Swift.String
+            ) {
+                self.container = container
+                self.image = image
+                self.memory_bytes = memory_bytes
+                self.process = process
+            }
+            public enum CodingKeys: String, CodingKey {
+                case container
+                case image
+                case memory_bytes
+                case process
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/PulseQuery`.
         public struct PulseQuery: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PulseQuery/meta`.
@@ -14945,20 +15041,8 @@ public enum Components {
             public var meta: Components.Schemas.PulseQuery.metaPayload
             /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload`.
             public struct rowsPayloadPayload: Codable, Hashable, Sendable {
-                /// Occurrence count in the complete filtered selected period, not lifetime or page count.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/count`.
-                public var count: Swift.Int?
-                /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/culprit`.
-                public var culprit: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/duration_ms`.
                 public var duration_ms: Swift.Double?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/first_seen_ns`.
-                public var first_seen_ns: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/issue_id`.
-                public var issue_id: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/labels`.
                 public struct labelsPayload: Codable, Hashable, Sendable {
                     /// A container of undocumented properties.
@@ -14979,30 +15063,16 @@ public enum Components {
                 }
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/labels`.
                 public var labels: Components.Schemas.PulseQuery.rowsPayloadPayload.labelsPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/last_seen_ns`.
-                public var last_seen_ns: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/latest_event_id`.
-                public var latest_event_id: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/level`.
                 public var level: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/message`.
                 public var message: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/name`.
                 public var name: Swift.String?
-                /// 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_series`.
-                public var occurrence_series: [[Swift.Int]]?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/platform`.
-                public var platform: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/project`.
-                public var project: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/service`.
                 public var service: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/timestamp`.
                 public var timestamp: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/title`.
-                public var title: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/trace_id`.
                 public var trace_id: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/value`.
@@ -15069,120 +15139,56 @@ public enum Components {
                 /// Creates a new `rowsPayloadPayload`.
                 ///
                 /// - Parameters:
-                ///   - count: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
                 ///   - duration_ms:
-                ///   - first_seen_ns:
-                ///   - issue_id:
                 ///   - labels:
-                ///   - last_seen_ns:
-                ///   - latest_event_id:
                 ///   - level:
                 ///   - message:
                 ///   - name:
-                ///   - occurrence_series: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                ///   - platform:
-                ///   - project:
                 ///   - service:
                 ///   - timestamp:
-                ///   - title:
                 ///   - trace_id:
                 ///   - value:
                 public init(
-                    count: Swift.Int? = nil,
-                    culprit: Swift.String? = nil,
                     duration_ms: Swift.Double? = nil,
-                    first_seen_ns: Swift.Int? = nil,
-                    issue_id: Swift.String? = nil,
                     labels: Components.Schemas.PulseQuery.rowsPayloadPayload.labelsPayload? = nil,
-                    last_seen_ns: Swift.Int? = nil,
-                    latest_event_id: Swift.String? = nil,
                     level: Swift.String? = nil,
                     message: Swift.String? = nil,
                     name: Swift.String? = nil,
-                    occurrence_series: [[Swift.Int]]? = nil,
-                    platform: Swift.String? = nil,
-                    project: Swift.String? = nil,
                     service: Swift.String? = nil,
                     timestamp: Swift.String? = nil,
-                    title: Swift.String? = nil,
                     trace_id: Swift.String? = nil,
                     value: Components.Schemas.PulseQuery.rowsPayloadPayload.valuePayload? = nil
                 ) {
-                    self.count = count
-                    self.culprit = culprit
                     self.duration_ms = duration_ms
-                    self.first_seen_ns = first_seen_ns
-                    self.issue_id = issue_id
                     self.labels = labels
-                    self.last_seen_ns = last_seen_ns
-                    self.latest_event_id = latest_event_id
                     self.level = level
                     self.message = message
                     self.name = name
-                    self.occurrence_series = occurrence_series
-                    self.platform = platform
-                    self.project = project
                     self.service = service
                     self.timestamp = timestamp
-                    self.title = title
                     self.trace_id = trace_id
                     self.value = value
                 }
                 public enum CodingKeys: String, CodingKey {
-                    case count
-                    case culprit
                     case duration_ms
-                    case first_seen_ns
-                    case issue_id
                     case labels
-                    case last_seen_ns
-                    case latest_event_id
                     case level
                     case message
                     case name
-                    case occurrence_series
-                    case platform
-                    case project
                     case service
                     case timestamp
-                    case title
                     case trace_id
                     case value
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.count = try container.decodeIfPresent(
-                        Swift.Int.self,
-                        forKey: .count
-                    )
-                    self.culprit = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .culprit
-                    )
                     self.duration_ms = try container.decodeIfPresent(
                         Swift.Double.self,
                         forKey: .duration_ms
                     )
-                    self.first_seen_ns = try container.decodeIfPresent(
-                        Swift.Int.self,
-                        forKey: .first_seen_ns
-                    )
-                    self.issue_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .issue_id
-                    )
                     self.labels = try container.decodeIfPresent(
                         Components.Schemas.PulseQuery.rowsPayloadPayload.labelsPayload.self,
                         forKey: .labels
-                    )
-                    self.last_seen_ns = try container.decodeIfPresent(
-                        Swift.Int.self,
-                        forKey: .last_seen_ns
-                    )
-                    self.latest_event_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .latest_event_id
                     )
                     self.level = try container.decodeIfPresent(
                         Swift.String.self,
@@ -15196,18 +15202,6 @@ public enum Components {
                         Swift.String.self,
                         forKey: .name
                     )
-                    self.occurrence_series = try container.decodeIfPresent(
-                        [[Swift.Int]].self,
-                        forKey: .occurrence_series
-                    )
-                    self.platform = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .platform
-                    )
-                    self.project = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .project
-                    )
                     self.service = try container.decodeIfPresent(
                         Swift.String.self,
                         forKey: .service
@@ -15215,10 +15209,6 @@ public enum Components {
                     self.timestamp = try container.decodeIfPresent(
                         Swift.String.self,
                         forKey: .timestamp
-                    )
-                    self.title = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .title
                     )
                     self.trace_id = try container.decodeIfPresent(
                         Swift.String.self,
@@ -15229,23 +15219,13 @@ public enum Components {
                         forKey: .value
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "count",
-                        "culprit",
                         "duration_ms",
-                        "first_seen_ns",
-                        "issue_id",
                         "labels",
-                        "last_seen_ns",
-                        "latest_event_id",
                         "level",
                         "message",
                         "name",
-                        "occurrence_series",
-                        "platform",
-                        "project",
                         "service",
                         "timestamp",
-                        "title",
                         "trace_id",
                         "value"
                     ])
@@ -15702,6 +15682,39 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
         public typealias PreviewIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/SandboxUpload`.
+        public struct SandboxUpload: Codable, Hashable, Sendable {
+            /// Presigned URL to GET the file from in the sandbox.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxUpload/download_url`.
+            public var download_url: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxUpload/expires_at`.
+            public var expires_at: Foundation.Date
+            /// Presigned URL to PUT the file to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxUpload/upload_url`.
+            public var upload_url: Swift.String
+            /// Creates a new `SandboxUpload`.
+            ///
+            /// - Parameters:
+            ///   - download_url: Presigned URL to GET the file from in the sandbox.
+            ///   - expires_at:
+            ///   - upload_url: Presigned URL to PUT the file to.
+            public init(
+                download_url: Swift.String,
+                expires_at: Foundation.Date,
+                upload_url: Swift.String
+            ) {
+                self.download_url = download_url
+                self.expires_at = expires_at
+                self.upload_url = upload_url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case download_url
+                case expires_at
+                case upload_url
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BuildCategory`.
         @frozen public enum BuildCategory: String, Codable, Hashable, Sendable, CaseIterable {
             case clean = "clean"
@@ -17935,9 +17948,25 @@ public enum Components {
             public var anthropic_agent_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_environment_id`.
             public var anthropic_environment_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_federation_rule_id`.
+            public var anthropic_federation_rule_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_organization_id`.
+            public var anthropic_organization_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_service_account_id`.
+            public var anthropic_service_account_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/anthropic_workspace_id`.
+            public var anthropic_workspace_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/enabled`.
             public var enabled: Swift.Bool
-            /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+            /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/federation_issuer_url`.
+            public var federation_issuer_url: Swift.String
+            /// The sub claim of the tokens Tuist signs for this environment.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/federation_subject`.
+            public var federation_subject: Swift.String
+            /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
             ///
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/has_api_key`.
             public var has_api_key: Swift.Bool
@@ -17967,6 +17996,8 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/platform`.
             public var platform: Components.Schemas.SandboxAgentEnvironment.platformPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/setup_script`.
+            public var setup_script: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/template`.
             public var template: Swift.String
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/updated_at`.
@@ -17975,6 +18006,10 @@ public enum Components {
             public var vcpus: Swift.Int
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/workspace_gb`.
             public var workspace_gb: Swift.Int
+            /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `SandboxAgentEnvironment`.
             ///
             /// - Parameters:
@@ -17982,8 +18017,14 @@ public enum Components {
             ///   - agent_system_prompt:
             ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
             ///   - anthropic_environment_id:
+            ///   - anthropic_federation_rule_id:
+            ///   - anthropic_organization_id:
+            ///   - anthropic_service_account_id:
+            ///   - anthropic_workspace_id:
             ///   - enabled:
-            ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+            ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+            ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+            ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
             ///   - id:
             ///   - inserted_at:
             ///   - kind:
@@ -17992,16 +18033,24 @@ public enum Components {
             ///   - name:
             ///   - pause_grace_seconds:
             ///   - platform:
+            ///   - setup_script:
             ///   - template:
             ///   - updated_at:
             ///   - vcpus:
             ///   - workspace_gb:
+            ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
             public init(
                 agent_model: Swift.String,
                 agent_system_prompt: Swift.String? = nil,
                 anthropic_agent_id: Swift.String? = nil,
                 anthropic_environment_id: Swift.String,
+                anthropic_federation_rule_id: Swift.String? = nil,
+                anthropic_organization_id: Swift.String? = nil,
+                anthropic_service_account_id: Swift.String? = nil,
+                anthropic_workspace_id: Swift.String? = nil,
                 enabled: Swift.Bool,
+                federation_issuer_url: Swift.String,
+                federation_subject: Swift.String,
                 has_api_key: Swift.Bool,
                 id: Swift.Int,
                 inserted_at: Foundation.Date,
@@ -18011,16 +18060,24 @@ public enum Components {
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int,
                 platform: Components.Schemas.SandboxAgentEnvironment.platformPayload,
+                setup_script: Swift.String? = nil,
                 template: Swift.String,
                 updated_at: Foundation.Date,
                 vcpus: Swift.Int,
-                workspace_gb: Swift.Int
+                workspace_gb: Swift.Int,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
                 self.anthropic_agent_id = anthropic_agent_id
                 self.anthropic_environment_id = anthropic_environment_id
+                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                self.anthropic_organization_id = anthropic_organization_id
+                self.anthropic_service_account_id = anthropic_service_account_id
+                self.anthropic_workspace_id = anthropic_workspace_id
                 self.enabled = enabled
+                self.federation_issuer_url = federation_issuer_url
+                self.federation_subject = federation_subject
                 self.has_api_key = has_api_key
                 self.id = id
                 self.inserted_at = inserted_at
@@ -18030,17 +18087,25 @@ public enum Components {
                 self.name = name
                 self.pause_grace_seconds = pause_grace_seconds
                 self.platform = platform
+                self.setup_script = setup_script
                 self.template = template
                 self.updated_at = updated_at
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
                 case agent_system_prompt
                 case anthropic_agent_id
                 case anthropic_environment_id
+                case anthropic_federation_rule_id
+                case anthropic_organization_id
+                case anthropic_service_account_id
+                case anthropic_workspace_id
                 case enabled
+                case federation_issuer_url
+                case federation_subject
                 case has_api_key
                 case id
                 case inserted_at
@@ -18050,10 +18115,12 @@ public enum Components {
                 case name
                 case pause_grace_seconds
                 case platform
+                case setup_script
                 case template
                 case updated_at
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/XcodeCachedModule`.
@@ -18230,11 +18297,15 @@ public enum Components {
             public var operation: Components.Schemas.DispatchAmpOrb.operationPayload
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/orb_token`.
             public var orb_token: Swift.String?
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/platform`.
             @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case linux = "linux"
                 case darwin = "darwin"
             }
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/platform`.
             public var platform: Components.Schemas.DispatchAmpOrb.platformPayload?
             /// Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
@@ -18259,6 +18330,10 @@ public enum Components {
             public var vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/workspace_gb`.
             public var workspace_gb: Swift.Int?
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DispatchAmpOrb/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `DispatchAmpOrb`.
             ///
             /// - Parameters:
@@ -18266,11 +18341,12 @@ public enum Components {
             ///   - memory_mb:
             ///   - operation:
             ///   - orb_token:
-            ///   - platform:
+            ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
             ///   - template: Sandbox template name.
             ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 amp_url: Swift.String? = nil,
                 memory_mb: Components.Schemas.DispatchAmpOrb.memory_mbPayload? = nil,
@@ -18280,7 +18356,8 @@ public enum Components {
                 snapshot_id: Swift.String? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.DispatchAmpOrb.vcpusPayload? = nil,
-                workspace_gb: Swift.Int? = nil
+                workspace_gb: Swift.Int? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.amp_url = amp_url
                 self.memory_mb = memory_mb
@@ -18291,6 +18368,7 @@ public enum Components {
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case amp_url
@@ -18302,6 +18380,7 @@ public enum Components {
                 case template
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/OIDCTokenExchangeResponse`.
@@ -18612,6 +18691,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/env`.
             public var env: Components.Schemas.StartSandboxCommand.envPayload?
+            /// The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/id`.
+            public var id: Swift.String?
             /// Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
             ///
             /// - Remark: Generated from `#/components/schemas/StartSandboxCommand/stdin`.
@@ -18627,6 +18710,7 @@ public enum Components {
             ///   - command: A shell script run with `/bin/bash -l`, or the program to run when `args` is given.
             ///   - cwd: Working directory. Defaults to the sandbox's workspace.
             ///   - env: Environment variables for the command. Never stored.
+            ///   - id: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
             ///   - stdin: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
             ///   - timeout_ms: Kill the command after this many milliseconds (default one hour).
             public init(
@@ -18634,6 +18718,7 @@ public enum Components {
                 command: Swift.String,
                 cwd: Swift.String? = nil,
                 env: Components.Schemas.StartSandboxCommand.envPayload? = nil,
+                id: Swift.String? = nil,
                 stdin: Swift.Bool? = nil,
                 timeout_ms: Swift.Int? = nil
             ) {
@@ -18641,6 +18726,7 @@ public enum Components {
                 self.command = command
                 self.cwd = cwd
                 self.env = env
+                self.id = id
                 self.stdin = stdin
                 self.timeout_ms = timeout_ms
             }
@@ -18649,6 +18735,7 @@ public enum Components {
                 case command
                 case cwd
                 case env
+                case id
                 case stdin
                 case timeout_ms
             }
@@ -19454,6 +19541,22 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_environment_id`.
             public var anthropic_environment_id: Swift.String
+            /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_federation_rule_id`.
+            public var anthropic_federation_rule_id: Swift.String?
+            /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_organization_id`.
+            public var anthropic_organization_id: Swift.String?
+            /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_service_account_id`.
+            public var anthropic_service_account_id: Swift.String?
+            /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/anthropic_workspace_id`.
+            public var anthropic_workspace_id: Swift.String?
             /// The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/environment_key`.
@@ -19484,13 +19587,21 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/pause_grace_seconds`.
             public var pause_grace_seconds: Swift.Int?
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
             @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case linux = "linux"
                 case darwin = "darwin"
             }
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
             public var platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload?
+            /// Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/setup_script`.
+            public var setup_script: Swift.String?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
@@ -19509,6 +19620,10 @@ public enum Components {
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/workspace_gb`.
             public var workspace_gb: Swift.Int?
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `CreateSandboxAgentEnvironment`.
             ///
             /// - Parameters:
@@ -19516,21 +19631,31 @@ public enum Components {
             ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
             ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
             ///   - anthropic_environment_id: The Anthropic environment identifier: env_... or, for claude_code, ccpool_...
+            ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
             ///   - environment_key: The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
             ///   - kind: managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform.
             ///   - max_idle_seconds:
             ///   - memory_mb:
             ///   - name:
             ///   - pause_grace_seconds:
-            ///   - platform:
+            ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
             ///   - template: Sandbox template name.
             ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 agent_model: Swift.String? = nil,
                 agent_system_prompt: Swift.String? = nil,
                 anthropic_api_key: Swift.String? = nil,
                 anthropic_environment_id: Swift.String,
+                anthropic_federation_rule_id: Swift.String? = nil,
+                anthropic_organization_id: Swift.String? = nil,
+                anthropic_service_account_id: Swift.String? = nil,
+                anthropic_workspace_id: Swift.String? = nil,
                 environment_key: Swift.String,
                 kind: Components.Schemas.CreateSandboxAgentEnvironment.kindPayload? = nil,
                 max_idle_seconds: Swift.Int? = nil,
@@ -19538,14 +19663,20 @@ public enum Components {
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int? = nil,
                 platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload? = nil,
+                setup_script: Swift.String? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload? = nil,
-                workspace_gb: Swift.Int? = nil
+                workspace_gb: Swift.Int? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
                 self.anthropic_api_key = anthropic_api_key
                 self.anthropic_environment_id = anthropic_environment_id
+                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                self.anthropic_organization_id = anthropic_organization_id
+                self.anthropic_service_account_id = anthropic_service_account_id
+                self.anthropic_workspace_id = anthropic_workspace_id
                 self.environment_key = environment_key
                 self.kind = kind
                 self.max_idle_seconds = max_idle_seconds
@@ -19553,15 +19684,21 @@ public enum Components {
                 self.name = name
                 self.pause_grace_seconds = pause_grace_seconds
                 self.platform = platform
+                self.setup_script = setup_script
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
                 case agent_system_prompt
                 case anthropic_api_key
                 case anthropic_environment_id
+                case anthropic_federation_rule_id
+                case anthropic_organization_id
+                case anthropic_service_account_id
+                case anthropic_workspace_id
                 case environment_key
                 case kind
                 case max_idle_seconds
@@ -19569,9 +19706,11 @@ public enum Components {
                 case name
                 case pause_grace_seconds
                 case platform
+                case setup_script
                 case template
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// The maximum number of targets to return in a single page.
@@ -20005,578 +20144,6 @@ public enum Components {
                 case url
             }
         }
-        /// - Remark: Generated from `#/components/schemas/PulseErrorEvent`.
-        public struct PulseErrorEvent: Codable, Hashable, Sendable {
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/contexts`.
-            public struct contextsPayload: Codable, Hashable, Sendable {
-                /// A container of undocumented properties.
-                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                /// Creates a new `contextsPayload`.
-                ///
-                /// - Parameters:
-                ///   - additionalProperties: A container of undocumented properties.
-                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                    self.additionalProperties = additionalProperties
-                }
-                public init(from decoder: any Decoder) throws {
-                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try encoder.encodeAdditionalProperties(additionalProperties)
-                }
-            }
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/contexts`.
-            public var contexts: Components.Schemas.PulseErrorEvent.contextsPayload?
-            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/culprit`.
-            public var culprit: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/environment`.
-            public var environment: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/event_id`.
-            public var event_id: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception`.
-            public struct exceptionPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/framesPayload`.
-                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/framesPayload/filename`.
-                    public var filename: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/framesPayload/function`.
-                    public var function: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/framesPayload/in_app`.
-                    public var in_app: Swift.Bool
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/framesPayload/lineno`.
-                    public var lineno: Swift.Int?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/framesPayload/module`.
-                    public var module: Swift.String?
-                    /// Creates a new `framesPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - filename:
-                    ///   - function:
-                    ///   - in_app:
-                    ///   - lineno:
-                    ///   - module:
-                    public init(
-                        filename: Swift.String? = nil,
-                        function: Swift.String? = nil,
-                        in_app: Swift.Bool,
-                        lineno: Swift.Int? = nil,
-                        module: Swift.String? = nil
-                    ) {
-                        self.filename = filename
-                        self.function = function
-                        self.in_app = in_app
-                        self.lineno = lineno
-                        self.module = module
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case filename
-                        case function
-                        case in_app
-                        case lineno
-                        case module
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.filename = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .filename
-                        )
-                        self.function = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .function
-                        )
-                        self.in_app = try container.decode(
-                            Swift.Bool.self,
-                            forKey: .in_app
-                        )
-                        self.lineno = try container.decodeIfPresent(
-                            Swift.Int.self,
-                            forKey: .lineno
-                        )
-                        self.module = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .module
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "filename",
-                            "function",
-                            "in_app",
-                            "lineno",
-                            "module"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/frames`.
-                public typealias framesPayload = [Components.Schemas.PulseErrorEvent.exceptionPayload.framesPayloadPayload]
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/frames`.
-                public var frames: Components.Schemas.PulseErrorEvent.exceptionPayload.framesPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/type`.
-                public var _type: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception/value`.
-                public var value: Swift.String?
-                /// Creates a new `exceptionPayload`.
-                ///
-                /// - Parameters:
-                ///   - frames:
-                ///   - _type:
-                ///   - value:
-                public init(
-                    frames: Components.Schemas.PulseErrorEvent.exceptionPayload.framesPayload? = nil,
-                    _type: Swift.String? = nil,
-                    value: Swift.String? = nil
-                ) {
-                    self.frames = frames
-                    self._type = _type
-                    self.value = value
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case frames
-                    case _type = "type"
-                    case value
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.frames = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEvent.exceptionPayload.framesPayload.self,
-                        forKey: .frames
-                    )
-                    self._type = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: ._type
-                    )
-                    self.value = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .value
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "frames",
-                        "type",
-                        "value"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exception`.
-            public var exception: Components.Schemas.PulseErrorEvent.exceptionPayload?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload`.
-            public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/framesPayload`.
-                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/framesPayload/filename`.
-                    public var filename: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/framesPayload/function`.
-                    public var function: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/framesPayload/in_app`.
-                    public var in_app: Swift.Bool
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/framesPayload/lineno`.
-                    public var lineno: Swift.Int?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/framesPayload/module`.
-                    public var module: Swift.String?
-                    /// Creates a new `framesPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - filename:
-                    ///   - function:
-                    ///   - in_app:
-                    ///   - lineno:
-                    ///   - module:
-                    public init(
-                        filename: Swift.String? = nil,
-                        function: Swift.String? = nil,
-                        in_app: Swift.Bool,
-                        lineno: Swift.Int? = nil,
-                        module: Swift.String? = nil
-                    ) {
-                        self.filename = filename
-                        self.function = function
-                        self.in_app = in_app
-                        self.lineno = lineno
-                        self.module = module
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case filename
-                        case function
-                        case in_app
-                        case lineno
-                        case module
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.filename = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .filename
-                        )
-                        self.function = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .function
-                        )
-                        self.in_app = try container.decode(
-                            Swift.Bool.self,
-                            forKey: .in_app
-                        )
-                        self.lineno = try container.decodeIfPresent(
-                            Swift.Int.self,
-                            forKey: .lineno
-                        )
-                        self.module = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .module
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "filename",
-                            "function",
-                            "in_app",
-                            "lineno",
-                            "module"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/frames`.
-                public typealias framesPayload = [Components.Schemas.PulseErrorEvent.exceptionsPayloadPayload.framesPayloadPayload]
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/frames`.
-                public var frames: Components.Schemas.PulseErrorEvent.exceptionsPayloadPayload.framesPayload
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/type`.
-                public var _type: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptionsPayload/value`.
-                public var value: Swift.String?
-                /// Creates a new `exceptionsPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - frames:
-                ///   - _type:
-                ///   - value:
-                public init(
-                    frames: Components.Schemas.PulseErrorEvent.exceptionsPayloadPayload.framesPayload,
-                    _type: Swift.String? = nil,
-                    value: Swift.String? = nil
-                ) {
-                    self.frames = frames
-                    self._type = _type
-                    self.value = value
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case frames
-                    case _type = "type"
-                    case value
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.frames = try container.decode(
-                        Components.Schemas.PulseErrorEvent.exceptionsPayloadPayload.framesPayload.self,
-                        forKey: .frames
-                    )
-                    self._type = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: ._type
-                    )
-                    self.value = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .value
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "frames",
-                        "type",
-                        "value"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptions`.
-            public typealias exceptionsPayload = [Components.Schemas.PulseErrorEvent.exceptionsPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/exceptions`.
-            public var exceptions: Components.Schemas.PulseErrorEvent.exceptionsPayload?
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/extra`.
-            public struct extraPayload: Codable, Hashable, Sendable {
-                /// A container of undocumented properties.
-                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                /// Creates a new `extraPayload`.
-                ///
-                /// - Parameters:
-                ///   - additionalProperties: A container of undocumented properties.
-                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                    self.additionalProperties = additionalProperties
-                }
-                public init(from decoder: any Decoder) throws {
-                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try encoder.encodeAdditionalProperties(additionalProperties)
-                }
-            }
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/extra`.
-            public var extra: Components.Schemas.PulseErrorEvent.extraPayload?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/issue_id`.
-            public var issue_id: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/level`.
-            public var level: Swift.String?
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/modules`.
-            public struct modulesPayload: Codable, Hashable, Sendable {
-                /// A container of undocumented properties.
-                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                /// Creates a new `modulesPayload`.
-                ///
-                /// - Parameters:
-                ///   - additionalProperties: A container of undocumented properties.
-                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                    self.additionalProperties = additionalProperties
-                }
-                public init(from decoder: any Decoder) throws {
-                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try encoder.encodeAdditionalProperties(additionalProperties)
-                }
-            }
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/modules`.
-            public var modules: Components.Schemas.PulseErrorEvent.modulesPayload?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/platform`.
-            public var platform: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/project`.
-            public var project: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/release`.
-            public var release: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/service`.
-            public var service: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/span_id`.
-            public var span_id: Swift.String?
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/tags`.
-            public struct tagsPayload: Codable, Hashable, Sendable {
-                /// A container of undocumented properties.
-                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                /// Creates a new `tagsPayload`.
-                ///
-                /// - Parameters:
-                ///   - additionalProperties: A container of undocumented properties.
-                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                    self.additionalProperties = additionalProperties
-                }
-                public init(from decoder: any Decoder) throws {
-                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try encoder.encodeAdditionalProperties(additionalProperties)
-                }
-            }
-            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/tags`.
-            public var tags: Components.Schemas.PulseErrorEvent.tagsPayload?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/timestamp`.
-            public var timestamp: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/timestamp_ns`.
-            public var timestamp_ns: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/title`.
-            public var title: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/trace_id`.
-            public var trace_id: Swift.String?
-            /// Creates a new `PulseErrorEvent`.
-            ///
-            /// - Parameters:
-            ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-            ///   - environment:
-            ///   - event_id:
-            ///   - exception:
-            ///   - exceptions:
-            ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///   - issue_id:
-            ///   - level:
-            ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///   - platform:
-            ///   - project:
-            ///   - release:
-            ///   - service:
-            ///   - span_id:
-            ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-            ///   - timestamp:
-            ///   - timestamp_ns:
-            ///   - title:
-            ///   - trace_id:
-            public init(
-                contexts: Components.Schemas.PulseErrorEvent.contextsPayload? = nil,
-                culprit: Swift.String? = nil,
-                environment: Swift.String? = nil,
-                event_id: Swift.String? = nil,
-                exception: Components.Schemas.PulseErrorEvent.exceptionPayload? = nil,
-                exceptions: Components.Schemas.PulseErrorEvent.exceptionsPayload? = nil,
-                extra: Components.Schemas.PulseErrorEvent.extraPayload? = nil,
-                issue_id: Swift.String? = nil,
-                level: Swift.String? = nil,
-                modules: Components.Schemas.PulseErrorEvent.modulesPayload? = nil,
-                platform: Swift.String? = nil,
-                project: Swift.String? = nil,
-                release: Swift.String? = nil,
-                service: Swift.String? = nil,
-                span_id: Swift.String? = nil,
-                tags: Components.Schemas.PulseErrorEvent.tagsPayload? = nil,
-                timestamp: Swift.String? = nil,
-                timestamp_ns: Swift.String? = nil,
-                title: Swift.String? = nil,
-                trace_id: Swift.String? = nil
-            ) {
-                self.contexts = contexts
-                self.culprit = culprit
-                self.environment = environment
-                self.event_id = event_id
-                self.exception = exception
-                self.exceptions = exceptions
-                self.extra = extra
-                self.issue_id = issue_id
-                self.level = level
-                self.modules = modules
-                self.platform = platform
-                self.project = project
-                self.release = release
-                self.service = service
-                self.span_id = span_id
-                self.tags = tags
-                self.timestamp = timestamp
-                self.timestamp_ns = timestamp_ns
-                self.title = title
-                self.trace_id = trace_id
-            }
-            public enum CodingKeys: String, CodingKey {
-                case contexts
-                case culprit
-                case environment
-                case event_id
-                case exception
-                case exceptions
-                case extra
-                case issue_id
-                case level
-                case modules
-                case platform
-                case project
-                case release
-                case service
-                case span_id
-                case tags
-                case timestamp
-                case timestamp_ns
-                case title
-                case trace_id
-            }
-            public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.contexts = try container.decodeIfPresent(
-                    Components.Schemas.PulseErrorEvent.contextsPayload.self,
-                    forKey: .contexts
-                )
-                self.culprit = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .culprit
-                )
-                self.environment = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .environment
-                )
-                self.event_id = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .event_id
-                )
-                self.exception = try container.decodeIfPresent(
-                    Components.Schemas.PulseErrorEvent.exceptionPayload.self,
-                    forKey: .exception
-                )
-                self.exceptions = try container.decodeIfPresent(
-                    Components.Schemas.PulseErrorEvent.exceptionsPayload.self,
-                    forKey: .exceptions
-                )
-                self.extra = try container.decodeIfPresent(
-                    Components.Schemas.PulseErrorEvent.extraPayload.self,
-                    forKey: .extra
-                )
-                self.issue_id = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .issue_id
-                )
-                self.level = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .level
-                )
-                self.modules = try container.decodeIfPresent(
-                    Components.Schemas.PulseErrorEvent.modulesPayload.self,
-                    forKey: .modules
-                )
-                self.platform = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .platform
-                )
-                self.project = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .project
-                )
-                self.release = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .release
-                )
-                self.service = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .service
-                )
-                self.span_id = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .span_id
-                )
-                self.tags = try container.decodeIfPresent(
-                    Components.Schemas.PulseErrorEvent.tagsPayload.self,
-                    forKey: .tags
-                )
-                self.timestamp = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .timestamp
-                )
-                self.timestamp_ns = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .timestamp_ns
-                )
-                self.title = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .title
-                )
-                self.trace_id = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .trace_id
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "contexts",
-                    "culprit",
-                    "environment",
-                    "event_id",
-                    "exception",
-                    "exceptions",
-                    "extra",
-                    "issue_id",
-                    "level",
-                    "modules",
-                    "platform",
-                    "project",
-                    "release",
-                    "service",
-                    "span_id",
-                    "tags",
-                    "timestamp",
-                    "timestamp_ns",
-                    "title",
-                    "trace_id"
-                ])
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest`.
         public struct UploadCommitsRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload`.
@@ -20738,6 +20305,7 @@ public enum Components {
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
                 case account_colon_runners_colon_write = "account:runners:write"
+                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -21562,6 +21130,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/cpu_usage_percent`.
                 public var cpu_usage_percent: Swift.Double
+                /// Available bytes on the macOS system Data volume, excluding purgeable space.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_available_bytes`.
+                public var disk_available_bytes: Swift.Int?
                 /// Disk bytes read per second.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_bytes_read`.
@@ -21570,6 +21142,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_bytes_written`.
                 public var disk_bytes_written: Swift.Int
+                /// Total capacity in bytes of the macOS system Data volume.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_total_bytes`.
+                public var disk_total_bytes: Swift.Int?
                 /// Total memory in bytes.
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/memory_total_bytes`.
@@ -21594,8 +21170,10 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                ///   - disk_available_bytes: Available bytes on the macOS system Data volume, excluding purgeable space.
                 ///   - disk_bytes_read: Disk bytes read per second.
                 ///   - disk_bytes_written: Disk bytes written per second.
+                ///   - disk_total_bytes: Total capacity in bytes of the macOS system Data volume.
                 ///   - memory_total_bytes: Total memory in bytes.
                 ///   - memory_used_bytes: Memory used in bytes.
                 ///   - network_bytes_in: Network bytes received per second.
@@ -21603,8 +21181,10 @@ public enum Components {
                 ///   - timestamp: Unix timestamp in seconds.
                 public init(
                     cpu_usage_percent: Swift.Double,
+                    disk_available_bytes: Swift.Int? = nil,
                     disk_bytes_read: Swift.Int,
                     disk_bytes_written: Swift.Int,
+                    disk_total_bytes: Swift.Int? = nil,
                     memory_total_bytes: Swift.Int,
                     memory_used_bytes: Swift.Int,
                     network_bytes_in: Swift.Int,
@@ -21612,8 +21192,10 @@ public enum Components {
                     timestamp: Swift.Double
                 ) {
                     self.cpu_usage_percent = cpu_usage_percent
+                    self.disk_available_bytes = disk_available_bytes
                     self.disk_bytes_read = disk_bytes_read
                     self.disk_bytes_written = disk_bytes_written
+                    self.disk_total_bytes = disk_total_bytes
                     self.memory_total_bytes = memory_total_bytes
                     self.memory_used_bytes = memory_used_bytes
                     self.network_bytes_in = network_bytes_in
@@ -21622,8 +21204,10 @@ public enum Components {
                 }
                 public enum CodingKeys: String, CodingKey {
                     case cpu_usage_percent
+                    case disk_available_bytes
                     case disk_bytes_read
                     case disk_bytes_written
+                    case disk_total_bytes
                     case memory_total_bytes
                     case memory_used_bytes
                     case network_bytes_in
@@ -22418,128 +22002,6 @@ public enum Components {
                 case trend
             }
         }
-        /// - Remark: Generated from `#/components/schemas/PulseErrorException`.
-        public struct PulseErrorException: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PulseErrorException/framesPayload`.
-            public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/PulseErrorException/framesPayload/filename`.
-                public var filename: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorException/framesPayload/function`.
-                public var function: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorException/framesPayload/in_app`.
-                public var in_app: Swift.Bool
-                /// - Remark: Generated from `#/components/schemas/PulseErrorException/framesPayload/lineno`.
-                public var lineno: Swift.Int?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorException/framesPayload/module`.
-                public var module: Swift.String?
-                /// Creates a new `framesPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - filename:
-                ///   - function:
-                ///   - in_app:
-                ///   - lineno:
-                ///   - module:
-                public init(
-                    filename: Swift.String? = nil,
-                    function: Swift.String? = nil,
-                    in_app: Swift.Bool,
-                    lineno: Swift.Int? = nil,
-                    module: Swift.String? = nil
-                ) {
-                    self.filename = filename
-                    self.function = function
-                    self.in_app = in_app
-                    self.lineno = lineno
-                    self.module = module
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case filename
-                    case function
-                    case in_app
-                    case lineno
-                    case module
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.filename = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .filename
-                    )
-                    self.function = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .function
-                    )
-                    self.in_app = try container.decode(
-                        Swift.Bool.self,
-                        forKey: .in_app
-                    )
-                    self.lineno = try container.decodeIfPresent(
-                        Swift.Int.self,
-                        forKey: .lineno
-                    )
-                    self.module = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .module
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "filename",
-                        "function",
-                        "in_app",
-                        "lineno",
-                        "module"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorException/frames`.
-            public typealias framesPayload = [Components.Schemas.PulseErrorException.framesPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/PulseErrorException/frames`.
-            public var frames: Components.Schemas.PulseErrorException.framesPayload
-            /// - Remark: Generated from `#/components/schemas/PulseErrorException/type`.
-            public var _type: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorException/value`.
-            public var value: Swift.String?
-            /// Creates a new `PulseErrorException`.
-            ///
-            /// - Parameters:
-            ///   - frames:
-            ///   - _type:
-            ///   - value:
-            public init(
-                frames: Components.Schemas.PulseErrorException.framesPayload,
-                _type: Swift.String? = nil,
-                value: Swift.String? = nil
-            ) {
-                self.frames = frames
-                self._type = _type
-                self.value = value
-            }
-            public enum CodingKeys: String, CodingKey {
-                case frames
-                case _type = "type"
-                case value
-            }
-            public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.frames = try container.decode(
-                    Components.Schemas.PulseErrorException.framesPayload.self,
-                    forKey: .frames
-                )
-                self._type = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: ._type
-                )
-                self.value = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .value
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "frames",
-                    "type",
-                    "value"
-                ])
-            }
-        }
         /// Account-scoped and project-scoped cache access handles
         ///
         /// - Remark: Generated from `#/components/schemas/CacheAccess`.
@@ -22664,20 +22126,8 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PulseRow`.
         public struct PulseRow: Codable, Hashable, Sendable {
-            /// Occurrence count in the complete filtered selected period, not lifetime or page count.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseRow/count`.
-            public var count: Swift.Int?
-            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseRow/culprit`.
-            public var culprit: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/duration_ms`.
             public var duration_ms: Swift.Double?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/first_seen_ns`.
-            public var first_seen_ns: Swift.Int?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/issue_id`.
-            public var issue_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/labels`.
             public struct labelsPayload: Codable, Hashable, Sendable {
                 /// A container of undocumented properties.
@@ -22698,30 +22148,16 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/PulseRow/labels`.
             public var labels: Components.Schemas.PulseRow.labelsPayload?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/last_seen_ns`.
-            public var last_seen_ns: Swift.Int?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/latest_event_id`.
-            public var latest_event_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/level`.
             public var level: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/message`.
             public var message: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/name`.
             public var name: Swift.String?
-            /// 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_series`.
-            public var occurrence_series: [[Swift.Int]]?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/platform`.
-            public var platform: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/project`.
-            public var project: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/service`.
             public var service: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/timestamp`.
             public var timestamp: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseRow/title`.
-            public var title: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/trace_id`.
             public var trace_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/value`.
@@ -22788,120 +22224,56 @@ public enum Components {
             /// Creates a new `PulseRow`.
             ///
             /// - Parameters:
-            ///   - count: Occurrence count in the complete filtered selected period, not lifetime or page count.
-            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
             ///   - duration_ms:
-            ///   - first_seen_ns:
-            ///   - issue_id:
             ///   - labels:
-            ///   - last_seen_ns:
-            ///   - latest_event_id:
             ///   - level:
             ///   - message:
             ///   - name:
-            ///   - occurrence_series: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-            ///   - platform:
-            ///   - project:
             ///   - service:
             ///   - timestamp:
-            ///   - title:
             ///   - trace_id:
             ///   - value:
             public init(
-                count: Swift.Int? = nil,
-                culprit: Swift.String? = nil,
                 duration_ms: Swift.Double? = nil,
-                first_seen_ns: Swift.Int? = nil,
-                issue_id: Swift.String? = nil,
                 labels: Components.Schemas.PulseRow.labelsPayload? = nil,
-                last_seen_ns: Swift.Int? = nil,
-                latest_event_id: Swift.String? = nil,
                 level: Swift.String? = nil,
                 message: Swift.String? = nil,
                 name: Swift.String? = nil,
-                occurrence_series: [[Swift.Int]]? = nil,
-                platform: Swift.String? = nil,
-                project: Swift.String? = nil,
                 service: Swift.String? = nil,
                 timestamp: Swift.String? = nil,
-                title: Swift.String? = nil,
                 trace_id: Swift.String? = nil,
                 value: Components.Schemas.PulseRow.valuePayload? = nil
             ) {
-                self.count = count
-                self.culprit = culprit
                 self.duration_ms = duration_ms
-                self.first_seen_ns = first_seen_ns
-                self.issue_id = issue_id
                 self.labels = labels
-                self.last_seen_ns = last_seen_ns
-                self.latest_event_id = latest_event_id
                 self.level = level
                 self.message = message
                 self.name = name
-                self.occurrence_series = occurrence_series
-                self.platform = platform
-                self.project = project
                 self.service = service
                 self.timestamp = timestamp
-                self.title = title
                 self.trace_id = trace_id
                 self.value = value
             }
             public enum CodingKeys: String, CodingKey {
-                case count
-                case culprit
                 case duration_ms
-                case first_seen_ns
-                case issue_id
                 case labels
-                case last_seen_ns
-                case latest_event_id
                 case level
                 case message
                 case name
-                case occurrence_series
-                case platform
-                case project
                 case service
                 case timestamp
-                case title
                 case trace_id
                 case value
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.count = try container.decodeIfPresent(
-                    Swift.Int.self,
-                    forKey: .count
-                )
-                self.culprit = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .culprit
-                )
                 self.duration_ms = try container.decodeIfPresent(
                     Swift.Double.self,
                     forKey: .duration_ms
                 )
-                self.first_seen_ns = try container.decodeIfPresent(
-                    Swift.Int.self,
-                    forKey: .first_seen_ns
-                )
-                self.issue_id = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .issue_id
-                )
                 self.labels = try container.decodeIfPresent(
                     Components.Schemas.PulseRow.labelsPayload.self,
                     forKey: .labels
-                )
-                self.last_seen_ns = try container.decodeIfPresent(
-                    Swift.Int.self,
-                    forKey: .last_seen_ns
-                )
-                self.latest_event_id = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .latest_event_id
                 )
                 self.level = try container.decodeIfPresent(
                     Swift.String.self,
@@ -22915,18 +22287,6 @@ public enum Components {
                     Swift.String.self,
                     forKey: .name
                 )
-                self.occurrence_series = try container.decodeIfPresent(
-                    [[Swift.Int]].self,
-                    forKey: .occurrence_series
-                )
-                self.platform = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .platform
-                )
-                self.project = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .project
-                )
                 self.service = try container.decodeIfPresent(
                     Swift.String.self,
                     forKey: .service
@@ -22934,10 +22294,6 @@ public enum Components {
                 self.timestamp = try container.decodeIfPresent(
                     Swift.String.self,
                     forKey: .timestamp
-                )
-                self.title = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .title
                 )
                 self.trace_id = try container.decodeIfPresent(
                     Swift.String.self,
@@ -22948,23 +22304,13 @@ public enum Components {
                     forKey: .value
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "count",
-                    "culprit",
                     "duration_ms",
-                    "first_seen_ns",
-                    "issue_id",
                     "labels",
-                    "last_seen_ns",
-                    "latest_event_id",
                     "level",
                     "message",
                     "name",
-                    "occurrence_series",
-                    "platform",
-                    "project",
                     "service",
                     "timestamp",
-                    "title",
                     "trace_id",
                     "value"
                 ])
@@ -24454,160 +23800,6 @@ public enum Components {
                 case upload_url
             }
         }
-        /// - Remark: Generated from `#/components/schemas/PulseErrorIssue`.
-        public struct PulseErrorIssue: Codable, Hashable, Sendable {
-            /// Occurrence count in the complete filtered selected period, not lifetime or page count.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/count`.
-            public var count: Swift.Int
-            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/culprit`.
-            public var culprit: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/first_seen_ns`.
-            public var first_seen_ns: Swift.Int
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue_id`.
-            public var issue_id: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/last_seen_ns`.
-            public var last_seen_ns: Swift.Int
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/latest_event_id`.
-            public var latest_event_id: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/level`.
-            public var level: Swift.String?
-            /// 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_series`.
-            public var occurrence_series: [[Swift.Int]]?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/platform`.
-            public var platform: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/project`.
-            public var project: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/service`.
-            public var service: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/title`.
-            public var title: Swift.String
-            /// Creates a new `PulseErrorIssue`.
-            ///
-            /// - Parameters:
-            ///   - count: Occurrence count in the complete filtered selected period, not lifetime or page count.
-            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-            ///   - first_seen_ns:
-            ///   - issue_id:
-            ///   - last_seen_ns:
-            ///   - latest_event_id:
-            ///   - level:
-            ///   - occurrence_series: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-            ///   - platform:
-            ///   - project:
-            ///   - service:
-            ///   - title:
-            public init(
-                count: Swift.Int,
-                culprit: Swift.String? = nil,
-                first_seen_ns: Swift.Int,
-                issue_id: Swift.String,
-                last_seen_ns: Swift.Int,
-                latest_event_id: Swift.String,
-                level: Swift.String? = nil,
-                occurrence_series: [[Swift.Int]]? = nil,
-                platform: Swift.String? = nil,
-                project: Swift.String,
-                service: Swift.String,
-                title: Swift.String
-            ) {
-                self.count = count
-                self.culprit = culprit
-                self.first_seen_ns = first_seen_ns
-                self.issue_id = issue_id
-                self.last_seen_ns = last_seen_ns
-                self.latest_event_id = latest_event_id
-                self.level = level
-                self.occurrence_series = occurrence_series
-                self.platform = platform
-                self.project = project
-                self.service = service
-                self.title = title
-            }
-            public enum CodingKeys: String, CodingKey {
-                case count
-                case culprit
-                case first_seen_ns
-                case issue_id
-                case last_seen_ns
-                case latest_event_id
-                case level
-                case occurrence_series
-                case platform
-                case project
-                case service
-                case title
-            }
-            public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.count = try container.decode(
-                    Swift.Int.self,
-                    forKey: .count
-                )
-                self.culprit = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .culprit
-                )
-                self.first_seen_ns = try container.decode(
-                    Swift.Int.self,
-                    forKey: .first_seen_ns
-                )
-                self.issue_id = try container.decode(
-                    Swift.String.self,
-                    forKey: .issue_id
-                )
-                self.last_seen_ns = try container.decode(
-                    Swift.Int.self,
-                    forKey: .last_seen_ns
-                )
-                self.latest_event_id = try container.decode(
-                    Swift.String.self,
-                    forKey: .latest_event_id
-                )
-                self.level = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .level
-                )
-                self.occurrence_series = try container.decodeIfPresent(
-                    [[Swift.Int]].self,
-                    forKey: .occurrence_series
-                )
-                self.platform = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .platform
-                )
-                self.project = try container.decode(
-                    Swift.String.self,
-                    forKey: .project
-                )
-                self.service = try container.decode(
-                    Swift.String.self,
-                    forKey: .service
-                )
-                self.title = try container.decode(
-                    Swift.String.self,
-                    forKey: .title
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "count",
-                    "culprit",
-                    "first_seen_ns",
-                    "issue_id",
-                    "last_seen_ns",
-                    "latest_event_id",
-                    "level",
-                    "occurrence_series",
-                    "platform",
-                    "project",
-                    "service",
-                    "title"
-                ])
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/OnceRunStatus`.
         @frozen public enum OnceRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -24617,8 +23809,6 @@ public enum Components {
         public struct SandboxAnalyticsConcurrencyPoint: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/at`.
             public var at: Foundation.Date
-            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/vcpus`.
@@ -24627,23 +23817,19 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - at:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
                 at: Foundation.Date,
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
                 self.at = at
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
                 case at
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
@@ -24652,10 +23838,6 @@ public enum Components {
                 self.at = try container.decode(
                     Foundation.Date.self,
                     forKey: .at
-                )
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
                 )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
@@ -24667,7 +23849,6 @@ public enum Components {
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
                     "at",
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -25038,616 +24219,6 @@ public enum Components {
                 case executable_lines
                 case files_count
                 case name
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail`.
-        public struct PulseErrorEventDetail: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event`.
-            public struct eventPayload: Codable, Hashable, Sendable {
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/contexts`.
-                public struct contextsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `contextsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/contexts`.
-                public var contexts: Components.Schemas.PulseErrorEventDetail.eventPayload.contextsPayload?
-                /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/culprit`.
-                public var culprit: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/environment`.
-                public var environment: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/event_id`.
-                public var event_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception`.
-                public struct exceptionPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/framesPayload`.
-                    public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/framesPayload/filename`.
-                        public var filename: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/framesPayload/function`.
-                        public var function: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/framesPayload/in_app`.
-                        public var in_app: Swift.Bool
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/framesPayload/lineno`.
-                        public var lineno: Swift.Int?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/framesPayload/module`.
-                        public var module: Swift.String?
-                        /// Creates a new `framesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - filename:
-                        ///   - function:
-                        ///   - in_app:
-                        ///   - lineno:
-                        ///   - module:
-                        public init(
-                            filename: Swift.String? = nil,
-                            function: Swift.String? = nil,
-                            in_app: Swift.Bool,
-                            lineno: Swift.Int? = nil,
-                            module: Swift.String? = nil
-                        ) {
-                            self.filename = filename
-                            self.function = function
-                            self.in_app = in_app
-                            self.lineno = lineno
-                            self.module = module
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case filename
-                            case function
-                            case in_app
-                            case lineno
-                            case module
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.filename = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .filename
-                            )
-                            self.function = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .function
-                            )
-                            self.in_app = try container.decode(
-                                Swift.Bool.self,
-                                forKey: .in_app
-                            )
-                            self.lineno = try container.decodeIfPresent(
-                                Swift.Int.self,
-                                forKey: .lineno
-                            )
-                            self.module = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .module
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "filename",
-                                "function",
-                                "in_app",
-                                "lineno",
-                                "module"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/frames`.
-                    public typealias framesPayload = [Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload.framesPayloadPayload]
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/frames`.
-                    public var frames: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload.framesPayload?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/type`.
-                    public var _type: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception/value`.
-                    public var value: Swift.String?
-                    /// Creates a new `exceptionPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - frames:
-                    ///   - _type:
-                    ///   - value:
-                    public init(
-                        frames: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload.framesPayload? = nil,
-                        _type: Swift.String? = nil,
-                        value: Swift.String? = nil
-                    ) {
-                        self.frames = frames
-                        self._type = _type
-                        self.value = value
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case frames
-                        case _type = "type"
-                        case value
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.frames = try container.decodeIfPresent(
-                            Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload.framesPayload.self,
-                            forKey: .frames
-                        )
-                        self._type = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: ._type
-                        )
-                        self.value = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .value
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "frames",
-                            "type",
-                            "value"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exception`.
-                public var exception: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload`.
-                public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/framesPayload`.
-                    public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/framesPayload/filename`.
-                        public var filename: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/framesPayload/function`.
-                        public var function: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/framesPayload/in_app`.
-                        public var in_app: Swift.Bool
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/framesPayload/lineno`.
-                        public var lineno: Swift.Int?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/framesPayload/module`.
-                        public var module: Swift.String?
-                        /// Creates a new `framesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - filename:
-                        ///   - function:
-                        ///   - in_app:
-                        ///   - lineno:
-                        ///   - module:
-                        public init(
-                            filename: Swift.String? = nil,
-                            function: Swift.String? = nil,
-                            in_app: Swift.Bool,
-                            lineno: Swift.Int? = nil,
-                            module: Swift.String? = nil
-                        ) {
-                            self.filename = filename
-                            self.function = function
-                            self.in_app = in_app
-                            self.lineno = lineno
-                            self.module = module
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case filename
-                            case function
-                            case in_app
-                            case lineno
-                            case module
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.filename = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .filename
-                            )
-                            self.function = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .function
-                            )
-                            self.in_app = try container.decode(
-                                Swift.Bool.self,
-                                forKey: .in_app
-                            )
-                            self.lineno = try container.decodeIfPresent(
-                                Swift.Int.self,
-                                forKey: .lineno
-                            )
-                            self.module = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .module
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "filename",
-                                "function",
-                                "in_app",
-                                "lineno",
-                                "module"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/frames`.
-                    public typealias framesPayload = [Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayloadPayload.framesPayloadPayload]
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/frames`.
-                    public var frames: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayloadPayload.framesPayload
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/type`.
-                    public var _type: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptionsPayload/value`.
-                    public var value: Swift.String?
-                    /// Creates a new `exceptionsPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - frames:
-                    ///   - _type:
-                    ///   - value:
-                    public init(
-                        frames: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayloadPayload.framesPayload,
-                        _type: Swift.String? = nil,
-                        value: Swift.String? = nil
-                    ) {
-                        self.frames = frames
-                        self._type = _type
-                        self.value = value
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case frames
-                        case _type = "type"
-                        case value
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.frames = try container.decode(
-                            Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayloadPayload.framesPayload.self,
-                            forKey: .frames
-                        )
-                        self._type = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: ._type
-                        )
-                        self.value = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .value
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "frames",
-                            "type",
-                            "value"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptions`.
-                public typealias exceptionsPayload = [Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayloadPayload]
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/exceptions`.
-                public var exceptions: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayload?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/extra`.
-                public struct extraPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `extraPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/extra`.
-                public var extra: Components.Schemas.PulseErrorEventDetail.eventPayload.extraPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/issue_id`.
-                public var issue_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/level`.
-                public var level: Swift.String?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/modules`.
-                public struct modulesPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `modulesPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/modules`.
-                public var modules: Components.Schemas.PulseErrorEventDetail.eventPayload.modulesPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/platform`.
-                public var platform: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/project`.
-                public var project: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/release`.
-                public var release: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/service`.
-                public var service: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/span_id`.
-                public var span_id: Swift.String?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/tags`.
-                public struct tagsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `tagsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/tags`.
-                public var tags: Components.Schemas.PulseErrorEventDetail.eventPayload.tagsPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/timestamp`.
-                public var timestamp: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/timestamp_ns`.
-                public var timestamp_ns: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/title`.
-                public var title: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event/trace_id`.
-                public var trace_id: Swift.String?
-                /// Creates a new `eventPayload`.
-                ///
-                /// - Parameters:
-                ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///   - environment:
-                ///   - event_id:
-                ///   - exception:
-                ///   - exceptions:
-                ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - issue_id:
-                ///   - level:
-                ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - platform:
-                ///   - project:
-                ///   - release:
-                ///   - service:
-                ///   - span_id:
-                ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - timestamp:
-                ///   - timestamp_ns:
-                ///   - title:
-                ///   - trace_id:
-                public init(
-                    contexts: Components.Schemas.PulseErrorEventDetail.eventPayload.contextsPayload? = nil,
-                    culprit: Swift.String? = nil,
-                    environment: Swift.String? = nil,
-                    event_id: Swift.String? = nil,
-                    exception: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload? = nil,
-                    exceptions: Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayload? = nil,
-                    extra: Components.Schemas.PulseErrorEventDetail.eventPayload.extraPayload? = nil,
-                    issue_id: Swift.String? = nil,
-                    level: Swift.String? = nil,
-                    modules: Components.Schemas.PulseErrorEventDetail.eventPayload.modulesPayload? = nil,
-                    platform: Swift.String? = nil,
-                    project: Swift.String? = nil,
-                    release: Swift.String? = nil,
-                    service: Swift.String? = nil,
-                    span_id: Swift.String? = nil,
-                    tags: Components.Schemas.PulseErrorEventDetail.eventPayload.tagsPayload? = nil,
-                    timestamp: Swift.String? = nil,
-                    timestamp_ns: Swift.String? = nil,
-                    title: Swift.String? = nil,
-                    trace_id: Swift.String? = nil
-                ) {
-                    self.contexts = contexts
-                    self.culprit = culprit
-                    self.environment = environment
-                    self.event_id = event_id
-                    self.exception = exception
-                    self.exceptions = exceptions
-                    self.extra = extra
-                    self.issue_id = issue_id
-                    self.level = level
-                    self.modules = modules
-                    self.platform = platform
-                    self.project = project
-                    self.release = release
-                    self.service = service
-                    self.span_id = span_id
-                    self.tags = tags
-                    self.timestamp = timestamp
-                    self.timestamp_ns = timestamp_ns
-                    self.title = title
-                    self.trace_id = trace_id
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case contexts
-                    case culprit
-                    case environment
-                    case event_id
-                    case exception
-                    case exceptions
-                    case extra
-                    case issue_id
-                    case level
-                    case modules
-                    case platform
-                    case project
-                    case release
-                    case service
-                    case span_id
-                    case tags
-                    case timestamp
-                    case timestamp_ns
-                    case title
-                    case trace_id
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.contexts = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEventDetail.eventPayload.contextsPayload.self,
-                        forKey: .contexts
-                    )
-                    self.culprit = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .culprit
-                    )
-                    self.environment = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .environment
-                    )
-                    self.event_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .event_id
-                    )
-                    self.exception = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionPayload.self,
-                        forKey: .exception
-                    )
-                    self.exceptions = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEventDetail.eventPayload.exceptionsPayload.self,
-                        forKey: .exceptions
-                    )
-                    self.extra = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEventDetail.eventPayload.extraPayload.self,
-                        forKey: .extra
-                    )
-                    self.issue_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .issue_id
-                    )
-                    self.level = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .level
-                    )
-                    self.modules = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEventDetail.eventPayload.modulesPayload.self,
-                        forKey: .modules
-                    )
-                    self.platform = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .platform
-                    )
-                    self.project = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .project
-                    )
-                    self.release = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .release
-                    )
-                    self.service = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .service
-                    )
-                    self.span_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .span_id
-                    )
-                    self.tags = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorEventDetail.eventPayload.tagsPayload.self,
-                        forKey: .tags
-                    )
-                    self.timestamp = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .timestamp
-                    )
-                    self.timestamp_ns = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .timestamp_ns
-                    )
-                    self.title = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .title
-                    )
-                    self.trace_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .trace_id
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "contexts",
-                        "culprit",
-                        "environment",
-                        "event_id",
-                        "exception",
-                        "exceptions",
-                        "extra",
-                        "issue_id",
-                        "level",
-                        "modules",
-                        "platform",
-                        "project",
-                        "release",
-                        "service",
-                        "span_id",
-                        "tags",
-                        "timestamp",
-                        "timestamp_ns",
-                        "title",
-                        "trace_id"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/event`.
-            public var event: Components.Schemas.PulseErrorEventDetail.eventPayload
-            /// - Remark: Generated from `#/components/schemas/PulseErrorEventDetail/warnings`.
-            public var warnings: [Swift.String]
-            /// Creates a new `PulseErrorEventDetail`.
-            ///
-            /// - Parameters:
-            ///   - event:
-            ///   - warnings:
-            public init(
-                event: Components.Schemas.PulseErrorEventDetail.eventPayload,
-                warnings: [Swift.String]
-            ) {
-                self.event = event
-                self.warnings = warnings
-            }
-            public enum CodingKeys: String, CodingKey {
-                case event
-                case warnings
-            }
-            public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.event = try container.decode(
-                    Components.Schemas.PulseErrorEventDetail.eventPayload.self,
-                    forKey: .event
-                )
-                self.warnings = try container.decode(
-                    [Swift.String].self,
-                    forKey: .warnings
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "event",
-                    "warnings"
-                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/SandboxPagination`.
@@ -26409,11 +24980,15 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
             public var memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload?
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
             @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case linux = "linux"
                 case darwin = "darwin"
             }
+            /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+            ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
             public var platform: Components.Schemas.CreateSandbox.platformPayload?
             /// Sandbox template name.
@@ -26434,26 +25009,33 @@ public enum Components {
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/workspace_gb`.
             public var workspace_gb: Swift.Int?
+            /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `CreateSandbox`.
             ///
             /// - Parameters:
             ///   - memory_mb:
-            ///   - platform:
+            ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
             ///   - template: Sandbox template name.
             ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
+            ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
             public init(
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
                 platform: Components.Schemas.CreateSandbox.platformPayload? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandbox.vcpusPayload? = nil,
-                workspace_gb: Swift.Int? = nil
+                workspace_gb: Swift.Int? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.memory_mb = memory_mb
                 self.platform = platform
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case memory_mb
@@ -26461,6 +25043,7 @@ public enum Components {
                 case template
                 case vcpus
                 case workspace_gb
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/OnceRunKind`.
@@ -26972,6 +25555,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/usage`.
             public var usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload?
+            /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionDetail/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `SandboxAgentSessionDetail`.
             ///
             /// - Parameters:
@@ -26992,6 +25579,7 @@ public enum Components {
             ///   - title:
             ///   - updated_at:
             ///   - usage:
+            ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
             public init(
                 agent_environment_id: Swift.Int,
                 anthropic_agent_id: Swift.String,
@@ -27009,7 +25597,8 @@ public enum Components {
                 stop_reason: Swift.String? = nil,
                 title: Swift.String? = nil,
                 updated_at: Foundation.Date,
-                usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload? = nil
+                usage: Components.Schemas.SandboxAgentSessionDetail.usagePayload? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_environment_id = agent_environment_id
                 self.anthropic_agent_id = anthropic_agent_id
@@ -27028,6 +25617,7 @@ public enum Components {
                 self.title = title
                 self.updated_at = updated_at
                 self.usage = usage
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
@@ -27047,6 +25637,7 @@ public enum Components {
                 case title
                 case updated_at
                 case usage
+                case xcode_version
             }
         }
         /// The schema for a Tuist run.
@@ -28565,75 +27156,231 @@ public enum Components {
                 case unmeasured_files_count
             }
         }
-        /// - Remark: Generated from `#/components/schemas/PulseErrorFrame`.
-        public struct PulseErrorFrame: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PulseErrorFrame/filename`.
-            public var filename: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorFrame/function`.
-            public var function: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorFrame/in_app`.
-            public var in_app: Swift.Bool
-            /// - Remark: Generated from `#/components/schemas/PulseErrorFrame/lineno`.
-            public var lineno: Swift.Int?
-            /// - Remark: Generated from `#/components/schemas/PulseErrorFrame/module`.
-            public var module: Swift.String?
-            /// Creates a new `PulseErrorFrame`.
+        /// - Remark: Generated from `#/components/schemas/RunnerJobDetail`.
+        public struct RunnerJobDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/claimed_at`.
+            public var claimed_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/completed_at`.
+            public var completed_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/conclusion`.
+            public var conclusion: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/enqueued_at`.
+            public var enqueued_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/head_branch`.
+            public var head_branch: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/head_sha`.
+            public var head_sha: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/job_name`.
+            public var job_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/log_archived_at`.
+            public var log_archived_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/memory_gb`.
+            public var memory_gb: Swift.Int
+            /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory`.
+            public struct out_of_memoryPayload: Codable, Hashable, Sendable {
+                /// What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/description`.
+                public var description: Swift.String
+                /// When the first kill was reported.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/first_kill_at`.
+                public var first_kill_at: Foundation.Date
+                /// Processes the runner VM killed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/kill_count`.
+                public var kill_count: Swift.Int
+                /// The process killed last, or null when the runner did not name it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim`.
+                public struct victimPayload: Codable, Hashable, Sendable {
+                    /// Its Docker container: null outside a container, docker-build for a docker build step.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/container`.
+                    public var container: Swift.String?
+                    /// That container's image.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/image`.
+                    public var image: Swift.String?
+                    /// Memory the process was using.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/memory_bytes`.
+                    public var memory_bytes: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim/process`.
+                    public var process: Swift.String
+                    /// Creates a new `victimPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+                    ///   - image: That container's image.
+                    ///   - memory_bytes: Memory the process was using.
+                    ///   - process:
+                    public init(
+                        container: Swift.String? = nil,
+                        image: Swift.String? = nil,
+                        memory_bytes: Swift.Int,
+                        process: Swift.String
+                    ) {
+                        self.container = container
+                        self.image = image
+                        self.memory_bytes = memory_bytes
+                        self.process = process
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case container
+                        case image
+                        case memory_bytes
+                        case process
+                    }
+                }
+                /// The process killed last, or null when the runner did not name it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory/victim`.
+                public var victim: Components.Schemas.RunnerJobDetail.out_of_memoryPayload.victimPayload?
+                /// Creates a new `out_of_memoryPayload`.
+                ///
+                /// - Parameters:
+                ///   - description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                ///   - first_kill_at: When the first kill was reported.
+                ///   - kill_count: Processes the runner VM killed.
+                ///   - victim: The process killed last, or null when the runner did not name it.
+                public init(
+                    description: Swift.String,
+                    first_kill_at: Foundation.Date,
+                    kill_count: Swift.Int,
+                    victim: Components.Schemas.RunnerJobDetail.out_of_memoryPayload.victimPayload? = nil
+                ) {
+                    self.description = description
+                    self.first_kill_at = first_kill_at
+                    self.kill_count = kill_count
+                    self.victim = victim
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case description
+                    case first_kill_at
+                    case kill_count
+                    case victim
+                }
+            }
+            /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/out_of_memory`.
+            public var out_of_memory: Components.Schemas.RunnerJobDetail.out_of_memoryPayload?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/platform`.
+            public var platform: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/repository`.
+            public var repository: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/requested_dispatch_label`.
+            public var requested_dispatch_label: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/run_attempt`.
+            public var run_attempt: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/started_at`.
+            public var started_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/updated_at`.
+            public var updated_at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/vcpus`.
+            public var vcpus: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/workflow_job_id`.
+            public var workflow_job_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/workflow_name`.
+            public var workflow_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerJobDetail/workflow_run_id`.
+            public var workflow_run_id: Swift.Int
+            /// Creates a new `RunnerJobDetail`.
             ///
             /// - Parameters:
-            ///   - filename:
-            ///   - function:
-            ///   - in_app:
-            ///   - lineno:
-            ///   - module:
+            ///   - claimed_at:
+            ///   - completed_at:
+            ///   - conclusion:
+            ///   - enqueued_at:
+            ///   - head_branch:
+            ///   - head_sha:
+            ///   - job_name:
+            ///   - log_archived_at:
+            ///   - memory_gb:
+            ///   - out_of_memory: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+            ///   - platform:
+            ///   - repository:
+            ///   - requested_dispatch_label:
+            ///   - run_attempt:
+            ///   - started_at:
+            ///   - status:
+            ///   - updated_at:
+            ///   - vcpus:
+            ///   - workflow_job_id:
+            ///   - workflow_name:
+            ///   - workflow_run_id:
             public init(
-                filename: Swift.String? = nil,
-                function: Swift.String? = nil,
-                in_app: Swift.Bool,
-                lineno: Swift.Int? = nil,
-                module: Swift.String? = nil
+                claimed_at: Foundation.Date? = nil,
+                completed_at: Foundation.Date? = nil,
+                conclusion: Swift.String,
+                enqueued_at: Foundation.Date,
+                head_branch: Swift.String,
+                head_sha: Swift.String,
+                job_name: Swift.String,
+                log_archived_at: Foundation.Date? = nil,
+                memory_gb: Swift.Int,
+                out_of_memory: Components.Schemas.RunnerJobDetail.out_of_memoryPayload? = nil,
+                platform: Swift.String,
+                repository: Swift.String,
+                requested_dispatch_label: Swift.String,
+                run_attempt: Swift.Int,
+                started_at: Foundation.Date? = nil,
+                status: Swift.String,
+                updated_at: Foundation.Date,
+                vcpus: Swift.Int,
+                workflow_job_id: Swift.Int,
+                workflow_name: Swift.String,
+                workflow_run_id: Swift.Int
             ) {
-                self.filename = filename
-                self.function = function
-                self.in_app = in_app
-                self.lineno = lineno
-                self.module = module
+                self.claimed_at = claimed_at
+                self.completed_at = completed_at
+                self.conclusion = conclusion
+                self.enqueued_at = enqueued_at
+                self.head_branch = head_branch
+                self.head_sha = head_sha
+                self.job_name = job_name
+                self.log_archived_at = log_archived_at
+                self.memory_gb = memory_gb
+                self.out_of_memory = out_of_memory
+                self.platform = platform
+                self.repository = repository
+                self.requested_dispatch_label = requested_dispatch_label
+                self.run_attempt = run_attempt
+                self.started_at = started_at
+                self.status = status
+                self.updated_at = updated_at
+                self.vcpus = vcpus
+                self.workflow_job_id = workflow_job_id
+                self.workflow_name = workflow_name
+                self.workflow_run_id = workflow_run_id
             }
             public enum CodingKeys: String, CodingKey {
-                case filename
-                case function
-                case in_app
-                case lineno
-                case module
-            }
-            public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.filename = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .filename
-                )
-                self.function = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .function
-                )
-                self.in_app = try container.decode(
-                    Swift.Bool.self,
-                    forKey: .in_app
-                )
-                self.lineno = try container.decodeIfPresent(
-                    Swift.Int.self,
-                    forKey: .lineno
-                )
-                self.module = try container.decodeIfPresent(
-                    Swift.String.self,
-                    forKey: .module
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "filename",
-                    "function",
-                    "in_app",
-                    "lineno",
-                    "module"
-                ])
+                case claimed_at
+                case completed_at
+                case conclusion
+                case enqueued_at
+                case head_branch
+                case head_sha
+                case job_name
+                case log_archived_at
+                case memory_gb
+                case out_of_memory
+                case platform
+                case repository
+                case requested_dispatch_label
+                case run_attempt
+                case started_at
+                case status
+                case updated_at
+                case vcpus
+                case workflow_job_id
+                case workflow_name
+                case workflow_run_id
             }
         }
         /// - Remark: Generated from `#/components/schemas/MissingCommitListingsResponse`.
@@ -29167,14 +27914,14 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/FeatureFlags`.
         public struct FeatureFlags: Codable, Hashable, Sendable {
-            /// The names of the enabled flags. Known values: `ai`.
+            /// The names of the enabled flags. Known values: `guild`.
             ///
             /// - Remark: Generated from `#/components/schemas/FeatureFlags/enabled`.
             public var enabled: [Swift.String]
             /// Creates a new `FeatureFlags`.
             ///
             /// - Parameters:
-            ///   - enabled: The names of the enabled flags. Known values: `ai`.
+            ///   - enabled: The names of the enabled flags. Known values: `guild`.
             public init(enabled: [Swift.String]) {
                 self.enabled = enabled
             }
@@ -29764,6 +28511,10 @@ public enum Components {
             public var repository_url: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/title`.
             public var title: Swift.String?
+            /// The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentSession/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `CreateSandboxAgentSession`.
             ///
             /// - Parameters:
@@ -29776,6 +28527,7 @@ public enum Components {
             ///   - repository_ref: Branch, tag or commit sha to check out.
             ///   - repository_url: HTTPS URL of a repository to clone under /workspace before the agent starts.
             ///   - title:
+            ///   - xcode_version: The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
             public init(
                 agent_environment_id: Swift.Int? = nil,
                 agent_id: Swift.String? = nil,
@@ -29785,7 +28537,8 @@ public enum Components {
                 prompt: Swift.String,
                 repository_ref: Swift.String? = nil,
                 repository_url: Swift.String? = nil,
-                title: Swift.String? = nil
+                title: Swift.String? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_environment_id = agent_environment_id
                 self.agent_id = agent_id
@@ -29796,6 +28549,7 @@ public enum Components {
                 self.repository_ref = repository_ref
                 self.repository_url = repository_url
                 self.title = title
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_environment_id
@@ -29807,6 +28561,7 @@ public enum Components {
                 case repository_ref
                 case repository_url
                 case title
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/SandboxCommands`.
@@ -29954,6 +28709,7 @@ public enum Components {
                     case account_colon_registry_colon_write = "account:registry:write"
                     case account_colon_runners_colon_read = "account:runners:read"
                     case account_colon_runners_colon_write = "account:runners:write"
+                    case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                     case project_colon_previews_colon_read = "project:previews:read"
                     case project_colon_previews_colon_write = "project:previews:write"
                     case project_colon_admin_colon_read = "project:admin:read"
@@ -30663,6 +29419,26 @@ public enum Components {
             public var network_bytes_in: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/network_bytes_out`.
             public var network_bytes_out: Swift.Int
+            /// Processes the runner VM killed for running out of memory since the job started.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_kill_count`.
+            public var oom_kill_count: Swift.Int
+            /// That process's Docker container: empty outside a container, docker-build for a docker build step.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_container`.
+            public var oom_victim_container: Swift.String
+            /// That container's image, or empty.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_image`.
+            public var oom_victim_image: Swift.String
+            /// Memory that process was using.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_memory_bytes`.
+            public var oom_victim_memory_bytes: Swift.Int
+            /// The process the runner VM killed last for running out of memory, or empty.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/oom_victim_process`.
+            public var oom_victim_process: Swift.String
             /// - Remark: Generated from `#/components/schemas/RunnerJobMetric/timestamp`.
             public var timestamp: Swift.Double
             /// Creates a new `RunnerJobMetric`.
@@ -30676,6 +29452,11 @@ public enum Components {
             ///   - memory_used_bytes:
             ///   - network_bytes_in:
             ///   - network_bytes_out:
+            ///   - oom_kill_count: Processes the runner VM killed for running out of memory since the job started.
+            ///   - oom_victim_container: That process's Docker container: empty outside a container, docker-build for a docker build step.
+            ///   - oom_victim_image: That container's image, or empty.
+            ///   - oom_victim_memory_bytes: Memory that process was using.
+            ///   - oom_victim_process: The process the runner VM killed last for running out of memory, or empty.
             ///   - timestamp:
             public init(
                 cpu_iowait_percent: Swift.Double,
@@ -30686,6 +29467,11 @@ public enum Components {
                 memory_used_bytes: Swift.Int,
                 network_bytes_in: Swift.Int,
                 network_bytes_out: Swift.Int,
+                oom_kill_count: Swift.Int,
+                oom_victim_container: Swift.String,
+                oom_victim_image: Swift.String,
+                oom_victim_memory_bytes: Swift.Int,
+                oom_victim_process: Swift.String,
                 timestamp: Swift.Double
             ) {
                 self.cpu_iowait_percent = cpu_iowait_percent
@@ -30696,6 +29482,11 @@ public enum Components {
                 self.memory_used_bytes = memory_used_bytes
                 self.network_bytes_in = network_bytes_in
                 self.network_bytes_out = network_bytes_out
+                self.oom_kill_count = oom_kill_count
+                self.oom_victim_container = oom_victim_container
+                self.oom_victim_image = oom_victim_image
+                self.oom_victim_memory_bytes = oom_victim_memory_bytes
+                self.oom_victim_process = oom_victim_process
                 self.timestamp = timestamp
             }
             public enum CodingKeys: String, CodingKey {
@@ -30707,6 +29498,11 @@ public enum Components {
                 case memory_used_bytes
                 case network_bytes_in
                 case network_bytes_out
+                case oom_kill_count
+                case oom_victim_container
+                case oom_victim_image
+                case oom_victim_memory_bytes
+                case oom_victim_process
                 case timestamp
             }
         }
@@ -31284,25 +30080,73 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_api_key`.
             public var anthropic_api_key: Swift.String?
+            /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_federation_rule_id`.
+            public var anthropic_federation_rule_id: Swift.String?
+            /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_organization_id`.
+            public var anthropic_organization_id: Swift.String?
+            /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_service_account_id`.
+            public var anthropic_service_account_id: Swift.String?
+            /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/anthropic_workspace_id`.
+            public var anthropic_workspace_id: Swift.String?
+            /// Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/setup_script`.
+            public var setup_script: Swift.String?
+            /// A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UpdateSandboxAgentEnvironment/xcode_version`.
+            public var xcode_version: Swift.String?
             /// Creates a new `UpdateSandboxAgentEnvironment`.
             ///
             /// - Parameters:
             ///   - agent_model: The model agent sessions run.
             ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
             ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
+            ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+            ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+            ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+            ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+            ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+            ///   - xcode_version: A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
             public init(
                 agent_model: Swift.String? = nil,
                 agent_system_prompt: Swift.String? = nil,
-                anthropic_api_key: Swift.String? = nil
+                anthropic_api_key: Swift.String? = nil,
+                anthropic_federation_rule_id: Swift.String? = nil,
+                anthropic_organization_id: Swift.String? = nil,
+                anthropic_service_account_id: Swift.String? = nil,
+                anthropic_workspace_id: Swift.String? = nil,
+                setup_script: Swift.String? = nil,
+                xcode_version: Swift.String? = nil
             ) {
                 self.agent_model = agent_model
                 self.agent_system_prompt = agent_system_prompt
                 self.anthropic_api_key = anthropic_api_key
+                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                self.anthropic_organization_id = anthropic_organization_id
+                self.anthropic_service_account_id = anthropic_service_account_id
+                self.anthropic_workspace_id = anthropic_workspace_id
+                self.setup_script = setup_script
+                self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
                 case agent_model
                 case agent_system_prompt
                 case anthropic_api_key
+                case anthropic_federation_rule_id
+                case anthropic_organization_id
+                case anthropic_service_account_id
+                case anthropic_workspace_id
+                case setup_script
+                case xcode_version
             }
         }
         /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList`.
@@ -31484,8 +30328,6 @@ public enum Components {
             public struct concurrencyPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
                 public struct in_usePayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/vcpus`.
@@ -31493,29 +30335,21 @@ public enum Components {
                     /// Creates a new `in_usePayload`.
                     ///
                     /// - Parameters:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
-                        )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
                             forKey: .memory_gb
@@ -31525,7 +30359,6 @@ public enum Components {
                             forKey: .vcpus
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -31535,8 +30368,6 @@ public enum Components {
                 public var in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload
                 /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
                 public struct limitsPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/vcpus`.
@@ -31544,29 +30375,21 @@ public enum Components {
                     /// Creates a new `limitsPayload`.
                     ///
                     /// - Parameters:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
                     public init(from decoder: any Decoder) throws {
                         let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
-                        )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
                             forKey: .memory_gb
@@ -31576,7 +30399,6 @@ public enum Components {
                             forKey: .vcpus
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -31588,8 +30410,6 @@ public enum Components {
                 public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/at`.
                     public var at: Foundation.Date
-                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/disk_gb`.
-                    public var disk_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/memory_gb`.
                     public var memory_gb: Swift.Double
                     /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/vcpus`.
@@ -31598,23 +30418,19 @@ public enum Components {
                     ///
                     /// - Parameters:
                     ///   - at:
-                    ///   - disk_gb:
                     ///   - memory_gb:
                     ///   - vcpus:
                     public init(
                         at: Foundation.Date,
-                        disk_gb: Swift.Double,
                         memory_gb: Swift.Double,
                         vcpus: Swift.Int
                     ) {
                         self.at = at
-                        self.disk_gb = disk_gb
                         self.memory_gb = memory_gb
                         self.vcpus = vcpus
                     }
                     public enum CodingKeys: String, CodingKey {
                         case at
-                        case disk_gb
                         case memory_gb
                         case vcpus
                     }
@@ -31623,10 +30439,6 @@ public enum Components {
                         self.at = try container.decode(
                             Foundation.Date.self,
                             forKey: .at
-                        )
-                        self.disk_gb = try container.decode(
-                            Swift.Double.self,
-                            forKey: .disk_gb
                         )
                         self.memory_gb = try container.decode(
                             Swift.Double.self,
@@ -31638,7 +30450,6 @@ public enum Components {
                         )
                         try decoder.ensureNoAdditionalProperties(knownKeys: [
                             "at",
-                            "disk_gb",
                             "memory_gb",
                             "vcpus"
                         ])
@@ -32877,8 +31688,6 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse`.
         public struct SandboxResourcesInUse: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/vcpus`.
@@ -32886,29 +31695,21 @@ public enum Components {
             /// Creates a new `SandboxResourcesInUse`.
             ///
             /// - Parameters:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
-                )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
                     forKey: .memory_gb
@@ -32918,7 +31719,6 @@ public enum Components {
                     forKey: .vcpus
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -33180,6 +31980,7 @@ public enum Components {
                 case account_colon_registry_colon_write = "account:registry:write"
                 case account_colon_runners_colon_read = "account:runners:read"
                 case account_colon_runners_colon_write = "account:runners:write"
+                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                 case project_colon_previews_colon_read = "project:previews:read"
                 case project_colon_previews_colon_write = "project:previews:write"
                 case project_colon_admin_colon_read = "project:admin:read"
@@ -33242,1483 +32043,6 @@ public enum Components {
             case android = "android"
             case linux = "linux"
         }
-        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail`.
-        public struct PulseErrorIssueDetail: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload`.
-            public struct eventsPayloadPayload: Codable, Hashable, Sendable {
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/contexts`.
-                public struct contextsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `contextsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/contexts`.
-                public var contexts: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.contextsPayload?
-                /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/culprit`.
-                public var culprit: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/environment`.
-                public var environment: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/event_id`.
-                public var event_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception`.
-                public struct exceptionPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/framesPayload`.
-                    public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/framesPayload/filename`.
-                        public var filename: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/framesPayload/function`.
-                        public var function: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/framesPayload/in_app`.
-                        public var in_app: Swift.Bool
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/framesPayload/lineno`.
-                        public var lineno: Swift.Int?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/framesPayload/module`.
-                        public var module: Swift.String?
-                        /// Creates a new `framesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - filename:
-                        ///   - function:
-                        ///   - in_app:
-                        ///   - lineno:
-                        ///   - module:
-                        public init(
-                            filename: Swift.String? = nil,
-                            function: Swift.String? = nil,
-                            in_app: Swift.Bool,
-                            lineno: Swift.Int? = nil,
-                            module: Swift.String? = nil
-                        ) {
-                            self.filename = filename
-                            self.function = function
-                            self.in_app = in_app
-                            self.lineno = lineno
-                            self.module = module
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case filename
-                            case function
-                            case in_app
-                            case lineno
-                            case module
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.filename = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .filename
-                            )
-                            self.function = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .function
-                            )
-                            self.in_app = try container.decode(
-                                Swift.Bool.self,
-                                forKey: .in_app
-                            )
-                            self.lineno = try container.decodeIfPresent(
-                                Swift.Int.self,
-                                forKey: .lineno
-                            )
-                            self.module = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .module
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "filename",
-                                "function",
-                                "in_app",
-                                "lineno",
-                                "module"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/frames`.
-                    public typealias framesPayload = [Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload.framesPayloadPayload]
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/frames`.
-                    public var frames: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload.framesPayload?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/type`.
-                    public var _type: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception/value`.
-                    public var value: Swift.String?
-                    /// Creates a new `exceptionPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - frames:
-                    ///   - _type:
-                    ///   - value:
-                    public init(
-                        frames: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload.framesPayload? = nil,
-                        _type: Swift.String? = nil,
-                        value: Swift.String? = nil
-                    ) {
-                        self.frames = frames
-                        self._type = _type
-                        self.value = value
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case frames
-                        case _type = "type"
-                        case value
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.frames = try container.decodeIfPresent(
-                            Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload.framesPayload.self,
-                            forKey: .frames
-                        )
-                        self._type = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: ._type
-                        )
-                        self.value = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .value
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "frames",
-                            "type",
-                            "value"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exception`.
-                public var exception: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload`.
-                public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/framesPayload`.
-                    public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/framesPayload/filename`.
-                        public var filename: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/framesPayload/function`.
-                        public var function: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/framesPayload/in_app`.
-                        public var in_app: Swift.Bool
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/framesPayload/lineno`.
-                        public var lineno: Swift.Int?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/framesPayload/module`.
-                        public var module: Swift.String?
-                        /// Creates a new `framesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - filename:
-                        ///   - function:
-                        ///   - in_app:
-                        ///   - lineno:
-                        ///   - module:
-                        public init(
-                            filename: Swift.String? = nil,
-                            function: Swift.String? = nil,
-                            in_app: Swift.Bool,
-                            lineno: Swift.Int? = nil,
-                            module: Swift.String? = nil
-                        ) {
-                            self.filename = filename
-                            self.function = function
-                            self.in_app = in_app
-                            self.lineno = lineno
-                            self.module = module
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case filename
-                            case function
-                            case in_app
-                            case lineno
-                            case module
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.filename = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .filename
-                            )
-                            self.function = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .function
-                            )
-                            self.in_app = try container.decode(
-                                Swift.Bool.self,
-                                forKey: .in_app
-                            )
-                            self.lineno = try container.decodeIfPresent(
-                                Swift.Int.self,
-                                forKey: .lineno
-                            )
-                            self.module = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .module
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "filename",
-                                "function",
-                                "in_app",
-                                "lineno",
-                                "module"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/frames`.
-                    public typealias framesPayload = [Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayloadPayload.framesPayloadPayload]
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/frames`.
-                    public var frames: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayloadPayload.framesPayload
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/type`.
-                    public var _type: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptionsPayload/value`.
-                    public var value: Swift.String?
-                    /// Creates a new `exceptionsPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - frames:
-                    ///   - _type:
-                    ///   - value:
-                    public init(
-                        frames: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayloadPayload.framesPayload,
-                        _type: Swift.String? = nil,
-                        value: Swift.String? = nil
-                    ) {
-                        self.frames = frames
-                        self._type = _type
-                        self.value = value
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case frames
-                        case _type = "type"
-                        case value
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.frames = try container.decode(
-                            Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayloadPayload.framesPayload.self,
-                            forKey: .frames
-                        )
-                        self._type = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: ._type
-                        )
-                        self.value = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .value
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "frames",
-                            "type",
-                            "value"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptions`.
-                public typealias exceptionsPayload = [Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayloadPayload]
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/exceptions`.
-                public var exceptions: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayload?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/extra`.
-                public struct extraPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `extraPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/extra`.
-                public var extra: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.extraPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/issue_id`.
-                public var issue_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/level`.
-                public var level: Swift.String?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/modules`.
-                public struct modulesPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `modulesPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/modules`.
-                public var modules: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.modulesPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/platform`.
-                public var platform: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/project`.
-                public var project: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/release`.
-                public var release: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/service`.
-                public var service: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/span_id`.
-                public var span_id: Swift.String?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/tags`.
-                public struct tagsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `tagsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/tags`.
-                public var tags: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.tagsPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/timestamp`.
-                public var timestamp: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/timestamp_ns`.
-                public var timestamp_ns: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/title`.
-                public var title: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/eventsPayload/trace_id`.
-                public var trace_id: Swift.String?
-                /// Creates a new `eventsPayloadPayload`.
-                ///
-                /// - Parameters:
-                ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///   - environment:
-                ///   - event_id:
-                ///   - exception:
-                ///   - exceptions:
-                ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - issue_id:
-                ///   - level:
-                ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - platform:
-                ///   - project:
-                ///   - release:
-                ///   - service:
-                ///   - span_id:
-                ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - timestamp:
-                ///   - timestamp_ns:
-                ///   - title:
-                ///   - trace_id:
-                public init(
-                    contexts: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.contextsPayload? = nil,
-                    culprit: Swift.String? = nil,
-                    environment: Swift.String? = nil,
-                    event_id: Swift.String? = nil,
-                    exception: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload? = nil,
-                    exceptions: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayload? = nil,
-                    extra: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.extraPayload? = nil,
-                    issue_id: Swift.String? = nil,
-                    level: Swift.String? = nil,
-                    modules: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.modulesPayload? = nil,
-                    platform: Swift.String? = nil,
-                    project: Swift.String? = nil,
-                    release: Swift.String? = nil,
-                    service: Swift.String? = nil,
-                    span_id: Swift.String? = nil,
-                    tags: Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.tagsPayload? = nil,
-                    timestamp: Swift.String? = nil,
-                    timestamp_ns: Swift.String? = nil,
-                    title: Swift.String? = nil,
-                    trace_id: Swift.String? = nil
-                ) {
-                    self.contexts = contexts
-                    self.culprit = culprit
-                    self.environment = environment
-                    self.event_id = event_id
-                    self.exception = exception
-                    self.exceptions = exceptions
-                    self.extra = extra
-                    self.issue_id = issue_id
-                    self.level = level
-                    self.modules = modules
-                    self.platform = platform
-                    self.project = project
-                    self.release = release
-                    self.service = service
-                    self.span_id = span_id
-                    self.tags = tags
-                    self.timestamp = timestamp
-                    self.timestamp_ns = timestamp_ns
-                    self.title = title
-                    self.trace_id = trace_id
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case contexts
-                    case culprit
-                    case environment
-                    case event_id
-                    case exception
-                    case exceptions
-                    case extra
-                    case issue_id
-                    case level
-                    case modules
-                    case platform
-                    case project
-                    case release
-                    case service
-                    case span_id
-                    case tags
-                    case timestamp
-                    case timestamp_ns
-                    case title
-                    case trace_id
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.contexts = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.contextsPayload.self,
-                        forKey: .contexts
-                    )
-                    self.culprit = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .culprit
-                    )
-                    self.environment = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .environment
-                    )
-                    self.event_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .event_id
-                    )
-                    self.exception = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionPayload.self,
-                        forKey: .exception
-                    )
-                    self.exceptions = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.exceptionsPayload.self,
-                        forKey: .exceptions
-                    )
-                    self.extra = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.extraPayload.self,
-                        forKey: .extra
-                    )
-                    self.issue_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .issue_id
-                    )
-                    self.level = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .level
-                    )
-                    self.modules = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.modulesPayload.self,
-                        forKey: .modules
-                    )
-                    self.platform = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .platform
-                    )
-                    self.project = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .project
-                    )
-                    self.release = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .release
-                    )
-                    self.service = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .service
-                    )
-                    self.span_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .span_id
-                    )
-                    self.tags = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload.tagsPayload.self,
-                        forKey: .tags
-                    )
-                    self.timestamp = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .timestamp
-                    )
-                    self.timestamp_ns = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .timestamp_ns
-                    )
-                    self.title = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .title
-                    )
-                    self.trace_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .trace_id
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "contexts",
-                        "culprit",
-                        "environment",
-                        "event_id",
-                        "exception",
-                        "exceptions",
-                        "extra",
-                        "issue_id",
-                        "level",
-                        "modules",
-                        "platform",
-                        "project",
-                        "release",
-                        "service",
-                        "span_id",
-                        "tags",
-                        "timestamp",
-                        "timestamp_ns",
-                        "title",
-                        "trace_id"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/events`.
-            public typealias eventsPayload = [Components.Schemas.PulseErrorIssueDetail.eventsPayloadPayload]
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/events`.
-            public var events: Components.Schemas.PulseErrorIssueDetail.eventsPayload
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue`.
-            public struct issuePayload: Codable, Hashable, Sendable {
-                /// Occurrence count in the complete filtered selected period, not lifetime or page count.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/count`.
-                public var count: Swift.Int
-                /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/culprit`.
-                public var culprit: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/first_seen_ns`.
-                public var first_seen_ns: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/issue_id`.
-                public var issue_id: Swift.String
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/last_seen_ns`.
-                public var last_seen_ns: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/latest_event_id`.
-                public var latest_event_id: Swift.String
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/level`.
-                public var level: Swift.String?
-                /// 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/occurrence_series`.
-                public var occurrence_series: [[Swift.Int]]?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/platform`.
-                public var platform: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/project`.
-                public var project: Swift.String
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/service`.
-                public var service: Swift.String
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue/title`.
-                public var title: Swift.String
-                /// Creates a new `issuePayload`.
-                ///
-                /// - Parameters:
-                ///   - count: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///   - first_seen_ns:
-                ///   - issue_id:
-                ///   - last_seen_ns:
-                ///   - latest_event_id:
-                ///   - level:
-                ///   - occurrence_series: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                ///   - platform:
-                ///   - project:
-                ///   - service:
-                ///   - title:
-                public init(
-                    count: Swift.Int,
-                    culprit: Swift.String? = nil,
-                    first_seen_ns: Swift.Int,
-                    issue_id: Swift.String,
-                    last_seen_ns: Swift.Int,
-                    latest_event_id: Swift.String,
-                    level: Swift.String? = nil,
-                    occurrence_series: [[Swift.Int]]? = nil,
-                    platform: Swift.String? = nil,
-                    project: Swift.String,
-                    service: Swift.String,
-                    title: Swift.String
-                ) {
-                    self.count = count
-                    self.culprit = culprit
-                    self.first_seen_ns = first_seen_ns
-                    self.issue_id = issue_id
-                    self.last_seen_ns = last_seen_ns
-                    self.latest_event_id = latest_event_id
-                    self.level = level
-                    self.occurrence_series = occurrence_series
-                    self.platform = platform
-                    self.project = project
-                    self.service = service
-                    self.title = title
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case count
-                    case culprit
-                    case first_seen_ns
-                    case issue_id
-                    case last_seen_ns
-                    case latest_event_id
-                    case level
-                    case occurrence_series
-                    case platform
-                    case project
-                    case service
-                    case title
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.count = try container.decode(
-                        Swift.Int.self,
-                        forKey: .count
-                    )
-                    self.culprit = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .culprit
-                    )
-                    self.first_seen_ns = try container.decode(
-                        Swift.Int.self,
-                        forKey: .first_seen_ns
-                    )
-                    self.issue_id = try container.decode(
-                        Swift.String.self,
-                        forKey: .issue_id
-                    )
-                    self.last_seen_ns = try container.decode(
-                        Swift.Int.self,
-                        forKey: .last_seen_ns
-                    )
-                    self.latest_event_id = try container.decode(
-                        Swift.String.self,
-                        forKey: .latest_event_id
-                    )
-                    self.level = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .level
-                    )
-                    self.occurrence_series = try container.decodeIfPresent(
-                        [[Swift.Int]].self,
-                        forKey: .occurrence_series
-                    )
-                    self.platform = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .platform
-                    )
-                    self.project = try container.decode(
-                        Swift.String.self,
-                        forKey: .project
-                    )
-                    self.service = try container.decode(
-                        Swift.String.self,
-                        forKey: .service
-                    )
-                    self.title = try container.decode(
-                        Swift.String.self,
-                        forKey: .title
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "count",
-                        "culprit",
-                        "first_seen_ns",
-                        "issue_id",
-                        "last_seen_ns",
-                        "latest_event_id",
-                        "level",
-                        "occurrence_series",
-                        "platform",
-                        "project",
-                        "service",
-                        "title"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/issue`.
-            public var issue: Components.Schemas.PulseErrorIssueDetail.issuePayload
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event`.
-            public struct latest_eventPayload: Codable, Hashable, Sendable {
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/contexts`.
-                public struct contextsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `contextsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/contexts`.
-                public var contexts: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.contextsPayload?
-                /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/culprit`.
-                public var culprit: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/environment`.
-                public var environment: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/event_id`.
-                public var event_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception`.
-                public struct exceptionPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/framesPayload`.
-                    public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/framesPayload/filename`.
-                        public var filename: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/framesPayload/function`.
-                        public var function: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/framesPayload/in_app`.
-                        public var in_app: Swift.Bool
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/framesPayload/lineno`.
-                        public var lineno: Swift.Int?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/framesPayload/module`.
-                        public var module: Swift.String?
-                        /// Creates a new `framesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - filename:
-                        ///   - function:
-                        ///   - in_app:
-                        ///   - lineno:
-                        ///   - module:
-                        public init(
-                            filename: Swift.String? = nil,
-                            function: Swift.String? = nil,
-                            in_app: Swift.Bool,
-                            lineno: Swift.Int? = nil,
-                            module: Swift.String? = nil
-                        ) {
-                            self.filename = filename
-                            self.function = function
-                            self.in_app = in_app
-                            self.lineno = lineno
-                            self.module = module
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case filename
-                            case function
-                            case in_app
-                            case lineno
-                            case module
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.filename = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .filename
-                            )
-                            self.function = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .function
-                            )
-                            self.in_app = try container.decode(
-                                Swift.Bool.self,
-                                forKey: .in_app
-                            )
-                            self.lineno = try container.decodeIfPresent(
-                                Swift.Int.self,
-                                forKey: .lineno
-                            )
-                            self.module = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .module
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "filename",
-                                "function",
-                                "in_app",
-                                "lineno",
-                                "module"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/frames`.
-                    public typealias framesPayload = [Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload.framesPayloadPayload]
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/frames`.
-                    public var frames: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload.framesPayload?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/type`.
-                    public var _type: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception/value`.
-                    public var value: Swift.String?
-                    /// Creates a new `exceptionPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - frames:
-                    ///   - _type:
-                    ///   - value:
-                    public init(
-                        frames: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload.framesPayload? = nil,
-                        _type: Swift.String? = nil,
-                        value: Swift.String? = nil
-                    ) {
-                        self.frames = frames
-                        self._type = _type
-                        self.value = value
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case frames
-                        case _type = "type"
-                        case value
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.frames = try container.decodeIfPresent(
-                            Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload.framesPayload.self,
-                            forKey: .frames
-                        )
-                        self._type = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: ._type
-                        )
-                        self.value = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .value
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "frames",
-                            "type",
-                            "value"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exception`.
-                public var exception: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload`.
-                public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/framesPayload`.
-                    public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/framesPayload/filename`.
-                        public var filename: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/framesPayload/function`.
-                        public var function: Swift.String?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/framesPayload/in_app`.
-                        public var in_app: Swift.Bool
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/framesPayload/lineno`.
-                        public var lineno: Swift.Int?
-                        /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/framesPayload/module`.
-                        public var module: Swift.String?
-                        /// Creates a new `framesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - filename:
-                        ///   - function:
-                        ///   - in_app:
-                        ///   - lineno:
-                        ///   - module:
-                        public init(
-                            filename: Swift.String? = nil,
-                            function: Swift.String? = nil,
-                            in_app: Swift.Bool,
-                            lineno: Swift.Int? = nil,
-                            module: Swift.String? = nil
-                        ) {
-                            self.filename = filename
-                            self.function = function
-                            self.in_app = in_app
-                            self.lineno = lineno
-                            self.module = module
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case filename
-                            case function
-                            case in_app
-                            case lineno
-                            case module
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.filename = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .filename
-                            )
-                            self.function = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .function
-                            )
-                            self.in_app = try container.decode(
-                                Swift.Bool.self,
-                                forKey: .in_app
-                            )
-                            self.lineno = try container.decodeIfPresent(
-                                Swift.Int.self,
-                                forKey: .lineno
-                            )
-                            self.module = try container.decodeIfPresent(
-                                Swift.String.self,
-                                forKey: .module
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "filename",
-                                "function",
-                                "in_app",
-                                "lineno",
-                                "module"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/frames`.
-                    public typealias framesPayload = [Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayloadPayload.framesPayloadPayload]
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/frames`.
-                    public var frames: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayloadPayload.framesPayload
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/type`.
-                    public var _type: Swift.String?
-                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptionsPayload/value`.
-                    public var value: Swift.String?
-                    /// Creates a new `exceptionsPayloadPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - frames:
-                    ///   - _type:
-                    ///   - value:
-                    public init(
-                        frames: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayloadPayload.framesPayload,
-                        _type: Swift.String? = nil,
-                        value: Swift.String? = nil
-                    ) {
-                        self.frames = frames
-                        self._type = _type
-                        self.value = value
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case frames
-                        case _type = "type"
-                        case value
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                        self.frames = try container.decode(
-                            Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayloadPayload.framesPayload.self,
-                            forKey: .frames
-                        )
-                        self._type = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: ._type
-                        )
-                        self.value = try container.decodeIfPresent(
-                            Swift.String.self,
-                            forKey: .value
-                        )
-                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                            "frames",
-                            "type",
-                            "value"
-                        ])
-                    }
-                }
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptions`.
-                public typealias exceptionsPayload = [Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayloadPayload]
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/exceptions`.
-                public var exceptions: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayload?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/extra`.
-                public struct extraPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `extraPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/extra`.
-                public var extra: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.extraPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/issue_id`.
-                public var issue_id: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/level`.
-                public var level: Swift.String?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/modules`.
-                public struct modulesPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `modulesPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/modules`.
-                public var modules: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.modulesPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/platform`.
-                public var platform: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/project`.
-                public var project: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/release`.
-                public var release: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/service`.
-                public var service: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/span_id`.
-                public var span_id: Swift.String?
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/tags`.
-                public struct tagsPayload: Codable, Hashable, Sendable {
-                    /// A container of undocumented properties.
-                    public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                    /// Creates a new `tagsPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - additionalProperties: A container of undocumented properties.
-                    public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                        self.additionalProperties = additionalProperties
-                    }
-                    public init(from decoder: any Decoder) throws {
-                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                    }
-                    public func encode(to encoder: any Encoder) throws {
-                        try encoder.encodeAdditionalProperties(additionalProperties)
-                    }
-                }
-                /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/tags`.
-                public var tags: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.tagsPayload?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/timestamp`.
-                public var timestamp: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/timestamp_ns`.
-                public var timestamp_ns: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/title`.
-                public var title: Swift.String?
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event/trace_id`.
-                public var trace_id: Swift.String?
-                /// Creates a new `latest_eventPayload`.
-                ///
-                /// - Parameters:
-                ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                ///   - environment:
-                ///   - event_id:
-                ///   - exception:
-                ///   - exceptions:
-                ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - issue_id:
-                ///   - level:
-                ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - platform:
-                ///   - project:
-                ///   - release:
-                ///   - service:
-                ///   - span_id:
-                ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                ///   - timestamp:
-                ///   - timestamp_ns:
-                ///   - title:
-                ///   - trace_id:
-                public init(
-                    contexts: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.contextsPayload? = nil,
-                    culprit: Swift.String? = nil,
-                    environment: Swift.String? = nil,
-                    event_id: Swift.String? = nil,
-                    exception: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload? = nil,
-                    exceptions: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayload? = nil,
-                    extra: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.extraPayload? = nil,
-                    issue_id: Swift.String? = nil,
-                    level: Swift.String? = nil,
-                    modules: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.modulesPayload? = nil,
-                    platform: Swift.String? = nil,
-                    project: Swift.String? = nil,
-                    release: Swift.String? = nil,
-                    service: Swift.String? = nil,
-                    span_id: Swift.String? = nil,
-                    tags: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.tagsPayload? = nil,
-                    timestamp: Swift.String? = nil,
-                    timestamp_ns: Swift.String? = nil,
-                    title: Swift.String? = nil,
-                    trace_id: Swift.String? = nil
-                ) {
-                    self.contexts = contexts
-                    self.culprit = culprit
-                    self.environment = environment
-                    self.event_id = event_id
-                    self.exception = exception
-                    self.exceptions = exceptions
-                    self.extra = extra
-                    self.issue_id = issue_id
-                    self.level = level
-                    self.modules = modules
-                    self.platform = platform
-                    self.project = project
-                    self.release = release
-                    self.service = service
-                    self.span_id = span_id
-                    self.tags = tags
-                    self.timestamp = timestamp
-                    self.timestamp_ns = timestamp_ns
-                    self.title = title
-                    self.trace_id = trace_id
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case contexts
-                    case culprit
-                    case environment
-                    case event_id
-                    case exception
-                    case exceptions
-                    case extra
-                    case issue_id
-                    case level
-                    case modules
-                    case platform
-                    case project
-                    case release
-                    case service
-                    case span_id
-                    case tags
-                    case timestamp
-                    case timestamp_ns
-                    case title
-                    case trace_id
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.contexts = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.contextsPayload.self,
-                        forKey: .contexts
-                    )
-                    self.culprit = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .culprit
-                    )
-                    self.environment = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .environment
-                    )
-                    self.event_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .event_id
-                    )
-                    self.exception = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionPayload.self,
-                        forKey: .exception
-                    )
-                    self.exceptions = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.exceptionsPayload.self,
-                        forKey: .exceptions
-                    )
-                    self.extra = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.extraPayload.self,
-                        forKey: .extra
-                    )
-                    self.issue_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .issue_id
-                    )
-                    self.level = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .level
-                    )
-                    self.modules = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.modulesPayload.self,
-                        forKey: .modules
-                    )
-                    self.platform = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .platform
-                    )
-                    self.project = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .project
-                    )
-                    self.release = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .release
-                    )
-                    self.service = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .service
-                    )
-                    self.span_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .span_id
-                    )
-                    self.tags = try container.decodeIfPresent(
-                        Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.tagsPayload.self,
-                        forKey: .tags
-                    )
-                    self.timestamp = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .timestamp
-                    )
-                    self.timestamp_ns = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .timestamp_ns
-                    )
-                    self.title = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .title
-                    )
-                    self.trace_id = try container.decodeIfPresent(
-                        Swift.String.self,
-                        forKey: .trace_id
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "contexts",
-                        "culprit",
-                        "environment",
-                        "event_id",
-                        "exception",
-                        "exceptions",
-                        "extra",
-                        "issue_id",
-                        "level",
-                        "modules",
-                        "platform",
-                        "project",
-                        "release",
-                        "service",
-                        "span_id",
-                        "tags",
-                        "timestamp",
-                        "timestamp_ns",
-                        "title",
-                        "trace_id"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/latest_event`.
-            public var latest_event: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta`.
-            public struct metaPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/end_at`.
-                public var end_at: Swift.String
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/has_next_page`.
-                public var has_next_page: Swift.Bool
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/has_previous_page`.
-                public var has_previous_page: Swift.Bool
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/page`.
-                public var page: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/page_size`.
-                public var page_size: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/total_count`.
-                public var total_count: Swift.Int
-                /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta/total_pages`.
-                public var total_pages: Swift.Int
-                /// Creates a new `metaPayload`.
-                ///
-                /// - Parameters:
-                ///   - end_at:
-                ///   - has_next_page:
-                ///   - has_previous_page:
-                ///   - page:
-                ///   - page_size:
-                ///   - total_count:
-                ///   - total_pages:
-                public init(
-                    end_at: Swift.String,
-                    has_next_page: Swift.Bool,
-                    has_previous_page: Swift.Bool,
-                    page: Swift.Int,
-                    page_size: Swift.Int,
-                    total_count: Swift.Int,
-                    total_pages: Swift.Int
-                ) {
-                    self.end_at = end_at
-                    self.has_next_page = has_next_page
-                    self.has_previous_page = has_previous_page
-                    self.page = page
-                    self.page_size = page_size
-                    self.total_count = total_count
-                    self.total_pages = total_pages
-                }
-                public enum CodingKeys: String, CodingKey {
-                    case end_at
-                    case has_next_page
-                    case has_previous_page
-                    case page
-                    case page_size
-                    case total_count
-                    case total_pages
-                }
-                public init(from decoder: any Decoder) throws {
-                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                    self.end_at = try container.decode(
-                        Swift.String.self,
-                        forKey: .end_at
-                    )
-                    self.has_next_page = try container.decode(
-                        Swift.Bool.self,
-                        forKey: .has_next_page
-                    )
-                    self.has_previous_page = try container.decode(
-                        Swift.Bool.self,
-                        forKey: .has_previous_page
-                    )
-                    self.page = try container.decode(
-                        Swift.Int.self,
-                        forKey: .page
-                    )
-                    self.page_size = try container.decode(
-                        Swift.Int.self,
-                        forKey: .page_size
-                    )
-                    self.total_count = try container.decode(
-                        Swift.Int.self,
-                        forKey: .total_count
-                    )
-                    self.total_pages = try container.decode(
-                        Swift.Int.self,
-                        forKey: .total_pages
-                    )
-                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                        "end_at",
-                        "has_next_page",
-                        "has_previous_page",
-                        "page",
-                        "page_size",
-                        "total_count",
-                        "total_pages"
-                    ])
-                }
-            }
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/meta`.
-            public var meta: Components.Schemas.PulseErrorIssueDetail.metaPayload
-            /// 60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end.
-            ///
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/occurrence_series`.
-            public var occurrence_series: [[Swift.Int]]
-            /// - Remark: Generated from `#/components/schemas/PulseErrorIssueDetail/warnings`.
-            public var warnings: [Swift.String]
-            /// Creates a new `PulseErrorIssueDetail`.
-            ///
-            /// - Parameters:
-            ///   - events:
-            ///   - issue:
-            ///   - latest_event:
-            ///   - meta:
-            ///   - occurrence_series: 60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end.
-            ///   - warnings:
-            public init(
-                events: Components.Schemas.PulseErrorIssueDetail.eventsPayload,
-                issue: Components.Schemas.PulseErrorIssueDetail.issuePayload,
-                latest_event: Components.Schemas.PulseErrorIssueDetail.latest_eventPayload,
-                meta: Components.Schemas.PulseErrorIssueDetail.metaPayload,
-                occurrence_series: [[Swift.Int]],
-                warnings: [Swift.String]
-            ) {
-                self.events = events
-                self.issue = issue
-                self.latest_event = latest_event
-                self.meta = meta
-                self.occurrence_series = occurrence_series
-                self.warnings = warnings
-            }
-            public enum CodingKeys: String, CodingKey {
-                case events
-                case issue
-                case latest_event
-                case meta
-                case occurrence_series
-                case warnings
-            }
-            public init(from decoder: any Decoder) throws {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.events = try container.decode(
-                    Components.Schemas.PulseErrorIssueDetail.eventsPayload.self,
-                    forKey: .events
-                )
-                self.issue = try container.decode(
-                    Components.Schemas.PulseErrorIssueDetail.issuePayload.self,
-                    forKey: .issue
-                )
-                self.latest_event = try container.decode(
-                    Components.Schemas.PulseErrorIssueDetail.latest_eventPayload.self,
-                    forKey: .latest_event
-                )
-                self.meta = try container.decode(
-                    Components.Schemas.PulseErrorIssueDetail.metaPayload.self,
-                    forKey: .meta
-                )
-                self.occurrence_series = try container.decode(
-                    [[Swift.Int]].self,
-                    forKey: .occurrence_series
-                )
-                self.warnings = try container.decode(
-                    [Swift.String].self,
-                    forKey: .warnings
-                )
-                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "events",
-                    "issue",
-                    "latest_event",
-                    "meta",
-                    "occurrence_series",
-                    "warnings"
-                ])
-            }
-        }
         /// The URL to upload a multipart part
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadURL`.
@@ -34767,8 +32091,6 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits`.
         public struct SandboxResourceLimits: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/disk_gb`.
-            public var disk_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/memory_gb`.
             public var memory_gb: Swift.Double
             /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/vcpus`.
@@ -34776,29 +32098,21 @@ public enum Components {
             /// Creates a new `SandboxResourceLimits`.
             ///
             /// - Parameters:
-            ///   - disk_gb:
             ///   - memory_gb:
             ///   - vcpus:
             public init(
-                disk_gb: Swift.Double,
                 memory_gb: Swift.Double,
                 vcpus: Swift.Int
             ) {
-                self.disk_gb = disk_gb
                 self.memory_gb = memory_gb
                 self.vcpus = vcpus
             }
             public enum CodingKeys: String, CodingKey {
-                case disk_gb
                 case memory_gb
                 case vcpus
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                self.disk_gb = try container.decode(
-                    Swift.Double.self,
-                    forKey: .disk_gb
-                )
                 self.memory_gb = try container.decode(
                     Swift.Double.self,
                     forKey: .memory_gb
@@ -34808,7 +32122,6 @@ public enum Components {
                     forKey: .vcpus
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                    "disk_gb",
                     "memory_gb",
                     "vcpus"
                 ])
@@ -40726,11 +38039,15 @@ public enum Operations {
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
                     public var memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload?
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case linux = "linux"
                         case darwin = "darwin"
                     }
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
                     public var platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload?
                     /// Sandbox template name.
@@ -40751,26 +38068,33 @@ public enum Operations {
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - memory_mb:
-                    ///   - platform:
+                    ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - template: Sandbox template name.
                     ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload? = nil,
-                        workspace_gb: Swift.Int? = nil
+                        workspace_gb: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.memory_mb = memory_mb
                         self.platform = platform
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case memory_mb
@@ -40778,6 +38102,7 @@ public enum Operations {
                         case template
                         case vcpus
                         case workspace_gb
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/content/application\/json`.
@@ -41755,6 +39080,98 @@ public enum Operations {
                         public var log_archived_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/memory_gb`.
                         public var memory_gb: Swift.Int
+                        /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory`.
+                        public struct out_of_memoryPayload: Codable, Hashable, Sendable {
+                            /// What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/description`.
+                            public var description: Swift.String
+                            /// When the first kill was reported.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/first_kill_at`.
+                            public var first_kill_at: Foundation.Date
+                            /// Processes the runner VM killed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/kill_count`.
+                            public var kill_count: Swift.Int
+                            /// The process killed last, or null when the runner did not name it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim`.
+                            public struct victimPayload: Codable, Hashable, Sendable {
+                                /// Its Docker container: null outside a container, docker-build for a docker build step.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/container`.
+                                public var container: Swift.String?
+                                /// That container's image.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/image`.
+                                public var image: Swift.String?
+                                /// Memory the process was using.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/memory_bytes`.
+                                public var memory_bytes: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim/process`.
+                                public var process: Swift.String
+                                /// Creates a new `victimPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - container: Its Docker container: null outside a container, docker-build for a docker build step.
+                                ///   - image: That container's image.
+                                ///   - memory_bytes: Memory the process was using.
+                                ///   - process:
+                                public init(
+                                    container: Swift.String? = nil,
+                                    image: Swift.String? = nil,
+                                    memory_bytes: Swift.Int,
+                                    process: Swift.String
+                                ) {
+                                    self.container = container
+                                    self.image = image
+                                    self.memory_bytes = memory_bytes
+                                    self.process = process
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case container
+                                    case image
+                                    case memory_bytes
+                                    case process
+                                }
+                            }
+                            /// The process killed last, or null when the runner did not name it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory/victim`.
+                            public var victim: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload.victimPayload?
+                            /// Creates a new `out_of_memoryPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - description: What happened and what to change, as the job page's "Ran out of memory" alert says it.
+                            ///   - first_kill_at: When the first kill was reported.
+                            ///   - kill_count: Processes the runner VM killed.
+                            ///   - victim: The process killed last, or null when the runner did not name it.
+                            public init(
+                                description: Swift.String,
+                                first_kill_at: Foundation.Date,
+                                kill_count: Swift.Int,
+                                victim: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload.victimPayload? = nil
+                            ) {
+                                self.description = description
+                                self.first_kill_at = first_kill_at
+                                self.kill_count = kill_count
+                                self.victim = victim
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case description
+                                case first_kill_at
+                                case kill_count
+                                case victim
+                            }
+                        }
+                        /// What the runner VM killed for running out of memory during the job, or null when it killed nothing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/out_of_memory`.
+                        public var out_of_memory: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/platform`.
                         public var platform: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/GET/responses/200/content/json/repository`.
@@ -41789,6 +39206,7 @@ public enum Operations {
                         ///   - job_name:
                         ///   - log_archived_at:
                         ///   - memory_gb:
+                        ///   - out_of_memory: What the runner VM killed for running out of memory during the job, or null when it killed nothing.
                         ///   - platform:
                         ///   - repository:
                         ///   - requested_dispatch_label:
@@ -41810,6 +39228,7 @@ public enum Operations {
                             job_name: Swift.String,
                             log_archived_at: Foundation.Date? = nil,
                             memory_gb: Swift.Int,
+                            out_of_memory: Operations.getRunnerJob.Output.Ok.Body.jsonPayload.out_of_memoryPayload? = nil,
                             platform: Swift.String,
                             repository: Swift.String,
                             requested_dispatch_label: Swift.String,
@@ -41831,6 +39250,7 @@ public enum Operations {
                             self.job_name = job_name
                             self.log_archived_at = log_archived_at
                             self.memory_gb = memory_gb
+                            self.out_of_memory = out_of_memory
                             self.platform = platform
                             self.repository = repository
                             self.requested_dispatch_label = requested_dispatch_label
@@ -41853,6 +39273,7 @@ public enum Operations {
                             case job_name
                             case log_archived_at
                             case memory_gb
+                            case out_of_memory
                             case platform
                             case repository
                             case requested_dispatch_label
@@ -43003,6 +40424,26 @@ public enum Operations {
                             public var network_bytes_in: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/network_bytes_out`.
                             public var network_bytes_out: Swift.Int
+                            /// Processes the runner VM killed for running out of memory since the job started.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_kill_count`.
+                            public var oom_kill_count: Swift.Int
+                            /// That process's Docker container: empty outside a container, docker-build for a docker build step.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_container`.
+                            public var oom_victim_container: Swift.String
+                            /// That container's image, or empty.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_image`.
+                            public var oom_victim_image: Swift.String
+                            /// Memory that process was using.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_memory_bytes`.
+                            public var oom_victim_memory_bytes: Swift.Int
+                            /// The process the runner VM killed last for running out of memory, or empty.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/oom_victim_process`.
+                            public var oom_victim_process: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/metrics/GET/responses/200/content/json/metricsPayload/timestamp`.
                             public var timestamp: Swift.Double
                             /// Creates a new `metricsPayloadPayload`.
@@ -43016,6 +40457,11 @@ public enum Operations {
                             ///   - memory_used_bytes:
                             ///   - network_bytes_in:
                             ///   - network_bytes_out:
+                            ///   - oom_kill_count: Processes the runner VM killed for running out of memory since the job started.
+                            ///   - oom_victim_container: That process's Docker container: empty outside a container, docker-build for a docker build step.
+                            ///   - oom_victim_image: That container's image, or empty.
+                            ///   - oom_victim_memory_bytes: Memory that process was using.
+                            ///   - oom_victim_process: The process the runner VM killed last for running out of memory, or empty.
                             ///   - timestamp:
                             public init(
                                 cpu_iowait_percent: Swift.Double,
@@ -43026,6 +40472,11 @@ public enum Operations {
                                 memory_used_bytes: Swift.Int,
                                 network_bytes_in: Swift.Int,
                                 network_bytes_out: Swift.Int,
+                                oom_kill_count: Swift.Int,
+                                oom_victim_container: Swift.String,
+                                oom_victim_image: Swift.String,
+                                oom_victim_memory_bytes: Swift.Int,
+                                oom_victim_process: Swift.String,
                                 timestamp: Swift.Double
                             ) {
                                 self.cpu_iowait_percent = cpu_iowait_percent
@@ -43036,6 +40487,11 @@ public enum Operations {
                                 self.memory_used_bytes = memory_used_bytes
                                 self.network_bytes_in = network_bytes_in
                                 self.network_bytes_out = network_bytes_out
+                                self.oom_kill_count = oom_kill_count
+                                self.oom_victim_container = oom_victim_container
+                                self.oom_victim_image = oom_victim_image
+                                self.oom_victim_memory_bytes = oom_victim_memory_bytes
+                                self.oom_victim_process = oom_victim_process
                                 self.timestamp = timestamp
                             }
                             public enum CodingKeys: String, CodingKey {
@@ -43047,6 +40503,11 @@ public enum Operations {
                                 case memory_used_bytes
                                 case network_bytes_in
                                 case network_bytes_out
+                                case oom_kill_count
+                                case oom_victim_container
+                                case oom_victim_image
+                                case oom_victim_memory_bytes
+                                case oom_victim_process
                                 case timestamp
                             }
                         }
@@ -43830,11 +41291,15 @@ public enum Operations {
                     public var operation: Operations.dispatchAmpOrb.Input.Body.jsonPayload.operationPayload
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/orb_token`.
                     public var orb_token: Swift.String?
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case linux = "linux"
                         case darwin = "darwin"
                     }
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/platform`.
                     public var platform: Operations.dispatchAmpOrb.Input.Body.jsonPayload.platformPayload?
                     /// Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
@@ -43859,6 +41324,10 @@ public enum Operations {
                     public var vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -43866,11 +41335,12 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - operation:
                     ///   - orb_token:
-                    ///   - platform:
+                    ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
                     ///   - snapshot_id: Amp's project snapshot identifier (ORB_SNAPSHOT_ID).
                     ///   - template: Sandbox template name.
                     ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         amp_url: Swift.String? = nil,
                         memory_mb: Operations.dispatchAmpOrb.Input.Body.jsonPayload.memory_mbPayload? = nil,
@@ -43880,7 +41350,8 @@ public enum Operations {
                         snapshot_id: Swift.String? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.dispatchAmpOrb.Input.Body.jsonPayload.vcpusPayload? = nil,
-                        workspace_gb: Swift.Int? = nil
+                        workspace_gb: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.amp_url = amp_url
                         self.memory_mb = memory_mb
@@ -43891,6 +41362,7 @@ public enum Operations {
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case amp_url
@@ -43902,6 +41374,7 @@ public enum Operations {
                         case template
                         case vcpus
                         case workspace_gb
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/amp-orbs/{orb_id}/POST/requestBody/content/application\/json`.
@@ -60829,7 +58302,6 @@ public enum Operations {
                     case metrics = "metrics"
                     case logs = "logs"
                     case traces = "traces"
-                    case errors = "errors"
                 }
                 ///
                 ///
@@ -61294,7 +58766,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Account, issue or event not found
+            /// Account not found
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/{signal}/analytics/get(getPulseAnalytics)/responses/404`.
             ///
@@ -63181,7 +60653,7 @@ public enum Operations {
     }
     /// Get the account's sandbox analytics for a time range.
     ///
-    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs and memory against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
@@ -63269,8 +60741,6 @@ public enum Operations {
                         public struct concurrencyPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
                             public struct in_usePayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/vcpus`.
@@ -63278,29 +60748,21 @@ public enum Operations {
                                 /// Creates a new `in_usePayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
-                                    )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
                                         forKey: .memory_gb
@@ -63310,7 +60772,6 @@ public enum Operations {
                                         forKey: .vcpus
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -63320,8 +60781,6 @@ public enum Operations {
                             public var in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
                             public struct limitsPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/vcpus`.
@@ -63329,29 +60788,21 @@ public enum Operations {
                                 /// Creates a new `limitsPayload`.
                                 ///
                                 /// - Parameters:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
                                 public init(from decoder: any Decoder) throws {
                                     let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
-                                    )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
                                         forKey: .memory_gb
@@ -63361,7 +60812,6 @@ public enum Operations {
                                         forKey: .vcpus
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -63373,8 +60823,6 @@ public enum Operations {
                             public struct pointsPayloadPayload: Codable, Hashable, Sendable {
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/at`.
                                 public var at: Foundation.Date
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/disk_gb`.
-                                public var disk_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/memory_gb`.
                                 public var memory_gb: Swift.Double
                                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/vcpus`.
@@ -63383,23 +60831,19 @@ public enum Operations {
                                 ///
                                 /// - Parameters:
                                 ///   - at:
-                                ///   - disk_gb:
                                 ///   - memory_gb:
                                 ///   - vcpus:
                                 public init(
                                     at: Foundation.Date,
-                                    disk_gb: Swift.Double,
                                     memory_gb: Swift.Double,
                                     vcpus: Swift.Int
                                 ) {
                                     self.at = at
-                                    self.disk_gb = disk_gb
                                     self.memory_gb = memory_gb
                                     self.vcpus = vcpus
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case at
-                                    case disk_gb
                                     case memory_gb
                                     case vcpus
                                 }
@@ -63408,10 +60852,6 @@ public enum Operations {
                                     self.at = try container.decode(
                                         Foundation.Date.self,
                                         forKey: .at
-                                    )
-                                    self.disk_gb = try container.decode(
-                                        Swift.Double.self,
-                                        forKey: .disk_gb
                                     )
                                     self.memory_gb = try container.decode(
                                         Swift.Double.self,
@@ -63423,7 +60863,6 @@ public enum Operations {
                                     )
                                     try decoder.ensureNoAdditionalProperties(knownKeys: [
                                         "at",
-                                        "disk_gb",
                                         "memory_gb",
                                         "vcpus"
                                     ])
@@ -73725,6 +71164,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/env`.
                     public var env: Operations.startSandboxCommand.Input.Body.jsonPayload.envPayload?
+                    /// The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/POST/requestBody/json/stdin`.
@@ -73740,6 +71183,7 @@ public enum Operations {
                     ///   - command: A shell script run with `/bin/bash -l`, or the program to run when `args` is given.
                     ///   - cwd: Working directory. Defaults to the sandbox's workspace.
                     ///   - env: Environment variables for the command. Never stored.
+                    ///   - id: The command's identifier, chosen by the client. A request sent again with the same `id`, such as after a gateway error, answers the command the first one started instead of starting another.
                     ///   - stdin: Keep stdin open for `POST .../stdin`. Otherwise the command reads an empty stdin.
                     ///   - timeout_ms: Kill the command after this many milliseconds (default one hour).
                     public init(
@@ -73747,6 +71191,7 @@ public enum Operations {
                         command: Swift.String,
                         cwd: Swift.String? = nil,
                         env: Operations.startSandboxCommand.Input.Body.jsonPayload.envPayload? = nil,
+                        id: Swift.String? = nil,
                         stdin: Swift.Bool? = nil,
                         timeout_ms: Swift.Int? = nil
                     ) {
@@ -73754,6 +71199,7 @@ public enum Operations {
                         self.command = command
                         self.cwd = cwd
                         self.env = env
+                        self.id = id
                         self.stdin = stdin
                         self.timeout_ms = timeout_ms
                     }
@@ -73762,6 +71208,7 @@ public enum Operations {
                         case command
                         case cwd
                         case env
+                        case id
                         case stdin
                         case timeout_ms
                     }
@@ -75906,21 +73353,29 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/json/data`.
                     public var data: OpenAPIRuntime.Base64EncodedData?
+                    /// The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/json/offset`.
+                    public var offset: Swift.Int?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - close: End the command's stdin after the data.
                     ///   - data: Base64-encoded bytes, at most 256 KiB decoded.
+                    ///   - offset: The number of bytes written to the command's stdin before this write. With it, a write sent again, such as after a gateway error, is appended once, and a write that does not continue stdin is refused with 409.
                     public init(
                         close: Swift.Bool? = nil,
-                        data: OpenAPIRuntime.Base64EncodedData? = nil
+                        data: OpenAPIRuntime.Base64EncodedData? = nil,
+                        offset: Swift.Int? = nil
                     ) {
                         self.close = close
                         self.data = data
+                        self.offset = offset
                     }
                     public enum CodingKeys: String, CodingKey {
                         case close
                         case data
+                        case offset
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/commands/{command_id}/stdin/POST/requestBody/content/application\/json`.
@@ -79600,10 +77055,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
                         public var disk_bytes_read: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
                         public var memory_total_bytes: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/mix/builds/POST/requestBody/json/machine_metricsPayload/memory_used_bytes`.
@@ -79620,8 +77079,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes:
                         ///   - disk_bytes_read:
                         ///   - disk_bytes_written:
+                        ///   - disk_total_bytes:
                         ///   - memory_total_bytes:
                         ///   - memory_used_bytes:
                         ///   - network_bytes_in:
@@ -79629,8 +77090,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int? = nil,
                             disk_bytes_written: Swift.Int? = nil,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int? = nil,
@@ -79638,8 +77101,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -79648,8 +77113,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -92688,6 +90155,7 @@ public enum Operations {
                                 case account_colon_registry_colon_write = "account:registry:write"
                                 case account_colon_runners_colon_read = "account:runners:read"
                                 case account_colon_runners_colon_write = "account:runners:write"
+                                case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                                 case project_colon_previews_colon_read = "project:previews:read"
                                 case project_colon_previews_colon_write = "project:previews:write"
                                 case project_colon_admin_colon_read = "project:admin:read"
@@ -93068,6 +90536,7 @@ public enum Operations {
                         case account_colon_registry_colon_write = "account:registry:write"
                         case account_colon_runners_colon_read = "account:runners:read"
                         case account_colon_runners_colon_write = "account:runners:write"
+                        case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                         case project_colon_previews_colon_read = "project:previews:read"
                         case project_colon_previews_colon_write = "project:previews:write"
                         case project_colon_admin_colon_read = "project:admin:read"
@@ -95851,2064 +93320,6 @@ public enum Operations {
             }
         }
     }
-    /// Get a grouped Pulse error issue and its paginated events.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)`.
-    public enum getPulseErrorIssue {
-        public static let id: Swift.String = "getPulseErrorIssue"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/path`.
-            public struct Path: Sendable, Hashable {
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/path/account_handle`.
-                public var account_handle: Swift.String
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/path/issue_id`.
-                public var issue_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle:
-                ///   - issue_id:
-                public init(
-                    account_handle: Swift.String,
-                    issue_id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.issue_id = issue_id
-                }
-            }
-            public var path: Operations.getPulseErrorIssue.Input.Path
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query`.
-            public struct Query: Sendable, Hashable {
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/end_at`.
-                public var end_at: Swift.String?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/environment`.
-                public var environment: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/environment_op`.
-                @frozen public enum environment_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/environment_op`.
-                public var environment_op: Operations.getPulseErrorIssue.Input.Query.environment_opPayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/page`.
-                public var page: Swift.Int?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/page_size`.
-                public var page_size: Swift.Int?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/project`.
-                public var project: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/project_op`.
-                @frozen public enum project_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/project_op`.
-                public var project_op: Operations.getPulseErrorIssue.Input.Query.project_opPayload?
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/range`.
-                @frozen public enum rangePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case _15m = "15m"
-                    case _1h = "1h"
-                    case _6h = "6h"
-                    case _24h = "24h"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/range`.
-                public var range: Operations.getPulseErrorIssue.Input.Query.rangePayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/release`.
-                public var release: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/release_op`.
-                @frozen public enum release_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/release_op`.
-                public var release_op: Operations.getPulseErrorIssue.Input.Query.release_opPayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/service`.
-                public var service: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/service_op`.
-                @frozen public enum service_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/query/service_op`.
-                public var service_op: Operations.getPulseErrorIssue.Input.Query.service_opPayload?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - end_at:
-                ///   - environment:
-                ///   - environment_op:
-                ///   - page:
-                ///   - page_size:
-                ///   - project:
-                ///   - project_op:
-                ///   - range:
-                ///   - release:
-                ///   - release_op:
-                ///   - service:
-                ///   - service_op:
-                public init(
-                    end_at: Swift.String? = nil,
-                    environment: Swift.String? = nil,
-                    environment_op: Operations.getPulseErrorIssue.Input.Query.environment_opPayload? = nil,
-                    page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    project: Swift.String? = nil,
-                    project_op: Operations.getPulseErrorIssue.Input.Query.project_opPayload? = nil,
-                    range: Operations.getPulseErrorIssue.Input.Query.rangePayload? = nil,
-                    release: Swift.String? = nil,
-                    release_op: Operations.getPulseErrorIssue.Input.Query.release_opPayload? = nil,
-                    service: Swift.String? = nil,
-                    service_op: Operations.getPulseErrorIssue.Input.Query.service_opPayload? = nil
-                ) {
-                    self.end_at = end_at
-                    self.environment = environment
-                    self.environment_op = environment_op
-                    self.page = page
-                    self.page_size = page_size
-                    self.project = project
-                    self.project_op = project_op
-                    self.range = range
-                    self.release = release
-                    self.release_op = release_op
-                    self.service = service
-                    self.service_op = service_op
-                }
-            }
-            public var query: Operations.getPulseErrorIssue.Input.Query
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPulseErrorIssue.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPulseErrorIssue.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.getPulseErrorIssue.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - query:
-            ///   - headers:
-            public init(
-                path: Operations.getPulseErrorIssue.Input.Path,
-                query: Operations.getPulseErrorIssue.Input.Query = .init(),
-                headers: Operations.getPulseErrorIssue.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload`.
-                        public struct eventsPayloadPayload: Codable, Hashable, Sendable {
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/contexts`.
-                            public struct contextsPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `contextsPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/contexts`.
-                            public var contexts: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.contextsPayload?
-                            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/culprit`.
-                            public var culprit: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/environment`.
-                            public var environment: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/event_id`.
-                            public var event_id: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception`.
-                            public struct exceptionPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/framesPayload`.
-                                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/framesPayload/filename`.
-                                    public var filename: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/framesPayload/function`.
-                                    public var function: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/framesPayload/in_app`.
-                                    public var in_app: Swift.Bool
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/framesPayload/lineno`.
-                                    public var lineno: Swift.Int?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/framesPayload/module`.
-                                    public var module: Swift.String?
-                                    /// Creates a new `framesPayloadPayload`.
-                                    ///
-                                    /// - Parameters:
-                                    ///   - filename:
-                                    ///   - function:
-                                    ///   - in_app:
-                                    ///   - lineno:
-                                    ///   - module:
-                                    public init(
-                                        filename: Swift.String? = nil,
-                                        function: Swift.String? = nil,
-                                        in_app: Swift.Bool,
-                                        lineno: Swift.Int? = nil,
-                                        module: Swift.String? = nil
-                                    ) {
-                                        self.filename = filename
-                                        self.function = function
-                                        self.in_app = in_app
-                                        self.lineno = lineno
-                                        self.module = module
-                                    }
-                                    public enum CodingKeys: String, CodingKey {
-                                        case filename
-                                        case function
-                                        case in_app
-                                        case lineno
-                                        case module
-                                    }
-                                    public init(from decoder: any Decoder) throws {
-                                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                                        self.filename = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .filename
-                                        )
-                                        self.function = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .function
-                                        )
-                                        self.in_app = try container.decode(
-                                            Swift.Bool.self,
-                                            forKey: .in_app
-                                        )
-                                        self.lineno = try container.decodeIfPresent(
-                                            Swift.Int.self,
-                                            forKey: .lineno
-                                        )
-                                        self.module = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .module
-                                        )
-                                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                            "filename",
-                                            "function",
-                                            "in_app",
-                                            "lineno",
-                                            "module"
-                                        ])
-                                    }
-                                }
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/frames`.
-                                public typealias framesPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload.framesPayloadPayload]
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/frames`.
-                                public var frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload.framesPayload?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/type`.
-                                public var _type: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception/value`.
-                                public var value: Swift.String?
-                                /// Creates a new `exceptionPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - frames:
-                                ///   - _type:
-                                ///   - value:
-                                public init(
-                                    frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload.framesPayload? = nil,
-                                    _type: Swift.String? = nil,
-                                    value: Swift.String? = nil
-                                ) {
-                                    self.frames = frames
-                                    self._type = _type
-                                    self.value = value
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case frames
-                                    case _type = "type"
-                                    case value
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.frames = try container.decodeIfPresent(
-                                        Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload.framesPayload.self,
-                                        forKey: .frames
-                                    )
-                                    self._type = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: ._type
-                                    )
-                                    self.value = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .value
-                                    )
-                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "frames",
-                                        "type",
-                                        "value"
-                                    ])
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exception`.
-                            public var exception: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload`.
-                            public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/framesPayload`.
-                                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/framesPayload/filename`.
-                                    public var filename: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/framesPayload/function`.
-                                    public var function: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/framesPayload/in_app`.
-                                    public var in_app: Swift.Bool
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/framesPayload/lineno`.
-                                    public var lineno: Swift.Int?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/framesPayload/module`.
-                                    public var module: Swift.String?
-                                    /// Creates a new `framesPayloadPayload`.
-                                    ///
-                                    /// - Parameters:
-                                    ///   - filename:
-                                    ///   - function:
-                                    ///   - in_app:
-                                    ///   - lineno:
-                                    ///   - module:
-                                    public init(
-                                        filename: Swift.String? = nil,
-                                        function: Swift.String? = nil,
-                                        in_app: Swift.Bool,
-                                        lineno: Swift.Int? = nil,
-                                        module: Swift.String? = nil
-                                    ) {
-                                        self.filename = filename
-                                        self.function = function
-                                        self.in_app = in_app
-                                        self.lineno = lineno
-                                        self.module = module
-                                    }
-                                    public enum CodingKeys: String, CodingKey {
-                                        case filename
-                                        case function
-                                        case in_app
-                                        case lineno
-                                        case module
-                                    }
-                                    public init(from decoder: any Decoder) throws {
-                                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                                        self.filename = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .filename
-                                        )
-                                        self.function = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .function
-                                        )
-                                        self.in_app = try container.decode(
-                                            Swift.Bool.self,
-                                            forKey: .in_app
-                                        )
-                                        self.lineno = try container.decodeIfPresent(
-                                            Swift.Int.self,
-                                            forKey: .lineno
-                                        )
-                                        self.module = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .module
-                                        )
-                                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                            "filename",
-                                            "function",
-                                            "in_app",
-                                            "lineno",
-                                            "module"
-                                        ])
-                                    }
-                                }
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/frames`.
-                                public typealias framesPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayloadPayload.framesPayloadPayload]
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/frames`.
-                                public var frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayloadPayload.framesPayload
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/type`.
-                                public var _type: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptionsPayload/value`.
-                                public var value: Swift.String?
-                                /// Creates a new `exceptionsPayloadPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - frames:
-                                ///   - _type:
-                                ///   - value:
-                                public init(
-                                    frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayloadPayload.framesPayload,
-                                    _type: Swift.String? = nil,
-                                    value: Swift.String? = nil
-                                ) {
-                                    self.frames = frames
-                                    self._type = _type
-                                    self.value = value
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case frames
-                                    case _type = "type"
-                                    case value
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.frames = try container.decode(
-                                        Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayloadPayload.framesPayload.self,
-                                        forKey: .frames
-                                    )
-                                    self._type = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: ._type
-                                    )
-                                    self.value = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .value
-                                    )
-                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "frames",
-                                        "type",
-                                        "value"
-                                    ])
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptions`.
-                            public typealias exceptionsPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayloadPayload]
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/exceptions`.
-                            public var exceptions: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayload?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/extra`.
-                            public struct extraPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `extraPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/extra`.
-                            public var extra: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.extraPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/issue_id`.
-                            public var issue_id: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/level`.
-                            public var level: Swift.String?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/modules`.
-                            public struct modulesPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `modulesPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/modules`.
-                            public var modules: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.modulesPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/platform`.
-                            public var platform: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/project`.
-                            public var project: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/release`.
-                            public var release: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/service`.
-                            public var service: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/span_id`.
-                            public var span_id: Swift.String?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/tags`.
-                            public struct tagsPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `tagsPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/tags`.
-                            public var tags: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.tagsPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/timestamp`.
-                            public var timestamp: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/timestamp_ns`.
-                            public var timestamp_ns: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/title`.
-                            public var title: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/eventsPayload/trace_id`.
-                            public var trace_id: Swift.String?
-                            /// Creates a new `eventsPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///   - environment:
-                            ///   - event_id:
-                            ///   - exception:
-                            ///   - exceptions:
-                            ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - issue_id:
-                            ///   - level:
-                            ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - platform:
-                            ///   - project:
-                            ///   - release:
-                            ///   - service:
-                            ///   - span_id:
-                            ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - timestamp:
-                            ///   - timestamp_ns:
-                            ///   - title:
-                            ///   - trace_id:
-                            public init(
-                                contexts: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.contextsPayload? = nil,
-                                culprit: Swift.String? = nil,
-                                environment: Swift.String? = nil,
-                                event_id: Swift.String? = nil,
-                                exception: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload? = nil,
-                                exceptions: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayload? = nil,
-                                extra: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.extraPayload? = nil,
-                                issue_id: Swift.String? = nil,
-                                level: Swift.String? = nil,
-                                modules: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.modulesPayload? = nil,
-                                platform: Swift.String? = nil,
-                                project: Swift.String? = nil,
-                                release: Swift.String? = nil,
-                                service: Swift.String? = nil,
-                                span_id: Swift.String? = nil,
-                                tags: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.tagsPayload? = nil,
-                                timestamp: Swift.String? = nil,
-                                timestamp_ns: Swift.String? = nil,
-                                title: Swift.String? = nil,
-                                trace_id: Swift.String? = nil
-                            ) {
-                                self.contexts = contexts
-                                self.culprit = culprit
-                                self.environment = environment
-                                self.event_id = event_id
-                                self.exception = exception
-                                self.exceptions = exceptions
-                                self.extra = extra
-                                self.issue_id = issue_id
-                                self.level = level
-                                self.modules = modules
-                                self.platform = platform
-                                self.project = project
-                                self.release = release
-                                self.service = service
-                                self.span_id = span_id
-                                self.tags = tags
-                                self.timestamp = timestamp
-                                self.timestamp_ns = timestamp_ns
-                                self.title = title
-                                self.trace_id = trace_id
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case contexts
-                                case culprit
-                                case environment
-                                case event_id
-                                case exception
-                                case exceptions
-                                case extra
-                                case issue_id
-                                case level
-                                case modules
-                                case platform
-                                case project
-                                case release
-                                case service
-                                case span_id
-                                case tags
-                                case timestamp
-                                case timestamp_ns
-                                case title
-                                case trace_id
-                            }
-                            public init(from decoder: any Decoder) throws {
-                                let container = try decoder.container(keyedBy: CodingKeys.self)
-                                self.contexts = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.contextsPayload.self,
-                                    forKey: .contexts
-                                )
-                                self.culprit = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .culprit
-                                )
-                                self.environment = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .environment
-                                )
-                                self.event_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .event_id
-                                )
-                                self.exception = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionPayload.self,
-                                    forKey: .exception
-                                )
-                                self.exceptions = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.exceptionsPayload.self,
-                                    forKey: .exceptions
-                                )
-                                self.extra = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.extraPayload.self,
-                                    forKey: .extra
-                                )
-                                self.issue_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .issue_id
-                                )
-                                self.level = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .level
-                                )
-                                self.modules = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.modulesPayload.self,
-                                    forKey: .modules
-                                )
-                                self.platform = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .platform
-                                )
-                                self.project = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .project
-                                )
-                                self.release = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .release
-                                )
-                                self.service = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .service
-                                )
-                                self.span_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .span_id
-                                )
-                                self.tags = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload.tagsPayload.self,
-                                    forKey: .tags
-                                )
-                                self.timestamp = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .timestamp
-                                )
-                                self.timestamp_ns = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .timestamp_ns
-                                )
-                                self.title = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .title
-                                )
-                                self.trace_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .trace_id
-                                )
-                                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                    "contexts",
-                                    "culprit",
-                                    "environment",
-                                    "event_id",
-                                    "exception",
-                                    "exceptions",
-                                    "extra",
-                                    "issue_id",
-                                    "level",
-                                    "modules",
-                                    "platform",
-                                    "project",
-                                    "release",
-                                    "service",
-                                    "span_id",
-                                    "tags",
-                                    "timestamp",
-                                    "timestamp_ns",
-                                    "title",
-                                    "trace_id"
-                                ])
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/events`.
-                        public typealias eventsPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/events`.
-                        public var events: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayload
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue`.
-                        public struct issuePayload: Codable, Hashable, Sendable {
-                            /// Occurrence count in the complete filtered selected period, not lifetime or page count.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/count`.
-                            public var count: Swift.Int
-                            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/culprit`.
-                            public var culprit: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/first_seen_ns`.
-                            public var first_seen_ns: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/issue_id`.
-                            public var issue_id: Swift.String
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/last_seen_ns`.
-                            public var last_seen_ns: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/latest_event_id`.
-                            public var latest_event_id: Swift.String
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/level`.
-                            public var level: Swift.String?
-                            /// 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/occurrence_series`.
-                            public var occurrence_series: [[Swift.Int]]?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/platform`.
-                            public var platform: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/project`.
-                            public var project: Swift.String
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/service`.
-                            public var service: Swift.String
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue/title`.
-                            public var title: Swift.String
-                            /// Creates a new `issuePayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - count: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///   - first_seen_ns:
-                            ///   - issue_id:
-                            ///   - last_seen_ns:
-                            ///   - latest_event_id:
-                            ///   - level:
-                            ///   - occurrence_series: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                            ///   - platform:
-                            ///   - project:
-                            ///   - service:
-                            ///   - title:
-                            public init(
-                                count: Swift.Int,
-                                culprit: Swift.String? = nil,
-                                first_seen_ns: Swift.Int,
-                                issue_id: Swift.String,
-                                last_seen_ns: Swift.Int,
-                                latest_event_id: Swift.String,
-                                level: Swift.String? = nil,
-                                occurrence_series: [[Swift.Int]]? = nil,
-                                platform: Swift.String? = nil,
-                                project: Swift.String,
-                                service: Swift.String,
-                                title: Swift.String
-                            ) {
-                                self.count = count
-                                self.culprit = culprit
-                                self.first_seen_ns = first_seen_ns
-                                self.issue_id = issue_id
-                                self.last_seen_ns = last_seen_ns
-                                self.latest_event_id = latest_event_id
-                                self.level = level
-                                self.occurrence_series = occurrence_series
-                                self.platform = platform
-                                self.project = project
-                                self.service = service
-                                self.title = title
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case count
-                                case culprit
-                                case first_seen_ns
-                                case issue_id
-                                case last_seen_ns
-                                case latest_event_id
-                                case level
-                                case occurrence_series
-                                case platform
-                                case project
-                                case service
-                                case title
-                            }
-                            public init(from decoder: any Decoder) throws {
-                                let container = try decoder.container(keyedBy: CodingKeys.self)
-                                self.count = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .count
-                                )
-                                self.culprit = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .culprit
-                                )
-                                self.first_seen_ns = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .first_seen_ns
-                                )
-                                self.issue_id = try container.decode(
-                                    Swift.String.self,
-                                    forKey: .issue_id
-                                )
-                                self.last_seen_ns = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .last_seen_ns
-                                )
-                                self.latest_event_id = try container.decode(
-                                    Swift.String.self,
-                                    forKey: .latest_event_id
-                                )
-                                self.level = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .level
-                                )
-                                self.occurrence_series = try container.decodeIfPresent(
-                                    [[Swift.Int]].self,
-                                    forKey: .occurrence_series
-                                )
-                                self.platform = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .platform
-                                )
-                                self.project = try container.decode(
-                                    Swift.String.self,
-                                    forKey: .project
-                                )
-                                self.service = try container.decode(
-                                    Swift.String.self,
-                                    forKey: .service
-                                )
-                                self.title = try container.decode(
-                                    Swift.String.self,
-                                    forKey: .title
-                                )
-                                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                    "count",
-                                    "culprit",
-                                    "first_seen_ns",
-                                    "issue_id",
-                                    "last_seen_ns",
-                                    "latest_event_id",
-                                    "level",
-                                    "occurrence_series",
-                                    "platform",
-                                    "project",
-                                    "service",
-                                    "title"
-                                ])
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/issue`.
-                        public var issue: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event`.
-                        public struct latest_eventPayload: Codable, Hashable, Sendable {
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/contexts`.
-                            public struct contextsPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `contextsPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/contexts`.
-                            public var contexts: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.contextsPayload?
-                            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/culprit`.
-                            public var culprit: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/environment`.
-                            public var environment: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/event_id`.
-                            public var event_id: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception`.
-                            public struct exceptionPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/framesPayload`.
-                                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/framesPayload/filename`.
-                                    public var filename: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/framesPayload/function`.
-                                    public var function: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/framesPayload/in_app`.
-                                    public var in_app: Swift.Bool
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/framesPayload/lineno`.
-                                    public var lineno: Swift.Int?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/framesPayload/module`.
-                                    public var module: Swift.String?
-                                    /// Creates a new `framesPayloadPayload`.
-                                    ///
-                                    /// - Parameters:
-                                    ///   - filename:
-                                    ///   - function:
-                                    ///   - in_app:
-                                    ///   - lineno:
-                                    ///   - module:
-                                    public init(
-                                        filename: Swift.String? = nil,
-                                        function: Swift.String? = nil,
-                                        in_app: Swift.Bool,
-                                        lineno: Swift.Int? = nil,
-                                        module: Swift.String? = nil
-                                    ) {
-                                        self.filename = filename
-                                        self.function = function
-                                        self.in_app = in_app
-                                        self.lineno = lineno
-                                        self.module = module
-                                    }
-                                    public enum CodingKeys: String, CodingKey {
-                                        case filename
-                                        case function
-                                        case in_app
-                                        case lineno
-                                        case module
-                                    }
-                                    public init(from decoder: any Decoder) throws {
-                                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                                        self.filename = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .filename
-                                        )
-                                        self.function = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .function
-                                        )
-                                        self.in_app = try container.decode(
-                                            Swift.Bool.self,
-                                            forKey: .in_app
-                                        )
-                                        self.lineno = try container.decodeIfPresent(
-                                            Swift.Int.self,
-                                            forKey: .lineno
-                                        )
-                                        self.module = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .module
-                                        )
-                                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                            "filename",
-                                            "function",
-                                            "in_app",
-                                            "lineno",
-                                            "module"
-                                        ])
-                                    }
-                                }
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/frames`.
-                                public typealias framesPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload.framesPayloadPayload]
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/frames`.
-                                public var frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload.framesPayload?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/type`.
-                                public var _type: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception/value`.
-                                public var value: Swift.String?
-                                /// Creates a new `exceptionPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - frames:
-                                ///   - _type:
-                                ///   - value:
-                                public init(
-                                    frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload.framesPayload? = nil,
-                                    _type: Swift.String? = nil,
-                                    value: Swift.String? = nil
-                                ) {
-                                    self.frames = frames
-                                    self._type = _type
-                                    self.value = value
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case frames
-                                    case _type = "type"
-                                    case value
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.frames = try container.decodeIfPresent(
-                                        Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload.framesPayload.self,
-                                        forKey: .frames
-                                    )
-                                    self._type = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: ._type
-                                    )
-                                    self.value = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .value
-                                    )
-                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "frames",
-                                        "type",
-                                        "value"
-                                    ])
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exception`.
-                            public var exception: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload`.
-                            public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/framesPayload`.
-                                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/framesPayload/filename`.
-                                    public var filename: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/framesPayload/function`.
-                                    public var function: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/framesPayload/in_app`.
-                                    public var in_app: Swift.Bool
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/framesPayload/lineno`.
-                                    public var lineno: Swift.Int?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/framesPayload/module`.
-                                    public var module: Swift.String?
-                                    /// Creates a new `framesPayloadPayload`.
-                                    ///
-                                    /// - Parameters:
-                                    ///   - filename:
-                                    ///   - function:
-                                    ///   - in_app:
-                                    ///   - lineno:
-                                    ///   - module:
-                                    public init(
-                                        filename: Swift.String? = nil,
-                                        function: Swift.String? = nil,
-                                        in_app: Swift.Bool,
-                                        lineno: Swift.Int? = nil,
-                                        module: Swift.String? = nil
-                                    ) {
-                                        self.filename = filename
-                                        self.function = function
-                                        self.in_app = in_app
-                                        self.lineno = lineno
-                                        self.module = module
-                                    }
-                                    public enum CodingKeys: String, CodingKey {
-                                        case filename
-                                        case function
-                                        case in_app
-                                        case lineno
-                                        case module
-                                    }
-                                    public init(from decoder: any Decoder) throws {
-                                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                                        self.filename = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .filename
-                                        )
-                                        self.function = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .function
-                                        )
-                                        self.in_app = try container.decode(
-                                            Swift.Bool.self,
-                                            forKey: .in_app
-                                        )
-                                        self.lineno = try container.decodeIfPresent(
-                                            Swift.Int.self,
-                                            forKey: .lineno
-                                        )
-                                        self.module = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .module
-                                        )
-                                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                            "filename",
-                                            "function",
-                                            "in_app",
-                                            "lineno",
-                                            "module"
-                                        ])
-                                    }
-                                }
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/frames`.
-                                public typealias framesPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayloadPayload.framesPayloadPayload]
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/frames`.
-                                public var frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayloadPayload.framesPayload
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/type`.
-                                public var _type: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptionsPayload/value`.
-                                public var value: Swift.String?
-                                /// Creates a new `exceptionsPayloadPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - frames:
-                                ///   - _type:
-                                ///   - value:
-                                public init(
-                                    frames: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayloadPayload.framesPayload,
-                                    _type: Swift.String? = nil,
-                                    value: Swift.String? = nil
-                                ) {
-                                    self.frames = frames
-                                    self._type = _type
-                                    self.value = value
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case frames
-                                    case _type = "type"
-                                    case value
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.frames = try container.decode(
-                                        Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayloadPayload.framesPayload.self,
-                                        forKey: .frames
-                                    )
-                                    self._type = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: ._type
-                                    )
-                                    self.value = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .value
-                                    )
-                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "frames",
-                                        "type",
-                                        "value"
-                                    ])
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptions`.
-                            public typealias exceptionsPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayloadPayload]
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/exceptions`.
-                            public var exceptions: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayload?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/extra`.
-                            public struct extraPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `extraPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/extra`.
-                            public var extra: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.extraPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/issue_id`.
-                            public var issue_id: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/level`.
-                            public var level: Swift.String?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/modules`.
-                            public struct modulesPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `modulesPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/modules`.
-                            public var modules: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.modulesPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/platform`.
-                            public var platform: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/project`.
-                            public var project: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/release`.
-                            public var release: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/service`.
-                            public var service: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/span_id`.
-                            public var span_id: Swift.String?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/tags`.
-                            public struct tagsPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `tagsPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/tags`.
-                            public var tags: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.tagsPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/timestamp`.
-                            public var timestamp: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/timestamp_ns`.
-                            public var timestamp_ns: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/title`.
-                            public var title: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event/trace_id`.
-                            public var trace_id: Swift.String?
-                            /// Creates a new `latest_eventPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///   - environment:
-                            ///   - event_id:
-                            ///   - exception:
-                            ///   - exceptions:
-                            ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - issue_id:
-                            ///   - level:
-                            ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - platform:
-                            ///   - project:
-                            ///   - release:
-                            ///   - service:
-                            ///   - span_id:
-                            ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - timestamp:
-                            ///   - timestamp_ns:
-                            ///   - title:
-                            ///   - trace_id:
-                            public init(
-                                contexts: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.contextsPayload? = nil,
-                                culprit: Swift.String? = nil,
-                                environment: Swift.String? = nil,
-                                event_id: Swift.String? = nil,
-                                exception: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload? = nil,
-                                exceptions: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayload? = nil,
-                                extra: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.extraPayload? = nil,
-                                issue_id: Swift.String? = nil,
-                                level: Swift.String? = nil,
-                                modules: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.modulesPayload? = nil,
-                                platform: Swift.String? = nil,
-                                project: Swift.String? = nil,
-                                release: Swift.String? = nil,
-                                service: Swift.String? = nil,
-                                span_id: Swift.String? = nil,
-                                tags: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.tagsPayload? = nil,
-                                timestamp: Swift.String? = nil,
-                                timestamp_ns: Swift.String? = nil,
-                                title: Swift.String? = nil,
-                                trace_id: Swift.String? = nil
-                            ) {
-                                self.contexts = contexts
-                                self.culprit = culprit
-                                self.environment = environment
-                                self.event_id = event_id
-                                self.exception = exception
-                                self.exceptions = exceptions
-                                self.extra = extra
-                                self.issue_id = issue_id
-                                self.level = level
-                                self.modules = modules
-                                self.platform = platform
-                                self.project = project
-                                self.release = release
-                                self.service = service
-                                self.span_id = span_id
-                                self.tags = tags
-                                self.timestamp = timestamp
-                                self.timestamp_ns = timestamp_ns
-                                self.title = title
-                                self.trace_id = trace_id
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case contexts
-                                case culprit
-                                case environment
-                                case event_id
-                                case exception
-                                case exceptions
-                                case extra
-                                case issue_id
-                                case level
-                                case modules
-                                case platform
-                                case project
-                                case release
-                                case service
-                                case span_id
-                                case tags
-                                case timestamp
-                                case timestamp_ns
-                                case title
-                                case trace_id
-                            }
-                            public init(from decoder: any Decoder) throws {
-                                let container = try decoder.container(keyedBy: CodingKeys.self)
-                                self.contexts = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.contextsPayload.self,
-                                    forKey: .contexts
-                                )
-                                self.culprit = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .culprit
-                                )
-                                self.environment = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .environment
-                                )
-                                self.event_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .event_id
-                                )
-                                self.exception = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionPayload.self,
-                                    forKey: .exception
-                                )
-                                self.exceptions = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.exceptionsPayload.self,
-                                    forKey: .exceptions
-                                )
-                                self.extra = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.extraPayload.self,
-                                    forKey: .extra
-                                )
-                                self.issue_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .issue_id
-                                )
-                                self.level = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .level
-                                )
-                                self.modules = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.modulesPayload.self,
-                                    forKey: .modules
-                                )
-                                self.platform = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .platform
-                                )
-                                self.project = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .project
-                                )
-                                self.release = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .release
-                                )
-                                self.service = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .service
-                                )
-                                self.span_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .span_id
-                                )
-                                self.tags = try container.decodeIfPresent(
-                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.tagsPayload.self,
-                                    forKey: .tags
-                                )
-                                self.timestamp = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .timestamp
-                                )
-                                self.timestamp_ns = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .timestamp_ns
-                                )
-                                self.title = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .title
-                                )
-                                self.trace_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .trace_id
-                                )
-                                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                    "contexts",
-                                    "culprit",
-                                    "environment",
-                                    "event_id",
-                                    "exception",
-                                    "exceptions",
-                                    "extra",
-                                    "issue_id",
-                                    "level",
-                                    "modules",
-                                    "platform",
-                                    "project",
-                                    "release",
-                                    "service",
-                                    "span_id",
-                                    "tags",
-                                    "timestamp",
-                                    "timestamp_ns",
-                                    "title",
-                                    "trace_id"
-                                ])
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/latest_event`.
-                        public var latest_event: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta`.
-                        public struct metaPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/end_at`.
-                            public var end_at: Swift.String
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/has_next_page`.
-                            public var has_next_page: Swift.Bool
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/has_previous_page`.
-                            public var has_previous_page: Swift.Bool
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/page`.
-                            public var page: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/page_size`.
-                            public var page_size: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/total_count`.
-                            public var total_count: Swift.Int
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta/total_pages`.
-                            public var total_pages: Swift.Int
-                            /// Creates a new `metaPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - end_at:
-                            ///   - has_next_page:
-                            ///   - has_previous_page:
-                            ///   - page:
-                            ///   - page_size:
-                            ///   - total_count:
-                            ///   - total_pages:
-                            public init(
-                                end_at: Swift.String,
-                                has_next_page: Swift.Bool,
-                                has_previous_page: Swift.Bool,
-                                page: Swift.Int,
-                                page_size: Swift.Int,
-                                total_count: Swift.Int,
-                                total_pages: Swift.Int
-                            ) {
-                                self.end_at = end_at
-                                self.has_next_page = has_next_page
-                                self.has_previous_page = has_previous_page
-                                self.page = page
-                                self.page_size = page_size
-                                self.total_count = total_count
-                                self.total_pages = total_pages
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case end_at
-                                case has_next_page
-                                case has_previous_page
-                                case page
-                                case page_size
-                                case total_count
-                                case total_pages
-                            }
-                            public init(from decoder: any Decoder) throws {
-                                let container = try decoder.container(keyedBy: CodingKeys.self)
-                                self.end_at = try container.decode(
-                                    Swift.String.self,
-                                    forKey: .end_at
-                                )
-                                self.has_next_page = try container.decode(
-                                    Swift.Bool.self,
-                                    forKey: .has_next_page
-                                )
-                                self.has_previous_page = try container.decode(
-                                    Swift.Bool.self,
-                                    forKey: .has_previous_page
-                                )
-                                self.page = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .page
-                                )
-                                self.page_size = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .page_size
-                                )
-                                self.total_count = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .total_count
-                                )
-                                self.total_pages = try container.decode(
-                                    Swift.Int.self,
-                                    forKey: .total_pages
-                                )
-                                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                    "end_at",
-                                    "has_next_page",
-                                    "has_previous_page",
-                                    "page",
-                                    "page_size",
-                                    "total_count",
-                                    "total_pages"
-                                ])
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/meta`.
-                        public var meta: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.metaPayload
-                        /// 60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/occurrence_series`.
-                        public var occurrence_series: [[Swift.Int]]
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/json/warnings`.
-                        public var warnings: [Swift.String]
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - events:
-                        ///   - issue:
-                        ///   - latest_event:
-                        ///   - meta:
-                        ///   - occurrence_series: 60 equal-width [bucket_start_unix_seconds, integer_count] pairs covering the selected period, including zero counts. Buckets include their start and exclude their end, except the last includes the selected period end.
-                        ///   - warnings:
-                        public init(
-                            events: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayload,
-                            issue: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload,
-                            latest_event: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload,
-                            meta: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.metaPayload,
-                            occurrence_series: [[Swift.Int]],
-                            warnings: [Swift.String]
-                        ) {
-                            self.events = events
-                            self.issue = issue
-                            self.latest_event = latest_event
-                            self.meta = meta
-                            self.occurrence_series = occurrence_series
-                            self.warnings = warnings
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case events
-                            case issue
-                            case latest_event
-                            case meta
-                            case occurrence_series
-                            case warnings
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.events = try container.decode(
-                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayload.self,
-                                forKey: .events
-                            )
-                            self.issue = try container.decode(
-                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.self,
-                                forKey: .issue
-                            )
-                            self.latest_event = try container.decode(
-                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.latest_eventPayload.self,
-                                forKey: .latest_event
-                            )
-                            self.meta = try container.decode(
-                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.metaPayload.self,
-                                forKey: .meta
-                            )
-                            self.occurrence_series = try container.decode(
-                                [[Swift.Int]].self,
-                                forKey: .occurrence_series
-                            )
-                            self.warnings = try container.decode(
-                                [Swift.String].self,
-                                forKey: .warnings
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "events",
-                                "issue",
-                                "latest_event",
-                                "meta",
-                                "occurrence_series",
-                                "warnings"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/200/content/application\/json`.
-                    case json(Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Pulse data
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.getPulseErrorIssue.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.getPulseErrorIssue.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// Invalid parameters or query
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.getPulseErrorIssue.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.getPulseErrorIssue.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// Authentication required
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getPulseErrorIssue.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.getPulseErrorIssue.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// User membership and account read required
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getPulseErrorIssue.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.getPulseErrorIssue.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// Account, issue or event not found
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getPulseErrorIssue.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getPulseErrorIssue.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct TooManyRequests: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/429/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.TooManyRequests.Body
-                /// Creates a new `TooManyRequests`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.TooManyRequests.Body) {
-                    self.body = body
-                }
-            }
-            /// Pulse rate limited
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/429`.
-            ///
-            /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Operations.getPulseErrorIssue.Output.TooManyRequests)
-            /// The associated value of the enum case if `self` is `.tooManyRequests`.
-            ///
-            /// - Throws: An error if `self` is not `.tooManyRequests`.
-            /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Operations.getPulseErrorIssue.Output.TooManyRequests {
-                get throws {
-                    switch self {
-                    case let .tooManyRequests(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "tooManyRequests",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct ServiceUnavailable: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/503/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/GET/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorIssue.Output.ServiceUnavailable.Body
-                /// Creates a new `ServiceUnavailable`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorIssue.Output.ServiceUnavailable.Body) {
-                    self.body = body
-                }
-            }
-            /// Pulse unavailable or query result limit exceeded
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/get(getPulseErrorIssue)/responses/503`.
-            ///
-            /// HTTP response code: `503 serviceUnavailable`.
-            case serviceUnavailable(Operations.getPulseErrorIssue.Output.ServiceUnavailable)
-            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
-            ///
-            /// - Throws: An error if `self` is not `.serviceUnavailable`.
-            /// - SeeAlso: `.serviceUnavailable`.
-            public var serviceUnavailable: Operations.getPulseErrorIssue.Output.ServiceUnavailable {
-                get throws {
-                    switch self {
-                    case let .serviceUnavailable(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "serviceUnavailable",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds`.
@@ -99289,6 +94700,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// Available bytes on the macOS system Data volume, excluding purgeable space.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// Disk bytes read per second.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
@@ -99297,6 +94712,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int
+                        /// Total capacity in bytes of the macOS system Data volume.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// Total memory in bytes.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
@@ -99321,8 +94740,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes: Available bytes on the macOS system Data volume, excluding purgeable space.
                         ///   - disk_bytes_read: Disk bytes read per second.
                         ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - disk_total_bytes: Total capacity in bytes of the macOS system Data volume.
                         ///   - memory_total_bytes: Total memory in bytes.
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
@@ -99330,8 +94751,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int,
                             disk_bytes_written: Swift.Int,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
@@ -99339,8 +94762,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -99349,8 +94774,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -104281,9 +99708,25 @@ public enum Operations {
                             public var anthropic_agent_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_environment_id`.
                             public var anthropic_environment_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_federation_rule_id`.
+                            public var anthropic_federation_rule_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_organization_id`.
+                            public var anthropic_organization_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_service_account_id`.
+                            public var anthropic_service_account_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/anthropic_workspace_id`.
+                            public var anthropic_workspace_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/enabled`.
                             public var enabled: Swift.Bool
-                            /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                            /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/federation_issuer_url`.
+                            public var federation_issuer_url: Swift.String
+                            /// The sub claim of the tokens Tuist signs for this environment.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/federation_subject`.
+                            public var federation_subject: Swift.String
+                            /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/has_api_key`.
                             public var has_api_key: Swift.Bool
@@ -104313,6 +99756,8 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/platform`.
                             public var platform: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.platformPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/setup_script`.
+                            public var setup_script: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/template`.
                             public var template: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/updated_at`.
@@ -104321,6 +99766,10 @@ public enum Operations {
                             public var vcpus: Swift.Int
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/workspace_gb`.
                             public var workspace_gb: Swift.Int
+                            /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/xcode_version`.
+                            public var xcode_version: Swift.String?
                             /// Creates a new `agent_environmentsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -104328,8 +99777,14 @@ public enum Operations {
                             ///   - agent_system_prompt:
                             ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                             ///   - anthropic_environment_id:
+                            ///   - anthropic_federation_rule_id:
+                            ///   - anthropic_organization_id:
+                            ///   - anthropic_service_account_id:
+                            ///   - anthropic_workspace_id:
                             ///   - enabled:
-                            ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                            ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                            ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+                            ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                             ///   - id:
                             ///   - inserted_at:
                             ///   - kind:
@@ -104338,16 +99793,24 @@ public enum Operations {
                             ///   - name:
                             ///   - pause_grace_seconds:
                             ///   - platform:
+                            ///   - setup_script:
                             ///   - template:
                             ///   - updated_at:
                             ///   - vcpus:
                             ///   - workspace_gb:
+                            ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
                             public init(
                                 agent_model: Swift.String,
                                 agent_system_prompt: Swift.String? = nil,
                                 anthropic_agent_id: Swift.String? = nil,
                                 anthropic_environment_id: Swift.String,
+                                anthropic_federation_rule_id: Swift.String? = nil,
+                                anthropic_organization_id: Swift.String? = nil,
+                                anthropic_service_account_id: Swift.String? = nil,
+                                anthropic_workspace_id: Swift.String? = nil,
                                 enabled: Swift.Bool,
+                                federation_issuer_url: Swift.String,
+                                federation_subject: Swift.String,
                                 has_api_key: Swift.Bool,
                                 id: Swift.Int,
                                 inserted_at: Foundation.Date,
@@ -104357,16 +99820,24 @@ public enum Operations {
                                 name: Swift.String? = nil,
                                 pause_grace_seconds: Swift.Int,
                                 platform: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.platformPayload,
+                                setup_script: Swift.String? = nil,
                                 template: Swift.String,
                                 updated_at: Foundation.Date,
                                 vcpus: Swift.Int,
-                                workspace_gb: Swift.Int
+                                workspace_gb: Swift.Int,
+                                xcode_version: Swift.String? = nil
                             ) {
                                 self.agent_model = agent_model
                                 self.agent_system_prompt = agent_system_prompt
                                 self.anthropic_agent_id = anthropic_agent_id
                                 self.anthropic_environment_id = anthropic_environment_id
+                                self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                                self.anthropic_organization_id = anthropic_organization_id
+                                self.anthropic_service_account_id = anthropic_service_account_id
+                                self.anthropic_workspace_id = anthropic_workspace_id
                                 self.enabled = enabled
+                                self.federation_issuer_url = federation_issuer_url
+                                self.federation_subject = federation_subject
                                 self.has_api_key = has_api_key
                                 self.id = id
                                 self.inserted_at = inserted_at
@@ -104376,17 +99847,25 @@ public enum Operations {
                                 self.name = name
                                 self.pause_grace_seconds = pause_grace_seconds
                                 self.platform = platform
+                                self.setup_script = setup_script
                                 self.template = template
                                 self.updated_at = updated_at
                                 self.vcpus = vcpus
                                 self.workspace_gb = workspace_gb
+                                self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case agent_model
                                 case agent_system_prompt
                                 case anthropic_agent_id
                                 case anthropic_environment_id
+                                case anthropic_federation_rule_id
+                                case anthropic_organization_id
+                                case anthropic_service_account_id
+                                case anthropic_workspace_id
                                 case enabled
+                                case federation_issuer_url
+                                case federation_subject
                                 case has_api_key
                                 case id
                                 case inserted_at
@@ -104396,10 +99875,12 @@ public enum Operations {
                                 case name
                                 case pause_grace_seconds
                                 case platform
+                                case setup_script
                                 case template
                                 case updated_at
                                 case vcpus
                                 case workspace_gb
+                                case xcode_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environments`.
@@ -104684,6 +100165,22 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_environment_id`.
                     public var anthropic_environment_id: Swift.String
+                    /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_federation_rule_id`.
+                    public var anthropic_federation_rule_id: Swift.String?
+                    /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_organization_id`.
+                    public var anthropic_organization_id: Swift.String?
+                    /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_service_account_id`.
+                    public var anthropic_service_account_id: Swift.String?
+                    /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/anthropic_workspace_id`.
+                    public var anthropic_workspace_id: Swift.String?
                     /// The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/environment_key`.
@@ -104714,13 +100211,21 @@ public enum Operations {
                     public var name: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/pause_grace_seconds`.
                     public var pause_grace_seconds: Swift.Int?
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
                     @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case linux = "linux"
                         case darwin = "darwin"
                     }
+                    /// Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
                     public var platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload?
+                    /// Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/setup_script`.
+                    public var setup_script: Swift.String?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
@@ -104739,6 +100244,10 @@ public enum Operations {
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/workspace_gb`.
                     public var workspace_gb: Swift.Int?
+                    /// macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -104746,21 +100255,31 @@ public enum Operations {
                     ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
                     ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
                     ///   - anthropic_environment_id: The Anthropic environment identifier: env_... or, for claude_code, ccpool_...
+                    ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
                     ///   - environment_key: The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned.
                     ///   - kind: managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform.
                     ///   - max_idle_seconds:
                     ///   - memory_mb:
                     ///   - name:
                     ///   - pause_grace_seconds:
-                    ///   - platform:
+                    ///   - platform: Omitted: `darwin` when `xcode_version` is set, otherwise `linux`.
+                    ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
                     ///   - template: Sandbox template name.
                     ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
+                    ///   - xcode_version: macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life.
                     public init(
                         agent_model: Swift.String? = nil,
                         agent_system_prompt: Swift.String? = nil,
                         anthropic_api_key: Swift.String? = nil,
                         anthropic_environment_id: Swift.String,
+                        anthropic_federation_rule_id: Swift.String? = nil,
+                        anthropic_organization_id: Swift.String? = nil,
+                        anthropic_service_account_id: Swift.String? = nil,
+                        anthropic_workspace_id: Swift.String? = nil,
                         environment_key: Swift.String,
                         kind: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.kindPayload? = nil,
                         max_idle_seconds: Swift.Int? = nil,
@@ -104768,14 +100287,20 @@ public enum Operations {
                         name: Swift.String? = nil,
                         pause_grace_seconds: Swift.Int? = nil,
                         platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload? = nil,
+                        setup_script: Swift.String? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload? = nil,
-                        workspace_gb: Swift.Int? = nil
+                        workspace_gb: Swift.Int? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.agent_model = agent_model
                         self.agent_system_prompt = agent_system_prompt
                         self.anthropic_api_key = anthropic_api_key
                         self.anthropic_environment_id = anthropic_environment_id
+                        self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                        self.anthropic_organization_id = anthropic_organization_id
+                        self.anthropic_service_account_id = anthropic_service_account_id
+                        self.anthropic_workspace_id = anthropic_workspace_id
                         self.environment_key = environment_key
                         self.kind = kind
                         self.max_idle_seconds = max_idle_seconds
@@ -104783,15 +100308,21 @@ public enum Operations {
                         self.name = name
                         self.pause_grace_seconds = pause_grace_seconds
                         self.platform = platform
+                        self.setup_script = setup_script
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_model
                         case agent_system_prompt
                         case anthropic_api_key
                         case anthropic_environment_id
+                        case anthropic_federation_rule_id
+                        case anthropic_organization_id
+                        case anthropic_service_account_id
+                        case anthropic_workspace_id
                         case environment_key
                         case kind
                         case max_idle_seconds
@@ -104799,9 +100330,11 @@ public enum Operations {
                         case name
                         case pause_grace_seconds
                         case platform
+                        case setup_script
                         case template
                         case vcpus
                         case workspace_gb
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/content/application\/json`.
@@ -104842,9 +100375,25 @@ public enum Operations {
                         public var anthropic_agent_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_environment_id`.
                         public var anthropic_environment_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_federation_rule_id`.
+                        public var anthropic_federation_rule_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_organization_id`.
+                        public var anthropic_organization_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_service_account_id`.
+                        public var anthropic_service_account_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/anthropic_workspace_id`.
+                        public var anthropic_workspace_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/enabled`.
                         public var enabled: Swift.Bool
-                        /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/federation_issuer_url`.
+                        public var federation_issuer_url: Swift.String
+                        /// The sub claim of the tokens Tuist signs for this environment.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/federation_subject`.
+                        public var federation_subject: Swift.String
+                        /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/has_api_key`.
                         public var has_api_key: Swift.Bool
@@ -104874,6 +100423,8 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/platform`.
                         public var platform: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.platformPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/setup_script`.
+                        public var setup_script: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/updated_at`.
@@ -104882,6 +100433,10 @@ public enum Operations {
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/workspace_gb`.
                         public var workspace_gb: Swift.Int
+                        /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -104889,8 +100444,14 @@ public enum Operations {
                         ///   - agent_system_prompt:
                         ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                         ///   - anthropic_environment_id:
+                        ///   - anthropic_federation_rule_id:
+                        ///   - anthropic_organization_id:
+                        ///   - anthropic_service_account_id:
+                        ///   - anthropic_workspace_id:
                         ///   - enabled:
-                        ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+                        ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - kind:
@@ -104899,16 +100460,24 @@ public enum Operations {
                         ///   - name:
                         ///   - pause_grace_seconds:
                         ///   - platform:
+                        ///   - setup_script:
                         ///   - template:
                         ///   - updated_at:
                         ///   - vcpus:
                         ///   - workspace_gb:
+                        ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
                         public init(
                             agent_model: Swift.String,
                             agent_system_prompt: Swift.String? = nil,
                             anthropic_agent_id: Swift.String? = nil,
                             anthropic_environment_id: Swift.String,
+                            anthropic_federation_rule_id: Swift.String? = nil,
+                            anthropic_organization_id: Swift.String? = nil,
+                            anthropic_service_account_id: Swift.String? = nil,
+                            anthropic_workspace_id: Swift.String? = nil,
                             enabled: Swift.Bool,
+                            federation_issuer_url: Swift.String,
+                            federation_subject: Swift.String,
                             has_api_key: Swift.Bool,
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
@@ -104918,16 +100487,24 @@ public enum Operations {
                             name: Swift.String? = nil,
                             pause_grace_seconds: Swift.Int,
                             platform: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.platformPayload,
+                            setup_script: Swift.String? = nil,
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
-                            workspace_gb: Swift.Int
+                            workspace_gb: Swift.Int,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_model = agent_model
                             self.agent_system_prompt = agent_system_prompt
                             self.anthropic_agent_id = anthropic_agent_id
                             self.anthropic_environment_id = anthropic_environment_id
+                            self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                            self.anthropic_organization_id = anthropic_organization_id
+                            self.anthropic_service_account_id = anthropic_service_account_id
+                            self.anthropic_workspace_id = anthropic_workspace_id
                             self.enabled = enabled
+                            self.federation_issuer_url = federation_issuer_url
+                            self.federation_subject = federation_subject
                             self.has_api_key = has_api_key
                             self.id = id
                             self.inserted_at = inserted_at
@@ -104937,17 +100514,25 @@ public enum Operations {
                             self.name = name
                             self.pause_grace_seconds = pause_grace_seconds
                             self.platform = platform
+                            self.setup_script = setup_script
                             self.template = template
                             self.updated_at = updated_at
                             self.vcpus = vcpus
                             self.workspace_gb = workspace_gb
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_model
                             case agent_system_prompt
                             case anthropic_agent_id
                             case anthropic_environment_id
+                            case anthropic_federation_rule_id
+                            case anthropic_organization_id
+                            case anthropic_service_account_id
+                            case anthropic_workspace_id
                             case enabled
+                            case federation_issuer_url
+                            case federation_subject
                             case has_api_key
                             case id
                             case inserted_at
@@ -104957,10 +100542,12 @@ public enum Operations {
                             case name
                             case pause_grace_seconds
                             case platform
+                            case setup_script
                             case template
                             case updated_at
                             case vcpus
                             case workspace_gb
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/application\/json`.
@@ -106483,7 +102070,6 @@ public enum Operations {
                     case metrics = "metrics"
                     case logs = "logs"
                     case traces = "traces"
-                    case errors = "errors"
                 }
                 ///
                 ///
@@ -106511,22 +102097,6 @@ public enum Operations {
                 public var end_at: Swift.String?
                 ///
                 ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/environment`.
-                public var environment: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/environment_op`.
-                @frozen public enum environment_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/environment_op`.
-                public var environment_op: Operations.queryPulse.Input.Query.environment_opPayload?
-                ///
-                ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/level`.
                 public var level: Swift.String?
                 /// Filter operator; defaults to exact equality.
@@ -106551,22 +102121,6 @@ public enum Operations {
                 public var page_size: Swift.Int?
                 ///
                 ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/project`.
-                public var project: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/project_op`.
-                @frozen public enum project_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/project_op`.
-                public var project_op: Operations.queryPulse.Input.Query.project_opPayload?
-                ///
-                ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/query`.
                 public var query: Swift.String?
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/range`.
@@ -106580,22 +102134,6 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/range`.
                 public var range: Operations.queryPulse.Input.Query.rangePayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/release`.
-                public var release: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/release_op`.
-                @frozen public enum release_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/release_op`.
-                public var release_op: Operations.queryPulse.Input.Query.release_opPayload?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/search`.
@@ -106616,7 +102154,7 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/service_op`.
                 public var service_op: Operations.queryPulse.Input.Query.service_opPayload?
-                /// Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen_ns/first_seen_ns/count/title/service/project/issue_id.
+                /// Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id.
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/sort_by`.
                 @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -106628,12 +102166,6 @@ public enum Operations {
                     case message = "message"
                     case trace_id = "trace_id"
                     case duration_ms = "duration_ms"
-                    case last_seen_ns = "last_seen_ns"
-                    case first_seen_ns = "first_seen_ns"
-                    case count = "count"
-                    case title = "title"
-                    case project = "project"
-                    case issue_id = "issue_id"
                 }
                 ///
                 ///
@@ -106652,18 +102184,12 @@ public enum Operations {
                 ///
                 /// - Parameters:
                 ///   - end_at:
-                ///   - environment:
-                ///   - environment_op:
                 ///   - level:
                 ///   - level_op:
                 ///   - page:
                 ///   - page_size:
-                ///   - project:
-                ///   - project_op:
                 ///   - query:
                 ///   - range:
-                ///   - release:
-                ///   - release_op:
                 ///   - search:
                 ///   - service:
                 ///   - service_op:
@@ -106671,18 +102197,12 @@ public enum Operations {
                 ///   - sort_order:
                 public init(
                     end_at: Swift.String? = nil,
-                    environment: Swift.String? = nil,
-                    environment_op: Operations.queryPulse.Input.Query.environment_opPayload? = nil,
                     level: Swift.String? = nil,
                     level_op: Operations.queryPulse.Input.Query.level_opPayload? = nil,
                     page: Swift.Int? = nil,
                     page_size: Swift.Int? = nil,
-                    project: Swift.String? = nil,
-                    project_op: Operations.queryPulse.Input.Query.project_opPayload? = nil,
                     query: Swift.String? = nil,
                     range: Operations.queryPulse.Input.Query.rangePayload? = nil,
-                    release: Swift.String? = nil,
-                    release_op: Operations.queryPulse.Input.Query.release_opPayload? = nil,
                     search: Swift.String? = nil,
                     service: Swift.String? = nil,
                     service_op: Operations.queryPulse.Input.Query.service_opPayload? = nil,
@@ -106690,18 +102210,12 @@ public enum Operations {
                     sort_order: Operations.queryPulse.Input.Query.sort_orderPayload? = nil
                 ) {
                     self.end_at = end_at
-                    self.environment = environment
-                    self.environment_op = environment_op
                     self.level = level
                     self.level_op = level_op
                     self.page = page
                     self.page_size = page_size
-                    self.project = project
-                    self.project_op = project_op
                     self.query = query
                     self.range = range
-                    self.release = release
-                    self.release_op = release_op
                     self.search = search
                     self.service = service
                     self.service_op = service_op
@@ -106841,20 +102355,8 @@ public enum Operations {
                         public var meta: Operations.queryPulse.Output.Ok.Body.jsonPayload.metaPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload`.
                         public struct rowsPayloadPayload: Codable, Hashable, Sendable {
-                            /// Occurrence count in the complete filtered selected period, not lifetime or page count.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/count`.
-                            public var count: Swift.Int?
-                            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/culprit`.
-                            public var culprit: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/duration_ms`.
                             public var duration_ms: Swift.Double?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/first_seen_ns`.
-                            public var first_seen_ns: Swift.Int?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/issue_id`.
-                            public var issue_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/labels`.
                             public struct labelsPayload: Codable, Hashable, Sendable {
                                 /// A container of undocumented properties.
@@ -106875,30 +102377,16 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/labels`.
                             public var labels: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.labelsPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/last_seen_ns`.
-                            public var last_seen_ns: Swift.Int?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/latest_event_id`.
-                            public var latest_event_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/level`.
                             public var level: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/message`.
                             public var message: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/name`.
                             public var name: Swift.String?
-                            /// 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_series`.
-                            public var occurrence_series: [[Swift.Int]]?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/platform`.
-                            public var platform: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/project`.
-                            public var project: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/service`.
                             public var service: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/timestamp`.
                             public var timestamp: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/title`.
-                            public var title: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/trace_id`.
                             public var trace_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/value`.
@@ -106965,120 +102453,56 @@ public enum Operations {
                             /// Creates a new `rowsPayloadPayload`.
                             ///
                             /// - Parameters:
-                            ///   - count: Occurrence count in the complete filtered selected period, not lifetime or page count.
-                            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
                             ///   - duration_ms:
-                            ///   - first_seen_ns:
-                            ///   - issue_id:
                             ///   - labels:
-                            ///   - last_seen_ns:
-                            ///   - latest_event_id:
                             ///   - level:
                             ///   - message:
                             ///   - name:
-                            ///   - occurrence_series: 60 zero-filled [bucket_start_unix_seconds, integer_count] pairs from the complete filtered issue cohort before pagination. Buckets are half-open; the final bucket includes the selected period end. Summary level/platform/culprit come from that cohort's newest event.
-                            ///   - platform:
-                            ///   - project:
                             ///   - service:
                             ///   - timestamp:
-                            ///   - title:
                             ///   - trace_id:
                             ///   - value:
                             public init(
-                                count: Swift.Int? = nil,
-                                culprit: Swift.String? = nil,
                                 duration_ms: Swift.Double? = nil,
-                                first_seen_ns: Swift.Int? = nil,
-                                issue_id: Swift.String? = nil,
                                 labels: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.labelsPayload? = nil,
-                                last_seen_ns: Swift.Int? = nil,
-                                latest_event_id: Swift.String? = nil,
                                 level: Swift.String? = nil,
                                 message: Swift.String? = nil,
                                 name: Swift.String? = nil,
-                                occurrence_series: [[Swift.Int]]? = nil,
-                                platform: Swift.String? = nil,
-                                project: Swift.String? = nil,
                                 service: Swift.String? = nil,
                                 timestamp: Swift.String? = nil,
-                                title: Swift.String? = nil,
                                 trace_id: Swift.String? = nil,
                                 value: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.valuePayload? = nil
                             ) {
-                                self.count = count
-                                self.culprit = culprit
                                 self.duration_ms = duration_ms
-                                self.first_seen_ns = first_seen_ns
-                                self.issue_id = issue_id
                                 self.labels = labels
-                                self.last_seen_ns = last_seen_ns
-                                self.latest_event_id = latest_event_id
                                 self.level = level
                                 self.message = message
                                 self.name = name
-                                self.occurrence_series = occurrence_series
-                                self.platform = platform
-                                self.project = project
                                 self.service = service
                                 self.timestamp = timestamp
-                                self.title = title
                                 self.trace_id = trace_id
                                 self.value = value
                             }
                             public enum CodingKeys: String, CodingKey {
-                                case count
-                                case culprit
                                 case duration_ms
-                                case first_seen_ns
-                                case issue_id
                                 case labels
-                                case last_seen_ns
-                                case latest_event_id
                                 case level
                                 case message
                                 case name
-                                case occurrence_series
-                                case platform
-                                case project
                                 case service
                                 case timestamp
-                                case title
                                 case trace_id
                                 case value
                             }
                             public init(from decoder: any Decoder) throws {
                                 let container = try decoder.container(keyedBy: CodingKeys.self)
-                                self.count = try container.decodeIfPresent(
-                                    Swift.Int.self,
-                                    forKey: .count
-                                )
-                                self.culprit = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .culprit
-                                )
                                 self.duration_ms = try container.decodeIfPresent(
                                     Swift.Double.self,
                                     forKey: .duration_ms
                                 )
-                                self.first_seen_ns = try container.decodeIfPresent(
-                                    Swift.Int.self,
-                                    forKey: .first_seen_ns
-                                )
-                                self.issue_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .issue_id
-                                )
                                 self.labels = try container.decodeIfPresent(
                                     Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.labelsPayload.self,
                                     forKey: .labels
-                                )
-                                self.last_seen_ns = try container.decodeIfPresent(
-                                    Swift.Int.self,
-                                    forKey: .last_seen_ns
-                                )
-                                self.latest_event_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .latest_event_id
                                 )
                                 self.level = try container.decodeIfPresent(
                                     Swift.String.self,
@@ -107092,18 +102516,6 @@ public enum Operations {
                                     Swift.String.self,
                                     forKey: .name
                                 )
-                                self.occurrence_series = try container.decodeIfPresent(
-                                    [[Swift.Int]].self,
-                                    forKey: .occurrence_series
-                                )
-                                self.platform = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .platform
-                                )
-                                self.project = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .project
-                                )
                                 self.service = try container.decodeIfPresent(
                                     Swift.String.self,
                                     forKey: .service
@@ -107111,10 +102523,6 @@ public enum Operations {
                                 self.timestamp = try container.decodeIfPresent(
                                     Swift.String.self,
                                     forKey: .timestamp
-                                )
-                                self.title = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .title
                                 )
                                 self.trace_id = try container.decodeIfPresent(
                                     Swift.String.self,
@@ -107125,23 +102533,13 @@ public enum Operations {
                                     forKey: .value
                                 )
                                 try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                    "count",
-                                    "culprit",
                                     "duration_ms",
-                                    "first_seen_ns",
-                                    "issue_id",
                                     "labels",
-                                    "last_seen_ns",
-                                    "latest_event_id",
                                     "level",
                                     "message",
                                     "name",
-                                    "occurrence_series",
-                                    "platform",
-                                    "project",
                                     "service",
                                     "timestamp",
-                                    "title",
                                     "trace_id",
                                     "value"
                                 ])
@@ -107554,7 +102952,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Account, issue or event not found
+            /// Account not found
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/{signal}/get(queryPulse)/responses/404`.
             ///
@@ -107889,6 +103287,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/usage`.
                         public var usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload?
+                        /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -107909,6 +103311,7 @@ public enum Operations {
                         ///   - title:
                         ///   - updated_at:
                         ///   - usage:
+                        ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                         public init(
                             agent_environment_id: Swift.Int,
                             anthropic_agent_id: Swift.String,
@@ -107926,7 +103329,8 @@ public enum Operations {
                             stop_reason: Swift.String? = nil,
                             title: Swift.String? = nil,
                             updated_at: Foundation.Date,
-                            usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload? = nil
+                            usage: Operations.getSandboxAgentSession.Output.Ok.Body.jsonPayload.usagePayload? = nil,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_environment_id = agent_environment_id
                             self.anthropic_agent_id = anthropic_agent_id
@@ -107945,6 +103349,7 @@ public enum Operations {
                             self.title = title
                             self.updated_at = updated_at
                             self.usage = usage
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
@@ -107964,6 +103369,7 @@ public enum Operations {
                             case title
                             case updated_at
                             case usage
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/GET/responses/200/content/application\/json`.
@@ -108386,6 +103792,10 @@ public enum Operations {
                         public var title: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -108404,6 +103814,7 @@ public enum Operations {
                         ///   - stop_reason: The stop reason of the latest idle event the server saw.
                         ///   - title:
                         ///   - updated_at:
+                        ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                         public init(
                             agent_environment_id: Swift.Int,
                             anthropic_agent_id: Swift.String,
@@ -108419,7 +103830,8 @@ public enum Operations {
                             status: Swift.String? = nil,
                             stop_reason: Swift.String? = nil,
                             title: Swift.String? = nil,
-                            updated_at: Foundation.Date
+                            updated_at: Foundation.Date,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_environment_id = agent_environment_id
                             self.anthropic_agent_id = anthropic_agent_id
@@ -108436,6 +103848,7 @@ public enum Operations {
                             self.stop_reason = stop_reason
                             self.title = title
                             self.updated_at = updated_at
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
@@ -108453,6 +103866,7 @@ public enum Operations {
                             case stop_reason
                             case title
                             case updated_at
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/archive/POST/responses/200/content/application\/json`.
@@ -122108,7 +117522,7 @@ public enum Operations {
     }
     /// Update the agent settings of a connected environment.
     ///
-    /// Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.
+    /// Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.
     ///
     /// - Remark: HTTP `PATCH /api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/patch(updateSandboxAgentEnvironment)`.
@@ -122167,25 +117581,73 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_api_key`.
                     public var anthropic_api_key: Swift.String?
+                    /// Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_federation_rule_id`.
+                    public var anthropic_federation_rule_id: Swift.String?
+                    /// Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_organization_id`.
+                    public var anthropic_organization_id: Swift.String?
+                    /// Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_service_account_id`.
+                    public var anthropic_service_account_id: Swift.String?
+                    /// Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/anthropic_workspace_id`.
+                    public var anthropic_workspace_id: Swift.String?
+                    /// Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/setup_script`.
+                    public var setup_script: Swift.String?
+                    /// A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - agent_model: The model agent sessions run.
                     ///   - agent_system_prompt: System prompt of the agent Tuist creates. Defaults to a sandbox-aware coding prompt.
                     ///   - anthropic_api_key: An Anthropic API key with access to the environment's organization. Never returned.
+                    ///   - anthropic_federation_rule_id: Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account.
+                    ///   - anthropic_organization_id: Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key.
+                    ///   - anthropic_service_account_id: Workload Identity Federation: the service account (svac_...) the tokens act as.
+                    ///   - anthropic_workspace_id: Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to.
+                    ///   - setup_script: Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB.
+                    ///   - xcode_version: A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs.
                     public init(
                         agent_model: Swift.String? = nil,
                         agent_system_prompt: Swift.String? = nil,
-                        anthropic_api_key: Swift.String? = nil
+                        anthropic_api_key: Swift.String? = nil,
+                        anthropic_federation_rule_id: Swift.String? = nil,
+                        anthropic_organization_id: Swift.String? = nil,
+                        anthropic_service_account_id: Swift.String? = nil,
+                        anthropic_workspace_id: Swift.String? = nil,
+                        setup_script: Swift.String? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.agent_model = agent_model
                         self.agent_system_prompt = agent_system_prompt
                         self.anthropic_api_key = anthropic_api_key
+                        self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                        self.anthropic_organization_id = anthropic_organization_id
+                        self.anthropic_service_account_id = anthropic_service_account_id
+                        self.anthropic_workspace_id = anthropic_workspace_id
+                        self.setup_script = setup_script
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_model
                         case agent_system_prompt
                         case anthropic_api_key
+                        case anthropic_federation_rule_id
+                        case anthropic_organization_id
+                        case anthropic_service_account_id
+                        case anthropic_workspace_id
+                        case setup_script
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/requestBody/content/application\/json`.
@@ -122226,9 +117688,25 @@ public enum Operations {
                         public var anthropic_agent_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_environment_id`.
                         public var anthropic_environment_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_federation_rule_id`.
+                        public var anthropic_federation_rule_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_organization_id`.
+                        public var anthropic_organization_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_service_account_id`.
+                        public var anthropic_service_account_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/anthropic_workspace_id`.
+                        public var anthropic_workspace_id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/enabled`.
                         public var enabled: Swift.Bool
-                        /// Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        /// The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/federation_issuer_url`.
+                        public var federation_issuer_url: Swift.String
+                        /// The sub claim of the tokens Tuist signs for this environment.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/federation_subject`.
+                        public var federation_subject: Swift.String
+                        /// Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/has_api_key`.
                         public var has_api_key: Swift.Bool
@@ -122258,6 +117736,8 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/platform`.
                         public var platform: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.platformPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/setup_script`.
+                        public var setup_script: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/updated_at`.
@@ -122266,6 +117746,10 @@ public enum Operations {
                         public var vcpus: Swift.Int
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/workspace_gb`.
                         public var workspace_gb: Swift.Int
+                        /// The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -122273,8 +117757,14 @@ public enum Operations {
                         ///   - agent_system_prompt:
                         ///   - anthropic_agent_id: The Anthropic agent Tuist created for this environment's model and system prompt.
                         ///   - anthropic_environment_id:
+                        ///   - anthropic_federation_rule_id:
+                        ///   - anthropic_organization_id:
+                        ///   - anthropic_service_account_id:
+                        ///   - anthropic_workspace_id:
                         ///   - enabled:
-                        ///   - has_api_key: Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions.
+                        ///   - federation_issuer_url: The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console.
+                        ///   - federation_subject: The sub claim of the tokens Tuist signs for this environment.
+                        ///   - has_api_key: Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set.
                         ///   - id:
                         ///   - inserted_at:
                         ///   - kind:
@@ -122283,16 +117773,24 @@ public enum Operations {
                         ///   - name:
                         ///   - pause_grace_seconds:
                         ///   - platform:
+                        ///   - setup_script:
                         ///   - template:
                         ///   - updated_at:
                         ///   - vcpus:
                         ///   - workspace_gb:
+                        ///   - xcode_version: The Xcode a macOS environment's sandboxes boot; null is the default Xcode.
                         public init(
                             agent_model: Swift.String,
                             agent_system_prompt: Swift.String? = nil,
                             anthropic_agent_id: Swift.String? = nil,
                             anthropic_environment_id: Swift.String,
+                            anthropic_federation_rule_id: Swift.String? = nil,
+                            anthropic_organization_id: Swift.String? = nil,
+                            anthropic_service_account_id: Swift.String? = nil,
+                            anthropic_workspace_id: Swift.String? = nil,
                             enabled: Swift.Bool,
+                            federation_issuer_url: Swift.String,
+                            federation_subject: Swift.String,
                             has_api_key: Swift.Bool,
                             id: Swift.Int,
                             inserted_at: Foundation.Date,
@@ -122302,16 +117800,24 @@ public enum Operations {
                             name: Swift.String? = nil,
                             pause_grace_seconds: Swift.Int,
                             platform: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.platformPayload,
+                            setup_script: Swift.String? = nil,
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
-                            workspace_gb: Swift.Int
+                            workspace_gb: Swift.Int,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_model = agent_model
                             self.agent_system_prompt = agent_system_prompt
                             self.anthropic_agent_id = anthropic_agent_id
                             self.anthropic_environment_id = anthropic_environment_id
+                            self.anthropic_federation_rule_id = anthropic_federation_rule_id
+                            self.anthropic_organization_id = anthropic_organization_id
+                            self.anthropic_service_account_id = anthropic_service_account_id
+                            self.anthropic_workspace_id = anthropic_workspace_id
                             self.enabled = enabled
+                            self.federation_issuer_url = federation_issuer_url
+                            self.federation_subject = federation_subject
                             self.has_api_key = has_api_key
                             self.id = id
                             self.inserted_at = inserted_at
@@ -122321,17 +117827,25 @@ public enum Operations {
                             self.name = name
                             self.pause_grace_seconds = pause_grace_seconds
                             self.platform = platform
+                            self.setup_script = setup_script
                             self.template = template
                             self.updated_at = updated_at
                             self.vcpus = vcpus
                             self.workspace_gb = workspace_gb
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_model
                             case agent_system_prompt
                             case anthropic_agent_id
                             case anthropic_environment_id
+                            case anthropic_federation_rule_id
+                            case anthropic_organization_id
+                            case anthropic_service_account_id
+                            case anthropic_workspace_id
                             case enabled
+                            case federation_issuer_url
+                            case federation_subject
                             case has_api_key
                             case id
                             case inserted_at
@@ -122341,10 +117855,12 @@ public enum Operations {
                             case name
                             case pause_grace_seconds
                             case platform
+                            case setup_script
                             case template
                             case updated_at
                             case vcpus
                             case workspace_gb
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/application\/json`.
@@ -131331,6 +126847,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// Available bytes on the macOS system Data volume, excluding purgeable space.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// Disk bytes read per second.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
@@ -131339,6 +126859,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int
+                        /// Total capacity in bytes of the macOS system Data volume.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// Total memory in bytes.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
@@ -131363,8 +126887,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes: Available bytes on the macOS system Data volume, excluding purgeable space.
                         ///   - disk_bytes_read: Disk bytes read per second.
                         ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - disk_total_bytes: Total capacity in bytes of the macOS system Data volume.
                         ///   - memory_total_bytes: Total memory in bytes.
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
@@ -131372,8 +126898,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int,
                             disk_bytes_written: Swift.Int,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
@@ -131381,8 +126909,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -131391,8 +126921,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -141703,6 +137235,10 @@ public enum Operations {
                             public var title: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/updated_at`.
                             public var updated_at: Foundation.Date
+                            /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessionsPayload/xcode_version`.
+                            public var xcode_version: Swift.String?
                             /// Creates a new `agent_sessionsPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -141721,6 +137257,7 @@ public enum Operations {
                             ///   - stop_reason: The stop reason of the latest idle event the server saw.
                             ///   - title:
                             ///   - updated_at:
+                            ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                             public init(
                                 agent_environment_id: Swift.Int,
                                 anthropic_agent_id: Swift.String,
@@ -141736,7 +137273,8 @@ public enum Operations {
                                 status: Swift.String? = nil,
                                 stop_reason: Swift.String? = nil,
                                 title: Swift.String? = nil,
-                                updated_at: Foundation.Date
+                                updated_at: Foundation.Date,
+                                xcode_version: Swift.String? = nil
                             ) {
                                 self.agent_environment_id = agent_environment_id
                                 self.anthropic_agent_id = anthropic_agent_id
@@ -141753,6 +137291,7 @@ public enum Operations {
                                 self.stop_reason = stop_reason
                                 self.title = title
                                 self.updated_at = updated_at
+                                self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case agent_environment_id
@@ -141770,6 +137309,7 @@ public enum Operations {
                                 case stop_reason
                                 case title
                                 case updated_at
+                                case xcode_version
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/GET/responses/200/content/json/agent_sessions`.
@@ -142000,7 +137540,7 @@ public enum Operations {
     }
     /// Start an agent session.
     ///
-    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key. The agent is created on first use with the environment's model and system prompt and reused afterwards.
+    /// Creates a Managed Agents session on the account's connected environment with the prompt as its first message. The environment must hold an Anthropic API key or its Workload Identity Federation ids. The agent is created on first use with the environment's model and system prompt and reused afterwards.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/agent-sessions`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/post(createSandboxAgentSession)`.
@@ -142079,6 +137619,10 @@ public enum Operations {
                     public var repository_url: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/title`.
                     public var title: Swift.String?
+                    /// The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/json/xcode_version`.
+                    public var xcode_version: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
@@ -142091,6 +137635,7 @@ public enum Operations {
                     ///   - repository_ref: Branch, tag or commit sha to check out.
                     ///   - repository_url: HTTPS URL of a repository to clone under /workspace before the agent starts.
                     ///   - title:
+                    ///   - xcode_version: The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode.
                     public init(
                         agent_environment_id: Swift.Int? = nil,
                         agent_id: Swift.String? = nil,
@@ -142100,7 +137645,8 @@ public enum Operations {
                         prompt: Swift.String,
                         repository_ref: Swift.String? = nil,
                         repository_url: Swift.String? = nil,
-                        title: Swift.String? = nil
+                        title: Swift.String? = nil,
+                        xcode_version: Swift.String? = nil
                     ) {
                         self.agent_environment_id = agent_environment_id
                         self.agent_id = agent_id
@@ -142111,6 +137657,7 @@ public enum Operations {
                         self.repository_ref = repository_ref
                         self.repository_url = repository_url
                         self.title = title
+                        self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
                         case agent_environment_id
@@ -142122,6 +137669,7 @@ public enum Operations {
                         case repository_ref
                         case repository_url
                         case title
+                        case xcode_version
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/requestBody/content/application\/json`.
@@ -142195,6 +137743,10 @@ public enum Operations {
                         public var title: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/updated_at`.
                         public var updated_at: Foundation.Date
+                        /// The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/json/xcode_version`.
+                        public var xcode_version: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -142213,6 +137765,7 @@ public enum Operations {
                         ///   - stop_reason: The stop reason of the latest idle event the server saw.
                         ///   - title:
                         ///   - updated_at:
+                        ///   - xcode_version: The Xcode the session's macOS sandbox boots. Null runs the agent environment's.
                         public init(
                             agent_environment_id: Swift.Int,
                             anthropic_agent_id: Swift.String,
@@ -142228,7 +137781,8 @@ public enum Operations {
                             status: Swift.String? = nil,
                             stop_reason: Swift.String? = nil,
                             title: Swift.String? = nil,
-                            updated_at: Foundation.Date
+                            updated_at: Foundation.Date,
+                            xcode_version: Swift.String? = nil
                         ) {
                             self.agent_environment_id = agent_environment_id
                             self.anthropic_agent_id = anthropic_agent_id
@@ -142245,6 +137799,7 @@ public enum Operations {
                             self.stop_reason = stop_reason
                             self.title = title
                             self.updated_at = updated_at
+                            self.xcode_version = xcode_version
                         }
                         public enum CodingKeys: String, CodingKey {
                             case agent_environment_id
@@ -142262,6 +137817,7 @@ public enum Operations {
                             case stop_reason
                             case title
                             case updated_at
+                            case xcode_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/POST/responses/201/content/application\/json`.
@@ -143718,6 +139274,7 @@ public enum Operations {
                             case account_colon_registry_colon_write = "account:registry:write"
                             case account_colon_runners_colon_read = "account:runners:read"
                             case account_colon_runners_colon_write = "account:runners:write"
+                            case account_colon_sandboxes_colon_write = "account:sandboxes:write"
                             case project_colon_previews_colon_read = "project:previews:read"
                             case project_colon_previews_colon_write = "project:previews:write"
                             case project_colon_admin_colon_read = "project:admin:read"
@@ -150043,1190 +145600,6 @@ public enum Operations {
             }
         }
     }
-    /// Get a projected event belonging to a Pulse error issue.
-    ///
-    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}`.
-    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)`.
-    public enum getPulseErrorEvent {
-        public static let id: Swift.String = "getPulseErrorEvent"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/path`.
-            public struct Path: Sendable, Hashable {
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/path/account_handle`.
-                public var account_handle: Swift.String
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/path/issue_id`.
-                public var issue_id: Swift.String
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/path/event_id`.
-                public var event_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle:
-                ///   - issue_id:
-                ///   - event_id:
-                public init(
-                    account_handle: Swift.String,
-                    issue_id: Swift.String,
-                    event_id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.issue_id = issue_id
-                    self.event_id = event_id
-                }
-            }
-            public var path: Operations.getPulseErrorEvent.Input.Path
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query`.
-            public struct Query: Sendable, Hashable {
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/end_at`.
-                public var end_at: Swift.String?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/environment`.
-                public var environment: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/environment_op`.
-                @frozen public enum environment_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/environment_op`.
-                public var environment_op: Operations.getPulseErrorEvent.Input.Query.environment_opPayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/project`.
-                public var project: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/project_op`.
-                @frozen public enum project_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/project_op`.
-                public var project_op: Operations.getPulseErrorEvent.Input.Query.project_opPayload?
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/range`.
-                @frozen public enum rangePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case _15m = "15m"
-                    case _1h = "1h"
-                    case _6h = "6h"
-                    case _24h = "24h"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/range`.
-                public var range: Operations.getPulseErrorEvent.Input.Query.rangePayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/release`.
-                public var release: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/release_op`.
-                @frozen public enum release_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/release_op`.
-                public var release_op: Operations.getPulseErrorEvent.Input.Query.release_opPayload?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/service`.
-                public var service: Swift.String?
-                /// Filter operator; defaults to exact equality.
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/service_op`.
-                @frozen public enum service_opPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                    case eq = "eq"
-                    case contains = "contains"
-                    case not_contains = "not_contains"
-                }
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/query/service_op`.
-                public var service_op: Operations.getPulseErrorEvent.Input.Query.service_opPayload?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - end_at:
-                ///   - environment:
-                ///   - environment_op:
-                ///   - project:
-                ///   - project_op:
-                ///   - range:
-                ///   - release:
-                ///   - release_op:
-                ///   - service:
-                ///   - service_op:
-                public init(
-                    end_at: Swift.String? = nil,
-                    environment: Swift.String? = nil,
-                    environment_op: Operations.getPulseErrorEvent.Input.Query.environment_opPayload? = nil,
-                    project: Swift.String? = nil,
-                    project_op: Operations.getPulseErrorEvent.Input.Query.project_opPayload? = nil,
-                    range: Operations.getPulseErrorEvent.Input.Query.rangePayload? = nil,
-                    release: Swift.String? = nil,
-                    release_op: Operations.getPulseErrorEvent.Input.Query.release_opPayload? = nil,
-                    service: Swift.String? = nil,
-                    service_op: Operations.getPulseErrorEvent.Input.Query.service_opPayload? = nil
-                ) {
-                    self.end_at = end_at
-                    self.environment = environment
-                    self.environment_op = environment_op
-                    self.project = project
-                    self.project_op = project_op
-                    self.range = range
-                    self.release = release
-                    self.release_op = release_op
-                    self.service = service
-                    self.service_op = service_op
-                }
-            }
-            public var query: Operations.getPulseErrorEvent.Input.Query
-            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPulseErrorEvent.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPulseErrorEvent.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.getPulseErrorEvent.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - query:
-            ///   - headers:
-            public init(
-                path: Operations.getPulseErrorEvent.Input.Path,
-                query: Operations.getPulseErrorEvent.Input.Query = .init(),
-                headers: Operations.getPulseErrorEvent.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event`.
-                        public struct eventPayload: Codable, Hashable, Sendable {
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/contexts`.
-                            public struct contextsPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `contextsPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/contexts`.
-                            public var contexts: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.contextsPayload?
-                            /// Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/culprit`.
-                            public var culprit: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/environment`.
-                            public var environment: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/event_id`.
-                            public var event_id: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception`.
-                            public struct exceptionPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/framesPayload`.
-                                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/framesPayload/filename`.
-                                    public var filename: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/framesPayload/function`.
-                                    public var function: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/framesPayload/in_app`.
-                                    public var in_app: Swift.Bool
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/framesPayload/lineno`.
-                                    public var lineno: Swift.Int?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/framesPayload/module`.
-                                    public var module: Swift.String?
-                                    /// Creates a new `framesPayloadPayload`.
-                                    ///
-                                    /// - Parameters:
-                                    ///   - filename:
-                                    ///   - function:
-                                    ///   - in_app:
-                                    ///   - lineno:
-                                    ///   - module:
-                                    public init(
-                                        filename: Swift.String? = nil,
-                                        function: Swift.String? = nil,
-                                        in_app: Swift.Bool,
-                                        lineno: Swift.Int? = nil,
-                                        module: Swift.String? = nil
-                                    ) {
-                                        self.filename = filename
-                                        self.function = function
-                                        self.in_app = in_app
-                                        self.lineno = lineno
-                                        self.module = module
-                                    }
-                                    public enum CodingKeys: String, CodingKey {
-                                        case filename
-                                        case function
-                                        case in_app
-                                        case lineno
-                                        case module
-                                    }
-                                    public init(from decoder: any Decoder) throws {
-                                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                                        self.filename = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .filename
-                                        )
-                                        self.function = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .function
-                                        )
-                                        self.in_app = try container.decode(
-                                            Swift.Bool.self,
-                                            forKey: .in_app
-                                        )
-                                        self.lineno = try container.decodeIfPresent(
-                                            Swift.Int.self,
-                                            forKey: .lineno
-                                        )
-                                        self.module = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .module
-                                        )
-                                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                            "filename",
-                                            "function",
-                                            "in_app",
-                                            "lineno",
-                                            "module"
-                                        ])
-                                    }
-                                }
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/frames`.
-                                public typealias framesPayload = [Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload.framesPayloadPayload]
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/frames`.
-                                public var frames: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload.framesPayload?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/type`.
-                                public var _type: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception/value`.
-                                public var value: Swift.String?
-                                /// Creates a new `exceptionPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - frames:
-                                ///   - _type:
-                                ///   - value:
-                                public init(
-                                    frames: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload.framesPayload? = nil,
-                                    _type: Swift.String? = nil,
-                                    value: Swift.String? = nil
-                                ) {
-                                    self.frames = frames
-                                    self._type = _type
-                                    self.value = value
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case frames
-                                    case _type = "type"
-                                    case value
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.frames = try container.decodeIfPresent(
-                                        Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload.framesPayload.self,
-                                        forKey: .frames
-                                    )
-                                    self._type = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: ._type
-                                    )
-                                    self.value = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .value
-                                    )
-                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "frames",
-                                        "type",
-                                        "value"
-                                    ])
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exception`.
-                            public var exception: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload`.
-                            public struct exceptionsPayloadPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/framesPayload`.
-                                public struct framesPayloadPayload: Codable, Hashable, Sendable {
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/framesPayload/filename`.
-                                    public var filename: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/framesPayload/function`.
-                                    public var function: Swift.String?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/framesPayload/in_app`.
-                                    public var in_app: Swift.Bool
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/framesPayload/lineno`.
-                                    public var lineno: Swift.Int?
-                                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/framesPayload/module`.
-                                    public var module: Swift.String?
-                                    /// Creates a new `framesPayloadPayload`.
-                                    ///
-                                    /// - Parameters:
-                                    ///   - filename:
-                                    ///   - function:
-                                    ///   - in_app:
-                                    ///   - lineno:
-                                    ///   - module:
-                                    public init(
-                                        filename: Swift.String? = nil,
-                                        function: Swift.String? = nil,
-                                        in_app: Swift.Bool,
-                                        lineno: Swift.Int? = nil,
-                                        module: Swift.String? = nil
-                                    ) {
-                                        self.filename = filename
-                                        self.function = function
-                                        self.in_app = in_app
-                                        self.lineno = lineno
-                                        self.module = module
-                                    }
-                                    public enum CodingKeys: String, CodingKey {
-                                        case filename
-                                        case function
-                                        case in_app
-                                        case lineno
-                                        case module
-                                    }
-                                    public init(from decoder: any Decoder) throws {
-                                        let container = try decoder.container(keyedBy: CodingKeys.self)
-                                        self.filename = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .filename
-                                        )
-                                        self.function = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .function
-                                        )
-                                        self.in_app = try container.decode(
-                                            Swift.Bool.self,
-                                            forKey: .in_app
-                                        )
-                                        self.lineno = try container.decodeIfPresent(
-                                            Swift.Int.self,
-                                            forKey: .lineno
-                                        )
-                                        self.module = try container.decodeIfPresent(
-                                            Swift.String.self,
-                                            forKey: .module
-                                        )
-                                        try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                            "filename",
-                                            "function",
-                                            "in_app",
-                                            "lineno",
-                                            "module"
-                                        ])
-                                    }
-                                }
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/frames`.
-                                public typealias framesPayload = [Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayloadPayload.framesPayloadPayload]
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/frames`.
-                                public var frames: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayloadPayload.framesPayload
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/type`.
-                                public var _type: Swift.String?
-                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptionsPayload/value`.
-                                public var value: Swift.String?
-                                /// Creates a new `exceptionsPayloadPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - frames:
-                                ///   - _type:
-                                ///   - value:
-                                public init(
-                                    frames: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayloadPayload.framesPayload,
-                                    _type: Swift.String? = nil,
-                                    value: Swift.String? = nil
-                                ) {
-                                    self.frames = frames
-                                    self._type = _type
-                                    self.value = value
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case frames
-                                    case _type = "type"
-                                    case value
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    let container = try decoder.container(keyedBy: CodingKeys.self)
-                                    self.frames = try container.decode(
-                                        Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayloadPayload.framesPayload.self,
-                                        forKey: .frames
-                                    )
-                                    self._type = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: ._type
-                                    )
-                                    self.value = try container.decodeIfPresent(
-                                        Swift.String.self,
-                                        forKey: .value
-                                    )
-                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                        "frames",
-                                        "type",
-                                        "value"
-                                    ])
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptions`.
-                            public typealias exceptionsPayload = [Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayloadPayload]
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/exceptions`.
-                            public var exceptions: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayload?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/extra`.
-                            public struct extraPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `extraPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/extra`.
-                            public var extra: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.extraPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/issue_id`.
-                            public var issue_id: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/level`.
-                            public var level: Swift.String?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/modules`.
-                            public struct modulesPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `modulesPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/modules`.
-                            public var modules: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.modulesPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/platform`.
-                            public var platform: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/project`.
-                            public var project: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/release`.
-                            public var release: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/service`.
-                            public var service: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/span_id`.
-                            public var span_id: Swift.String?
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/tags`.
-                            public struct tagsPayload: Codable, Hashable, Sendable {
-                                /// A container of undocumented properties.
-                                public var additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer]
-                                /// Creates a new `tagsPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - additionalProperties: A container of undocumented properties.
-                                public init(additionalProperties: [String: OpenAPIRuntime.OpenAPIValueContainer] = .init()) {
-                                    self.additionalProperties = additionalProperties
-                                }
-                                public init(from decoder: any Decoder) throws {
-                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
-                                }
-                                public func encode(to encoder: any Encoder) throws {
-                                    try encoder.encodeAdditionalProperties(additionalProperties)
-                                }
-                            }
-                            /// Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/tags`.
-                            public var tags: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.tagsPayload?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/timestamp`.
-                            public var timestamp: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/timestamp_ns`.
-                            public var timestamp_ns: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/title`.
-                            public var title: Swift.String?
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event/trace_id`.
-                            public var trace_id: Swift.String?
-                            /// Creates a new `eventPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - contexts: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - culprit: Recorded grouping location from the latest exception: last in_app frame, otherwise last frame; module (or filename) and function joined with a dot. Null when absent.
-                            ///   - environment:
-                            ///   - event_id:
-                            ///   - exception:
-                            ///   - exceptions:
-                            ///   - extra: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - issue_id:
-                            ///   - level:
-                            ///   - modules: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - platform:
-                            ///   - project:
-                            ///   - release:
-                            ///   - service:
-                            ///   - span_id:
-                            ///   - tags: Recorded metadata only (tags maps or list-pairs normalize to an object; other sections require maps). Nested JSON scalar types are preserved. Credential/sensitive keys and embedded credentials are redacted. No raw request, user or stack locals. Bounds: depth 5, 50 entries/container, 200 visited nodes/section, 128-byte keys, 1024-byte text plus marker, 4096 serialized bytes/section (16384 across four section values). [REDACTED] and [TRUNCATED] mark removed data; an oversized section becomes a truncation-marker object. Absent/malformed sections are empty objects. Text is untrusted and must be escaped by renderers.
-                            ///   - timestamp:
-                            ///   - timestamp_ns:
-                            ///   - title:
-                            ///   - trace_id:
-                            public init(
-                                contexts: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.contextsPayload? = nil,
-                                culprit: Swift.String? = nil,
-                                environment: Swift.String? = nil,
-                                event_id: Swift.String? = nil,
-                                exception: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload? = nil,
-                                exceptions: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayload? = nil,
-                                extra: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.extraPayload? = nil,
-                                issue_id: Swift.String? = nil,
-                                level: Swift.String? = nil,
-                                modules: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.modulesPayload? = nil,
-                                platform: Swift.String? = nil,
-                                project: Swift.String? = nil,
-                                release: Swift.String? = nil,
-                                service: Swift.String? = nil,
-                                span_id: Swift.String? = nil,
-                                tags: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.tagsPayload? = nil,
-                                timestamp: Swift.String? = nil,
-                                timestamp_ns: Swift.String? = nil,
-                                title: Swift.String? = nil,
-                                trace_id: Swift.String? = nil
-                            ) {
-                                self.contexts = contexts
-                                self.culprit = culprit
-                                self.environment = environment
-                                self.event_id = event_id
-                                self.exception = exception
-                                self.exceptions = exceptions
-                                self.extra = extra
-                                self.issue_id = issue_id
-                                self.level = level
-                                self.modules = modules
-                                self.platform = platform
-                                self.project = project
-                                self.release = release
-                                self.service = service
-                                self.span_id = span_id
-                                self.tags = tags
-                                self.timestamp = timestamp
-                                self.timestamp_ns = timestamp_ns
-                                self.title = title
-                                self.trace_id = trace_id
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case contexts
-                                case culprit
-                                case environment
-                                case event_id
-                                case exception
-                                case exceptions
-                                case extra
-                                case issue_id
-                                case level
-                                case modules
-                                case platform
-                                case project
-                                case release
-                                case service
-                                case span_id
-                                case tags
-                                case timestamp
-                                case timestamp_ns
-                                case title
-                                case trace_id
-                            }
-                            public init(from decoder: any Decoder) throws {
-                                let container = try decoder.container(keyedBy: CodingKeys.self)
-                                self.contexts = try container.decodeIfPresent(
-                                    Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.contextsPayload.self,
-                                    forKey: .contexts
-                                )
-                                self.culprit = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .culprit
-                                )
-                                self.environment = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .environment
-                                )
-                                self.event_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .event_id
-                                )
-                                self.exception = try container.decodeIfPresent(
-                                    Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionPayload.self,
-                                    forKey: .exception
-                                )
-                                self.exceptions = try container.decodeIfPresent(
-                                    Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.exceptionsPayload.self,
-                                    forKey: .exceptions
-                                )
-                                self.extra = try container.decodeIfPresent(
-                                    Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.extraPayload.self,
-                                    forKey: .extra
-                                )
-                                self.issue_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .issue_id
-                                )
-                                self.level = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .level
-                                )
-                                self.modules = try container.decodeIfPresent(
-                                    Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.modulesPayload.self,
-                                    forKey: .modules
-                                )
-                                self.platform = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .platform
-                                )
-                                self.project = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .project
-                                )
-                                self.release = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .release
-                                )
-                                self.service = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .service
-                                )
-                                self.span_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .span_id
-                                )
-                                self.tags = try container.decodeIfPresent(
-                                    Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.tagsPayload.self,
-                                    forKey: .tags
-                                )
-                                self.timestamp = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .timestamp
-                                )
-                                self.timestamp_ns = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .timestamp_ns
-                                )
-                                self.title = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .title
-                                )
-                                self.trace_id = try container.decodeIfPresent(
-                                    Swift.String.self,
-                                    forKey: .trace_id
-                                )
-                                try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                    "contexts",
-                                    "culprit",
-                                    "environment",
-                                    "event_id",
-                                    "exception",
-                                    "exceptions",
-                                    "extra",
-                                    "issue_id",
-                                    "level",
-                                    "modules",
-                                    "platform",
-                                    "project",
-                                    "release",
-                                    "service",
-                                    "span_id",
-                                    "tags",
-                                    "timestamp",
-                                    "timestamp_ns",
-                                    "title",
-                                    "trace_id"
-                                ])
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/event`.
-                        public var event: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload
-                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/json/warnings`.
-                        public var warnings: [Swift.String]
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - event:
-                        ///   - warnings:
-                        public init(
-                            event: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload,
-                            warnings: [Swift.String]
-                        ) {
-                            self.event = event
-                            self.warnings = warnings
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case event
-                            case warnings
-                        }
-                        public init(from decoder: any Decoder) throws {
-                            let container = try decoder.container(keyedBy: CodingKeys.self)
-                            self.event = try container.decode(
-                                Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload.eventPayload.self,
-                                forKey: .event
-                            )
-                            self.warnings = try container.decode(
-                                [Swift.String].self,
-                                forKey: .warnings
-                            )
-                            try decoder.ensureNoAdditionalProperties(knownKeys: [
-                                "event",
-                                "warnings"
-                            ])
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/200/content/application\/json`.
-                    case json(Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.getPulseErrorEvent.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Pulse data
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.getPulseErrorEvent.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.getPulseErrorEvent.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// Invalid parameters or query
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.getPulseErrorEvent.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.getPulseErrorEvent.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// Authentication required
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getPulseErrorEvent.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.getPulseErrorEvent.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// User membership and account read required
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getPulseErrorEvent.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.getPulseErrorEvent.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// Account, issue or event not found
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getPulseErrorEvent.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getPulseErrorEvent.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct TooManyRequests: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/429/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/429/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.TooManyRequests.Body
-                /// Creates a new `TooManyRequests`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.TooManyRequests.Body) {
-                    self.body = body
-                }
-            }
-            /// Pulse rate limited
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/429`.
-            ///
-            /// HTTP response code: `429 tooManyRequests`.
-            case tooManyRequests(Operations.getPulseErrorEvent.Output.TooManyRequests)
-            /// The associated value of the enum case if `self` is `.tooManyRequests`.
-            ///
-            /// - Throws: An error if `self` is not `.tooManyRequests`.
-            /// - SeeAlso: `.tooManyRequests`.
-            public var tooManyRequests: Operations.getPulseErrorEvent.Output.TooManyRequests {
-                get throws {
-                    switch self {
-                    case let .tooManyRequests(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "tooManyRequests",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct ServiceUnavailable: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/503/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/GET/responses/503/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getPulseErrorEvent.Output.ServiceUnavailable.Body
-                /// Creates a new `ServiceUnavailable`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getPulseErrorEvent.Output.ServiceUnavailable.Body) {
-                    self.body = body
-                }
-            }
-            /// Pulse unavailable or query result limit exceeded
-            ///
-            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{issue_id}/events/{event_id}/get(getPulseErrorEvent)/responses/503`.
-            ///
-            /// HTTP response code: `503 serviceUnavailable`.
-            case serviceUnavailable(Operations.getPulseErrorEvent.Output.ServiceUnavailable)
-            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
-            ///
-            /// - Throws: An error if `self` is not `.serviceUnavailable`.
-            /// - SeeAlso: `.serviceUnavailable`.
-            public var serviceUnavailable: Operations.getPulseErrorEvent.Output.ServiceUnavailable {
-                get throws {
-                    switch self {
-                    case let .serviceUnavailable(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "serviceUnavailable",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// List generations associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
@@ -156262,14 +150635,14 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// The names of the enabled flags. Known values: `ai`.
+                        /// The names of the enabled flags. Known values: `guild`.
                         ///
                         /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json/enabled`.
                         public var enabled: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - enabled: The names of the enabled flags. Known values: `ai`.
+                        ///   - enabled: The names of the enabled flags. Known values: `guild`.
                         public init(enabled: [Swift.String]) {
                             self.enabled = enabled
                         }
@@ -166561,6 +160934,8 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
                         public var cpu_usage_percent: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_available_bytes`.
+                        public var disk_available_bytes: Swift.Int?
                         /// Disk bytes read per second.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
@@ -166569,6 +160944,8 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
                         public var disk_bytes_written: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_total_bytes`.
+                        public var disk_total_bytes: Swift.Int?
                         /// Total memory in bytes.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
@@ -166593,8 +160970,10 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_available_bytes:
                         ///   - disk_bytes_read: Disk bytes read per second.
                         ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - disk_total_bytes:
                         ///   - memory_total_bytes: Total memory in bytes.
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
@@ -166602,8 +160981,10 @@ public enum Operations {
                         ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
+                            disk_available_bytes: Swift.Int? = nil,
                             disk_bytes_read: Swift.Int,
                             disk_bytes_written: Swift.Int,
+                            disk_total_bytes: Swift.Int? = nil,
                             memory_total_bytes: Swift.Int,
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
@@ -166611,8 +160992,10 @@ public enum Operations {
                             timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_available_bytes = disk_available_bytes
                             self.disk_bytes_read = disk_bytes_read
                             self.disk_bytes_written = disk_bytes_written
+                            self.disk_total_bytes = disk_total_bytes
                             self.memory_total_bytes = memory_total_bytes
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
@@ -166621,8 +161004,10 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
+                            case disk_available_bytes
                             case disk_bytes_read
                             case disk_bytes_written
+                            case disk_total_bytes
                             case memory_total_bytes
                             case memory_used_bytes
                             case network_bytes_in
@@ -168287,6 +162672,363 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create an upload for a sandbox.
+    ///
+    /// Returns presigned URLs to the account's object storage: PUT a file to `upload_url` and have a command in the sandbox GET `download_url`, which moves large files much faster than a command's stdin. Both expire at `expires_at`, an hour from now, and the file is deleted soon after.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)`.
+    public enum createSandboxUpload {
+        public static let id: Swift.String = "createSandboxUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The sandbox identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/path/sandbox_id`.
+                public var sandbox_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - sandbox_id: The sandbox identifier.
+                public init(
+                    account_handle: Swift.String,
+                    sandbox_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.sandbox_id = sandbox_id
+                }
+            }
+            public var path: Operations.createSandboxUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSandboxUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createSandboxUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createSandboxUpload.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.createSandboxUpload.Input.Path,
+                headers: Operations.createSandboxUpload.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Presigned URL to GET the file from in the sandbox.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json/download_url`.
+                        public var download_url: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date
+                        /// Presigned URL to PUT the file to.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/json/upload_url`.
+                        public var upload_url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - download_url: Presigned URL to GET the file from in the sandbox.
+                        ///   - expires_at:
+                        ///   - upload_url: Presigned URL to PUT the file to.
+                        public init(
+                            download_url: Swift.String,
+                            expires_at: Foundation.Date,
+                            upload_url: Swift.String
+                        ) {
+                            self.download_url = download_url
+                            self.expires_at = expires_at
+                            self.upload_url = upload_url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case download_url
+                            case expires_at
+                            case upload_url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/200/content/application\/json`.
+                    case json(Operations.createSandboxUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createSandboxUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Upload
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createSandboxUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createSandboxUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createSandboxUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createSandboxUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createSandboxUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createSandboxUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createSandboxUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createSandboxUpload.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createSandboxUpload.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createSandboxUpload.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createSandboxUpload.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/uploads/post(createSandboxUpload)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createSandboxUpload.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createSandboxUpload.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }

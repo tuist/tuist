@@ -1,274 +1,221 @@
-{{- define "pulse.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{- define "pulse.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
-{{- end }}
-
-{{- define "pulse.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{- define "pulse.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "pulse.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{- define "pulse.labels" -}}
-helm.sh/chart: {{ include "pulse.chart" . }}
-{{ include "pulse.selectorLabels" . }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{- define "pulse.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "pulse.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{- define "pulse.secretName" -}}
-{{- default (include "pulse.fullname" .) .Values.existingSecret }}
-{{- end }}
-
-{{/*
-Fails rendering early with a readable message instead of letting the release
-crash on boot.
-*/}}
 {{- define "pulse.validate" -}}
-{{- if not .Values.storage.bucket }}
-{{- fail "storage.bucket is required" }}
+{{- if ne .Release.Namespace "observability" }}
+{{- fail "pilot must be in observability" }}
 {{- end }}
-{{- if not .Values.storage.region }}
-{{- fail "storage.region is required" }}
+{{- if not (has .Values.environment (list "staging" "canary" "production" "management")) }}
+{{- fail "Pulse requires an explicit managed environment" }}
 {{- end }}
-{{- $knownLimits := list "max_records" "max_attributes" "max_key_bytes" "max_value_bytes" "max_attribute_bytes" "max_depth" "max_nodes" "max_trace_nodes" "max_otlp_nodes" }}
-{{- range $key, $value := .Values.ingestLimits }}
-{{- if not (has $key $knownLimits) }}
-{{- fail (printf "ingestLimits: unknown setting %q (expected one of %s)" $key (join ", " $knownLimits)) }}
+{{- if or (ne .Values.storage.bucket (include "pulse.bucket" .)) (ne .Values.storage.prefix (include "pulse.prefix" .)) }}
+{{- fail "Pulse must use the selected environment's bucket and isolated prefix" }}
 {{- end }}
-{{- $_ := include "pulse.ingestLimitValue" (list $key $value) }}
+{{- if not (has .Values.topology (list "standalone" "cluster")) }}
+{{- fail "Pulse topology must be standalone or cluster" }}
 {{- end }}
-{{- include "pulse.validateRetention" . }}
-{{- if .Values.ingress.enabled }}
-{{- if not .Values.ingress.paths }}
-{{- fail "ingress.paths needs at least one path when ingress.enabled is true" }}
+{{- if and (ne .Values.environment "management") (ne .Values.topology "cluster") }}
+{{- fail "workload-cluster Pulse must use the distributed cluster topology" }}
 {{- end }}
-{{- range .Values.ingress.paths }}
-{{- if not (hasPrefix "/" (toString .path)) }}
-{{- fail (printf "ingress.paths: %q must start with /" (toString .path)) }}
+{{- if not (has .Values.migration.standalone (list "" "serving" "draining")) }}
+{{- fail "migration.standalone must be empty, serving or draining" }}
 {{- end }}
-{{- if not (has .pathType (list "Exact" "Prefix" "ImplementationSpecific")) }}
-{{- fail (printf "ingress.paths: pathType for %q must be Exact, Prefix, or ImplementationSpecific" (toString .path)) }}
+{{- if and .Values.migration.standalone (not (has .Values.environment (list "staging" "canary"))) }}
+{{- fail "only staging and canary migrate from a standalone backend" }}
 {{- end }}
+{{- if and (eq .Values.environment "management") (or (ne .Values.topology "standalone") (not .Values.persistence.hostPath) (not .Values.nodeSelector)) }}
+{{- fail "management Pulse is standalone on a hostPath volume pinned with nodeSelector" }}
 {{- end }}
-{{- end }}
-{{- range $i, $entry := .Values.workloadIdentity.trust }}
-{{- if not (and $entry.name $entry.issuer $entry.audiences $entry.keys $entry.bindings) }}
-{{- fail (printf "workloadIdentity.trust[%d] needs name, issuer, audiences, keys, and bindings" $i) }}
-{{- end }}
-{{- if not (has (toString $entry.keys.type) (list "inline" "url")) }}
-{{- fail (printf "workloadIdentity.trust[%d].keys.type must be \"inline\" or \"url\"" $i) }}
-{{- end }}
-{{- if and (eq (toString $entry.keys.type) "url") (not (hasPrefix "https://" (toString $entry.keys.url))) }}
-{{- fail (printf "workloadIdentity.trust[%d].keys.url must be an https URL" $i) }}
-{{- end }}
-{{- if kindIs "map" $entry.keys.jwks }}
-{{- range $entry.keys.jwks.keys }}
-{{- if not (hasKey . "n") }}
-{{- fail (printf "workloadIdentity.trust[%d].keys.jwks: every key needs \"n\" (quote it: YAML reads a bare n as false), or paste the JWKS as a JSON string" $i) }}
+{{- if and (eq .Values.topology "cluster") (or (lt (int .Values.cluster.frontend.replicas) 2) (lt (int .Values.cluster.datanode.replicas) 3)) }}
+{{- fail "cluster topology needs at least 2 frontends and 3 datanodes" }}
 {{- end }}
 {{- end }}
+
+{{/* Management shares production's bucket under its own root, which its
+key's IAM policy is limited to; production's Pulse owns pulse/. */}}
+{{- define "pulse.bucket" -}}
+{{ printf "tuist-pulso-%s" (ternary "production" .Values.environment (eq .Values.environment "management")) }}
 {{- end }}
-{{- range $entry.bindings }}
-{{- if not (and .subject .tenant .capabilities) }}
-{{- fail (printf "workloadIdentity.trust[%d].bindings need subject, tenant, and capabilities" $i) }}
+
+{{/* The standalone StatefulSet's pod, apart from the cluster's pods, for
+Service `pulse`. Service selectors take plain labels only. */}}
+{{- define "pulse.standaloneSelector" -}}
+app.kubernetes.io/instance: pulse
+statefulset.kubernetes.io/pod-name: pulse-0
+{{- end }}
+
+{{/* The same pod for network policies: the only Pulse pod without a component.
+Cilium leaves statefulset.kubernetes.io/pod-name out of a pod's identity, so a
+policy selecting it never matches and the pod falls back to pulse-internal. */}}
+{{- define "pulse.standalonePolicySelector" -}}
+matchLabels:
+  app.kubernetes.io/instance: pulse
+matchExpressions:
+  - {key: app.kubernetes.io/component, operator: DoesNotExist}
+{{- end }}
+
+{{- define "pulse.prefix" -}}
+{{ ternary "management/" "pulse/" (eq .Values.environment "management") }}
+{{- end }}
+
+{{/* Environments whose frontends also speak PostgreSQL on 4003, for Grafana's
+PostgreSQL data source (SQL alert rules over logs); only the PDC agent may
+reach it. The list lives here rather than in values so adding an environment
+changes only that environment's config checksums and restarts. */}}
+{{- define "pulse.postgres" -}}
+{{- if and (eq .Values.topology "cluster") (has .Values.environment (list "production")) }}true{{ end }}
+{{- end }}
+
+{{- define "pulse.readerNamespace" -}}
+{{- if eq .Values.environment "management" }}observability
+{{- else }}{{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
 {{- end }}
 {{- end }}
+
+{{- define "pulse.podSecurityContext" -}}
+runAsNonRoot: true
+runAsUser: 1000
+runAsGroup: 1000
+fsGroup: 1000
+seccompProfile:
+  type: RuntimeDefault
 {{- end }}
-{{- if not .Values.existingSecret }}
-{{- if and (not .Values.tenantTokens) (not .Values.workloadIdentity.trust) (not .Values.tenantRegistry.enabled) (not .Values.issuer) }}
-{{- fail "tenantTokens needs at least one tenant unless workloadIdentity.trust, tenantRegistry.enabled or issuer is set (or set existingSecret)" }}
+
+{{- define "pulse.containerSecurityContext" -}}
+allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
+capabilities:
+  drop: [ALL]
 {{- end }}
-{{- range .Values.admin.tokenHashes }}
-{{- if not (regexMatch "^sha256\\$[0-9a-f]{64}$" (toString .)) }}
-{{- fail "admin.tokenHashes entries must be \"sha256$\" followed by 64 lowercase hex characters (digests, not tokens)" }}
+
+{{/* Spread replicas of one component across general nodes, never two per host. */}}
+{{- define "pulse.placement" -}}
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: pulse
+            app.kubernetes.io/component: {{ . }}
+{{- end }}
+
+{{/* Combines the pilot and scoped dashboard identities into one passwd file. */}}
+{{- define "pulse.authInit" -}}
+{{- if .Values.dashboard.enabled }}
+  - name: combine-auth
+    image: busybox:1.37.0
+    command: [sh, -ec]
+    args:
+      - 'umask 077; cat /inputs/pilot /inputs/dashboard > /auth/passwd'
+    securityContext:
+      {{- include "pulse.containerSecurityContext" . | nindent 6 }}
+    resources:
+      requests: {cpu: 10m, memory: 16Mi}
+      limits: {memory: 32Mi}
+    volumeMounts:
+      - {name: auth-inputs, mountPath: /inputs, readOnly: true}
+      - {name: auth, mountPath: /auth}
 {{- end }}
 {{- end }}
-{{- range $tenant, $digest := .Values.tenantTokens }}
-{{- if not (regexMatch "^[A-Za-z0-9_.-]{1,128}$" $tenant) }}
-{{- fail (printf "tenantTokens: %q is not a valid tenant name (letters, digits, '_', '.', '-', at most 128)" $tenant) }}
+
+{{- define "pulse.authVolumes" -}}
+- name: auth
+  {{- if .Values.dashboard.enabled }}
+  emptyDir: {medium: Memory, sizeLimit: 1Mi}
+- name: auth-inputs
+  projected:
+    defaultMode: 0440
+    sources:
+      - secret:
+          name: pulse-auth
+          items: [{key: passwd, path: pilot}]
+      - secret:
+          name: pulse-dashboard-auth
+          items: [{key: passwd, path: dashboard}]
+  {{- else }}
+  secret: {secretName: pulse-auth, defaultMode: 0440}
+  {{- end }}
 {{- end }}
-{{- if not (regexMatch "^sha256\\$[0-9a-f]{64}$" (toString $digest)) }}
-{{- fail (printf "tenantTokens.%s must be \"sha256$\" followed by 64 lowercase hex characters (a digest, not the token)" $tenant) }}
+
+{{/* Who may reach the authenticated HTTP API on port 4000. */}}
+{{- define "pulse.apiIngress" -}}
+- from:
+    - podSelector: {}
+  ports:
+    - {port: 4000, protocol: TCP}
+{{- if .Values.dashboard.enabled }}
+{{- if ne .Values.environment "management" }}
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "pulse.readerNamespace" . }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: server
+  ports:
+    - {port: 4000, protocol: TCP}
 {{- end }}
-{{- end }}
-{{- if or (not .Values.storage.accessKeyId) (not .Values.storage.secretAccessKey) }}
-{{- fail "storage.accessKeyId and storage.secretAccessKey are required (or set existingSecret)" }}
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "pulse.readerNamespace" . }}
+      podSelector:
+        matchLabels:
+          {{- if eq .Values.environment "management" }}
+          # infra/flux/pulse-pdc: management has no Tuist server or chart.
+          app.kubernetes.io/name: pdc-agent
+          app.kubernetes.io/instance: pulse
+          {{- else }}
+          app.kubernetes.io/name: tuist
+          app.kubernetes.io/instance: tuist
+          {{- end }}
+          app.kubernetes.io/component: pdc-agent
+  ports:
+    - {port: 4000, protocol: TCP}
+    {{- if include "pulse.postgres" . }}
+    - {port: 4003, protocol: TCP}
+    {{- end }}
+{{- if ne .Values.environment "management" }}
+# Kura posts its copy of each error to /v1/sentry/ (the tuist chart's
+# sentryPulse). The server's web pods already have the rule above; no other
+# producer is admitted. hostNetwork Kura pods carry a node's identity and come
+# in through pulse-host-ingress.
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kura
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kura
+  ports:
+    - {port: 4000, protocol: TCP}
 {{- end }}
 {{- end }}
 {{- end }}
 
-{{/*
-Renders an ingest limit as a decimal string, failing unless it is an integer
-in 1..2147483647, the range config/runtime.exs accepts. Values files parse
-numbers as floats and --set-string passes strings, so both are handled.
-Takes (list key value).
-*/}}
-{{- define "pulse.ingestLimitValue" -}}
-{{- $key := index . 0 }}
-{{- $value := index . 1 }}
-{{- $n := -1 }}
-{{- if kindIs "string" $value }}
-{{- if regexMatch "^[0-9]{1,10}$" $value }}
-{{- $n = atoi $value }}
-{{- end }}
-{{- else if kindIs "float64" $value }}
-{{- if eq (float64 (int64 $value)) $value }}
-{{- $n = int64 $value }}
-{{- end }}
-{{- else if or (kindIs "int" $value) (kindIs "int64" $value) }}
-{{- $n = int64 $value }}
-{{- end }}
-{{- if or (lt (int64 $n) 1) (gt (int64 $n) 2147483647) }}
-{{- fail (printf "ingestLimits.%s must be an integer between 1 and 2147483647, got %v" $key $value) }}
-{{- end }}
-{{- printf "%d" (int64 $n) }}
+{{- define "pulse.logging" -}}
+[logging]
+level = "info"
+log_format = "json"
+append_stdout = true
+enable_file_logging = false
 {{- end }}
 
-{{/*
-Renders an integer setting as a decimal string, failing unless it is a whole
-number within the inclusive range config/runtime.exs accepts. Fractions are
-rejected rather than truncated. Takes (list name value min max).
-*/}}
-{{- define "pulse.boundedInteger" -}}
-{{- $name := index . 0 }}
-{{- $value := index . 1 }}
-{{- $min := int64 (index . 2) }}
-{{- $max := int64 (index . 3) }}
-{{- $n := -1 }}
-{{- $valid := false }}
-{{- if kindIs "string" $value }}
-{{- if regexMatch "^[0-9]{1,10}$" $value }}
-{{- $n = atoi $value }}
-{{- $valid = true }}
-{{- end }}
-{{- else if kindIs "float64" $value }}
-{{- if eq (float64 (int64 $value)) $value }}
-{{- $n = int64 $value }}
-{{- $valid = true }}
-{{- end }}
-{{- else if or (kindIs "int" $value) (kindIs "int64" $value) }}
-{{- $n = int64 $value }}
-{{- $valid = true }}
-{{- end }}
-{{- if or (not $valid) (lt (int64 $n) $min) (gt (int64 $n) $max) }}
-{{- fail (printf "%s must be an integer between %d and %d, got %v" $name $min $max $value) }}
-{{- end }}
-{{- printf "%d" (int64 $n) }}
+{{- define "pulse.svc" -}}
+{{ . }}.observability.svc.cluster.local
 {{- end }}
 
-{{/*
-Validates retention values. Called from pulse.validate so rendering fails
-before the release would crash on boot.
-*/}}
-{{- define "pulse.validateRetention" -}}
-{{- $r := .Values.retention }}
-{{- if not (kindIs "bool" $r.enabled) }}
-{{- fail "retention.enabled must be true or false" }}
-{{- end }}
-{{- if not (has (toString $r.mode) (list "observe" "enforce" "paused")) }}
-{{- fail (printf "retention.mode must be observe, enforce, or paused, got %v" $r.mode) }}
-{{- end }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.logsDays" $r.logsDays 0 3650) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.metricsDays" $r.metricsDays 0 3650) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.tracesDays" $r.tracesDays 0 3650) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.deleteGraceMs" $r.deleteGraceMs 60000 2592000000) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.intervalMs" $r.intervalMs 1000 3600000) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.deleteLimit" $r.deleteLimit 1 512) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.timeoutMs" $r.timeoutMs 1000 600000) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.migrationTimeoutMs" $r.migrationTimeoutMs 30000 3600000) }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.futureSkewMs" $r.futureSkewMs 0 86400000) }}
-{{- if ne (toString $r.sweepHorizonDays) "" }}
-{{- $_ := include "pulse.boundedInteger" (list "retention.sweepHorizonDays" $r.sweepHorizonDays 1 7302) }}
-{{- end }}
-{{- end }}
-
-{{/*
-Pod termination grace. When the retention worker runs (enabled, or either
-duration positive) it is raised to cover the pre-stop delay, one full
-maintenance operation (or, in enforce mode with a positive duration, one
-manifest conversion), and a 15-second drain margin, because stopping a node does not cancel in-flight storage calls.
-*/}}
-{{- define "pulse.terminationGracePeriodSeconds" -}}
-{{- $configured := int64 .Values.terminationGracePeriodSeconds }}
-{{- $r := .Values.retention }}
-{{- if or $r.enabled (gt (int64 (include "pulse.boundedInteger" (list "retention.logsDays" $r.logsDays 0 3650))) 0) (gt (int64 (include "pulse.boundedInteger" (list "retention.metricsDays" $r.metricsDays 0 3650))) 0) (gt (int64 (include "pulse.boundedInteger" (list "retention.tracesDays" $r.tracesDays 0 3650))) 0) }}
-{{- $logsDays := int64 (include "pulse.boundedInteger" (list "retention.logsDays" $r.logsDays 0 3650)) }}
-{{- $metricsDays := int64 (include "pulse.boundedInteger" (list "retention.metricsDays" $r.metricsDays 0 3650)) }}
-{{- $tracesDays := int64 (include "pulse.boundedInteger" (list "retention.tracesDays" $r.tracesDays 0 3650)) }}
-{{- $operationMs := int64 (include "pulse.boundedInteger" (list "retention.timeoutMs" $r.timeoutMs 1000 600000)) }}
-{{- if and (eq (toString $r.mode) "enforce") (or (gt $logsDays 0) (gt $metricsDays 0) (gt $tracesDays 0)) }}
-{{- $operationMs = max $operationMs (int64 (include "pulse.boundedInteger" (list "retention.migrationTimeoutMs" $r.migrationTimeoutMs 30000 3600000))) }}
-{{- end }}
-{{- $timeoutSeconds := div (add $operationMs 999) 1000 }}
-{{- $required := add $timeoutSeconds (int64 .Values.preStopSleepSeconds) 15 }}
-{{- max $configured $required }}
-{{- else }}
-{{- $configured }}
-{{- end }}
-{{- end }}
-
-{{/*
-Checksum of the deterministic Secret inputs, so pods roll when credentials
-change. A generated secret key base is excluded: it never changes once
-created, and hashing a second random draw would differ from the stored one.
-*/}}
-{{- define "pulse.secretChecksum" -}}
-{{- dict "secretKeyBase" .Values.secretKeyBase "tenantTokens" .Values.tenantTokens "adminTokenHashes" .Values.admin.tokenHashes "accessKeyId" .Values.storage.accessKeyId "secretAccessKey" .Values.storage.secretAccessKey | toJson | sha256sum }}
-{{- end }}
-
-{{/*
-Name of a pool's resources: the release fullname for the combined Deployment,
-or "<fullname>-<pool>". Takes (list $ pool).
-*/}}
-{{- define "pulse.poolName" -}}
-{{- $root := index . 0 }}
-{{- $pool := index . 1 }}
-{{- if $pool }}
-{{- printf "%s-%s" (include "pulse.fullname" $root) $pool | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- include "pulse.fullname" $root }}
-{{- end }}
-{{- end }}
-
-{{/*
-Whether pods join the Erlang cluster used for rendezvous ownership. Takes
-(list $ pool); every pool joins one cluster when clustering is enabled.
-*/}}
-{{- define "pulse.clustered" -}}
-{{- if (index . 0).Values.clustering.enabled }}true{{- end }}
-{{- end }}
-
-{{/*
-Validated manifest format: paged or flat.
-*/}}
-{{- define "pulse.manifestFormat" -}}
-{{- $format := toString .Values.manifestFormat -}}
-{{- if not (has $format (list "paged" "flat")) -}}
-{{- fail (printf "manifestFormat must be paged or flat, got %q" $format) -}}
+{{- define "pulse.peers" -}}
+{{- $name := index . 0 -}}{{- $port := index . 1 -}}
+{{- $peers := list -}}
+{{- range $i := until 3 -}}
+{{- $peers = append $peers (printf "\"%s-%d.%s.observability.svc.cluster.local:%d\"" $name $i $name (int $port)) -}}
 {{- end -}}
-{{- $format -}}
-{{- end -}}
+[{{ join ", " $peers }}]
+{{- end }}
+
+{{/* Each region keeps the WAL topic it was created with, and metasrv keeps
+serving every topic it ever created, so changing this only moves new regions. */}}
+{{- define "pulse.walTopicPrefix" -}}
+pulse_wal_topic
+{{- end }}

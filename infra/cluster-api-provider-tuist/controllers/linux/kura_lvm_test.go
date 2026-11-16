@@ -185,12 +185,10 @@ func TestKuraLVMThinPoolPreparation(t *testing.T) {
 }
 
 func TestKuraLVMBootstrapOrdering(t *testing.T) {
-	for _, key := range []string{kuraCacheTaintKey, "tuist.dev/runner-cache"} {
-		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "node", KuraLVM: true, Taints: []corev1.Taint{{Key: key, Effect: corev1.TaintEffectNoSchedule}}})
-		guard, lvm, quota := strings.Index(script, "already joined as"), strings.Index(script, "kura_lvm_setup()"), strings.Index(script, dataProjectQuotaPath)
-		if guard < 0 || lvm < guard || quota < lvm {
-			t.Fatal("conversion must follow joined guard and precede quotas/binds")
-		}
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "node", KuraLVM: true, Taints: []corev1.Taint{{Key: kuraCacheTaintKey, Effect: corev1.TaintEffectNoSchedule}}})
+	guard, lvm, quota := strings.Index(script, "already joined as"), strings.Index(script, "kura_lvm_setup()"), strings.Index(script, dataProjectQuotaPath)
+	if guard < 0 || lvm < guard || quota < lvm {
+		t.Fatal("conversion must follow joined guard and precede quotas/binds")
 	}
 	if strings.Contains(renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "runner"}), "kura_lvm_setup()") {
 		t.Fatal("non-cache host must not convert storage")
@@ -249,11 +247,9 @@ dmsetup() { echo "striped          v1.6.0"; [ ! -f "$r/thin-loaded" ] || echo "t
 `
 
 func TestKuraLVMBootstrapRequiresExplicitOptIn(t *testing.T) {
-	for _, key := range []string{kuraCacheTaintKey, "tuist.dev/runner-cache"} {
-		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "legacy-cache", Taints: []corev1.Taint{{Key: key}}})
-		if strings.Contains(script, "kura_lvm_setup()") || strings.Contains(script, "dm_thin_pool") {
-			t.Fatal("cache taint alone must retain the full legacy data disk")
-		}
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "legacy-cache", Taints: []corev1.Taint{{Key: kuraCacheTaintKey}}})
+	if strings.Contains(script, "kura_lvm_setup()") || strings.Contains(script, "dm_thin_pool") {
+		t.Fatal("cache taint alone must retain the full legacy data disk")
 	}
 	if kuraLVMRequested(nil) || kuraLVMRequested(map[string]string{"tuist.dev/kura-storage-layout": "unknown"}) {
 		t.Fatal("layout must be explicitly opted in")

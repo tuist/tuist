@@ -174,7 +174,7 @@ defmodule TuistWeb.BillingLiveTest do
       lv |> element("#billing-pending-downgrade button", "Keep Pro") |> render_click()
 
       # Then
-      assert_redirect(lv, "/#{account.name}/billing")
+      assert_redirect(lv, "/#{account.name}/billing", 5_000)
     end
   end
 

@@ -249,34 +249,41 @@ defmodule TuistWeb.CoverageLiveTest do
              )
 
       refute has_element?(lv, "[data-part='analytics'] [data-part='view-more']")
+    end
+  end
 
-      stub(Tuist.FeatureFlags, :coverage_enabled?, fn _account, _project -> false end)
+  describe "build systems" do
+    test "shows the pages of Xcode, Mix, Cargo and Gradle projects in every account and no others", %{
+      conn: conn,
+      organization: organization
+    } do
+      # Production, where coverage once needed an account flag.
+      stub(Tuist.Environment, :env, fn -> :prod end)
 
-      assert_raise NotFoundError, fn ->
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+      for build_system <- [:xcode, :mix, :cargo, :gradle] do
+        project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
+        assert {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+      end
+
+      for build_system <- [:bazel, :once] do
+        project = ProjectsFixtures.project_fixture(account: organization.account, build_system: build_system)
+        base = "/#{organization.account.name}/#{project.name}/tests/coverage"
+
+        for path <- [base, base <> "/commits/#{String.duplicate("a", 40)}", base <> "/files/Sources/A.swift"] do
+          assert_raise NotFoundError, fn -> live(conn, path) end
+        end
       end
     end
   end
 
-  describe "early access" do
-    test "shows a Mix project's page without the coverage flag and hides an Xcode project's", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      mix_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :mix)
-      stub(Tuist.Environment, :env, fn -> :prod end)
+  describe "sidebar" do
+    test "lists Code Coverage for a Cargo project", %{conn: conn, organization: organization} do
+      cargo_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :cargo)
+      base = ~p"/#{organization.account.name}/#{cargo_project.name}/tests/coverage"
 
-      stub(FunWithFlags, :enabled?, fn
-        :xcode_coverage, _opts -> false
-        flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
-      end)
+      {:ok, lv, _html} = live(conn, base)
 
-      assert {:ok, _lv, _html} = live(conn, ~p"/#{organization.account.name}/#{mix_project.name}/tests/coverage")
-
-      assert_raise NotFoundError, fn ->
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
-      end
+      assert has_element?(lv, "a[href='#{base}']", "Code Coverage")
     end
   end
 

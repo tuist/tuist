@@ -267,7 +267,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["protocolVersion"] == "2026-07-28"
       assert response["serverInfo"]["name"] == server.name
       assert response["serverInfo"]["version"] == server.version
-      assert response["serverInfo"]["version"] == "1.56.0"
+      assert response["serverInfo"]["version"] == "1.69.0"
       assert response["serverInfo"]["title"] == "Tuist"
       assert response["transport"]["type"] == "streamable-http"
       assert response["transport"]["endpoint"] == "/mcp"
@@ -288,6 +288,27 @@ defmodule TuistWeb.WellKnownControllerTest do
       refute response["instructions"] =~ "agent_auth.skill"
       assert response["tools"] == ["dynamic"]
       assert response["prompts"] == ["dynamic"]
+    end
+  end
+
+  describe "GET /en/docs/context7.json" do
+    test "serves the Context7 ownership file instead of a docs page on Tuist-hosted deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> true end)
+
+      conn = get(conn, "/en/docs/context7.json")
+
+      assert json_response(conn, 200) == %{
+               "url" => "https://context7.com/websites/tuist_dev_en",
+               "public_key" => "pk_j1C6JsIPmcYwdZliFNUp7"
+             }
+    end
+
+    test "returns not found for on-premise deployments", %{conn: conn} do
+      expect(Environment, :tuist_hosted?, fn -> false end)
+
+      conn = get(conn, "/en/docs/context7.json")
+
+      assert response(conn, 404) == ""
     end
   end
 

@@ -142,6 +142,16 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
   defp reasons(%{gap_reasons: mask}), do: GapReasons.decode(mask)
 
+  # Once the listed commits' file changes are written the listings are read
+  # from them, and the answer must not change.
+  defp assert_same_from_file_changes(project) do
+    listed = Reported.compute(project, "head")
+    Oban.drain_queue(queue: :coverage_deltas, with_recursion: true, with_safety: false)
+
+    assert Tuist.Repo.exists?(from(l in Tuist.GitHistory.CommitListing, where: not is_nil(l.changes_ref_id)))
+    assert Reported.compute(project, "head") == listed
+  end
+
   # A skipped test without evidence of its own: what the base's run collected
   # tells why.
   defp missing_evidence_runs(project, account, status, target_scope?, opts \\ []) do
@@ -286,6 +296,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     trim = Enum.find(input.tests, &(&1.name == "testTrim()"))
     assert %{reproduced: %{sha: "base", run_id: run_id}} = Input.evidence(input, trim.test_case_id)
     assert run_id == base.id
+
+    assert_same_from_file_changes(project)
   end
 
   test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{
@@ -772,14 +784,15 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
       call_original(GitHistory, :ancestors, [repository_id, sha])
     end)
 
-    stub(GitHistory, :tracked_files, fn project, repository_id, sha ->
-      send(test_pid, {:tracked_files, sha})
-      call_original(GitHistory, :tracked_files, [project, repository_id, sha])
+    stub(GitHistory, :changed_files, fn repository_id, from_sha, to_sha, opts ->
+      send(test_pid, {:tracked_files, from_sha})
+      call_original(GitHistory, :changed_files, [repository_id, from_sha, to_sha, opts])
     end)
 
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
 
     refute_received :window_walk
+    assert_received {:tracked_files, "base"}
     refute_received {:tracked_files, "root"}
   end
 
@@ -1012,6 +1025,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     baseline_lists_runs(project, account, [{"Tests/AppTests.swift", "blob-Tests/AppTests.swift"}])
 
     assert %{skipped_tests_count: 1, carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "a skipped target whose test files changed since the baseline is a gap", %{project: project, account: account} do
@@ -1019,6 +1034,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert :test_list_changed in reasons(reported)
+
+    assert_same_from_file_changes(project)
   end
 
   test "a skipped target with a test file added beside its own since the baseline is a gap", %{
@@ -1032,6 +1049,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
     assert :test_list_changed in reasons(reported)
+
+    assert_same_from_file_changes(project)
   end
 
   test "carries a test from the run whose version of it the commit reproduces, on another branch", %{
@@ -1473,6 +1492,68 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
+  # A monorepo commit lists every toolchain's build files; only the project's
+  # own build system's decide whether its evidence still holds.
+  test "an Xcode project carries across a commit that changes only Mix's and Gradle's build inputs", %{
+    project: project,
+    account: account
+  } do
+    track_default_files()
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    record_build_inputs(
+      account,
+      %{"Package.resolved" => "one", "server/mix.lock" => "one", "android/build.gradle.kts" => "one"},
+      %{"Package.resolved" => "one", "server/mix.lock" => "two", "android/build.gradle.kts" => "two"}
+    )
+
+    assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+
+    record_build_inputs(account, %{"Package.resolved" => "one"}, %{"Package.resolved" => "two"})
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+  end
+
+  for {build_system, input} <- [
+        mix: "server/config/runtime.exs",
+        cargo: "crates/cli/Cargo.lock",
+        gradle: "android/app/build.gradle.kts"
+      ] do
+    @build_system build_system
+    @input input
+
+    test "a #{build_system} project is not stopped by a commit that changes only Xcode's build inputs", %{
+      project: project,
+      account: account
+    } do
+      track_default_files()
+      project = project |> Ecto.Changeset.change(build_system: @build_system) |> Tuist.Repo.update!()
+      base_run(project, account)
+      head_run(project, account, head_files())
+
+      record_build_inputs(account, %{"Package.resolved" => "one", @input => "one"}, %{
+        "Package.resolved" => "two",
+        @input => "one"
+      })
+
+      assert %{kind: "reported", carried_tests_count: 1} = reported = Reported.compute(project, "head")
+      assert reasons(reported) == []
+
+      record_build_inputs(account, %{@input => "one"}, %{@input => "two"})
+      assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+    end
+  end
+
+  defp record_build_inputs(account, base, head) do
+    repository_id = CoverageFixtures.repository_id(account)
+
+    for {sha, blobs} <- [{"base", base}, {"head", head}] do
+      listing = Enum.map(blobs, fn {path, blob} -> %{path: path, git_blob_id: blob, mode: 0o100644} end)
+      GitHistory.record_listing(repository_id, sha, listing, files_count: length(listing))
+    end
+  end
+
   test "a commit that changes a tracked file carries nothing without reading any evidence", %{
     project: project,
     account: account
@@ -1505,6 +1586,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:tracked_file_changed]
     refute_received :window_walk
+
+    assert_same_from_file_changes(project)
   end
 
   test "without the first parent's listing, each source is checked for changed tracked files", %{
@@ -1527,6 +1610,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "head", listing, files_count: 1)
 
     assert %{kind: "reported", carried_tests_count: 1, carried_from: ["root"]} = Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "a merge commit carries from the merged side that made its tracked-file change", %{
@@ -1550,6 +1635,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
 
     assert %{kind: "reported", carried_tests_count: 1, carried_from: ["feature"]} = Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "without the head's listing, whether a tracked file changed is unknown and nothing is carried", %{
@@ -1566,6 +1653,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:listing_missing]
+
+    assert_same_from_file_changes(project)
   end
 
   test "a truncated listing cannot say a tracked file is unchanged, and nothing is carried", %{
@@ -1583,6 +1672,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:listing_missing]
+
+    assert_same_from_file_changes(project)
   end
 
   test "keeps an unchanged file no run at the commit compiled, with what was carried into it", %{
@@ -1599,6 +1690,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "reported", covered_lines: 5, executable_lines: 7, gap_files_count: 0} =
              Reported.compute(project, "head")
+
+    assert_same_from_file_changes(project)
   end
 
   test "lists as without coverage data only the unbuilt files the reported coverage does not keep", %{
@@ -1754,6 +1847,80 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     # Mix records no per-test evidence, so the skipped test is a gap.
     assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
              reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == [:collection_off]
+  end
+
+  # A Gradle run reports its modules by project path and its suites by class,
+  # and `-x :app:test` skips a whole module by identifier.
+  defp gradle_runs(project, account, evidence?) do
+    project = project |> Ecto.Changeset.change(build_system: :gradle) |> Tuist.Repo.update!()
+    jacoco = &%{tool: "jacoco", tool_version: "0.8.16", partial: &1, files: &2}
+    calc = "core/src/main/java/dev/tuist/Calc.java"
+    greeter = "app/src/main/java/dev/tuist/Greeter.java"
+
+    gradle_modules = fn names ->
+      Enum.map(names, fn
+        ":core" ->
+          %{name: ":core", status: "success", duration: 1, test_cases: [test_case("adds()", "dev.tuist.CalcTest")]}
+
+        ":app" ->
+          %{name: ":app", status: "success", duration: 1, test_cases: [test_case("greets()", "dev.tuist.GreeterTest")]}
+      end)
+    end
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "base",
+      build_system: "gradle",
+      scheme: "fixture",
+      coverage: jacoco.(false, [file(calc, [1, 1]), file(greeter, [1])]),
+      test_modules: gradle_modules.([":core", ":app"]),
+      coverage_evidence:
+        if(evidence?,
+          do: %{
+            paths: [calc, greeter],
+            status: "collected",
+            scopes: [
+              %{kind: "target", module: ":core", suite: "", name: "", files: [0], lines: [[1, 1]]},
+              %{kind: "test", module: ":core", suite: "dev.tuist.CalcTest", name: "adds()", files: [0], lines: [[1, 1]]},
+              %{kind: "target", module: ":app", suite: "", name: "", files: [0, 1], lines: [[2, 2], [1, 1]]},
+              %{
+                kind: "test",
+                module: ":app",
+                suite: "dev.tuist.GreeterTest",
+                name: "greets()",
+                files: [0, 1],
+                lines: [[2, 2], [1, 1]]
+              }
+            ]
+          },
+          else: %{paths: [], scopes: [], status: "not_linked"}
+        )
+    })
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      build_system: "gradle",
+      scheme: "fixture",
+      coverage: jacoco.(true, [file(calc, [1, 0]), file(greeter, [0])]),
+      test_modules: gradle_modules.([":core"]),
+      skip_test_identifiers: [":app"]
+    })
+
+    Reported.compute(project, "head")
+  end
+
+  test "carries a Gradle module the run excluded from the evidence of its tests", %{project: project, account: account} do
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, covered_lines: 3, executable_lines: 3} =
+             gradle_runs(project, account, true)
+  end
+
+  test "a Gradle module the run excluded is a gap when no run recorded evidence of its tests", %{
+    project: project,
+    account: account
+  } do
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} =
+             reported = gradle_runs(project, account, false)
 
     assert reasons(reported) == [:collection_off]
   end

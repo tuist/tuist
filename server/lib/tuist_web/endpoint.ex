@@ -20,7 +20,7 @@ defmodule TuistWeb.Endpoint do
   # invalid CSRF token. Dev derives the name from the port to give each
   # server its own cookie; every other environment keeps `_tuist_key`.
   @session_options [
-    store: :cookie,
+    store: TuistWeb.BrowserSession,
     key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
     same_site: "Lax",
@@ -37,12 +37,12 @@ defmodule TuistWeb.Endpoint do
 
   # `auth_token` must be a socket option: Phoenix overwrites a transport-level
   # value with it, which left every native connection without its bearer.
-  socket "/jams/socket", TuistWeb.JamsSocket,
+  socket "/threads/socket", TuistWeb.ThreadsSocket,
     auth_token: true,
     websocket: true,
     longpoll: false
 
-  socket "/threads/socket", TuistWeb.JamsSocket,
+  socket "/jams/socket", TuistWeb.ThreadsSocket,
     auth_token: true,
     websocket: true,
     longpoll: false
@@ -65,7 +65,8 @@ defmodule TuistWeb.Endpoint do
     from: :tuist,
     gzip: true,
     cache_control_for_etags: "public, max-age=0, must-revalidate",
-    only: TuistWeb.static_paths()
+    only: TuistWeb.static_paths(),
+    only_matching: TuistWeb.static_path_prefixes()
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
@@ -185,13 +186,13 @@ defmodule TuistWeb.Endpoint do
 
   # Sentry only scrubs password, passwd and secret parameters by default.
   # Authenticator and single-use recovery codes are second-factor credentials,
-  # `token` carries credentials such as Claude subscription tokens, and MCP tool
-  # `arguments` can carry them at any depth of a JSON-RPC body.
-  @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
+  # `token` and `api_key` carry subscription and organization credentials, and
+  # MCP tool `arguments` can carry them at any depth of a JSON-RPC body.
+  @sentry_scrubbed_body_keys ["mfa_code", "token", "api_key", "arguments"]
 
   # Private conversations and Ship approvals must not become error-report data.
   def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, collection | _]})
-      when collection in ["jams", "threads"], do: %{}
+      when collection in ["threads", "jams"], do: %{}
 
   def scrub_sentry_body(conn) do
     conn

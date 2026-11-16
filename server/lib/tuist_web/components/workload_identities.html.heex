@@ -2,26 +2,6 @@
   <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
       <div data-part="heading">
-        <button
-          id="oidc-configuration-toggle"
-          type="button"
-          role="switch"
-          class="noora-toggle"
-          phx-click="toggle_oidc_configuration"
-          aria-checked={to_string(@oidc_configuration_visible)}
-          aria-controls="oidc-trust-policy-form"
-          aria-expanded={to_string(@oidc_configuration_visible)}
-        >
-          <span
-            class="noora-toggle-control"
-            data-part="control"
-            data-state={if @oidc_configuration_visible, do: "checked", else: "unchecked"}
-            aria-hidden="true"
-          >
-            <span data-part="track"><span data-part="thumb" /></span>
-          </span>
-          <span data-part="label">{dgettext("dashboard_account", "Show configuration")}</span>
-        </button>
         <span id="oidc-workload-title" data-part="title">
           {dgettext("dashboard_account", "Workload identities")}
         </span>
@@ -40,13 +20,25 @@
         {dgettext("dashboard_account", "Set up workload authentication")}
       </.link>
     </div>
-    <div data-part="content" hidden={not @oidc_configuration_visible}>
+    <.modal
+      id="oidc-trust-policy-modal"
+      on_dismiss="dismiss_oidc_trust_policy"
+      title={dgettext("dashboard_account", "Add trust policy")}
+    >
+      <:trigger :let={attrs}>
+        <.button
+          id="oidc-add-trust-policy"
+          type="button"
+          variant="primary"
+          label={dgettext("dashboard_account", "Add trust policy")}
+          {attrs}
+        />
+      </:trigger>
       <.form
         for={@oidc_trust_policy_form}
         id="oidc-trust-policy-form"
         data-part="form"
-        hidden={not @oidc_configuration_visible}
-        aria-labelledby="oidc-workload-title"
+        aria-labelledby="oidc-trust-policy-modal-title"
         phx-change="change_oidc_trust_policy"
         phx-submit="create_oidc_trust_policy"
       >
@@ -149,7 +141,7 @@
           label={dgettext("dashboard_account", "Add trust policy")}
         />
       </.form>
-    </div>
+    </.modal>
     <div
       :if={@oidc_trust_policies != []}
       id="oidc-trust-policy-cards"

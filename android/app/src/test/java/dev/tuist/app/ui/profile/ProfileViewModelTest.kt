@@ -2,7 +2,6 @@ package dev.tuist.app.ui.profile
 
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.auth.TokenStorage
-import dev.tuist.app.data.featureflags.FeatureFlagsRepository
 import dev.tuist.app.data.model.AuthState
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.push.PushRegistrationManager
@@ -33,11 +32,10 @@ class ProfileViewModelTest {
                 every { authState } returns flowOf(AuthState.LoggedIn(Account("alice@example.invalid", "alice")))
                 every { signOut(session) } throws IllegalStateException("disk full")
             }
-            val flags = mockk<FeatureFlagsRepository> { every { enabled } returns MutableStateFlow(emptySet()) }
             val push = mockk<PushRegistrationManager> {
                 coEvery { changeProfile(any()) } coAnswers { firstArg<() -> Unit>().invoke() }
             }
-            val model = ProfileViewModel(auth, flags, push)
+            val model = ProfileViewModel(auth, push)
             model.signOut()
             advanceUntilIdle()
             assertTrue(model.signOutFailed.value)

@@ -147,6 +147,7 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
+const KURA_SENTRY_PULSE_DSN: &str = "KURA_SENTRY_PULSE_DSN";
 const KURA_REQUEST_LOG_SAMPLE_RATE: &str = "KURA_REQUEST_LOG_SAMPLE_RATE";
 const KURA_SLOW_REQUEST_THRESHOLD_MS: &str = "KURA_SLOW_REQUEST_THRESHOLD_MS";
 const KURA_WARNING_LOG_INTERVAL_MS: &str = "KURA_WARNING_LOG_INTERVAL_MS";
@@ -290,6 +291,11 @@ pub struct Config {
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
+    /// A second DSN that receives a copy of every Sentry envelope, for
+    /// comparing Pulse with the primary backend. Only used alongside
+    /// `sentry_dsn`; an unparseable value is reported and ignored rather than
+    /// failing startup, so this copy can never stop Kura.
+    pub sentry_pulse_dsn: Option<String>,
     pub request_log_sample_rate: f64,
     pub slow_request_threshold_ms: u64,
     pub warning_log_interval_ms: u64,
@@ -1831,6 +1837,9 @@ impl Config {
                 "{KURA_SENTRY_DSN} must be a valid Sentry DSN: {error}"
             ));
         }
+        let sentry_pulse_dsn = lookup(KURA_SENTRY_PULSE_DSN)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let request_log_sample_rate = optional_parsed_value(
             &mut lookup,
             KURA_REQUEST_LOG_SAMPLE_RATE,
@@ -2099,6 +2108,7 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
+            sentry_pulse_dsn,
             request_log_sample_rate,
             slow_request_threshold_ms,
             warning_log_interval_ms,
@@ -3621,6 +3631,23 @@ mod tests {
             config.sentry_dsn.as_deref(),
             Some("https://public@example.ingest.sentry.io/12345")
         );
+    }
+
+    #[test]
+    fn from_lookup_reads_optional_sentry_pulse_dsn() {
+        let config = config_from(&[(
+            KURA_SENTRY_PULSE_DSN,
+            " http://sentry:secret@pulse.observability:4000/v1/sentry/kura/1 ",
+        )])
+        .expect("expected sentry pulse dsn to be accepted");
+        assert_eq!(
+            config.sentry_pulse_dsn.as_deref(),
+            Some("http://sentry:secret@pulse.observability:4000/v1/sentry/kura/1")
+        );
+
+        let config = config_from(&[(KURA_SENTRY_PULSE_DSN, "not-a-sentry-dsn")])
+            .expect("an invalid sentry pulse dsn must not fail configuration");
+        assert_eq!(config.sentry_pulse_dsn.as_deref(), Some("not-a-sentry-dsn"));
     }
 
     #[test]

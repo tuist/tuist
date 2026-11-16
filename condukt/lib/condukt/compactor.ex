@@ -36,6 +36,14 @@ defmodule Condukt.Compactor do
   See the [Compaction guide](compaction.md#background-compaction) for options,
   token estimates, cancellation, and the manual compaction contract.
 
+  ## Context-length rejections
+
+  When a provider rejects a native request as too long, the session compacts
+  once more with `context_overflow: true` added to the compactor's options,
+  then retries. The previous pass produced a history that did not fit, so a
+  compactor may shrink harder when it sees this option; the built-in ones do.
+  See the [Compaction guide](compaction.md#context-length-rejections).
+
   ## Built-in compactors
 
   - `Condukt.Compactor.Sliding` — keeps the most recent N messages.
@@ -59,7 +67,9 @@ defmodule Condukt.Compactor do
   `[:condukt, :compact, :stop]`. Stop measurements include `:duration`,
   `:before`/`:after` message counts and `:before_bytes`/`:after_bytes` external-term
   sizes. Metadata identifies `:agent` and `:session_id`; stop also includes
-  `:status` and `:changed`. No message payload is included.
+  `:status` and `:changed`. Compactions triggered by a provider's
+  context-length rejection add `trigger: :overflow` to both events. No message
+  payload is included.
   """
 
   alias Condukt.Message

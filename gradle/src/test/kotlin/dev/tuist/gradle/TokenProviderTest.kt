@@ -435,6 +435,41 @@ class TokenProviderTest {
         }
     }
 
+    @Test
+    fun `a valid stored token is returned without the refresh lock, which only a refresh takes`() {
+        val store = createCredentialStore()
+        val token = validJwt()
+        writeCredentials(store, token, "refresh-token")
+        val lockFile = File(tempDir, "refresh.lock")
+        val provider = TokenProvider(
+            serverURL = serverURL,
+            credentialStore = store,
+            envProvider = { null },
+            tokenCacheFactory = { CachedValueStore(lockFilePath = lockFile) }
+        )
+
+        assertEquals(token, provider.getToken())
+        // The lock's flock loads JNA, which starts `ldconfig -p` on Linux; a build cache lookup
+        // while Gradle configures the build then discards its configuration cache.
+        assertTrue(!lockFile.exists(), "Reading a valid token took the refresh lock")
+
+        val refreshed = validJwt()
+        val service = object : RefreshAuthTokenService() {
+            override fun refreshTokens(serverURL: URI, refreshToken: String, timeoutMs: Long?) =
+                AuthenticationTokens(refreshed, "new-refresh")
+        }
+        writeCredentials(store, expiredJwt(), "refresh-token")
+        val refreshing = TokenProvider(
+            serverURL = serverURL,
+            refreshAuthTokenService = service,
+            credentialStore = store,
+            envProvider = { null },
+            tokenCacheFactory = { CachedValueStore(lockFilePath = lockFile) }
+        )
+        assertEquals(refreshed, refreshing.getToken())
+        assertTrue(lockFile.exists(), "A refresh did not take the refresh lock")
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = [false, true])
     fun `independent providers sharing credentials refresh without losing the session`(trailingSlash: Boolean) {

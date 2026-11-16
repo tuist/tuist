@@ -18,6 +18,20 @@ defmodule Tuist.Bundles.BundleThresholdTest do
       assert changeset.valid?
     end
 
+    test "accepts only tags a bundle can carry" do
+      attrs = %{
+        name: "Size check",
+        metric: :install_size,
+        deviation_percentage: 5.0,
+        baseline_branch: "main",
+        project_id: 1
+      }
+
+      assert BundleThreshold.changeset(%BundleThreshold{}, Map.put(attrs, :tag, "release-2_x")).valid?
+      refute BundleThreshold.changeset(%BundleThreshold{}, Map.put(attrs, :tag, "release candidate")).valid?
+      refute BundleThreshold.changeset(%BundleThreshold{}, Map.put(attrs, :tag, String.duplicate("a", 51))).valid?
+    end
+
     test "supports absolute byte limits and fractional percentages" do
       attrs = %{name: "Size check", metric: :install_size, baseline_branch: "main", project_id: 1}
 

@@ -266,8 +266,9 @@ server:
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Public validation uses the existing OVH ca-east fleet. Retire the
       # Dedibox EU-West instances before the later fleet-retirement change.
-      # Preserve the Scaleway private cache beside the Mac mini fleet.
-      value: scw-fr-par-runners,ca-east
+      # scw-fr-par-runners is retired (Tuist.Kura.Regions); the reconciler
+      # tears down its leftovers whether or not it is listed here.
+      value: ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -300,9 +301,8 @@ server:
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
       value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
-    # resolves to the node-port form (http://<node PN address>:<NodePort>
-    # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # resolves to its rack site's private gateway; this env serves no site
+    # cache, so it falls back to the public cache. linux resolves through
     # the public-region fallback — no Linux private cache region here
     # (see values-managed-production.yaml).
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
@@ -398,11 +398,12 @@ pdcAgent:
   enabled: true
   # Canary mirrors staging's sizing; production is the env that needs HA.
   replicas: 1
-  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Pin the tunnel to CNPG, ClickHouse and the private Pulse query endpoint.
   # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist-canary.svc.cluster.local:8123
+    - pulse.observability.svc.cluster.local:4000
 
 capi:
   ovhRunnerEgress:
@@ -457,12 +458,8 @@ kuraController:
       # flip this back to `kura-sentry` and reroll.
       item: kura-sentry-hive
 
-# Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
-# Private Network, not the 1 Gbit/s public bandwidth every budget here is
-# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
-# nothing for a tree to rate its root against. Each tenant is still ceilinged
-# on that path by the Cilium bandwidth manager (egress_burst_mbps).
+# Only the shared mesh cache pools are listed: every budget here is denominated
+# in their public bandwidth.
 egressTreeAgent:
   enabled: true
   nodePools: [kura-ca-east]
@@ -630,21 +627,6 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
-# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
-# the runner-cache PN, mints a kubelet identity, and renders a self-join
-# cloud-init that registers the Node with the runner-cache taint. The control
-# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
-# bootstraps the node itself.
-kuraFleet:
-  enabled: true
-  replicas: 1
-  machine:
-    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
-    # that still mirrors the production NVMe + 10G PN path, so canary validates
-    # the same local-NVMe + bare-metal-PN data plane prod runs on.
-    offerType: EM-B220E-NVME
-
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
 # whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
@@ -796,7 +778,7 @@ macosFleet:
   controlPlane:
     host: api-canary.tuist.dev
   # Runner-cache data plane: attach the minis to the same Private
-  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # Network the retired kura-scw-fr-par cache node used, so
   # the CAPI operator resolves each host's VLAN and bootstrap
   # materializes the VLAN interface + VM egress pass + NAT. Dispatch
   # hands the Mac fleet the node-port endpoint because
@@ -907,7 +889,10 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 48
-  diskGiB: 50
+  # Two `linux` Orbs (38 GiB each with the 20 GiB rootfs) next to the
+  # checkout workspaces, on the runner node's ~410 GiB data disk.
+  diskGiB: 100
+  checkoutWorkspacesGiB: 10
   # Short so canary exercises archive and restore through the in-rack store
   # within an hour of a pause.
   archiveAfterHours: 1
@@ -934,6 +919,12 @@ runnersController:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
+  # Exclusive-CPU pools get /dev/kvm from the kvm-nri-plugin DaemonSet. It
+  # injects the device only into Pods the controller annotates, which it does
+  # only for exclusive-CPU pools; odd shapes keep the device plugin.
+  nestedVirtualization:
+    nri:
+      enabled: true
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`, minus the
@@ -944,6 +935,15 @@ runnersFleetLinux:
   # Resolved at deploy time from the latest `linux-runner-image@` git tag.
   shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
+  # Whole cores per runner Pod on the v1.36 runner host, which carries
+  # tuist.dev/pod-level-resource-managers=true. Odd shapes keep shared cores.
+  # These Pods get /dev/kvm from the kvm-nri-plugin DaemonSet above, not the
+  # device plugin, whose allocation panics kubelet next to a Pod-level budget
+  # (kubernetes/kubernetes#143490). A kubelet restart with exclusive Pods
+  # running leaks their old cores; see
+  # infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md.
+  exclusiveCPUs:
+    defaultEnabled: true
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
@@ -956,6 +956,10 @@ runnersFleetLinux:
       enabled: true
       # Acceptance uses the default shape; qualify it before widening rollout.
       pools: [tuist-tuist-runner-pool-linux-2vcpu-8gb]
+    # Canary serves every account, as staging does; production gates accounts
+    # with the `:runner_actions_cache` flag.
+    actionsCache:
+      enabled: true
   shapeAutoscaling:
     enabled: true
     minWarmPoolFloor: 0
@@ -984,3 +988,11 @@ redis:
 ampOrbProvider:
   enabled: true
   url: https://canary.tuist.dev
+
+# A copy of every error from the server's web instances to Pulse, beside
+# Atlas, to compare the two (sentryPulse in values.yaml). Needs
+# PULSE_SENTRY_WRITER/password in this vault and canary in the Pulse chart's
+# sentryWriter.environments.
+sentryPulse:
+  services:
+    server: true

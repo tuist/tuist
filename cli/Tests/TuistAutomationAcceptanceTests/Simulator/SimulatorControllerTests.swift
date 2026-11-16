@@ -1,10 +1,12 @@
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistSupport
 
 @testable import TuistCore
 @testable import TuistTesting
 
+@Suite(.coverageAttribution)
 struct SimulatorControllerTests {
     @Test func devices() async throws {
         // Given

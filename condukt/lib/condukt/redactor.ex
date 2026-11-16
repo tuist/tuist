@@ -32,6 +32,7 @@ defmodule Condukt.Redactor do
   """
 
   alias Condukt.Message
+  alias Condukt.Session.Translate
 
   @doc """
   Returns `text` with sensitive substrings replaced.
@@ -60,8 +61,9 @@ defmodule Condukt.Redactor do
   Returns `messages` with redaction applied to user input and tool results.
 
   Assistant messages and any non-textual content blocks are returned unchanged.
-  Tool result content that is not a binary is JSON-encoded before redaction so
-  embedded secrets in structured output are still caught.
+  Tool result content that is not a binary is encoded the way the model sees
+  it before redaction, so embedded secrets in structured output and errors are
+  still caught.
   """
   def redact_messages(nil, messages), do: messages
   def redact_messages([], messages), do: messages
@@ -75,8 +77,9 @@ defmodule Condukt.Redactor do
     %{msg | content: __MODULE__.apply(spec, content)}
   end
 
+  # Error results are tuples, which JSON cannot encode.
   defp redact_message(spec, %Message{role: :tool_result, content: content} = msg) do
-    %{msg | content: __MODULE__.apply(spec, JSON.encode!(content))}
+    %{msg | content: __MODULE__.apply(spec, Translate.encode_tool_result(content))}
   end
 
   defp redact_message(_spec, %Message{} = msg), do: msg

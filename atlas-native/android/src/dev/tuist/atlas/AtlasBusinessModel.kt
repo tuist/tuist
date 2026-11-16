@@ -444,7 +444,7 @@ class AtlasBusinessModel(
     val filterKeys: List<String>
         get() =
             when (resource) {
-                "tasks" -> listOf("status", "assignee_id", "reminder", "group_by")
+                "tasks" -> listOf("status", "assignee_id")
                 "accounts" -> listOf("segment", "status", "deal_stage")
                 else -> listOf("status")
             }
@@ -452,7 +452,7 @@ class AtlasBusinessModel(
     val editableFields: List<String>
         get() =
             when (resource) {
-                "tasks" -> listOf("title", "description", "assignee_id", "account_id", "due_on", "remind_at")
+                "tasks" -> listOf("title", "description", "assignee_id", "account_id", "due_on")
                 "accounts" ->
                     listOf(
                         "name",

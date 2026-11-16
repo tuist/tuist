@@ -13,10 +13,13 @@ right shape for chat UIs, LiveView, Phoenix Channels, and CLI output.
 | `{:text, chunk}` | A chunk of model text. |
 | `{:thinking, chunk}` | A chunk of model reasoning (if the provider exposes it). |
 | `{:tool_call, name, id, args}` | The model is calling a tool. |
+| `{:tool_output, id, chunk}` | A running tool streamed some output, such as a `Bash` command's. See `Condukt.Tool.output/2`. |
 | `{:tool_result, id, result}` | A tool returned a result. |
+| `{:waiting, %{tool_calls: calls, wake_at: deadline}}` | The turn's pending tool calls are parked, waiting for signals or deadlines. See [Waiting for Events](parking.md). |
 | `:turn_end` | The current LLM turn finished. |
 | `:agent_end` | The agent stopped its loop. |
 | `{:error, reason}` | An error occurred during the run. |
+| `{:subagent, tool_call_id, event}` | An event from a sub-agent the tool call started. See [Sub-agents](subagents.md#streaming-child-events). |
 | `:done` | The stream is complete. Always the last event. |
 
 ## Streaming to stdout
@@ -72,28 +75,156 @@ wait, and ignores late events and results from that turn, including while a
 replacement turn runs. Clearing history also cancels the current turn.
 
 Once the session processes cancellation, the original `run` caller receives
-`{:error, :aborted}`. A stream receives that error and closes immediately,
-without waiting for inference or admitted tools to finish. For streaming turns,
+`{:error, :aborted}`. A stream receives that error and closes immediately.
+For streaming turns,
 the notifier gets the cancellation error and `:done` before a replacement can start. Late
 worker completion cannot publish another `:done`. A concurrent stream rejected
 with `:already_streaming` closes only its own reader, without publishing an
 error or completion for the active conversation.
 
-Native loops check ownership before every provider attempt, after inference,
-and before admitting each tool. Cancellation also wakes native retry backoff.
-Provider requests already admitted may finish, and admitted tools can still
-produce side effects; cancellation does not roll those back or kill external
-runtime processes. Slow callbacks, notifiers, snapshot stores, and legacy
-synchronous compactors can delay the session's handling of cancellation.
+Each turn runs in its own process under the session, and each tool call in a
+process linked to the turn. Cancellation shuts the turn's process down before
+`Condukt.abort/1` returns, which stops an in-flight provider request, retry
+backoff, an external runtime's command, and running tool calls, together with
+whatever those calls linked to themselves, such as a foreground sub-agent's
+session. Commands run through `MuonTrap`, as the local sandbox and the CLI
+runtimes do, stop with the process that ran them. A tool whose
+`c:Condukt.Tool.on_abort/1` returns `:finish` keeps running to the end, with
+its result discarded. Cancellation does not roll back side effects already
+made. Slow callbacks, snapshot stores, and legacy synchronous compactors can
+delay the session's handling of cancellation. Notifiers run in the session's
+view process, so a slow one delays viewers and the return of
+`Condukt.abort/1`, which waits until the notifier has the abort's events, but
+not the session's handling of cancellation.
 
 ## Steering and follow-ups
 
 While a stream is in flight you can:
 
-* `Condukt.steer/2` to inject a message that takes effect after the current
-  tool call finishes. Remaining queued tool calls in that turn are skipped.
-* `Condukt.follow_up/2` to queue a message that the agent will pick up once
-  it finishes the current run.
+* `Condukt.steer/2` to inject a message that joins the running turn after the
+  current tool round, before the next model request.
+* `Condukt.follow_up/2` to queue a message that starts the next turn once the
+  current one finishes.
+
+On an idle session either one starts a turn at once. Turns started from queued
+input have no caller, so their events go to the notifier and `handle_event/2`.
+A `Condukt.run/3` or `Condukt.stream/3` that arrives during such a turn waits
+for it and runs next, instead of failing with `:already_streaming`. Aborting
+the turn withdraws queued messages and answers waiting callers with
+`{:error, :aborted}`; reports from background sub-agents stay queued. Only the
+native runtime takes queued input.
 
 Both are useful for interactive UIs where users can interrupt or guide the
 agent without aborting it.
+
+## Watching a session
+
+Events reach a subscriber from the moment it subscribes. A viewer that opens a
+session mid-turn, or reconnects, would miss the answer streamed so far, the
+tools already running, and the input waiting in the queue. Such a viewer starts
+from the session's current view instead, then applies only what changes after
+it:
+
+```elixir
+view = Condukt.watch(session)
+render(view)
+
+def handle_info({:condukt_change, _session_id, epoch, seq, change}, socket) do
+  case Condukt.Session.View.advance(socket.assigns.view, epoch, seq, change) do
+    {:ok, view} -> {:noreply, render(assign(socket, view: view))}
+    :stale -> {:noreply, socket}
+    :gap -> {:noreply, assign(socket, view: Condukt.watch(session))}
+  end
+end
+```
+
+`Condukt.watch/1` returns a `Condukt.Session.View` and subscribes the caller to
+the changes after it in the same call, so nothing is lost or repeated between
+the two. Any number of viewers can watch one session, and any of them can call
+`Condukt.steer/2` or `Condukt.follow_up/2`; every viewer sees the queued input
+and when it is taken. `Condukt.unwatch/1` stops the changes, as does the
+watcher's exit.
+
+A session that stops sends nothing more, so a gap never reveals it. Monitor
+the session's pid alongside watching it, with `Process.monitor/1`, and treat
+its `:DOWN` as the end of the view. A viewer on another node monitors it the
+same way, since monitors work across nodes.
+
+The view holds:
+
+| Field | Description |
+| ----- | ----------- |
+| `messages` | The committed history, newest last. |
+| `run` | The turn in flight, or `nil`. Its `items` are its input, steering that joined it, the answer and reasoning streamed so far, and each tool call with its arguments, `:running`/`:ok`/`:error` status, result, the last 64 KiB of the output it streamed under `output`, and a foreground sub-agent's own run under `subagent`. |
+| `error` | Why the last finished turn failed, such as `:aborted`, or `nil`. |
+| `queue` | Input waiting to start or join a turn, in the order it is taken: waiting callers (`:prompt`), `:steer`, `:follow_up`, input submitted by id with `Condukt.Sessions.submit/3` (`:input`), and background sub-agent answers (`:report`). |
+| `background` | [Background sub-agents](subagents.md) by name, each with its role, session id, the `call_id` of the call that spawned it, `:working` or `:idle` status, and the `run` of its current or last turn: the message it started from, steering that joined it, and its steps. |
+| `agent` | The agent module, model name, thinking level, tool names, and runtime. |
+| `epoch`, `seq` | Which session process numbered the changes, and the last change the view holds. |
+
+A turn started with `Condukt.run/3` shows in the view too, one step at a time,
+even though it publishes no events.
+
+### Changes
+
+A change is an event from the [event vocabulary](#event-vocabulary), or one of
+`{:run_started, message}`, `{:input, message}` for steering joining the run,
+`{:run_finished, error, messages}`, `{:messages, :append | :replace, messages}`
+for history changed by compaction or `Condukt.clear/1`, `{:queue, items}`,
+`{:background, name, entry}` when a background sub-agent starts, changes
+status, or (with `nil`) is gone, and `{:background_event, name, event}` for
+an event from its turn or the `{:run_started, message}` and `{:input, message}`
+that started it and joined it. The parent's notifier events are unchanged.
+`View.advance/4` folds them in; a client in another language can apply the same
+rules, and only the changes travel after the first view.
+
+The view lives in its own process, linked to the session so that neither
+outlives the other's crash. The session sends it each change as it happens
+and goes on with the turn. The view process redacts the change, folds it into
+the view, numbers it, and sends it to the watchers and the notifier, so a slow
+redactor, viewer, or notifier holds up the view instead of the session.
+`Condukt.view/1` and `Condukt.watch/1` still go through the session, which
+passes them on behind the changes it already sent, so a view reflects
+everything the session did before the request, including the caller's own
+`Condukt.steer/2`.
+
+The view process numbers every change with `seq`, counting from 1 in each
+`epoch`. `epoch` is drawn when the session starts, so numbers from a session
+that restarted are never mistaken for the old one's. `advance/4` returns `:stale` for a change the
+view already holds and `:gap` for one that does not follow it, including one
+from another epoch. On a gap, fetch the view again and continue from there.
+
+### Viewers on other nodes
+
+A notifier that implements `c:Condukt.Notifier.publish_change/5` carries the
+same numbered changes to other nodes. `Condukt.Notifiers.PubSub` publishes them
+as `{:condukt_change, session_id, epoch, seq, change}` on
+`Condukt.Notifiers.PubSub.changes_topic/2`, the message `watch/1` sends
+locally. Subscribe first, then fetch the view from the node running the
+session, so every change after it arrives. `Condukt.Sessions` registers
+sessions on their own node, so ask that node, or call the session's pid:
+
+```elixir
+Phoenix.PubSub.subscribe(MyApp.PubSub, Condukt.Notifiers.PubSub.changes_topic(session_id))
+view = :erpc.call(session_node, Condukt, :view, [Condukt.Sessions.via(session_id)])
+```
+
+Changes published between the subscription and the view are `:stale` and are
+dropped. A change PubSub fails to deliver shows up as a `:gap` at the next one.
+The event topic and its `{:condukt_event, session_id, event}` messages are
+unchanged.
+
+### Secrets
+
+The view and its changes pass user input and tool results through the session's
+redactors, `Condukt.Secrets` included, the same way as on the way to the model.
+Structured tool results keep their shape with each string redacted, and
+each streamed `{:tool_output, id, chunk}` is redacted as it arrives. Each
+change is redacted once, as it arrives, so a turn ending costs what the turn
+added, not the whole history. A compaction or `Condukt.clear/1` sends the whole
+history again as `{:messages, :replace, messages}`. The agent
+configuration leaves out keys, base URLs, request options, and the system
+prompt. Events sent to `Condukt.stream/3` subscribers and `c:Condukt.Notifier.publish/3`
+are unchanged.
+
+Tools waiting on something outside the turn do not show in the view yet.

@@ -46,6 +46,11 @@ defmodule TuistWeb.API.AgentSessionsController do
         nullable: true,
         description: "The OS the session runs on. Null runs the agent environment's platform."
       },
+      xcode_version: %Schema{
+        type: :string,
+        nullable: true,
+        description: "The Xcode the session's macOS sandbox boots. Null runs the agent environment's."
+      },
       status: %Schema{
         type: :string,
         nullable: true,
@@ -192,6 +197,12 @@ defmodule TuistWeb.API.AgentSessionsController do
              description:
                "The OS to run the session on. Defaults to the agent environment's platform; any other platform runs with that platform's default shape."
            },
+           xcode_version: %Schema{
+             type: :string,
+             nullable: true,
+             description:
+               "The exact Xcode the session's macOS sandbox boots, one of those the server's macOS sandboxes serve; an unserved one is refused with the list. Implies `platform: darwin`. Defaults to the agent environment's Xcode when the session runs on the environment's platform, otherwise the default Xcode."
+           },
            agent_id: %Schema{
              type: :string,
              nullable: true,
@@ -220,6 +231,7 @@ defmodule TuistWeb.API.AgentSessionsController do
         :model,
         :budget_cents,
         :platform,
+        :xcode_version,
         :agent_id
       ])
 
@@ -466,6 +478,7 @@ defmodule TuistWeb.API.AgentSessionsController do
       :model,
       :budget_cents,
       :platform,
+      :xcode_version,
       :inserted_at,
       :updated_at
     ])

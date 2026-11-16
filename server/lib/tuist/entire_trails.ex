@@ -1,6 +1,7 @@
 defmodule Tuist.EntireTrails do
   @moduledoc """
-  Publishes Tuist insights as commit checks and head-pinned Trail reviews.
+  Publishes Tuist insights as commit checks, head-pinned Trail reviews, and a
+  maintained Trail comment.
   GitHub connections can coexist with these connections.
   """
 
@@ -16,6 +17,8 @@ defmodule Tuist.EntireTrails do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.VCS
+
+  require Logger
 
   def enabled?(account), do: Entire.configured?() and FunWithFlags.enabled?(:entire_trails, for: account)
 
@@ -108,8 +111,11 @@ defmodule Tuist.EntireTrails do
   def handle_delivery(_), do: :ok
 
   def sync(connection_id) do
+    Logger.info("Entire sync started connection_id=#{connection_id}")
+
     case Repo.get(Connection, connection_id) do
       nil ->
+        Logger.info("Entire sync skipped connection_id=#{connection_id} reason=connection_missing")
         :ok
 
       connection ->
@@ -117,10 +123,19 @@ defmodule Tuist.EntireTrails do
 
         if connection.installation.active and enabled?(connection.project.account) do
           case sync_connection(connection) do
-            {:error, :revoked} -> :ok
-            result -> result
+            {:error, :revoked} ->
+              Logger.warning("Entire sync skipped connection_id=#{connection_id} reason=revoked")
+              :ok
+
+            result ->
+              result
           end
         else
+          Logger.info(
+            "Entire sync skipped connection_id=#{connection_id} reason=disabled " <>
+              "installation_active=#{connection.installation.active} configured=#{Entire.configured?()}"
+          )
+
           :ok
         end
     end
@@ -134,6 +149,8 @@ defmodule Tuist.EntireTrails do
   defp sync_connection(connection) do
     with {:ok, repository} <- Entire.repository(connection.installation, connection.repository_id),
          {:ok, trails} <- Client.trails(connection.installation, repository) do
+      Logger.info("Entire Trail discovery connection_id=#{connection.id} trail_count=#{length(trails)}")
+
       Enum.reduce_while(trails, :ok, fn trail, :ok ->
         case sync_locked_trail(connection.id, repository, trail["number"]) do
           :ok -> {:cont, :ok}
@@ -160,6 +177,10 @@ defmodule Tuist.EntireTrails do
 
     cond do
       current.reported_at != summary.reported_at or current.published_at == current.reported_at ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=already_published_or_superseded"
+        )
+
         nil
 
       current.publication_started ->
@@ -172,8 +193,15 @@ defmodule Tuist.EntireTrails do
           # recovered even if the Trail head changes or has no new insights.
           current |> Ecto.Changeset.change(publication_started: true) |> Repo.update!()
         else
-          {:error, _} = error -> error
-          _ -> nil
+          {:error, _} = error ->
+            error
+
+          _ ->
+            Logger.info(
+              "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=trail_changed"
+            )
+
+            nil
         end
     end
   end
@@ -186,15 +214,67 @@ defmodule Tuist.EntireTrails do
     with true <- current.reported_at == summary.reported_at and current.published_at != current.reported_at,
          {:ok, trail} <- Client.trail(connection.installation, repository, number),
          true <- trail["status"] in ["open", "draft"],
-         {:ok, ids} <- Client.publish(connection.installation, repository, number, current) do
+         check = %{branch: trail["branch"], key: handle(connection.project), details_url: project_url(connection.project)},
+         {:ok, ids} <- Client.publish(connection.installation, repository, number, check, current),
+         {:ok, comment} <- publish_comment(connection, repository, number, current) do
       current
-      |> Ecto.Changeset.change(Map.put(ids, :published_at, current.reported_at))
+      |> Ecto.Changeset.change(ids |> Map.merge(comment) |> Map.put(:published_at, current.reported_at))
       |> Repo.update!()
 
+      Logger.info("Entire report published connection_id=#{connection.id} trail_number=#{number}")
       :ok
     else
+      {:error, _} = error ->
+        error
+
+      _ ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=publication_no_longer_eligible"
+        )
+
+        :ok
+    end
+  end
+
+  # Like the GitHub integration's comment, each project keeps one summary
+  # comment per Trail and edits it as reports change.
+  defp publish_comment(connection, repository, number, summary) do
+    body = summary.report_body <> "\n\n" <> marker(connection.project)
+
+    case upsert_comment(connection, repository, number, summary, body) do
+      {:error, :revoked} ->
+        # Installations that have not granted discussions still receive checks and findings.
+        Logger.warning("Entire comment skipped connection_id=#{connection.id} trail_number=#{number} reason=revoked")
+        {:ok, %{}}
+
+      result ->
+        result
+    end
+  end
+
+  defp upsert_comment(connection, repository, number, %{discussion_id: id} = summary, body) when is_binary(id) do
+    pointer = Map.take(summary, [:discussion_id, :message_id])
+
+    case Client.update_comment(connection.installation, repository, number, pointer, body) do
+      {:ok, _} -> {:ok, pointer}
+      # The comment was deleted on Entire, so post it again.
+      {:error, :revoked} -> upsert_comment(connection, repository, number, %{summary | discussion_id: nil}, body)
       {:error, _} = error -> error
-      _ -> :ok
+    end
+  end
+
+  defp upsert_comment(connection, repository, number, _summary, body) do
+    installation = connection.installation
+
+    case Client.find_comment(installation, repository, number, marker(connection.project)) do
+      {:ok, nil} ->
+        Client.create_comment(installation, repository, number, "Tuist insights for " <> handle(connection.project), body)
+
+      {:ok, pointer} ->
+        with {:ok, _} <- Client.update_comment(installation, repository, number, pointer, body), do: {:ok, pointer}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -210,7 +290,9 @@ defmodule Tuist.EntireTrails do
             result -> result
           end
         else
-          _ -> nil
+          _ ->
+            Logger.info("Entire sync skipped connection_id=#{connection_id} reason=connection_missing_or_disabled")
+            nil
         end
       end,
       timeout: 60_000
@@ -218,9 +300,11 @@ defmodule Tuist.EntireTrails do
   end
 
   defp prepare_trail(connection, repository, number) do
+    Logger.info("Entire report preparation started connection_id=#{connection.id} trail_number=#{number}")
+
     with {:ok, trail} <- Client.trail(connection.installation, repository, number),
-         true <- trail["status"] in ["open", "draft"],
-         sha when is_binary(sha) and sha != "" <- trail["head_sha"] do
+         {:eligible_status, true} <- {:eligible_status, trail["status"] in ["open", "draft"]},
+         {:head_sha, sha} when is_binary(sha) and sha != "" <- {:head_sha, trail["head_sha"]} do
       case Repo.get_by(Summary, connection_id: connection.id, trail_id: trail["id"]) do
         %{publication_started: true, published_at: published_at, reported_at: reported_at} = summary
         when published_at != reported_at ->
@@ -233,8 +317,15 @@ defmodule Tuist.EntireTrails do
           prepare_report(connection, trail, summary)
       end
     else
-      {:error, _} = error -> error
-      _ -> nil
+      {:error, _} = error ->
+        error
+
+      {reason, _} ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{number} reason=invalid_#{reason}"
+        )
+
+        nil
     end
   end
 
@@ -258,6 +349,10 @@ defmodule Tuist.EntireTrails do
         end
 
       nil ->
+        Logger.info(
+          "Entire report skipped connection_id=#{connection.id} trail_number=#{trail["number"]} reason=no_insights"
+        )
+
         nil
     end
   end
@@ -271,7 +366,7 @@ defmodule Tuist.EntireTrails do
   end
 
   defp report(project, sha) do
-    base_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}")
+    base_url = project_url(project)
 
     report =
       VCS.get_run_report_sections(%{
@@ -288,6 +383,8 @@ defmodule Tuist.EntireTrails do
 
     if report do
       fallback = "### Tuist insights for `#{sha}`\n\n[View the full report](#{base_url})"
+      # Leave room for the comment marker within Entire's body limits.
+      limit = 65_535 - byte_size("\n\n" <> marker(project))
 
       findings =
         [{"failed-tests", "medium", report.failed_tests}, {"flaky-tests", "low", report.flaky_tests}]
@@ -301,7 +398,11 @@ defmodule Tuist.EntireTrails do
           }
         end)
 
-      %{body: if(byte_size(report.summary) <= 65_535, do: report.summary, else: fallback), findings: findings}
+      %{body: if(byte_size(report.summary) <= limit, do: report.summary, else: fallback), findings: findings}
     end
   end
+
+  defp handle(project), do: "#{project.account.name}/#{project.name}"
+  defp project_url(project), do: Environment.app_url(path: "/" <> handle(project))
+  defp marker(project), do: "<!-- tuist-project:#{project.id} -->"
 end

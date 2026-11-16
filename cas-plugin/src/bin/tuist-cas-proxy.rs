@@ -280,8 +280,13 @@ fn main() {
 
     // Snapshots for every instance the persisted registry knows start
     // fetching now, so the first build after a proxy restart begins with the
-    // snapshot (and its bulk warm) already in flight.
-    proxy.prefetch_known_snapshots();
+    // snapshot (and its bulk warm) already in flight. The stores are bounded
+    // first, because the warm opens them and an open store cannot rotate, and
+    // off the main thread, because collecting a generation can take a while.
+    std::thread::spawn(move || {
+        proxy.bound_registered_stores();
+        proxy.prefetch_known_snapshots();
+    });
 
     // Periodic sweep of orphaned publication records + token refresh + stats.
     std::thread::spawn(move || loop {

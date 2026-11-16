@@ -35,7 +35,6 @@ defmodule Tuist.TestImpactAnalysis.Input do
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
-  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.TestEvidence
   alias Tuist.Tests.CoverageFile
@@ -245,36 +244,26 @@ defmodule Tuist.TestImpactAnalysis.Input do
   # The baseline's target-level evidence, per module, with what its tests and
   # suites recorded taken out, and every path any of its evidence includes.
   # Rows from a shard's replaced reports only add paths, which selects more,
-  # never less.
+  # never less. Reduced in ClickHouse: the rows are one per test and file.
   defp baseline_evidence(_project_id, []), do: {%{}, MapSet.new()}
 
   defp baseline_evidence(project_id, run_ids) do
-    rows =
-      ClickHouseRepo.all(
-        from(f in CoverageFile,
-          where:
-            f.project_id == ^project_id and f.test_run_id in ^run_ids and f.scope_kind in ["test", "suite", "target"],
-          distinct: true,
-          select: {f.scope_kind, f.scope_id, f.path}
-        )
+    evidence =
+      from(f in CoverageFile,
+        where: f.project_id == ^project_id and f.test_run_id in ^run_ids and f.scope_kind in ["test", "suite", "target"]
       )
 
-    scoped =
-      for {kind, scope_id, path} <- rows, kind != "target", reduce: %{} do
-        acc -> Map.update(acc, Evidence.scope_module(scope_id), MapSet.new([path]), &MapSet.put(&1, path))
-      end
-
-    for_result = for({"target", module_name, path} <- rows, do: {module_name, path})
-
     target_evidence =
-      for_result
+      from(f in evidence,
+        group_by: [fragment("splitByChar('\\x1F', ?)[1]", f.scope_id), f.path],
+        having: fragment("countIf(? != 'target') = 0", f.scope_kind),
+        select: {fragment("splitByChar('\\x1F', ?)[1]", f.scope_id), f.path}
+      )
+      |> ClickHouseRepo.all()
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-      |> Map.new(fn {module_name, paths} ->
-        {module_name,
-         paths |> Enum.reject(&MapSet.member?(Map.get(scoped, module_name, MapSet.new()), &1)) |> Enum.sort()}
-      end)
+      |> Map.new(fn {module_name, paths} -> {module_name, Enum.sort(paths)} end)
 
-    {target_evidence, MapSet.new(rows, &elem(&1, 2))}
+    {target_evidence, MapSet.new(ClickHouseRepo.all(from(f in evidence, distinct: true, select: f.path)))}
   end
 
   defp test_paths(_project_id, []), do: []
@@ -297,14 +286,19 @@ defmodule Tuist.TestImpactAnalysis.Input do
   defp flaky_in_runs(_project_id, reproduced) when reproduced == %{}, do: []
 
   defp flaky_in_runs(project_id, reproduced) do
-    run_ids = reproduced |> Map.values() |> Enum.uniq()
-
-    from(r in TestCaseRun,
-      where: r.project_id == ^project_id and r.test_run_id in ^run_ids and r.is_flaky,
-      distinct: true,
-      select: {fragment("toString(?)", r.test_case_id), fragment("toString(?)", r.test_run_id)}
-    )
-    |> ClickHouseRepo.all()
+    reproduced
+    |> Map.values()
+    |> Enum.uniq()
+    |> Coverage.id_chunks(1)
+    |> Enum.flat_map(fn run_ids ->
+      ClickHouseRepo.all(
+        from(r in TestCaseRun,
+          where: r.project_id == ^project_id and r.test_run_id in ^run_ids and r.is_flaky,
+          distinct: true,
+          select: {fragment("toString(?)", r.test_case_id), fragment("toString(?)", r.test_run_id)}
+        )
+      )
+    end)
     |> Enum.filter(fn {test_case_id, run_id} -> Map.get(reproduced, test_case_id) == run_id end)
     |> Enum.map(&elem(&1, 0))
   end

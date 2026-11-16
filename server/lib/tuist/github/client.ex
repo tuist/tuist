@@ -96,6 +96,16 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  def get_branch(installation, repository_full_handle, branch) do
+    api_url = installation_api_url(installation)
+
+    github_request(&Req.get/1,
+      url: "#{api_url}/repos/#{repository_full_handle}/branches/#{URI.encode(branch)}",
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
   def get_user_by_id(%{id: github_id, installation: installation}) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/user/#{github_id}"

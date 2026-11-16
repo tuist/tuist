@@ -1,28 +1,28 @@
 ---
 {
   "title": "Tuistとは？",
-  "description": "開発者のための仮想プラットフォームチーム。Xcode、Gradle、Bazel、Elixir、Rust、Once向けのビルドインフラストラクチャを、各ツールチェーンに合わせた機能で提供します。"
+  "description": "Tuistは、エンジニアリングチームとそのコーディングエージェント向けのビルドプラットフォームです。Xcode、Gradle、Bazel、Elixir、Rustのビルドおよびテストワークフローをサポートしています。Rustのサポートは現在カナリア版でのみ利用可能です。機能はツールチェーンによって異なり、Rustのコンパイルキャッシュは実験的なものです。"
 }
 ---
 
-# リリースを加速する開発者のための仮想プラットフォームチーム
+# チームとコーディングエージェントのためのビルドプラットフォーム
 
-**Tuistは、チームのアプリ開発をスケールさせ、リリースを加速**します。大規模なコードベースの複雑さを、チームの成長に合わせて生産性を高める体験に変えます。Xcode、Gradle、Bazel、Elixir、Rust、Onceプロジェクトなど、すでに使用しているビルドシステムと連携します。利用可能な機能はツールチェーンによって異なります。Rustプロジェクトでは、doctest、flaky test検出、実験的なコンパイルキャッシュを含むCargoのビルドおよびテストインサイトを利用できます。Onceは、共有キャッシュ、ビルドおよびテストインサイト、シャーディング、サポートされたアプリケーションプレビューのためにネイティブに接続します。
+**Tuistは、エンジニアリングチームとそのコーディングエージェント向けのビルドプラットフォームです。** Xcode、Gradle、Bazel、Elixir、Rustにおけるビルドおよびテストのワークフローをサポートしており、Onceのサポートはカナリア版で提供されています。既存のビルドシステムを置き換えるのではなく、それらと連携して動作します。利用可能な機能はツールチェーンによって異なります。Rustプロジェクトでは、doctest、flaky testの検出、実験的なコンパイルキャッシュを含むCargoのビルドおよびテストのインサイトを利用できます。Onceは、共有キャッシュ、ビルドおよびテストのインサイト、シャーディング、サポートされているアプリケーションのプレビューのためにネイティブに接続します。
 
-お使いのビルドシステムに合わせて、<.localized_link href="/guides/get-started">はじめ方のガイド</.localized_link>のいずれかを選択してください。OnceはTuist CLIなしで直接接続できます。その他のパスでは、インストールすべきTuistツールについて説明しています。
+お使いのビルドシステムに合わせて、<.localized_link href="/guides/get-started">Getting Startedのパス</.localized_link>のいずれかに従ってください。OnceはTuist CLIなしで直接接続します。その他のパスでは、インストールすべきTuistのツールについて説明しています。
 
 <br/>
 
 <.home_cards>
   <.home_card
     title="キャッシュ"
-    details="チームとCI間でビルド成果物を共有します。Xcodeのコンパイルキャッシュ、Tuistのモジュールキャッシュ、Gradleのビルドキャッシュ、Bazelのリモートキャッシュ、Elixirの依存関係キャッシュ、Rustの実験的なコンパイルキャッシュ、Onceの共有アクションキャッシュに対応しています。"
+    details="チーム全体およびCI間でビルド成果物を共有します。Xcodeのコンパイルキャッシュ、Tuistのモジュールキャッシュ、Gradleのビルドキャッシュ、Bazelのリモートキャッシュ、Elixirの依存関係キャッシュ、Rustの実験的なコンパイルキャッシュ、そしてOnceの共有アクションキャッシュに対応しています。"
     supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/cache"
 />
   <.home_card
-    title="ビルド＆テストインサイト"
-    details="Xcode、Gradle、Bazel、Elixir、Rust、Onceプロジェクト全体で、ビルドおよびテストの所要時間、失敗、flakiness、回帰を追跡します。"
+    title="ビルド＆テストのインサイト"
+    details="Xcode、Gradle、Bazel、Elixir、Rust、およびOnceのプロジェクトにおいて、ビルドとテストの所要時間、失敗、flakiness、回帰を追跡します。"
     supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/build-insights"
 />
@@ -48,16 +48,16 @@
 />
   <.home_card
     title="パッケージレジストリ"
-    details="Tuistのキャッシュネットワーク-backedなレジストリにより、Swiftパッケージの解決を数分ではなく数秒で行います。"
+    details="Tuistのキャッシュネットワーク backed なレジストリにより、Swiftパッケージの解決を数分ではなく数秒で行います。"
     link="/guides/features/package-registries/swift"
 />
   <.home_card
     title="バンドルサイズ"
-    details="アプリを軽量に保つことで分析し、ユーザーのダウンロード速度を向上させ、ストアのガイドラインをクリアします。"
+    details="アプリを軽量に保つための分析を行い、ユーザーのダウンロード速度を向上させ、ストアのガイドラインをクリアします。"
     link="/guides/features/bundle-insights"
 />
 </.home_cards>
 
 ## 大規模なリリースを行うチームから信頼されています
 
-**[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending Spoons](https://bendingspoons.com/)、その他100社以上の企業のチーム**が、iOSおよびAndroidのコードベース全体でTuistを使用してより迅速にリリースしています。
+**[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending Spoons](https://bendingspoons.com/)、およびその他100社以上の企業のチーム**が、iOSおよびAndroidのコードベース全体でTuistを使用してより迅速にリリースを行っています。

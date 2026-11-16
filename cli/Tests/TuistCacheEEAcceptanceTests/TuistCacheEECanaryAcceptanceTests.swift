@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Logging
 import Path
+import TestCoverageAttribution
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
@@ -25,6 +26,7 @@ import XcodeProj
 @testable import TuistCacheEE
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct TuistCacheEECanaryAcceptanceTests {
     @Test(
         .inTemporaryDirectory,

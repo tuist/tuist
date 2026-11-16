@@ -28,7 +28,9 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
         // before doing any per-target traversal, then walk backwards only from matching artifacts.
         let artifacts = try await exportedSlices(in: graphs)
         guard !artifacts.isEmpty else { return (graph, [], environment) }
-        let consumers = consumers(of: Set(artifacts.keys), in: graphs)
+        let macros = macros(in: graph)
+        let sourceMacros = environment.initialGraphWithSources.map { self.macros(in: $0) } ?? []
+        let consumers = consumers(of: Set(artifacts.keys), in: graphs, macros: macros.union(sourceMacros))
         let traverser = GraphTraverser(graph: graph)
         let sourceTraverser = environment.initialGraphWithSources.map { GraphTraverser(graph: $0) }
         let processors = processors(of: Set(artifacts.keys), graph: graph, traverser: traverser)
@@ -37,8 +39,9 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
             guard case let .target(name, path, _) = origin,
                   var project = result.projects[path], var target = project.targets[name]
             else { continue }
-            let reachable = reachableDependencies(from: origin, in: graph)
-            let sourceReachable = environment.initialGraphWithSources.map { reachableDependencies(from: origin, in: $0) } ?? []
+            let reachable = reachableDependencies(from: origin, in: graph, macros: macros)
+            let sourceReachable = environment.initialGraphWithSources
+                .map { reachableDependencies(from: origin, in: $0, macros: sourceMacros) } ?? []
             var additions: SettingsDictionary = [:]
             for dependency in consumers[origin, default: []].sorted() {
                 let dependencyTraverser: GraphTraverser
@@ -144,7 +147,9 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
         return result
     }
 
-    private func consumers(of artifacts: Set<GraphDependency>, in graphs: [Graph]) -> [GraphDependency: Set<GraphDependency>] {
+    private func consumers(
+        of artifacts: Set<GraphDependency>, in graphs: [Graph], macros: Set<GraphDependency>
+    ) -> [GraphDependency: Set<GraphDependency>] {
         var dependents: [GraphDependency: Set<GraphDependency>] = [:]
         for graph in graphs {
             for (origin, dependencies) in graph.dependencies {
@@ -159,21 +164,42 @@ public struct SwiftPackageCachedHeadersMapper: GraphMapping {
             var visited: Set<GraphDependency> = []
             while let dependency = queue.popLast() {
                 guard visited.insert(dependency).inserted else { continue }
-                queue += dependents[dependency, default: []]
+                if !macros.contains(dependency) { queue += dependents[dependency, default: []] }
                 if case .target = dependency { result[dependency, default: []].insert(artifact) }
             }
         }
         return result
     }
 
-    private func reachableDependencies(from origin: GraphDependency, in graph: Graph) -> Set<GraphDependency> {
+    private func reachableDependencies(
+        from origin: GraphDependency, in graph: Graph, macros: Set<GraphDependency>
+    ) -> Set<GraphDependency> {
         var queue = Array(graph.dependencies[origin, default: []])
         var visited: Set<GraphDependency> = []
         while let dependency = queue.popLast() {
             guard visited.insert(dependency).inserted else { continue }
-            queue += graph.dependencies[dependency, default: []]
+            if !macros.contains(dependency) { queue += graph.dependencies[dependency, default: []] }
         }
         return visited
+    }
+
+    /// Xcode builds a macro's dependencies for the host only, and the macro's clients never compile against
+    /// them, so neither their headers nor their `ProcessXCFramework` outputs cross a macro.
+    ///
+    /// Returns the macro targets that have dependencies, the only ones a walk can stop at. Computed once per
+    /// graph so the walks, which visit far more nodes than the graph has, don't look each one up in `graph.projects`.
+    private func macros(in graph: Graph) -> Set<GraphDependency> {
+        var names: [AbsolutePath: Set<String>] = [:]
+        for (path, project) in graph.projects {
+            for target in project.targets.values where target.product == .macro {
+                names[path, default: []].insert(target.name)
+            }
+        }
+        guard !names.isEmpty else { return [] }
+        return Set(graph.dependencies.keys.filter { dependency in
+            guard case let .target(name, path, _) = dependency else { return false }
+            return names[path]?.contains(name) == true
+        })
     }
 
     private func processors(

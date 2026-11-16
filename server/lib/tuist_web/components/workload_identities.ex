@@ -3,7 +3,7 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   use TuistWeb, :html
   use Noora
 
-  import Phoenix.LiveView, only: [put_flash: 3]
+  import Phoenix.LiveView, only: [put_flash: 3, push_event: 3]
   import TuistWeb.Components.JSONInput
 
   alias Ecto.Changeset
@@ -21,12 +21,8 @@ defmodule TuistWeb.Components.WorkloadIdentities do
     policies = Accounts.list_oidc_trust_policies(account)
 
     socket
-    |> assign(oidc_trust_policies: policies, oidc_configuration_visible: policies != [])
+    |> assign(oidc_trust_policies: policies)
     |> assign_empty_form()
-  end
-
-  def handle_event("toggle_oidc_configuration", _params, socket) do
-    {:noreply, update(socket, :oidc_configuration_visible, &(!&1))}
   end
 
   def handle_event("select_oidc_template", %{"value" => [template]}, socket) when template in ["custom", "fly"] do
@@ -41,6 +37,10 @@ defmodule TuistWeb.Components.WorkloadIdentities do
   end
 
   def handle_event("select_oidc_template", _params, socket), do: {:noreply, socket}
+
+  def handle_event("dismiss_oidc_trust_policy", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "oidc-trust-policy-modal"})}
+  end
 
   def handle_event("change_oidc_trust_policy", %{"oidc_trust_policy" => attrs} = params, socket) when is_map(attrs) do
     {:noreply, update_policy_form(socket, attrs, params)}
@@ -59,6 +59,7 @@ defmodule TuistWeb.Components.WorkloadIdentities do
        socket
        |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account))
        |> assign_empty_form()
+       |> push_event("close-modal", %{id: "oidc-trust-policy-modal"})
        |> put_flash(:info, dgettext("dashboard_account", "Trust policy added."))}
     else
       {:error, :invalid_template} ->

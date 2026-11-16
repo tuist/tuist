@@ -27,7 +27,6 @@ TUIST_STRIPE_PRICES = '{"air":{"usage":["price_1PVY2kLWue9IBlPSHCmPX1jp"],"flat_
   helm = "3.16.3"
   kubectl = "1.31.3"
   "npm:prettier" = "3.4.2"
-  "npm:appium" = "3.0.1"
 
 [tools."github:minio/minio"]
 version = "2025-09-07T16-13-09Z"

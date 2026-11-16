@@ -409,7 +409,7 @@ defmodule TuistOpsWeb.SlackController do
 
   defp human_error(:thread_elevation_moved),
     do:
-      "Amp orb threads are no longer elevated from Slack. The agent calls Atlas's `request_cluster_elevation` tool and you approve the request in Atlas → Admin → MCPs."
+      "Amp orb threads are no longer elevated from Slack. The agent calls Atlas's `request_cluster_elevation` tool and you approve the request in Atlas → My approvals (`/approvals`)."
 
   defp human_error({:invalid_github_login, login}),
     do: "`#{login}` isn't a valid GitHub login."

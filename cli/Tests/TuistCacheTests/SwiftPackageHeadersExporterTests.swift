@@ -333,6 +333,45 @@ struct SwiftPackageCachedHeadersMapperTests {
         #expect(settings["HEADER_SEARCH_PATHS[sdk=macosx*]"] == nil)
         #expect(effects.isEmpty)
     }
+
+    /// A multiplatform source package target that a macro depends on is built only for the host, so its
+    /// `ProcessXCFramework` output never reaches an iOS client of the macro (swift-syntax's `_SwiftSyntaxCShims`).
+    @Test(.inTemporaryDirectory) func headersDoNotCrossMacros() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let artifact = root.appending(component: "CShims.xcframework")
+        for sdk in ["ios-arm64", "macos-arm64"] {
+            let metadataDirectory = artifact.appending(components: sdk, "CShims.framework", "PrivateHeaders")
+            try await fileSystem.makeDirectory(at: metadataDirectory)
+            try await fileSystem.writeAsJSON(
+                SwiftPackageHeadersExporter.Metadata(
+                    publicDirectory: "TuistHeaders/include", moduleMap: "Modules/module.modulemap"
+                ),
+                at: metadataDirectory.appending(component: SwiftPackageHeadersExporter.metadataFileName)
+            )
+        }
+        let frameworkPath = try RelativePath(validating: "CShims.framework")
+        let shims = GraphDependency.testXCFramework(path: artifact, infoPlist: .test(libraries: [
+            .test(identifier: "ios-arm64", path: frameworkPath, platform: .iOS),
+            .test(identifier: "macos-arm64", path: frameworkPath, platform: .macOS),
+        ]), linking: .static)
+        let syntax = GraphDependency.target(name: "Syntax", path: root)
+        let macro = GraphDependency.target(name: "Macros", path: root)
+        let client = GraphDependency.target(name: "Client", path: root)
+        let project = Project.test(path: root, xcodeProjPath: root.appending(component: "App.xcodeproj"), targets: [
+            .test(name: "Syntax", destinations: [.iPhone, .mac], product: .staticFramework),
+            .test(name: "Macros", destinations: [.mac], product: .macro),
+            .test(name: "Client", destinations: [.iPhone], product: .staticFramework),
+        ])
+        let graph = Graph.test(path: root, projects: [root: project], dependencies: [
+            client: [macro], macro: [syntax], syntax: [shims],
+        ])
+        let (mapped, _, _) = try await SwiftPackageCachedHeadersMapper().map(graph: graph, environment: MapperEnvironment())
+        #expect(mapped.projects[root]?.targets["Client"] == project.targets["Client"])
+        #expect(mapped.projects[root]?.targets["Macros"]?.settings?.base["OTHER_CFLAGS[sdk=macosx*]"] == .array([
+            "$(inherited)", "-fmodule-map-file=\"$(BUILT_PRODUCTS_DIR)/CShims.framework/Modules/module.modulemap\"",
+        ]))
+    }
 }
 
 struct SwiftPackageProcessedHeadersTests {

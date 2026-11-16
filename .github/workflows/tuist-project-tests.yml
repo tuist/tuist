@@ -259,8 +259,12 @@ jobs:
         uses: tuist/install@v1
         with:
           cache-key: app-macos-workspace-app-test
+      # `-parallel-testing-enabled NO` overrides the scheme's per-target setting, so the Swift
+      # Testing suites' `.coverageAttribution` trait records each test on its own: tests that
+      # overlap in one process get no evidence. Xcode has no option that serializes Swift Testing
+      # while XCTest stays parallel.
       - name: Run tests
-        run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4 -parallel-testing-enabled NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
   acceptance-tests-build:
     name: Build Acceptance Tests
@@ -391,13 +395,13 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      # -maximum-parallel-testing-workers caps how many test runner processes xcodebuild spawns.
-      # Acceptance tests each shell out to their own nested xcodebuild, so every extra runner
-      # multiplies into a fresh set of compiler processes. Uncapped on a 6-core runner that reached
-      # 78 concurrent swift-frontend processes, which is what starved tests into their time limits.
-      # See https://github.com/tuist/tuist/issues/12512 for the measurements behind this number.
+      # Serial, like the app tests, so the Swift Testing suites' `.coverageAttribution` trait
+      # records each test on its own. Acceptance tests each shell out to their own nested
+      # xcodebuild, so parallel runners also multiplied compiler processes: uncapped on a 6-core
+      # runner that reached 78 concurrent swift-frontend processes
+      # (https://github.com/tuist/tuist/issues/12512).
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -maximum-parallel-testing-workers 2
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2 -parallel-testing-enabled NO
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}

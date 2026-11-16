@@ -60,7 +60,7 @@ msgstr "Śr."
 msgid "Bad request"
 msgstr "Niepoprawne żądanie"
 
-#: lib/tuist_web/components/app_layout_components.ex:585
+#: lib/tuist_web/components/app_layout_components.ex:617
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "Rozliczenia"
@@ -104,7 +104,7 @@ msgstr "Utwórz organizację"
 msgid "Download macOS app"
 msgstr "Pobierz aplikację na macOS"
 
-#: lib/tuist_web/components/app_layout_components.ex:711
+#: lib/tuist_web/components/app_layout_components.ex:743
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "E-maile"
@@ -116,12 +116,13 @@ msgstr "E-maile"
 msgid "Error"
 msgstr "Błąd"
 
-#: lib/tuist_web/components/app_layout_components.ex:726
+#: lib/tuist_web/components/app_layout_components.ex:595
+#: lib/tuist_web/components/app_layout_components.ex:758
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "Błędy"
 
-#: lib/tuist_web/components/app_layout_components.ex:704
+#: lib/tuist_web/components/app_layout_components.ex:736
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "Flagi"
@@ -137,13 +138,13 @@ msgstr "Rozpocznij"
 msgid "Go to dashboard"
 msgstr "Przejdź do panelu"
 
-#: lib/tuist_web/components/app_layout_components.ex:734
+#: lib/tuist_web/components/app_layout_components.ex:766
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:632
+#: lib/tuist_web/components/app_layout_components.ex:664
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "Integracje"
@@ -160,7 +161,7 @@ msgid "Invalid installation request. Please try again."
 msgstr "Nieprawidłowe żądanie instalacji. Spróbuj ponownie."
 
 #: lib/tuist_web/components/app_layout_components.ex:518
-#: lib/tuist_web/components/app_layout_components.ex:698
+#: lib/tuist_web/components/app_layout_components.ex:730
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "Zadania"
@@ -170,7 +171,7 @@ msgstr "Zadania"
 msgid "Learn more"
 msgstr "Dowiedz się więcej"
 
-#: lib/tuist_web/components/app_layout_components.ex:692
+#: lib/tuist_web/components/app_layout_components.ex:724
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "LiveDashboard"
@@ -208,6 +209,8 @@ msgstr "N/A"
 
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
+#: lib/tuist_web/live/pulse_error_live.ex:303
+#: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "Dalej"
@@ -245,6 +248,8 @@ msgstr "Operacje"
 
 #: lib/tuist_web/components/app_layout_components.ex:32
 #: lib/tuist_web/live/ops_database_live.html.heex:8
+#: lib/tuist_web/live/pulse_error_live.ex:155
+#: lib/tuist_web/live/pulse_error_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Przegląd"
@@ -255,6 +260,8 @@ msgid "Please, make sure you are accessing the right resource and that you have 
 msgstr "Upewnij się, że odwołujesz się do właściwego zasobu i masz uprawnienia do jego wyświetlenia."
 
 #: lib/tuist_web/components/app_components.ex:53
+#: lib/tuist_web/live/pulse_error_live.ex:294
+#: lib/tuist_web/live/pulse_live.ex:541
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr "Poprzedni"
@@ -279,7 +286,7 @@ msgstr "Projekty"
 msgid "Server error"
 msgstr "Błąd serwera"
 
-#: lib/tuist_web/components/app_layout_components.ex:598
+#: lib/tuist_web/components/app_layout_components.ex:630
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "Ustawienia"
@@ -304,7 +311,7 @@ msgstr "Przepraszamy, strona, której szukasz, nie istnieje lub została przenie
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "Przepraszamy, wysłano zbyt wiele żądań. Spróbuj ponownie później."
 
-#: lib/tuist_web/components/app_layout_components.ex:718
+#: lib/tuist_web/components/app_layout_components.ex:750
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "Pamięć masowa"
@@ -392,8 +399,8 @@ msgstr "Zbyt wiele żądań"
 msgid "Too many requests."
 msgstr "Zbyt wiele żądań."
 
-#: lib/tuist_web/components/app_layout_components.ex:773
-#: lib/tuist_web/components/app_layout_components.ex:811
+#: lib/tuist_web/components/app_layout_components.ex:805
+#: lib/tuist_web/components/app_layout_components.ex:843
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Ikona Tuist"
@@ -502,8 +509,8 @@ msgstr "Cache Gradle"
 msgid "Create project"
 msgstr "Utwórz projekt"
 
-#: lib/tuist_web/components/app_layout_components.ex:578
-#: lib/tuist_web/components/app_layout_components.ex:661
+#: lib/tuist_web/components/app_layout_components.ex:610
+#: lib/tuist_web/components/app_layout_components.ex:693
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -515,6 +522,7 @@ msgstr "Pamięć podręczna"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "Plik APK podglądu nie istnieje lub wygasł."
 
+#: lib/tuist_web/components/app_layout_components.ex:577
 #: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
 msgid "Metrics"
@@ -637,7 +645,7 @@ msgstr "Twój dostawca tożsamości zwrócił błąd uwierzytelniania. Spróbuj 
 msgid "Dashboard"
 msgstr "Dashboard"
 
-#: lib/tuist_web/components/app_layout_components.ex:674
+#: lib/tuist_web/components/app_layout_components.ex:706
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -645,7 +653,7 @@ msgstr "Dashboard"
 msgid "Accounts"
 msgstr "Konta"
 
-#: lib/tuist_web/components/app_layout_components.ex:638
+#: lib/tuist_web/components/app_layout_components.ex:670
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "Uwierzytelnianie"
@@ -921,7 +929,7 @@ msgstr "Włochy"
 msgid "Japan"
 msgstr "Japonia"
 
-#: lib/tuist_web/components/app_layout_components.ex:667
+#: lib/tuist_web/components/app_layout_components.ex:699
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1323,7 +1331,7 @@ msgstr "Serwer GitHub Enterprise zwrócił błąd 404 podczas konwertowania mani
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr "Serwer GitHub Enterprise zwrócił HTTP %{status} podczas konwertowania manifestu. Sprawdź logi serwera pod kątem treści żądania i spróbuj ponownie."
 
-#: lib/tuist_web/components/app_layout_components.ex:620
+#: lib/tuist_web/components/app_layout_components.ex:652
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "Ogólne"
@@ -1333,7 +1341,7 @@ msgstr "Ogólne"
 msgid "Runners"
 msgstr "Runnery CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:571
+#: lib/tuist_web/components/app_layout_components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr "Webhooki"
@@ -1431,7 +1439,7 @@ msgstr "Kopiuj jako Markdown"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "Nie można odczytać zasobów Backup klastra z interfejsu API Kubernetes — sprawdź uprawnienia RBAC konta ServiceAccount serwera dla postgresql.cnpg.io."
 
-#: lib/tuist_web/components/app_layout_components.ex:686
+#: lib/tuist_web/components/app_layout_components.ex:718
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1479,6 +1487,7 @@ msgid "Export"
 msgstr "Eksportuj"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:42
+#: lib/tuist_web/live/pulse_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr "Filtr"
@@ -1731,6 +1740,7 @@ msgid "Size"
 msgstr "Rozmiar"
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:49
+#: lib/tuist_web/live/pulse_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr "Sortuj według:"
@@ -1812,17 +1822,17 @@ msgstr "Archiwum WAL"
 msgid "Write lag (bytes)"
 msgstr "Opóźnienie zapisu (bajty)"
 
-#: lib/tuist_web/components/app_layout_components.ex:591
+#: lib/tuist_web/components/app_layout_components.ex:623
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "Użycie"
 
-#: lib/tuist_web/components/app_layout_components.ex:794
+#: lib/tuist_web/components/app_layout_components.ex:826
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "Dokumentacja"
 
-#: lib/tuist_web/components/app_layout_components.ex:626
+#: lib/tuist_web/components/app_layout_components.ex:658
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "Tokeny"
@@ -2929,6 +2939,7 @@ msgstr "Rozpocznij plan Open Source"
 msgid "Invalid Origin installation request. Please try again."
 msgstr "Nieprawidłowe żądanie instalacji Origin. Spróbuj ponownie."
 
+#: lib/tuist_web/live/pulse_live.ex:255
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -2985,6 +2996,7 @@ msgstr "Mieszana pamięć podręczna"
 
 #: lib/tuist_web/live/mix_build_live.ex:278
 #: lib/tuist_web/live/mix_build_live.ex:319
+#: lib/tuist_web/live/pulse_live.ex:565
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -3131,7 +3143,7 @@ msgstr "Limit dysku (GB)"
 msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
 msgstr "Limity sandboxów są niezależne od CI. Tworzenie, wznawianie i uruchamianie sandboxów liczy się do limitów CPU i pamięci. Każdy sandbox na węźle, w tym wstrzymane, liczy się do limitu dysku wraz ze swoim workspace’em i obrazem pamięci; zarchiwizowane sandboxy nie są liczone."
 
-#: lib/tuist_web/components/app_layout_components.ex:647
+#: lib/tuist_web/components/app_layout_components.ex:679
 #: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "AI"
@@ -3171,3 +3183,13 @@ msgstr "Twoje konto zostało zmienione podczas logowania. Spróbuj ponownie."
 #, elixir-autogen, elixir-format
 msgid "Test Selection"
 msgstr "Wybór testów"
+
+#: lib/tuist_web/components/app_layout_components.ex:583
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr "Logi"
+
+#: lib/tuist_web/components/app_layout_components.ex:589
+#, elixir-autogen, elixir-format
+msgid "Traces"
+msgstr "Ślady"

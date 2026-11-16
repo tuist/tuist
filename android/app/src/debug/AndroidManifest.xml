@@ -4,10 +4,6 @@
 
     <application
         android:networkSecurityConfig="@xml/network_security_config"
-        tools:targetApi="28">
-        <activity
-            android:name=".ui.jams.JamsPreviewActivity"
-            android:exported="false" />
-    </application>
+        tools:targetApi="28" />
 
 </manifest>

@@ -14,6 +14,7 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
   alias Tuist.MCP.Components.Tools.ListWebhookEndpoints
   alias Tuist.MCP.Components.Tools.UpdateRunnerProfile
   alias Tuist.Repo
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -58,7 +59,40 @@ defmodule Tuist.MCP.Components.Tools.RunnerAndWebhookToolsTest do
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
                GetRunnerJob.call(conn, %{"account_handle" => "acme", "workflow_job_id" => 42})
 
-      assert JSON.decode!(text)["workflow_job_id"] == 42
+      assert %{"workflow_job_id" => 42, "out_of_memory" => nil} = JSON.decode!(text)
+    end
+
+    test "says what the job's machine stopped for running out of memory" do
+      account = %{id: 1, name: "acme"}
+
+      stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
+      stub(Tuist.Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
+      stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
+      stub(Jobs, :get_for_account, fn 1, 920_201 -> {:ok, %{runner_job_fixture() | workflow_job_id: 920_201}} end)
+
+      :ok =
+        JobMetrics.record(920_201, 1, [
+          %{
+            timestamp: 1_750_000_015.0,
+            oom_kill_count: 2,
+            oom_victim_process: "node",
+            oom_victim_memory_bytes: 3_000_000_000
+          }
+        ])
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetRunnerJob.call(conn, %{"account_handle" => "acme", "workflow_job_id" => 920_201})
+
+      assert %{
+               "kill_count" => 2,
+               "victim" => %{"process" => "node", "container" => nil, "image" => nil},
+               "description" => description
+             } = JSON.decode!(text)["out_of_memory"]
+
+      assert description =~ "The last one was node, which was using 3.0 GB, outside any container."
+      refute description =~ "JVM"
     end
 
     test "rejects malformed arguments before querying runner data" do

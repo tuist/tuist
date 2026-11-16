@@ -28,7 +28,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.35.10
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
@@ -77,10 +77,12 @@ spec:
         # General-purpose pool: Phoenix server, system DaemonSets.
         # Stays on Hetzner Cloud (cpx32) since these workloads don't
         # benefit from bare metal and the elastic scaling matters
-        # more than per-host cost.
+        # more than per-host cost. Four nodes, because Pulse's cluster
+        # topology places one etcd, Kafka, metasrv and datanode replica per
+        # node and must keep all three of each scheduled after losing a node.
         - class: hcloud-worker
           name: md-0
-          replicas: 3
+          replicas: 4
           failureDomain: fsn1
           rollout:
             strategy:
@@ -176,13 +178,8 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: clickhouse
-            # Keeps this pool on v1.34 while the control plane and the hcloud
-            # pools move to v1.35 (one minor of skew is supported). The class is
-            # OnDelete, so removing this only moves the MachineDeployment's
-            # version: each box is reinstalled at the new version when a person
-            # deletes its Machine, which wipes its ClickHouse replica. See the
-            # `stateful-worker` rollout comment in clusterclass-tuist.yaml.
-            # The Cluster webhook refuses the next minor bump while this pool
-            # is behind, so it must reach v1.35 before the v1.36 bump.
-            annotations:
-              topology.cluster.x-k8s.io/defer-upgrade: ""
+            # Follows topology.version. The class is OnDelete, so a version
+            # change moves only the MachineDeployment: its boxes keep running
+            # and are upgraded in place, one at a time, without touching
+            # ClickHouse's data. See "Upgrading the ClickHouse pool in place"
+            # in infra/k8s/clusters/README.md.

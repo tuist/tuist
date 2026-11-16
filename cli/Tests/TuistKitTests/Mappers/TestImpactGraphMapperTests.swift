@@ -12,6 +12,7 @@ struct TestImpactGraphMapperTests {
     private let gitController = MockGitControlling()
     private let resolveBaselineService = MockResolveTestImpactBaselineServicing()
     private let createRunService = MockCreateTestImpactRunServicing()
+    private let gitHistoryService = MockGitHistoryServicing()
     private let path = try! AbsolutePath(validating: "/repo")
     private let subject = TestImpactGraphMapper(testPlan: nil, schemeName: nil, includedTargets: [], excludedTargets: [])
     private let selector: TestImpactSelector
@@ -25,12 +26,17 @@ struct TestImpactGraphMapperTests {
                 scheme: nil,
                 testPlan: nil,
                 destination: nil,
-                platform: nil
+                platform: nil,
+                coverage: true
             ),
             gitController: gitController,
             resolveBaselineService: resolveBaselineService,
-            createRunService: createRunService
+            createRunService: createRunService,
+            gitHistoryService: gitHistoryService
         )
+        given(gitHistoryService)
+            .publish(gitInfo: .any, workingDirectory: .any, fullHandle: .any, serverURL: .any, coverage: .any)
+            .willReturn(nil)
         given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
         given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(path)
         given(gitController).gitInfo(workingDirectory: .any)

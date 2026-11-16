@@ -76,7 +76,7 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 > [!WARNING]
 > **Module vs file-level granularity**
 >
-> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of the default selective testing is at the target level. The [coverage strategy](#coverage-based-test-selection) narrows it down to single XCTest tests. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of the default selective testing is at the target level. The [coverage strategy](#coverage-based-test-selection) narrows it down to single tests. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
 
 
 ## Coverage-based test selection {#coverage-based-test-selection}
@@ -86,7 +86,7 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 >
 > Coverage-based test selection is in early access. Contact us to enable it for your account. Until it's enabled, the strategy behaves like the default selective testing.
 
-By default, selective testing skips whole test targets whose hash already passed. The `.coverage()` strategy goes further: in the test targets left, it also skips the XCTest and XCUITest tests whose code coverage on an earlier run includes none of the files your change touched. Enable it in `Tuist.swift`:
+By default, selective testing skips whole test targets whose hash already passed. The `.coverage()` strategy goes further: in the test targets left, it also skips the tests whose code coverage on an earlier run includes none of the files your change touched. It works with XCTest and XCUITest tests, and with [Swift Testing](#swift-testing) tests in suites set up for it. Enable it in `Tuist.swift`:
 
 ```swift
 import ProjectDescription
@@ -104,10 +104,10 @@ let tuist = Tuist(
 The strategy requires:
 
 - **Coverage uploads.** Tuist selects tests by the coverage that earlier runs uploaded, so `tuist test` fails to load a manifest that sets `.coverage()` with `upload: false`.
-- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.3.0 or later** linked by your test targets. It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
-- **Test runs on your default branch without selection.** Run `tuist test --no-selective-testing` there, and on any other branch where tests shouldn't be skipped. Those runs execute every test and become the baselines later runs compare against.
+- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.5.1 or later** [linked by your test targets](#linking-testcoverageattribution). It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
+- **Full test runs, often enough.** A run with `tuist test --no-selective-testing` executes every test and becomes a baseline. A selective run compares against a recent one in its commit's history on the same platform, and applies no coverage without one. Where and how often to run them depends on how your team works, such as on every commit of your default branch, nightly, or on release branches. We recommend the default branch: a full run there also catches, before a change ships, what coverage can't see, such as a fixture or a service a test depends on.
 
-With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run. Swift Testing tests run whenever their target runs.
+With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run.
 
 Sometimes coverage isn't applied, and the output says why: every test of the targets whose hash didn't pass runs, as with the default selective testing. That happens without a recent baseline on the same platform, when the change touches more than 5,000 files, or when a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`. To run every test, pass `--no-selective-testing`.
 
@@ -116,13 +116,99 @@ Sometimes coverage isn't applied, and the output says why: every test of the tar
 >
 > Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">code coverage</.localized_link> carries the coverage of skipped test targets forward from an earlier run instead, using the <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#target-level-coverage">target-level coverage</.localized_link> it records on every run.
 
+### Linking TestCoverageAttribution {#linking-testcoverageattribution}
+
+Add the package to `Tuist/Package.swift`, pinned to its minor version, since a 0.x minor release can change what it records:
+
+```swift
+import PackageDescription
+
+let package = Package(
+    name: "MyApp",
+    dependencies: [
+        .package(
+            url: "https://github.com/tuist/TestCoverageAttribution",
+            .upToNextMinor(from: "0.5.1")
+        ),
+    ]
+)
+```
+
+Then add it to your test targets, and never to an app target:
+
+```swift
+.target(
+    name: "CheckoutTests",
+    destinations: .iOS,
+    product: .unitTests,
+    bundleId: "dev.tuist.CheckoutTests",
+    sources: ["CheckoutTests/**"],
+    dependencies: [
+        .target(name: "Checkout"),
+        .external(name: "TestCoverageAttribution"),
+    ]
+)
+```
+
+Tuist links packages as static frameworks by default. An XCTest-only target references nothing in the package, so the linker drops it, and with it the recording and the skipping. Either add `-ObjC` to the test target's `OTHER_LDFLAGS`, or link the package dynamically in `Tuist/Package.swift`:
+
+```swift
+#if TUIST
+    import ProjectDescription
+
+    let packageSettings = PackageSettings(
+        productTypes: ["TestCoverageAttribution": .framework]
+    )
+#endif
+```
+
+### Swift Testing {#swift-testing}
+
+Swift Testing has no observation API a library can join, so its tests need TestCoverageAttribution's `.coverageAttribution` trait on their suite. The trait applies to the suites nested in the one that has it. Tests in suites without it record no per-test coverage, so they run whenever their target runs.
+
+```swift
+import TestCoverageAttribution
+import Testing
+
+@Suite(.coverageAttribution)
+struct DiscountTests {
+    @Test func appliesDiscount() { … }
+}
+```
+
+- **Tests must not overlap.** Swift Testing runs a process's tests in parallel by default, and coverage counters can't tell tests that run at the same time apart, so those tests record no coverage of their own and always run. `.serialized` only orders a suite's own tests, so it's enough only when the target has a single suite. XCTest needs nothing: parallel testing runs each test clone in its own process.
+- **Turn parallelization off per test target.** Xcode applies the setting to each test target, so you can turn it off only for the targets you want selected test by test, and the scheme's other targets keep running in parallel. No separate scheme is needed. Set it on the testable target, `.testableTarget(target: "CheckoutTests", parallelization: .disabled)`, which also runs that target's XCTest tests without clones. Schemes Tuist generates take it from the project's `testingOptions`, off unless they include `.parallelizable` or `.swiftTestingOnlyParallelizable`. Passing `-parallel-testing-enabled YES` or `NO` to `tuist test` overrides every target's setting for that run.
+- **Skipping needs Swift 6.3 (Xcode 26.4) or later.** The trait cancels the tests Tuist didn't select and reports them as skipped. With earlier versions, the tests still record coverage, but the ones Tuist didn't select run anyway.
+
+### Tests that always run {#tests-that-always-run}
+
+Coverage only sees the code a test executes. A test whose real inputs are fixtures, resources, the network, or the environment can break without any covered code changing. Mark it unskippable and it runs even when Tuist doesn't select it:
+
+```swift
+// Swift Testing: on a test or a suite.
+// `.skippable` opts a nested test or suite back in.
+@Suite(.coverageAttribution, .unskippable)
+struct FixtureTests {
+    @Test func parsesTheFixtures() { … }
+}
+
+// XCTest: list the class's tests, or set `isUnskippable` for all of them.
+final class NetworkTests: XCTestCase {
+    @objc static let unskippableTests = ["testParsesTheFixtures"]
+}
+```
+
+It only applies in test targets that run. A target whose hash already passed, or none of whose tests Tuist selected, is skipped whole and never starts, so its unskippable tests don't run either.
+
+See the [TestCoverageAttribution README](https://github.com/tuist/TestCoverageAttribution#unskippable-tests) for every option.
+
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!WARNING]
 > **Git forge integration required**
 >
-> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
+> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a Git forge: <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link>, <.localized_link href="/guides/integrations/gitforge/origin">Cursor Origin</.localized_link>, or <.localized_link href="/guides/integrations/gitforge/entire">Entire</.localized_link>.
 
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist test` as part of your CI workflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:

@@ -170,6 +170,9 @@ defmodule Atlas.Orbit.ToolPolicy do
     # messages to every reader of a shared thread.
     "search_my_gmail",
     "get_my_gmail_message",
+    "save_my_gmail_attachment",
+    "ovh_list_invoices",
+    "ovh_save_invoice",
     "get_my_gmail_draft",
     "create_my_gmail_draft",
     "update_my_gmail_draft",

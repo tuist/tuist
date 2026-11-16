@@ -15,6 +15,15 @@ defmodule Condukt.Notifiers.PubSub do
 
       Phoenix.PubSub.subscribe(MyApp.PubSub, Condukt.Notifiers.PubSub.topic(session_id))
 
+  Numbered view changes go to a topic of their own, so subscribers of the
+  event topic receive nothing new. They arrive as
+  `{:condukt_change, session_id, epoch, seq, change}`, the same message
+  `Condukt.Session.watch/1` sends locally. Subscribe first, then fetch the
+  view, and apply each change with `Condukt.Session.View.advance/4`:
+
+      Phoenix.PubSub.subscribe(MyApp.PubSub, Condukt.Notifiers.PubSub.changes_topic(session_id))
+      view = Condukt.Session.view(session)
+
   ## Options
 
     * `:server` - the PubSub server name (required)
@@ -31,6 +40,9 @@ defmodule Condukt.Notifiers.PubSub do
   @doc "The topic a session publishes on."
   def topic(session_id, prefix \\ @default_prefix), do: prefix <> session_id
 
+  @doc "The topic a session publishes its numbered view changes on."
+  def changes_topic(session_id, prefix \\ @default_prefix), do: topic(session_id, prefix) <> ":changes"
+
   @impl Condukt.Notifier
   def publish(session_id, event, opts) do
     server = Keyword.fetch!(opts, :server)
@@ -40,6 +52,18 @@ defmodule Condukt.Notifiers.PubSub do
       server,
       topic(session_id, prefix),
       {:condukt_event, session_id, event}
+    )
+  end
+
+  @impl Condukt.Notifier
+  def publish_change(session_id, epoch, seq, change, opts) do
+    server = Keyword.fetch!(opts, :server)
+    prefix = Keyword.get(opts, :prefix, @default_prefix)
+
+    Phoenix.PubSub.broadcast(
+      server,
+      changes_topic(session_id, prefix),
+      {:condukt_change, session_id, epoch, seq, change}
     )
   end
 end

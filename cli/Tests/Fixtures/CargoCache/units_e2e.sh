@@ -8,6 +8,10 @@
 # foreign:  so is a snapshot holding a file its record does not list.
 # lockfile: a different `Cargo.lock` (an added path dependency) still restores the unit: the manifest is not keyed by
 #           the lockfile, and Cargo's fingerprints decide what a build uses.
+# incremental: a build without `CARGO_INCREMENTAL` restores the unit a `CARGO_INCREMENTAL=0` build (CI's usual
+#           setting, and `common.sh`'s) published: Cargo never compiles dependencies incrementally.
+# per-crate-incremental: the same for the per-crate cache, in a checkout whose Cargo configuration differs only in
+#           terminal settings, so the unit manifest misses and Cargo compiles the dependency again.
 # flags:    different rustflags in `.cargo/config.toml` miss, and Cargo compiles the dependency again.
 # native:   a `-sys` crate's build-script run that names its Cargo-home sources is restored in another checkout.
 # corrupt:  with the stored rlib corrupted and no snapshot, the unit is not restored and Cargo compiles it again.
@@ -53,8 +57,9 @@ build_units "$b" snapshot
 expect snapshot tuist-cargo-cache-smoke "$COMPILED"
 logged snapshot "from a snapshot" || fail "snapshot: not restored from the snapshot"
 
-copies=("$ROOT"/xdg/tuist/Cargo/*/snapshots/*/deps/libitoa-*.rlib)
-[ -f "${copies[0]}" ] || fail "tampered: no snapshot was saved"
+# Cargo keeps rlibs in `deps`, or in `build/<package>/<hash>/out` since 1.100.
+copies=($(find "$ROOT"/xdg/tuist/Cargo/*/snapshots -name 'libitoa-*.rlib'))
+[ -f "${copies[0]-}" ] || fail "tampered: no snapshot was saved"
 corrupt "${copies[0]}"
 build_units "$b" tampered
 expect tampered tuist-cargo-cache-smoke "$COMPILED"
@@ -63,13 +68,14 @@ logged tampered discarding || fail "tampered: the changed snapshot was not disca
 
 # A file the snapshot's record does not vouch for, such as the output of a Cargo that built in the profile while it
 # was taken, must never reach a restored target.
-snapshots=("$ROOT"/xdg/tuist/Cargo/*/snapshots/*/deps)
-[ -d "${snapshots[0]}" ] || fail "foreign: no snapshot was saved again"
+snapshots=($(find "$ROOT"/xdg/tuist/Cargo/*/snapshots -name 'libitoa-*.rlib' -exec dirname {} \;))
+[ -d "${snapshots[0]-}" ] || fail "foreign: no snapshot was saved again"
 printf 'stale\n' > "${snapshots[0]}/foreign-0123456789abcdef.d"
+foreign=${snapshots[0]#"$ROOT"/xdg/tuist/Cargo/*/snapshots/*/}
 build_units "$b" foreign
 expect foreign tuist-cargo-cache-smoke "$COMPILED"
 logged foreign discarding || fail "foreign: the snapshot holding a foreign file was not discarded"
-[ ! -e "$b/target/debug/deps/foreign-0123456789abcdef.d" ] || fail "foreign: the foreign file was restored"
+[ ! -e "$b/target/debug/$foreign/foreign-0123456789abcdef.d" ] || fail "foreign: the foreign file was restored"
 
 lock=$(checkout lock "$shared")
 mkdir -p "$lock/extra/src"
@@ -81,6 +87,19 @@ printf 'extra = { path = "extra" }\n' >> "$lock/Cargo.toml"
 build_units "$lock" lockfile
 expect lockfile "extra tuist-cargo-cache-smoke" "$COMPILED"
 [ "$RESTORED" -ge 1 ] || fail "lockfile: nothing restored"
+
+inc=$(checkout incremental "$shared")
+export -n CARGO_INCREMENTAL
+build_units "$inc" incremental
+export CARGO_INCREMENTAL
+expect incremental tuist-cargo-cache-smoke "$COMPILED"
+
+crate=$(checkout per-crate $'[term]\nverbose = false\ncolor = "never"\n')
+export -n CARGO_INCREMENTAL
+build_units "$crate" per-crate-incremental
+export CARGO_INCREMENTAL
+expect per-crate-incremental "itoa tuist-cargo-cache-smoke" "$COMPILED"
+expect per-crate-incremental hit "$(task per-crate-incremental itoa)"
 
 c=$(checkout c $'[build]\nrustflags = ["-C", "overflow-checks=on"]\n')
 build_units "$c" flags
@@ -108,7 +127,7 @@ expect native-moved native "$(compiled native-moved)"
 
 # Without a snapshot, so restoration reads the corrupted blob itself.
 rm -rf "$ROOT"/xdg/tuist/Cargo/*/snapshots
-rlibs=("$b"/target/debug/deps/libitoa-*.rlib)
+rlibs=($(find "$b/target/debug" -name 'libitoa-*.rlib'))
 digest=$(shasum -a 256 "${rlibs[0]}" | cut -d' ' -f1)
 blobs=("$ROOT"/xdg/tuist/Cargo/*/blobs)
 corrupt "${blobs[0]}/$digest"

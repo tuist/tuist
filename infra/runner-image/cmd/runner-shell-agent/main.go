@@ -881,26 +881,41 @@ func lookupShellUser(name string) (shellUser, error) {
 	}, nil
 }
 
+// macOS setgroups(2) fails with EINVAL above NGROUPS_MAX (16), so the
+// spawn fails outright for a user in more groups. The runner user on the
+// macOS 26.6 images is in 17.
+const maxSupplementaryGroups = 16
+
 func supplementaryGroups(account *osuser.User, primaryGID uint32) []uint32 {
-	groups := map[uint32]struct{}{primaryGID: {}}
 	groupIDs, err := account.GroupIds()
 	if err != nil {
 		return []uint32{primaryGID}
 	}
+	return boundedGroups(primaryGID, groupIDs)
+}
 
+// boundedGroups returns the primary group first, then the other groups in
+// ascending order, capped at maxSupplementaryGroups.
+func boundedGroups(primaryGID uint32, groupIDs []string) []uint32 {
+	others := map[uint32]struct{}{}
 	for _, groupID := range groupIDs {
 		gid, err := parseUint32(groupID)
-		if err != nil {
+		if err != nil || gid == primaryGID {
 			continue
 		}
-		groups[gid] = struct{}{}
+		others[gid] = struct{}{}
 	}
 
-	result := make([]uint32, 0, len(groups))
-	for gid := range groups {
-		result = append(result, gid)
+	sorted := make([]uint32, 0, len(others))
+	for gid := range others {
+		sorted = append(sorted, gid)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	result := append([]uint32{primaryGID}, sorted...)
+	if len(result) > maxSupplementaryGroups {
+		result = result[:maxSupplementaryGroups]
+	}
 	return result
 }
 

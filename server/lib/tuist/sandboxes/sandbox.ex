@@ -36,7 +36,16 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
     field :amp_base_snapshot_id, :string
+    field :amp_snapshot_lineage_id, :string
+    field :amp_creator_user_id, :string
+    field :amp_creator_username, :string
+    field :amp_creator_name, :string
+    field :amp_creator_email, :string
+    field :creator_actor, :map, virtual: true
     field :template, :string
+    # The Xcode a create asked for, which picked `template`; not stored, the
+    # template is what a macOS sandbox keeps (`Tuist.Sandboxes.Xcode`).
+    field :xcode_version, :string, virtual: true
     field :template_tag, :string
     field :vcpus, :integer
     field :memory_mb, :integer
@@ -58,6 +67,11 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :archive_upload_id, :string
     field :archive_bytes, :integer
     field :archive_sha256, :string
+    # Set when the archive holds the memory image ahead of its disks:
+    # `tail_offset` and `tail_sha256` locate the disk stream, `compat` is
+    # the snapshot compatibility of nodes that can resume it warm, and
+    # `loading_since` marks a warm restore still reading memory from it.
+    field :archive_memory, :map
     field :archive_attempted_at, :utc_datetime
     field :archived_at, :utc_datetime
 
@@ -107,15 +121,18 @@ defmodule Tuist.Sandboxes.Sandbox do
       :anthropic_session_id,
       :amp_orb_id,
       :amp_base_snapshot_id,
+      :amp_snapshot_lineage_id,
       :amp_integration_id,
       :provider_environment_id,
       :template,
+      :xcode_version,
       :vcpus,
       :memory_mb,
       :workspace_gb
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+    |> Tuist.Sandboxes.Xcode.validate()
     |> validate_shape()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
     |> unique_constraint([:account_id, :amp_orb_id])
@@ -142,6 +159,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :archive_upload_id,
       :archive_bytes,
       :archive_sha256,
+      :archive_memory,
       :archive_attempted_at,
       :archived_at
     ])

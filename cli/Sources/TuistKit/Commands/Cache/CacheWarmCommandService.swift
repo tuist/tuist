@@ -15,6 +15,7 @@ import TuistLoader
 import TuistLogging
 import TuistPlugin
 import TuistProcess
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistXcodeBuildProducts
@@ -105,6 +106,7 @@ import XcodeGraph
         private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
         private let commandRunner: CommandRunning
         private let coverageBuildSourcesService: CoverageBuildSourcesService
+        private let rootDirectoryLocator: RootDirectoryLocating
 
         public init() {
             let contentHasher = ContentHasher()
@@ -140,7 +142,8 @@ import XcodeGraph
             scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
             foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator(),
             commandRunner: CommandRunning = CommandRunner(),
-            coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
+            coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService(),
+            rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -159,6 +162,7 @@ import XcodeGraph
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
             self.commandRunner = commandRunner
             self.coverageBuildSourcesService = coverageBuildSourcesService
+            self.rootDirectoryLocator = rootDirectoryLocator
             buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
         }
 
@@ -353,6 +357,53 @@ import XcodeGraph
             return InstrumentedBinaryCacheWarm.buildSettings(sourceRoots: InstrumentedBinaryCacheWarm.sourceRoots(roots))
         }
 
+        /// The alias cached binaries record for the repository root in their debug information. Xcode 27's
+        /// compilation-cache prefix mapping (`XcodeCachePrefixMappingWorkspaceMapper`) records the same one, so both
+        /// builds read the same in every checkout, and the consumer's debugger maps it to its own root.
+        static let debugPrefixMapAlias = "/^root"
+
+        /// The root spellings to record as `/^root`, or none when the compilation cache already prefix-maps the
+        /// root: its scanner rewrites every input path, and an absolute flag would put the checkout back in the key.
+        private func debugPrefixMapRoots(graph: Graph) async throws -> [String] {
+            guard !graph.projects.values.contains(where: {
+                $0.settings.base["TUIST_PREFIX_MAPPING_ROOT_DIR"] != nil
+            }) else { return [] }
+            let root = try await rootDirectoryLocator.locate(from: graph.workspace.path)
+                ?? graph.workspace.xcWorkspacePath.parentDirectory
+            return InstrumentedBinaryCacheWarm.sourceRoots([root.pathString])
+        }
+
+        /// Debug-information-only prefix maps (`-debug-prefix-map`, `-fdebug-prefix-map`), which leave coverage
+        /// mappings and code untouched. Command-line settings replace each other, so a coverage warm's flag settings
+        /// gain a reference instead of being overridden.
+        ///
+        /// Static archives' objects would otherwise reference the warm's temporary `.pcm` files for Clang types
+        /// (`-gmodules`, and Swift's breadcrumbs for imported Clang modules), which no consumer has: their types are
+        /// embedded instead, as for any redistributed static archive.
+        static func debugPrefixMapSettings(roots: [String], merging settings: [String]) -> [String] {
+            guard !roots.isEmpty else { return settings }
+            let swiftFlags = ["-no-clang-module-breadcrumbs"] + roots.map {
+                "-debug-prefix-map \(SettingValue.quoted("\($0)=\(debugPrefixMapAlias)"))"
+            }
+            let cFlags = roots.map { SettingValue.quoted("-fdebug-prefix-map=\($0)=\(debugPrefixMapAlias)") }
+            var settings = settings + [
+                "CLANG_ENABLE_MODULE_DEBUGGING=NO",
+                "TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_SWIFT_FLAGS=\(swiftFlags.joined(separator: " "))",
+                "TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_CFLAGS=\(cFlags.joined(separator: " "))",
+            ]
+            for (setting, flags) in [
+                ("OTHER_SWIFT_FLAGS", "SWIFT_FLAGS"), ("OTHER_CFLAGS", "CFLAGS"), ("OTHER_CPLUSPLUSFLAGS", "CFLAGS"),
+            ] {
+                let reference = " $(TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_\(flags))"
+                if let index = settings.firstIndex(where: { $0.hasPrefix("\(setting)=") }) {
+                    settings[index] += reference
+                } else {
+                    settings.append("\(setting)=$(inherited)\(reference)")
+                }
+            }
+            return settings
+        }
+
         private func republishIfNeeded(
             _ localHits: [CacheStorableItem: AbsolutePath],
             cacheStorage: CacheStoring
@@ -491,6 +542,13 @@ import XcodeGraph
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
 
+            let debugPrefixMapRoots = try await debugPrefixMapRoots(graph: graph)
+            let instrumentationSettings = Self.debugPrefixMapSettings(
+                roots: debugPrefixMapRoots,
+                merging: instrumentationSettings
+            )
+            let debugPrefixMappings = debugPrefixMapRoots.map { [Self.debugPrefixMapAlias: $0] }
+
             var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
             let derivedDataPath = scratchDirectory.appending(component: "derived-data")
             try await fileSystem.makeDirectory(at: derivedDataPath)
@@ -584,7 +642,8 @@ import XcodeGraph
                 cacheableTargets: hashesByTargetToBeCached,
                 binaryArtifactDirectories: binaryArtifactDirectories,
                 scratchDirectory: scratchDirectory,
-                debuggingMetadata: debuggingMetadata
+                debuggingMetadata: debuggingMetadata,
+                debugPrefixMappings: debugPrefixMappings
             ))
 
             artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
@@ -800,7 +859,8 @@ import XcodeGraph
             cacheableTargets: [(GraphTarget, String)],
             binaryArtifactDirectories: [Platform: Set<AbsolutePath>],
             scratchDirectory: AbsolutePath,
-            debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata]
+            debuggingMetadata: [GraphTarget: CachedModuleDebuggingMetadata],
+            debugPrefixMappings: [[String: String]]
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             let cacheableTargets = cacheableTargets.filter {
                 $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
@@ -868,7 +928,8 @@ import XcodeGraph
                 if let metadata = debuggingMetadata[cacheableTarget.0],
                    try await !writeDebuggingMetadata(
                        metadata, target: cacheableTarget.0, artifact: xcframeworkPath,
-                       productsDirectories: Set(platformBinaryArtifacts)
+                       productsDirectories: Set(platformBinaryArtifacts),
+                       debugPrefixMappings: debugPrefixMappings
                    )
                 { return nil }
 
@@ -923,7 +984,8 @@ import XcodeGraph
             _ metadata: CachedModuleDebuggingMetadata,
             target: GraphTarget,
             artifact: AbsolutePath,
-            productsDirectories: Set<AbsolutePath>
+            productsDirectories: Set<AbsolutePath>,
+            debugPrefixMappings: [[String: String]] = []
         ) async throws -> Bool {
             try Task.checkCancellation()
             let current = try await CachedModuleDebuggingMetadata.capture(
@@ -946,7 +1008,7 @@ import XcodeGraph
                 guard !info.libraries.isEmpty else {
                     throw DebuggingMetadataError.unavailableSymbols("The XCFramework contains no library slices")
                 }
-                var prefixMappings: [[String: String]] = []
+                var prefixMappings = debugPrefixMappings
                 for directory in productsDirectories.sorted() {
                     let prefixMap = directory.appending(
                         components: "tuist-prefix-maps", "\(target.project.xcodeProjPath.basenameWithoutExt).build",

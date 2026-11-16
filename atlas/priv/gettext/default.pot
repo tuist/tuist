@@ -3331,9 +3331,9 @@ msgstr ""
 msgid "Assign to me"
 msgstr ""
 
-#: lib/atlas_web/live/tasks_live.ex:153
+#: lib/atlas_web/live/tasks_live.ex:148
 #, elixir-autogen, elixir-format
-msgid "Assign work, set a due date, and add a reminder when needed."
+msgid "Assign work and set a due date when needed."
 msgstr ""
 
 #: lib/atlas_web/live/hardware_show_live.ex:362
@@ -9213,12 +9213,6 @@ msgstr ""
 msgid "Remind"
 msgstr ""
 
-#: lib/atlas_web/live/tasks_live.ex:306
-#: lib/atlas_web/live/tasks_live.ex:351
-#, elixir-autogen, elixir-format
-msgid "Reminder"
-msgstr ""
-
 #: lib/atlas_web/live/account_live.ex:3953
 #: lib/atlas_web/live/feature_interests_live.ex:189
 #, elixir-autogen, elixir-format
@@ -11095,9 +11089,9 @@ msgstr ""
 msgid "Trace ID"
 msgstr ""
 
-#: lib/atlas_web/live/tasks_live.ex:146
+#: lib/atlas_web/live/tasks_live.ex:141
 #, elixir-autogen, elixir-format
-msgid "Track work for yourself or a teammate, with optional due dates and reminders."
+msgid "Track work for yourself or a teammate, with optional due dates."
 msgstr ""
 
 #: lib/atlas_web/live/finance_live.ex:402

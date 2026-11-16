@@ -7,7 +7,10 @@
 # output with the current time: a restored run keeps the cold build's stamp, and a rerun gets a new one. Every expected
 # value is computed here, not taken from a build.
 set -euo pipefail
-[ "$(uname -sm)" = "Darwin arm64" ] || { echo "The read recorder supports arm64 macOS only" >&2; exit 1; }
+case "$(uname -sm)" in
+"Darwin arm64" | "Linux x86_64" | "Linux aarch64") ;;
+*) echo "The read recorder supports arm64 macOS and x86_64/aarch64 Linux only" >&2; exit 1 ;;
+esac
 . "$(dirname "$0")/common.sh" recorded
 export TUIST_PROJECT=fixture/recorded
 
@@ -61,6 +64,12 @@ build_recorded() {
     printf '%s: value=%s app=%s base=%s macros=%s build_script_build=%s\n' "$2" "$VALUE" "$APP" "$BASE" "$MACROS" "$SCRIPT"
 }
 
+# Whether scenario $1 in workspace $2 says $3 about a build-script run. A session without the hook server (Linux) runs
+# scripts through `tuist cargo __script`, whose messages Cargo keeps with the run's stderr instead of printing them.
+said() {
+    logged "$1" "$3" || grep -rqsF --include=stderr -- "$3" "$2/target"
+}
+
 a=$(checkout a)
 build_recorded "$a" cold
 expect cold "107 miss" "$VALUE $BASE"
@@ -112,10 +121,13 @@ fn main() {
         let status = std::process::Command::new(program).args(arguments).env("ZERO_AR_DATE", "1").status();
         assert!(status.unwrap().success())
     };
-    // Through `PATH`, as cc-rs finds it: the session's `cc` shim must keep the compiler recorded.
+    // Through `PATH`, as cc-rs finds it: on macOS the session's `cc` shim must keep the compiler recorded, on Linux
+    // the compiler loads the recorder itself.
     run("cc", &["-c", "foo.c", "-o", &format!("{out}/foo.o")]);
     let _ = std::fs::remove_file(format!("{out}/libfoo.a"));
-    run("/usr/bin/ar", &["rcs", &format!("{out}/libfoo.a"), &format!("{out}/foo.o")]);
+    // A protected program modeled from its arguments on macOS; on Linux an ordinary recorded one.
+    let ar = if cfg!(target_os = "macos") { "/usr/bin/ar" } else { "ar" };
+    run(ar, &["rcs", &format!("{out}/libfoo.a"), &format!("{out}/foo.o")]);
     println!("cargo::rustc-link-search=native={out}");
     println!("cargo::rustc-link-lib=static=foo");
 }
@@ -148,7 +160,7 @@ l=$(linked linked)
 build_linked "$l" linked-cold
 expect linked-cold "1 1" "$LINKED"
 build_linked "$l" linked-warm
-logged linked-warm "restored build-script run" || fail "linked-warm: the build-script runs were not restored"
+said linked-warm "$l" "restored build-script run" || fail "linked-warm: the build-script runs were not restored"
 expect linked-warm "1 1 hit hit" "$LINKED $(task linked-warm app) $(task linked-warm natbin)"
 for package in foosys natbin; do printf 'int foo(void) { return 2; }\n' > "$l/$package/foo.c"; done
 build_linked "$l" linked-archive
@@ -216,7 +228,7 @@ build_queried "$q" query-cold
 expect query-cold "$(expected_query "$q")" "$QUERIED"
 build_queried "$q" query-warm
 expect query-warm "$(expected_query "$q") hit" "$QUERIED $(task query-warm app)"
-logged query-warm "restored build-script run" || fail "query-warm: the build-script run was not restored"
+said query-warm "$q" "restored build-script run" || fail "query-warm: the build-script run was not restored"
 git -C "$q" -c user.name=t -c user.email=t@t commit -q --allow-empty -m two
 build_queried "$q" query-commit
 expect query-commit "$(expected_query "$q") miss" "$QUERIED $(task query-commit app)"
@@ -228,6 +240,113 @@ cp -R "$q" "$ROOT/queried-moved/ws"
 rm -rf "$ROOT/queried-moved/ws/target"
 build_queried "$ROOT/queried-moved/ws" query-moved
 expect query-moved "$(expected_query "$q") hit" "$QUERIED $(task query-moved app)"
+
+# A program that does not load the recorder reads what it likes unseen: on Linux, a statically linked one has no loader
+# to preload it into. A build script that runs one must rerun on every build, never restore, so a change to the file
+# only that program reads reaches the application.
+static_linked() {
+    local path="$ROOT/$1/ws"
+    mkdir -p "$path/helper/src" "$path/app/src"
+    printf '[workspace]\nmembers = ["helper", "app"]\nresolver = "2"\n' > "$path/Cargo.toml"
+    printf '[package]\nname = "helper"\nversion = "0.1.0"\nedition = "2021"\n' > "$path/helper/Cargo.toml"
+    printf '#include <stdio.h>\nint main(void) { int v = 0; FILE *f = fopen("secret.txt", "r"); if (!f || fscanf(f, "%%d", &v) != 1) return 1; printf("%%d\\n", v); return 0; }\n' \
+        > "$path/helper/reader.c"
+    printf '5\n' > "$path/helper/secret.txt"
+    cat > "$path/helper/build.rs" << 'RUST'
+fn main() {
+    println!("cargo::rerun-if-changed=reader.c");
+    let out = std::env::var("OUT_DIR").unwrap();
+    let reader = format!("{out}/reader");
+    let status = std::process::Command::new("cc").args(["-static", "-O2", "reader.c", "-o", &reader]).status().unwrap();
+    assert!(status.success());
+    let output = std::process::Command::new(&reader).output().unwrap();
+    assert!(output.status.success());
+    std::fs::write(format!("{out}/value.txt"), String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+}
+RUST
+    printf 'pub const VALUE: &str = include_str!(concat!(env!("OUT_DIR"), "/value.txt"));\n' > "$path/helper/src/lib.rs"
+    printf '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2021"\n[dependencies]\nhelper = { path = "../helper" }\n' \
+        > "$path/app/Cargo.toml"
+    printf 'fn main() { println!("{}", helper::VALUE); }\n' > "$path/app/src/main.rs"
+    (cd "$path" && cargo generate-lockfile --offline 2> /dev/null)
+    printf '%s' "$path"
+}
+
+# Linux programs read what macOS ones cannot hide from the recorder: a shell expands `$SHELL_VALUE` from the variables
+# it took from `environ`, which no call reveals, and `/proc/self/cwd` names the reader's own working directory, which
+# a lookup would resolve in another process. Neither is declared to Cargo. `shellenv` must rerun when the variable
+# changes and still be restored when it does not; `procself` must never be restored.
+environ_reads() {
+    local path="$ROOT/$1/ws"
+    mkdir -p "$path/shellenv/src" "$path/procself/src" "$path/app/src"
+    printf '[workspace]\nmembers = ["shellenv", "procself", "app"]\nresolver = "2"\n' > "$path/Cargo.toml"
+    for package in shellenv procself; do
+        printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2021"\n' "$package" > "$path/$package/Cargo.toml"
+        printf 'pub const VALUE: &str = include_str!(concat!(env!("OUT_DIR"), "/value.txt"));\n' \
+            > "$path/$package/src/lib.rs"
+    done
+    cat > "$path/shellenv/build.rs" << 'RUST'
+fn main() {
+    println!("cargo::rerun-if-changed=build.rs");
+    let output = std::process::Command::new("sh").args(["-c", "printf %s \"$SHELL_VALUE\""]).output().unwrap();
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let out = std::env::var("OUT_DIR").unwrap();
+    std::fs::write(format!("{out}/value.txt"), format!("{} {stamp}", String::from_utf8(output.stdout).unwrap())).unwrap();
+}
+RUST
+    printf '1\n' > "$path/procself/input.txt"
+    cat > "$path/procself/build.rs" << 'RUST'
+fn main() {
+    println!("cargo::rerun-if-changed=build.rs");
+    let value = std::fs::read_to_string("/proc/self/cwd/input.txt").unwrap();
+    let out = std::env::var("OUT_DIR").unwrap();
+    std::fs::write(format!("{out}/value.txt"), value.trim()).unwrap();
+}
+RUST
+    printf '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2021"\n[dependencies]\nshellenv = { path = "../shellenv" }\nprocself = { path = "../procself" }\n' \
+        > "$path/app/Cargo.toml"
+    printf 'fn main() { println!("{} {}", shellenv::VALUE, procself::VALUE); }\n' > "$path/app/src/main.rs"
+    (cd "$path" && cargo generate-lockfile --offline 2> /dev/null)
+    printf '%s' "$path"
+}
+
+build_environ() {
+    SHELL_VALUE=$3 build "$1" "$2"
+    read -r SHELL_READ STAMP PROC_READ <<< "$("$1/target/debug/app")"
+    printf '%s: shell=%s proc=%s\n' "$2" "$SHELL_READ" "$PROC_READ"
+}
+
+if [ "$(uname -s)" = Linux ]; then
+    e=$(environ_reads environ)
+    build_environ "$e" environ-cold 1
+    expect environ-cold "1 1" "$SHELL_READ $PROC_READ"
+    cold=$STAMP
+    said environ-cold "$e" "read /proc/self/cwd/input.txt" \
+        || fail "environ-cold: the run that read /proc/self/cwd must explain why it was not stored"
+    build_environ "$e" environ-warm 1
+    expect "environ-warm: the shell's run must be restored" "1 1 $cold" "$SHELL_READ $PROC_READ $STAMP"
+    printf '2\n' > "$e/procself/input.txt"
+    build_environ "$e" environ-changed 2
+    expect environ-changed "2 2" "$SHELL_READ $PROC_READ"
+    [ "$STAMP" != "$cold" ] || fail "environ-changed: the shell's build script must rerun"
+
+    # Only where the system has a static C library.
+    if printf 'int main(void) { return 0; }\n' | cc -static -x c - -o "$ROOT/static-probe" 2> /dev/null; then
+        s=$(static_linked static)
+        build "$s" static-cold
+        expect static-cold 5 "$("$s/target/debug/app")"
+        said static-cold "$s" "recorded processes" \
+            || fail "static-cold: the run with a static program must explain why it was not stored"
+        printf '6\n' > "$s/helper/secret.txt"
+        build "$s" static-warm
+        ! said static-warm "$s" "restored build-script run" || fail "static-warm: the build-script run must not be restored"
+        expect static-warm 6 "$("$s/target/debug/app")"
+    else
+        printf 'Linux: skipping the static program scenario, which needs a static C library\n'
+    fi
+    printf 'Linux: skipping the macOS developer tools scenario\n'
+    exit 0
+fi
 
 # `swiftc` and `codesign` run from protected `xcrun` shims too. A build script that compiles a Swift helper and signs
 # it ad hoc, as mise's does, is keyed by the helper's source and the Xcode, SDK and OS builds; a changed source must
@@ -290,7 +409,7 @@ build_tools "$t" tools-cold
 expect tools-cold 427 "$VALUE"
 cold=$STAMP
 build_tools "$t" tools-warm
-logged tools-warm "restored build-script run" || fail "tools-warm: the build-script run was not restored"
+said tools-warm "$t" "restored build-script run" || fail "tools-warm: the build-script run was not restored"
 expect "tools-warm: the build-script run must be restored, not rerun" "427 $cold hit" "$VALUE $STAMP $(task tools-warm app)"
 printf 'print(41 + 2)\n' > "$t/helper/helper.swift"
 build_tools "$t" tools-source
@@ -309,3 +428,45 @@ printf '#define DIGIT 8\n' > "$m/helper/digit.h"
 build_tools "$m" tools-moved
 expect "tools-moved: the run must be restored and the library must hit" "438 $header hit" \
     "$VALUE $STAMP $(task tools-moved helper)"
+
+# A linked binary's debug map names the objects lldb reads by absolute path, and a restored binary's names the
+# checkout that built it. lldb must stop in a workspace library with its locals in place, in a restored binary whose
+# producing checkout is gone, and after `cargo clean`: the binary is stored with a `.dSYM`.
+debugged() {
+    local path="$ROOT/$1/ws"
+    mkdir -p "$path/dep/src" "$path/app/src"
+    printf '[workspace]\nmembers = ["dep", "app"]\nresolver = "2"\n' > "$path/Cargo.toml"
+    printf '[package]\nname = "dep"\nversion = "0.1.0"\nedition = "2021"\n' > "$path/dep/Cargo.toml"
+    printf 'pub fn add(a: u64, b: u64) -> u64 {\n    let sum = a + b;\n    sum * 2\n}\n' > "$path/dep/src/lib.rs"
+    printf '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2021"\n[dependencies]\ndep = { path = "../dep" }\n' \
+        > "$path/app/Cargo.toml"
+    printf 'fn main() {\n    println!("{}", dep::add(1, 2));\n}\n' > "$path/app/src/main.rs"
+    (cd "$path" && cargo generate-lockfile --offline 2> /dev/null)
+    printf '%s' "$path"
+}
+
+# Builds scenario $2 in $1 and sets DEBUGGED to the program's output, where lldb stopped and the local `sum` there.
+build_debugged() {
+    build "$1" "$2"
+    local stop sum
+    # Failures are reported by `expect`, not by `set -e`: lldb and `grep -c` exit non-zero when lldb never stops.
+    stop=$(lldb -b -o "breakpoint set -f lib.rs -l 3" -o run -o "frame variable sum" "$1/target/debug/app" 2>&1 \
+        | tee "$ROOT/$2.lldb" || true)
+    sum=$(printf '%s\n' "$stop" | sed -nE 's/^\(unsigned long\) sum = ([0-9]+)$/\1/p')
+    DEBUGGED="$("$1/target/debug/app") $(printf '%s\n' "$stop" | grep -cE 'dep::add\(a=1, b=2\) at lib.rs:3' || true) $sum"
+    printf '%s: program, stops, sum=%s app=%s\n' "$2" "$DEBUGGED" "$(task "$2" app)"
+}
+
+d=$(debugged debug)
+build_debugged "$d" debug-cold
+expect "debug-cold: lldb must find the workspace library in a fresh link" "6 1 3 miss" "$DEBUGGED $(task debug-cold app)"
+e=$(debugged debug-moved/nested)
+build_debugged "$e" debug-moved-ready
+expect debug-moved-ready hit "$(task debug-moved-ready app)"
+rm -rf "$d"
+lldb -b -o "breakpoint set -f lib.rs -l 3" -o run -o "frame variable sum" "$e/target/debug/app" > "$ROOT/debug-moved.lldb" 2>&1 || true
+expect "debug-moved: lldb must debug a restored binary whose producing checkout is gone" 3 \
+    "$(sed -nE 's/^\(unsigned long\) sum = ([0-9]+)$/\1/p' "$ROOT/debug-moved.lldb")"
+build_debugged "$e" debug-clean
+expect "debug-clean: lldb must debug a binary restored after its target was removed" "6 1 3 hit" \
+    "$DEBUGGED $(task debug-clean app)"

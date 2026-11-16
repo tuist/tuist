@@ -14,6 +14,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -31,7 +32,9 @@ const (
 	claudeCodeVersion      = "2.1.311"
 	claudeCodeDownloadBase = "https://downloads.claude.ai/claude-code-releases"
 	// The Linux template bakes this exact build in; the macOS runner image does
-	// not, so the first session of a macOS sandbox downloads it under $HOME.
+	// not, so the first session of a macOS sandbox copies it under $HOME from
+	// the host's tools share (tart-kubelet's provisionClaudeCode), or downloads
+	// it when the host has not fetched it yet.
 	claudeCodeBakedPath = "/usr/local/bin/claude"
 	// Linux execs run as root, which Claude Code refuses to bypass permissions
 	// as; the runner runs as the template's unprivileged user instead.
@@ -47,7 +50,10 @@ var claudeCodeChecksums = map[string]string{
 }
 
 type claudeCodeOptions struct {
-	binary         string
+	binary string
+	// execPath, when set, is the session wrapper the runner starts in place
+	// of the Claude Code binary (execSession).
+	execPath       string
 	baseDir        string
 	workOrder      string
 	label          string
@@ -68,6 +74,9 @@ func runnerCommand(opts claudeCodeOptions, environ []string) (args []string, env
 		"--exit-if-unused-min", "10",
 		"--health-port", "0",
 		"--client-label", opts.label,
+	}
+	if opts.execPath != "" {
+		args = append(args, "--exec-path", opts.execPath)
 	}
 	for _, kv := range environ {
 		key, _, _ := strings.Cut(kv, "=")
@@ -115,9 +124,44 @@ func runClaudeCode(ctx context.Context, logger *slog.Logger, workdir, workOrder 
 		return 1
 	}
 
+	// A failed checkout only costs the runner its clone, so it never stops the session.
+	checkout, err := checkoutFromEnv(baseDir, credential)
+	if err != nil {
+		logger.Warn("checkout grant unusable", slog.Any("error", err))
+	}
+	if checkout != nil {
+		start := time.Now()
+		result, err := checkout.seed(ctx)
+		if err != nil {
+			logger.Warn("checkout seed failed", slog.Any("error", err), slog.Duration("duration", time.Since(start)))
+		} else {
+			logger.Info("checkout seeded", slog.String("result", result), slog.Duration("duration", time.Since(start)))
+		}
+		defer func() {
+			start := time.Now()
+			result, err := checkout.export(context.WithoutCancel(ctx))
+			if err != nil {
+				logger.Warn("checkout export failed", slog.Any("error", err), slog.Duration("duration", time.Since(start)))
+				return
+			}
+			logger.Info("checkout export", slog.String("result", result), slog.Duration("duration", time.Since(start)))
+		}()
+	}
+
+	// Only a sandbox wired to Tuist needs the wrapper. It is this binary,
+	// root-owned like the rest of the guest tools, so session code cannot
+	// change what the runner starts.
+	execPath := ""
+	if os.Getenv("TUIST_URL") != "" {
+		if self, err := os.Executable(); err == nil {
+			execPath = self
+		}
+	}
+
 	hostname, _ := os.Hostname()
 	args, env := runnerCommand(claudeCodeOptions{
 		binary:         binary,
+		execPath:       execPath,
 		baseDir:        baseDir,
 		workOrder:      workOrder,
 		label:          hostname,
@@ -163,6 +207,31 @@ func runClaudeCode(ctx context.Context, logger *slog.Logger, workdir, workOrder 
 	}
 }
 
+// sessionEnvironment is the environment the session wrapper starts Claude Code
+// with. In a sandbox wired to Tuist, Tuist clients sign in by exchanging the
+// session's own identity token, which Anthropic hands the wrapper; Tuist
+// accepts it for sessions of a Claude Code environment an account connected.
+// The token is the one at spawn time, valid for four hours by default.
+func sessionEnvironment(environ []string) []string {
+	values := map[string]string{}
+	for _, kv := range environ {
+		key, value, _ := strings.Cut(kv, "=")
+		values[key] = value
+	}
+	token := values["CLAUDE_CODE_SESSION_ACCESS_TOKEN"]
+	if values["TUIST_URL"] == "" || values["TUIST_OIDC_TOKEN"] != "" || !strings.HasPrefix(token, "sk-ant-cc-") {
+		return environ
+	}
+	return append(slices.Clone(environ), "TUIST_OIDC_TOKEN="+token)
+}
+
+// execSession is the session wrapper: the runner starts it in place of Claude
+// Code with CLAUDE_RUNNER_CLAUDE_BIN, and it replaces itself with that binary,
+// so stdin, file descriptor 3, signals and the exit code stay the runner's.
+func execSession(claudeBin string, args []string) error {
+	return syscall.Exec(claudeBin, append([]string{claudeBin}, args...), sessionEnvironment(os.Environ()))
+}
+
 func minutesEnv(name string, fallback int) (int, error) {
 	raw := os.Getenv(name)
 	if raw == "" {
@@ -201,9 +270,13 @@ func claudePlatform() string {
 	return runtime.GOOS + "-" + arch
 }
 
+// The macOS host shares the pinned build at claude-code/<version>/claude. A
+// guest cannot execute from the share after a resume, so it is copied.
+var claudeCodeSharedDir = "/Volumes/My Shared Files/sandbox-tools/claude-code"
+
 // claudeBinary returns the pinned build: the template's copy when it is that
-// build, else one downloaded once into home and verified against the
-// release checksum.
+// build, else one copied once into home from the host's share or downloaded,
+// either verified against the release checksum.
 func claudeBinary(ctx context.Context, home, downloadBase string) (string, error) {
 	platform := claudePlatform()
 	checksum, ok := claudeCodeChecksums[platform]
@@ -215,6 +288,9 @@ func claudeBinary(ctx context.Context, home, downloadBase string) (string, error
 	}
 	path := filepath.Join(home, ".local", "share", "tuist-sandbox", "claude", claudeCodeVersion, "claude")
 	if fileSHA256(path) == checksum {
+		return path, nil
+	}
+	if err := copyVerified(filepath.Join(claudeCodeSharedDir, claudeCodeVersion, "claude"), checksum, path); err == nil {
 		return path, nil
 	}
 	if err := downloadVerified(ctx, fmt.Sprintf("%s/%s/%s/claude", downloadBase, claudeCodeVersion, platform), checksum, path); err != nil {
@@ -236,6 +312,16 @@ func fileSHA256(path string) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
+// copyVerified copies source to path only when its content hashes to checksum.
+func copyVerified(source, checksum, path string) error {
+	file, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return writeVerified(file, source, checksum, path)
+}
+
 // downloadVerified writes url to path only when its content hashes to checksum.
 func downloadVerified(ctx context.Context, url, checksum, path string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -252,6 +338,10 @@ func downloadVerified(ctx context.Context, url, checksum, path string) error {
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("download %s: HTTP %d", url, response.StatusCode)
 	}
+	return writeVerified(response.Body, url, checksum, path)
+}
+
+func writeVerified(content io.Reader, source, checksum, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -261,7 +351,7 @@ func downloadVerified(ctx context.Context, url, checksum, path string) error {
 	}
 	defer os.Remove(partial.Name())
 	hash := sha256.New()
-	_, err = io.Copy(io.MultiWriter(partial, hash), response.Body)
+	_, err = io.Copy(io.MultiWriter(partial, hash), content)
 	if closeErr := partial.Close(); err == nil {
 		err = closeErr
 	}
@@ -269,7 +359,7 @@ func downloadVerified(ctx context.Context, url, checksum, path string) error {
 		return err
 	}
 	if got := hex.EncodeToString(hash.Sum(nil)); got != checksum {
-		return fmt.Errorf("download %s: checksum %s, want %s", url, got, checksum)
+		return fmt.Errorf("%s: checksum %s, want %s", source, got, checksum)
 	}
 	if err := os.Chmod(partial.Name(), 0o755); err != nil {
 		return err

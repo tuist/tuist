@@ -81,19 +81,6 @@ struct AtlasBusinessEditor: View {
             }
             Section("Schedule") {
                 optionalDate("Due date", "due_on")
-                Toggle("Reminder", isOn: Binding(
-                    get: { !(fields["remind_at"] ?? "").isEmpty },
-                    set: { enabled in
-                        fields["remind_at"] = enabled ? ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)) : ""
-                        dirty = true
-                    }
-                ))
-                if !(fields["remind_at"] ?? "").isEmpty {
-                    DatePicker("Remind me", selection: Binding(
-                        get: { ISO8601DateFormatter().date(from: fields["remind_at"] ?? "") ?? Date() },
-                        set: { fields["remind_at"] = ISO8601DateFormatter().string(from: $0); dirty = true }
-                    ))
-                }
             }
         }
     }
@@ -218,7 +205,7 @@ struct AtlasBusinessEditor: View {
     private var payload: [String: String] {
         let keys: [String]
         switch model.resource {
-        case .tasks: keys = ["title", "description", "assignee_id", "account_id", "due_on", "remind_at"]
+        case .tasks: keys = ["title", "description", "assignee_id", "account_id", "due_on"]
         case .accounts:
             keys = ["name", "description", "primary_domain", "legal_name", "url", "segment", "status", "deal_stage",
                     "current_value", "currency", "next_renewal_date", "hosting", "plan_tier"]

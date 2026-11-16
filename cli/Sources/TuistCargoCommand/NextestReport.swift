@@ -14,8 +14,13 @@ struct NextestInventory: Decodable {
         }
 
         let binaryID: String
+        let binaryPath: String?
+        let packageID: String?
+        let cwd: String?
         let testcases: [String: Test]
-        enum CodingKeys: String, CodingKey { case binaryID = "binary-id"; case testcases }
+        enum CodingKeys: String, CodingKey {
+            case binaryID = "binary-id"; case binaryPath = "binary-path"; case packageID = "package-id"; case cwd; case testcases
+        }
     }
 
     struct BuildMetadata: Decodable {
@@ -30,6 +35,38 @@ struct NextestInventory: Decodable {
     var modules: [String] {
         suites.values.filter { $0.testcases.values.contains { !$0.ignored && $0.filterMatch?.status == "matches" } }
             .map(\.binaryID).sorted()
+    }
+
+    /// The binary ID of each test binary, by the binary's path.
+    var binaries: [String: String] {
+        Dictionary(
+            suites.values.compactMap { suite in suite.binaryPath.map { ($0, suite.binaryID) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    /// Where the sources an archive's binaries were built from are in this checkout: each path package's directory
+    /// on the machine that built the archive (its package ID) and here (the `cwd` nextest remapped it to), reduced to
+    /// the roots they differ by, so a workspace built in `/a/repo` and run in `/b/repo` maps `/a` to `/b`. Empty when
+    /// the binaries were built here.
+    var sourceRemaps: [(from: String, to: String)] {
+        var remaps: [String: String] = [:]
+        for suite in suites.values {
+            guard let id = suite.packageID, id.hasPrefix("path+"), let cwd = suite.cwd,
+                  let url = URL(string: String(id.dropFirst("path+".count)).components(separatedBy: "#")[0]), url.isFileURL
+            else { continue }
+            // As Cargo spelled them, which is what the binaries' coverage names: standardizing drops macOS's
+            // `/private`, and the paths would no longer match.
+            var from = url.pathComponents
+            var to = (cwd as NSString).pathComponents
+            while from.count > 1, to.count > 1, from.last == to.last {
+                from.removeLast()
+                to.removeLast()
+            }
+            guard from != to else { continue }
+            remaps[NSString.path(withComponents: from)] = NSString.path(withComponents: to)
+        }
+        return remaps.map { (from: $0.key, to: $0.value) }
     }
 
     var enumeration: [[String: Any]] {

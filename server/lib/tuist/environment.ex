@@ -86,6 +86,10 @@ defmodule Tuist.Environment do
   """
   def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
+  def blocked_account_handles, do: Application.fetch_env!(:tuist, :blocked_account_handles)
+
+  def blocked_project_handles, do: Application.fetch_env!(:tuist, :blocked_project_handles)
+
   def test? do
     @compile_env == :test
   end
@@ -2008,6 +2012,17 @@ defmodule Tuist.Environment do
     get([:sentry, :dsn], secrets)
   end
 
+  # A second DSN that receives a copy of every error, for comparing Pulse with
+  # the primary backend. See TuistCommon.SentryHTTPClient. Only web instances
+  # copy: the processors and registry sync read the same config Secret, but
+  # Pulse's NetworkPolicy admits only the web pods.
+  def sentry_pulse_dsn(secrets \\ secrets(), mode \\ mode()) do
+    case {mode, get([:sentry, :pulse_dsn], secrets)} do
+      {:web, dsn} when dsn not in [nil, ""] -> dsn
+      _ -> nil
+    end
+  end
+
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
   end
@@ -2173,6 +2188,18 @@ defmodule Tuist.Environment do
   def sandbox_archive_after_hours do
     case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_AFTER_HOURS", "")) do
       {hours, ""} when hours > 0 -> hours
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Percentage of a node's reserved sandbox disk budget above which the
+  archive sweep also archives recently paused Orbs. Defaults to 85; `0`
+  disables pressure archiving. Requires the archive tier to be enabled.
+  """
+  def sandbox_archive_disk_high_water_percent do
+    case Integer.parse(System.get_env("TUIST_SANDBOX_ARCHIVE_DISK_HIGH_WATER_PERCENT", "85")) do
+      {percent, ""} when percent in 1..100 -> percent
       _ -> nil
     end
   end
@@ -2389,6 +2416,21 @@ defmodule Tuist.Environment do
   """
   def runner_macos_xcode_versions do
     Application.get_env(:tuist, :runner_macos_xcode_versions, [])
+  end
+
+  @doc """
+  The Xcodes macOS sandboxes serve, the default first, from
+  `TUIST_MACOS_SANDBOX_XCODE_VERSIONS` (comma-separated), which the chart
+  renders from `sandboxes.macos.xcodeVersion` and `xcodeVersions`. Empty
+  when unset: sandboxes then boot only the `macos` template's Xcode.
+  `Tuist.Sandboxes.Xcode` validates `xcode_version` against it.
+  """
+  def macos_sandbox_xcode_versions do
+    "TUIST_MACOS_SANDBOX_XCODE_VERSIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
   @doc """

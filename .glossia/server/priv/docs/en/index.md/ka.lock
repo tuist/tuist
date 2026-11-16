@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ac2b213b792037fa7d352368ac16c2a0bc07d74ed0590b1c62df8d843866db94",
+  "hash": "d33951ff2f3baaf97b7b23eb62d53917ac55bcfe11e3357c25ebd5fd1e5902f6",
   "hash_tree": {
     "root": {
       "children": [
@@ -10,24 +10,24 @@
             "content_hash": {
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
-                "# A virtual platform team for developers who ship": {
-                  "content_hash": "af08442e3463d6da3af7e3220037b25d3f5af08e5ba9d1e5cc86c156f8b3b3ae"
+                "# A build platform for teams and their coding agents": {
+                  "content_hash": "7eb0e0363fd31e10e8b42ed754c672c36b92d26926568877991153699c4ead47"
                 },
                 "## Trusted by teams shipping at scale": {
                   "content_hash": "d0858235af8c9f04c7ee6ff612492e23df54041c7e13f7843c8ac80bab1bebb6"
                 },
                 "Preamble": {
-                  "content_hash": "b8b095b6bc970bf4ada2402bf10fa7f8d06676ec1d758e6ebb17498ed13ea4a0"
+                  "content_hash": "926146e789562547515b77c6d8e209c743f78c922485a790199aab9582052777"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "30321278156be5bd381111bda9bb526c612bdbce0579ffe5fd0e89303c47f398",
+          "hash": "8467e7bddb2200c8bdc8f0f8096dd320b189685903293c7e6919acc8bae164d0",
           "kind": "source",
           "label": "server/priv/docs/en/index.md",
           "metadata": {
-            "content_hash": "d752aa0f8e67560137bd2a10a29834ad8dcc26f371e4ffb8f67250b4547d6da1"
+            "content_hash": "57ec6af2cb2d36981f49c7b83a6480e3708f44781aebb62b6c3d34cdfead94e8"
           }
         },
         {
@@ -236,14 +236,14 @@
         }
       ],
       "details": {},
-      "hash": "ac2b213b792037fa7d352368ac16c2a0bc07d74ed0590b1c62df8d843866db94",
+      "hash": "d33951ff2f3baaf97b7b23eb62d53917ac55bcfe11e3357c25ebd5fd1e5902f6",
       "kind": "translation_input",
       "label": "server/priv/docs/en/index.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f2087a0dbd7159b7fc6117c330ad23554ed1ff96a9dc9c1a8ae86eaa9acbfcec",
+  "output_hash": "70c6eca2054927eafce1f6ed7ad2f3eb85437866573db445e41e3e150bcd14d5",
   "output_path": "server/priv/docs/ka/index.md",
   "protection_state": "recorded",
   "provider": "",
@@ -265,8 +265,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
+  "source_commit_sha": "133ae1d670c385ba3eda13ab57c35702bdebcade",
   "source_path": "server/priv/docs/en/index.md",
-  "translated_at": "2026-11-06T23:25:30.550419Z",
-  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
+  "translated_at": "2026-11-07T12:27:07.105483Z",
+  "translation_session_id": "01a1b5f8-218e-71c9-b4de-6428417a21dd"
 }

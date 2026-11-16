@@ -60,13 +60,13 @@ enum CargoCacheDetailsReport {
         var candidates: [URL] = []
         var inspected = 0
         for case let file as URL in entries {
-            guard inspected < 64 else { truncated = true; break }
+            guard inspected < 4096 else { truncated = true; break }
             inspected += 1
             if file.pathExtension == "ndjson" { candidates.append(file) }
         }
         candidates.sort { $0.lastPathComponent < $1.lastPathComponent }
         var records = 0
-        for file in candidates.prefix(64) {
+        for file in candidates {
             guard remaining > 0,
                   let properties = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]),
                   properties.isRegularFile == true, properties.isSymbolicLink != true,

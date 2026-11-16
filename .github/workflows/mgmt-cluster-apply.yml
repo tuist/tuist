@@ -75,6 +75,10 @@ on:
         description: Independent access, per-node Tailscale identity/KubePrism and patched rollback were qualified
         type: boolean
         default: false
+      reset_pulse:
+        description: Delete management's Pulse release, its node data and its S3 prefix, then wait for Flux to reinstall it from empty. Loses all of its history.
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -174,7 +178,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl jq"
+          install_args: "--locked helm kubectl jq yq"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
@@ -405,6 +409,115 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/controller-pdbs.yaml
       - name: Verify etcd snapshots from every control-plane node
         run: infra/mise/tasks/mgmt/verify-etcd-snapshot.sh
+      - name: Remove the legacy Elixir Pulse release
+        run: |
+          set -euo pipefail
+          # Flux pruned its Kustomization (flux/pulse-management) but not the
+          # release. If Flux's `pulse` HelmRelease got there first it upgraded
+          # that release in place to chart tuist-pulse; otherwise remove it here
+          # and Flux installs cleanly.
+          chart=$(helm status pulse -n observability -o json 2>/dev/null | jq -r '.chart.metadata.name // empty') || chart=
+          if [[ "$chart" == pulse ]]; then
+            helm uninstall pulse -n observability --wait --timeout 5m
+            echo 'Uninstalled the legacy Elixir Pulse release.' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          kubectl -n flux-system delete --ignore-not-found \
+            helmreleases.helm.toolkit.fluxcd.io/pulse-management helmrepositories.source.toolkit.fluxcd.io/pulse
+          [[ -z "$(kubectl -n observability get deployment pulse --ignore-not-found -o name)" ]]
+      - name: Bootstrap Pulse pilot authentication without rotating it
+        run: |
+          set -euo pipefail
+          # Pulse (flux/pulse) mounts pulse-auth, its in-cluster admin login,
+          # which no vault holds; its pod waits for this Secret on first install.
+          umask 077
+          passwd="$RUNNER_TEMP/pulse-passwd"
+          trap 'rm -f "$passwd" "$passwd.log"' EXIT
+          printf 'pilot=%s\n' "$(openssl rand -hex 32)" > "$passwd"
+          if ! kubectl -n observability create secret generic pulse-auth --from-file=passwd="$passwd" > "$passwd.log" 2>&1; then
+            grep -q 'secrets "pulse-auth" already exists' "$passwd.log"
+          fi
+      # Dispatch only. Pulse fixes its on-disk names when it creates them, so
+      # moving to renamed releases means starting from empty. Requires the
+      # pulse HelmRelease to be suspended in git (infra/flux/pulse), so Flux
+      # neither upgrades the old data in place nor reinstalls mid-wipe.
+      - name: Reset management Pulse to empty
+        if: github.event_name == 'workflow_dispatch' && inputs.reset_pulse
+        env:
+          AWS_CLI_IMAGE: amazon/aws-cli:2.40.3@sha256:33a16c53ea442e918b58df67301ad76a8fb57082c39f7e78753b898c3f3e87c2
+        run: |
+          set -euo pipefail
+          if [[ "$(kubectl -n flux-system get helmreleases.helm.toolkit.fluxcd.io pulse -o jsonpath='{.spec.suspend}')" != true ]]; then
+            echo '::error::Suspend the pulse HelmRelease in infra/flux/pulse before resetting it.'
+            exit 1
+          fi
+          trap 'kubectl -n observability delete pod pulse-reset --ignore-not-found --wait=true --timeout=60s > /dev/null || true
+            kubectl -n observability delete externalsecret pulse-reset --ignore-not-found --wait=true --timeout=60s > /dev/null || true' EXIT
+          kubectl -n observability delete pod pulse-reset --ignore-not-found --wait=true --timeout=60s > /dev/null
+          # The wipe needs the release's S3 key. Its references come from the
+          # rendered chart, since the release's ExternalSecret goes with it.
+          if [[ -z "$(kubectl -n observability get externalsecret pulse-reset --ignore-not-found -o name)" ]]; then
+            helm template pulse infra/helm/pulse -n observability \
+              -f infra/helm/pulse/values.yaml -f infra/helm/pulse/values-management.yaml |
+              yq -o json 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-credentials")' | jq -se '
+              select(length == 1) | .[0] |
+              select([.spec.data[].secretKey] == ["accessKey", "secretKey"]) |
+              {apiVersion, kind, metadata:{name:"pulse-reset", namespace:"observability"}, spec:{
+                refreshInterval:"0", secretStoreRef:.spec.secretStoreRef, data:.spec.data,
+                target:{name:"pulse-reset", creationPolicy:"Owner", template:{engineVersion:"v2", data:{
+                  AWS_ACCESS_KEY_ID:"{{ .accessKey | trim }}", AWS_SECRET_ACCESS_KEY:"{{ .secretKey | trim }}"}}}}}
+            ' | kubectl create -f - > /dev/null
+          fi
+          kubectl -n observability wait --for=condition=Ready externalsecret/pulse-reset --timeout=60s
+          helm uninstall pulse -n observability --ignore-not-found --wait --timeout 10m
+          # Same node and path as values-management.yaml; management/ is the
+          # only prefix this key can reach in production's bucket.
+          jq -n --arg image "$AWS_CLI_IMAGE" '
+            {apiVersion:"v1",kind:"Pod",metadata:{name:"pulse-reset",namespace:"observability"},spec:{
+              restartPolicy:"Never",activeDeadlineSeconds:1800,automountServiceAccountToken:false,
+              nodeSelector:{"kubernetes.io/hostname":"tuist-mgmt"},
+              tolerations:[{key:"node-role.kubernetes.io/control-plane",operator:"Exists",effect:"NoSchedule"}],
+              volumes:[{name:"data",hostPath:{path:"/var/lib/tuist-pulse",type:"DirectoryOrCreate"}},
+                {name:"scratch",emptyDir:{sizeLimit:"64Mi"}}],
+              containers:[{name:"reset",image:$image,command:["sh","-ec",
+                ("rm -rf /data/* /data/.[!.]* /data/..?*\n" +
+                 "test -z \"$(ls -A /data)\"\n" +
+                 "aws s3 rm s3://tuist-pulso-production/management/ --recursive --only-show-errors\n" +
+                 "left=$(aws s3 ls s3://tuist-pulso-production/management/ --recursive | head -n 1)\n" +
+                 "test -z \"$left\"\n" +
+                 "echo PASS: emptied /var/lib/tuist-pulse and s3://tuist-pulso-production/management/")],
+                securityContext:{runAsUser:0,allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"],add:["DAC_OVERRIDE","FOWNER"]}},
+                volumeMounts:[{name:"data",mountPath:"/data"},{name:"scratch",mountPath:"/tmp"}],
+                resources:{requests:{cpu:"100m",memory:"128Mi"},limits:{memory:"256Mi"}},
+                envFrom:[{secretRef:{name:"pulse-reset"}}],
+                env:[{name:"HOME",value:"/tmp"},{name:"AWS_REGION",value:"auto"},
+                  {name:"AWS_ENDPOINT_URL",value:"https://t3.storage.dev"}]
+              }]}}' | kubectl create -f - > /dev/null
+          deadline=$((SECONDS + 1800))
+          phase=Pending
+          while ((SECONDS < deadline)); do
+            phase=$(kubectl --request-timeout=10s -n observability get pod pulse-reset -o jsonpath='{.status.phase}')
+            case "$phase" in Succeeded|Failed) break ;; esac
+            sleep 10
+          done
+          kubectl -n observability logs pulse-reset | tail -n 20 || true
+          [[ "$phase" == Succeeded ]]
+          echo 'Reset management Pulse: release, node data and s3://tuist-pulso-production/management/ removed. Unsuspend infra/flux/pulse to reinstall it.' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Wait for Flux to reinstall management Pulse
+        if: github.event_name == 'workflow_dispatch' && inputs.reset_pulse
+        run: |
+          set -euo pipefail
+          image="$(sed -n 's/^image: //p' infra/helm/pulse/values.yaml)"
+          deadline=$((SECONDS + 1800))
+          until [[ "$(kubectl -n observability get statefulset pulse --ignore-not-found -o jsonpath='{.spec.template.spec.containers[0].image}')" == "$image" ]]; do
+            if ((SECONDS >= deadline)); then
+              echo '::error::Flux did not reinstall Pulse; is the HelmRelease still suspended in git?'
+              exit 1
+            fi
+            sleep 20
+          done
+          kubectl -n observability rollout status statefulset/pulse --timeout=15m
+          kubectl -n flux-system wait --for=condition=Ready helmreleases.helm.toolkit.fluxcd.io/pulse --timeout=15m
+          echo "Flux reinstalled management Pulse on $image." | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Install management-cluster monitoring
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -441,29 +554,22 @@ jobs:
             exit 1
           fi
 
+          # The collectors also write to management's Pulse, and Alloy fails its
+          # whole config load, Grafana Cloud included, when a referenced Secret
+          # is missing. Flux's pulse release owns that login; check its
+          # ExternalSecret, never the Secret.
+          kubectl -n observability get externalsecret pulse-dashboard-auth -o json | jq -e '
+            (.spec.target.template.data | has("ingest-username") and has("ingest-password")) and
+            any(.status.conditions[]?; .type == "Ready" and .status == "True")' > /dev/null || {
+            echo "::error::Management collectors write to Pulse, but its ingest login (pulse-dashboard-auth) is not ready; check infra/flux/pulse."
+            exit 1
+          }
+
           helm repo add grafana https://grafana.github.io/helm-charts --force-update
           helm dependency build infra/helm/k8s-monitoring
-          # Keep Pillar 2 working during first bootstrap or backend recovery.
-          # Status-only checks: never read Pulse credential contents here.
-          pulse_args=(
-            --set k8s-monitoring.destinations.pulse-metrics.type=custom
-            --set-json 'k8s-monitoring.collectors.alloy-metrics.includeDestinations=["grafana-cloud-metrics"]'
-            --set-json 'k8s-monitoring.collectors.alloy-control-plane.includeDestinations=["grafana-cloud-metrics"]'
-          )
-          if kubectl -n observability get deployment pulse -o json | \
-              jq -e '(.status.observedGeneration >= .metadata.generation) and
-                (.status.availableReplicas >= (.spec.replicas // 1)) and
-                any(.status.conditions[]?; .type == "Available" and .status == "True")' >/dev/null &&
-            kubectl -n observability get externalsecret pulse-credentials -o json | \
-              jq -e 'any(.status.conditions[]?; .type == "Ready" and .status == "True")' >/dev/null; then
-            pulse_args=()
-          else
-            echo "::warning::Management Pulse is not ready; keeping Cloud-only monitoring until bootstrap completes"
-          fi
           helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
             --namespace observability \
             -f infra/helm/k8s-monitoring/values-management.yaml \
-            "${pulse_args[@]}" \
             --atomic --cleanup-on-fail --wait --timeout 10m
       - name: Verify converged management state
         env:
@@ -497,13 +603,17 @@ jobs:
           }
           trap cleanup_port_forward EXIT
 
+          # Each destination has its own queue; read Cloud's, not whichever
+          # queue is listed first.
+          sent_timestamp() {
+            curl -fsS http://127.0.0.1:12345/metrics 2>/dev/null |
+              awk -v id="component_id=\"prometheus.remote_write.$1\"" \
+                'index($0, "prometheus_remote_storage_queue_highest_sent_timestamp_seconds{") == 1 && index($0, id) { print $NF; exit }' ||
+              true
+          }
           remote_write_ready=false
           for _ in $(seq 1 30); do
-            latest_sent_timestamp="$(
-              curl -fsS http://127.0.0.1:12345/metrics 2>/dev/null |
-                awk '/^prometheus_remote_storage_queue_highest_sent_timestamp_seconds/ {print $2; exit}' ||
-                true
-            )"
+            latest_sent_timestamp="$(sent_timestamp grafana_cloud_metrics)"
             if [ -n "$latest_sent_timestamp" ] &&
               awk -v sent="$latest_sent_timestamp" -v now="$(date +%s)" \
                 'BEGIN { exit !(sent >= now - 120) }'; then
@@ -517,6 +627,14 @@ jobs:
             echo "::error::Management metrics have not been delivered to Grafana Cloud in the last two minutes"
             cat "$port_forward_log"
             exit 1
+          fi
+          # Pulse is reported, not required: Cloud stays the source of truth.
+          pulse_sent_timestamp="$(sent_timestamp pulse_metrics)"
+          if [ -n "$pulse_sent_timestamp" ] &&
+            awk -v sent="$pulse_sent_timestamp" -v now="$(date +%s)" 'BEGIN { exit !(sent >= now - 120) }'; then
+            echo "Management metrics reached Pulse in the last two minutes."
+          else
+            echo "::warning::Management metrics have not reached Pulse in the last two minutes (last sent: ${pulse_sent_timestamp:-never})"
           fi
           cleanup_port_forward
           trap - EXIT

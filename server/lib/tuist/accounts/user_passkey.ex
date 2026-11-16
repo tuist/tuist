@@ -110,7 +110,7 @@ defmodule Tuist.Accounts.UserPasskey do
            :ok <- valid_backup_flags(auth_data) do
         %__MODULE__{user_id: user.id, user_handle: user_handle}
         |> change(%{
-          name: name(params["name"]),
+          name: registration_name(user, params["name"]),
           credential_id: credential.credential_id,
           public_key: :erlang.term_to_binary(credential.credential_public_key),
           sign_count: auth_data.sign_count,
@@ -333,6 +333,19 @@ defmodule Tuist.Accounts.UserPasskey do
   rescue
     _ -> {:error, :invalid_passkey}
   end
+
+  defp registration_name(user, nil) do
+    names = user |> list() |> MapSet.new(& &1.name)
+
+    # Registration holds the user lock, so concurrent creations cannot pick
+    # the same label. Do not guess the provider from the browser or device.
+    Enum.find_value(1..(@max_passkeys + 1), fn index ->
+      label = if index == 1, do: "Passkey", else: "Passkey #{index}"
+      if !MapSet.member?(names, label), do: label
+    end)
+  end
+
+  defp registration_name(_user, value), do: name(value)
 
   # Bounded by code points: the column limit counts code points, and one
   # emoji grapheme can hold many.

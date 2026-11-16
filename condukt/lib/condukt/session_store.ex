@@ -20,6 +20,29 @@ defmodule Condukt.SessionStore do
   `Condukt.SessionStore.Snapshot` is versioned and carries `:id` and `:actor`,
   and `Condukt.Notifier` reports events as they happen rather than after a save.
 
+  ## The journal
+
+  A snapshot is written once per run, so on its own it loses the run a process
+  dies in. A store that also implements the optional journal callbacks,
+  `append_journal/2`, `load_journal/1`, and `clear_journal/1`, makes that run
+  durable without rewriting the history on every step: the session appends one
+  small record per step (the run's prompt, each model response, each tool
+  call's intent before it runs, each tool result) and only rewrites the
+  snapshot when the run ends, after which it clears the journal.
+
+  After a restart the session folds the journal into the snapshot it loaded and
+  holds an unfinished run as interrupted, for the caller to continue with
+  `Condukt.Session.resume/2`. See the Sessions and Persistence guide.
+
+  A journaling store must keep records in the order they were appended and
+  return them unchanged. The session serializes its own appends, so a store
+  does not need to handle concurrent writers to one session's journal.
+  `save/2` and `clear/1` must leave the journal alone, and `clear_journal/1`
+  must leave the snapshot alone: the session decides when each is cleared.
+  Records are opaque terms to the store, like snapshots.
+
+  `Condukt.SessionStore.Conformance` holds the tests a store has to pass.
+
   ## Implementing one
 
   Condukt ships memory and disk-backed stores, and callers can provide their
@@ -35,6 +58,18 @@ defmodule Condukt.SessionStore do
   @callback load(keyword()) :: {:ok, term()} | :not_found | {:error, term()}
   @callback save(term(), keyword()) :: :ok | {:error, term()}
   @callback clear(keyword()) :: :ok | {:error, term()}
+
+  @doc "Appends journal records after the ones already stored, in order."
+  @callback append_journal([term()], keyword()) :: :ok | {:error, term()}
+
+  @doc "Returns every journal record in append order, or `{:ok, []}` when there are none."
+  @callback load_journal(keyword()) :: {:ok, [term()]} | {:error, term()}
+
+  @doc "Removes every journal record, leaving the snapshot in place."
+  @callback clear_journal(keyword()) :: :ok | {:error, term()}
+
+  @optional_callbacks append_journal: 2, load_journal: 1, clear_journal: 1
+
   def load(store, default_opts \\ [])
 
   def load({module, opts}, default_opts) do
@@ -64,4 +99,32 @@ defmodule Condukt.SessionStore do
   def clear(module, default_opts) when is_atom(module) do
     module.clear(default_opts)
   end
+
+  @doc "Whether a store implements the journal callbacks."
+  def journal?({module, _opts}), do: journal?(module)
+
+  def journal?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :append_journal, 2) and
+      function_exported?(module, :load_journal, 1) and function_exported?(module, :clear_journal, 1)
+  end
+
+  def journal?(_store), do: false
+
+  def append_journal(store, records, default_opts \\ []) do
+    {module, opts} = split(store, default_opts)
+    module.append_journal(records, opts)
+  end
+
+  def load_journal(store, default_opts \\ []) do
+    {module, opts} = split(store, default_opts)
+    module.load_journal(opts)
+  end
+
+  def clear_journal(store, default_opts \\ []) do
+    {module, opts} = split(store, default_opts)
+    module.clear_journal(opts)
+  end
+
+  defp split({module, opts}, default_opts), do: {module, Keyword.merge(default_opts, opts)}
+  defp split(module, default_opts) when is_atom(module), do: {module, default_opts}
 end

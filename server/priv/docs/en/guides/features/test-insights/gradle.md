@@ -27,6 +27,8 @@ The plugin collects results from all Gradle `Test` tasks, including:
 - Test suite and class structure
 - Flaky test detection across runs
 
+Turn on <.localized_link href="/guides/features/test-code-coverage/gradle">code coverage</.localized_link> to also upload which code your tests executed.
+
 ## Configure upload behavior {#configure-upload-behavior}
 
 By default:

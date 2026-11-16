@@ -19,7 +19,9 @@ defmodule TuistWeb.UserSessionController do
   end
 
   def create(conn, params) do
-    create(conn, params, "Welcome back!")
+    conn
+    |> Authentication.restore_login_return_to(params)
+    |> create(params, "Welcome back!")
   end
 
   defp create(conn, params, info) do
@@ -28,7 +30,7 @@ defmodule TuistWeb.UserSessionController do
     else
       conn
       |> put_flash(:error, "Email and password sign-in is disabled.")
-      |> redirect(to: ~p"/users/log_in")
+      |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
       |> halt()
     end
   end
@@ -43,7 +45,7 @@ defmodule TuistWeb.UserSessionController do
 
         conn
         |> put_flash(:error, dgettext("dashboard", "You've exceeded the rate limit. Try again later."))
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
         |> halt()
     end
   end
@@ -63,7 +65,7 @@ defmodule TuistWeb.UserSessionController do
         conn
         |> put_flash(:email, extract_email(params))
         |> put_flash(:error, dgettext("dashboard_auth", "Please complete the security check and try again."))
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
         |> halt()
     end
   end
@@ -109,7 +111,7 @@ defmodule TuistWeb.UserSessionController do
         conn
         |> put_flash(:email, email)
         |> put_flash(:error, "Invalid email or password")
-        |> redirect(to: ~p"/users/log_in")
+        |> redirect(to: Authentication.login_path(~p"/users/log_in", params["return_to"]))
         |> halt()
 
       {:error, :not_confirmed} ->
@@ -134,7 +136,7 @@ defmodule TuistWeb.UserSessionController do
   end
 
   def new(conn, params) do
-    case Authentication.local_return_to(params["return_to"]) do
+    case Authentication.session_return_to(params["return_to"]) do
       nil ->
         redirect(conn, to: ~p"/users/log_in")
 

@@ -8,11 +8,6 @@ defmodule Tuist.Sandboxes.Analytics do
   yet runs until now. Compute, session durations and peak vCPUs and memory
   are derived from those sessions.
 
-  Disk is held for longer: a sandbox keeps its workspace and memory image on
-  its node from `created` (or the `started` of a restore) until it is
-  archived, fails or is deleted, paused or not, as `Concurrency` charges it.
-  Peak disk is derived from those holds.
-
   Setup and time to start come straight from the durations events carry: a
   `setup` event's is how long an Orb's `.agents/setup` ran, and a
   `started` event that booted the sandbox (create or restore) carries how
@@ -51,7 +46,6 @@ defmodule Tuist.Sandboxes.Analytics do
 
     by_sandbox = account_id |> lifecycle_events(prev_start_dt, query_end_dt) |> Enum.chunk_by(& &1.sandbox_id)
     sessions = sessions(by_sandbox, query_end_dt)
-    holds = holds(by_sandbox, query_end_dt)
     events = List.flatten(by_sandbox)
     durations = &event_durations(events, &1, buckets, prev_start_dt, start_dt, query_end_dt)
 
@@ -61,7 +55,7 @@ defmodule Tuist.Sandboxes.Analytics do
       session_duration: session_duration(sessions, buckets, prev_start_dt, start_dt, end_dt),
       setup: durations.(&(&1.event == "setup")),
       time_to_start: durations.(&(&1.event == "started" and &1.boot_source != "")),
-      concurrency: concurrency(clip(sessions, start_dt, end_dt), clip(holds, start_dt, end_dt), buckets)
+      concurrency: concurrency(clip(sessions, start_dt, end_dt), buckets)
     }
   end
 
@@ -202,13 +196,12 @@ defmodule Tuist.Sandboxes.Analytics do
     duration_summary(current, previous, buckets, & &1.at, & &1.ms, nil)
   end
 
-  # Peak vCPUs and memory in use, and disk held on nodes, within each bucket.
-  defp concurrency(sessions, holds, buckets) do
+  # Peak vCPUs and memory in use within each bucket.
+  defp concurrency(sessions, buckets) do
     %{
       dates: Enum.map(buckets, & &1.date),
       vcpus: peaks(sessions, buckets, & &1.vcpus),
-      memory_gb: sessions |> peaks(buckets, & &1.memory_mb) |> Enum.map(&gigabytes/1),
-      disk_gb: holds |> peaks(buckets, & &1.disk_mb) |> Enum.map(&gigabytes/1)
+      memory_gb: sessions |> peaks(buckets, & &1.memory_mb) |> Enum.map(&gigabytes/1)
     }
   end
 
@@ -250,7 +243,7 @@ defmodule Tuist.Sandboxes.Analytics do
     ClickHouseRepo.all(
       from(e in SandboxEvent,
         where:
-          e.account_id == ^account_id and e.event in ^["created", "started", "setup" | Events.stop_events()] and
+          e.account_id == ^account_id and e.event in ^["started", "setup" | Events.stop_events()] and
             e.inserted_at >= ^lookback_dt and e.inserted_at < ^end_dt,
         order_by: [e.sandbox_id, e.inserted_at],
         select: %{
@@ -261,7 +254,6 @@ defmodule Tuist.Sandboxes.Analytics do
           duration_ms: e.duration_ms,
           vcpus: e.vcpus,
           memory_mb: e.memory_mb,
-          workspace_gb: e.workspace_gb,
           inserted_at: e.inserted_at
         }
       )
@@ -273,37 +265,6 @@ defmodule Tuist.Sandboxes.Analytics do
 
     Enum.flat_map(by_sandbox, fn events ->
       events |> Enum.filter(&(&1.event in ["started" | Events.stop_events()])) |> pair_sessions(open_until)
-    end)
-  end
-
-  # Each sandbox's stretches on a node, holding its workspace and memory
-  # image: from `created`, or a `started` while off any node (a restore),
-  # until it is archived, fails or is deleted. One still on a node holds
-  # until now.
-  defp holds(by_sandbox, end_dt) do
-    open_until = open_until(end_dt)
-
-    Enum.flat_map(by_sandbox, fn events ->
-      {holds, open} =
-        Enum.reduce(events, {[], nil}, fn event, {holds, open} ->
-          at = to_utc(event.inserted_at)
-
-          cond do
-            is_nil(open) and event.event in ["created", "started"] ->
-              {holds, %{started_at: at, ended_at: nil, disk_mb: event.workspace_gb * 1024 + event.memory_mb}}
-
-            open && event.event in ["archived", "failed", "deleted"] ->
-              {[%{open | ended_at: at} | holds], nil}
-
-            true ->
-              {holds, open}
-          end
-        end)
-
-      case open do
-        nil -> holds
-        open -> [%{open | ended_at: Enum.max([open.started_at, open_until], DateTime)} | holds]
-      end
     end)
   end
 

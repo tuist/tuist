@@ -246,7 +246,8 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		// Adoption is claim + self-join, never install. The operator owns putting a
 		// valid box into rotation: install it (Ubuntu + the fleet key + ubuntu
 		// passwordless sudo) and verify it is reachable BEFORE setting its adoption
-		// displayName (`mise run baremetal:prep-ovh`), so a claimed box is already
+		// displayName (`mise run baremetal:prep-ovh`, or OVHPoolPrep for a box
+		// named prep-<prefix>), so a claimed box is already
 		// up — the same shape as a Scaleway mini that is already running. Keeping
 		// the OS install off this path is what makes adoption a ~2-5 min self-join,
 		// so the fleet MachineDeployment goes Ready quickly and never wedges helm
@@ -591,13 +592,9 @@ func (r *OVHDedicatedMachineReconciler) reinstallAlreadyInFlight(ctx context.Con
 // Fire-and-forget: it kicks the install off and returns.
 func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.OVHDedicatedMachine) error {
 	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
+	publicKey, keyErr := FleetPublicKey(ctx, r.CredentialsManager, fleet)
 	if keyErr != nil {
 		return keyErr
-	}
-	signer, signErr := ssh.ParsePrivateKey(privateKey)
-	if signErr != nil {
-		return fmt.Errorf("parse fleet ssh key: %w", signErr)
 	}
 	template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
 	if tmplErr != nil {
@@ -606,14 +603,27 @@ func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, mac
 	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
 		TemplateName: template,
 		Hostname:     machine.Name,
-		// TrimSpace is load-bearing. MarshalAuthorizedKey ends the line with a
-		// newline, and OVH reads that trailing byte as a second, empty key:
-		// "only 1 single SSH key can be provided". That 400 is returned on every
-		// retry, so the release wedges the Machine in Deleting forever and the box
-		// is never returned to the pool. The adopt path never hit it because prep
-		// passes the key read straight from 1Password, which carries no newline.
-		SSHKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))),
+		SSHKey:       publicKey,
 	})
+}
+
+// FleetPublicKey is the authorized-keys line of the fleet's SSH key, which an
+// OVH install authorizes so the fleet's self-join can dial the box.
+func FleetPublicKey(ctx context.Context, creds *credentials.Manager, fleet string) (string, error) {
+	privateKey, err := creds.EnsureFleetSSHKey(ctx, fleet)
+	if err != nil {
+		return "", err
+	}
+	signer, err := ssh.ParsePrivateKey(privateKey)
+	if err != nil {
+		return "", fmt.Errorf("parse fleet ssh key: %w", err)
+	}
+	// TrimSpace is load-bearing. MarshalAuthorizedKey ends the line with a
+	// newline, and OVH reads that trailing byte as a second, empty key: "only 1
+	// single SSH key can be provided". That 400 is returned on every retry, so a
+	// release would wedge the Machine in Deleting forever and the box would never
+	// return to the pool.
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))), nil
 }
 
 func (r *OVHDedicatedMachineReconciler) event(machine *infrav1.OVHDedicatedMachine, reason, format string, args ...any) {

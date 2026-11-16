@@ -1,4 +1,6 @@
 import Foundation
+import Path
+import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
@@ -692,5 +694,88 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
         XCTAssertEqual(mappedTests.destinations, Set([.iPad, .iPhone]))
         XCTAssertFalse(mappedTests.metadata.tags.contains("tuist:prunable"))
+    }
+}
+
+struct ExternalProjectsPlatformNarrowerGraphMapperConditionTests {
+    /// A macro-only helper links SwiftPM's prebuilt swift-syntax on macOS and keeps its source dependency for the other
+    /// platforms. Once narrowed to macOS, that dependency can never apply, and keeping the edge fails the dependency lint
+    /// when another target keeps swift-syntax around for iOS. The target's own dependencies must lose it too: binary-cache
+    /// hashing hashes them in the order of the graph's edges, so a dependency without an edge has no hash yet.
+    @Test func map_removesExternalDependenciesWhoseConditionExcludesTheNarrowedPlatforms() async throws {
+        // Given
+        let directory: AbsolutePath = "/Project"
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPhone])
+        let libraryCondition = try #require(PlatformCondition.when([.ios]))
+        let macroSupportCondition = try #require(PlatformCondition.when([.ios, .catalyst, .tvos, .watchos, .visionos]))
+        let library = Target.test(
+            name: "Library",
+            destinations: Set(Destination.allCases),
+            product: .staticFramework,
+            dependencies: [.target(name: "Macro"), .target(name: "SwiftSyntax", condition: libraryCondition)]
+        )
+        let macro = Target.test(
+            name: "Macro",
+            destinations: [.mac],
+            product: .macro,
+            dependencies: [.target(name: "MacroSupport")]
+        )
+        let macroSupport = Target.test(
+            name: "MacroSupport",
+            destinations: Set(Destination.allCases),
+            product: .staticFramework,
+            dependencies: [.target(name: "SwiftSyntax", condition: macroSupportCondition)]
+        )
+        let swiftSyntax = Target.test(name: "SwiftSyntax", destinations: Set(Destination.allCases), product: .staticFramework)
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [library, macro, macroSupport, swiftSyntax],
+            type: .external(hash: nil)
+        )
+
+        let appDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let libraryDependency = GraphDependency.target(name: library.name, path: externalProject.path)
+        let macroDependency = GraphDependency.target(name: macro.name, path: externalProject.path)
+        let macroSupportDependency = GraphDependency.target(name: macroSupport.name, path: externalProject.path)
+        let swiftSyntaxDependency = GraphDependency.target(name: swiftSyntax.name, path: externalProject.path)
+
+        let librarySwiftSyntaxEdge = GraphEdge(from: libraryDependency, to: swiftSyntaxDependency)
+        let macroSupportSwiftSyntaxEdge = GraphEdge(from: macroSupportDependency, to: swiftSyntaxDependency)
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appDependency: [libraryDependency],
+                libraryDependency: [macroDependency, swiftSyntaxDependency],
+                macroDependency: [macroSupportDependency],
+                macroSupportDependency: [swiftSyntaxDependency],
+            ],
+            dependencyConditions: [
+                librarySwiftSyntaxEdge: libraryCondition,
+                macroSupportSwiftSyntaxEdge: macroSupportCondition,
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await ExternalProjectsPlatformNarrowerGraphMapper().map(
+            graph: graph,
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        #expect(mappedGraph.projects[externalProject.path]?.targets[macroSupport.name]?.destinations == [.mac])
+        #expect(mappedGraph.projects[externalProject.path]?.targets[macroSupport.name]?.dependencies == [])
+        #expect(mappedGraph.projects[externalProject.path]?.targets[library.name]?.dependencies == library.dependencies)
+        #expect(mappedGraph.projects[externalProject.path]?.targets[swiftSyntax.name]?.destinations == [.iPhone])
+        #expect((mappedGraph.dependencies[macroSupportDependency] ?? []).isEmpty)
+        #expect(mappedGraph.dependencyConditions[macroSupportSwiftSyntaxEdge] == nil)
+        #expect(mappedGraph.dependencies[libraryDependency] == [macroDependency, swiftSyntaxDependency])
+        #expect(mappedGraph.dependencyConditions[librarySwiftSyntaxEdge] == .when([.ios]))
     }
 }

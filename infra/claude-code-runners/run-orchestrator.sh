@@ -22,16 +22,26 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 0' TERM INT
-# The orchestrator log names sessions and accounts. Readiness means the
-# orchestrator process is alive, not that Anthropic accepted the secret.
-# A macOS sandbox can take minutes from a cold host, hence the long lease.
+# The orchestrator log names sessions and accounts: keep its poll, dispatch
+# and hook timings, and replace session IDs and email addresses before they
+# reach the container log.
+redact() {
+  sed -u -E \
+    -e 's/(session(_uuid)?=)[^ ]+/\1-/g' \
+    -e 's/\b(cse|session)_01[A-Za-z0-9]+/\1_-/g' \
+    -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]+/-/g'
+}
+# Readiness means the orchestrator process is alive, not that Anthropic
+# accepted the secret. A macOS sandbox can take minutes from a cold host,
+# hence the long lease. /metrics on the health port has the queue wait and
+# hook durations, without session or account labels.
 claude self-hosted-runner orchestrator \
   --environment-secret-file "$secret_file" \
   --hooks-dir "$hooks_dir" \
   --expected-spawn-seconds 300 \
   --hook-timeout 45 \
   --shutdown-drain-sec 60 \
-  --health-port 0 >/dev/null 2>&1 &
+  --health-port 8080 > >(redact) 2>&1 &
 orchestrator_pid=$!
 touch "$HOME/orchestrator-running"
 if wait "$orchestrator_pid"; then result=0; else result=$?; fi

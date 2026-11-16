@@ -29,7 +29,7 @@ defmodule TuistWeb.PulseLive do
     filters = define_filters(signal)
     filter_keys = Enum.flat_map(filters, &["filter_#{&1.id}_op", "filter_#{&1.id}_val"])
     params = Map.take(params, @table_params ++ ~w(widget chart_type) ++ filter_keys)
-    params = Map.put_new(params, "query", if(signal == "errors", do: "", else: Pulse.default_query(signal)))
+    params = Map.put_new(params, "query", Pulse.default_query(signal))
     params = Map.put_new(params, "range", "1h")
     widgets = widgets(signal)
     widget = Enum.find(widgets, &(&1.id == params["widget"])) || hd(widgets)
@@ -439,6 +439,22 @@ defmodule TuistWeb.PulseLive do
                 </div>
               <% else %>
                 <.table
+                  :if={@signal != "errors"}
+                  id="pulse-table"
+                  rows={Enum.with_index(@telemetry.result.rows)}
+                  row_key={fn {_, index} -> "pulse-row-#{index}" end}
+                >
+                  <:col
+                    :let={{row, _}}
+                    :for={column <- columns(@signal)}
+                    label={column.label}
+                    patch={if sortable?(@signal, column.key), do: sort_patch(assigns, column.key)}
+                    sort_order={@sort_by == column.key && @sort_order}
+                  >
+                    <.text_cell label={cell(row, column.key)} data-column={column.key} />
+                  </:col>
+                </.table>
+                <.table
                   :if={@signal == "errors"}
                   id="pulse-table"
                   rows={@telemetry.result.rows}
@@ -469,7 +485,7 @@ defmodule TuistWeb.PulseLive do
                         <span :if={row["culprit"]} data-part="issue-culprit" title={row["culprit"]}>
                           {row["culprit"]}
                         </span>
-                        <span title={row["project"]}>· {row["service"] || row["project"]}</span>
+                        <span data-part="issue-service">· {row["service"]}</span>
                       </div>
                     </div>
                   </:col>
@@ -513,26 +529,10 @@ defmodule TuistWeb.PulseLive do
                   <:col
                     :let={row}
                     label={dgettext("dashboard_pulse", "Events")}
-                    patch={sort_patch(assigns, "count")}
-                    sort_order={@sort_by == "count" && @sort_order}
+                    patch={sort_patch(assigns, "events")}
+                    sort_order={@sort_by == "events" && @sort_order}
                   >
-                    <.text_cell label={format_number(row["count"], fractional_digits: 0)} />
-                  </:col>
-                </.table>
-                <.table
-                  :if={@signal != "errors"}
-                  id="pulse-table"
-                  rows={Enum.with_index(@telemetry.result.rows)}
-                  row_key={fn {_, index} -> "pulse-row-#{index}" end}
-                >
-                  <:col
-                    :let={{row, _}}
-                    :for={column <- columns(@signal)}
-                    label={column.label}
-                    patch={if sortable?(@signal, column.key), do: sort_patch(assigns, column.key)}
-                    sort_order={@sort_by == column.key && @sort_order}
-                  >
-                    <.text_cell label={cell(row, column.key)} data-column={column.key} />
+                    <.text_cell label={format_number(row["events"], fractional_digits: 0)} />
                   </:col>
                 </.table>
               <% end %>
@@ -648,6 +648,7 @@ defmodule TuistWeb.PulseLive do
     }
   end
 
+  @doc "A Unix-nanosecond string as a UTC timestamp with microseconds."
   def timestamp_label(value) do
     with {ns, ""} <- Integer.parse(to_string(value || "")),
          {:ok, time} <- DateTime.from_unix(div(ns, 1000), :microsecond) do
@@ -657,6 +658,7 @@ defmodule TuistWeb.PulseLive do
     end
   end
 
+  @doc "A Unix-nanosecond string relative to now, such as \"5 minutes ago\"."
   def timestamp_relative(value) do
     with {ns, ""} <- Integer.parse(to_string(value || "")),
          {:ok, time} <- DateTime.from_unix(div(ns, 1000), :microsecond) do
@@ -683,8 +685,8 @@ defmodule TuistWeb.PulseLive do
 
   defp error_time_columns,
     do: [
-      {"last_seen_ns", dgettext("dashboard_pulse", "Last seen")},
-      {"first_seen_ns", dgettext("dashboard_pulse", "First seen")}
+      {"last_seen", dgettext("dashboard_pulse", "Last seen")},
+      {"first_seen", dgettext("dashboard_pulse", "First seen")}
     ]
 
   defp sparkline_options do
@@ -699,14 +701,14 @@ defmodule TuistWeb.PulseLive do
   end
 
   defp issue_row_id(row),
-    do: "pulse-issue-" <> Base.url_encode64(row["project"] <> ":" <> row["issue_id"], padding: false)
+    do: "pulse-issue-" <> Base.url_encode64(row["service"] <> ":" <> row["fingerprint"], padding: false)
 
-  defp cell(row, key) when key in ~w(timestamp first_seen_ns last_seen_ns), do: timestamp_label(row[key])
+  defp cell(row, "timestamp"), do: timestamp_label(row["timestamp"])
 
   defp cell(row, key) do
     case row[key] do
       nil -> "—"
-      value when is_number(value) -> format_number(value, fractional_digits: if(key == "count", do: 0, else: 2))
+      value when is_number(value) -> format_number(value, fractional_digits: 2)
       value when is_map(value) -> Enum.map_join(Enum.sort(value), ", ", fn {k, v} -> "#{k}=#{v}" end)
       value -> to_string(value)
     end
@@ -732,9 +734,9 @@ defmodule TuistWeb.PulseLive do
     do: [
       %{key: "title", label: dgettext("dashboard_pulse", "Issue")},
       %{key: "service", label: dgettext("dashboard_pulse", "Service")},
-      %{key: "count", label: dgettext("dashboard_pulse", "Events")},
-      %{key: "first_seen_ns", label: dgettext("dashboard_pulse", "First seen")},
-      %{key: "last_seen_ns", label: dgettext("dashboard_pulse", "Last seen")}
+      %{key: "events", label: dgettext("dashboard_pulse", "Events")},
+      %{key: "first_seen", label: dgettext("dashboard_pulse", "First seen")},
+      %{key: "last_seen", label: dgettext("dashboard_pulse", "Last seen")}
     ]
 
   defp columns(_),
@@ -747,20 +749,8 @@ defmodule TuistWeb.PulseLive do
     ]
 
   defp define_filters(signal) do
-    fields =
-      case signal do
-        "errors" -> ~w(service project environment release)
-        "logs" -> ~w(service level)
-        _ -> ~w(service)
-      end
-
-    labels = %{
-      "service" => dgettext("dashboard_pulse", "Service"),
-      "level" => dgettext("dashboard_pulse", "Level"),
-      "project" => dgettext("dashboard_pulse", "Project"),
-      "environment" => dgettext("dashboard_pulse", "Environment"),
-      "release" => dgettext("dashboard_pulse", "Release")
-    }
+    fields = if signal in ~w(logs errors), do: ~w(service level), else: ~w(service)
+    labels = %{"service" => dgettext("dashboard_pulse", "Service"), "level" => dgettext("dashboard_pulse", "Level")}
 
     Enum.map(fields, &%Filter.Filter{id: &1, display_name: labels[&1], type: :text, operator: :==, value: ""})
   end
@@ -779,7 +769,7 @@ defmodule TuistWeb.PulseLive do
   end
 
   defp default_sort("metrics"), do: "name"
-  defp default_sort("errors"), do: "last_seen_ns"
+  defp default_sort("errors"), do: "last_seen"
   defp default_sort(_), do: "timestamp"
   defp default_order(field) when field in ~w(name service level title), do: "asc"
   defp default_order(_), do: "desc"
@@ -790,7 +780,7 @@ defmodule TuistWeb.PulseLive do
         "metrics" -> ~w(name value)
         "logs" -> ~w(timestamp service level)
         "traces" -> ~w(timestamp service name duration_ms)
-        "errors" -> ~w(last_seen_ns first_seen_ns count title service)
+        "errors" -> ~w(last_seen first_seen events title service)
       end
 
     for column <- columns(signal), column.key in fields, do: {column.key, column.label}
@@ -815,17 +805,17 @@ defmodule TuistWeb.PulseLive do
     signal_path(assigns.selected_account, assigns.signal, params)
   end
 
-  defp live_table?(assigns), do: assigns.params["page"] in [nil, "1", 1] && !assigns.params["end_at"]
-
   defp issue_path(assigns, row) do
     params =
       assigns.params
       |> Map.take(~w(range))
       |> Map.put("end_at", assigns.telemetry.result.meta["end_at"])
-      |> Map.put("project", row["project"])
+      |> Map.put("service", row["service"])
 
-    ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{row["issue_id"]}?#{params}"
+    ~p"/#{assigns.selected_account.name}/~/pulse/errors/issues/#{row["fingerprint"]}?#{params}"
   end
+
+  defp live_table?(assigns), do: assigns.params["page"] in [nil, "1", 1] && !assigns.params["end_at"]
 
   defp signal_path(account, "metrics", params), do: ~p"/#{account.name}/~/pulse/metrics?#{params}"
   defp signal_path(account, "logs", params), do: ~p"/#{account.name}/~/pulse/logs?#{params}"
@@ -836,8 +826,8 @@ defmodule TuistWeb.PulseLive do
   defp title("traces"), do: dgettext("dashboard_pulse", "Traces")
   defp title("errors"), do: dgettext("dashboard_pulse", "Errors")
   defp query_language("metrics"), do: "PromQL"
-  defp query_language("traces"), do: "TraceQL"
-  defp query_language(_), do: "LogQL"
+  defp query_language(_), do: dgettext("dashboard_pulse", "Text search (* for all)")
+
   defp signal_icon("metrics"), do: "chart_arcs"
   defp signal_icon("traces"), do: "list_tree"
   defp signal_icon("errors"), do: "alert_circle"
@@ -991,9 +981,6 @@ defmodule TuistWeb.PulseLive do
         "dashboard_pulse",
         "This query exceeds the result limit. Narrow the time range or native query and try again."
       )
-
-  defp error_message({:error, :query_reset_required}),
-    do: dgettext("dashboard_pulse", "The results changed while loading. Resume live or retry the query.")
 
   defp error_message(_),
     do: dgettext("dashboard_pulse", "Pulse could not complete this query. Adjust the query or refresh to try again.")

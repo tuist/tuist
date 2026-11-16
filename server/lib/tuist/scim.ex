@@ -179,7 +179,7 @@ defmodule Tuist.SCIM do
           from u in base, where: u.email == ^downcased
 
         %{attribute: "externalId", op: :eq, value: value} ->
-          from u in base, where: u.email == ^String.downcase(value) or u.token == ^value
+          from u in base, where: u.email == ^String.downcase(value)
 
         nil ->
           base

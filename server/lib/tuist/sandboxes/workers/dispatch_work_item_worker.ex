@@ -2,7 +2,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   @moduledoc """
   Holds an acknowledged Managed Agents work item that no node had room for
   and hands it to `Tuist.Sandboxes.Router.dispatch/2` once
-  `Tuist.Sandboxes.Capacity.admissible?/2` lets it through, checking every
+  `Tuist.Sandboxes.Capacity.admission/2` lets it through, checking every
   few seconds. Snoozing does not use up attempts.
 
   The poller acknowledges such an item instead of leaving it queued because
@@ -26,7 +26,6 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Anthropic.Client
-  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
 
   require Logger
@@ -67,7 +66,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
          deadline_ms,
          attempt
        ) do
-    case Capacity.admission(Router.session_environment(agent_environment, item), session_id) do
+    case Router.admission(agent_environment, item) do
       :ok ->
         _ = Router.dispatch(agent_environment, item)
         :ok
@@ -84,13 +83,13 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
           if rem(attempt, @log_every) == 0, do: Logger.info("sandboxes: work item still waiting for a node", log)
           {:snooze, @check_seconds}
         else
-          release(agent_environment, work_id, log)
+          release(agent_environment, work_id, "no node had room for it before its deadline", log)
         end
     end
   end
 
-  defp release(agent_environment, work_id, log) do
-    Logger.warning("sandboxes: no node had room for a work item before its deadline; releasing it", log)
+  defp release(agent_environment, work_id, why, log) do
+    Logger.warning("sandboxes: releasing a held work item: #{why}", log)
     _ = Client.stop(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id, true)
     :ok
   end

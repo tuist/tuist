@@ -2,6 +2,11 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +20,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
 const reservationFleet = "runners-macos"
@@ -418,6 +424,30 @@ func TestReservation_PrefersAHostHoldingThePoolsImage(t *testing.T) {
 	}
 	if isReserved(nodeByName(t, r, "m4-a")) {
 		t.Error("should not reserve the host that would have to pull the image")
+	}
+}
+
+// Between hosts that converge equally soon and hold the image, the one with
+// no macOS sandbox session wins: a session resumes only on its own Mac.
+func TestReservation_PrefersAHostHoldingNoSandboxSession(t *testing.T) {
+	pool := largePool()
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	held := m4Node("m4-a")
+	held.Labels[podtemplate.MacosSandboxSessionsLabel] = "true"
+
+	r := reservationReconciler(pool, smallPool(), held, m4Node("m4-b"), starved,
+		placedPod("idle-a", "macos-26-6", "m4-a", ""),
+		placedPod("idle-b", "macos-26-6", "m4-b", ""),
+	)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	if !isReserved(nodeByName(t, r, "m4-b")) {
+		t.Error("should reserve the host holding no sandbox session")
+	}
+	if isReserved(nodeByName(t, r, "m4-a")) {
+		t.Error("should not reserve the host whose session can resume only there")
 	}
 }
 
@@ -1253,6 +1283,130 @@ func TestReservation_TakesAnIdleHostEarly(t *testing.T) {
 	}
 	if isReserved(nodeByName(t, r, "m4-1")) {
 		t.Error("the host running a job should not be reserved")
+	}
+}
+
+func TestReservation_FastReclaim(t *testing.T) {
+	type fixture struct {
+		sibling *tuistv1.RunnerPool
+		pending *corev1.Pod
+		victims []*corev1.Pod
+		nodes   []*corev1.Node
+		extra   []client.Object
+		signals scaling.Signals
+	}
+	for _, tc := range []struct {
+		name          string
+		change        func(*fixture)
+		freshClaim    bool
+		failedSignals bool
+		want          bool
+	}{
+		{name: "surplus warm runners yield at five seconds", want: true},
+		{name: "before five seconds", change: func(f *fixture) {
+			f.pending.Status.Conditions[0].LastTransitionTime = metav1.NewTime(reservationNow.Add(-4 * time.Second))
+		}},
+		{name: "not a capacity rejection", change: func(f *fixture) { f.pending.Status.Conditions[0].Message = "untolerated taint" }},
+		{name: "queue drained", change: func(f *fixture) { f.signals.Queued = 0 }},
+		{name: "withheld only", change: func(f *fixture) { f.signals = scaling.Signals{Withheld: 100} }},
+		{name: "signals unavailable", failedSignals: true},
+		{name: "no surplus", change: func(f *fixture) { f.sibling.Spec.Replicas = 2 }},
+		{name: "not enough surplus to clear host", change: func(f *fixture) { f.sibling.Spec.Replicas = 1 }},
+		{name: "manual pool", change: func(f *fixture) { f.sibling.Spec.Autoscaling.Enabled = false }},
+		{name: "busy runner", change: func(f *fixture) { f.victims[0].Labels["tuist.dev/runner-pool-owner"] = "acme" }},
+		{name: "claimed since cached target selection", freshClaim: true},
+		{name: "newly warm runner", change: func(f *fixture) {
+			f.victims[0].Status.ContainerStatuses[0].State.Running.StartedAt = metav1.NewTime(reservationNow.Add(-time.Minute))
+		}},
+		{name: "booting runner", change: func(f *fixture) {
+			f.victims[0].Status.Phase = corev1.PodPending
+			f.victims[0].Status.ContainerStatuses = nil
+		}},
+		{name: "stale runner", change: func(f *fixture) { f.victims[0].Spec.Containers[0].Image = "old-image" }},
+		{name: "already marked for reclaim", change: func(f *fixture) {
+			f.victims[0].Annotations = map[string]string{preemptedForAnnotation: f.pending.Labels["tuist.dev/runner-pool"], preemptedAtAnnotation: reservationNow.Format(time.RFC3339)}
+		}},
+		{name: "already freeing", change: func(f *fixture) {
+			f.victims[0].Finalizers = []string{"test"}
+			stamp := metav1.NewTime(reservationNow.Add(-time.Second))
+			f.victims[0].DeletionTimestamp = &stamp
+		}},
+		{name: "bound idle runner can serve the queue", change: func(f *fixture) {
+			f.extra = append(f.extra, placedPod("own-idle", largePool().Name, "m4-1", ""))
+		}},
+		{name: "native sandboxes hold both VM slots", change: func(f *fixture) {
+			for _, node := range f.nodes {
+				node.Status.Allocatable[corev1.ResourceCPU] = resource.MustParse("24")
+				node.Status.Allocatable[corev1.ResourceMemory] = resource.MustParse("64Gi")
+			}
+			for _, name := range []string{"native-a", "native-b"} {
+				pod := placedPod(name, "", "m4-0", "")
+				pod.Namespace = "tuist-sandboxes"
+				pod.Labels = map[string]string{macosSandboxRole: "execution"}
+				pod.Spec.Containers = []corev1.Container{{Name: "execution", Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("1Gi"),
+				}}}}
+				f.extra = append(f.extra, pod)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := largePool()
+			f := fixture{
+				sibling: smallPool(), pending: pendingPod("large-pending", pool.Name, 5*time.Second),
+				nodes: []*corev1.Node{m4Node("m4-0"), m4Node("m4-1")}, signals: scaling.Signals{Queued: 1},
+			}
+			f.sibling.Spec.Autoscaling = &tuistv1.RunnerPoolAutoscaling{Enabled: true}
+			f.pending.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionFalse,
+				Reason: "Unschedulable", Message: insufficientCPU, LastTransitionTime: metav1.NewTime(reservationNow.Add(-5 * time.Second))}}
+			f.pending.Spec.Containers = []corev1.Container{{Name: "runner", Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+				corev1.ResourceCPU: resource.MustParse("12"), corev1.ResourceMemory: resource.MustParse("28Gi"),
+			}}}}
+			for _, name := range []string{"warm-a", "warm-b"} {
+				pod := bootedMacOSPod(name, f.sibling.Name, "m4-0", reservationNow.Add(-time.Hour))
+				pod.Spec.Containers = []corev1.Container{{Name: "runner", Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("6"), corev1.ResourceMemory: resource.MustParse("14Gi"),
+				}}}}
+				pod.Status.ContainerStatuses = []corev1.ContainerStatus{{Name: "runner", State: corev1.ContainerState{
+					Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(reservationNow.Add(-time.Hour))},
+				}}}
+				f.victims = append(f.victims, pod)
+			}
+			if tc.change != nil {
+				tc.change(&f)
+			}
+			objects := []client.Object{pool, f.sibling, f.pending, f.nodes[0], f.nodes[1], f.victims[0], f.victims[1]}
+			objects = append(objects, f.extra...)
+			r := reservationReconciler(objects...)
+			if tc.freshClaim {
+				f.victims[0].Labels["tuist.dev/runner-pool-owner"] = "acme"
+				r.APIReader = fake.NewClientBuilder().WithScheme(r.Scheme).WithObjects(objects...).Build()
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if tc.failedSignals {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(f.signals)
+			}))
+			defer server.Close()
+			token := filepath.Join(t.TempDir(), "token")
+			if err := os.WriteFile(token, []byte("test-token"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r.SignalsClient = scaling.NewClient(server.URL)
+			r.SignalsClient.TokenPath = token
+			err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*f.pending})
+			if (err != nil) != tc.failedSignals {
+				t.Fatalf("reconcileReservation: %v", err)
+			}
+			if got := isReserved(nodeByName(t, r, "m4-0")); got != tc.want {
+				t.Errorf("reserved = %v, want %v", got, tc.want)
+			}
+			if isReserved(nodeByName(t, r, "m4-1")) {
+				t.Error("must not reserve a different host")
+			}
+		})
 	}
 }
 

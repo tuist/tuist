@@ -40,7 +40,7 @@
         <p>
           {dgettext(
             "marketing",
-            "Faster builds. Reliable tests. One platform for your team and coding agents."
+            "Faster builds and reliable tests for Xcode, Gradle, Bazel, and more. One platform for your team and coding agents."
           )}
         </p>
         <div data-part="actions" role="group" aria-labelledby="hero-title">
@@ -694,6 +694,13 @@
             role="tabpanel"
             aria-labelledby={"customers-tab-#{slide.slug}"}
           >
+            <%!-- How long the customer has used Tuist, above its story;
+            slides without a confirmed date show none. --%>
+            <span :if={slide.since} data-part="since">
+              {dgettext("marketing", "Using Tuist since %{date}",
+                date: Timex.format!(slide.since, "{Mfull} {YYYY}")
+              )}
+            </span>
             <p>{slide.statement}</p>
             <.button
               :if={slide.href}

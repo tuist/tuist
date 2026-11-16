@@ -24,7 +24,7 @@ end
 | Tool | Description |
 | ---- | ----------- |
 | `Condukt.Tools.Read` | Read file contents. Supports images. |
-| `Condukt.Tools.Bash` | Run a shell command via `bash -c`. |
+| `Condukt.Tools.Bash` | Run a shell command via `bash -c`, streaming its output. |
 | `Condukt.Tools.Command` | Run one trusted executable without shell parsing. |
 | `Condukt.Tools.Edit` | Surgical file edits using find and replace. |
 | `Condukt.Tools.Write` | Create or overwrite files. |
@@ -44,6 +44,84 @@ back to the host project. The same agent definition works with any of them.
 
 See the [Sandbox guide](sandbox.md) for details, including how to pick a
 sandbox at `start_link/1` time and how custom sandboxes plug in.
+
+## Long-running commands
+
+In a session, `Condukt.Tools.Bash` runs each command as a sandbox process
+when the sandbox has them (see
+[Processes that outlive their caller](sandbox.md#processes-that-outlive-their-caller)),
+as `Local`, `Kubernetes`, and `Microsandbox` do:
+
+* The command's output streams while it runs, a line at a time, as
+  `{:tool_output, tool_call_id, chunk}` events to stream subscribers and the
+  notifier, and into the call's `output` in the session's view. See
+  [Streaming and Events](streaming-and-events.md).
+* A command still running after 10 seconds parks the call until it exits, as
+  [Waiting for Events](parking.md) describes. The call then holds no process,
+  and the session's tool timeout no longer applies; the command's own
+  `timeout` argument does. A watcher process follows the command meanwhile
+  and wakes the call when it exits.
+* Aborting the turn kills the command, whether it runs in the foreground or
+  the call is parked. Draining the session for another node
+  (`Condukt.Sessions.stop(id, drain: true)`) leaves it running.
+* When the call parks on a sandbox that implements
+  `Condukt.Sandbox.watch_process/3`, the sandbox also reports the exit, so the
+  call wakes even when the node that ran the watcher is gone.
+* The result is bounded: output within 2000 lines and 50KB comes back whole,
+  and longer output keeps its first and last lines.
+* The process id comes from the session id and the tool call id
+  (`Condukt.Tools.Bash.process_id/2`). A call that runs again under the same
+  ids, as a restarted session's retry does, follows the command it finds
+  instead of starting a second one.
+
+Change how long a command runs in the foreground with `:park_after`:
+
+```elixir
+def tools, do: [{Condukt.Tools.Bash, park_after: 30_000}, Condukt.Tools.Read]
+```
+
+The built-in file tools and `Bash` take `name:` and `sandbox:`, so a session
+can offer the same tool against a second machine, as
+[A second sandbox for some tools](sandbox.md#a-second-sandbox-for-some-tools)
+shows.
+
+On `Condukt.Sandbox.Virtual`, on a custom sandbox without processes, and
+outside a session, `Bash` runs the command through `Condukt.Sandbox.exec/3`
+and returns when it ends, as before.
+
+A custom tool streams its own progress with `Condukt.Tool.output/2`:
+
+```elixir
+def call(%{"url" => url}, context) do
+  for line <- MyApp.Deploy.run(url) do
+    Condukt.Tool.output(context, line <> "\n")
+  end
+
+  {:ok, "deployed"}
+end
+```
+
+## Concurrency
+
+When the model asks for several tools at once, the session runs them in call
+order. Consecutive calls of tools that only read run together; any other
+call runs alone, after the calls before it have returned and before the ones
+after it start. A model that reads three files and then edits one gets the
+reads at once and the edit after them, and two `Bash` commands from one
+response never run at the same time.
+
+`Condukt.Tools.Read`, `Tools.Glob`, and `Tools.Grep` are read-only. A tool
+that changes nothing a later call could observe declares it:
+
+```elixir
+@impl true
+def read_only?(_opts), do: true
+```
+
+Inline tools take `read_only: true`. Tools that do not declare it, `Bash`,
+`Edit`, `Write`, and custom tools among them, run one at a time. A call that
+parks holds its place: the calls after it wait until it wakes and returns,
+unless it and they are all read-only.
 
 ## Scoped command grants
 
@@ -140,6 +218,8 @@ The second argument to `call/2` is a context map that includes:
   themselves I/O operations)
 * `:secrets` contains resolved session secrets for trusted tools
 * `:opts` is the keyword list from `{Module, opts}`
+* `:session_id` and `:tool_call_id` identify the session and the call, for
+  naming external work so it can be found again
 * `:assigns` is a map of session-scoped values populated by previous tool
   calls. See [Sharing state across tool calls](#sharing-state-across-tool-calls).
 
@@ -261,6 +341,8 @@ end
   the next section.
 * `{:error, reason}` for failures. The error is reported back to the model
   so it can recover.
+* `{:park, state, opts}` to wait for an outside event or a time; `wake/3`
+  then receives the event and `state`. See [Waiting for Events](parking.md).
 
 ## Sharing state across tool calls
 

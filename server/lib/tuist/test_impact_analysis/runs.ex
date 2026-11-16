@@ -12,6 +12,15 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   records a selection of nothing, without a diff or the rules, so a run never
   runs more than hashing left.
 
+  A clean checkout's whole diff against a baseline whose file changes are
+  written also gives the checked-out commit's files, which it writes as file
+  changes when the commit is in the graph
+  (`Tuist.GitHistory.FileChanges.write_from_diff/5`), so the client isn't
+  asked for the commit's listing. The commit usually reaches the graph only
+  after the request, so the listings endpoint tries again from the stored
+  diff before the client uploads (`write_file_changes/3`). Either is best
+  effort and never fails its request.
+
   The request lists every test module in scope, each `skipped` or not, and
   the counts cover all of them: once the baseline is confirmed, the
   baseline's tests in skipped modules count as requested and skipped, and a
@@ -28,6 +37,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.GitHistory
+  alias Tuist.GitHistory.FileChanges
   alias Tuist.Projects.Project
   alias Tuist.TestImpactAnalysis
   alias Tuist.TestImpactAnalysis.Baselines
@@ -35,6 +46,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.TestCase
+
+  require Logger
 
   @changed_files_limit 5_000
   @default_test_duration_ms 1_000
@@ -153,6 +166,10 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     with {:ok, changed_files, changed_files_count} <- changed_files(project, params, commit_sha, baseline_sha),
          :ok <- within_diff_limit(changed_files_count),
          {:ok, baseline} <- resolve(project, scope(params, commit_sha), baseline_sha) do
+      if !Map.get(params, :dirty) do
+        write_file_changes(project, baseline.repository_id, commit_sha, baseline_sha, changed_files, changed_files_count)
+      end
+
       skipped_modules = skipped_modules(project, params, baseline)
       module_skipped = total(skipped_modules)
 
@@ -252,6 +269,53 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
   defp within_diff_limit(count) when count > @changed_files_limit, do: {:diff_fallback, :diff_too_large}
   defp within_diff_limit(_count), do: :ok
+
+  @doc """
+  Writes the file changes of those of `shas` that have a stored diff from
+  the project's runs requests, against a baseline whose file changes are
+  written, so the client isn't asked to upload their listings. Returns the
+  SHAs written.
+  """
+  def write_file_changes(project, repository_id, shas) do
+    project.id
+    |> stored_diffs(shas)
+    |> Enum.group_by(& &1.commit_sha)
+    |> Enum.filter(fn {sha, diffs} ->
+      Enum.any?(diffs, fn diff ->
+        write_file_changes(project, repository_id, sha, diff.baseline_sha, diff.changed_files, diff.changed_files_count) ==
+          :written
+      end)
+    end)
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp stored_diffs(project_id, shas), do: best_effort(shas, [], fn -> Storage.list_diffs(project_id, shas) end)
+
+  # A clean checkout's whole diff against a baseline whose file changes are
+  # written gives the commit's files (`Tuist.GitHistory.FileChanges.write_from_diff/5`).
+  # Best effort: when it doesn't apply or fails, the client uploads the
+  # commit's listing as it would otherwise.
+  defp write_file_changes(project, repository_id, sha, baseline_sha, changed_files, changed_files_count) do
+    best_effort(sha, :failed, fn ->
+      if changed_files_count == length(changed_files) do
+        limit = GitHistory.settings(project).commit_file_limit
+        FileChanges.write_from_diff(repository_id, sha, baseline_sha, changed_files, limit)
+      else
+        :incomplete
+      end
+    end)
+  end
+
+  defp best_effort(shas, failed, fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.warning(
+        "Writing the file changes of #{inspect(shas)} from a selection diff failed: #{Exception.message(error)}"
+      )
+
+      failed
+  end
 
   defp resolve(project, scope, baseline_sha) do
     case Baselines.resolve(project, scope, baseline_sha: baseline_sha) do

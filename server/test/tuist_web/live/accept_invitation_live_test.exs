@@ -21,8 +21,9 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
           %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
 
-      assert {:error, {:redirect, %{to: "/users/log_in"}}} =
-               live(conn, ~p"/auth/invitations/#{invitation.token}")
+      path = ~p"/auth/invitations/#{invitation.token}"
+      assert {:error, {:redirect, %{to: destination}}} = live(conn, path)
+      assert destination == ~p"/users/log_in?#{%{return_to: path}}"
     end
 
     test "shows the accept form when the signed-in user matches the invitee", %{conn: conn} do

@@ -1,9 +1,12 @@
 import Catalog
 import Core
+import TestCoverageAttribution
 import Testing
 @testable import App
 
-@Suite struct CartTests {
+// Serialized: the baseline runs with parallel testing, and tests that overlap in one process record
+// no evidence of their own.
+@Suite(.coverageAttribution, .serialized) struct CartTests {
     @Test func totalSumsItems() {
         let cart = Cart()
         cart.add(Product(sku: "tea", name: "Tea", priceCents: 300))

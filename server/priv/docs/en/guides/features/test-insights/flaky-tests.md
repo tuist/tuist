@@ -7,7 +7,7 @@
 ---
 # Flaky Tests {#flaky-tests}
 
-Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
+Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time. For how to investigate and contain them as a team, see [Flaky tests](https://tuist.dev/solutions/flaky-tests).
 
 <.home_cards>
   <.home_card

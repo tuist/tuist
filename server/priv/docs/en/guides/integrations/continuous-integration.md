@@ -9,7 +9,7 @@
 
 To run Tuist commands in your [continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) workflows, you'll need to install it in your CI environment. 
 
-Authentication is optional but required if you want to use server-side features like <.localized_link href="/guides/features/cache">cache</.localized_link>. 
+Authentication is optional but required if you want to use server-side features like <.localized_link href="/guides/features/cache">cache</.localized_link>. To shorten CI runs and lower their cost once Tuist is installed, see [Slow builds](https://tuist.dev/solutions/slow-builds) and [CI costs](https://tuist.dev/solutions/ci-costs).
 
 The following sections provide examples of how to do this on different CI platforms. Once connects through its own native Tuist provider; it does not need the Tuist CLI. See [Once](#once) for that workflow.
 
@@ -370,6 +370,19 @@ tuist setup cache
 > **Authentication**
 >
 > Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>, add it as a variable named `TUIST_TOKEN` to an [environment variable group](https://docs.appcircle.io/build/build-environment-variables), and select that group in your build configuration. Mark the variable as secret with the lock icon.
+
+## xcodebuild output formatting {#xcodebuild-output-formatting}
+
+`tuist build`, `tuist test`, `tuist xcodebuild build`, and `tuist xcodebuild test` format `xcodebuild`'s output with the formatter from [xcbeautify](https://github.com/cpisciotta/xcbeautify), so you don't need to pipe these commands through xcbeautify yourself. On GitHub Actions, detected through the `GITHUB_ACTIONS` environment variable, Tuist uses xcbeautify's GitHub Actions renderer, which surfaces compiler warnings, errors, and test failures as annotations in the run summary and on the pull request. Everywhere else it uses the terminal renderer, colored unless the output is piped or `NO_COLOR` is set.
+
+Pass `--verbose` to print `xcodebuild`'s unformatted output, for example when a build fails without a clear error.
+
+If a job calls `xcodebuild` directly rather than through Tuist, pipe it through xcbeautify yourself, and set `pipefail` so a failing build still fails the step:
+
+```bash
+set -o pipefail
+xcodebuild test -scheme App | xcbeautify --renderer github-actions
+```
 
 ## Run report {#run-report}
 

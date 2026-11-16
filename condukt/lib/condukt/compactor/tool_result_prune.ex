@@ -15,6 +15,11 @@ defmodule Condukt.Compactor.ToolResultPrune do
   - `:max_size` - tool result payloads larger than this many bytes are elided
     when they fall outside the recent window (default: `4096`).
 
+  When a native session compacts because the provider rejected a request as
+  too long, it passes `context_overflow: true`. Recent tool results are then
+  elided too when they exceed `:max_size`, since one of them may be what no
+  longer fits.
+
   ## Example
 
       MyApp.Agent.start_link(
@@ -31,7 +36,7 @@ defmodule Condukt.Compactor.ToolResultPrune do
 
   @impl true
   def compact(messages, opts) do
-    keep_recent = Keyword.get(opts, :keep_recent, @default_keep_recent)
+    keep_recent = if opts[:context_overflow], do: 0, else: Keyword.get(opts, :keep_recent, @default_keep_recent)
     max_size = Keyword.get(opts, :max_size, @default_max_size)
 
     total = Enum.count(messages, &(&1.role == :tool_result))

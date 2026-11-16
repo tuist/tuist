@@ -5,7 +5,7 @@ defmodule TuistWeb.Marketing.StructuredMarkupTest do
 
   for locale <- ~w(en ja ko es tr zh_Hans) do
     @locale locale
-    test "pricing offers reflect the pricing contract without invented commerce facts (#{locale})" do
+    test "pricing states only the free floor without invented commerce facts (#{locale})" do
       Gettext.put_locale(TuistWeb.Gettext, @locale)
       plans = Tuist.Billing.get_plans()
 
@@ -20,51 +20,57 @@ defmodule TuistWeb.Marketing.StructuredMarkupTest do
       assert data["brand"]["name"] == "Tuist"
       refute Map.has_key?(data, "aggregateRating")
       refute Map.has_key?(data, "review")
-      assert length(data["offers"]) == length(plans)
 
-      for {plan, offer} <- Enum.zip(plans, data["offers"]) do
-        assert offer["@type"] == "Offer"
-        assert offer["name"] == "Tuist #{plan.name}"
-        assert offer["description"] == plan.description
-        assert offer["url"] == Tuist.Environment.app_url(path: "/pricing")
-
-        for key <-
-              ~w(priceValidUntil validFrom validThrough hasMerchantReturnPolicy shippingDetails) do
-          refute Map.has_key?(offer, key)
-        end
-
-        case plan.id do
-          :air ->
-            assert offer["price"] == "0.00"
-            assert offer["priceCurrency"] == "USD"
-
-          id when id in [:pro, :enterprise] ->
-            refute Map.has_key?(offer, "price")
-            refute Map.has_key?(offer, "priceCurrency")
-            refute Map.has_key?(offer, "priceSpecification")
-        end
-      end
+      # Pro is metered and Enterprise negotiated, so neither gets an `Offer`:
+      # search engines reject one without a price, and any price would be made up.
+      assert data["offers"] == %{
+               "@type" => "AggregateOffer",
+               "lowPrice" => "0.00",
+               "priceCurrency" => "USD",
+               "offerCount" => length(plans),
+               "url" => Tuist.Environment.app_url(path: "/pricing"),
+               "availability" => "https://schema.org/InStock"
+             }
     end
   end
 
-  test "pricing uses plan identity rather than localized display prices" do
-    plans = [
-      %{id: :air, name: "Air", price: "Kostenlos", description: "Gratis innerhalb der Limits"},
-      %{id: :pro, name: "Pro", price: "$0", description: "Nutzungsabhängig"},
-      %{
-        id: :enterprise,
-        name: "Enterprise",
-        price: "Individuell",
-        description: "Nach Vereinbarung"
-      }
+  test "serialized structured data cannot close its script element early" do
+    data = %{"@type" => "Article", "articleBody" => ~s[Use </script><script>alert(1)</script> & <b>bold</b>]}
+
+    assert [json] = StructuredMarkup.get_json_serialized_structured_data(%{head_structured_data: [data]})
+
+    refute json =~ "<"
+    assert JSON.decode!(json) == data
+  end
+
+  test "listing pages link to their entries instead of embedding them" do
+    entries = [
+      %{id: "2026.11.10-newer", title: "Newer", category: "Product", date: ~D[2026-11-10], body: "<p>Body</p>"},
+      %{id: "2026.10.01-older", title: "Older", category: "Product", date: ~D[2026-10-01], body: "<p>Body</p>"}
     ]
 
-    assert %{"offers" => [air, pro, enterprise]} =
-             StructuredMarkup.get_pricing_plans_structured_data(plans)
+    data = StructuredMarkup.get_changelog_structured_data(entries)
 
-    assert air["price"] == "0.00"
-    refute Map.has_key?(pro, "price")
-    refute Map.has_key?(enterprise, "price")
+    assert data["@type"] == "CollectionPage"
+
+    assert data["mainEntity"] == %{
+             "@type" => "ItemList",
+             "numberOfItems" => 2,
+             "itemListElement" => [
+               %{
+                 "@type" => "ListItem",
+                 "position" => 1,
+                 "name" => "Newer",
+                 "url" => Tuist.Environment.app_url(path: "/changelog/2026.11.10-newer")
+               },
+               %{
+                 "@type" => "ListItem",
+                 "position" => 2,
+                 "name" => "Older",
+                 "url" => Tuist.Environment.app_url(path: "/changelog/2026.10.01-older")
+               }
+             ]
+           }
   end
 
   test "FAQ structured data preserves plain answers and extracts text from HTML" do

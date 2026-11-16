@@ -37,6 +37,9 @@ type Launcher struct {
 	// AgentBootDelay delays the first successful ping after a boot or
 	// restore.
 	AgentBootDelay time.Duration
+	// SizedMemory makes snapshots write a mem file as long as the guest's
+	// memory (sparse) rather than a short marker, as Uffd loads need.
+	SizedMemory bool
 }
 
 func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error) {
@@ -61,6 +64,7 @@ func (l *Launcher) Launch(ctx context.Context, spec vm.Spec) (vm.Instance, error
 		Agent:     &Agent{delay: l.AgentBootDelay, started: time.Now()},
 		jailed:    spec.JailerEnabled,
 		bootedNow: time.Now(),
+		sizedMem:  l.SizedMemory,
 	}
 	if err := inst.start(); err != nil {
 		return nil, err
@@ -112,6 +116,24 @@ type Instance struct {
 	once   sync.Once
 	// FailSnapshotCreate makes PUT /snapshot/create answer 400.
 	FailSnapshotCreate bool
+
+	// memBytes is the guest's memory size, from its machine config or the
+	// snapshot it loaded. A snapshot's mem file is that long (sparse).
+	memBytes int64
+	sizedMem bool
+	// memory is the guest memory a Uffd load mapped and registered with a
+	// userfaultfd, as Firecracker does; release unmaps it.
+	memory  []byte
+	release func()
+}
+
+// Memory is what a Uffd snapshot load mapped as the guest's memory. Read it
+// only once the memory server installed every page: a missing page would
+// stop the reading thread until it does.
+func (i *Instance) Memory() []byte {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.memory
 }
 
 // start binds the fake API and agent sockets. They live in a short
@@ -167,6 +189,13 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"app_name":"Firecracker","id":%q,"state":%q,"vmm_version":"1.16.1"}`, i.spec.ID, state)
 	case r.Method == http.MethodGet && r.URL.Path == "/version":
 		_, _ = w.Write([]byte(`{"firecracker_version":"v1.16.1"}`))
+	case r.Method == http.MethodPut && r.URL.Path == "/machine-config":
+		if mib, ok := call.Body["mem_size_mib"].(float64); ok {
+			i.mu.Lock()
+			i.memBytes = int64(mib) << 20
+			i.mu.Unlock()
+		}
+		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPut && r.URL.Path == "/actions":
 		i.setState("Running")
 		i.Agent.boot()
@@ -187,11 +216,24 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 			fault(400, "vm must be paused")
 			return
 		}
+		i.mu.Lock()
+		memBytes := i.memBytes
+		i.mu.Unlock()
 		for _, key := range []string{"snapshot_path", "mem_file_path"} {
 			p, _ := call.Body[key].(string)
-			if err := os.WriteFile(i.HostPath(p), []byte(key+" "+i.spec.ID+" "+strconv.FormatInt(time.Now().UnixNano(), 10)), 0o644); err != nil {
+			content := key + " " + i.spec.ID + " " + strconv.FormatInt(time.Now().UnixNano(), 10)
+			if key == "snapshot_path" {
+				content += " mem_bytes=" + strconv.FormatInt(memBytes, 10)
+			}
+			if err := os.WriteFile(i.HostPath(p), []byte(content), 0o644); err != nil {
 				fault(500, err.Error())
 				return
+			}
+			if key == "mem_file_path" && i.sizedMem && memBytes > int64(len(content)) {
+				if err := os.Truncate(i.HostPath(p), memBytes); err != nil {
+					fault(500, err.Error())
+					return
+				}
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -202,6 +244,22 @@ func (i *Instance) handle(w http.ResponseWriter, r *http.Request) {
 		if !vm.Exists(i.HostPath(snap)) || !vm.Exists(i.HostPath(mem)) {
 			fault(400, "Load snapshot error: missing snapshot or memory file")
 			return
+		}
+		state, _ := os.ReadFile(i.HostPath(snap))
+		_, size, _ := strings.Cut(string(state), " mem_bytes=")
+		memBytes, _ := strconv.ParseInt(size, 10, 64)
+		i.mu.Lock()
+		i.memBytes = memBytes
+		i.mu.Unlock()
+		if backend["backend_type"] == "Uffd" {
+			memory, release, err := guestMemory(i.HostPath(mem), memBytes)
+			if err != nil {
+				fault(400, "Load snapshot error: "+err.Error())
+				return
+			}
+			i.mu.Lock()
+			i.memory, i.release = memory, release
+			i.mu.Unlock()
 		}
 		if resume, _ := call.Body["resume_vm"].(bool); resume {
 			i.setState("Running")
@@ -289,6 +347,12 @@ func (i *Instance) stop() {
 		_ = i.agentLn.Close()
 		i.Agent.stop()
 		_ = os.RemoveAll(i.sockDir)
+		i.mu.Lock()
+		if i.release != nil {
+			i.release()
+			i.memory, i.release = nil, nil
+		}
+		i.mu.Unlock()
 		close(i.done)
 	})
 }

@@ -90,6 +90,27 @@ public protocol GitControlling {
         limits: GitHistoryLimits
     ) async throws -> GitHistory
 
+    /// `history` with what a shallow clone lacked between its heads and the commits the server
+    /// has. A run's checkout often holds its commit without the parent, and a commit uploaded
+    /// before its parent is placed on its branch without it, which the parent's later upload does
+    /// not undo. While `unknown` returns any of the first parents the checkout stops at, the clone
+    /// is deepened through `refs`, without blobs, in growing steps within the limits' window and
+    /// budget, so the parents are uploaded with the commit. Returns `history` as it is when the
+    /// checkout is whole, the limits allow no fetch of history, or `refs` is empty.
+    /// - Parameters:
+    ///   - history: What `gitHistory` collected.
+    ///   - workingDirectory: The repository's top level.
+    ///   - refs: The remote branches to fetch through.
+    ///   - limits: How much to collect.
+    ///   - unknown: Of the given commits, the ones the server lacks.
+    func connectedGitHistory(
+        _ history: GitHistory,
+        workingDirectory: AbsolutePath,
+        refs: [String],
+        limits: GitHistoryLimits,
+        unknown: @escaping ([String]) async -> [String]
+    ) async -> GitHistory
+
     /// Every file of the commit's tree with the blob it has, at most `limit` of them in path order,
     /// which is what the server keys the listing by.
     func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles

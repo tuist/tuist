@@ -21,10 +21,17 @@ defmodule Condukt.Tools.Grep do
   @default_limit 200
 
   @impl true
-  def name, do: "Grep"
+  def name(opts), do: Keyword.get(opts, :name, "Grep")
+
+  # Reads change nothing, so an interrupted call can simply run again.
+  @impl true
+  def replay_safe?, do: true
 
   @impl true
-  def description do
+  def read_only?(_opts), do: true
+
+  @impl true
+  def description(_opts) do
     """
     Search file contents by regex. Returns matching lines as
     `path:line_number: line`. Filter the file set with `glob` and the search
@@ -34,7 +41,7 @@ defmodule Condukt.Tools.Grep do
   end
 
   @impl true
-  def parameters do
+  def parameters(_opts) do
     %{
       type: "object",
       properties: %{

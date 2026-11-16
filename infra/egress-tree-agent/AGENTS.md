@@ -8,7 +8,10 @@ tree per node. It is the third egress layer for tuist/tuist#12363:
 - The `kubernetes.io/egress-bandwidth` annotation (Cilium bandwidth manager)
   paces the NIC only and misses the node-local read path, and as a per-pod
   ceiling it can neither arbitrate between tenants (no floors) nor cap two
-  replicas at 1×C.
+  replicas at 1×C. kura-controller drops it from pods on this agent's pools
+  (see the per-tenant egress class in `../kura-controller/AGENTS.md`): its
+  single per-pod departure time stalls every connection of a busy pod behind
+  the slowest BBR-paced one, and this tree already enforces the ceiling.
 - The HAProxy regional gateway (#12506 pilot) bounds the customer read leg
   at L7 on ca-east only.
 - This agent is the kernel-level enforcement for all of it: work-conserving

@@ -23,7 +23,7 @@ defmodule TuistWeb.PulseChartsLiveTest do
     %{conn: log_in_user(conn, user), path: "/#{account.name}/~/pulse"}
   end
 
-  for signal <- ~w(logs traces errors) do
+  for signal <- ~w(logs traces) do
     test "#{signal} bucket counts default to bars and validate unsupported formats", ctx do
       {:ok, view, _} = live(ctx.conn, ctx.path <> "/#{unquote(signal)}?chart_type=scatter")
       [series] = chart_data(render_async(view))["series"]
@@ -101,7 +101,6 @@ defmodule TuistWeb.PulseChartsLiveTest do
         "metrics" -> ~w(reporting healthy unhealthy)
         "logs" -> ~w(entries errors warnings)
         "traces" -> ~w(spans errors duration_p95)
-        "errors" -> ~w(events fatal services)
       end
 
     %{

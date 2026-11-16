@@ -1,6 +1,7 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import TestCoverageAttribution
 import Testing
 import TuistBuildCommand
 import TuistGenerateCommand
@@ -9,6 +10,7 @@ import TuistSupport
 import TuistTesting
 @testable import TuistKit
 
+@Suite(.coverageAttribution)
 struct InitAcceptanceTests {
     @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func generated_macos_app() async throws {

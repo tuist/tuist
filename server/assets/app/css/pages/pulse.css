@@ -189,8 +189,13 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
-    & > .noora-badge {
+    & > .noora-badge,
+    & > [data-part="issue-service"] {
       flex-shrink: 0;
+    }
+
+    & > [data-part="issue-service"] {
+      white-space: nowrap;
     }
   }
 

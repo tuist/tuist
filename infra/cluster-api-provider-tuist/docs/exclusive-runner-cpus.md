@@ -70,6 +70,50 @@ Do this on one staging box before canary:
 
 ## Pod-level resource managers (kubelet v1.36)
 
+**Exclusive-CPU Pods must not get KVM from the device plugin on current kubelets.**
+[Kubernetes #143490](https://github.com/kubernetes/kubernetes/issues/143490)
+identifies a missing device allocation in pod-level admission. Containers then
+allocate devices concurrently at startup, racing in the device manager and
+panicking kubelet. The proposed [upstream fix](https://github.com/kubernetes/kubernetes/pull/143494)
+is not yet merged. Pools with both `exclusiveCPUs: true` and
+`nestedVirtualization: true` therefore get `/dev/kvm` from the `kvm-nri-plugin`
+DaemonSet (`runnersFleetLinux.nestedVirtualization.nri.enabled`), a containerd
+NRI plugin that adds the device to the containers a kata-qemu Pod names in its
+`tuist.dev/kvm-containers` annotation; those Pods request no
+`devices.tuist.dev/kvm`. Without NRI enabled, Helm still rejects the
+combination. Never give a Pod with a Pod-level budget a
+`devices.tuist.dev/kvm` request. See `infra/runners-controller/AGENTS.md`
+("Exclusive CPUs").
+
+This prevents new Pods from taking the broken admission path; it does not repair
+an already-inconsistent CPU checkpoint. Recover a damaged host separately after
+checking its live runtime workloads. Never reset allocation state automatically
+under running jobs. Production's OnDelete fleets do not upgrade existing hosts
+when `kubernetesVersion` changes, so check live kubelet versions rather than
+assuming every host runs the chart's version.
+
+**A kubelet restart with exclusive-CPU Pods running leaks their cores.** On
+v1.36.6 (and upstream master), `staticPolicy.AllocatePod` does not check for an
+existing Pod-level allocation, so the restarted kubelet re-admits each running
+Pod onto new cores and never returns the old ones. The Pods keep running, but the
+old cores are in neither `defaultCpuSet` nor any entry, and the next kubelet
+start fails `validateState` ("current set of available CPUs ... doesn't match")
+and stops. Staging reproduced it on 2026-11-12: two Pods on `1,13` and `2,14`
+moved to `3,15` and `4,16`, and the checkpoint was left with
+`defaultCpuSet: 0,3-12,15-23` and no entries. Once no exclusive-CPU Pod is left
+on the host, recover by stopping the kubelet, moving
+`/var/lib/kubelet/cpu_manager_state` aside and starting it again. Drain
+exclusive-CPU Pods before a planned kubelet restart.
+
+Unattended upgrades were an unplanned source of kubelet restarts. Ubuntu's
+needrestart restarted the kubelet and containerd on a production runner host after a
+libc upgrade on 2026-11-13, and the kubelet rejected 8 idle runner Pods with
+`UnexpectedAdmissionError` because the KVM device plugin had not re-registered
+yet. Kata runner hosts now carry `/etc/needrestart/conf.d/50-tuist-runner.conf`,
+which defers both services. Bootstrap writes it, and on existing hosts the Kata
+host-config repair adds it (`kata_needrestart.go`). Upgrades still install, and
+the services load the new libraries at the next reboot.
+
 A runner Pod is the runner container plus `dind`, `dind-externals`, `metrics`
 and the shell bridge. On v1.34 the static policy can only pin a container whose
 own requests equal its limits, so the Pod stays Burstable on the shared pool
@@ -112,10 +156,29 @@ API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
 1. Set `ovhFleets.runners-linux.kubernetesVersion` to the control plane's
    version in the env's values. The MachineDeployment is `OnDelete`, so no box
    changes.
-2. Per box: cordon it, wait until no runner Pod runs on it, then delete its
-   Machine. The provider reinstalls the box, and the replacement Machine joins
-   with the v1.36 kubelet, the static CPU manager and the pod-level managers.
-   Canary and production need `/elevate`.
+2. Per box: cordon it, wait until no runner Pod runs on it, **drain its
+   sandboxes**, then delete its Machine. The provider reinstalls the box, and
+   the replacement Machine joins with the v1.36 kubelet, the static CPU
+   manager and the pod-level managers. Canary and production need `/elevate`.
+
+   The box also hosts agent sandboxes (Amp Orbs, Claude Code sessions), and
+   the release deletes them with the box. The cordon starts their drain: the
+   server pauses idle ones and archives paused ones to object storage, one
+   at a time, from where their next turn restores on another node. Before
+   deleting the Machine, run the **sandbox drain check** until it prints
+   `DRAINED` and exits 0:
+
+   ```bash
+   kubectl -n tuist exec deploy/tuist-tuist-server -- \
+     bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
+   ```
+
+   Each run lists the sandboxes still on the node and queues the next
+   archive. A paused one usually leaves within a few minutes. A `running`
+   one with `in_turn=true` waits for its turn to end (Amp pauses it, or the
+   server does after ten quiet minutes); if it never does, ask its creator
+   to stop the thread, or accept losing what it has not pushed. Errored rows
+   are listed but do not block: they cannot be archived.
 3. Check the Node reports the new kubelet version, 30 allocatable CPUs on a
    32-thread box, and the `tuist.dev/pod-level-resource-managers` label.
 

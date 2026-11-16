@@ -23,12 +23,12 @@ defmodule Atlas.MCP.Proxy do
   @protocol_version "2025-03-26"
   # Revisions without the initialize handshake: every request carries its
   # version and client capabilities in `params._meta` and mirrors the version,
-  # method and tool name in headers. Pulse speaks only these.
+  # method and tool name in headers.
   @stateless_protocol_versions ["2026-07-28"]
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
   # The Tuist server's tools read production customer data, so they sit in the
-  # same "observability" ("Production systems") group as the Grafana, Pulse and
-  # Tuist database tools — granted by the same identity toggle. OVH's and
+  # same "observability" ("Production systems") group as the Grafana and Tuist
+  # database tools — granted by the same identity toggle. OVH's and
   # Vultr's reads describe the production fleet, so they belong there too.
   @server_tool_groups %{
     "grafana" => "observability",
@@ -215,9 +215,6 @@ defmodule Atlas.MCP.Proxy do
 
   defp caller_allowed?(%Server{}, _conn), do: false
 
-  # One Pulse upstream per Tuist environment (`pulse` for production,
-  # `pulse_canary`, ...), all reading cluster telemetry.
-  defp server_tool_group(%Server{name: "pulse" <> _}), do: "observability"
   defp server_tool_group(%Server{name: name}), do: Map.get(@server_tool_groups, name, "default")
 
   defp restricted_mcp_session?(%{assigns: %{mcp_claims: %{"mcp_tool_groups" => groups}}}) when is_list(groups), do: true
@@ -486,7 +483,7 @@ defmodule Atlas.MCP.Proxy do
           {:error,
            "#{server.name}/#{tool_name} needs a person's approval for this exact call. " <>
              "Ask the person you are working for to approve request #{approval.id} at " <>
-             "#{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
+             "#{AtlasWeb.Endpoint.url()}/approvals/#{approval.id} " <>
              "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
              "Never approve it yourself."}
       end

@@ -5,7 +5,7 @@ defmodule TuistOpsWeb.AtlasElevationController do
 
   An agent calls Atlas' `request_cluster_elevation` MCP tool, Atlas
   holds the call until the person it acts for approves that exact call
-  at `/admin/mcps`, and only then calls this endpoint with the person's
+  at `/approvals`, and only then calls this endpoint with the person's
   Atlas email. Atlas authenticates with its projected ServiceAccount
   token (`TuistOps.AtlasIdentity`); this endpoint trusts Atlas for the
   email and the approval, and still requires an engineering tailnet

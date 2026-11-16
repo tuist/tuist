@@ -87,7 +87,89 @@
   object-fit: contain;
 }
 
+[data-part="mobile-navigation-toggle"],
+[data-part="mobile-navigation-trigger"],
+[data-part="mobile-navigation-close"],
+[data-part="mobile-navigation-overlay"] {
+  display: none;
+}
+
 .headerbar__title {
   font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
   color: var(--noora-content-primary);
+}
+
+@media (max-width: 1023px) {
+  [data-part="mobile-navigation-toggle"] {
+    position: fixed;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  [data-part="mobile-navigation-trigger"] {
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--noora-radius-3);
+    width: 36px;
+    height: 36px;
+    color: var(--noora-surface-label-primary);
+
+    &:focus-visible {
+      outline: 2px solid var(--noora-surface-label-primary);
+      outline-offset: 2px;
+    }
+
+    & svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  .layout:has([data-part="mobile-navigation-toggle"]:checked) [data-part="mobile-navigation-overlay"] {
+    display: block;
+    position: fixed;
+    z-index: var(--noora-z-index-11);
+    inset: 0;
+    background: var(--noora-surface-overlay);
+  }
+
+  .layout:has([data-part="mobile-navigation-toggle"]:checked) .noora-sidebar {
+    display: block;
+    position: fixed;
+    z-index: var(--noora-z-index-12);
+    inset-block: 0;
+    inset-inline-start: 0;
+    box-shadow: var(--noora-border-heavy);
+    background: var(--noora-surface-background-primary);
+    width: min(320px, calc(100vw - var(--noora-spacing-10)));
+  }
+
+  [data-part="mobile-navigation-close"] {
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-5);
+    height: 64px;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:focus-visible {
+      outline: 2px solid var(--noora-surface-label-primary);
+      outline-offset: -2px;
+    }
+
+    & svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  .noora-sidebar > [data-part="viewport"] {
+    height: calc(100% - 64px);
+  }
 }

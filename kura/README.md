@@ -439,6 +439,8 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. Kura uses `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` as the Sentry environment, so set it to values such as `production`, `staging`, or `canary` when separating events by deployment. In the standalone Helm chart, inject the DSN via `extraEnv` or `extraEnvFrom`. In controller-managed Tuist deployments, set `kuraController.telemetry.deploymentEnvironment` and sync the DSN into `kura-shared-secrets` with `kuraController.sentry.externalSecret`.
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
 
+Set `KURA_SENTRY_PULSE_DSN` beside `KURA_SENTRY_DSN` to send a copy of every Sentry envelope to Tuist Pulse as well, for comparing the two backends. The DSN in `KURA_SENTRY_DSN` stays primary: the copy has its own queue, which drops envelopes when full, Sentry flushes (including on a panic) wait only for the primary, and shutdown gives the copy only the time the primary left. An invalid `KURA_SENTRY_PULSE_DSN` is logged and ignored. Managed installs set it through the Tuist chart's `sentryPulse.services.kura`.
+
 ### Upload admission and sizing
 
 `memory_pressure_state=0` does not guarantee upload admission: the byte budget bounds admitted work independently of measured memory use. Concurrent writers can fill it without an OOM or a pressure transition.

@@ -4,6 +4,7 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
   alias Tuist.Observability
   alias Tuist.Projects.Project
+  alias Tuist.Tests.Coverage
 
   @doc "Default-off account opt-in to Pulse; configured tenant ownership and membership still apply."
   def pulse_enabled?(account, flags \\ nil) do
@@ -33,28 +34,30 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Default-off immutable shard creation gate. Version-1 plans drop coverage, so
-  projects with coverage (`coverage_enabled?/3`: Mix projects, and every
-  project of a coverage-enabled account) remain on legacy plans. Given an
-  account, it answers for the account's non-Mix projects.
+  Immutable shard plans (version 1) are disabled for every account, whatever
+  the `:immutable_shard_reports` toggle says, so every new plan is a legacy one.
+
+  Version-1 plans drop coverage and per-test evidence: the coverage stores pick
+  each shard's current report by receipt order, while version-1 reports are
+  ordered by producer attempt, and coverage and test selection read every
+  attempt's facts from `test_case_runs`/`test_module_runs`. A sharded run on
+  such a plan therefore gets no commit coverage and gives test selection no
+  baseline or evidence. No account uses immutable plans, so they stay off
+  until coverage and test selection read version-1 reports (rows tagged with
+  their fact set, run totals derived rather than rewritten). Existing version-1
+  plans keep their contract.
+
+  To re-enable, answer with the account's toggle again, and keep projects
+  whose coverage still can't be read from version-1 reports on legacy plans.
   """
   def immutable_shard_reports_enabled?(subject, flags \\ nil)
 
-  def immutable_shard_reports_enabled?(%Project{account: account} = project, flags) do
-    Observability.feature_flag_evaluated(
-      :immutable_shard_reports,
-      account,
-      flag_enabled?(:immutable_shard_reports, account, flags) and not coverage_enabled?(account, project, flags)
-    )
-  end
+  def immutable_shard_reports_enabled?(%Project{account: account}, _flags), do: immutable_shard_reports_disabled(account)
 
-  def immutable_shard_reports_enabled?(account, flags) do
-    Observability.feature_flag_evaluated(
-      :immutable_shard_reports,
-      account,
-      flag_enabled?(:immutable_shard_reports, account, flags) and not xcode_coverage_enabled?(account, flags)
-    )
-  end
+  def immutable_shard_reports_enabled?(account, _flags), do: immutable_shard_reports_disabled(account)
+
+  defp immutable_shard_reports_disabled(account),
+    do: Observability.feature_flag_evaluated(:immutable_shard_reports, account, false)
 
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account, flags \\ nil) do
@@ -125,15 +128,17 @@ defmodule Tuist.FeatureFlags do
   defp sandboxes_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
-  Whether the user may use AI features, such as threads, and the Claude and
-  ChatGPT subscriptions they connect in their personal settings to run them
-  (`Tuist.Accounts.AISubscriptions`). Canary and production require an
-  explicit `:ai` FunWithFlags toggle for the user. Development, test,
-  and staging default to enabled.
+  Whether a user may use Tuist Guild's features: threads, AI subscriptions and
+  MCP servers. Canary and production require an explicit `:guild` FunWithFlags
+  toggle. Development, test and staging default to enabled. Organization
+  routing uses `organization_guild_enabled?/1` instead.
   """
-  def ai_enabled?(user) do
-    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:ai, for: user)
+  def guild_enabled?(actor) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:guild, for: actor)
   end
+
+  @doc "Organization AI requires the account's `:guild` flag in every environment."
+  def organization_guild_enabled?(account), do: FunWithFlags.enabled?(:guild, for: account)
 
   @doc """
   The names of the flags enabled for `user` that the Tuist apps read
@@ -142,7 +147,7 @@ defmodule Tuist.FeatureFlags do
   only when an app feature depends on it.
   """
   def app_flags(user) do
-    for {name, true} <- [{"ai", ai_enabled?(user)}], do: name
+    for {name, true} <- [{"guild", guild_enabled?(user)}], do: name
   end
 
   @doc """
@@ -175,6 +180,20 @@ defmodule Tuist.FeatureFlags do
   """
   def runner_docker_cache_enabled?(account) do
     Environment.env() != :prod or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
+
+  @doc """
+  Whether the account's GitHub Actions jobs on Linux runners use the cache the
+  runner hosts serve (`Tuist.Runners.ActionsCache`) instead of GitHub's.
+  Production requires the `:runner_actions_cache` flag for the account during
+  the rollout; other environments default to enabled.
+  """
+  def runner_actions_cache_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_actions_cache,
+      account,
+      Environment.env() != :prod or flag_enabled?(:runner_actions_cache, account, flags)
+    )
   end
 
   @doc """
@@ -249,59 +268,27 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether code coverage is ingested, processed and shown for a project of the
-  account. Mix projects have it in every account. Every other build system
-  (Xcode's coverage and test selection) is in early access behind
-  `xcode_coverage_enabled?/2`.
-  """
-  def coverage_enabled?(account, project, flags \\ nil)
-
-  def coverage_enabled?(_account, %Project{build_system: :mix}, _flags), do: true
-  def coverage_enabled?(account, _project, flags), do: xcode_coverage_enabled?(account, flags)
-
-  @doc """
   Whether coverage-based test selection (test impact analysis) runs for a
-  project: the project needs coverage (`coverage_enabled?/3`) and its account
-  the `:test_impact_analysis` flag. Like `:xcode_coverage`, canary and
-  production require an explicit toggle while development, test, and staging
-  default to enabled.
+  project: the project needs coverage (`Tuist.Tests.Coverage.supported?/1`)
+  and its account the `:test_impact_analysis` flag. Canary and production
+  require an explicit toggle while development, test, and staging default to
+  enabled.
   """
   def test_impact_analysis_enabled?(account, project, flags \\ nil) do
-    coverage_enabled?(account, project, flags) and
-      Observability.feature_flag_evaluated(
-        :test_impact_analysis,
-        account,
-        Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags)
-      )
-  end
-
-  @doc """
-  Whether code coverage is ingested, processed and shown for the account's
-  projects other than Mix ones (see `coverage_enabled?/3`). Canary and
-  production require an explicit `:xcode_coverage` FunWithFlags toggle for the
-  account while the feature is in early access, so its data model and API can
-  still change. Development, test, and staging default to enabled.
-  """
-  def xcode_coverage_enabled?(account, flags \\ nil)
-
-  def xcode_coverage_enabled?(nil, _flags), do: Observability.feature_flag_evaluated(:xcode_coverage, :unknown, false)
-
-  def xcode_coverage_enabled?(account, flags) do
-    Observability.feature_flag_evaluated(
-      :xcode_coverage,
-      account,
-      Environment.env() not in [:can, :prod] or flag_enabled?(:xcode_coverage, account, flags)
-    )
+    Coverage.supported?(project) and test_impact_analysis_account_enabled?(account, flags)
   end
 
   @doc """
   The account's side of `test_impact_analysis_enabled?/3`, without a project:
-  its `:test_impact_analysis` toggle and Xcode coverage. It's what
-  `Tuist.Ops.FeatureFlags`, whose evaluations are per account, reports.
+  its `:test_impact_analysis` toggle. It's what `Tuist.Ops.FeatureFlags`,
+  whose evaluations are per account, reports.
   """
   def test_impact_analysis_account_enabled?(account, flags \\ nil) do
-    xcode_coverage_enabled?(account, flags) and
-      (Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags))
+    Observability.feature_flag_evaluated(
+      :test_impact_analysis,
+      account,
+      Environment.env() not in [:can, :prod] or flag_enabled?(:test_impact_analysis, account, flags)
+    )
   end
 
   @doc """

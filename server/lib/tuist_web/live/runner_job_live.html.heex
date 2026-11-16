@@ -223,6 +223,16 @@
       </.card_section>
     </.card>
 
+    <.alert
+      :if={@out_of_memory}
+      id="runner-job-out-of-memory-alert"
+      status="error"
+      type="secondary"
+      size="large"
+      title={dgettext("dashboard_runners", "Ran out of memory")}
+      description={Tuist.Runners.JobMetrics.out_of_memory_description(@out_of_memory)}
+    />
+
     <.job_volumes
       volumes={@volumes}
       account_name={@selected_account.name}

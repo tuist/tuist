@@ -1,6 +1,8 @@
 defmodule Tuist.Tests.SelectionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  alias Tuist.IngestRepo
+  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.Selections
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -305,6 +307,35 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
+  describe "baseline_covered_paths/3" do
+    test "lists the files the test executed in the baseline commit's runs", %{project: project} do
+      baseline = TestSelectionFixtures.baseline_fixture(project_id: project.id, baseline_sha: "b1")
+      other = TestSelectionFixtures.baseline_fixture(project_id: project.id, baseline_sha: "b2")
+
+      evidence = fn run, path ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          test_run_id: run.id,
+          scope_kind: "test",
+          scope_id: "AuthTests\x1FSessionTests\x1Ftest_refresh()",
+          path: path,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      end
+
+      IngestRepo.insert_all(CoverageFile, [
+        evidence.(baseline, "Sources/Session.swift"),
+        evidence.(baseline, "Sources/Auth.swift"),
+        evidence.(other, "Sources/Other.swift")
+      ])
+
+      test = %{module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
+
+      assert Selections.baseline_covered_paths(project.id, "b1", test) == ["Sources/Auth.swift", "Sources/Session.swift"]
+    end
+  end
+
   describe "run_targets/1" do
     test "add up the run's tests per module", %{project: project} do
       %{run: run, plan: plan} = run(project)
@@ -385,7 +416,7 @@ defmodule Tuist.Tests.SelectionsTest do
 
   describe "analytics/2" do
     test "adds up the period's impact runs that a test run reported", %{project: project} do
-      run(project)
+      %{run: run, test_run: test_run} = run(project)
 
       fallback =
         TestSelectionFixtures.run_fixture(
@@ -397,8 +428,20 @@ defmodule Tuist.Tests.SelectionsTest do
           skipped_modules: %{"D" => 0}
         )
 
-      RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
+      {:ok, fallback_test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
       TestSelectionFixtures.run_fixture(project_id: project.id, skipped_count: 5, selected: [%{name: "test_orphan()"}])
+
+      # What the test runs' selections recorded: 6 of 8 tests avoided, and 1
+      # of 20 for the fallback.
+      for {test_run, impact_run, avoided, scope} <- [{test_run, run, 6, 8}, {fallback_test_run, fallback, 1, 20}] do
+        RunsFixtures.run_selection_fixture(
+          project_id: project.id,
+          test_run_id: test_run.id,
+          test_impact_run_id: impact_run.id,
+          avoided_tests: avoided,
+          scope_tests: scope
+        )
+      end
 
       now = DateTime.utc_now()
       analytics = Selections.analytics(project.id, {DateTime.add(now, -7, :day), DateTime.add(now, 60, :second)})
@@ -407,10 +450,10 @@ defmodule Tuist.Tests.SelectionsTest do
       assert analytics.totals.fallbacks == 1
       assert analytics.totals.selected == 2
       assert analytics.totals.skipped == 6
-      # The mean of the runs' skip rates: 75%, and 25% for the fallback, the
-      # share of its modules hashing skipped.
-      assert analytics.totals.skip_rate == 50.0
-      assert Enum.max(analytics.skip_rates) == 50.0
+      # The avoided tests over the tests in scope, pooled: 7 of 28, not the
+      # 40% mean of the runs' rates.
+      assert analytics.totals.skip_rate == 25.0
+      assert Enum.max(analytics.skip_rates) == 25.0
       assert Enum.sum(analytics.selected) == 2
       assert length(analytics.dates) == 8
     end

@@ -14,6 +14,9 @@ defmodule Tuist.Docs.HTML do
 
   @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
   @code_window_content_regex ~r/(<div data-part="code"><code>)(.*?)(<\/code>\s*<\/div>)/s
+  @whitespace_between_tags_regex ~r/>(\s+)</
+  @whitespace_placeholder_prefix "__TUIST_DOCS_HTML_WHITESPACE_"
+  @whitespace_placeholder_regex ~r/__TUIST_DOCS_HTML_WHITESPACE_([0-9A-F]+)__/
   @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
 
   @code_block_template """
@@ -55,13 +58,30 @@ defmodule Tuist.Docs.HTML do
 
     {html, _table_index} =
       html
+      |> protect_whitespace_between_tags()
       |> Floki.parse_fragment!()
       |> Floki.traverse_and_update(0, &wrap_table_node/2)
 
     html
     |> Floki.raw_html()
+    |> restore_whitespace_between_tags()
     |> restore_component_tags(component_tags)
     |> restore_protected_blocks(code_contents)
+  end
+
+  # Floki's parser drops text nodes that are only whitespace, which would join inline
+  # elements a space separates, such as `**Bold** [link](…)`. Each run is kept in a
+  # placeholder that encodes it, so it comes back exactly as the Markdown renderer wrote it.
+  defp protect_whitespace_between_tags(html) do
+    Regex.replace(@whitespace_between_tags_regex, html, fn _, whitespace ->
+      ">#{@whitespace_placeholder_prefix}#{Base.encode16(whitespace)}__<"
+    end)
+  end
+
+  defp restore_whitespace_between_tags(html) do
+    Regex.replace(@whitespace_placeholder_regex, html, fn _, encoded ->
+      Base.decode16!(encoded)
+    end)
   end
 
   def add_heading_anchors(html) do

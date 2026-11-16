@@ -238,6 +238,16 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   # The run and repository read through the installation; `fallback` is the
   # identity to use when GitHub cannot answer.
   defp github_api_identity(job, fallback \\ {:error, :unavailable}) do
+    with {:ok, run} <- github_run(job),
+         {:ok, identity} <- github_identity(job, run) do
+      {:ok, identity}
+    else
+      _ -> fallback
+    end
+  end
+
+  # The job's workflow run as GitHub's API reports it, with its full repository.
+  def github_run(job) do
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
          {:ok, run} <-
            GitHubClient.get_workflow_run(%{
@@ -247,12 +257,9 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
            }),
          {:ok, repository} <- GitHubClient.get_repository(installation, job.repository),
          true <- repository["id"] == get_in(run, ["repository", "id"]) do
-      case github_identity(job, Map.put(run, "repository", repository)) do
-        {:ok, identity} -> {:ok, identity}
-        _ -> fallback
-      end
+      {:ok, Map.put(run, "repository", repository)}
     else
-      _ -> fallback
+      _ -> {:error, :unavailable}
     end
   end
 

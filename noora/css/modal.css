@@ -147,7 +147,7 @@
 
     & [data-part="actions"] {
       display: flex;
-      gap: var(--noora-spacing-5);
+      gap: var(--noora-spacing-4);
     }
 
     &[data-type="stretch"] {

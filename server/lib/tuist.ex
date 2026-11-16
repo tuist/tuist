@@ -11,10 +11,10 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
-      Jams,
-      Jams.Checkpoints,
-      Jams.Jam,
-      Jams.RecoveryWorker,
+      Threads,
+      Threads.Checkpoints,
+      Threads.Thread,
+      Threads.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related
@@ -52,7 +52,10 @@ defmodule Tuist do
       Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
+      Ops.AccountPlans,
       Ops.FeatureFlags,
+      Ops.RunnerBilling,
+      Ops.RunnerConcurrencyLimits,
       Observability,
       RateLimit,
       RateLimit.InMemory,
@@ -69,6 +72,7 @@ defmodule Tuist do
       Bundles.BundleSizeApprover,
       Bundles.BundleThreshold,
       Bundles.Workers.BundleThresholdWorker,
+      DashboardSearch,
       Cache,
       Cache.Analytics,
       CacheEndpoints,
@@ -172,6 +176,7 @@ defmodule Tuist do
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
+      Tests.LegacySuiteIdentity,
       Tests.Coverage,
       Tests.Coverage.Commits,
       Tests.Coverage.Deltas,
@@ -185,6 +190,7 @@ defmodule Tuist do
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.Selections,
+      Tests.RunSelections,
       Tests.TestRunStressCandidate,
       TestImpactAnalysis.Baselines,
       TestImpactAnalysis.Runs,
@@ -210,6 +216,7 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.AISubscriptions,
+      Accounts.OrganizationAI,
       Accounts.MCPServers,
       Accounts.User,
       Accounts.UserMFA,
@@ -250,6 +257,8 @@ defmodule Tuist do
       GitHistory.Ref,
       GitHistory.Commit,
       GitHistory.CommitFile,
+      GitHistory.FileChange,
+      GitHistory.FileChanges,
       GitHistory.CommitListing,
       GitHistory.CommitParent,
       GitHistory.Repository,
@@ -342,6 +351,7 @@ defmodule Tuist do
       Sandboxes.AgentSession,
       Sandboxes.ClaudeCodeRunners,
       Sandboxes.ClaudeCodeRuntime,
+      Sandboxes.CommandCredentials,
       Sandboxes.Commands,
       Sandboxes.Anthropic.Client,
       Sandboxes.Anthropic.Federation,
@@ -353,6 +363,7 @@ defmodule Tuist do
       Sandboxes.Router,
       Sandboxes.Sandbox,
       Sandboxes.Schemas,
+      Sandboxes.Uploads,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the
@@ -360,6 +371,7 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.ActionsCache,
       Runners.CacheVolumes,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,

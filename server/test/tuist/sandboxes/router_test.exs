@@ -117,6 +117,47 @@ defmodule Tuist.Sandboxes.RouterTest do
     assert %Sandbox{state: :running, residency_work_id: "work_7", residency_epoch: 7} = Repo.reload!(sandbox)
   end
 
+  test "restores the session's archived sandbox instead of replacing it", %{
+    account: account,
+    agent_environment: agent_environment
+  } do
+    sandbox =
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: agent_environment.id,
+        anthropic_session_id: "session_archived",
+        state: :archived,
+        node_name: nil,
+        paused_at: DateTime.add(DateTime.utc_now(), -30, :hour),
+        archive_key: "sandbox-archives/#{account.id}/x/y.sbxa",
+        archive_bytes: 1024,
+        archive_sha256: "abc123",
+        archived_at: DateTime.add(DateTime.utc_now(), -5, :hour)
+      )
+
+    sandbox_id = sandbox.id
+    stub(Tuist.Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+    stub(Tuist.Storage, :delete_object, fn _key, _account -> :ok end)
+
+    expect(Capacity, :place, fn %Sandbox{id: ^sandbox_id, state: :creating} = placed ->
+      Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-a"}))
+      {:ok, "node-a"}
+    end)
+
+    expect(Nodes, :call, fn "node-a",
+                            "create",
+                            %{sandbox_id: ^sandbox_id, from_archive: %{url: "https://s3/get"}},
+                            _opts ->
+      {:ok, %{}}
+    end)
+
+    expect(Nodes, :call, fn "node-a", "start_worker", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+    assert :ok = Router.dispatch(agent_environment, work_item("session_archived", "work_8"))
+
+    assert %Sandbox{state: :running, node_name: "node-a", residency_work_id: "work_8"} = Repo.reload!(sandbox)
+  end
+
   test "replaces an errored sandbox for the session", %{account: account, agent_environment: agent_environment} do
     dead =
       sandbox_fixture(
@@ -316,7 +357,8 @@ defmodule Tuist.Sandboxes.RouterTest do
 
       reject(&ControlPlane.get_session/2)
 
-      assert %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, anthropic_environment_id: "env_router"} =
+      assert {:ok,
+              %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, anthropic_environment_id: "env_router"}} =
                Router.session_environment(agent_environment, work_item("session_row_mac"))
     end
 
@@ -332,7 +374,108 @@ defmodule Tuist.Sandboxes.RouterTest do
       )
 
       reject(&ControlPlane.get_session/2)
-      assert Router.session_environment(agent_environment, work_item("session_linux")) == agent_environment
+      assert Router.session_environment(agent_environment, work_item("session_linux")) == {:ok, agent_environment}
+    end
+
+    test "a new macOS session boots the Xcode its row, else its metadata, else the environment names", %{
+      account: account,
+      agent_environment: agent_environment
+    } do
+      stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1", "27.0"] end)
+
+      agent_environment =
+        Repo.update!(
+          Ecto.Changeset.change(agent_environment,
+            platform: :darwin,
+            template: "macos-xcode-27-0",
+            xcode_version: "27.0",
+            anthropic_api_key: "sk-ant-api"
+          )
+        )
+
+      agent_session_fixture(
+        account: account,
+        agent_environment: agent_environment,
+        anthropic_session_id: "session_row_xcode",
+        platform: :darwin,
+        xcode_version: "26.6"
+      )
+
+      stub(ControlPlane, :get_session, fn _credential, session_id ->
+        case session_id do
+          "session_meta_xcode" -> {:ok, %{"metadata" => %{"tuist_xcode_version" => "26.1.1"}}}
+          _ -> {:ok, %{"metadata" => %{"tuist_platform" => ""}}}
+        end
+      end)
+
+      assert {:ok, %{template: "macos-xcode-26-6", xcode_version: "26.6"}} =
+               Router.session_environment(agent_environment, work_item("session_row_xcode"))
+
+      assert {:ok, %{template: "macos-xcode-26-1-1", xcode_version: "26.1.1"}} =
+               Router.session_environment(agent_environment, work_item("session_meta_xcode"))
+
+      assert {:ok, %{template: "macos-xcode-27-0"}} =
+               Router.session_environment(agent_environment, work_item("session_env_xcode"))
+    end
+
+    test "a Linux environment's session that names an Xcode runs on macOS with it, not the default", %{
+      agent_environment: agent_environment
+    } do
+      stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+      agent_environment = Repo.update!(Ecto.Changeset.change(agent_environment, anthropic_api_key: "sk-ant-api"))
+
+      expect(ControlPlane, :get_session, fn _credential, "session_linux_xcode" ->
+        {:ok, %{"metadata" => %{"tuist_xcode_version" => "26.1.1"}}}
+      end)
+
+      assert {:ok, %{platform: :darwin, template: "macos-xcode-26-1-1", vcpus: 8}} =
+               Router.session_environment(agent_environment, work_item("session_linux_xcode"))
+    end
+
+    test "a failed metadata read holds a macOS environment's item instead of booting its Xcode", %{
+      agent_environment: agent_environment
+    } do
+      macos =
+        Repo.update!(
+          Ecto.Changeset.change(agent_environment, platform: :darwin, template: "macos", anthropic_api_key: "sk-ant-api")
+        )
+
+      stub(ControlPlane, :get_session, fn _credential, _session_id -> {:error, %{status: 503, message: "down"}} end)
+
+      capture_log(fn ->
+        assert {:error, :session_metadata_unavailable} =
+                 Router.session_environment(macos, work_item("session_unreadable"))
+
+        assert {:error, :session_metadata_unavailable} = Router.admission(macos, work_item("session_unreadable"))
+
+        linux = Repo.update!(Ecto.Changeset.change(agent_environment, anthropic_api_key: "sk-ant-api"))
+        assert {:ok, ^linux} = Router.session_environment(linux, work_item("session_unreadable"))
+      end)
+    end
+
+    test "a session asking for an unserved Xcode is admitted, then stopped without a sandbox", %{
+      agent_environment: agent_environment
+    } do
+      stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+      agent_environment = Repo.update!(Ecto.Changeset.change(agent_environment, anthropic_api_key: "sk-ant-api"))
+
+      stub(ControlPlane, :get_session, fn _credential, "session_old_xcode" ->
+        {:ok, %{"metadata" => %{"tuist_platform" => "macos", "tuist_xcode_version" => "15.4"}}}
+      end)
+
+      reject(&Capacity.place/1)
+      expect(Client, :stop, fn "env_router", "sk-ant-router", "work_1", true -> {:ok, %{}} end)
+
+      assert :ok = Router.admission(agent_environment, work_item("session_old_xcode"))
+
+      log =
+        capture_log(fn ->
+          assert {:error, {:unserved_xcode_version, "15.4"}} =
+                   Router.dispatch(agent_environment, work_item("session_old_xcode"))
+        end)
+
+      assert log =~ "Served: 26.6, 26.1.1"
+      assert Sandboxes.get_sandbox_for_session(agent_environment.id, "session_old_xcode") == nil
     end
 
     test "clones private github.com repositories with a repository-scoped token passed only through git's environment",

@@ -9,6 +9,12 @@ defmodule TuistWeb.WellKnownController do
   alias TuistWeb.RequestOrigin
 
   @openai_apps_challenge_token "YoBqoSMoA-RuEX8RMuCKrLnPCXDYUsYtKg-yjFBHmDQ"
+  # Proves to Context7 that we own its library crawled from https://tuist.dev/en/docs/.
+  # The key is public by design: Context7 asks owners to publish it.
+  @context7_ownership %{
+    url: "https://context7.com/websites/tuist_dev_en",
+    public_key: "pk_j1C6JsIPmcYwdZliFNUp7"
+  }
   @mcp_path "/mcp"
   @oauth_token_path "/oauth2/token"
   @oauth_authorize_path "/oauth2/authorize"
@@ -116,6 +122,14 @@ defmodule TuistWeb.WellKnownController do
     scheme = if uri.scheme == "https", do: "grpcs", else: "grpc"
     host = uri.host || "localhost"
     "#{scheme}://events.#{host}"
+  end
+
+  def context7_ownership(conn, _params) do
+    if Environment.tuist_hosted?() do
+      json(conn, @context7_ownership)
+    else
+      send_resp(conn, :not_found, "")
+    end
   end
 
   def openai_apps_challenge(conn, _params) do

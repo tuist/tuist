@@ -134,7 +134,6 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         // Load DependenciesGraph
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
-        let packageSettings: TuistCore.PackageSettings?
         let swiftPackageManagerScratchDirectory: AbsolutePath?
         var spmLintingIssues: [LintingIssue] = []
 
@@ -154,29 +153,34 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
                 disableSandbox: disableSandbox
             )
 
+            // Local packages become projects too, so they're merged before the package graph is planned: packages whose
+            // products the projects' targets link can't vend SwiftPM's macOS-only prebuilts through them.
+            allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
+                in: allManifests,
+                packageSettings: loadedPackageSettings,
+                disableSandbox: disableSandbox,
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
+            )
+            let externalDependencyNames = Set(
+                allManifests.projects.values.flatMap(\.targets).flatMap(\.dependencies).compactMap { dependency -> String? in
+                    switch dependency {
+                    case let .external(name, _), let .externalWithStatus(name, _, _): name
+                    default: nil
+                    }
+                }
+            )
             let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings,
                 disableSandbox: disableSandbox,
-                swiftPackageManagerArguments: swiftPackageManagerArguments
+                swiftPackageManagerArguments: swiftPackageManagerArguments,
+                externalDependencyNames: externalDependencyNames
             )
             spmLintingIssues = loadedSpmLintingIssues
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
-            packageSettings = loadedPackageSettings
         } else {
-            packageSettings = nil
             swiftPackageManagerScratchDirectory = nil
             dependenciesGraph = .none
-        }
-
-        // Merge SPM graph
-        if let packageSettings {
-            allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
-                in: allManifests,
-                packageSettings: packageSettings,
-                disableSandbox: disableSandbox,
-                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
-            )
         }
 
         let (workspaceModels, manifestProjects) = (

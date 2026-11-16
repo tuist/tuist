@@ -1,0 +1,306 @@
+// Copyright 2023 Greptime Team
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Option keys for the mito engine.
+//! We define them in this mod so the create parser can use it to validate table options.
+
+use std::collections::HashMap;
+
+/// Option key for all WAL options.
+pub use common_wal::options::WAL_OPTIONS_KEY;
+/// Option key for append mode.
+pub const APPEND_MODE_KEY: &str = "append_mode";
+/// Option key for the per-region write buffer size.
+pub const WRITE_BUFFER_SIZE_KEY: &str = "write_buffer_size";
+/// Option key for merge mode.
+pub const MERGE_MODE_KEY: &str = "merge_mode";
+/// Option key for TTL(time-to-live)
+pub const TTL_KEY: &str = "ttl";
+/// Option key for the per-table auto flush interval.
+pub const AUTO_FLUSH_INTERVAL_KEY: &str = "auto_flush_interval";
+/// Option key for compaction type.
+pub const COMPACTION_TYPE: &str = "compaction.type";
+/// Option key for forcing compaction options override.
+pub const COMPACTION_OVERRIDE: &str = "compaction.override";
+/// TWCS compaction strategy.
+pub const COMPACTION_TYPE_TWCS: &str = "twcs";
+/// Option key for twcs min file num to trigger a compaction.
+pub const TWCS_TRIGGER_FILE_NUM: &str = "compaction.twcs.trigger_file_num";
+/// Option key for twcs min file num to trigger compaction in the active window.
+pub const TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM: &str =
+    "compaction.twcs.active_window.trigger_file_num";
+/// Option key for the active-window L1 safety compaction threshold.
+pub const TWCS_ACTIVE_WINDOW_L1_MERGE_TRIGGER: &str =
+    "compaction.twcs.active_window.l1_merge_trigger";
+/// Option key for twcs min file num to trigger compaction in an inactive window.
+pub const TWCS_INACTIVE_WINDOW_TRIGGER_FILE_NUM: &str =
+    "compaction.twcs.inactive_window.trigger_file_num";
+/// Option key for the inactive-window L1 compaction threshold.
+pub const TWCS_INACTIVE_WINDOW_L1_MERGE_TRIGGER: &str =
+    "compaction.twcs.inactive_window.l1_merge_trigger";
+/// Option key for twcs max output file size.
+pub const TWCS_MAX_OUTPUT_FILE_SIZE: &str = "compaction.twcs.max_output_file_size";
+/// Option key for twcs time window.
+pub const TWCS_TIME_WINDOW: &str = "compaction.twcs.time_window";
+/// Option key for twcs remote compaction.
+pub const TWCS_REMOTE_COMPACTION: &str = "compaction.twcs.remote_compaction";
+/// Option key for twcs fallback to local.
+pub const TWCS_FALLBACK_TO_LOCAL: &str = "compaction.twcs.fallback_to_local";
+/// Option key for memtable type.
+pub const MEMTABLE_TYPE: &str = "memtable.type";
+/// Option key for bulk memtable merge threshold.
+pub const MEMTABLE_BULK_MERGE_THRESHOLD: &str = "memtable.bulk.merge_threshold";
+/// Option key for bulk memtable encode row threshold.
+pub const MEMTABLE_BULK_ENCODE_ROW_THRESHOLD: &str = "memtable.bulk.encode_row_threshold";
+/// Option key for bulk memtable encode bytes threshold.
+pub const MEMTABLE_BULK_ENCODE_BYTES_THRESHOLD: &str = "memtable.bulk.encode_bytes_threshold";
+/// Option key for bulk memtable max merge groups.
+pub const MEMTABLE_BULK_MAX_MERGE_GROUPS: &str = "memtable.bulk.max_merge_groups";
+/// Option key for memtable partition tree index max keys per shard.
+pub const MEMTABLE_PARTITION_TREE_INDEX_MAX_KEYS_PER_SHARD: &str =
+    "memtable.partition_tree.index_max_keys_per_shard";
+/// Option key for memtable partition tree data freeze threshold.
+pub const MEMTABLE_PARTITION_TREE_DATA_FREEZE_THRESHOLD: &str =
+    "memtable.partition_tree.data_freeze_threshold";
+/// Option key for memtable partition tree fork dictionary bytes.
+pub const MEMTABLE_PARTITION_TREE_FORK_DICTIONARY_BYTES: &str =
+    "memtable.partition_tree.fork_dictionary_bytes";
+/// Option key for skipping WAL.
+pub const SKIP_WAL_KEY: &str = "skip_wal";
+/// Option key for sst format.
+pub const SST_FORMAT_KEY: &str = "sst_format";
+/// Option key for the max number of rows in a parquet row group.
+pub const MAX_ROW_GROUP_ROW_COUNT: &str = "max_row_group_row_count";
+/// Upper bound for [`MAX_ROW_GROUP_ROW_COUNT`].
+pub const MAX_ROW_GROUP_ROW_COUNT_LIMIT: usize = 10 * 1024 * 1024;
+/// Option key for preserving per-row sequence numbers through flush and compaction.
+pub const PRESERVE_ROW_SEQUENCE: &str = "preserve_row_sequence";
+/// Option key for experimental Parquet float field encoding.
+pub const EXPERIMENTAL_SST_FLOAT_FIELD_ENCODING: &str = "experimental_sst_float_field_encoding";
+
+/// Encoding policy for direct floating-point field columns in Parquet SSTs.
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::EnumString,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum FloatFieldEncoding {
+    /// The existing Parquet writer behavior.
+    #[default]
+    Default,
+    /// Parquet byte-stream-split encoding.
+    ByteStreamSplit,
+}
+// Note: Adding new options here should also check if this option should be removed in [metric_engine::engine::create::region_options_for_metadata_region].
+
+/// Conflicting values supplied through the legacy and canonical TWCS trigger options.
+#[derive(Debug, PartialEq, Eq)]
+pub struct TwcsTriggerOptionConflict {
+    /// Value supplied under [`TWCS_TRIGGER_FILE_NUM`].
+    pub legacy_value: String,
+    /// Value supplied under [`TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM`].
+    pub canonical_value: String,
+}
+
+/// Normalizes the active-window TWCS trigger option to its legacy storage key.
+pub fn normalize_twcs_trigger_options(
+    options: &mut HashMap<String, String>,
+) -> Result<(), TwcsTriggerOptionConflict> {
+    let Some(canonical_value) = options.get(TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM).cloned() else {
+        return Ok(());
+    };
+    if let Some(legacy_value) = options.get(TWCS_TRIGGER_FILE_NUM)
+        && legacy_value != &canonical_value
+    {
+        return Err(TwcsTriggerOptionConflict {
+            legacy_value: legacy_value.clone(),
+            canonical_value,
+        });
+    }
+
+    options.remove(TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM);
+    options.insert(TWCS_TRIGGER_FILE_NUM.to_string(), canonical_value);
+    Ok(())
+}
+
+/// Returns true if the `key` is a valid option key for the mito engine.
+pub fn is_mito_engine_option_key(key: &str) -> bool {
+    [
+        "ttl",
+        WRITE_BUFFER_SIZE_KEY,
+        AUTO_FLUSH_INTERVAL_KEY,
+        COMPACTION_TYPE,
+        COMPACTION_OVERRIDE,
+        TWCS_TRIGGER_FILE_NUM,
+        TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM,
+        TWCS_ACTIVE_WINDOW_L1_MERGE_TRIGGER,
+        TWCS_INACTIVE_WINDOW_TRIGGER_FILE_NUM,
+        TWCS_INACTIVE_WINDOW_L1_MERGE_TRIGGER,
+        TWCS_MAX_OUTPUT_FILE_SIZE,
+        TWCS_TIME_WINDOW,
+        TWCS_REMOTE_COMPACTION,
+        TWCS_FALLBACK_TO_LOCAL,
+        "storage",
+        "index.inverted_index.ignore_column_ids",
+        "index.inverted_index.segment_row_count",
+        WAL_OPTIONS_KEY,
+        MEMTABLE_TYPE,
+        MEMTABLE_BULK_MERGE_THRESHOLD,
+        MEMTABLE_BULK_ENCODE_ROW_THRESHOLD,
+        MEMTABLE_BULK_ENCODE_BYTES_THRESHOLD,
+        MEMTABLE_BULK_MAX_MERGE_GROUPS,
+        MEMTABLE_PARTITION_TREE_INDEX_MAX_KEYS_PER_SHARD,
+        MEMTABLE_PARTITION_TREE_DATA_FREEZE_THRESHOLD,
+        MEMTABLE_PARTITION_TREE_FORK_DICTIONARY_BYTES,
+        // We don't allow to create a mito table with sparse primary key encoding directly.
+        APPEND_MODE_KEY,
+        MERGE_MODE_KEY,
+        SST_FORMAT_KEY,
+        MAX_ROW_GROUP_ROW_COUNT,
+        PRESERVE_ROW_SEQUENCE,
+        EXPERIMENTAL_SST_FLOAT_FIELD_ENCODING,
+    ]
+    .contains(&key)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[test]
+    fn test_is_mito_engine_option_key() {
+        assert!(is_mito_engine_option_key("ttl"));
+        assert!(is_mito_engine_option_key("write_buffer_size"));
+        assert!(is_mito_engine_option_key("auto_flush_interval"));
+        assert!(is_mito_engine_option_key("compaction.type"));
+        assert!(is_mito_engine_option_key("compaction.override"));
+        assert!(is_mito_engine_option_key(
+            "compaction.twcs.trigger_file_num"
+        ));
+        assert!(is_mito_engine_option_key(
+            "compaction.twcs.active_window.trigger_file_num"
+        ));
+        assert!(is_mito_engine_option_key(
+            "compaction.twcs.active_window.l1_merge_trigger"
+        ));
+        assert!(is_mito_engine_option_key(
+            "compaction.twcs.inactive_window.trigger_file_num"
+        ));
+        assert!(is_mito_engine_option_key(
+            "compaction.twcs.inactive_window.l1_merge_trigger"
+        ));
+        assert!(is_mito_engine_option_key("compaction.twcs.time_window"));
+        assert!(is_mito_engine_option_key("storage"));
+        assert!(is_mito_engine_option_key(
+            "index.inverted_index.ignore_column_ids"
+        ));
+        assert!(is_mito_engine_option_key(
+            "index.inverted_index.segment_row_count"
+        ));
+        assert!(is_mito_engine_option_key("wal_options"));
+        assert!(is_mito_engine_option_key("memtable.type"));
+        assert!(is_mito_engine_option_key("memtable.bulk.merge_threshold"));
+        assert!(is_mito_engine_option_key(
+            "memtable.bulk.encode_row_threshold"
+        ));
+        assert!(is_mito_engine_option_key(
+            "memtable.bulk.encode_bytes_threshold"
+        ));
+        assert!(is_mito_engine_option_key("memtable.bulk.max_merge_groups"));
+        assert!(is_mito_engine_option_key(
+            "memtable.partition_tree.index_max_keys_per_shard"
+        ));
+        assert!(is_mito_engine_option_key(
+            "memtable.partition_tree.data_freeze_threshold"
+        ));
+        assert!(is_mito_engine_option_key(
+            "memtable.partition_tree.fork_dictionary_bytes"
+        ));
+        assert!(is_mito_engine_option_key("append_mode"));
+        assert!(is_mito_engine_option_key("max_row_group_row_count"));
+        assert!(is_mito_engine_option_key("preserve_row_sequence"));
+        assert!(is_mito_engine_option_key(
+            EXPERIMENTAL_SST_FLOAT_FIELD_ENCODING
+        ));
+        assert!(!is_mito_engine_option_key("foo"));
+    }
+
+    #[test]
+    fn test_float_field_encoding_values() {
+        assert_eq!(
+            "default".parse::<FloatFieldEncoding>(),
+            Ok(FloatFieldEncoding::Default)
+        );
+        assert_eq!(
+            "byte_stream_split".parse::<FloatFieldEncoding>(),
+            Ok(FloatFieldEncoding::ByteStreamSplit)
+        );
+        assert_eq!(
+            serde_json::from_str::<FloatFieldEncoding>("\"byte_stream_split\"").unwrap(),
+            FloatFieldEncoding::ByteStreamSplit
+        );
+        assert!(serde_json::from_str::<FloatFieldEncoding>("\"unknown\"").is_err());
+    }
+
+    #[test]
+    fn test_normalize_twcs_trigger_aliases_to_legacy_key() {
+        let expected = HashMap::from([(TWCS_TRIGGER_FILE_NUM.to_string(), "4".to_string())]);
+        for mut options in [
+            HashMap::from([(TWCS_TRIGGER_FILE_NUM.to_string(), "4".to_string())]),
+            HashMap::from([(
+                TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM.to_string(),
+                "4".to_string(),
+            )]),
+            HashMap::from([
+                (TWCS_TRIGGER_FILE_NUM.to_string(), "4".to_string()),
+                (
+                    TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM.to_string(),
+                    "4".to_string(),
+                ),
+            ]),
+        ] {
+            normalize_twcs_trigger_options(&mut options).unwrap();
+            assert_eq!(expected, options);
+        }
+    }
+
+    #[test]
+    fn test_normalize_twcs_trigger_conflicting_aliases() {
+        let mut options = HashMap::from([
+            (TWCS_TRIGGER_FILE_NUM.to_string(), "4".to_string()),
+            (
+                TWCS_ACTIVE_WINDOW_TRIGGER_FILE_NUM.to_string(),
+                "8".to_string(),
+            ),
+        ]);
+        let original = options.clone();
+
+        let error = normalize_twcs_trigger_options(&mut options).unwrap_err();
+
+        assert_eq!("4", error.legacy_value);
+        assert_eq!("8", error.canonical_value);
+        assert_eq!(original, options);
+    }
+}

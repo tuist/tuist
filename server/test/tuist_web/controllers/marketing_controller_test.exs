@@ -16,6 +16,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Utilities.MarketingMarkdown
 
+  @home_description "Tuist is build infrastructure for engineering teams and coding agents. It makes builds faster and tests reliable across Xcode, Gradle, Bazel, and more."
+
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
   defp stub_latest_app_release do
@@ -110,6 +112,17 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
       assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+
+      # Only stories with a confirmed onboarding date show one; the rest show none.
+      since =
+        Map.new(slides, fn slide ->
+          {hd(LazyHTML.attribute(slide, "data-company")), slide |> LazyHTML.query("[data-part=since]") |> LazyHTML.text()}
+        end)
+
+      assert since["monday"] =~ "Using Tuist since June 2022"
+      assert since["trendyol"] =~ "Using Tuist since September 2023"
+      refute since["monzo"] =~ "Using Tuist since"
+      refute since["openai"] =~ "Using Tuist since"
     end
 
     test "omits the cache download count while the globe has no data", %{conn: conn} do
@@ -134,8 +147,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert "SoftwareApplication" in types
 
       for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
-        assert entry["description"] ==
-                 "Tuist is build infrastructure for engineering teams and coding agents."
+        assert entry["description"] == @home_description
       end
 
       document = Floki.parse_document!(html)
@@ -145,17 +157,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             ~s(meta[property="og:description"]),
             ~s(meta[name="twitter:description"])
           ] do
-        assert Floki.attribute(document, selector, "content") ==
-                 [
-                   "Tuist is build infrastructure for engineering teams and coding agents."
-                 ]
+        assert Floki.attribute(document, selector, "content") == [@home_description]
       end
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist — Build infrastructure for engineering teams and coding agents"
+      assert html =~ "Tuist — Faster builds and reliable tests for every build system"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
@@ -354,6 +363,74 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
         assert Floki.find(document, "link[hreflang]") == []
         refute match?(%{type: :marketing}, Phoenix.Router.route_info(TuistWeb.Router, "GET", "/ko" <> page.path, ""))
+      end
+    end
+
+    test "publish FAQPage structured data that matches the visible FAQ", %{conn: conn} do
+      normalize = fn text -> text |> String.split() |> Enum.join(" ") end
+
+      pages_with_faqs =
+        for page <- MarketingMarkdown.decision_guides(), reduce: [] do
+          acc ->
+            document = conn |> get(page.path) |> html_response(200) |> Floki.parse_document!()
+
+            visible =
+              document
+              |> Floki.find("article > [data-part=content]")
+              |> Enum.flat_map(&Floki.children/1)
+              |> Enum.filter(&is_tuple/1)
+              |> Enum.drop_while(&(not (elem(&1, 0) == "h2" and Floki.text(&1) == "Frequently asked questions")))
+              |> Enum.drop(1)
+              |> Enum.take_while(&(elem(&1, 0) != "h2"))
+              |> Enum.drop_while(&(elem(&1, 0) != "h3"))
+              |> Enum.reduce([], fn
+                {"h3", _, _} = question, faqs -> [{Floki.text(question), []} | faqs]
+                block, [{question, answer} | faqs] -> [{question, [Floki.text(block) | answer]} | faqs]
+              end)
+              |> Enum.reverse()
+              |> Enum.map(fn {question, answer} ->
+                {question, answer |> Enum.reverse() |> Enum.join(" ") |> normalize.()}
+              end)
+
+            faq_page =
+              document
+              |> Floki.find("script[type='application/ld+json']")
+              |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+              |> Enum.find(&(&1["@type"] == "FAQPage"))
+
+            if visible == [] do
+              assert is_nil(faq_page), page.path
+              acc
+            else
+              structured =
+                Enum.map(faq_page["mainEntity"], fn question ->
+                  assert question["@type"] == "Question"
+                  assert question["acceptedAnswer"]["@type"] == "Answer"
+                  {question["name"], normalize.(question["acceptedAnswer"]["text"])}
+                end)
+
+              assert structured == visible, page.path
+              assert Enum.all?(structured, fn {name, text} -> name != "" and text != "" end), page.path
+              [page.path | acc]
+            end
+        end
+
+      for path <- [
+            "/compare/xcodegen",
+            "/compare/nx",
+            "/compare/swift-package-manager",
+            "/compare/buildbuddy",
+            "/compare/cachely",
+            "/compare/engflow",
+            "/build-systems/bazel-vs-gradle",
+            "/solutions/bazel-github-actions",
+            "/solutions/bazel-remote-cache",
+            "/solutions/slow-builds",
+            "/solutions/slow-tests",
+            "/solutions/flaky-tests",
+            "/solutions/ci-costs"
+          ] do
+        assert path in pages_with_faqs
       end
     end
 
@@ -591,6 +668,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
 
       assert html =~ "/marketing/assets/bundle.css"
+
+      # Runners are billed per minute, so the feature must not claim a free offer.
+      assert %{"name" => "Tuist Compute"} = feature = software_application(html)
+      refute Map.has_key?(feature, "offers")
     end
   end
 
@@ -648,6 +729,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = html_response(conn, 200)
       assert html =~ "marketing-tests"
       assert html =~ "/marketing/assets/bundle.css"
+
+      assert %{"name" => "Tuist Tests", "offers" => %{"price" => "0"}} = software_application(html)
     end
   end
 
@@ -824,6 +907,19 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
              }
     end
 
+    test "returns error without sending when the email is missing or not a string", %{conn: conn} do
+      reject(&Email.send_newsletter_confirmation/2)
+
+      for params <- [%{}, %{"email" => ["test@example.com"]}, %{"email" => %{"a" => "b"}}] do
+        conn = post(conn, ~p"/newsletter", params)
+
+        assert json_response(conn, 400) == %{
+                 "success" => false,
+                 "message" => "Something went wrong. Please try again."
+               }
+      end
+    end
+
     test "accepts a same-origin submission whose cached page carried a stale CSRF token", %{conn: conn} do
       email = "test@example.com"
       expect(Email, :send_newsletter_confirmation, fn ^email, _verification_url -> :ok end)
@@ -890,6 +986,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /customers/:slug" do
+    @tag :locale
     test "renders the localized Hyperconnect case study", %{conn: conn} do
       conn = get(conn, ~p"/ko/customers/hyperconnect")
 
@@ -904,6 +1001,29 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert redirected_to(conn) ==
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
+    end
+
+    test "renders the customer's before and after figures and onboarding date", %{conn: conn} do
+      html = conn |> get(~p"/customers/trendyol") |> html_response(200) |> LazyHTML.from_document()
+
+      rows =
+        html
+        |> LazyHTML.query("[data-part=results] tbody tr")
+        |> Enum.map(fn row -> row |> LazyHTML.query("th, td") |> Enum.map(&LazyHTML.text/1) end)
+
+      assert rows == [
+               ["CI build time", "30 min", "10 min"],
+               ["Clean Xcode environment ready for UI tests", "15+ min", "~30 s"]
+             ]
+
+      assert html |> LazyHTML.query("[data-part=facts]") |> LazyHTML.text() =~
+               ~r/Using Tuist since\s+September 2023/
+    end
+
+    test "omits the before and after table when a story reports no figures", %{conn: conn} do
+      html = conn |> get(~p"/customers/hyperconnect") |> html_response(200)
+
+      refute html =~ ~s(data-part="results")
     end
 
     test "renders a case study with its generated cover artwork on the social card", %{conn: conn} do
@@ -1141,5 +1261,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   defp signed_newsletter_token(email) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
+  end
+
+  defp software_application(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find("script[type='application/ld+json']")
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+    |> Enum.find(&(&1["@type"] == "SoftwareApplication"))
   end
 end

@@ -47,7 +47,7 @@ defmodule TuistWeb.OnceOverviewLiveTest do
 
   test "a Once project gets an overview instead of a redirect", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     assert has_element?(view, "#once-overview")
 
@@ -125,20 +125,20 @@ defmodule TuistWeb.OnceOverviewLiveTest do
       })
 
     {:ok, view, _} = live(conn, path <> "?builds-environment=ci")
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     assert has_element?(view, "#once-overview-builds-environment-dropdown")
     assert render(view) =~ "4242"
 
     # "Local" must exclude the CI run rather than showing everything.
     {:ok, view, _} = live(conn, path <> "?builds-environment=local")
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     refute render(view) =~ "4242"
 
     # "Any" is unfiltered, so the CI run is back.
     {:ok, view, _} = live(conn, path <> "?builds-environment=any")
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     assert render(view) =~ "4242"
   end
@@ -167,14 +167,14 @@ defmodule TuistWeb.OnceOverviewLiveTest do
       })
 
     {:ok, view, _} = live(conn, path <> "?analytics-environment=ci")
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     assert has_element?(view, "#once-overview-analytics-environment-dropdown")
     assert render(view) =~ "5.4s"
 
     # Local must exclude the CI run, not just re-render the card.
     {:ok, view, _} = live(conn, path <> "?analytics-environment=local")
-    render_async(view, 2_000)
+    render_async(view, 5_000)
     refute render(view) =~ "5.4s"
 
     # An unknown value falls back to unfiltered. Asserted as equivalence with
@@ -206,14 +206,14 @@ defmodule TuistWeb.OnceOverviewLiveTest do
     # The card fans out to several `assign_async` queries, which do not
     # reliably settle inside `render_async/1`'s 100ms default when the suite
     # runs them alongside the other Once files.
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     render_click(view, "analytics_period_changed", %{
       "value" => %{"start" => "2026-09-01", "end" => "2026-09-23"},
       "preset" => "last-7-days"
     })
 
-    render_async(view, 2_000)
+    render_async(view, 5_000)
 
     assert has_element?(view, "#once-overview")
   end

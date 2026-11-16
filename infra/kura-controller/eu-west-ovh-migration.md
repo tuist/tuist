@@ -474,8 +474,8 @@ separately cancel the five subscriptions after matching provider server IDs.
 The previously unaccounted-for server `133116` is not owned by these fleets and
 is not cancelled or wiped by this change.
 
-Keep `kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache
-pool), its private network, and the Apple Silicon fleet intact. Keep the existing
+`kuraFleet` (the Scaleway Elastic Metal `kura-scw-fr-par` runner-cache pool)
+was out of scope here; it was retired separately in November 2026. Keep the existing
 `kura-dedibox` pool selector and `scw-local-nvme` StorageClass: despite their
 names, OVH runtime scheduling and live local volumes still depend on them.
 Renaming them requires a separate coordinated migration, not a textual cleanup.

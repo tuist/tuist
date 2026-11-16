@@ -99,14 +99,14 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             // else the consumer has neither map without the vendor copy, and we hit
             // `unable to resolve module dependency`.
             //
-            // Returns `nil` when no generated target publishes the map for any of the consumer's
-            // products directories, so the vendor copy applies to every SDK. Otherwise returns the
-            // `sdk=` conditions the vendor copy is still needed for, possibly none.
+            // Returns `nil` only when no generated target publishes the map on any SDK. Otherwise
+            // keep the fallback SDK-conditioned even when the declared destinations do not overlap:
+            // `xcodebuild -sdk` can override a bundle's destination, and these settings also propagate
+            // to dependents on other platforms.
             let moduleMapSDKConditions: (ConditionedXCFramework) -> [String]? = { conditionedXCFramework in
-                let targetVariants = Self.productsVariants(of: target, under: nil)
                 let producingVariants = xcframeworkVariantsProcessedByGeneratedTargets(
                     conditionedXCFramework.xcframework.path
-                ).intersection(targetVariants)
+                )
                 guard !producingVariants.isEmpty else { return nil }
                 let consumingCondition: PlatformCondition?
                 if case let .condition(condition) = Self.conditionThroughOtherDependencies(

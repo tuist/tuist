@@ -8,6 +8,8 @@
 package hostinfo
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -182,4 +184,39 @@ func ParseResolvConf(text string) []string {
 		}
 	}
 	return servers
+}
+
+// SnapshotCompat names what a Firecracker memory snapshot taken on this
+// node needs from the node it is restored on: the CPU (vendor, family,
+// model, stepping, model name and the feature flags the host kernel
+// exposes, which also catch microcode and kernel changes), the host
+// kernel's version without its distribution build, and the Firecracker
+// version. Nodes with the same value can restore each other's snapshots.
+func SnapshotCompat(firecrackerVersion string) string {
+	cpuinfo, _ := os.ReadFile("/proc/cpuinfo")
+	release, _ := os.ReadFile("/proc/sys/kernel/osrelease")
+	return ParseSnapshotCompat(string(cpuinfo), string(release), firecrackerVersion)
+}
+
+func ParseSnapshotCompat(cpuinfo, release, firecrackerVersion string) string {
+	fields := map[string]string{}
+	for _, line := range strings.Split(cpuinfo, "\n") {
+		if strings.TrimSpace(line) == "" && len(fields) > 0 {
+			break
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if ok {
+			fields[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		}
+	}
+	kernel, _, _ := strings.Cut(strings.TrimSpace(release), "-")
+	hash := sha256.New()
+	for _, part := range []string{
+		fields["vendor_id"], fields["cpu family"], fields["model"], fields["stepping"], fields["model name"],
+		fields["flags"], kernel, firecrackerVersion,
+	} {
+		hash.Write([]byte(part))
+		hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))[:16]
 }
