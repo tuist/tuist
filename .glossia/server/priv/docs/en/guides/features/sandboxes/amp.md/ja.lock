@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "efdae6df4d08fafe4ee09c53313e6a8598c4b16a22ad43b44693e128b825bf8c",
+  "hash": "234c61528db881d73f8c6d36222cac5b465183f027bb55ccbf7b0c082376a092",
   "hash_tree": {
     "root": {
       "children": [
@@ -23,10 +23,10 @@
                   "content_hash": "818f240103f51c7361571934d7e3015228ffe80b8bd9f7b288bf9820f6996a29"
                 },
                 "## Use a Mac from any Amp thread {#remote-mac}": {
-                  "content_hash": "6b3df3dcc98ea23142f2a78f4b2401562ab3b2c49c010aac02448b0bfb9f5398"
+                  "content_hash": "1f532111fa15fc8b6784b28bee5e909d2a641b0a3afb819f2a1b606712d10ccc"
                 },
                 "### Set it up {#remote-mac-setup}": {
-                  "content_hash": "3309586796064ac506cbb309b8b460841fe67cf0f258cce12cb2889ae5c9031c"
+                  "content_hash": "681f146c964e0fecb02b82c78c1592e746e122cb7a49a8fe3d847d3908977aed"
                 },
                 "### Use Tuist Macs instead of Amp's macOS Satellites {#remote-mac-satellites}": {
                   "content_hash": "9bce5a2c35751cf35f469f9483f46324ab0a75e142f50e93a8430f2a6be73a24"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "b1879ccf5785671c450bb3f94ce554222b12dd9ac330956c488f2bdef6ec5a6d",
+          "hash": "eb939d217fdf3d06c2d13ce732402a78c553037dfb19ca29962d3c01d636f945",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
           "metadata": {
-            "content_hash": "1db5e26bd8fb8f18f9c67780d836fb6aeb0e9595b301ea8b2047d02ef4893c7a"
+            "content_hash": "22e23e2a943f71660bda54eb6e9c2bb82b4153dc4856af57f31865cecc2c0f56"
           }
         },
         {
@@ -239,14 +239,14 @@
         }
       ],
       "details": {},
-      "hash": "efdae6df4d08fafe4ee09c53313e6a8598c4b16a22ad43b44693e128b825bf8c",
+      "hash": "234c61528db881d73f8c6d36222cac5b465183f027bb55ccbf7b0c082376a092",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/sandboxes/amp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "f2df601f94a3a5ad48b49054c794a1b3efd4476b2de12d9a17c5558b47d750b7",
+  "output_hash": "512fcbd45e6ba29f08f4c5a53acac44e3d0ed877ed4e29e46d5c8205bbf016aa",
   "output_path": "server/priv/docs/ja/guides/features/sandboxes/amp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -266,8 +266,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "180c622369caf466d5508d52fa5f15db29ab3070",
+  "source_commit_sha": "44e4c7390a4a7251f3488ba5d4954ad4330ec36d",
   "source_path": "server/priv/docs/en/guides/features/sandboxes/amp.md",
-  "translated_at": "2026-11-13T16:38:12.376536Z",
-  "translation_session_id": "01a1d5c4-5f99-7191-88f8-f3fd9341403c"
+  "translated_at": "2026-11-16T10:15:57.612741Z",
+  "translation_session_id": "01a1e3d9-adcb-7ade-962d-8de64d501a5d"
 }

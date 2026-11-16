@@ -2,7 +2,7 @@
 {
   "title": "沙盒",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "Tuist 沙盒係專為 Amp 同 Claude 等編碼代理而設嘅持久 Linux 同 macOS 虛擬機器。每個代理工作階段都會分配到獨立機器，當代理閒置時會暫停，並喺恢復時保持檔案完整無損。"
+  "description": "Tuist 沙盒係專為 Amp 同 Claude 等編碼代理而設嘅持久化 Linux 同 macOS 虛擬機。每個代理工作階段都會分配到獨立嘅機器，當代理閒置時會暫停，並喺恢復時保持檔案完整無損。"
 }
 ---
 # 沙盒 {#sandboxes}
@@ -10,17 +10,17 @@
 > [!IMPORTANT]
 > **僅限邀請**
 >
-> Tuist Sandboxes（包括 Linux 和 macOS）目前因擴充容量而僅限邀請使用。[聯絡我們](mailto:contact@tuist.dev)或在[社群 Slack](https://slack.tuist.dev)中聯絡我們，為你的帳戶申請存取權限。當 Sandboxes 全面開放時，將會公佈定價。
+> Tuist 沙盒（包括 Linux 和 macOS）目前正處於擴容階段，僅限邀請使用。[聯絡我們](mailto:contact@tuist.dev)或在[社群 Slack](https://slack.tuist.dev)中聯繫我們，為你的帳戶申請存取權限。當沙盒全面開放時，我們將公佈定價方案。
 
-沙盒是一個虛擬機器，編碼代理程式會在當中執行指令並編輯檔案。每個代理程式工作階段都會獲得專屬的沙盒，在該工作階段期間保留其檢出的程式碼、建置產物和已安裝的工具。當代理程式閒置時，沙盒會暫停；下一個訊息會從上次停止的位置繼續執行。
+沙盒是一個虛擬機器，編碼代理程式會在這裡執行指令並編輯檔案。每個代理程式工作階段都會擁有自己的沙盒，在整個工作階段期間保留其檢出內容、建置產物和已安裝的工具。當代理程式閒置時，沙盒會暫停；下一則訊息會從上次停止的地方恢復執行。
 
-沙盒與<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>在同一個機群上運行，並緊鄰你團隊的<.localized_link href="/guides/features/cache">快取</.localized_link>，因此代理程式的建置可以使用與你的 CI 和本地機器相同的快取構件。
+沙盒與<.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>運行在同一個機群上，緊鄰你團隊的<.localized_link href="/guides/features/cache">快取</.localized_link>，因此代理程式的建置可以使用與你的 CI 和本地機器相同的快取構件。
 
 你可以透過以下方式使用沙盒：
 
-- **<.localized_link href="/guides/features/sandboxes/amp">Amp</.localized_link>**：在 Tuist 上執行你的 Amp 工作區的 orbs，或透過<.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac 外掛程式</.localized_link>為任何 Amp 對話提供用於 Xcode 建置的 Mac。
-- **<.localized_link href="/guides/features/sandboxes/claude">Claude</.localized_link>**：在 Tuist 上執行 Claude Managed Agents 工作階段和 Claude Code 雲端工作階段（claude.ai、桌面和流動應用程式，以及 `claude --cloud`）。
-- **[Tuist CLI](#cli)**：從終端機或透過 API 從你自己的工具建立沙盒並在其中執行指令。
+- **<.localized_link href="/guides/features/sandboxes/amp">Amp</.localized_link>**：在 Tuist 上執行你的 Amp 工作區 orbs，或透過<.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac 外掛程式</.localized_link>為任何 Amp 對話提供 Mac 以進行 Xcode 建置。
+- **<.localized_link href="/guides/features/sandboxes/claude">Claude</.localized_link>**：在 Tuist 上執行 Claude Managed Agents 工作階段和 Claude Code 雲端工作階段（claude.ai、桌面和移動應用程式，以及 `claude --cloud`）。
+- **[Tuist CLI](#cli)**：從終端機建立沙盒並在其中執行指令，或透過 API 從你自己的工具中執行。
 
 ## 開始使用 CLI {#cli}
 
@@ -40,7 +40,7 @@ tuist auth login
 tuist sandbox create --platform macos
 ```
 
-對於 Linux，省略 `--platform`。傳遞 `--vcpus` 搭配 `--memory-gb` 以取得更大的[規格](#platforms)，並傳遞 `--workspace-gb` 以取得更大的磁碟。當沙盒開始運行時，指令會返回並列印其詳細資訊，包括其 ID。它會使用目前目錄中 Tuist 專案的帳戶；傳遞 `--account` 以選擇其他帳戶。
+Linux 請省略 `--platform`。傳遞 `--vcpus` 搭配 `--memory-gb` 以獲得更大的[規格](#platforms)，並傳遞 `--workspace-gb` 以獲得更大的磁碟空間。當沙盒開始運行時，指令會返回並列印其詳細資訊，包括其 ID。它使用目前目錄中 Tuist 專案的帳戶；傳遞 `--account` 以選擇其他帳戶。
 
 ### 3. 執行指令 {#cli-exec}
 
@@ -48,7 +48,7 @@ tuist sandbox create --platform macos
 tuist sandbox exec <sandbox-id> -- xcodebuild -version
 ```
 
-該指令在沙盒中使用 `bash -l` 執行，如果沙盒已暫停，會先恢復。`tuist` 會串流輸出內容，無論執行時間多長，並以指令的狀態結束；在沙盒中按 Ctrl-C 可取消它。視需要傳遞 `--cwd`、`--env NAME=VALUE` 和 `--timeout`（最多六小時）。
+該指令在沙盒中使用 `bash -l` 執行，如果沙盒已暫停，會先恢復。`tuist` 會串流輸出無論執行多久，並以指令的狀態退出；Ctrl-C 會在沙盒中取消它。視需要傳遞 `--cwd`、`--env NAME=VALUE` 和 `--timeout`（最多六小時）。
 
 ### 常見任務 {#cli-tasks}
 
@@ -62,20 +62,31 @@ tuist sandbox exec <sandbox-id> -- xcodebuild -version
 | 刪除 | `tuist sandbox delete <id> --yes` |
 | 查看用量 | `tuist sandbox analytics` |
 
-加入 `--json` 以取得機器可讀取的輸出。參閱<.localized_link href="/cli/sandbox">CLI 參考文件</.localized_link>了解所有選項。若要改為從程式碼驅動沙盒，請透過 [Tuist API](https://tuist.dev/api/docs) 在 `/api/accounts/{account_handle}/sandboxes` 下使用相同的操作，或讓代理程式透過 <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link> 使用它們。
+加入 `--json` 以獲得機器可讀取的輸出。參閱<.localized_link href="/cli/sandbox">CLI 參考文件</.localized_link>了解所有選項。若要改為從程式碼驅動沙盒，請透過[Tuist API](https://tuist.dev/api/docs)在 `/api/accounts/{account_handle}/sandboxes` 下使用相同的操作，或讓代理程式透過<.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>使用它們。
 
-無法互動式登入的工具（例如在 macOS 沙盒中建置的代理程式外掛程式），可以改用具有 `account:sandboxes:write` 範圍的<.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>進行驗證。它可以像帳戶成員一樣建立沙盒、在其中執行指令，以及暫停、恢復和刪除它們。為 Amp 或 Claude 整合提供服務的沙盒、分析資料和整合設定仍由帳戶管理員管理。
+無法互動式登入的工具（例如在 macOS 沙盒中建置的代理程式外掛程式），可以改用具有 `account:sandboxes:write` 範圍的<.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>進行驗證。它可以像帳戶成員一樣建立沙盒、在其中執行指令，以及暫停、恢復和刪除沙盒。為 Amp 或 Claude 整合提供服務的沙盒、分析資料和整合設定仍由帳戶管理員管理。
+
+### 沙盒內的 Tuist {#tuist-in-sandbox}
+
+沙盒映像檔不包含 Tuist CLI，因此執行的是你專案中固定的版本。在第一次 `tuist sandbox sync` 之後，在沙盒中的儲存庫根目錄執行 `mise install`（已安裝 `mise` 和 `brew`），然後透過 mise 執行 `tuist`，例如將 `$HOME/.local/share/mise/shims` 加入 `PATH`。
+
+你使用 `tuist sandbox exec` 啟動的每個指令也會獲得 Tuist runner 所獲得的內容，因此沙盒中的建置可以使用你帳戶的<.localized_link href="/guides/features/cache">快取</.localized_link>，而無需你傳遞憑證：
+
+- `TUIST_URL`，以及在沙盒主機可以到達的地方（例如在 macOS 上），同一機架中快取的 `TUIST_CACHE_ENDPOINT`。
+- `TUIST_OIDC_TOKEN`，一個用於該指令的短期身分權杖。Tuist CLI 4.218.0 及更高版本會自動使用它登入；對於 4.215.0 至 4.217.x 版本，請先在相同指令中執行 `tuist auth login`。
+
+權杖是為每個指令鑄造的，只能在該指令執行期間兌換為 Tuist 權杖，因此沙盒永遠不會持有長期有效的憑證。它授予的權限不會超過啟動指令的人或權杖對快取所能執行的操作：帳戶成員如果其快取僅允許寫入權杖，則獲得讀取權限，而帳戶權杖需要快取範圍（例如 `ci`）以及 `account:sandboxes:write`，沙盒才能使用快取。你透過 `--env` 傳遞的變數具有優先權。
 
 ## 從編碼代理程式在 Mac 上建置 {#coding-agents}
 
-在 Linux 上運行的編碼代理程式（例如雲端代理程式工作階段）可以在 macOS 沙盒上建置、測試和運行 Apple 平台程式碼，同時在它運行的地方繼續編輯檔案。在 Amp 中，安裝<.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac 外掛程式</.localized_link>。對於其他代理程式，例如 Claude Code 或 Cursor：
+在 Linux 上運行的編碼代理程式（例如雲端代理程式工作階段）可以在 macOS 沙盒上建置、測試和運行 Apple 平台程式碼，同時繼續在它運行的地方編輯檔案。在 Amp 中，安裝<.localized_link href="/guides/features/sandboxes/amp#remote-mac">Tuist Mac 外掛程式</.localized_link>。對於其他代理程式，例如 Claude Code 或 Cursor：
 
-1. 將代理程式連線到 Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP 伺服器</.localized_link>。它的 `create_sandbox` 工具會告訴代理程式如何驅動 Mac。
-2. 在代理程式運行的地方安裝 Tuist CLI，例如在環境的設定腳本中：`mise use -g tuist@latest`，或 `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`（在 ARM 上使用 `tuist-linux-aarch64`）。
+1. 將代理程式連接到 Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP 伺服器</.localized_link>。它的 `create_sandbox` 工具會告訴代理程式如何驅動 Mac。
+2. 在代理程式運行的地方安裝 Tuist CLI，例如在環境的設定腳本中：`mise use -g tuist@latest`，或 `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`（ARM 上使用 `tuist-linux-aarch64`）。
 3. 驗證 CLI。MCP 伺服器的登入不會延續到 CLI，因此要么以帳戶成員身份執行 `tuist auth login`，要么將 `TUIST_TOKEN` 設定為具有 `account:sandboxes:write` 範圍的<.localized_link href="/guides/server/authentication#account-tokens">帳戶權杖</.localized_link>。
-4. 如果環境限制網絡存取，請允許 `tuist.dev`。CLI 會透過它將檔案上傳到 Mac，因此不需要其他網域。
+4. 如果環境限制網絡存取，請允許 `tuist.dev`。CLI 透過它將檔案上傳到 Mac，因此不需要其他網域。
 
-代理程式為每個任務建立一台 Mac，並在每個指令之前執行 `tuist sandbox sync`。它會複製 Git 未忽略的檔案（無論是否已提交），之後只複製已變更的檔案。然後代理程式使用 `tuist sandbox exec` 執行如 `xcodebuild` 等指令，使用 `tuist sandbox cp` 將結果（如截圖或已建置的應用程式）複製回來，並在任務完成後刪除 Mac。Mac 會在最後一個指令執行後保持運行 10 分鐘，以便下一個指令立即開始；`tuist sandbox pause` 可以更快釋放它。被遺留的 Mac 會暫停，並在暫停 14 天後刪除。
+代理程式會為每個任務建立一台 Mac，並在執行每個指令前運行 `tuist sandbox sync`。它會複製 Git 未忽略的檔案（無論是否已提交），之後則只複製有變更的檔案。首次同步後，它會在 Mac 上的儲存庫根目錄執行 `mise install`，以便[專案中固定的 Tuist](#tuist-in-sandbox)就位並登入你帳戶的快取。接著，代理程式使用 `tuist sandbox exec` 執行如 `xcodebuild` 等指令，透過 `tuist sandbox cp` 將截圖或建置好的應用程式等結果複製回來，並在任務完成後刪除 Mac。Mac 會在最後一個指令執行完畢後保持運行 10 分鐘，以便下一個指令立即開始；`tuist sandbox pause` 可以更快釋放資源。遺留的 Mac 會暫停，並在暫停 14 天後刪除。
 
 ## Linux 和 macOS {#platforms}
 
@@ -93,7 +104,7 @@ tuist sandbox exec <sandbox-id> -- xcodebuild -version
 
 ## 安全性 {#security}
 
-- 每個沙盒都是獨立的虛擬機器。沙盒之間以及與 CI 工作之間不共享檔案系統、記憶體或進程。
-- 沙盒屬於某個帳戶，只有該帳戶的管理員可以管理它們。來自整合的工作階段只能存取該整合所連線帳戶的沙盒。
-- 你提供給 Tuist 以連接整合的憑證（例如 Amp 提供者權杖或 Claude 環境金鑰）會加密儲存，且不會再次顯示。
-- 沙盒可以存取網際網路。請像對待 CI 工作一樣，對待代理程式從中存取的內容。
+- 每個沙盒都是獨立的虛擬機器。沙盒之間以及與 CI 工作之間不共享檔案系統、記憶體或處理程序。
+- 沙盒屬於某個帳戶，只有該帳戶的管理員才能管理它們。來自整合的工作階段只能存取該整合所連接帳戶的沙盒。
+- 你提供給 Tuist 以連接整合的憑證（例如 Amp 提供者權杖或 Claude 環境金鑰）會以加密方式儲存，且不會再次顯示。
+- 沙盒可以存取互聯網。請像對待 CI 工作一樣，對待代理程式從沙盒中可以存取的內容。

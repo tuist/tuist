@@ -226,6 +226,13 @@ instance=tuist, component=pdc-agent). Namespace and Pod selectors are ANDed:
 `tuist-staging`, `tuist-canary`, **`tuist` for production**. No backend public
 Ingress exists. Parent manages server/PDC endpoint configuration.
 
+Environments listed in `pulse.postgres` (`templates/_helpers.tpl`: production)
+also serve PostgreSQL on TCP 4003 from the frontends for Grafana's SQL log alerts
+(`infra/helm/k8s-monitoring/pulse-grafana.md`), with the same static users. The
+NetworkPolicy admits only the PDC agent to that port, and the environment's
+`pdcAgent.permitRemoteOpen` must list it. The list lives in the helper, not in
+values, so adding an environment restarts only that environment's Pulse.
+
 `pulse-datanode-metrics` admits only k8s-monitoring's `alloy-metrics` pods to
 the datanodes' TCP 4000, for the `pulse-datanode` scrape of scan memory and
 flush metrics behind the Pulse alerts in

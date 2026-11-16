@@ -1645,6 +1645,10 @@ defmodule Tuist.Sandboxes do
       %Sandbox{node_name: ^node_name} = sandbox ->
         Logger.info("sandboxes: restored memory loaded", sandbox_id: sandbox.id, node: node_name)
         Archives.memory_loaded(sandbox)
+        # The node refuses to pause a restore whose lazy disks still load,
+        # and those take minutes, past the pause job's retries: an idle one
+        # gets its pause again now that it can.
+        schedule_idle_pause(sandbox)
         :ok
 
       _ ->

@@ -836,6 +836,45 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     end
   end
 
+  @doc """
+  Gives up, on nodes that need room and hold no copy to drop, the node
+  copy of their least recently used archived snapshot: its archive keeps
+  it, so the next spawn from it boots from the archive or a copy, as a
+  node that refuses the clone would make it anyway. The row loses its node
+  at once, which frees the reservation; the node removes the files right
+  after. Answers whether it dropped one. With `idle_only: true`, for the
+  proactive disk-pressure sweep, only a snapshot unused for the last hour.
+  """
+  def drop_archived_node_copy(node_names, opts \\ []) when is_list(node_names) do
+    query =
+      from(s in DiskSnapshot,
+        where: s.node_name in ^node_names and s.state == :ready and not is_nil(s.archived_at),
+        order_by: [asc: s.last_used_at],
+        limit: 1
+      )
+
+    query =
+      if opts[:idle_only],
+        do: where(query, [s], s.last_used_at < ^DateTime.add(now(), -@copy_pressure_idle_minutes, :minute)),
+        else: query
+
+    with %DiskSnapshot{id: id, node_name: node_name} <- Repo.one(query),
+         {1, _} <-
+           Repo.update_all(from(s in DiskSnapshot, where: s.id == ^id and s.node_name == ^node_name),
+             set: [node_name: nil, updated_at: now()]
+           ) do
+      Logger.info("sandboxes: dropping an archived disk snapshot's node copy to make room",
+        disk_snapshot_id: id,
+        node: node_name
+      )
+
+      Tasks.run_async(fn -> delete_node_copy(id, node_name) end)
+      true
+    else
+      _none -> false
+    end
+  end
+
   defp delete_copy(%DiskSnapshotCopy{} = copy) do
     delete_node_copy(copy.disk_snapshot_id, copy.node_name)
     Repo.delete(copy, allow_stale: true)

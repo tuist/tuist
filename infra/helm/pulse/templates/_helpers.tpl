@@ -55,6 +55,14 @@ matchExpressions:
 {{ ternary "management/" "pulse/" (eq .Values.environment "management") }}
 {{- end }}
 
+{{/* Environments whose frontends also speak PostgreSQL on 4003, for Grafana's
+PostgreSQL data source (SQL alert rules over logs); only the PDC agent may
+reach it. The list lives here rather than in values so adding an environment
+changes only that environment's config checksums and restarts. */}}
+{{- define "pulse.postgres" -}}
+{{- if and (eq .Values.topology "cluster") (has .Values.environment (list "production")) }}true{{ end }}
+{{- end }}
+
 {{- define "pulse.readerNamespace" -}}
 {{- if eq .Values.environment "management" }}observability
 {{- else }}{{ ternary "tuist" (printf "tuist-%s" .Values.environment) (eq .Values.environment "production") }}
@@ -164,6 +172,9 @@ affinity:
           app.kubernetes.io/component: pdc-agent
   ports:
     - {port: 4000, protocol: TCP}
+    {{- if include "pulse.postgres" . }}
+    - {port: 4003, protocol: TCP}
+    {{- end }}
 {{- end }}
 {{- end }}
 

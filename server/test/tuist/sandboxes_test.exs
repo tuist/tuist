@@ -1088,6 +1088,20 @@ defmodule Tuist.SandboxesTest do
                all_enqueued(worker: PauseSandboxWorker)
     end
 
+    test "a restore's memory_loaded pauses it again when idle, after the node refused while its disks loaded" do
+      idle = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 5)
+      busy = sandbox_fixture(state: :running, node_name: "node-a", residency_work_id: "work_1")
+      elsewhere = sandbox_fixture(state: :running, node_name: "node-b")
+      idle_id = idle.id
+
+      for sandbox <- [idle, busy, elsewhere] do
+        assert :ok = Sandboxes.handle_node_event("node-a", %{"event" => "memory_loaded", "sandbox_id" => sandbox.id})
+      end
+
+      assert [%Oban.Job{args: %{"sandbox_id" => ^idle_id, "residency_epoch" => 5}}] =
+               all_enqueued(worker: PauseSandboxWorker)
+    end
+
     test "a residency starting after the resume turns the scheduled idle pause into a no-op" do
       sandbox = sandbox_fixture(state: :paused, node_name: "node-a", residency_epoch: 3)
       expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
