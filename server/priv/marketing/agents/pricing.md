@@ -4,7 +4,7 @@ Hosted Tuist is priced by feature usage, not seats by default. This guide explai
 
 ## Plans
 
-- **Air**: free within the plan's tier limits, with all features and no credit card. Community support through the forum.
+- **Air**: free within the plan's tier limits, with all features and no credit card. That includes the Module, Xcode, Gradle, and Bazel remote caches, so a team can run a [free Bazel remote cache](/marketing-markdown/solutions/bazel-remote-cache) within the cache allowance. Community support through the forum.
 - **Pro**: usage-based pricing per feature above free allowances, so usage below them costs nothing. Standard support through Slack and email.
 - **Enterprise**: a custom agreement, for example tailored legal terms, seat-based or custom pricing, priority support, self-hosting the Tuist server, or self-hosted cache nodes.
 

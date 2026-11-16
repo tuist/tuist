@@ -21,7 +21,7 @@ The directory cache and a remote cache are different mechanisms. Saving director
 - **Shared remote cache for every runner.** The [Tuist Bazel cache](/en/docs-markdown/guides/features/cache/bazel-cache) serves Bazel's remote cache protocol. Runners, developers, and coding agents read and write the same action results, outside the Actions cache's size limit and branch scoping.
 - **Secretless authentication.** On GitHub Actions, the Tuist CLI exchanges the job's [OIDC token](/en/docs-markdown/guides/server/authentication) for short-lived Tuist credentials once the repository is connected to the project and the job grants `id-token: write`. Nothing long-lived is stored in repository secrets.
 - **Build and test insights.** [Bazel build insights](/en/docs-markdown/guides/features/build-insights/bazel) records each invocation's actions, critical path, and cache behavior through Bazel's Build Event Service, and [Bazel test insights](/en/docs-markdown/guides/features/test-insights/bazel) tracks test cases across runs, so a slow job shows which targets and actions dominated it.
-- **Remote execution.** `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, so a 2-CPU runner can keep many actions in flight instead of compiling everything itself. Setup raises `--jobs` to match the remote capacity.
+- **Remote execution on request.** Remote execution is enabled per account; [contact us](mailto:contact@tuist.dev) to turn it on. Once it is, `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, so a 2-CPU runner can keep many actions in flight instead of compiling everything itself, and setup raises `--jobs` to match the remote capacity.
 
 ## Set up Bazel on GitHub Actions with Tuist
 
@@ -82,6 +82,7 @@ The MCP credential does not authenticate Bazel's remote services; the agent shou
 ## Further reading
 
 - [Bazel with Tuist](/marketing-markdown/build-systems/bazel) on what Tuist adds to Bazel.
+- [Bazel remote cache](/marketing-markdown/solutions/bazel-remote-cache) on how remote caching works and self-hosted or managed options.
 - [Remote caching for Bazel](/blog/2026/09/09/bazel) on how the cache works.
 - [BuildBuddy](/marketing-markdown/compare/buildbuddy) and [EngFlow](/marketing-markdown/compare/engflow) comparisons, and the [slow builds](/marketing-markdown/solutions/slow-builds) and [rising CI costs](/marketing-markdown/solutions/ci-costs) guides.
 
@@ -105,7 +106,7 @@ Yes. The Ubuntu runner images include Bazel and Bazelisk. Bazelisk downloads the
 
 ### Do I need larger runners for Bazel?
 
-Not to start. Measure cache hits and the critical path first: avoided actions help on any runner. Larger runners or remote execution help with the cache-miss work that remains.
+Not to start. Measure cache hits and the critical path first: avoided actions help on any runner. Larger runners help with the cache-miss work that remains, and so does remote execution, which we enable on request.
 
 ## Sources and review
 

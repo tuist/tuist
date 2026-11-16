@@ -28,15 +28,15 @@ Remote caching reuses an action's existing outputs. Remote execution runs a cach
 
 ## How Tuist augments it
 
-- **Reuse compatible action outputs across machines.** The [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) supplies the cache portion of the Remote Execution API. A matching action can download results produced elsewhere rather than execute again.
-- **Run actions remotely.** `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache. Setup discovers the current executor and image and sizes `--jobs` to the remote capacity. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
+- **Reuse compatible action outputs across machines.** The [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) supplies the cache portion of the Remote Execution API. A matching action can download results produced elsewhere rather than execute again. The [Bazel remote cache guide](/marketing-markdown/solutions/bazel-remote-cache) explains how it works and compares self-hosted and managed caches.
+- **Run actions remotely, on request.** Remote execution is enabled per account; [contact us](mailto:contact@tuist.dev) to turn it on. Then `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache. Setup discovers the current executor and image and sizes `--jobs` to the remote capacity. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
 - **Investigate recorded build work.** [Build insights](/en/docs-markdown/guides/features/build-insights/bazel) collects build events and recorded profile data. Compare invocations, targets, cache behavior, and operations before changing execution capacity.
 - **Correlate tests over time.** [Test insights](/en/docs-markdown/guides/features/test-insights/bazel) collects outcomes and individual cases from supported reports. Reporting works with normal `bazel test` after setup.
 - **Apply explicit flaky-test policies.** The `tuist bazel test` wrapper retrieves and enforces documented quarantine policies. Muting and skipping have different boundaries; skipping a target also excludes its healthy sibling cases.
 
 ## First experiment
 
-Follow the [Bazel getting-started guide](/en/docs-markdown/guides/get-started/bazel-project). Run `tuist init` and select the Bazel workspace. If your CLI does not offer that option, authenticate and run `tuist bazel setup`.
+The Bazel remote cache is free on the Air plan within its tier limits, with no credit card required; the live [pricing table](/pricing) lists the allowance. Follow the [Bazel getting-started guide](/en/docs-markdown/guides/get-started/bazel-project). Run `tuist init` and select the Bazel workspace. If your CLI does not offer that option, authenticate and run `tuist bazel setup`.
 
 Commit `tuist.toml` and the generated `try-import %workspace%/.bazelrc.tuist` line in `.bazelrc`. Ignore `.bazelrc.tuist`: it contains a per-environment cache region and credential-helper path. Each machine needs its own setup.
 
