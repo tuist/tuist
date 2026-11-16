@@ -776,20 +776,30 @@ defmodule Tuist.Bundles do
   end
 
   defp evaluate_single_threshold(project, bundle, threshold) do
-    if threshold.bundle_name && threshold.bundle_name != bundle.name do
-      :ok
-    else
-      baseline =
-        last_project_bundle(project,
-          git_branch: threshold.baseline_branch,
-          name: bundle.name,
-          type: bundle.type,
-          supported_platforms: bundle.supported_platforms,
-          fallback: false
-        )
+    cond do
+      threshold.bundle_name && threshold.bundle_name != bundle.name ->
+        :ok
 
-      check_threshold_deviation(threshold, bundle, baseline)
+      threshold.tag && threshold.tag not in (bundle.custom_tags || []) ->
+        :ok
+
+      true ->
+        evaluate_threshold_against_baseline(project, bundle, threshold)
     end
+  end
+
+  defp evaluate_threshold_against_baseline(project, bundle, threshold) do
+    baseline =
+      last_project_bundle(project,
+        git_branch: threshold.baseline_branch,
+        name: bundle.name,
+        tag: threshold.tag,
+        type: bundle.type,
+        supported_platforms: bundle.supported_platforms,
+        fallback: false
+      )
+
+    check_threshold_deviation(threshold, bundle, baseline)
   end
 
   defp check_threshold_deviation(_threshold, _bundle, nil), do: :ok

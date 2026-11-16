@@ -301,6 +301,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
           "git_branch" => "feature",
           "git_commit_sha" => "abc123",
           "git_ref" => "refs/pull/1/merge",
+          "custom_metadata" => %{"tags" => ["release"]},
           "artifacts" => []
         }
       }
@@ -319,7 +320,8 @@ defmodule TuistWeb.API.BundlesControllerTest do
           git_ref: "refs/pull/1/merge",
           install_size: 1024,
           type: "app",
-          supported_platforms: ["ios"]
+          supported_platforms: ["ios"],
+          custom_tags: ["release"]
         }
       )
     end

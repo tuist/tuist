@@ -105,12 +105,60 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
       render_hook(lv, "update_create_form_metric", %{"metric" => "install_size"})
       render_hook(lv, "update_create_form_deviation", %{"value" => "10.0"})
       render_hook(lv, "update_create_form_baseline_branch", %{"value" => "main"})
+      html = render_hook(lv, "update_create_form_tag", %{"tag" => "release"})
+      assert html =~ "of bundles tagged <strong>release</strong>"
       render_hook(lv, "create_threshold")
 
       thresholds = Bundles.get_project_bundle_thresholds(project)
       assert length(thresholds) == 1
       assert hd(thresholds).name == "My Threshold"
       assert hd(thresholds).deviation_percentage == 10.0
+      assert hd(thresholds).tag == "release"
+    end
+  end
+
+  describe "threshold tag picker" do
+    test "offers the tags the project's bundles carry and filters them by search", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      BundlesFixtures.bundle_fixture(project: project, custom_tags: ["release", "debug"])
+      BundlesFixtures.bundle_fixture(project: ProjectsFixtures.project_fixture(), custom_tags: ["foreign"])
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      dropdown = render_hook(lv, "open_create_threshold_modal")
+      assert dropdown =~ ~s(phx-value-tag="release")
+      assert dropdown =~ ~s(phx-value-tag="debug")
+      refute dropdown =~ ~s(phx-value-tag="foreign")
+
+      dropdown = render_hook(lv, "search_threshold_tags", %{"value" => "REL"})
+      assert dropdown =~ ~s(phx-value-tag="release")
+      refute dropdown =~ ~s(phx-value-tag="debug")
+    end
+
+    test "loads tags only when a threshold modal opens, so the page renders without ClickHouse", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, tag: "release")
+      # Exactly one lookup: the modal opening below. Loading the page and saving must not query.
+      expect(Bundles, :project_bundle_tags, fn _project, _search -> ["debug"] end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => "Renamed"})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert {:ok, %{name: "Renamed"}} = Bundles.get_bundle_threshold(threshold.id)
+
+      dropdown = render_hook(lv, "open_edit_threshold_modal", %{})
+      assert dropdown =~ ~s(phx-value-tag="debug")
+      # A tag a threshold uses stays selectable after the bundles carrying it age out.
+      assert dropdown =~ ~s(phx-value-tag="release")
     end
   end
 
@@ -244,10 +292,18 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
 
       render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => "Updated"})
+      render_hook(lv, "update_edit_form_tag", %{"id" => threshold.id, "tag" => "release"})
       render_hook(lv, "update_threshold", %{"id" => threshold.id})
 
       {:ok, updated} = Bundles.get_bundle_threshold(threshold.id)
       assert updated.name == "Updated"
+      assert updated.tag == "release"
+
+      render_hook(lv, "update_edit_form_tag", %{"id" => threshold.id, "tag" => ""})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+
+      {:ok, cleared} = Bundles.get_bundle_threshold(threshold.id)
+      assert is_nil(cleared.tag)
     end
 
     test "does not allow updating a threshold from a different project", %{

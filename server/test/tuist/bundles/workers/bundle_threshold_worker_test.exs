@@ -461,7 +461,118 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
           "bundle_name" => "App",
           "git_ref" => "refs/pull/1/merge",
           "install_size" => 1200,
-          "download_size" => nil
+          "download_size" => nil,
+          "custom_tags" => []
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "checks thresholds scoped to a tag the bundle carried in the job args has" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 5.0, tag: "release")
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        custom_tags: ["release"],
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Client, :get_pull_request, fn _params -> {:ok, %{"head" => %{"sha" => "real-head-sha"}}} end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "(tag: release)"
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123",
+          "bundle_name" => "App",
+          "git_ref" => "refs/pull/1/merge",
+          "install_size" => 1200,
+          "download_size" => nil,
+          "custom_tags" => ["release"]
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "reads the bundle back for tags when the job was enqueued before tags were carried" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 5.0, tag: "release")
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        custom_tags: ["release"],
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 1200,
+          git_branch: "feature",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/1/merge",
+          custom_tags: ["release"],
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Client, :get_pull_request, fn _params -> {:ok, %{"head" => %{"sha" => "real-head-sha"}}} end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "action_required"
+        assert params.output.summary =~ "(tag: release)"
+        {:ok, %{"id" => 1}}
+      end)
+
+      # The shape of a job enqueued before `custom_tags` was carried.
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => bundle.id,
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123",
+          "bundle_name" => "App",
+          "git_ref" => "refs/pull/1/merge",
+          "install_size" => 1200,
+          "download_size" => nil,
+          "type" => "app",
+          "supported_platforms" => ["ios"]
         }
       }
 
@@ -518,7 +629,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
           "install_size" => 1000,
           "download_size" => nil,
           "type" => "app",
-          "supported_platforms" => ["ios_simulator"]
+          "supported_platforms" => ["ios_simulator"],
+          "custom_tags" => []
         }
       }
 
@@ -547,7 +659,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
           "bundle_name" => "App",
           "git_ref" => "refs/heads/main",
           "install_size" => 1200,
-          "download_size" => nil
+          "download_size" => nil,
+          "custom_tags" => []
         }
       }
 
