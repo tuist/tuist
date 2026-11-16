@@ -53,10 +53,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
   # before evicting the oldest one.
   @kura_max_segment_bytes 512 * 1024 * 1024
-  # kura-volumes-csi's thinWorkspace: the allowance CSI adds to a thin volume's
-  # project quota on top of its claim, for staging. Keep in sync with
-  # ThinVirtualBytes.
-  @kura_thin_workspace_bytes 2 * 1024 * 1024 * 1024
   # Kura's SegmentRingLimits::legacy_floor (DESIRED_OLD + DESIRED_CURRENT +
   # DESIRED_NEW = 1 + 2 + 2 segments), which resolve_segment_ring_limits clamps
   # the ring count up to. A budget below this is not honoured, so it is the
@@ -495,7 +491,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
-          "extraEnv" => auth_env(region, claim, entitlements, Regions.thin_volumes?(region, account))
+          "extraEnv" => auth_env(region, claim, entitlements)
         }
         |> Map.merge(StableEndpoint.intent(%{server | account: account}, region))
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
@@ -853,7 +849,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp auth_env(%Regions{} = region, claim, entitlements, thin?) do
+  defp auth_env(%Regions{} = region, claim, entitlements) do
     [
       # Emitted alongside the URL so that authorizing is an instruction rather
       # than an inference. A node reads a blank URL as no configuration at all
@@ -869,7 +865,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
-      cas_capacity_env(region, claim, thin?) ++
+      cas_capacity_env(region, claim) ++
       staging_env(region, claim) ++
       mesh_peers_sync_env(region) ++
       replication_pull_env(entitlements) ++
@@ -910,12 +906,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # bounds nothing (local-path) can override with disk_envelope_size rather than
   # inflate storage_size, which the controller would try to apply to the live
   # PVCs.
-  defp cas_capacity_env(%Regions{} = region, claim, thin?) do
+  defp cas_capacity_env(%Regions{} = region, claim) do
     case cas_capacity_source(region, claim) do
       size when is_binary(size) and size != "" ->
         size
         |> parse_storage_quantity!(region)
-        |> cas_capacity_bytes(thin?)
+        |> cas_capacity_bytes()
         |> cas_capacity_env_var()
 
       # The region declares no size at all (self-hosted peers carry their own
@@ -946,14 +942,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # appends before it evicts the oldest one; and a few percent for the RocksDB
   # index, which tracks entry count rather than bytes (measured ~1.2% of
   # resident segment bytes on a production instance, so 3% is slack).
-  #
-  # A thin volume's filesystem is larger than its claim: CSI adds a 2 GiB
-  # workspace to the project quota (`ThinVirtualBytes` in kura-volumes-csi) for
-  # staging. The staging budget is unchanged, since the busiest instances
-  # already peak just above the 2 GiB floor, but the part the workspace holds no
-  # longer comes out of the claim as well.
-  defp cas_capacity_bytes(storage_bytes, thin?) do
-    usable = storage_bytes - claim_staging_bytes(storage_bytes, thin?) - @kura_max_segment_bytes
+  defp cas_capacity_bytes(storage_bytes) do
+    usable = storage_bytes - staging_bytes(storage_bytes) - @kura_max_segment_bytes
 
     if usable > 0 do
       budget = div(usable * 97, 100)
@@ -998,13 +988,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> min(@kura_default_tmp_dir_max_bytes)
     |> max(@kura_max_staged_request_bytes)
   end
-
-  # The part of the staging budget that comes out of the claim. On a thin
-  # volume the CSI workspace (`thinWorkspace` in kura-volumes-csi, 2 GiB) holds
-  # the first @kura_thin_workspace_bytes of it.
-  defp claim_staging_bytes(storage_bytes, true), do: max(staging_bytes(storage_bytes) - @kura_thin_workspace_bytes, 0)
-
-  defp claim_staging_bytes(storage_bytes, false), do: staging_bytes(storage_bytes)
 
   # Region specs are compile-time constants and an instance's pinned claim is
   # validated where it is written, so an unparseable size is a typo that would

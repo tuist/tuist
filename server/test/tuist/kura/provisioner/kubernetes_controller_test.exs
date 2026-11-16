@@ -2194,42 +2194,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
     end
 
-    test "counts a thin volume's CSI workspace toward staging instead of the claim" do
-      gib = 1024 * 1024 * 1024
-      segment = div(gib, 2)
-      region = thin_region(region_with_storage_class("scw-local-nvme"))
-
-      env = fn claim, thin? ->
-        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> thin? end)
-
-        "kura-tuist-scw-fr-par"
-        |> KubernetesController.manifest("0.5.2", %{name: "tuist"}, region, %Server{
-          storage_claim_size: claim
-        })
-        |> get_in(["spec", "extraEnv"])
-        |> Map.new(&{&1["name"], &1["value"]})
-      end
-
-      for {claim, staging} <- [{"256Gi", 8 * gib}, {"64Gi", 8 * gib}, {"8Gi", 2 * gib}] do
-        claim_bytes = String.to_integer(String.trim_trailing(claim, "Gi")) * gib
-        thick = env.(claim, false)
-        thin = env.(claim, true)
-
-        # Staging keeps the same budget either way: the busiest instances peak
-        # just above the 2 GiB floor.
-        assert staging_bytes(thin) == staging
-        assert staging_bytes(thin) == staging_bytes(thick)
-
-        assert String.to_integer(thick["KURA_CAS_CAPACITY_BYTES"]) ==
-                 div((claim_bytes - staging - segment) * 97, 100)
-
-        # The 2 GiB workspace CSI adds to the thin quota holds that much of it.
-        ring = String.to_integer(thin["KURA_CAS_CAPACITY_BYTES"])
-        assert ring == div((claim_bytes - (staging - 2 * gib) - segment) * 97, 100)
-        assert ring + div(ring * 3, 97) + segment + staging <= claim_bytes + 2 * gib
-      end
-    end
-
     test "selects the thin class over encrypted and LVM storage" do
       stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
       stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> true end)
