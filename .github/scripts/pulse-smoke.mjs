@@ -214,7 +214,9 @@ try {
   while (performance.now() < deadline) {
     try {
       const metrics = await (await request(`/v1/prometheus/api/v1/query?${new URLSearchParams({
-        query: `pulse_ci_value{audit_run="${run}"}`,
+        // A plain selector only looks back 5 minutes, and the reread follows a
+        // drained datanode restart that can take longer than that.
+        query: `last_over_time(pulse_ci_value{audit_run="${run}"}[1h])`,
       })}`)).json();
       const logs = await sql(`SELECT body, severity_text, timestamp, resource_attributes, trace_id FROM opentelemetry_logs WHERE body = '${run}'`);
       const traces = await sql(`SELECT trace_id, span_name, span_status_code, timestamp, service_name, duration_nano FROM opentelemetry_traces WHERE trace_id = '${trace}'`);
