@@ -36,30 +36,54 @@ Grafana-managed alerting. Grafana writes recording rules to
 nothing there. Fix the write path in the fork or inline the recordings before
 moving those rules.
 
-## Shadow rules
+## Metric rules on Pulse
 
-The `pulse-shadow` folder (**Pulse shadow (silent)**) holds copies of the
-PromQL rules that can move today, titled `[Pulse] <title>` with a
-`pulse_shadow_of` label naming the original. They read Tuist Pulse Metrics and
-notify the receiver without integrations (`Pulse lifecycle silent ...`), so
-they never page. Switch an original's data source only after its copy has
-matched it, and long-window rules only once Pulse holds their whole window.
-Copies also measure Pulse under Grafana's real evaluation load: datanodes fail
-a scan immediately when their scan memory budget (25% of the pod limit) is
-exhausted. Delete a copy once its original reads Pulse.
+Since November 16, 2026, the production-only PromQL rules read Tuist Pulse
+Metrics: every rule whose queries select only `tuist-production` series and
+look back at most six hours. Only their data source changed; labels,
+thresholds, pending periods, no-data and error states and routing did not.
+Each had run for a night as a silent copy whose alerts matched the original's.
 
-Not shadowed: the `kura:*` dependents, rules on senders that write only to
-Grafana Cloud (the external cache VMs, management's collectors, Synthetic
-Monitoring), and rules that Pulse 1.3.0-1 fails to evaluate:
+The 16 rules that read the `kura:*` recordings inline them instead, because
+Grafana writes recordings to `<url>/api/v1/write` and Pulse accepts remote
+write only at `/v1/prometheus/write` for the write-only `tuist` user. The four
+recordings still run on Grafana Cloud for its dashboards and stop with it.
+Inlined, `topk by (...) (1, timestamp(kura:...))` compares evaluation times
+rather than sample times, which only differs while a pool changes region.
 
-- `or` and `and on (...)` between operands with different label sets
-  ("combine two tables with different column sets": `afx2w05l6se0wc`,
-  `bfxmy59vtljpca`).
-- `a * on() b unless on() c` ("No field named ...pulse_timestamp": `eg1eawacfhkaoe`).
-- `label_replace(vector(...), ...)` ("Error parsing timestamp": `fg1c6ql650pvka`).
-- `max by (...)` over a `__name__=~"a|b"` selector keeps one series per metric
-  instead of merging them, so `kura-thin-pool-degraded`'s shadow errors with
-  duplicate labels.
+**Pulse - production metrics unavailable to Grafana**
+(`pulse-production-unavailable`, group **Pulse**) pages through Incidents when
+`count(up{cluster="tuist-production"})` on Pulse fails, returns nothing or
+drops below 100 for five minutes. Without it, an unreachable Pulse would leave
+every rule above with `noDataState: OK` silent.
+
+Pulse 1.3.0 fails to plan `a or b` when `b` contains a vector join
+(`* on (...) group_left`, `!= on`) and `a` is empty or a different table. Put
+the join on the left of `or`, or apply it after the union, as
+`Kura - pod OOM-killed` (`cfx21glh3ufb4b`) and `Rack power draw near its
+contracted limit` (`eg1eawacfhkaoe`) now do. `and on (...)` against an empty
+right side fails the same way; `Linux fleet cannot seat a shape`
+(`bfxmy59vtljpca`) multiplies by `(... == bool 0)` instead.
+
+### Still on Grafana Cloud
+
+- Rules that also cover staging, canary or management keep reading
+  `grafanacloud-prom` until each has a per-environment copy. Staging and canary
+  have `Tuist Pulse Metrics (staging)` (`pulse-metrics-staging`) and
+  `(canary)` (`pulse-metrics-canary`) on their PDC networks; management has no
+  PDC network yet.
+- Long windows Pulse does not hold yet: `cfyi8f0lyqayof`, `dfygid92hevi8d` (3
+  days) and `fg1c6ql650pvka` (7 days, also `label_replace(vector(...))`, which
+  Pulse rejects).
+- `Kura - egress shaping integrity` (`afx2w05l6se0wc`), whose ten-way `or`
+  chain has joins on the right.
+- Senders that write only to Grafana Cloud (the external cache VMs, Synthetic
+  Monitoring) and the Grafana Cloud usage rules.
+
+The `pulse-shadow` folder (**Pulse shadow (silent)**) keeps silent copies of
+the remaining rules, titled `[Pulse] <title>` with a `pulse_shadow_of` label,
+routed to the receiver without integrations. Delete a copy once its original
+reads Pulse.
 
 ## Log alert rules use SQL
 
