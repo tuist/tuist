@@ -42,22 +42,23 @@ If remote setup fails, local caching remains available. Unavailable, missing, or
 The cache supports:
 
 - Library crates, including workspace and path crates, crates with dependencies, and crates with generated sources. Tuist keys them by the sources the compiler read.
+- `cargo check` and `cargo clippy`, which compile libraries to metadata only. Their entries are separate from those of builds, so a check never provides a library to `cargo build`. Dependencies that `cargo clippy` compiles with the plain compiler, such as path crates outside the workspace, reuse the entries of `cargo check`.
 - On Apple silicon Macs and on x86_64 and arm64 Linux with glibc, compilations that source inspection can't key in advance, such as crates that use procedural macros, inline assembly or native libraries, procedural macros themselves, and linked executables. Tuist records the files, environment variables and read-only commands each one reads, such as `git describe`, and keys it by them. On Linux, the system linker, C library and startup files a link reads are part of its key.
 - On the same platforms, build-script runs, including the C compilations they perform (with the default Apple compiler on macOS, with any dynamically linked compiler on Linux). A run is restored only when the files, environment and commands it read are unchanged.
-- Warnings and other diagnostics, which a cached crate shows again.
+- Warnings and other diagnostics, which a cached crate shows again, including Clippy's lints.
 
 The following still build normally:
 
 - Build scripts and recorded compilations on Linux distributions without glibc, such as Alpine.
 - Build scripts that connect to the network, start programs Tuist can't observe (on Linux, statically linked programs), or write outside their output directory.
 - Incremental compilations, custom targets, and unsupported compiler arguments or source inputs.
-- Metadata-only `cargo check` invocations.
+- Clippy compilations of procedural macros and build scripts, and Clippy runs that enable the `cargo` lint group, which reads every manifest of the workspace and its lockfile through `cargo metadata`.
 - Compilations that emit unexpected compiler output.
 - Compilations that run with dynamic loader settings, such as `LD_PRELOAD`, or with `LD_LIBRARY_PATH` directories outside the Rust toolchain and the target directory, for example ones inherited from your shell or a `build.build-dir` outside the target directory.
 
-A pre-existing global compiler wrapper disables Tuist's compilation cache and compiler observer. Custom workspace wrappers also bypass caching. See <.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">compiler tool compatibility</.localized_link>.
+A pre-existing global compiler wrapper disables Tuist's compilation cache and compiler observer. Custom workspace wrappers other than Clippy's also bypass caching. See <.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">compiler tool compatibility</.localized_link>.
 
-Cache keys include the package contents, compiler and toolchain, arguments, and build environment. The checkout, target directory, Cargo home and toolchain locations are replaced with placeholders, so a checkout at another path reuses the same entries. A crate whose output embeds its own path, for example through `env!("CARGO_MANIFEST_DIR")`, is reused only at that path. Credentials, Tuist reporting settings, and recognized CI run metadata don't invalidate entries. Crates that read those excluded variables during compilation aren't cached.
+Cache keys include the package contents, compiler and toolchain, arguments, and build environment. Clippy entries also depend on the Clippy version, the lint arguments in `CLIPPY_ARGS`, `CLIPPY_CONF_DIR`, `CLIPPY_DISABLE_DOCS_LINKS`, the package's `Cargo.toml`, and the `clippy.toml` or `.clippy.toml` Clippy loads. The checkout, target directory, Cargo home and toolchain locations are replaced with placeholders, so a checkout at another path reuses the same entries. A crate whose output embeds its own path, for example through `env!("CARGO_MANIFEST_DIR")`, is reused only at that path. Credentials, Tuist reporting settings, and recognized CI run metadata don't invalidate entries. Crates that read those excluded variables during compilation aren't cached.
 
 ## Verify reuse {#verify-reuse}
 

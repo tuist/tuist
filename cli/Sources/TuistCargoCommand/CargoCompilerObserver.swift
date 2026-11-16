@@ -268,10 +268,10 @@ struct CargoCompilerObserver { // swiftlint:disable:this type_body_length
         }
         let wrapper = environment["TUIST_CARGO_INNER_WRAPPER"].flatMap { $0.isEmpty ? nil : $0 }
         // A recorded compiler starts directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
-        // It is the toolchain's own rustc, never the rustup proxy, which reads the whole environment and
-        // rustup's settings: recording those would key every compilation on unrelated variables.
+        // It is the toolchain's own rustc (or `clippy-driver`), never the rustup proxy, which reads the whole
+        // environment and rustup's settings: recording those would key every compilation on unrelated variables.
         let command = (log != nil ?
-            [recorded.map { $0.toolchain.appendingPathComponent("bin/rustc").path } ?? Self.executablePath(
+            [recorded.map(\.program) ?? Self.executablePath(
                 compiler,
                 environment: environment,
                 directory: directory

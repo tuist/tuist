@@ -25,6 +25,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
     let linksWithSystemLinker: Bool
     /// The `.dSYM` a linked binary is stored with when its debug map names objects (`hasDebugMap`).
     let debugBundle: String?
+    /// The program a miss runs recorded: the toolchain's own rustc, or its `clippy-driver` for `cargo clippy`.
+    let program: String
 
     static let keyVersion = "tuist-swift-cargo-recorded-v2"
     var cacheVersion: String { Self.keyVersion }
@@ -45,10 +47,12 @@ struct CargoRecordedInvocation: CargoCacheAction {
     static func prepare(
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, process: CargoProcess
     ) async throws -> CargoRecordedInvocation? {
+        // `cargo clippy` starts the workspace's crates as `clippy-driver rustc <arguments>`.
+        let driven = CargoClippy.compilerArguments(arguments, environment: environment)
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil, let recorder = environment["TUIST_CARGO_RECORDER"],
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
-              environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
-              let executable = arguments.first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
+              CargoClippy.admitsWorkspaceWrapper(environment),
+              let executable = (driven ?? arguments).first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
               !arguments.contains(where: {
                   $0.hasPrefix("@") || $0.hasPrefix("--print") || $0 == "--test" || $0 == "-o"
                       || $0.hasPrefix("--remap-path-prefix") || $0.hasPrefix("--sysroot") || $0.hasSuffix(".json")
@@ -70,8 +74,10 @@ struct CargoRecordedInvocation: CargoCacheAction {
         var debugBundle: String?
         switch kind {
         case "lib", "rlib":
-            guard emitted == ["dep-info", "metadata", "link"] else { return nil }
-            files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
+            // `cargo check` and `cargo clippy` emit metadata only; `--emit` is keyed with the other arguments.
+            guard emitted == ["dep-info", "metadata", "link"] || emitted == ["dep-info", "metadata"] else { return nil }
+            files = (emitted.contains("link") ? ["lib\(name)\(suffix).rlib"] : [])
+                + ["lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
         case "proc-macro":
             guard emitted == ["dep-info", "link"] else { return nil }
             #if os(macOS)
@@ -103,6 +109,14 @@ struct CargoRecordedInvocation: CargoCacheAction {
         var inputs = [
             keyVersion, CargoReadRecorder.version, directory.pathString, identity.version,
         ]
+        var program = identity.sysroot.appendingPathComponent("bin/rustc").path
+        if driven != nil {
+            guard !emitted.contains("link"), let clippy = try await CargoClippy.prepare(
+                arguments, sysroot: identity.sysroot, environment: environment, directory: directory, process: process
+            ) else { return nil }
+            program = clippy.driver.path
+            inputs += try clippy.keyInputs(environment: environment, directory: directory, hasher: inputHasher)
+        }
         inputs += CargoCacheInputs.keyArguments(Array(arguments.dropFirst()))
         // Package metadata the run reads is keyed with its reads.
         inputs += environment.sorted { $0.key < $1.key }.filter { CargoCacheInvocation.isKeyed($0.key) }
@@ -159,7 +173,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
             output: URL(fileURLWithPath: out, relativeTo: base).standardizedFileURL, name: name, files: files,
             key: declared, declared: declared, reads: nil, relocation: relocation, inputHasher: inputHasher,
             recorder: recorder, toolchain: identity.sysroot, externs: externs, linksWithSystemLinker: linksWithSystemLinker,
-            debugBundle: debugBundle
+            debugBundle: debugBundle, program: program
         )
     }
 
