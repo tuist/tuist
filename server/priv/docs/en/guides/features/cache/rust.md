@@ -71,6 +71,13 @@ tuist cargo build --release
 
 Eligible libraries can be restored on the second build; unsupported crates still compile. Removing Cargo's outputs doesn't remove Tuist's separate local cache. This checks reuse, not necessarily remote downloads: a local hit doesn't need a transfer from Kura. Input validation and cache operations add overhead, so avoiding compilation doesn't guarantee faster builds for small crates.
 
+To check that hits are correct, for example as a canary in CI, set either variable to `sampled` (one crate in 64, the same crates on every build) or `always`:
+
+- `TUIST_CARGO_VERIFY` checks that the inputs a hit was keyed by are still the ones the compiler or build script reads.
+- `TUIST_CARGO_VERIFY_RECOMPILE` compiles hits again and compares their outputs with the cached ones.
+
+A checked crate compiles instead of being restored, as if it were uncached, so its outputs are always fresh and verification doesn't change build results. Verification never stores or replaces the checked crate's cache entry. If its fresh outputs differ from the cached ones, crates that depend on it miss and are cached as in an uncached build. Incremental compilations aren't reproducible, so for those `TUIST_CARGO_VERIFY_RECOMPILE` compares only metadata and dependency information. With `TUIST_DEBUG=1`, each check prints a `Tuist Cargo cache: verified` line, and checks that found a difference are counted as divergences in the build's cache measurements.
+
 ## Inspect cache activity {#inspect-cache-activity}
 
 Open **Cargo Cache** in your project's dashboard to inspect hit rates, recorded transfers, latency, throughput, and recent builds. Open a build's **Cache** tab for individual task decisions and CAS outputs.

@@ -128,18 +128,26 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
                     )
                 return
             }
-            var succeeded = false
-            defer { if !succeeded { run.discard() } }
-            for try await event in runner.run(arguments: run.command, environment: run.environment, workingDirectory: directory) {
-                switch event {
-                case let .standardOutput(bytes):
-                    FileHandle.standardOutput.write(Data(bytes))
-                    run.standardOutput(Data(bytes))
-                case let .standardError(bytes):
-                    FileHandle.standardError.write(run.standardError(Data(bytes)))
+            do {
+                for try await event in runner.run(
+                    arguments: run.command, environment: run.environment, workingDirectory: directory
+                ) {
+                    switch event {
+                    case let .standardOutput(bytes):
+                        FileHandle.standardOutput.write(Data(bytes))
+                        run.standardOutput(Data(bytes))
+                    case let .standardError(bytes):
+                        FileHandle.standardError.write(run.standardError(Data(bytes)))
+                    }
                 }
+            } catch {
+                if case CommandError.terminated = error {
+                    await run.finish(succeeded: false)
+                } else {
+                    await run.abandon()
+                }
+                throw error
             }
-            succeeded = true
             await run.finish(succeeded: true)
         }
     }
@@ -171,15 +179,22 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
         )
         else { return .run(Run(command: [executable] + arguments, environment: environment, context: nil, log: nil)) }
         let remote = await CargoCompilerObserver.connect(environment, session: sessionRemote)
-        if let reads = await context.index.get(remote: remote),
-           let key = try? context.key(reads),
-           let (stdout, stderr) = await context.restore(key: key, remote: remote)
-        {
-            context.debug("restored build-script run")
-            return .replayed(stdout: stdout, stderr: stderr)
+        var verification: Run.Verification?
+        if let reads = await context.index.get(remote: remote), let key = try? context.key(reads) {
+            // A run the opt-in verification samples runs again, recorded, instead of restoring.
+            let selection = CargoCacheVerification.selection(
+                identity: CargoCacheVerification.scriptIdentity(environment: environment), environment: environment
+            )
+            if selection.any, let entry = await context.entry(key: key, remote: remote) {
+                verification = Run.Verification(reads: reads, key: key, entry: entry, selection: selection)
+            } else if let (stdout, stderr) = await context.restore(key: key, remote: remote) {
+                context.debug("restored build-script run")
+                return .replayed(stdout: stdout, stderr: stderr)
+            }
         }
-        // Like a compilation (`CargoFlight`): another build on this machine may be running the same script.
-        var flight = try? await CargoFlight.join(root: context.root, key: context.declared.hash)
+        // Like a compilation (`CargoFlight`): another build on this machine may be running the same script. Not a
+        // verified run, which runs although its run is stored, and stores nothing.
+        var flight = verification == nil ? try? await CargoFlight.join(root: context.root, key: context.declared.hash) : nil
         if let claim = flight {
             if claim.waited > 0 {
                 context.debug("waited \(String(format: "%.1f", claim.waited))s for another build running this build script")
@@ -206,12 +221,20 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
                 environment, library: context.recorder, log: log, toolchain: context.relocation.roots
                     .first(where: { $0.placeholder == "@@TUIST_SYSROOT@@" })?.path ?? ""
             ).merging([CargoReadRecorder.scriptLogVariable: log.path]) { $1 },
-            context: context, log: log, remote: remote, flight: flight
+            context: context, log: log, remote: remote, flight: flight, verification: verification
         ))
     }
 
     /// A build-script run the cache missed, from its start to publication.
     final class Run: CargoHookRun {
+        /// A stored run sampled by `CargoCacheVerification`: the script runs again and is compared with it.
+        struct Verification {
+            let reads: CargoReadSet
+            let key: REAPI.Digest
+            let entry: REAPI.ActionResult
+            let selection: CargoCacheVerification.Selection
+        }
+
         let command: [String]
         let environment: [String: String]
         let context: Context?
@@ -219,14 +242,16 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
         private let remote: (any REAPICacheStoring)?
         /// Held until the run is stored, so another build running the same script restores it instead.
         private let flight: CargoFlight?
+        private let verification: Verification?
         private let started = Date()
         private var stdout = Data()
         private var stderr = Data()
         private var bounded = true
+        private var abandoned = false
 
         init(
             command: [String], environment: [String: String], context: Context?, log: URL?,
-            remote: (any REAPICacheStoring)? = nil, flight: CargoFlight? = nil
+            remote: (any REAPICacheStoring)? = nil, flight: CargoFlight? = nil, verification: Verification? = nil
         ) {
             self.command = command
             self.environment = environment
@@ -234,6 +259,7 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
             self.log = log
             self.remote = remote
             self.flight = flight
+            self.verification = verification
         }
 
         func standardOutput(_ bytes: Data) {
@@ -247,7 +273,26 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
 
         func finish(succeeded: Bool) async {
             defer { discard() }
+            if let context, let verification, !succeeded || !bounded {
+                // A stored run whose script now fails would have hidden the failure.
+                let finding: CargoCacheVerification.Finding = if !succeeded, !abandoned {
+                    .init(check: "outputs", outcome: .content, detail: "the run failed, but its stored run succeeded")
+                } else {
+                    .init(
+                        check: "outputs", outcome: .failed,
+                        detail: succeeded ? "its output exceeds what the cache keeps" : "the run did not report an exit"
+                    )
+                }
+                CargoCacheVerification.report([finding], name: context.taskName, environment: environment)
+                CargoCacheMeasurement.verified(
+                    name: context.taskName, key: verification.key, divergent: finding.divergent, environment: environment
+                )
+                return
+            }
             guard succeeded, bounded, let context, let log else { return }
+            if let verification {
+                return await context.verify(verification, log: log, started: started, stdout: stdout, remote: remote)
+            }
             await context.store(log: log, started: started, stdout: stdout, stderr: stderr, remote: remote)
         }
 
@@ -256,6 +301,11 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
         /// every output, which for a script building a C library (`aws-lc-sys`) holds back the crates that wait on it.
         func settle(succeeded: Bool) async -> @Sendable () async -> Void {
             { [self] in await finish(succeeded: succeeded) }
+        }
+
+        func abandon() async {
+            abandoned = true
+            await finish(succeeded: false)
         }
 
         func discard() {
@@ -437,7 +487,8 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
             return !path.hasPrefix("/") && !components.isEmpty && components.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
         }
 
-        func store(log: URL, started: Date, stdout: Data, stderr: Data, remote: (any REAPICacheStoring)?) async {
+        /// What a finished run read, or `nil` when it cannot be keyed, with the reason passed to `explain`.
+        private func reads(log: URL, started: Date, explain: (String) -> Void) -> CargoReadSet? {
             let temporary = [NSTemporaryDirectory(), "/tmp", "/private/tmp", "/var/folders", "/private/var/folders"]
                 .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
             guard let reads = CargoReadSet.parse(
@@ -445,16 +496,110 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
                 targetDirectory: environment["TUIST_CARGO_TARGET_DIR"].map { URL(fileURLWithPath: $0).standardizedFileURL.path },
                 allowedWrites: [outDirectory.path] + temporary,
                 keyedEnvironment: Self.isKeyed,
-                explain: { [outDirectory] in
-                    debug(
-                        "build-script run \(outDirectory.deletingLastPathComponent().lastPathComponent) is not cacheable: it \($0)"
-                    )
-                }
-            ) else { return }
+                explain: { explain("it \($0)") }
+            ) else { return nil }
             guard reads.unchanged(since: started, relocation: relocation) else {
-                debug("build-script run is not cacheable: an input changed while it ran")
-                return
+                explain("an input changed while it ran")
+                return nil
             }
+            return reads
+        }
+
+        /// The run as cache reports name it: its package, or its build directory.
+        var taskName: String {
+            environment["CARGO_PKG_NAME"].map { "\($0) build script run" }
+                ?? outDirectory.deletingLastPathComponent().lastPathComponent
+        }
+
+        /// The stored run `key` finds, locally or remotely, without restoring it.
+        func entry(key: REAPI.Digest, remote: (any REAPICacheStoring)?) async -> REAPI.ActionResult? {
+            guard let (_, _, action) = actionDigest(key) else { return nil }
+            let local = root.appendingPathComponent("script-actions/" + action.hash)
+            var result = (try? Data(contentsOf: local)).flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
+            if result == nil, let remote { result = try? await remote.actionResult(for: action) }
+            guard let result, result.exitCode == 0 else { return nil }
+            CargoCacheJournal.use("script-actions/" + action.hash, environment: environment)
+            return result
+        }
+
+        /// Compares a run that verification sampled with the stored run it would have restored: what it read under
+        /// `TUIST_CARGO_VERIFY`, and its `OUT_DIR` and printed directives under `TUIST_CARGO_VERIFY_RECOMPILE`. Stores
+        /// nothing.
+        func verify(
+            _ verification: Run.Verification, log: URL, started: Date, stdout: Data, remote: (any REAPICacheStoring)?
+        ) async {
+            var findings: [CargoCacheVerification.Finding] = []
+            if verification.selection.inputs {
+                var reason = "its reads were not fully recorded"
+                if let fresh = reads(log: log, started: started, explain: { reason = $0 }) {
+                    findings.append(CargoCacheVerification.compare(used: verification.reads, fresh: fresh))
+                } else {
+                    findings.append(.init(check: "reads", outcome: .failed, detail: reason))
+                }
+            }
+            if verification.selection.outputs {
+                findings.append(await compareOutputs(verification.entry, stdout: stdout, remote: remote))
+            }
+            CargoCacheVerification.report(findings, name: taskName, environment: environment)
+            CargoCacheMeasurement.verified(
+                name: taskName, key: verification.key, divergent: findings.contains(where: \.divergent),
+                environment: environment
+            )
+        }
+
+        private func compareOutputs(
+            _ entry: REAPI.ActionResult, stdout: Data, remote: (any REAPICacheStoring)?
+        ) async -> CargoCacheVerification.Finding {
+            func failed(_ detail: String) -> CargoCacheVerification.Finding {
+                .init(check: "outputs", outcome: .failed, detail: detail)
+            }
+            guard let manifest = entry.outputFiles.first, manifest.path == "outputs.json",
+                  let read = await CargoCacheVerification.withStored([manifest.digest], root: root, remote: remote, body: {
+                      $0(manifest.digest).flatMap { try? JSONDecoder().decode(Outputs.self, from: $0) }
+                  }), let outputs = read
+            else { return failed("the stored run cannot be read") }
+            let compared = await CargoCacheVerification.withStored(
+                [outputs.stdout.digest] + outputs.files.map(\.digest), root: root, remote: remote
+            ) { stored -> [CargoCacheVerification.Artifact]? in
+                var artifacts: [CargoCacheVerification.Artifact] = []
+                // The printed directives come first, named so that no `OUT_DIR` file can be taken for them.
+                for (index, file) in ([outputs.stdout] + outputs.files).enumerated() {
+                    let name = index == 0 ? "(stdout)" : file.path
+                    let fresh = index == 0 ? stdout : try? Data(contentsOf: outDirectory.appendingPathComponent(file.path))
+                    guard let fresh else {
+                        artifacts.append((name, .content, "not produced by the run"))
+                        continue
+                    }
+                    guard let blob = stored(file.digest), let cached = file.relocated ? relocation.absolute(blob) : blob
+                    else { return nil }
+                    let (outcome, detail) = CargoCacheVerification.classify(cached: cached, fresh: fresh)
+                    artifacts.append((name, outcome, detail))
+                }
+                return artifacts
+            }
+            guard let readable = compared, var artifacts = readable
+            else { return failed("the stored outputs cannot be read here") }
+            let storedPaths = Set(outputs.files.map(\.path))
+            if let entries = FileManager.default.enumerator(atPath: outDirectory.path) {
+                for case let path as String in entries where !storedPaths.contains(path) {
+                    var isDirectory: ObjCBool = false
+                    if FileManager.default.fileExists(
+                        atPath: outDirectory.appendingPathComponent(path).path,
+                        isDirectory: &isDirectory
+                    ),
+                        !isDirectory.boolValue
+                    {
+                        artifacts.append((path, .content, "not in the stored run"))
+                    }
+                }
+            }
+            return CargoCacheVerification.summarize(artifacts)
+        }
+
+        func store(log: URL, started: Date, stdout: Data, stderr: Data, remote: (any REAPICacheStoring)?) async {
+            guard let reads = reads(log: log, started: started, explain: { [outDirectory] in
+                debug("build-script run \(outDirectory.deletingLastPathComponent().lastPathComponent) is not cacheable: \($0)")
+            }) else { return }
             let key: REAPI.Digest
             do { key = try self.key(reads) } catch {
                 debug("build-script run is not cacheable: its inputs cannot be read (\(error))")

@@ -137,6 +137,37 @@ struct CargoCompilationCache {
         return false
     }
 
+    /// The entry a restoration would find, locally or remotely, without restoring it: what `CargoCacheVerification`
+    /// compares a fresh compilation with. Entries are tried in the restorations' order, local ones first.
+    func entry() async -> REAPI.ActionResult? {
+        func succeeded(_ result: REAPI.ActionResult?, _ entry: Entry) -> REAPI.ActionResult? {
+            guard let result, result.exitCode == 0 else { return nil }
+            // Still in use: the next build's prefetch keeps it.
+            CargoCacheJournal.use("actions/" + entry.digest.hash, environment: invocation.environment)
+            return result
+        }
+        for entry in entries {
+            let data = try? boundedData(index(entry), maximum: 2_000_000)
+            if let found = succeeded(data.flatMap { try? REAPI.ActionResult(serializedBytes: $0) }, entry) { return found }
+        }
+        guard let remote else { return nil }
+        for entry in entries {
+            do {
+                let started = Date()
+                let result = try await remote.actionResult(for: entry.digest)
+                measurement.timing("read", duration: Date().timeIntervalSince(started))
+                if let found = succeeded(result, entry) { return found }
+            } catch {
+                // As in `restoreRemotely`: an unavailable endpoint opens the session's circuit.
+                if !(error is CancellationError || Task.isCancelled), !CargoRemoteCache.isOverloaded(error) {
+                    measurement.failure()
+                }
+                return nil
+            }
+        }
+        return nil
+    }
+
     /// Publishes the compilation's outputs. `keyedAfterCompiling` says the key was computed from inputs read once the
     /// compiler had finished, so only the check after copying the outputs is needed; a key taken before it ran is
     /// checked first, since a source may have changed while it compiled.
