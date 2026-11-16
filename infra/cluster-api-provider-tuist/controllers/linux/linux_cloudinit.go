@@ -533,8 +533,9 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[8]s
 %[11]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
-%[3]sapt-get update
-%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs lvm2
+%[13]s
+apt_retry %[3]sapt-get update
+apt_retry %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs lvm2
 %[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
 %[6]s
@@ -560,14 +561,24 @@ export DEBIAN_FRONTEND=noninteractive
 %[2]smkdir -p /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 %[5]s
-%[3]sapt-get update
-%[3]sapt-get install -y kubelet
-%[2]sapt-mark hold kubelet
+apt_retry %[3]sapt-get update
+apt_retry %[3]sapt-get install -y kubelet
+apt_retry %[2]sapt-mark hold kubelet
 %[12]s%[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, hardeningSysctl, watchdogDropIn,
-		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile), kubeletCPUs)
+		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile), kubeletCPUs, aptRetry)
 }
+
+// aptRetry defines apt_retry, which every apt call in the bootstrap and the Kata
+// runtime repair runs through. unattended-upgrades starts on a fresh box soon
+// after first boot and holds apt's locks while it upgrades. apt-get update and
+// apt-mark hold then exit 100 at once: DPkg::Lock::Timeout makes apt-get install
+// wait for the dpkg frontend lock, but not apt-get update for the package lists
+// lock or the dpkg run behind apt-mark. Both production runner hosts converted
+// to v1.36 failed their first join with exit 100 as unattended-upgrades
+// started. Ten minutes of retries also ride out a transient mirror error.
+const aptRetry = `apt_retry() { local attempt; for attempt in $(seq 60); do "$@" && return 0; [ "$attempt" -lt 60 ] || return 1; echo "tuist: apt is busy or failing; retrying in 10s" >&2; sleep 10; done; }`
 
 // sshStartLimitDropIns writes the sshd start-limit drop-ins. The caller reloads
 // systemd afterwards. Shared by the self-join and the kubelet config re-push,
@@ -1037,7 +1048,7 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 	if !enabled {
 		return ""
 	}
-	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo)
+	dropIns := kataSharedMemorySetup(sudo) + kataVirtiofsSetup(sudo) + kataSandboxCgroupSetup(sudo) + kataNeedrestartSetup(sudo)
 	if staticSandboxSizing {
 		dropIns += kataStaticSandboxSetup(sudo)
 	}
@@ -1047,7 +1058,7 @@ func kataSetup(sudo, sudoE string, enabled, staticSandboxSizing bool) string {
 # node then reports Ready while every runtimeClassName=kata-qemu Pod hangs.
 %[1]sgrep -q '^version = 3' /etc/containerd/config.toml || { echo "tuist: containerd config is not version 3; the kata-qemu handler would be ignored. Refusing to join a runner node that cannot run microVM Pods." >&2; exit 1; }
 %[5]s
-%[2]sapt-get install -y zstd
+apt_retry %[2]sapt-get install -y zstd
 # kata-static expands with a top-level opt/, so extracting at / lands the shim
 # and its bundled qemu under /opt/kata/{bin,libexec,share}. Guarded on a version
 # stamp so a re-run costs nothing: the repair loop re-runs this block on every

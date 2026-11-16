@@ -150,6 +150,9 @@ func TestKataSharedMemoryRepairDoesNotRestartRuntime(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("invalid repair script: %v: %s", err, out)
 		}
+		if !strings.Contains(script, kataNeedrestartConfPath) || !strings.Contains(script, kataNeedrestartConf) {
+			t.Fatal("existing Kata hosts must get the needrestart override")
+		}
 		for _, banned := range []string{"apt-get", "restart containerd", "restart kubelet", "reboot", "umount"} {
 			if strings.Contains(script, banned) {
 				t.Fatalf("shared-memory-only repair contains %q", banned)

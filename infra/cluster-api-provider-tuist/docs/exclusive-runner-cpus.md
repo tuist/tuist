@@ -105,6 +105,15 @@ on the host, recover by stopping the kubelet, moving
 `/var/lib/kubelet/cpu_manager_state` aside and starting it again. Drain
 exclusive-CPU Pods before a planned kubelet restart.
 
+Unattended upgrades were an unplanned source of kubelet restarts. Ubuntu's
+needrestart restarted the kubelet and containerd on a production runner host after a
+libc upgrade on 2026-11-13, and the kubelet rejected 8 idle runner Pods with
+`UnexpectedAdmissionError` because the KVM device plugin had not re-registered
+yet. Kata runner hosts now carry `/etc/needrestart/conf.d/50-tuist-runner.conf`,
+which defers both services. Bootstrap writes it, and on existing hosts the Kata
+host-config repair adds it (`kata_needrestart.go`). Upgrades still install, and
+the services load the new libraries at the next reboot.
+
 A runner Pod is the runner container plus `dind`, `dind-externals`, `metrics`
 and the shell bridge. On v1.34 the static policy can only pin a container whose
 own requests equal its limits, so the Pod stays Burstable on the shared pool

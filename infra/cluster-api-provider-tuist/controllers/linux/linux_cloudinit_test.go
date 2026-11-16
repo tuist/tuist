@@ -429,6 +429,7 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 		kataSharedMemoryUnit,
 		kataVirtiofsSysctl,
 		kataVirtiofsDropIn,
+		kataNeedrestartConf,
 		// Set on the handler itself: the earlier rewrite only touches what the
 		// generated default emitted, and this block is appended after it.
 		"SystemdCgroup = true",
@@ -466,10 +467,53 @@ func TestRenderLinux_KataRuntime(t *testing.T) {
 
 	// Cache fleets: nothing kata anywhere, including the node labels.
 	withoutKata := renderLinuxBootstrapScript(opts)
-	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory", "tuist-kata-virtiofs", "tuist-virtiofs"} {
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory", "tuist-kata-virtiofs", "tuist-virtiofs", kataNeedrestartConfPath} {
 		if strings.Contains(withoutKata, unwanted) {
 			t.Errorf("cache-fleet render must not contain %q", unwanted)
 		}
+	}
+}
+
+// unattended-upgrades holds apt's locks for minutes after a fresh box boots, and
+// apt-get update and apt-mark fail at once on a held lock. Every apt call the
+// provider renders must go through apt_retry.
+func TestAptCallsRetryWhileUnattendedUpgradesHoldsTheLocks(t *testing.T) {
+	opts := linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.36", BootstrapUser: "ubuntu", InstanceType: "ovh", KataRuntime: true}
+	scripts := map[string]string{
+		"bootstrap script":    renderLinuxBootstrapScript(opts),
+		"cloud-init":          renderLinuxCloudInitWithOptions(opts),
+		"kata runtime repair": renderKataRuntimeRepairScript(opts),
+	}
+	for name, script := range scripts {
+		calls := 0
+		for _, line := range strings.Split(script, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "#") || !strings.Contains(line, "apt-get ") && !strings.Contains(line, "apt-mark ") {
+				continue
+			}
+			calls++
+			if !strings.HasPrefix(line, "apt_retry ") {
+				t.Errorf("%s runs apt without apt_retry: %s", name, line)
+			}
+		}
+		if calls == 0 || !strings.Contains(script, aptRetry) {
+			t.Errorf("%s: expected apt calls and the apt_retry definition", name)
+		}
+	}
+
+	cmd := exec.Command("bash", "-c", `set -euo pipefail
+sleep() { :; }
+`+aptRetry+`
+tries=0
+busy_twice() { tries=$((tries + 1)); [ "$tries" -ge 3 ]; }
+apt_retry busy_twice
+always=0
+locked() { always=$((always + 1)); return 100; }
+if apt_retry locked; then exit 1; fi
+echo "$tries $always"`)
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "3 60" {
+		t.Fatalf("apt_retry must retry until success and give up after 60 attempts: %v\n%s", err, out)
 	}
 }
 
