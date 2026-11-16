@@ -90,7 +90,7 @@
 
 - Runner sizing coverage must include runner-only accounts in claim proposals, account-sized claims on creation, immediate enrollment budgets with plan resolution, sized-claim precedence, a 50Gi growth cap and preservation of existing pins, capacity accounting without an account preload, creation/cold-return manifest pinning, and manifests that apply memory profiles without requesting an unadvertised memory-ceiling resource.
 
-- Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
+- Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results. Wait on task progress, not deadlines, and detect a blocked session through `pg_locks`.
 
 - Linux cache-volume tests cover tenant/node scoping, private PR reads, trusted
   publication, success gating, retries, generation invalidation, usage analytics

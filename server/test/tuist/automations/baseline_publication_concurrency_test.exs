@@ -43,7 +43,7 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
       attempt = publishing_attempt(alert, [first, second])
       parent = self()
 
-      publisher =
+      {publisher, publisher_backend} =
         database_task(fn ->
           Automations.establish_alert_baseline(alert, & &1, fn _, id ->
             refute Repo.in_transaction?()
@@ -51,14 +51,13 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
             receive do
               :finish_action -> :ok
-            after
-              5000 -> flunk("external action was not released")
             end
           end)
         end)
 
       try do
-        assert_receive {:action_started, ^first}, 5000
+        await_action(publisher, publisher_backend, first)
+
         # These are real separate database sessions, not a shared sandbox transaction.
         assert {:ok, :ok} =
                  Repo.transaction(fn ->
@@ -67,12 +66,12 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
                    :ok
                  end)
 
-        competitor =
+        {competitor, competitor_backend} =
           database_task(fn ->
             Automations.establish_alert_baseline(alert, & &1, fn _, _ -> flunk("duplicate publisher") end)
           end)
 
-        assert Task.await(competitor, 1000) == :ok
+        assert await_result(competitor, competitor_backend) == :ok
 
         assert {:ok, cancelled} =
                  Automations.update_alert(alert, %{
@@ -81,7 +80,7 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
         refute cancelled.trigger_config["apply_actions_to_existing_matches"]
         send(publisher.pid, :finish_action)
-        assert Task.await(publisher, 5000) == :ok
+        assert await_result(publisher, publisher_backend) == :ok
         assert Repo.reload!(attempt).last_published_test_case_id == first
         refute_received {:action_started, ^second}
         assert [%{test_case_id: ^first}] = Automations.list_active_alert_events(cancelled)
@@ -94,12 +93,12 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
 
         publishing_attempt(requested, [second])
 
-        next_publisher =
+        {next_publisher, next_publisher_backend} =
           database_task(fn ->
             Automations.establish_alert_baseline(requested, & &1, fn _, ^second -> :ok end)
           end)
 
-        assert Task.await(next_publisher, 5000) == :ok
+        assert await_result(next_publisher, next_publisher_backend) == :ok
         assert Repo.reload!(requested).baseline_established_at
       after
         send(publisher.pid, :finish_action)
@@ -112,18 +111,66 @@ defmodule Tuist.Automations.BaselinePublicationConcurrencyTest do
     end
   end
 
+  # Runs `fun` in its own PostgreSQL session and returns the task with that
+  # session's backend PID, so the test can see whether it waits on a lock.
   defp database_task(fun) do
-    Task.async(fn ->
-      :ok = Sandbox.checkout(Repo, sandbox: false)
-      :ok = Sandbox.checkout(IngestRepo, sandbox: false)
+    parent = self()
 
-      try do
-        fun.()
-      after
-        Sandbox.checkin(IngestRepo)
-        Sandbox.checkin(Repo)
-      end
-    end)
+    task =
+      Task.async(fn ->
+        :ok = Sandbox.checkout(Repo, sandbox: false)
+        :ok = Sandbox.checkout(IngestRepo, sandbox: false)
+        %{rows: [[backend]]} = Repo.query!("SELECT pg_backend_pid()")
+        send(parent, {:backend, self(), backend})
+
+        try do
+          fun.()
+        after
+          Sandbox.checkin(IngestRepo)
+          Sandbox.checkin(Repo)
+        end
+      end)
+
+    task_pid = task.pid
+
+    receive do
+      {:backend, ^task_pid, backend} -> {task, backend}
+    end
+  end
+
+  # The test waits on progress, never on a deadline, so a slow runner only makes
+  # it slower. The property under test is that no session waits on another's
+  # lock, so a wait is detected directly in `pg_locks`: an ungranted lock stays
+  # visible until it is granted, whatever the poll interval. A task that crashes
+  # takes the linked test process down with it.
+  defp await_action(%Task{ref: ref} = task, backend, test_case_id) do
+    receive do
+      {:action_started, ^test_case_id} -> :ok
+      {^ref, result} -> flunk("publisher returned #{inspect(result)} before its first action")
+    after
+      10 ->
+        refute_lock_wait(backend)
+        await_action(task, backend, test_case_id)
+    end
+  end
+
+  defp await_result(%Task{ref: ref} = task, backend) do
+    receive do
+      {^ref, result} ->
+        Process.demonitor(ref, [:flush])
+        result
+    after
+      10 ->
+        refute_lock_wait(backend)
+        await_result(task, backend)
+    end
+  end
+
+  defp refute_lock_wait(backend) do
+    %{rows: [[waiting]]} =
+      Repo.query!("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = $1 AND NOT granted)", [backend])
+
+    refute waiting, "database session #{backend} is waiting on a lock held by another session"
   end
 
   defp publishing_attempt(alert, ids) do
