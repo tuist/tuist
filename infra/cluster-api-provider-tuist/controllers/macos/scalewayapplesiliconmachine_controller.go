@@ -547,13 +547,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
+		identity, err := r.CredentialsManager.EnsureTartKubeletIdentity(ctx, machine.Name, machineNodeLabels(machine)["tuist.dev/fleet"])
 		if err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "NodeIdentityUnavailable",
 				clusterv1.ConditionSeverityWarning, "%v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
+		kubeconfigYAML, err := r.Kubeconfig.RenderTartKubelet(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "KubeconfigUnavailable",
 				clusterv1.ConditionSeverityWarning, "%v", err)
@@ -703,7 +703,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
+		identity, err := r.CredentialsManager.EnsureTartKubeletIdentity(ctx, machine.Name, machineNodeLabels(machine)["tuist.dev/fleet"])
 		if err != nil {
 			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, desiredHostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
@@ -711,7 +711,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
+		kubeconfigYAML, err := r.Kubeconfig.RenderTartKubelet(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
 			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, desiredHostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {

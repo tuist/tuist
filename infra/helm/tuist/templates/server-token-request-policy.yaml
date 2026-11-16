@@ -3,10 +3,10 @@
 {{- $serviceAccount := include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
 {{- /*
 Atlas accepts agent feedback from any token for the server ServiceAccount, so
-only kubelets may mint one: they project tokens into the server's own pods. The
-tart-kubelet ClusterRole grants `serviceaccounts/token: create` cluster-wide to
-every Mac host identity, which would otherwise let a compromised host mint a
-token Atlas trusts. Real kubelets authenticate in the `system:nodes` group;
+only kubelets may mint one: they project tokens into the server's own pods. A
+Mac host identity may mint tokens for the ServiceAccounts of Pods bound to its
+Node (tart-kubelet-rbac.yaml); this keeps one that ever ran a server Pod, or a
+grant that drifted, from minting a token Atlas trusts. Real kubelets authenticate in the `system:nodes` group;
 tart-kubelet hosts authenticate as ServiceAccounts and never run server pods.
 */}}
 ---

@@ -986,11 +986,11 @@ func (r *RackAppleSiliconMachineReconciler) nodeKubeconfig(
 		}
 		return kubeconfigYAML, nil
 	}
-	identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
+	identity, err := r.CredentialsManager.EnsureTartKubeletIdentity(ctx, machine.Name, rackMachineNodeLabels(machine)["tuist.dev/fleet"])
 	if err != nil {
 		return "", &prepError{"NodeIdentityUnavailable", fmt.Errorf("ensure node identity: %w", err)}
 	}
-	kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
+	kubeconfigYAML, err := r.Kubeconfig.RenderTartKubelet(ctx, machine.Name, identity.Token, identity.CA)
 	if err != nil {
 		return "", &prepError{"KubeconfigUnavailable", fmt.Errorf("render kubeconfig: %w", err)}
 	}

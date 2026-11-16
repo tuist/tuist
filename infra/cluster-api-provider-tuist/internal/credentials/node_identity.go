@@ -1,9 +1,9 @@
-// Per-machine kubelet identity. One ServiceAccount + one
-// long-lived service-account-token Secret + one ClusterRoleBinding
-// per Mac mini, all in the operator's namespace. The Mac mini's
-// kubeconfig embeds that machine's token, so a compromised host
-// can only authenticate as its own Node identity — a leaked token
-// doesn't unlock any other host in the fleet.
+// Per-machine kubelet identity of the Linux kinds. One ServiceAccount + one
+// long-lived service-account-token Secret + one ClusterRoleBinding per
+// machine, all in the operator's namespace. The machine's kubeconfig embeds
+// that token. macOS hosts use EnsureTartKubeletIdentity
+// (tart_kubelet_identity.go) instead, with a short-lived rotated token and
+// node-scoped grants.
 
 package credentials
 
@@ -181,10 +181,10 @@ func (m *Manager) ensureNodeClusterRoleBinding(ctx context.Context, bindingName,
 // Secret, and ClusterRoleBinding. Idempotent: missing resources are
 // not an error.
 //
-// Order matters: drop the ClusterRoleBinding first so the token
-// loses its cluster-wide read on Secrets/ConfigMaps before the token
-// itself is deleted. Without this, a deleted Machine would leave
-// behind a long-lived credential bound to a privileged ClusterRole.
+// Order matters: drop the bindings first so the token loses its grants
+// before the token itself is deleted. Without this, a deleted Machine would
+// leave behind a long-lived credential bound to a privileged role. Deleting
+// the ServiceAccount also revokes every TokenRequest token minted for it.
 func (m *Manager) DeleteNodeIdentity(ctx context.Context, machineName string) error {
 	saName := nodeIdentitySAPrefix + "-" + machineName
 	tokenSecretName := saName + "-token"
@@ -193,6 +193,9 @@ func (m *Manager) DeleteNodeIdentity(ctx context.Context, machineName string) er
 	binding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: bindingName}}
 	if err := m.Client.Delete(ctx, binding); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete cluster role binding: %w", err)
+	}
+	if err := m.deleteTartKubeletRoles(ctx, machineName); err != nil {
+		return fmt.Errorf("delete role bindings: %w", err)
 	}
 	tokenSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: tokenSecretName}}
 	if err := m.Client.Delete(ctx, tokenSecret); err != nil && !apierrors.IsNotFound(err) {

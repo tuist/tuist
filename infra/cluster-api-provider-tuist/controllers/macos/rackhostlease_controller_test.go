@@ -67,15 +67,6 @@ func offeredLease(mutate ...func(*infrav1.RackHostLease)) *infrav1.RackHostLease
 	return l
 }
 
-// tokenSecret is what the service-account-token controller fills in for the
-// node identity the borrower mints.
-func tokenSecret(node string) *corev1.Secret {
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "tart-kubelet-" + node + "-token", Namespace: testNamespace},
-		Data:       map[string][]byte{"token": []byte("node-token"), "ca.crt": []byte("ca")},
-	}
-}
-
 func tailscaleSecret() *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "tailscale", Namespace: testNamespace},
@@ -110,7 +101,7 @@ func newLeaseReconcilerWith(t *testing.T, intercept func(client.Client) intercep
 		Recorder: fakeRecorder(),
 		CredentialsManager: &credentials.Manager{
 			Client: c, Namespace: testNamespace,
-			NodeIdentityClusterRole: "tuist-tart-kubelet", TailscaleAuthKeySecretName: "tailscale",
+			NodeIdentityClusterRole: "tuist-tart-kubelet", TailscaleAuthKeySecretName: "tailscale", ClusterCA: []byte("ca"),
 		},
 		Kubeconfig: &kubeconfig.Builder{APIServerURL: "https://kube-staging.example"},
 		Env:        "staging",
@@ -225,7 +216,7 @@ func TestBorrowerWaitsForItsKeyToBeGranted(t *testing.T) {
 // fresh tailnet login, under this env's runtime ownership, to the host key
 // the lender pinned.
 func TestBorrowerTakesTheHostOverWithItsOwnRuntime(t *testing.T) {
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 
 	lease := reconcileLease(t, r)
@@ -271,7 +262,7 @@ func TestBorrowerTakesTheHostOverWithItsOwnRuntime(t *testing.T) {
 // A change to this env's runtime (its deploy) reaches the borrowed host
 // through the drift loop, without logging it into the tailnet again.
 func TestBorrowerRollsItsDeployToTheHost(t *testing.T) {
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	before := reconcileLease(t, r).Status.HostConfigHash
 
@@ -291,7 +282,7 @@ func TestBorrowerRollsItsDeployToTheHost(t *testing.T) {
 // A push the fence refuses means the lender has not handed the runtime over;
 // it counts as a failed attempt and does not take the host.
 func TestBorrowerRetriesAPushTheFenceRefused(t *testing.T) {
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	p.err = &bootstrap.RuntimeOwnerError{Expected: "staging", Owner: "production"}
 
@@ -309,7 +300,7 @@ func TestBorrowerRetriesAPushTheFenceRefused(t *testing.T) {
 func TestBorrowerDrainsThePreviousNodeFirst(t *testing.T) {
 	previous := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "tuist-tuist-rack-fleet-mini-01"}}
 	job := runnerPodOn("job-1", "tuist-tuist-rack-fleet-mini-01")
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), previous, job)
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret(), previous, job)
 	grant(t, r, reconcileLease(t, r))
 
 	reconcileLease(t, r)
@@ -336,7 +327,7 @@ func TestBorrowerDrainsThePreviousNodeFirst(t *testing.T) {
 // Returning the host: this env's jobs finish, then its Node, identity and
 // pushes go, and the lender may take the runtime back.
 func TestBorrowerReleasesTheHostOnReturn(t *testing.T) {
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	lease := reconcileLease(t, r)
 	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: borrowedNode}}
@@ -383,7 +374,7 @@ func TestBorrowerReleasesTheHostOnReturn(t *testing.T) {
 // Deleting the lease (the lender's return, or a forced reclaim) leaves nothing
 // of this env's behind: the key, the identity and the Node.
 func TestBorrowerCleansUpADeletedLease(t *testing.T) {
-	r, _ := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, _ := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	reconcileLease(t, r)
 	if err := r.Create(context.Background(), &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: borrowedNode}}); err != nil {
@@ -416,7 +407,7 @@ func TestBorrowerCleansUpADeletedLease(t *testing.T) {
 // A host taken off this env's list while lent is drained and released, which
 // tells the lender it can have it back.
 func TestBorrowerReleasesAHostItStoppedDeclaring(t *testing.T) {
-	r, _ := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, _ := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	reconcileLease(t, r)
 	r.Hosts = nil
@@ -427,7 +418,7 @@ func TestBorrowerReleasesAHostItStoppedDeclaring(t *testing.T) {
 }
 
 func TestBorrowerReportsItsNodesReadiness(t *testing.T) {
-	r, _ := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), &corev1.Node{
+	r, _ := newLeaseReconciler(t, offeredLease(), tailscaleSecret(), &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: borrowedNode},
 		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue, LastHeartbeatTime: metav1.NewTime(time.Now())}}},
 	})
@@ -441,7 +432,7 @@ var errUnreachable = errors.New("dial tcp: i/o timeout")
 
 // A push that cannot reach the host keeps the lease as it is and retries.
 func TestBorrowerRetriesAnUnreachableHost(t *testing.T) {
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	p.err = errUnreachable
 
@@ -459,7 +450,7 @@ func TestBorrowerRetriesAnUnreachableHost(t *testing.T) {
 func activeLease(t *testing.T, objs ...runtime.Object) (*RackHostLeaseReconciler, *pushes) {
 	t.Helper()
 	r, p := newLeaseReconciler(t, append([]runtime.Object{
-		offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(),
+		offeredLease(), tailscaleSecret(),
 		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: borrowedNode}},
 	}, objs...)...)
 	grant(t, r, reconcileLease(t, r))
@@ -611,7 +602,7 @@ func TestBorrowerRefusesToAskForAReinstall(t *testing.T) {
 // grant would take the env's capacity away and give nothing back.
 func TestBorrowerReachesTheHostBeforeDrainingThePreviousNode(t *testing.T) {
 	previous := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "tuist-tuist-rack-fleet-mini-01"}}
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), previous)
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret(), previous)
 	unreachable := true
 	r.probeHost = func(context.Context, bootstrap.Config) (string, error) {
 		if unreachable {
@@ -669,7 +660,7 @@ func runnerOn(name, node, heartbeat string) *corev1.Pod {
 // ber1-runner-b01's handover until a person removed their finalizers.
 func TestBorrowerDoesNotWaitForIdleRunnersOnADeadNode(t *testing.T) {
 	idle := runnerOn("idle", previousNode, "polling")
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), deadNode(previousNode), idle)
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret(), deadNode(previousNode), idle)
 	grant(t, r, reconcileLease(t, r))
 
 	lease := reconcileLease(t, r)
@@ -685,7 +676,7 @@ func TestBorrowerDoesNotWaitForIdleRunnersOnADeadNode(t *testing.T) {
 // its Node gone, so the borrower waits for it, and says what to do.
 func TestBorrowerWaitsForAClaimedRunnerOnADeadNode(t *testing.T) {
 	busy := runnerOn("busy", previousNode, "claimed")
-	r, p := newLeaseReconciler(t, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret(), deadNode(previousNode), busy)
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret(), deadNode(previousNode), busy)
 	grant(t, r, reconcileLease(t, r))
 
 	lease := reconcileLease(t, r)
@@ -714,7 +705,7 @@ func TestBorrowerStampsTheTakeoverInOneWrite(t *testing.T) {
 			}
 			return nil
 		}}
-	}, offeredLease(), tokenSecret(borrowedNode), tailscaleSecret())
+	}, offeredLease(), tailscaleSecret())
 	grant(t, r, reconcileLease(t, r))
 	reconcileLease(t, r)
 

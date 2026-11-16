@@ -157,8 +157,9 @@ rules:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
     #   - <machine>-bootstrap: per-machine sudo password +
     #     SSH username + TOFU host fingerprint
-    #   - tart-kubelet-<machine>-token: per-machine kubelet auth token,
-    #     populated by k8s once it sees the SA annotation
+    #   - tart-kubelet-<machine>-token: the long-lived kubelet token of
+    #     a Linux machine, and of a macOS host until it moves to the token
+    #     it rotates (then the node access controller deletes it)
     # Plus bootstrap-token-<id> in kube-system. Other Secrets (cluster
     # Secret holding Scaleway creds) are watched read-only.
     resources: [secrets]
@@ -175,6 +176,39 @@ rules:
     # owns the role definition centrally.
     resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    # Node access: per macOS host, a Role and RoleBinding in each namespace
+    # with Pods on its Node, naming the Secrets, ConfigMaps and ServiceAccount
+    # tokens those Pods use, plus the host's own Roles. The cache watches only
+    # the ones labelled tuist.dev/node-access-for.
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    # Binding the chart's tart-kubelet Role in the runner namespace to each
+    # macOS host, without holding its permissions there.
+    resources: [roles]
+    resourceNames:
+      - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+    verbs: [bind]
+  - apiGroups: [""]
+    # RBAC lets the operator write a Role granting only what it holds itself:
+    # the node access Roles grant `get` on named ConfigMaps (Secrets it reads
+    # already) and `create` on named ServiceAccount tokens. Token create also
+    # mints each macOS host's kubeconfig token.
+    resources: [configmaps]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
+  # Verbs no API serves, which the node access Roles grant by name and the
+  # tart-kubelet admission policy asks the authorizer about: binding a token
+  # to a Pod on the host's Node, and the fleet the host's Node may join.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [tuist-bind-token]
+  - apiGroups: ["tuist.dev"]
+    resources: [nodefleets]
+    verbs: [tuist-register]
   - apiGroups: ["rbac.authorization.k8s.io"]
     # `bind` verb on the two ClusterRoles the operator binds node identities to:
     # the chart's tart-kubelet role (the macOS shim) and the built-in system:node
@@ -518,6 +552,10 @@ spec:
             - --api-server-url={{ . }}
             {{- end }}
             - --node-identity-cluster-role={{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+            - --node-identity-roles={{ .Values.runnersFleet.namespace | default "tuist-runners" }}/{{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+            {{- with .Values.macosFleet.tartKubelet.credentialTTL }}
+            - --node-credential-ttl={{ . }}
+            {{- end }}
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}

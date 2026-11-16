@@ -11,11 +11,7 @@
 //
 // We deliberately don't share a token across the fleet: a compromised
 // Mac mini can only impersonate its own Node identity, not every
-// other host's. Tighter Node-graph-restricted RBAC (the upstream
-// kubelet pattern with NodeAuthorizer + NodeRestriction admission)
-// is the natural follow-up but a much bigger lift; per-machine SAs
-// are the minimum viable separation for runners-as-a-service /
-// BYOC tenancy.
+// other host's.
 package kubeconfig
 
 import (
@@ -33,7 +29,23 @@ type Builder struct {
 // authenticating as the per-machine ServiceAccount whose token + CA
 // the caller supplies. Caller is responsible for getting (token, ca)
 // from credentials.Manager.EnsureNodeIdentity.
-func (b *Builder) Render(_ context.Context, machineName string, token, ca []byte) (string, error) {
+func (b *Builder) Render(ctx context.Context, machineName string, token, ca []byte) (string, error) {
+	return b.render(machineName, token, ca, "")
+}
+
+// TartKubeletTokenFile is where a macOS host keeps the token it rotates.
+// The kubeconfig names it as `tokenFile`, which client-go re-reads and
+// prefers over the inline token once it exists; tart-kubelet seeds it from
+// the inline token whenever the operator pushed a newer one.
+const TartKubeletTokenFile = "/etc/tart-kubelet/token"
+
+// RenderTartKubelet renders a macOS host's kubeconfig: the operator's fresh
+// token inline, and the file tart-kubelet keeps the token it rotates in.
+func (b *Builder) RenderTartKubelet(_ context.Context, machineName string, token, ca []byte) (string, error) {
+	return b.render(machineName, token, ca, TartKubeletTokenFile)
+}
+
+func (b *Builder) render(machineName string, token, ca []byte, tokenFile string) (string, error) {
 	if b.APIServerURL == "" {
 		return "", fmt.Errorf("kubeconfig: APIServerURL is empty")
 	}
@@ -45,6 +57,10 @@ func (b *Builder) Render(_ context.Context, machineName string, token, ca []byte
 	}
 	caB64 := base64.StdEncoding.EncodeToString(ca)
 	user := "tart-kubelet-" + machineName
+	tokenFileLine := ""
+	if tokenFile != "" {
+		tokenFileLine = "      tokenFile: " + tokenFile + "\n"
+	}
 	return fmt.Sprintf(`apiVersion: v1
 kind: Config
 current-context: tart-kubelet
@@ -62,5 +78,5 @@ users:
   - name: %s
     user:
       token: %s
-`, b.APIServerURL, caB64, user, user, string(token)), nil
+%s`, b.APIServerURL, caB64, user, user, string(token), tokenFileLine), nil
 }

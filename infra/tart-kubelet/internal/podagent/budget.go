@@ -50,9 +50,12 @@ const demandBucket = 24 * time.Hour
 
 // goldenBudget returns how many images fleet's hosts keep, and false when no
 // budget names the fleet or it does not parse.
-func goldenBudget(ctx context.Context, k8s client.Reader, fleet string) (int, bool, error) {
+// The ConfigMaps are read in the runner namespace only: a host may list no
+// other namespace's ConfigMaps (see "Node access" in AGENTS.md). An empty
+// namespace lists every namespace.
+func goldenBudget(ctx context.Context, k8s client.Reader, namespace, fleet string) (int, bool, error) {
 	list := &corev1.ConfigMapList{}
-	if err := k8s.List(ctx, list, client.MatchingLabels{goldenBudgetsLabel: "true"}); err != nil {
+	if err := k8s.List(ctx, list, client.InNamespace(namespace), client.MatchingLabels{goldenBudgetsLabel: "true"}); err != nil {
 		return 0, false, err
 	}
 	for _, cm := range list.Items {

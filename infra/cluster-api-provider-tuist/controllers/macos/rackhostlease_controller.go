@@ -294,11 +294,11 @@ func (r *RackHostLeaseReconciler) push(ctx context.Context, lease *infrav1.RackH
 }
 
 func (r *RackHostLeaseReconciler) perHostConfig(ctx context.Context, lease *infrav1.RackHostLease, node string, privateKey []byte) (bootstrap.PerHost, error) {
-	identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, node, "")
+	identity, err := r.CredentialsManager.EnsureTartKubeletIdentity(ctx, node, r.FleetName)
 	if err != nil {
 		return bootstrap.PerHost{}, fmt.Errorf("ensure node identity: %w", err)
 	}
-	kubeconfigYAML, err := r.Kubeconfig.Render(ctx, node, identity.Token, identity.CA)
+	kubeconfigYAML, err := r.Kubeconfig.RenderTartKubelet(ctx, node, identity.Token, identity.CA)
 	if err != nil {
 		return bootstrap.PerHost{}, fmt.Errorf("render kubeconfig: %w", err)
 	}

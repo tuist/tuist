@@ -1002,6 +1002,10 @@ sudo touch /var/log/tart-kubelet.log
 sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
+# tart-kubelet replaces its own token in /etc/tart-kubelet/token (written to a
+# temporary file there and renamed), so the directory is the user's too.
+sudo chown %[1]s:staff /etc/tart-kubelet
+sudo chmod 0700 /etc/tart-kubelet
 
 # pid prints the launchd-tracked PID (empty when not running). settled
 # waits for a NEW pid (different from the pre-reload one) and confirms it

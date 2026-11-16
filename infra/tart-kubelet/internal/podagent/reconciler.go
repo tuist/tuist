@@ -431,6 +431,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		case errors.Is(err, errMirrorSyncing):
 			reason = "ImageCacheSyncing"
 			logger.Info("waiting for the rack image cache", "reason", err.Error())
+		case apierrors.IsForbidden(err):
+			// The operator grants a host the Secrets, ConfigMaps and
+			// ServiceAccount tokens its Pods name once it sees the Pod bound
+			// here (node access), which can trail this reconcile by a moment.
+			// Ask again soon rather than after the usual 30 seconds.
+			logger.Info("waiting for this node's access to the Pod's references", "reason", err.Error())
+			_ = r.publishStatus(ctx, pod, &corev1.PodStatus{Phase: corev1.PodPending, Message: err.Error(), Reason: "WaitingForNodeAccess"})
+			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 		default:
 			logger.Error(err, "create failed; will retry")
 		}

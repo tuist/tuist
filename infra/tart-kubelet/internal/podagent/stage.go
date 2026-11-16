@@ -41,9 +41,9 @@ const stageJobWaitCap = 20 * time.Minute
 // pools of that Xcode and variant.
 type upcomingImages map[string]string
 
-func listUpcomingImages(ctx context.Context, k8s client.Reader) (upcomingImages, error) {
+func listUpcomingImages(ctx context.Context, k8s client.Reader, namespace string) (upcomingImages, error) {
 	list := &corev1.ConfigMapList{}
-	if err := k8s.List(ctx, list, client.MatchingLabels{upcomingImagesLabel: "true"}); err != nil {
+	if err := k8s.List(ctx, list, client.InNamespace(namespace), client.MatchingLabels{upcomingImagesLabel: "true"}); err != nil {
 		return nil, err
 	}
 	out := upcomingImages{}
@@ -105,7 +105,7 @@ func (p *Prewarmer) stage(ctx context.Context) {
 		logger.Error(err, "list runner pools; not staging runner images")
 		return
 	}
-	upcoming, err := listUpcomingImages(ctx, p.K8s)
+	upcoming, err := listUpcomingImages(ctx, p.K8s, p.RunnerNamespace)
 	if err != nil {
 		logger.Error(err, "list upcoming runner images; not staging runner images")
 		return
@@ -117,7 +117,7 @@ func (p *Prewarmer) stage(ctx context.Context) {
 	}
 
 	images := p.stageImages(pools, upcoming, held)
-	budget, budgeted, err := goldenBudget(ctx, p.K8s, p.Fleet)
+	budget, budgeted, err := goldenBudget(ctx, p.K8s, p.RunnerNamespace, p.Fleet)
 	if err != nil {
 		logger.Error(err, "read the golden budget; staging as without one")
 	}

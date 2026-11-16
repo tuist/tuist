@@ -2397,6 +2397,11 @@ macosFleet:
   tart:
     version: ""
   tartKubelet:
+    # Lifetime of the API token each Mac mini's kubeconfig carries (a Go
+    # duration). The host replaces it daily, so this is how long a host can be
+    # cut off from the API server and still rejoin without a push from the
+    # operator. Empty keeps the operator's default, 168h.
+    credentialTTL: ""
     # Capacity advertised by each Mac mini when it registers its Node.
     # Matches the default `macosFleet.machine.type = M2-L` on Scaleway
     # — M2 Pro chip, 12 vCPU, 16 GB RAM. 14336 leaves ~2 GB for the

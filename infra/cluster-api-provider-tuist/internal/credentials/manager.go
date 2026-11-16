@@ -72,6 +72,20 @@ type Manager struct {
 	// rendered name in the chart's deployment template).
 	NodeIdentityClusterRole string
 
+	// NodeIdentityRoles are the chart's Roles every macOS host's
+	// ServiceAccount is bound to in their namespaces (the runner
+	// namespace's ConfigMaps and cache-volume token). Set from
+	// `--node-identity-roles`.
+	NodeIdentityRoles []types.NamespacedName
+
+	// NodeCredentialTTL is how long the token in a macOS host's kubeconfig
+	// lives. Zero means DefaultNodeCredentialTTL.
+	NodeCredentialTTL time.Duration
+
+	// ClusterCA is the CA bundle macOS hosts' kubeconfigs carry. Empty reads
+	// the operator Pod's service-account CA.
+	ClusterCA []byte
+
 	// TailscaleAuthKeySecretName is the name of the operator-namespace
 	// Secret holding the Tailscale join credential under key `auth-key`
 	// (an OAuth client secret, synced from 1Password via ESO). See the

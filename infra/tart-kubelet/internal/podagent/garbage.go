@@ -70,6 +70,9 @@ type Collector struct {
 	// them (~1.1 TiB) beside the 2 it could still use. A fleet without pools,
 	// or a failed RunnerPool List, keeps the retention behaviour.
 	Fleet string
+	// RunnerNamespace holds the golden budget and upcoming runner image
+	// ConfigMaps. Empty reads every namespace.
+	RunnerNamespace string
 
 	// HostDiskFreeFloor is the root-volume free-space percentage below
 	// which the collector reclaims golden bases even when a Pod still
@@ -626,13 +629,13 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		// read as superseded before the deploy that moves the pool.
 		var upcoming upcomingImages
 		if len(pools) > 0 {
-			if upcoming, err = listUpcomingImages(ctx, c.K8s); err != nil {
+			if upcoming, err = listUpcomingImages(ctx, c.K8s, c.RunnerNamespace); err != nil {
 				log.FromContext(ctx).WithName("gc").Error(err, "list upcoming runner images; keeping superseded images for the retention window")
 				pools = nil
 			}
 		}
 		if len(pools) > 0 {
-			budget, budgeted, err := goldenBudget(ctx, c.K8s, c.Fleet)
+			budget, budgeted, err := goldenBudget(ctx, c.K8s, c.RunnerNamespace, c.Fleet)
 			if err != nil {
 				log.FromContext(ctx).WithName("gc").Error(err, "read the golden budget; collecting as without one")
 			}
