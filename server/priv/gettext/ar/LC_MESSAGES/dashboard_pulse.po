@@ -114,6 +114,7 @@ msgstr "إدخالات السجل المصنفة كتحذير في الفترة 
 msgid "Logs"
 msgstr "السجلات"
 
+#: lib/tuist_web/live/pulse_error_live.ex:355
 #: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Message"
@@ -296,19 +297,19 @@ msgstr "مقارنة بالساعة السابقة"
 msgid "Text search (* for all)"
 msgstr "البحث النصي (* للكل)"
 
-#: lib/tuist_web/live/pulse_error_live.ex:489
+#: lib/tuist_web/live/pulse_error_live.ex:552
 #, elixir-autogen, elixir-format
 msgid "Additional data"
 msgstr "بيانات إضافية"
 
-#: lib/tuist_web/live/pulse_error_live.ex:470
+#: lib/tuist_web/live/pulse_error_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Contexts"
 msgstr "السياقات"
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:267
-#: lib/tuist_web/live/pulse_error_live.ex:368
+#: lib/tuist_web/live/pulse_error_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "البيئة"
@@ -342,20 +343,15 @@ msgstr "الأحداث"
 msgid "Events in this period"
 msgstr "الأحداث في هذه الفترة"
 
-#: lib/tuist_web/live/pulse_error_live.ex:386
+#: lib/tuist_web/live/pulse_error_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr "استثناء"
 
-#: lib/tuist_web/live/pulse_error_live.ex:413
+#: lib/tuist_web/live/pulse_error_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "خارجي"
-
-#: lib/tuist_web/live/pulse_error_live.ex:404
-#, elixir-autogen, elixir-format
-msgid "File"
-msgstr "ملف"
 
 #: lib/tuist_web/live/pulse_live.ex:689
 #: lib/tuist_web/live/pulse_live.ex:738
@@ -368,12 +364,7 @@ msgstr "أول ظهور"
 msgid "First seen in this period"
 msgstr "أول ظهور في هذه الفترة"
 
-#: lib/tuist_web/live/pulse_error_live.ex:399
-#, elixir-autogen, elixir-format
-msgid "Function"
-msgstr "دالة"
-
-#: lib/tuist_web/live/pulse_error_live.ex:412
+#: lib/tuist_web/live/pulse_error_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "In app"
 msgstr "داخل التطبيق"
@@ -391,17 +382,17 @@ msgstr "المشكلة"
 msgid "Last seen"
 msgstr "آخر ظهور"
 
-#: lib/tuist_web/live/pulse_error_live.ex:363
+#: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Latest event"
 msgstr "أحدث حدث"
 
-#: lib/tuist_web/live/pulse_error_live.ex:378
+#: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
 msgstr "لم يتم تسجيل أي استثناءات"
 
-#: lib/tuist_web/live/pulse_error_live.ex:391
+#: lib/tuist_web/live/pulse_error_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
 msgstr "لم يتم تسجيل إطارات مكدس"
@@ -413,24 +404,19 @@ msgstr "لم يتم تسجيل إطارات مكدس"
 msgid "Occurrences"
 msgstr "الحدوثات"
 
-#: lib/tuist_web/live/pulse_error_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Origin"
-msgstr "المصدر"
-
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
-#: lib/tuist_web/live/pulse_error_live.ex:372
+#: lib/tuist_web/live/pulse_error_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "الإصدار"
 
-#: lib/tuist_web/live/pulse_error_live.ex:351
+#: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
 msgstr "تتبع المكدس (Stack trace)"
 
-#: lib/tuist_web/live/pulse_error_live.ex:454
+#: lib/tuist_web/live/pulse_error_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "العلامات"
@@ -498,7 +484,7 @@ msgstr "صفحات الحدوث"
 msgid "Platform"
 msgstr "المنصة"
 
-#: lib/tuist_web/live/pulse_error_live.ex:592
+#: lib/tuist_web/live/pulse_error_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "لم يتمكن Pulse من تحميل هذه التفاصيل. عد إلى الأخطاء وحاول مرة أخرى."
@@ -518,7 +504,7 @@ msgstr "أحداث Sentry المصنفة كـ \"قاتلة\" في الفترة �
 msgid "Span ID"
 msgstr "معرف الامتداد (Span ID)"
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "لم يتم العثور على هذه المشكلة أو الحدث في الفترة المحددة."
@@ -528,12 +514,37 @@ msgstr "لم يتم العثور على هذه المشكلة أو الحدث ف
 msgid "Trend"
 msgstr "الاتجاه"
 
-#: lib/tuist_web/live/pulse_error_live.ex:356
+#: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
 msgstr "عرض الحدث"
 
-#: lib/tuist_web/live/pulse_error_live.ex:381
+#: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
 msgstr "سجل هذا الحدث رسالة، وليس استثناءً."
+
+#: lib/tuist_web/live/pulse_error_live.ex:528
+#, elixir-autogen, elixir-format
+msgid "Breadcrumbs"
+msgstr "مسار التنقل"
+
+#: lib/tuist_web/live/pulse_error_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "الاسم"
+
+#: lib/tuist_web/live/pulse_error_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "Request"
+msgstr "الطلب"
+
+#: lib/tuist_web/live/pulse_error_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "SDK"
+msgstr "SDK"
+
+#: lib/tuist_web/live/pulse_error_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr "الإصدار"

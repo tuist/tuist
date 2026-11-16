@@ -114,6 +114,7 @@ msgstr "所选期间内标记为 warn 或 warning 的日志条目。图表显示
 msgid "Logs"
 msgstr "日志"
 
+#: lib/tuist_web/live/pulse_error_live.ex:355
 #: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Message"
@@ -296,19 +297,19 @@ msgstr "与过去 1 小时对比"
 msgid "Text search (* for all)"
 msgstr "文本搜索（* 表示全部）"
 
-#: lib/tuist_web/live/pulse_error_live.ex:489
+#: lib/tuist_web/live/pulse_error_live.ex:552
 #, elixir-autogen, elixir-format
 msgid "Additional data"
 msgstr "附加数据"
 
-#: lib/tuist_web/live/pulse_error_live.ex:470
+#: lib/tuist_web/live/pulse_error_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Contexts"
 msgstr "上下文"
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:267
-#: lib/tuist_web/live/pulse_error_live.ex:368
+#: lib/tuist_web/live/pulse_error_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "环境"
@@ -342,20 +343,15 @@ msgstr "事件"
 msgid "Events in this period"
 msgstr "此期间的事件"
 
-#: lib/tuist_web/live/pulse_error_live.ex:386
+#: lib/tuist_web/live/pulse_error_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr "异常"
 
-#: lib/tuist_web/live/pulse_error_live.ex:413
+#: lib/tuist_web/live/pulse_error_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "外部"
-
-#: lib/tuist_web/live/pulse_error_live.ex:404
-#, elixir-autogen, elixir-format
-msgid "File"
-msgstr "文件"
 
 #: lib/tuist_web/live/pulse_live.ex:689
 #: lib/tuist_web/live/pulse_live.ex:738
@@ -368,12 +364,7 @@ msgstr "首次出现"
 msgid "First seen in this period"
 msgstr "本周期内首次出现"
 
-#: lib/tuist_web/live/pulse_error_live.ex:399
-#, elixir-autogen, elixir-format
-msgid "Function"
-msgstr "函数"
-
-#: lib/tuist_web/live/pulse_error_live.ex:412
+#: lib/tuist_web/live/pulse_error_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "In app"
 msgstr "应用内"
@@ -391,17 +382,17 @@ msgstr "问题"
 msgid "Last seen"
 msgstr "最后出现时间"
 
-#: lib/tuist_web/live/pulse_error_live.ex:363
+#: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Latest event"
 msgstr "最新事件"
 
-#: lib/tuist_web/live/pulse_error_live.ex:378
+#: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
 msgstr "未记录异常"
 
-#: lib/tuist_web/live/pulse_error_live.ex:391
+#: lib/tuist_web/live/pulse_error_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
 msgstr "未记录堆栈帧"
@@ -413,24 +404,19 @@ msgstr "未记录堆栈帧"
 msgid "Occurrences"
 msgstr "出现次数"
 
-#: lib/tuist_web/live/pulse_error_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Origin"
-msgstr "来源"
-
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
-#: lib/tuist_web/live/pulse_error_live.ex:372
+#: lib/tuist_web/live/pulse_error_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "发布"
 
-#: lib/tuist_web/live/pulse_error_live.ex:351
+#: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
 msgstr "堆栈跟踪"
 
-#: lib/tuist_web/live/pulse_error_live.ex:454
+#: lib/tuist_web/live/pulse_error_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "标签"
@@ -498,7 +484,7 @@ msgstr "出现页面"
 msgid "Platform"
 msgstr "平台"
 
-#: lib/tuist_web/live/pulse_error_live.ex:592
+#: lib/tuist_web/live/pulse_error_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "Pulse 无法加载这些详细信息。返回“错误”并重试。"
@@ -518,7 +504,7 @@ msgstr "选定时间段内标记为致命的 Sentry 事件。图表显示每个�
 msgid "Span ID"
 msgstr "Span ID"
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "在所选时间段内未找到此问题或事件。"
@@ -528,12 +514,37 @@ msgstr "在所选时间段内未找到此问题或事件。"
 msgid "Trend"
 msgstr "趋势"
 
-#: lib/tuist_web/live/pulse_error_live.ex:356
+#: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
 msgstr "查看事件"
 
-#: lib/tuist_web/live/pulse_error_live.ex:381
+#: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
 msgstr "此事件记录了一条消息，而非异常。"
+
+#: lib/tuist_web/live/pulse_error_live.ex:528
+#, elixir-autogen, elixir-format
+msgid "Breadcrumbs"
+msgstr "面包屑导航"
+
+#: lib/tuist_web/live/pulse_error_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "名称"
+
+#: lib/tuist_web/live/pulse_error_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "Request"
+msgstr "请求"
+
+#: lib/tuist_web/live/pulse_error_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "SDK"
+msgstr "SDK"
+
+#: lib/tuist_web/live/pulse_error_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr "版本"

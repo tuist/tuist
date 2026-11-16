@@ -4160,7 +4160,8 @@ sum by (cluster, env) (up{cluster=~"tuist-canary|tuist-staging", job="tuist-maco
 - Severity: critical
 - Summary: `No xcresult processor is serving metrics in
   {{ $labels.cluster }}. The queue consumer is down`
-- Grafana rule: `ag1f78hvm3i0wd`
+- Grafana rules: `ag1f78hvm3i0wd-stg` and `ag1f78hvm3i0wd-can`, one per Pulse
+  environment
 
 The single-replica counterpart of the rule above. 30 minutes matches
 `progressDeadlineSeconds: 1800`: a guest that stays down longer than one
@@ -4296,7 +4297,8 @@ max by (cluster, env, namespace, deployment) (
 - Pending period: 1 minute
 - Severity: warning
 - Receiver: notification policy tree (production lands in `#notifications`)
-- Grafana rule: `cg1vm0wbjij28d`
+- Grafana rules: `cg1vm0wbjij28d-prod`, `-stg` and `-can`, one per Pulse
+  environment
 - Summary: `The xcresult processor rollout in {{ $labels.namespace }}
   ({{ $labels.cluster }}) made no progress for 30 minutes and stopped`
 

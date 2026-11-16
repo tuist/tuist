@@ -575,7 +575,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       on_exit(fn -> :telemetry.detach(handler_id) end)
 
       account = account_fixture()
-      enqueued_at = ~U[2026-10-28 15:37:30.000000Z]
+      enqueued_at = DateTime.utc_now()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_056, enqueued_at: enqueued_at))
 
       Repo.insert!(%RunnerSession{

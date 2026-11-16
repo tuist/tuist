@@ -19,7 +19,7 @@ private struct ThreadPage: Decodable {
 
 /// The threads inbox: Active and Archived, with running threads first.
 struct ThreadsView: View {
-    @ObservedObject var client: AppClient
+    let client: AppClient
     @State private var threads: [AppThread] = []
     @State private var nextCursor: String?
     @State private var loaded = false
@@ -32,9 +32,6 @@ struct ThreadsView: View {
 
     var body: some View {
         List {
-            #if os(iOS)
-                if available { archivePicker.listRowBackground(Color.clear) }
-            #endif
             if let error {
                 Section {
                     Text(verbatim: error).foregroundStyle(.secondary)
@@ -80,15 +77,19 @@ struct ThreadsView: View {
                         } description: {
                             Text("Ask a question, explore an idea, or solve a problem with Tuist.")
                         } actions: {
-                            Button("Start conversation") { starting = true }.buttonStyle(.borderedProminent)
+                            Button("Start conversation") { starting = true }.prominentGlassButtonStyle()
                         }
                     }
                 }
             }
         }
         .navigationTitle("Threads")
+        #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             if available {
+                ToolbarItem(placement: .principal) { archivePicker }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Start conversation", systemImage: "square.and.pencil") { starting = true }
                         .keyboardShortcut("n", modifiers: .command)
@@ -103,11 +104,14 @@ struct ThreadsView: View {
                     Task { await reload() }
                 }
             }
+            #if os(iOS)
+            .presentationDetents([.medium, .large])
+            #endif
         }
+        .navigationDestination(for: ThreadRoute.self) { route in ConversationView(client: client, id: route.id) }
         .navigationDestination(item: $opened) { route in ConversationView(client: client, id: route.id) }
         #if os(macOS)
             .toolbar {
-                if available { ToolbarItem(placement: .principal) { archivePicker } }
                 // The Mac has no pull-to-refresh.
                 ToolbarItem(placement: .primaryAction) {
                     Button("Refresh", systemImage: "arrow.clockwise") { Task { await reload() } }
@@ -137,9 +141,8 @@ struct ThreadsView: View {
         if !values.isEmpty {
             Section(title) {
                 ForEach(values) { thread in
-                    Button { opened = ThreadRoute(id: thread.id) } label: { row(thread) }
-                        .buttonStyle(.plain)
-                    .listRowBackground(Noora.backgroundTertiary)
+                    NavigationLink(value: ThreadRoute(id: thread.id)) { row(thread) }
+                        .listRowBackground(Noora.backgroundTertiary)
                 }
             }
         }
@@ -160,8 +163,6 @@ struct ThreadsView: View {
             }
         }
         .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 
     private func statusLabel(_ state: String?) -> String? {

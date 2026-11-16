@@ -114,6 +114,7 @@ msgstr ""
 msgid "Logs"
 msgstr ""
 
+#: lib/tuist_web/live/pulse_error_live.ex:355
 #: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Message"
@@ -296,19 +297,19 @@ msgstr ""
 msgid "Text search (* for all)"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:489
+#: lib/tuist_web/live/pulse_error_live.ex:552
 #, elixir-autogen, elixir-format
 msgid "Additional data"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:470
+#: lib/tuist_web/live/pulse_error_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Contexts"
 msgstr ""
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:267
-#: lib/tuist_web/live/pulse_error_live.ex:368
+#: lib/tuist_web/live/pulse_error_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr ""
@@ -342,19 +343,14 @@ msgstr ""
 msgid "Events in this period"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:386
+#: lib/tuist_web/live/pulse_error_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:413
+#: lib/tuist_web/live/pulse_error_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "External"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:404
-#, elixir-autogen, elixir-format
-msgid "File"
 msgstr ""
 
 #: lib/tuist_web/live/pulse_live.ex:689
@@ -368,12 +364,7 @@ msgstr ""
 msgid "First seen in this period"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:399
-#, elixir-autogen, elixir-format
-msgid "Function"
-msgstr ""
-
-#: lib/tuist_web/live/pulse_error_live.ex:412
+#: lib/tuist_web/live/pulse_error_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "In app"
 msgstr ""
@@ -391,17 +382,17 @@ msgstr ""
 msgid "Last seen"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:363
+#: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Latest event"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:378
+#: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:391
+#: lib/tuist_web/live/pulse_error_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
 msgstr ""
@@ -413,24 +404,19 @@ msgstr ""
 msgid "Occurrences"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Origin"
-msgstr ""
-
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
-#: lib/tuist_web/live/pulse_error_live.ex:372
+#: lib/tuist_web/live/pulse_error_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:351
+#: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:454
+#: lib/tuist_web/live/pulse_error_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr ""
@@ -498,7 +484,7 @@ msgstr ""
 msgid "Platform"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:592
+#: lib/tuist_web/live/pulse_error_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr ""
@@ -518,7 +504,7 @@ msgstr ""
 msgid "Span ID"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr ""
@@ -528,12 +514,37 @@ msgstr ""
 msgid "Trend"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:356
+#: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
 msgstr ""
 
-#: lib/tuist_web/live/pulse_error_live.ex:381
+#: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:528
+#, elixir-autogen, elixir-format
+msgid "Breadcrumbs"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "Request"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "SDK"
+msgstr ""
+
+#: lib/tuist_web/live/pulse_error_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Version"
 msgstr ""

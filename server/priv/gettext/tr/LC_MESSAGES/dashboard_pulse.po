@@ -114,6 +114,7 @@ msgstr "Seçilen dönemde uyarı olarak etiketlenmiş günlük kayıtları. Graf
 msgid "Logs"
 msgstr "Günlükler"
 
+#: lib/tuist_web/live/pulse_error_live.ex:355
 #: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Message"
@@ -296,19 +297,19 @@ msgstr "önceki saate kıyasla"
 msgid "Text search (* for all)"
 msgstr "Metin arama (* tümü için)"
 
-#: lib/tuist_web/live/pulse_error_live.ex:489
+#: lib/tuist_web/live/pulse_error_live.ex:552
 #, elixir-autogen, elixir-format
 msgid "Additional data"
 msgstr "Ek veriler"
 
-#: lib/tuist_web/live/pulse_error_live.ex:470
+#: lib/tuist_web/live/pulse_error_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Contexts"
 msgstr "Bağlamlar"
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:267
-#: lib/tuist_web/live/pulse_error_live.ex:368
+#: lib/tuist_web/live/pulse_error_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "Ortam"
@@ -342,20 +343,15 @@ msgstr "Olaylar"
 msgid "Events in this period"
 msgstr "Bu dönemdeki olaylar"
 
-#: lib/tuist_web/live/pulse_error_live.ex:386
+#: lib/tuist_web/live/pulse_error_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr "İstisna"
 
-#: lib/tuist_web/live/pulse_error_live.ex:413
+#: lib/tuist_web/live/pulse_error_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "Harici"
-
-#: lib/tuist_web/live/pulse_error_live.ex:404
-#, elixir-autogen, elixir-format
-msgid "File"
-msgstr "Dosya"
 
 #: lib/tuist_web/live/pulse_live.ex:689
 #: lib/tuist_web/live/pulse_live.ex:738
@@ -368,12 +364,7 @@ msgstr "İlk görüldüğü tarih"
 msgid "First seen in this period"
 msgstr "Bu dönemde ilk görülme"
 
-#: lib/tuist_web/live/pulse_error_live.ex:399
-#, elixir-autogen, elixir-format
-msgid "Function"
-msgstr "Fonksiyon"
-
-#: lib/tuist_web/live/pulse_error_live.ex:412
+#: lib/tuist_web/live/pulse_error_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "In app"
 msgstr "Uygulama içinde"
@@ -391,17 +382,17 @@ msgstr "Sorun"
 msgid "Last seen"
 msgstr "Son görülme"
 
-#: lib/tuist_web/live/pulse_error_live.ex:363
+#: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Latest event"
 msgstr "En son olay"
 
-#: lib/tuist_web/live/pulse_error_live.ex:378
+#: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
 msgstr "Kaydedilmiş istisna yok"
 
-#: lib/tuist_web/live/pulse_error_live.ex:391
+#: lib/tuist_web/live/pulse_error_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
 msgstr "Yığın çerçevesi kaydedilmedi"
@@ -413,24 +404,19 @@ msgstr "Yığın çerçevesi kaydedilmedi"
 msgid "Occurrences"
 msgstr "Oluşumlar"
 
-#: lib/tuist_web/live/pulse_error_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Origin"
-msgstr "Kaynak"
-
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
-#: lib/tuist_web/live/pulse_error_live.ex:372
+#: lib/tuist_web/live/pulse_error_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "Sürüm"
 
-#: lib/tuist_web/live/pulse_error_live.ex:351
+#: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
 msgstr "Yığın izleme"
 
-#: lib/tuist_web/live/pulse_error_live.ex:454
+#: lib/tuist_web/live/pulse_error_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Etiketler"
@@ -498,7 +484,7 @@ msgstr "Oluşum sayfaları"
 msgid "Platform"
 msgstr "Platform"
 
-#: lib/tuist_web/live/pulse_error_live.ex:592
+#: lib/tuist_web/live/pulse_error_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "Pulse bu ayrıntıları yükleyemedi. Hatalar bölümüne dönüp tekrar deneyin."
@@ -518,7 +504,7 @@ msgstr "Seçilen dönemde fatal olarak etiketlenen Sentry olayları. Grafik, ara
 msgid "Span ID"
 msgstr "Span ID"
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "Seçilen dönemde bu sorun veya olay bulunamadı."
@@ -528,12 +514,37 @@ msgstr "Seçilen dönemde bu sorun veya olay bulunamadı."
 msgid "Trend"
 msgstr "Trend"
 
-#: lib/tuist_web/live/pulse_error_live.ex:356
+#: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
 msgstr "Olayı görüntüle"
 
-#: lib/tuist_web/live/pulse_error_live.ex:381
+#: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
 msgstr "Bu olay bir istisna değil, bir mesaj kaydetti."
+
+#: lib/tuist_web/live/pulse_error_live.ex:528
+#, elixir-autogen, elixir-format
+msgid "Breadcrumbs"
+msgstr "İzleme çubuğu"
+
+#: lib/tuist_web/live/pulse_error_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "Ad"
+
+#: lib/tuist_web/live/pulse_error_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "Request"
+msgstr "İstek"
+
+#: lib/tuist_web/live/pulse_error_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "SDK"
+msgstr "SDK"
+
+#: lib/tuist_web/live/pulse_error_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr "Sürüm"

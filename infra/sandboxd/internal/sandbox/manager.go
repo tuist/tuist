@@ -1375,7 +1375,9 @@ func (m *Manager) Shutdown(ctx context.Context) {
 					return
 				}
 			}
-			if _, err := m.Pause(ctx, id); err != nil {
+			// Synced, so the paused sandbox can be archived or saved
+			// without its memory image, like any other pause.
+			if _, err := m.PauseWith(ctx, protocol.PauseArgs{SandboxID: id, SyncDisks: true}); err != nil {
 				m.log.Error("pausing sandbox on shutdown", "sandbox", id, "error", err)
 			}
 		}(info.ID, info.WorkerRunning)

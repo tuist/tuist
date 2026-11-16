@@ -17,6 +17,7 @@ defmodule Tuist.Runners.Concurrency do
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.ConcurrencyHistory
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
@@ -108,12 +109,23 @@ defmodule Tuist.Runners.Concurrency do
 
     peaks = bucket_peaks(account_id, start_dt, end_dt, bucket)
 
+    history_start =
+      case bucket do
+        :hour -> floor_to_hour(start_dt)
+        :day -> DateTime.new!(DateTime.to_date(start_dt), ~T[00:00:00], "Etc/UTC")
+      end
+
+    history = ConcurrencyHistory.between(account_id, history_start, end_dt)
+
     %{
       dates: dates,
       linux: peak_usage(Map.get(peaks, :linux, %{}), dates, bucket),
-      macos: peak_usage(Map.get(peaks, :macos, %{}), dates, bucket)
+      macos: peak_usage(Map.get(peaks, :macos, %{}), dates, bucket),
+      limits: ConcurrencyHistory.series(history, dates)
     }
   end
+
+  def topic(account_id), do: "runner_concurrency:#{account_id}"
 
   @doc """
   Purely checks whether `requested` fits within `limit` after `used`.
@@ -286,14 +298,21 @@ defmodule Tuist.Runners.Concurrency do
   def limit_held?(account_id, platform, %{vcpus: _, memory_gb: _} = requested, %DateTime{} = from, %DateTime{} = to)
       when is_integer(account_id) and platform in @platforms do
     with true <- valid_capacity?(requested),
-         {:ok, limit} <- limit_for_platform(account_id, platform) do
+         {:ok, _current_limit} <- limit_for_platform(account_id, platform) do
       sessions = sessions_overlapping(account_id, platform, from, to)
+      history = ConcurrencyHistory.between(account_id, from, to)
 
       sessions
       |> Enum.map(& &1.started_at)
+      |> Enum.concat(Enum.map(Enum.filter(history, &(&1.platform == platform)), & &1.recorded_at))
       |> Enum.filter(&(DateTime.after?(&1, from) and not DateTime.after?(&1, to)))
       |> then(&[from | &1])
-      |> Enum.any?(&(not fits?(usage_at(sessions, &1), limit, requested)))
+      |> Enum.any?(fn instant ->
+        case ConcurrencyHistory.at(history, platform, instant) do
+          nil -> false
+          limit -> not fits?(usage_at(sessions, instant), limit, requested)
+        end
+      end)
     else
       _ -> false
     end

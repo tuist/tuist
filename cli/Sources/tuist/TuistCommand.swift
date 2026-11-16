@@ -258,26 +258,7 @@ public struct TuistCommand: AsyncParsableCommand {
                 }
             }
         #else
-            try await withLoggerForNoora(logFilePath: logFilePath) {
-                do {
-                    let command = try parseAsRoot(processedArguments)
-                    let jsonThroughNoora = (command as? NooraReadyCommand)?.jsonThroughNoora ?? false
-                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
-                        if var asyncCommand = command as? AsyncParsableCommand {
-                            try await asyncCommand.run()
-                        } else {
-                            var mutableCommand = command
-                            try mutableCommand.run()
-                        }
-                        outputCompletion(
-                            logFilePath: logFilePath,
-                            shouldOutputLogFilePath: false
-                        )
-                    }
-                } catch {
-                    await onError(error, isParsingError: false, logFilePath: logFilePath)
-                }
-            }
+            try await executeOnLinux(processedArguments, logFilePath: logFilePath)
         #endif
     }
 
@@ -425,3 +406,47 @@ public struct TuistCommand: AsyncParsableCommand {
         return CommandLineArguments.removingGlobalFlags(arguments)
     }
 }
+
+#if !os(macOS)
+    extension TuistCommand {
+        fileprivate static func executeOnLinux(_ processedArguments: [String], logFilePath: AbsolutePath) async throws {
+            do {
+                let command = try parseAsRoot(processedArguments)
+                let nooraReadyCommand = command as? NooraReadyCommand
+                let jsonThroughNoora = nooraReadyCommand?.jsonThroughNoora ?? false
+                let runCommand = {
+                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
+                        if var asyncCommand = command as? AsyncParsableCommand {
+                            try await asyncCommand.run()
+                        } else {
+                            var mutableCommand = command
+                            try mutableCommand.run()
+                        }
+                    }
+                }
+                // As on macOS, only Noora-ready commands get the Noora logger, which prints to the
+                // terminal only with --verbose. Other commands print their results through
+                // Logger.current, so they keep the default logger.
+                if nooraReadyCommand != nil {
+                    try await withLoggerForNoora(logFilePath: logFilePath, runCommand)
+                } else {
+                    try await runCommand()
+                }
+                try await withLoggerForNoora(logFilePath: logFilePath) {
+                    Noora.$current.withValue(initNoora()) {
+                        outputCompletion(
+                            logFilePath: logFilePath,
+                            shouldOutputLogFilePath: false
+                        )
+                    }
+                }
+            } catch {
+                try await withLoggerForNoora(logFilePath: logFilePath) {
+                    await Noora.$current.withValue(initNoora()) {
+                        await onError(error, isParsingError: false, logFilePath: logFilePath)
+                    }
+                }
+            }
+        }
+    }
+#endif

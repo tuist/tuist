@@ -1043,13 +1043,13 @@ components:
           x-struct:
           x-validate:
       required:
-        - page_size
         - page
-        - end_at
-        - total_count
         - total_pages
+        - page_size
         - has_next_page
         - has_previous_page
+        - total_count
+        - end_at
       title: PulsePagination
       type: object
       x-struct:
@@ -6411,13 +6411,13 @@ components:
               x-struct:
               x-validate:
           required:
-            - page_size
             - page
-            - end_at
-            - total_count
             - total_pages
+            - page_size
             - has_next_page
             - has_previous_page
+            - total_count
+            - end_at
           title: PulsePagination
           type: object
           x-struct:
@@ -6426,9 +6426,33 @@ components:
           items:
             additionalProperties: false
             properties:
+              accounts:
+                description: Distinct impacted account handles.
+                type: integer
+                x-struct:
+                x-validate:
+              culprit:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
               duration_ms:
                 nullable: true
                 type: number
+                x-struct:
+                x-validate:
+              events:
+                type: integer
+                x-struct:
+                x-validate:
+              fingerprint:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              first_seen:
+                nullable: false
+                type: string
                 x-struct:
                 x-validate:
               labels:
@@ -6438,6 +6462,16 @@ components:
                   x-struct:
                   x-validate:
                 type: object
+                x-struct:
+                x-validate:
+              last_seen:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              latest_event_id:
+                nullable: true
+                type: string
                 x-struct:
                 x-validate:
               level:
@@ -6455,6 +6489,32 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              occurrence_series:
+                description: 'Errors: 60 equal occurrence buckets over the window.'
+                items:
+                  items:
+                    anyOf:
+                      - nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      - nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              platform:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
               service:
                 nullable: true
                 type: string
@@ -6462,6 +6522,11 @@ components:
                 x-validate:
               timestamp:
                 nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                nullable: true
                 type: string
                 x-struct:
                 x-validate:
@@ -9752,6 +9817,68 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
       x-validate:
+    PulseErrorEvent:
+      additionalProperties: false
+      properties:
+        account_handle:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        environment:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        event_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        level:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        release:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        server_name:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        timestamp:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        trace_id:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - timestamp
+        - level
+        - title
+        - server_name
+        - release
+        - environment
+        - trace_id
+        - account_handle
+        - event_id
+      title: PulseErrorEvent
+      type: object
+      x-struct:
+      x-validate:
     UploadCommitsRequest:
       properties:
         branch_heads:
@@ -11107,9 +11234,33 @@ components:
     PulseRow:
       additionalProperties: false
       properties:
+        accounts:
+          description: Distinct impacted account handles.
+          type: integer
+          x-struct:
+          x-validate:
+        culprit:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         duration_ms:
           nullable: true
           type: number
+          x-struct:
+          x-validate:
+        events:
+          type: integer
+          x-struct:
+          x-validate:
+        fingerprint:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        first_seen:
+          nullable: false
+          type: string
           x-struct:
           x-validate:
         labels:
@@ -11119,6 +11270,16 @@ components:
             x-struct:
             x-validate:
           type: object
+          x-struct:
+          x-validate:
+        last_seen:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        latest_event_id:
+          nullable: true
+          type: string
           x-struct:
           x-validate:
         level:
@@ -11136,6 +11297,32 @@ components:
           type: string
           x-struct:
           x-validate:
+        occurrence_series:
+          description: 'Errors: 60 equal occurrence buckets over the window.'
+          items:
+            items:
+              anyOf:
+                - nullable: true
+                  type: number
+                  x-struct:
+                  x-validate:
+                - nullable: false
+                  type: string
+                  x-struct:
+                  x-validate:
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        platform:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         service:
           nullable: true
           type: string
@@ -11143,6 +11330,11 @@ components:
           x-validate:
         timestamp:
           nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          nullable: true
           type: string
           x-struct:
           x-validate:
@@ -12250,6 +12442,295 @@ components:
         - storage_key
         - upload_url
       title: CoverageUpload
+      type: object
+      x-struct:
+      x-validate:
+    PulseErrorIssue:
+      additionalProperties: false
+      properties:
+        events:
+          items:
+            additionalProperties: false
+            properties:
+              account_handle:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              environment:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              event_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              level:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              release:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              server_name:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              timestamp:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              trace_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - timestamp
+              - level
+              - title
+              - server_name
+              - release
+              - environment
+              - trace_id
+              - account_handle
+              - event_id
+            title: PulseErrorEvent
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        issue:
+          additionalProperties: false
+          properties:
+            accounts:
+              description: Distinct impacted account handles.
+              type: integer
+              x-struct:
+              x-validate:
+            culprit:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            duration_ms:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            events:
+              type: integer
+              x-struct:
+              x-validate:
+            fingerprint:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            first_seen:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            labels:
+              additionalProperties:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              type: object
+              x-struct:
+              x-validate:
+            last_seen:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            latest_event_id:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            level:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            message:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            name:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            occurrence_series:
+              description: 'Errors: 60 equal occurrence buckets over the window.'
+              items:
+                items:
+                  anyOf:
+                    - nullable: true
+                      type: number
+                      x-struct:
+                      x-validate:
+                    - nullable: false
+                      type: string
+                      x-struct:
+                      x-validate:
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            platform:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            service:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            timestamp:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            title:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            trace_id:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            value:
+              anyOf:
+                - type: number
+                  x-struct:
+                  x-validate:
+                - nullable: false
+                  type: string
+                  x-struct:
+                  x-validate:
+                - nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+              x-struct:
+              x-validate:
+          title: PulseRow
+          type: object
+          x-struct:
+          x-validate:
+        latest_event:
+          description: 'The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message).'
+          type: object
+          x-struct:
+          x-validate:
+        meta:
+          additionalProperties: false
+          properties:
+            end_at:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            has_next_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            has_previous_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            page:
+              type: integer
+              x-struct:
+              x-validate:
+            page_size:
+              type: integer
+              x-struct:
+              x-validate:
+            total_count:
+              type: integer
+              x-struct:
+              x-validate:
+            total_pages:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - page
+            - total_pages
+            - page_size
+            - has_next_page
+            - has_previous_page
+            - total_count
+            - end_at
+          title: PulsePagination
+          type: object
+          x-struct:
+          x-validate:
+        occurrence_series:
+          items:
+            items:
+              anyOf:
+                - nullable: true
+                  type: number
+                  x-struct:
+                  x-validate:
+                - nullable: false
+                  type: string
+                  x-struct:
+                  x-validate:
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        warnings:
+          items:
+            nullable: false
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - meta
+        - events
+        - warnings
+        - issue
+        - occurrence_series
+        - latest_event
+      title: PulseErrorIssue
       type: object
       x-struct:
       x-validate:
@@ -23642,11 +24123,7 @@ paths:
                           x-struct:
                           x-validate:
                         status:
-                          description: Run status.
-                          enum:
-                            - success
-                            - failure
-                            - skipped
+                          description: 'Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones.'
                           type: string
                           x-struct:
                           x-validate:
@@ -27320,6 +27797,7 @@ paths:
               - metrics
               - logs
               - traces
+              - errors
             type: string
             x-struct:
             x-validate:
@@ -27441,7 +27919,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account not found
+          description: Account or issue not found
         '429':
           content:
             application/json:
@@ -35165,6 +35643,418 @@ paths:
       summary: Get a Mix (Elixir) build with its diagnostics counts and dependency cache summary.
       tags:
         - Mix
+  /api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}:
+    get:
+      callbacks: {}
+      operationId: getPulseErrorIssue
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            nullable: false
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: fingerprint
+          required: true
+          schema:
+            description: The issue's fingerprint from an errors row, which Atlas computes identically.
+            pattern: ^[0-9a-f]{64}$
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: service
+          required: true
+          schema:
+            description: The issue's service from an errors row.
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end_at
+          required: false
+          schema:
+            description: ISO8601 window end, such as an errors response's meta.end_at.
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: Events page.
+            maximum: 2147483647
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: range
+          required: false
+          schema:
+            default: 1h
+            enum:
+              - 15m
+              - 1h
+              - 6h
+              - 24h
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  events:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        account_handle:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        environment:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        event_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        level:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        release:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        server_name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        timestamp:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        trace_id:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - timestamp
+                        - level
+                        - title
+                        - server_name
+                        - release
+                        - environment
+                        - trace_id
+                        - account_handle
+                        - event_id
+                      title: PulseErrorEvent
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  issue:
+                    additionalProperties: false
+                    properties:
+                      accounts:
+                        description: Distinct impacted account handles.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      culprit:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      events:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      fingerprint:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      first_seen:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      labels:
+                        additionalProperties:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                      last_seen:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      latest_event_id:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      level:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      message:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      occurrence_series:
+                        description: 'Errors: 60 equal occurrence buckets over the window.'
+                        items:
+                          items:
+                            anyOf:
+                              - nullable: true
+                                type: number
+                                x-struct:
+                                x-validate:
+                              - nullable: false
+                                type: string
+                                x-struct:
+                                x-validate:
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      platform:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      service:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      timestamp:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      title:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      trace_id:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      value:
+                        anyOf:
+                          - type: number
+                            x-struct:
+                            x-validate:
+                          - nullable: false
+                            type: string
+                            x-struct:
+                            x-validate:
+                          - nullable: true
+                            type: string
+                            x-struct:
+                            x-validate:
+                        x-struct:
+                        x-validate:
+                    title: PulseRow
+                    type: object
+                    x-struct:
+                    x-validate:
+                  latest_event:
+                    description: 'The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message).'
+                    type: object
+                    x-struct:
+                    x-validate:
+                  meta:
+                    additionalProperties: false
+                    properties:
+                      end_at:
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - page
+                      - total_pages
+                      - page_size
+                      - has_next_page
+                      - has_previous_page
+                      - total_count
+                      - end_at
+                    title: PulsePagination
+                    type: object
+                    x-struct:
+                    x-validate:
+                  occurrence_series:
+                    items:
+                      items:
+                        anyOf:
+                          - nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          - nullable: false
+                            type: string
+                            x-struct:
+                            x-validate:
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  warnings:
+                    items:
+                      nullable: false
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - meta
+                  - events
+                  - warnings
+                  - issue
+                  - occurrence_series
+                  - latest_event
+                title: PulseErrorIssue
+                type: object
+                x-struct:
+                x-validate:
+          description: Pulse data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters or query
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Authentication required
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: User membership and account read required
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account or issue not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Pulse rate limited
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Pulse unavailable or query result limit exceeded
+      summary: 'Get one Pulse error issue: its summary, occurrences and latest scrubbed event.'
+      tags:
+        - Pulse
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks:
     get:
       callbacks: {}
@@ -43105,6 +43995,7 @@ paths:
               - metrics
               - logs
               - traces
+              - errors
             type: string
             x-struct:
             x-validate:
@@ -43166,7 +44057,7 @@ paths:
           name: query
           required: false
           schema:
-            description: PromQL expression for metrics; literal, case-insensitive log body or span name text for logs and traces (* selects all).
+            description: PromQL expression for metrics; literal, case-insensitive log body, span name or error issue title text for logs, traces and errors (* selects all).
             maxLength: 4096
             type: string
             x-struct:
@@ -43221,7 +44112,7 @@ paths:
           name: sort_by
           required: false
           schema:
-            description: 'Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id.'
+            description: 'Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen/first_seen/events/accounts/title/service/level.'
             enum:
               - name
               - value
@@ -43231,6 +44122,11 @@ paths:
               - message
               - trace_id
               - duration_ms
+              - last_seen
+              - first_seen
+              - events
+              - accounts
+              - title
             type: string
             x-struct:
             x-validate:
@@ -43285,13 +44181,13 @@ paths:
                         x-struct:
                         x-validate:
                     required:
-                      - page_size
                       - page
-                      - end_at
-                      - total_count
                       - total_pages
+                      - page_size
                       - has_next_page
                       - has_previous_page
+                      - total_count
+                      - end_at
                     title: PulsePagination
                     type: object
                     x-struct:
@@ -43300,9 +44196,33 @@ paths:
                     items:
                       additionalProperties: false
                       properties:
+                        accounts:
+                          description: Distinct impacted account handles.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        culprit:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         duration_ms:
                           nullable: true
                           type: number
+                          x-struct:
+                          x-validate:
+                        events:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        fingerprint:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        first_seen:
+                          nullable: false
+                          type: string
                           x-struct:
                           x-validate:
                         labels:
@@ -43312,6 +44232,16 @@ paths:
                             x-struct:
                             x-validate:
                           type: object
+                          x-struct:
+                          x-validate:
+                        last_seen:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        latest_event_id:
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                         level:
@@ -43329,6 +44259,32 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        occurrence_series:
+                          description: 'Errors: 60 equal occurrence buckets over the window.'
+                          items:
+                            items:
+                              anyOf:
+                                - nullable: true
+                                  type: number
+                                  x-struct:
+                                  x-validate:
+                                - nullable: false
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        platform:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         service:
                           nullable: true
                           type: string
@@ -43336,6 +44292,11 @@ paths:
                           x-validate:
                         timestamp:
                           nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -43457,7 +44418,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Account not found
+          description: Account or issue not found
         '429':
           content:
             application/json:
@@ -47058,11 +48019,7 @@ paths:
                     x-struct:
                     x-validate:
                   status:
-                    description: Run status.
-                    enum:
-                      - success
-                      - failure
-                      - skipped
+                    description: 'Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones.'
                     type: string
                     x-struct:
                     x-validate:

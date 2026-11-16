@@ -693,6 +693,12 @@ func TestShutdownStopsWorkersAndPausesEverything(t *testing.T) {
 	if idle.State != protocol.StatePaused {
 		t.Fatalf("idle sandbox should be paused: %+v", idle)
 	}
+	// A rollout's pauses must leave sandboxes the server can archive.
+	for _, id := range []string{"idle", "busy"} {
+		if meta, _ := LoadMetadata(vm.RootDir(h.jailBase, id)); !meta.DisksSynced {
+			t.Fatalf("a shutdown pause must sync the disks of %s: %+v", id, meta)
+		}
+	}
 	if busy.State != protocol.StatePaused || busy.WorkerRunning {
 		t.Fatalf("busy sandbox should have its worker stopped and be paused: %+v", busy)
 	}

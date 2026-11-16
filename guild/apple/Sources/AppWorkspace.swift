@@ -1,8 +1,12 @@
 import SwiftUI
 
+private enum Destination: Hashable {
+    case threads, profile
+}
+
 struct AppWorkspace: View {
-    @StateObject private var client = AppClient()
-    @State private var selection = "threads"
+    @State private var client = AppClient()
+    @State private var selection = Destination.threads
     @State private var addingProfile = false
 
     var body: some View {
@@ -14,49 +18,34 @@ struct AppWorkspace: View {
                     // On the Mac, a source-list sidebar takes the place of the tab bar.
                     NavigationSplitView {
                         List(selection: $selection) {
-                            Label("Threads", systemImage: "bubble.left.and.bubble.right").tag("threads")
-                            Label("Profile", systemImage: "person.crop.circle").tag("profile")
+                            Label("Threads", systemImage: "bubble.left.and.bubble.right").tag(Destination.threads)
+                            Label("Profile", systemImage: "person.crop.circle").tag(Destination.profile)
                         }
                         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
                     } detail: {
-                        NavigationStack { destination }
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
-                            Menu {
-                                profilesMenu
-                            } label: {
-                                Label("Profiles", systemImage: "person.crop.circle")
+                        NavigationStack {
+                            if selection == .profile {
+                                ProfileView(client: client, addingProfile: $addingProfile)
+                            } else {
+                                ThreadsView(client: client)
                             }
-                            .help("Switch profile")
                         }
                     }
+                    .toolbar { ToolbarItem(placement: .primaryAction) { profilesMenu } }
                     .id(client.view.generation)
                 #else
                     TabView(selection: $selection) {
                         NavigationStack { ThreadsView(client: client) }
-                            .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right.fill") }
-                            .tag("threads")
-                        NavigationStack { ProfileView(client: client, addingProfile: $addingProfile) }
-                            .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
-                            .tag("profile")
+                            .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right") }
+                            .tag(Destination.threads)
+                        NavigationStack {
+                            ProfileView(client: client, addingProfile: $addingProfile)
+                                .toolbar { ToolbarItem(placement: .topBarTrailing) { profilesMenu } }
+                        }
+                        .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                        .tag(Destination.profile)
                     }
-                    .background(ProfileTabMenu {
-                        UIMenu(title: String(localized: "Profiles"), children: client.view.profiles.map { profile in
-                            UIAction(
-                                title: profile.handle ?? profile.email ?? profile.server,
-                                subtitle: profile.server,
-                                attributes: profile.rejected ? .disabled : [],
-                                state: profile.id == client.view.active_profile_id ? .on : .off
-                            ) { _ in Task { await client.perform("switch_profile", ["id": profile.id]) } }
-                        } + [
-                            UIAction(
-                                title: String(localized: "Add profile"),
-                                image: UIImage(systemName: "person.badge.plus")
-                            ) { _ in addingProfile = true },
-                            UIAction(title: String(localized: "View profile")) { _ in selection = "profile" },
-                        ])
-                    })
+                    .minimizingTabBarOnScroll()
                     .id(client.view.generation)
                 #endif
             }
@@ -88,16 +77,10 @@ struct AppWorkspace: View {
         } message: { Text(verbatim: client.error ?? "") }
     }
 
-    #if os(macOS)
-        @ViewBuilder private var destination: some View {
-            if selection == "profile" {
-                ProfileView(client: client, addingProfile: $addingProfile)
-            } else {
-                ThreadsView(client: client)
-            }
-        }
-
-        @ViewBuilder private var profilesMenu: some View {
+    /// Switches between saved profiles and adds new ones: in the window toolbar
+    /// on the Mac, and in the Profile tab's navigation bar on iOS.
+    private var profilesMenu: some View {
+        Menu {
             ForEach(client.view.profiles) { profile in
                 Toggle(isOn: Binding(
                     get: { profile.id == client.view.active_profile_id },
@@ -109,19 +92,26 @@ struct AppWorkspace: View {
                 .disabled(profile.rejected)
             }
             Divider()
-            Button("Add Profile…") { addingProfile = true }
-            Button("View Profile") { selection = "profile" }
-            Divider()
-            Button("Sign Out") { Task { await client.perform("sign_out") } }
+            #if os(macOS)
+                Button("Add Profile…", systemImage: "person.badge.plus") { addingProfile = true }
+                Button("View Profile") { selection = .profile }
+                Divider()
+                Button("Sign Out") { Task { await client.perform("sign_out") } }
+            #else
+                Button("Add profile", systemImage: "person.badge.plus") { addingProfile = true }
+            #endif
+        } label: {
+            Label("Profiles", systemImage: "person.2.circle")
         }
-    #endif
+        .help("Switch profile")
+    }
 }
 
 /// The shipping app's Profile page (`app/Sources/TuistProfile/ProfileView.swift`).
-/// Switching and adding profiles live in the Profile tab's menu on iOS and the
-/// toolbar's profile menu on macOS, as in the shipping app.
+/// Switching and adding profiles live in the profiles menu: the Profile tab's
+/// navigation bar on iOS and the window toolbar on macOS.
 private struct ProfileView: View {
-    @ObservedObject var client: AppClient
+    let client: AppClient
     @Binding var addingProfile: Bool
     @State private var confirmingDelete = false
 
@@ -133,7 +123,7 @@ private struct ProfileView: View {
                         Image(systemName: "person.crop.circle.fill")
                             .font(.system(size: 72))
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(Noora.primary)
+                            .foregroundStyle(.tint)
                         Text(verbatim: "@\(account.handle ?? account.email ?? "")")
                             .font(.body.weight(.medium))
                             .foregroundStyle(.secondary)
@@ -166,12 +156,12 @@ private struct ProfileView: View {
             }
 
             Section {
-                ExternalLinkRow(title: "Terms of Service", url: URL(string: "https://tuist.dev/terms")!)
-                ExternalLinkRow(title: "Privacy Policy", url: URL(string: "https://tuist.dev/privacy")!)
+                Link(destination: URL(string: "https://tuist.dev/terms")!) { ExternalLinkLabel(title: "Terms of Service") }
+                Link(destination: URL(string: "https://tuist.dev/privacy")!) { ExternalLinkLabel(title: "Privacy Policy") }
             }
 
             Section {
-                ExternalLinkRow(title: "Get help", url: URL(string: "mailto:contact@tuist.dev")!)
+                Link(destination: URL(string: "mailto:contact@tuist.dev")!) { ExternalLinkLabel(title: "Get help") }
             }
 
             Section {
@@ -192,22 +182,18 @@ private struct ProfileView: View {
                 }
             #else
                 Section {
-                    Button { Task { await client.perform("sign_out") } } label: {
-                        Text("Sign out").frame(maxWidth: .infinity)
-                    }
+                    Button("Sign out") { Task { await client.perform("sign_out") } }
+                        .frame(maxWidth: .infinity)
                 }
 
                 Section {
-                    Button(role: .destructive) { confirmingDelete = true } label: {
-                        Text("Delete account").frame(maxWidth: .infinity)
-                    }
+                    Button("Delete account", role: .destructive) { confirmingDelete = true }
+                        .frame(maxWidth: .infinity)
                 }
             #endif
         }
         #if os(macOS)
         .formStyle(.grouped)
-        #else
-        .listStyle(.insetGrouped)
         #endif
         .navigationTitle("Profile")
         .alert("Delete Account", isPresented: $confirmingDelete) {
@@ -219,20 +205,14 @@ private struct ProfileView: View {
     }
 }
 
-private struct ExternalLinkRow: View {
-    @Environment(\.openURL) private var openURL
+private struct ExternalLinkLabel: View {
     let title: LocalizedStringKey
-    let url: URL
 
     var body: some View {
-        Button { openURL(url) } label: {
-            HStack {
-                Text(title).foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "arrow.up.forward.square").foregroundStyle(.tertiary)
-            }
-            .contentShape(Rectangle())
+        LabeledContent {
+            Image(systemName: "arrow.up.forward").foregroundStyle(.tertiary)
+        } label: {
+            Text(title).foregroundStyle(.primary)
         }
-        .buttonStyle(.plain)
     }
 }

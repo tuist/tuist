@@ -226,12 +226,15 @@ defmodule Tuist.Release do
 
       bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
 
-  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/1`).
+  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/2`).
   Raises, so the command exits nonzero, until no sandbox but errored ones is
-  left; rerun it until it passes.
+  left; rerun it until it passes. A turn that does not end moves too with
+  `pause_turns: true`, which pauses it with its memory:
+
+      bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>", pause_turns: true)'
   """
-  def sandbox_node_drain(node_name) when is_binary(node_name) do
-    drain = Archives.node_drain(node_name)
+  def sandbox_node_drain(node_name, opts \\ []) when is_binary(node_name) do
+    drain = Archives.node_drain(node_name, opts)
 
     if !drain.reclaiming,
       do: IO.puts("#{node_name} is not reclaimed by CI: cordon the Node; nothing is archived until it is.")
@@ -257,6 +260,8 @@ defmodule Tuist.Release do
       )
     end)
 
+    if drain.reclaiming, do: print_failed_archives(drain.sandboxes)
+
     left = Enum.count(drain.sandboxes, &(&1.state != :error))
 
     if drain.drained do
@@ -264,6 +269,19 @@ defmodule Tuist.Release do
     else
       raise "#{node_name} still holds #{left} sandbox(es) to archive; rerun the check."
     end
+  end
+
+  # A failed archive backs its sandbox off for a few minutes while the next
+  # one moves; a row that keeps failing never leaves the node on its own.
+  defp print_failed_archives(sandboxes) do
+    failed = Enum.count(sandboxes, &(&1.state == :paused and not &1.uploading and not is_nil(&1.archive_attempted_at)))
+
+    if failed > 0,
+      do:
+        IO.puts(
+          "#{failed} paused sandbox(es) failed their last archive and are retried after a backoff: " <>
+            "server logs \"sandboxes: could not move a sandbox off a node CI reclaims\" give the reason."
+        )
   end
 
   @doc """

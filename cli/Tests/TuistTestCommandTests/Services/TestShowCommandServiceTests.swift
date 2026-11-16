@@ -100,7 +100,7 @@ struct TestShowCommandServiceTests {
             isFlaky: true,
             macosVersion: "14.0",
             scheme: "App",
-            status: .failure,
+            status: "failure",
             totalTestCount: 100,
             xcodeVersion: "15.0"
         )

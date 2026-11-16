@@ -4,7 +4,7 @@ import SwiftUI
 /// core's browser sign-in. Social providers always use Tuist-hosted; the self-hosted
 /// prompt is the only way to pick another server.
 struct LogInView: View {
-    @ObservedObject var client: AppClient
+    let client: AppClient
     @State private var selfHosted = false
     @State private var server = ""
 

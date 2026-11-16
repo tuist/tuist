@@ -114,6 +114,7 @@ msgstr "Entradas de registro etiquetadas como warn o warning en el periodo selec
 msgid "Logs"
 msgstr "Registros"
 
+#: lib/tuist_web/live/pulse_error_live.ex:355
 #: lib/tuist_web/live/pulse_live.ex:747
 #, elixir-autogen, elixir-format
 msgid "Message"
@@ -296,19 +297,19 @@ msgstr "vs la hora anterior"
 msgid "Text search (* for all)"
 msgstr "Búsqueda de texto (* para todo)"
 
-#: lib/tuist_web/live/pulse_error_live.ex:489
+#: lib/tuist_web/live/pulse_error_live.ex:552
 #, elixir-autogen, elixir-format
 msgid "Additional data"
 msgstr "Datos adicionales"
 
-#: lib/tuist_web/live/pulse_error_live.ex:470
+#: lib/tuist_web/live/pulse_error_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Contexts"
 msgstr "Contextos"
 
 #: lib/tuist_web/live/pulse_error_live.ex:119
 #: lib/tuist_web/live/pulse_error_live.ex:267
-#: lib/tuist_web/live/pulse_error_live.ex:368
+#: lib/tuist_web/live/pulse_error_live.ex:376
 #, elixir-autogen, elixir-format
 msgid "Environment"
 msgstr "Entorno"
@@ -342,20 +343,15 @@ msgstr "Eventos"
 msgid "Events in this period"
 msgstr "Eventos en este periodo"
 
-#: lib/tuist_web/live/pulse_error_live.ex:386
+#: lib/tuist_web/live/pulse_error_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "Exception"
 msgstr "Excepción"
 
-#: lib/tuist_web/live/pulse_error_live.ex:413
+#: lib/tuist_web/live/pulse_error_live.ex:417
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "Externo"
-
-#: lib/tuist_web/live/pulse_error_live.ex:404
-#, elixir-autogen, elixir-format
-msgid "File"
-msgstr "Archivo"
 
 #: lib/tuist_web/live/pulse_live.ex:689
 #: lib/tuist_web/live/pulse_live.ex:738
@@ -368,12 +364,7 @@ msgstr "Primera vez visto"
 msgid "First seen in this period"
 msgstr "Primera vez visto en este periodo"
 
-#: lib/tuist_web/live/pulse_error_live.ex:399
-#, elixir-autogen, elixir-format
-msgid "Function"
-msgstr "Función"
-
-#: lib/tuist_web/live/pulse_error_live.ex:412
+#: lib/tuist_web/live/pulse_error_live.ex:416
 #, elixir-autogen, elixir-format
 msgid "In app"
 msgstr "En la app"
@@ -391,17 +382,17 @@ msgstr "Issue"
 msgid "Last seen"
 msgstr "Última vez visto"
 
-#: lib/tuist_web/live/pulse_error_live.ex:363
+#: lib/tuist_web/live/pulse_error_live.ex:371
 #, elixir-autogen, elixir-format
 msgid "Latest event"
 msgstr "Último evento"
 
-#: lib/tuist_web/live/pulse_error_live.ex:378
+#: lib/tuist_web/live/pulse_error_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "No exception recorded"
 msgstr "No se registró ninguna excepción"
 
-#: lib/tuist_web/live/pulse_error_live.ex:391
+#: lib/tuist_web/live/pulse_error_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "No stack frames recorded"
 msgstr "No se registraron marcos de pila"
@@ -413,24 +404,19 @@ msgstr "No se registraron marcos de pila"
 msgid "Occurrences"
 msgstr "Ocurrencias"
 
-#: lib/tuist_web/live/pulse_error_live.ex:407
-#, elixir-autogen, elixir-format
-msgid "Origin"
-msgstr "Origen"
-
 #: lib/tuist_web/live/pulse_error_live.ex:123
 #: lib/tuist_web/live/pulse_error_live.ex:270
-#: lib/tuist_web/live/pulse_error_live.ex:372
+#: lib/tuist_web/live/pulse_error_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "Lanzamiento"
 
-#: lib/tuist_web/live/pulse_error_live.ex:351
+#: lib/tuist_web/live/pulse_error_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Stack trace"
 msgstr "Traza de pila"
 
-#: lib/tuist_web/live/pulse_error_live.ex:454
+#: lib/tuist_web/live/pulse_error_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Etiquetas"
@@ -498,7 +484,7 @@ msgstr "Páginas de ocurrencias"
 msgid "Platform"
 msgstr "Plataforma"
 
-#: lib/tuist_web/live/pulse_error_live.ex:592
+#: lib/tuist_web/live/pulse_error_live.ex:699
 #, elixir-autogen, elixir-format
 msgid "Pulse could not load these details. Return to Errors and try again."
 msgstr "Pulse no ha podido cargar estos detalles. Vuelve a Errores e inténtalo de nuevo."
@@ -518,7 +504,7 @@ msgstr "Eventos de Sentry etiquetados como fatales en el periodo seleccionado. E
 msgid "Span ID"
 msgstr "ID de span"
 
-#: lib/tuist_web/live/pulse_error_live.ex:589
+#: lib/tuist_web/live/pulse_error_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "This issue or event was not found in the selected period."
 msgstr "No se ha encontrado este problema o evento en el periodo seleccionado."
@@ -528,12 +514,37 @@ msgstr "No se ha encontrado este problema o evento en el periodo seleccionado."
 msgid "Trend"
 msgstr "Tendencia"
 
-#: lib/tuist_web/live/pulse_error_live.ex:356
+#: lib/tuist_web/live/pulse_error_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "View event"
 msgstr "Ver evento"
 
-#: lib/tuist_web/live/pulse_error_live.ex:381
+#: lib/tuist_web/live/pulse_error_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "This event recorded a message, not an exception."
 msgstr "Este evento registró un mensaje, no una excepción."
+
+#: lib/tuist_web/live/pulse_error_live.ex:528
+#, elixir-autogen, elixir-format
+msgid "Breadcrumbs"
+msgstr "Migas de pan"
+
+#: lib/tuist_web/live/pulse_error_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "Nombre"
+
+#: lib/tuist_web/live/pulse_error_live.ex:510
+#, elixir-autogen, elixir-format
+msgid "Request"
+msgstr "Solicitud"
+
+#: lib/tuist_web/live/pulse_error_live.ex:568
+#, elixir-autogen, elixir-format
+msgid "SDK"
+msgstr "SDK"
+
+#: lib/tuist_web/live/pulse_error_live.ex:578
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr "Versión"

@@ -77,8 +77,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:523
 #: lib/tuist_web/live/runner_workflow_live.ex:177
 #: lib/tuist_web/live/runner_workflow_live.ex:315
-#: lib/tuist_web/live/runners_live.ex:385
-#: lib/tuist_web/live/runners_live.ex:716
+#: lib/tuist_web/live/runners_live.ex:411
+#: lib/tuist_web/live/runners_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr ""
@@ -88,7 +88,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:516
 #: lib/tuist_web/live/runner_workflow_live.ex:173
 #: lib/tuist_web/live/runner_workflow_live.ex:308
-#: lib/tuist_web/live/runners_live.ex:709
+#: lib/tuist_web/live/runners_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "Claimed"
 msgstr ""
@@ -101,7 +101,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:518
 #: lib/tuist_web/live/runner_workflow_live.ex:310
-#: lib/tuist_web/live/runners_live.ex:711
+#: lib/tuist_web/live/runners_live.ex:739
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr ""
@@ -155,8 +155,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:522
 #: lib/tuist_web/live/runner_workflow_live.ex:176
 #: lib/tuist_web/live/runner_workflow_live.ex:314
-#: lib/tuist_web/live/runners_live.ex:384
-#: lib/tuist_web/live/runners_live.ex:715
+#: lib/tuist_web/live/runners_live.ex:410
+#: lib/tuist_web/live/runners_live.ex:743
 #, elixir-autogen, elixir-format
 msgid "Failure"
 msgstr ""
@@ -270,7 +270,7 @@ msgid "No jobs match the current filters"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:686
-#: lib/tuist_web/live/runners_live.ex:731
+#: lib/tuist_web/live/runners_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "No jobs yet"
 msgstr ""
@@ -300,7 +300,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:491
 #: lib/tuist_web/live/runner_workflow_live.ex:172
 #: lib/tuist_web/live/runner_workflow_live.ex:307
-#: lib/tuist_web/live/runners_live.ex:708
+#: lib/tuist_web/live/runners_live.ex:736
 #, elixir-autogen, elixir-format
 msgid "Queued"
 msgstr ""
@@ -324,7 +324,7 @@ msgstr ""
 msgid "Repository"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:46
+#: lib/tuist_web/live/runners_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr ""
@@ -335,7 +335,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:474
 #: lib/tuist_web/live/runner_workflow_live.ex:174
 #: lib/tuist_web/live/runner_workflow_live.ex:309
-#: lib/tuist_web/live/runners_live.ex:710
+#: lib/tuist_web/live/runners_live.ex:738
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
@@ -347,8 +347,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:524
 #: lib/tuist_web/live/runner_workflow_live.ex:178
 #: lib/tuist_web/live/runner_workflow_live.ex:316
-#: lib/tuist_web/live/runners_live.ex:386
-#: lib/tuist_web/live/runners_live.ex:717
+#: lib/tuist_web/live/runners_live.ex:412
+#: lib/tuist_web/live/runners_live.ex:745
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr ""
@@ -372,8 +372,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:521
 #: lib/tuist_web/live/runner_workflow_live.ex:175
 #: lib/tuist_web/live/runner_workflow_live.ex:313
-#: lib/tuist_web/live/runners_live.ex:383
-#: lib/tuist_web/live/runners_live.ex:714
+#: lib/tuist_web/live/runners_live.ex:409
+#: lib/tuist_web/live/runners_live.ex:742
 #, elixir-autogen, elixir-format
 msgid "Success"
 msgstr ""
@@ -452,8 +452,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.html.heex:346
 #: lib/tuist_web/live/runner_workflows_live.html.heex:358
 #: lib/tuist_web/live/runner_workflows_live.html.heex:366
-#: lib/tuist_web/live/runners_live.ex:387
-#: lib/tuist_web/live/runners_live.ex:712
+#: lib/tuist_web/live/runners_live.ex:413
+#: lib/tuist_web/live/runners_live.ex:740
 #: lib/tuist_web/live/runners_live.html.heex:466
 #: lib/tuist_web/live/runners_live.html.heex:485
 #: lib/tuist_web/live/runners_live.html.heex:632
@@ -550,7 +550,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.html.heex:117
 #: lib/tuist_web/live/runner_workflow_live.html.heex:162
 #: lib/tuist_web/live/runner_workflows_live.ex:283
-#: lib/tuist_web/live/runners_live.ex:410
+#: lib/tuist_web/live/runners_live.ex:436
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
@@ -562,28 +562,28 @@ msgstr ""
 #: lib/tuist_web/live/runner_volumes_live.ex:421
 #: lib/tuist_web/live/runner_volumes_live.ex:657
 #: lib/tuist_web/live/runner_workflows_live.ex:282
-#: lib/tuist_web/live/runners_live.ex:409
+#: lib/tuist_web/live/runners_live.ex:435
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:254
 #: lib/tuist_web/live/runner_workflows_live.ex:280
-#: lib/tuist_web/live/runners_live.ex:407
+#: lib/tuist_web/live/runners_live.ex:433
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:255
 #: lib/tuist_web/live/runner_workflows_live.ex:281
-#: lib/tuist_web/live/runners_live.ex:408
+#: lib/tuist_web/live/runners_live.ex:434
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:253
 #: lib/tuist_web/live/runner_workflows_live.ex:279
-#: lib/tuist_web/live/runners_live.ex:406
+#: lib/tuist_web/live/runners_live.ex:432
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
@@ -652,8 +652,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflows_live.ex:242
 #: lib/tuist_web/live/runner_workflows_live.html.heex:10
 #: lib/tuist_web/live/runner_workflows_live.html.heex:40
-#: lib/tuist_web/live/runners_live.ex:350
-#: lib/tuist_web/live/runners_live.ex:371
+#: lib/tuist_web/live/runners_live.ex:376
+#: lib/tuist_web/live/runners_live.ex:397
 #: lib/tuist_web/live/runners_live.html.heex:10
 #: lib/tuist_web/live/runners_live.html.heex:40
 #, elixir-autogen, elixir-format
@@ -749,8 +749,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.ex:468
 #: lib/tuist_web/live/runner_profiles_live.ex:485
 #: lib/tuist_web/live/runner_workflows_live.ex:241
-#: lib/tuist_web/live/runners_live.ex:368
-#: lib/tuist_web/live/runners_live.ex:370
+#: lib/tuist_web/live/runners_live.ex:394
+#: lib/tuist_web/live/runners_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr ""
@@ -777,8 +777,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.ex:469
 #: lib/tuist_web/live/runner_profiles_live.ex:486
 #: lib/tuist_web/live/runner_workflows_live.ex:240
-#: lib/tuist_web/live/runners_live.ex:367
-#: lib/tuist_web/live/runners_live.ex:369
+#: lib/tuist_web/live/runners_live.ex:393
+#: lib/tuist_web/live/runners_live.ex:395
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr ""
@@ -1371,37 +1371,32 @@ msgstr ""
 msgid "Concurrency"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:540
+#: lib/tuist_web/live/runners_live.ex:566
 #, elixir-autogen, elixir-format
 msgid "%{limit} GB limit"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:536
+#: lib/tuist_web/live/runners_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "%{limit} vCPU limit"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:561
-#, elixir-autogen, elixir-format
-msgid "Limit"
-msgstr ""
-
-#: lib/tuist_web/live/runners_live.ex:509
+#: lib/tuist_web/live/runners_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "%{platform} memory"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:502
+#: lib/tuist_web/live/runners_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "%{platform} vCPU"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:543
+#: lib/tuist_web/live/runners_live.ex:569
 #, elixir-autogen, elixir-format
 msgid "Peak CPU"
 msgstr ""
 
-#: lib/tuist_web/live/runners_live.ex:544
+#: lib/tuist_web/live/runners_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Peak memory"
 msgstr ""
@@ -1987,3 +1982,13 @@ msgid "The runner's machine ran out of memory, and the system stopped a process 
 msgid_plural "The runner's machine ran out of memory, and the system stopped %{count} processes to free it."
 msgstr[0] ""
 msgstr[1] ""
+
+#: lib/tuist_web/live/runners_live.html.heex:352
+#, elixir-autogen, elixir-format
+msgid "Current: %{limit}"
+msgstr ""
+
+#: lib/tuist_web/live/runners_live.ex:587
+#, elixir-autogen, elixir-format
+msgid "Limit at bucket start"
+msgstr ""

@@ -65,8 +65,9 @@ jobs:
           VERSION: ${{ steps.resolve.outputs.version }}
         run: |
           set -euo pipefail
-          sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml
-          grep -E '^[[:space:]]*tuist = "' mise.toml
+          # Tuist Guild ignores the root mise.toml, so its pin follows the root's here.
+          sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml guild/mise.toml
+          grep -E '^[[:space:]]*tuist = "' mise.toml guild/mise.toml
       - name: Bump the sandbox image's Tuist CLI
         if: steps.resolve.outputs.changed == 'true'
         env:
@@ -129,12 +130,13 @@ jobs:
           commit-message: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
           title: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
           body: |
-            Bumps the `tuist` dev-tooling pin in `mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves, and the sandbox image's Tuist CLI to the same release.
+            Bumps the `tuist` dev-tooling pin in `mise.toml` and `guild/mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves, and the sandbox image's Tuist CLI to the same release.
 
             Opened by the `update-tuist-cli` workflow.
           add-paths: |
             mise.toml
             mise.lock
+            guild/mise.toml
             infra/sandbox-image/Dockerfile
           committer: "github-actions <github-actions@github.com>"
           author: "github-actions <github-actions@github.com>"

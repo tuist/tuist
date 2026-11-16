@@ -24,7 +24,7 @@ defmodule Tuist.Pulse.Errors do
                    ~s|last_value(event_id ORDER BY timestamp) AS latest_event_id|
 
   @event_columns ~s|arrow_cast(timestamp, 'Int64') AS timestamp, event_id, title, "level", environment, "release", | <>
-                   ~s|server_name, trace_id, account_handle|
+                   ~s|server_name, trace_id, account_handle, sdk|
 
   @buckets 60
 
@@ -203,7 +203,7 @@ defmodule Tuist.Pulse.Errors do
   defp valid_event?(row) do
     is_integer(row["timestamp"]) and row["timestamp"] >= 0 and
       Enum.all?(
-        ~w(event_id title level environment release server_name trace_id account_handle),
+        ~w(event_id title level environment release server_name trace_id account_handle sdk),
         &(is_binary(row[&1]) or is_nil(row[&1]))
       )
   end

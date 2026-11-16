@@ -9,6 +9,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.ConcurrencyHistory
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.ConcurrencySession
   alias Tuist.Runners.RunnerSession
@@ -105,6 +106,32 @@ defmodule Tuist.Runners.ConcurrencyTest do
              Concurrency.update_limits(account, %{"runner_macos_vcpus_limit" => "0"})
 
     assert "must be greater than 0" in errors_on(changeset).runner_macos_vcpus_limit
+  end
+
+  test "records every actual manual change atomically, without inventing older limits" do
+    account = account_fixture()
+    before_creation = DateTime.add(DateTime.utc_now(), -1, :hour)
+    {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 24, runner_macos_memory_gb_limit: 72})
+    {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 24})
+
+    {:error, :test_rollback} =
+      Repo.transaction(fn ->
+        {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 32})
+        Repo.rollback(:test_rollback)
+      end)
+
+    history = ConcurrencyHistory.between(account.id, before_creation, DateTime.utc_now())
+    macos = Enum.filter(history, &(&1.platform == :macos))
+    assert [%{source: "initial", vcpus: 16}, %{source: "manual", vcpus: 24}] = macos
+    refute ConcurrencyHistory.at(history, :macos, before_creation)
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 24, memory_gb: 72}
+
+    initial = hd(macos)
+    change = List.last(macos)
+    series = ConcurrencyHistory.series(history, [before_creation, initial.recorded_at, change.recorded_at])
+    assert series.macos.vcpus == [nil, 16, 24]
+    assert series.macos.memory_gb == [nil, 48, 72]
+    assert series.linux.vcpus == [nil, 32, 32]
   end
 
   test "checks capacity using a pure resource comparison" do
@@ -472,7 +499,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
     test "holds a job whose shape no longer fits next to the sessions open at an instant" do
       account = account_fixture()
-      at = ~U[2026-10-28 12:00:00.000000Z]
+      at = DateTime.utc_now()
       shape = %{vcpus: 8, memory_gb: 24}
 
       open_session!(account, %{platform: :macos, vcpus: 8, memory_gb: 24, started_at: DateTime.add(at, -60, :second)})
@@ -486,7 +513,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
     test "holds a job the limit blocked only between the ends of its wait" do
       account = account_fixture()
-      enqueued_at = ~U[2026-10-28 12:00:00.000000Z]
+      enqueued_at = DateTime.utc_now()
       shape = %{vcpus: 8, memory_gb: 24}
 
       open_session!(account, %{
@@ -520,7 +547,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
     test "counts only sessions open at the instant, on the job's platform" do
       account = account_fixture()
-      at = ~U[2026-10-28 12:00:00.000000Z]
+      at = DateTime.utc_now()
       shape = %{vcpus: 8, memory_gb: 24}
 
       open_session!(account, %{
@@ -536,6 +563,31 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
       refute Concurrency.limit_held?(account.id, :macos, shape, at, DateTime.add(at, 30, :second))
       assert Concurrency.limit_held?(account.id, :macos, shape, at, DateTime.add(at, 120, :second))
+    end
+
+    test "a later increase does not erase a historical limit hold" do
+      account = account_fixture()
+      held_at = DateTime.utc_now()
+      shape = %{vcpus: 8, memory_gb: 24}
+
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 16,
+        memory_gb: 48,
+        started_at: DateTime.add(held_at, -30, :second)
+      })
+
+      {:ok, _} = Concurrency.update_limits(account, %{runner_macos_vcpus_limit: 32, runner_macos_memory_gb_limit: 96})
+      assert Concurrency.limit_held?(account.id, :macos, shape, held_at, held_at)
+      refute Concurrency.limit_held?(account.id, :macos, shape, DateTime.utc_now(), DateTime.utc_now())
+
+      refute Concurrency.limit_held?(
+               account.id,
+               :macos,
+               shape,
+               DateTime.add(held_at, -1, :day),
+               DateTime.add(held_at, -1, :day)
+             )
     end
 
     test "never holds a job without a shape or an account without a limit" do

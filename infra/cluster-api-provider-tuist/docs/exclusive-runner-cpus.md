@@ -174,11 +174,28 @@ API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
    ```
 
    Each run lists the sandboxes still on the node and queues the next
-   archive. A paused one usually leaves within a few minutes. A `running`
-   one with `in_turn=true` waits for its turn to end (Amp pauses it, or the
-   server does after ten quiet minutes); if it never does, ask its creator
-   to stop the thread, or accept losing what it has not pushed. Errored rows
-   are listed but do not block: they cannot be archived.
+   archive. A paused one usually leaves within a few minutes. A session that
+   comes back meanwhile is refused for a retry and its sandbox moves first,
+   then restores on another node. A `running` one with `in_turn=true` waits
+   for its turn to end (Amp pauses it, or the server does after ten quiet
+   minutes). If one never does, pause it with its memory, which the archive
+   carries, so the turn continues on another node; commands it runs before
+   that restore fail, and a Claude Code session's worker is stopped and
+   re-queued by Anthropic:
+
+   ```bash
+   kubectl -n tuist exec deploy/tuist-tuist-server -- \
+     bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>", pause_turns: true)'
+   ```
+
+   A sandbox with a command in flight is tried again by the next run.
+   Errored rows are listed but do not block: they cannot be archived.
+
+   An archive that fails backs its sandbox off for five minutes while the
+   next one moves; the check counts those rows, and the server logs
+   `sandboxes: could not move a sandbox off a node CI reclaims` with the
+   `sandbox_id` and reason.
+
 3. Check the Node reports the new kubelet version, 30 allocatable CPUs on a
    32-thread box, and the `tuist.dev/pod-level-resource-managers` label.
 
