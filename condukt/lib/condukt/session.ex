@@ -2685,15 +2685,6 @@ defmodule Condukt.Session do
   # cache, and a session without it starts fresh.
   defp load_snapshot(nil, _opts), do: {:ok, nil}
 
-  # A snapshot from a newer Condukt, as after a rollback, is refused for the
-  # same reason: starting without it would save over it.
-  defp migrate_durable_snapshot(loaded) do
-    case Snapshot.migrate(loaded) do
-      {:ok, snapshot} -> {:ok, snapshot}
-      {:error, reason} -> {:error, {:snapshot_load_failed, reason}}
-    end
-  end
-
   defp load_snapshot(session_store, opts) do
     store_opts = session_store_opts(opts)
 
@@ -2705,6 +2696,15 @@ defmodule Condukt.Session do
       end
     else
       {:ok, read_snapshot(session_store, store_opts)}
+    end
+  end
+
+  # A snapshot from a newer Condukt, as after a rollback, is refused for the
+  # same reason: starting without it would save over it.
+  defp migrate_durable_snapshot(loaded) do
+    case Snapshot.migrate(loaded) do
+      {:ok, snapshot} -> {:ok, snapshot}
+      {:error, reason} -> {:error, {:snapshot_load_failed, reason}}
     end
   end
 

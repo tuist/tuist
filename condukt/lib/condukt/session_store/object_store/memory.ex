@@ -31,9 +31,6 @@ defmodule Condukt.SessionStore.ObjectStore.Memory do
   end
 
   @impl true
-  def head(bucket, key), do: if(Agent.get(bucket, &Map.has_key?(&1, key)), do: :ok, else: :not_found)
-
-  @impl true
   def list(bucket, prefix, start_after) do
     keys =
       bucket

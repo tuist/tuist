@@ -50,10 +50,13 @@ defmodule Condukt.SessionStore.ObjectStore do
     * its next manifest is taken, so a save or clear fails with
       `{:error, :fenced}`;
     * its next journal object is the fence, so an append fails the same way;
-    * after every append it checks that no manifest follows the last one it
-      knows. That catches the case where the new writer has since cleared the
-      journal and deleted the fence, which would let the old writer's create
-      succeed in a slot nobody reads.
+    * after every append and every manifest it creates, it checks that no
+      manifest follows its own. That catches the cases where a newer writer
+      has since cleared the journal, deleting the fence, or deleted the
+      manifest the old writer's next one would have collided with, which
+      would let its creates succeed where nobody reads them. A manifest that
+      turns out to be superseded refuses the save or clear, which then
+      deletes nothing.
 
   A record the old writer created before the fence is read by the new writer,
   so a record the old writer was told is durable is never lost. One it
@@ -62,8 +65,8 @@ defmodule Condukt.SessionStore.ObjectStore do
   a tool call's intent without its result, which a resumed run already treats
   as an outcome it cannot know.
 
-  An append costs one create and one `HEAD`. A save costs a segment create
-  and a manifest create.
+  An append costs one create and one listing. A save costs a segment create,
+  a manifest create, and a listing.
 
   `load/1` and `load_journal/1` take the session over first when `:epoch` is
   given, as a write would, and are plain reads of the current state otherwise,
@@ -77,8 +80,8 @@ defmodule Condukt.SessionStore.ObjectStore do
   dropped after any failed write.
 
   A writer that takes the session over deletes the manifests before its
-  claim, and later the ones it replaced except its first, which the previous
-  writer's check reads. Objects a fenced writer created before it found out,
+  claim, and later each one it replaced but the last two; the check above
+  needs only that some manifest after an old writer's own exists. Objects a fenced writer created before it found out,
   the journal's fence objects until the journal is cleared, and anything a
   failed delete left behind are not referenced and stay in the bucket.
   """
@@ -151,14 +154,17 @@ defmodule Condukt.SessionStore.ObjectStore do
 
     with {:ok, writer} <- open(ctx) do
       with :ok <- create(ctx, wal_key(ctx, writer.wal_next), encode(ctx, {:records, records})),
-           :not_found <- head(ctx, manifest_key(ctx, writer.seq + 1)) do
+           :ok <- check_superseded(ctx, writer.seq) do
         remember(ctx, %{writer | wal_next: writer.wal_next + 1})
         :ok
       else
         # Only this writer appends at its epoch, so someone else's object at
-        # its next position is a newer writer's fence, and a manifest after
-        # the last one it knows is a newer writer's claim.
-        result when result in [:ok, {:error, :exists}] ->
+        # its next position is a newer writer's fence.
+        {:error, :exists} ->
+          forget(ctx)
+          {:error, :fenced}
+
+        {:error, :fenced} ->
           forget(ctx)
           {:error, :fenced}
 
@@ -248,10 +254,10 @@ defmodule Condukt.SessionStore.ObjectStore do
   defp fence(ctx, attempt \\ 1) do
     with {:ok, {seq, manifest}} <- latest(ctx),
          :ok <- check_epoch(ctx, manifest),
-         {:ok, writer} <- claim(ctx, %{seq: seq, manifest: manifest, wal_next: nil, opened: nil}),
+         {:ok, writer} <- claim(ctx, %{seq: seq, manifest: manifest, wal_next: nil}),
          {:ok, keys} <- list(ctx, "wal/", wal_key(ctx, manifest.wal_from - 1)),
          {:ok, wal_next} <- create_fence(ctx, next_number(keys, manifest.wal_from)) do
-      {:ok, remember(ctx, %{writer | wal_next: wal_next, opened: writer.seq})}
+      {:ok, remember(ctx, %{writer | wal_next: wal_next})}
     else
       {:error, :conflict} when attempt < @claim_attempts -> fence(ctx, attempt + 1)
       error -> error
@@ -301,12 +307,14 @@ defmodule Condukt.SessionStore.ObjectStore do
     seq = writer.seq + 1
 
     case create(ctx, manifest_key(ctx, seq), encode(ctx, manifest)) do
-      # An older writer checks for the manifest after the last one it knew,
-      # which is a newer writer's first, so a writer deletes only manifests it
-      # wrote after that.
+      # A newer writer may have deleted the manifests this one would have
+      # collided with, so a create that succeeds is only this writer's if no
+      # manifest follows it. The caller deletes nothing otherwise.
       :ok ->
-        if writer.opened && seq - 2 > writer.opened, do: delete_all(ctx, [manifest_key(ctx, seq - 2)])
-        {:ok, remember(ctx, %{writer | seq: seq, manifest: manifest})}
+        with :ok <- check_superseded(ctx, seq) do
+          if seq > 2, do: delete_all(ctx, [manifest_key(ctx, seq - 2)])
+          {:ok, remember(ctx, %{writer | seq: seq, manifest: manifest})}
+        end
 
       {:error, :exists} ->
         forget(ctx)
@@ -377,9 +385,22 @@ defmodule Condukt.SessionStore.ObjectStore do
     end
   end
 
-  defp head(ctx, key) do
-    {module, config} = ctx.bucket
-    module.head(config, key)
+  # Any manifest after the writer's own is a newer writer's: the current
+  # writer's manifests are never all deleted, so however far behind this
+  # writer is, it finds one.
+  defp check_superseded(ctx, seq) do
+    case list(ctx, "manifest/", manifest_key(ctx, seq)) do
+      {:ok, []} ->
+        :ok
+
+      {:ok, _newer} ->
+        forget(ctx)
+        {:error, :fenced}
+
+      error ->
+        forget(ctx)
+        error
+    end
   end
 
   defp read(ctx, key, decode_opts) do
