@@ -743,7 +743,7 @@ defmodule Tuist.Sandboxes do
             )
 
             DiskSnapshots.forget_if_missing(disk_snapshot, node_name, reason)
-            create_after_failed_clone(sandbox, args, node_name, disk_snapshot)
+            create_after_failed_clone(sandbox, args, node_name, disk_snapshot, reason)
         end
 
       {:error, reason} ->
@@ -800,19 +800,40 @@ defmodule Tuist.Sandboxes do
   defp host_refused?("macOS sandbox capacity unavailable: " <> detail), do: not String.contains?(detail, "\n")
   defp host_refused?(_reason), do: false
 
-  defp create_after_failed_clone(sandbox, args, _node_name, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
+  defp create_after_failed_clone(
+         sandbox,
+         args,
+         _node_name,
+         %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot,
+         _reason
+       ) do
     sandbox |> release_node() |> create_from_disk_snapshot_archive(args, disk_snapshot)
   end
 
-  defp create_after_failed_clone(sandbox, args, node_name, %DiskSnapshot{}) do
-    create_template_after_failure(sandbox, args, node_name)
+  defp create_after_failed_clone(sandbox, args, node_name, %DiskSnapshot{}, reason) do
+    create_template_after_failure(sandbox, args, node_name, reason)
+  end
+
+  # A node that went away during the create (its daemon restarted, or it
+  # left) would fail the template boot too, so it boots on another node. A
+  # restarted daemon errors the jail it interrupted, and the report of an
+  # errored jail on a node the row is not on deletes it.
+  defp create_template_after_failure(sandbox, args, node_name, reason)
+       when reason in [:not_connected, :node_disconnected] do
+    sandbox = release_node(sandbox)
+
+    with {:ok, other} <- Capacity.place(sandbox, &(&1.name != node_name)),
+         sandbox = Repo.reload!(sandbox),
+         {:ok, data} <- node_call(%{sandbox | node_name: other}, "create", args, timeout: @create_timeout) do
+      {:ok, other, data}
+    end
   end
 
   # A create the server stopped waiting for (a timeout) can still be running
   # or done on the node, which refuses a second create under the same id
   # ("sandbox already exists"). The node's delete waits for that create and
   # removes it, and succeeds for an id the node does not hold.
-  defp create_template_after_failure(sandbox, args, node_name) do
+  defp create_template_after_failure(sandbox, args, node_name, _reason) do
     with {:ok, _data} <- Nodes.call(node_name, "delete", %{sandbox_id: sandbox.id}, []),
          {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
       {:ok, node_name, data}
@@ -835,7 +856,8 @@ defmodule Tuist.Sandboxes do
           DiskSnapshots.queue_copies(disk_snapshot)
           {:ok, node_name, Map.merge(data, %{"disk_snapshot_id" => disk_snapshot.id, "disk_snapshot_archive" => true})}
 
-        # The node holds the reservation already, so the template boots there.
+        # The node holds the reservation already, so the template boots there,
+        # unless the node itself went away.
         {:error, reason} ->
           Logger.warning("sandboxes: create from a disk snapshot archive failed, booting the template",
             sandbox_id: sandbox.id,
@@ -844,7 +866,7 @@ defmodule Tuist.Sandboxes do
             reason: inspect(reason)
           )
 
-          create_template_after_failure(sandbox, args, node_name)
+          create_template_after_failure(sandbox, args, node_name, reason)
       end
     else
       {:error, reason} ->

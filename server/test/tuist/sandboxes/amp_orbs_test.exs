@@ -812,6 +812,33 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       assert [%{boot_source: "template"}] = sandbox_events(sandbox, "started")
     end
 
+    test "a create from the archive whose node disconnects boots the template on another node", %{account: account} do
+      archived_snapshot(account, node_name: nil)
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
+      expect(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://s3/snapshot" end)
+      expect(Nodes, :call, fn "node-b", "create", %{from_archive: _}, _opts -> {:error, :node_disconnected} end)
+
+      expect(Capacity, :place, fn %Sandbox{node_name: nil} = sandbox, filter ->
+        refute Repo.reload!(sandbox).node_name
+        refute filter.(%{name: "node-b"})
+        assert filter.(%{name: "node-c"})
+        {:ok, "node-c"}
+      end)
+
+      expect(Nodes, :call, fn "node-c", "create", args, _opts ->
+        refute Map.has_key?(args, :from_archive)
+        {:ok, %{}}
+      end)
+
+      expect(Nodes, :call, fn "node-c", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{node_name: "node-c"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      sandbox = Repo.get_by!(Sandbox, amp_orb_id: "amp-new")
+      assert [%{boot_source: "template"}] = sandbox_events(sandbox, "started")
+    end
+
     test "snapshots are account-scoped", %{account: account} do
       disk_snapshot_fixture(account: account_fixture(), amp_snapshot_id: "proj-1", node_name: "node-a")
       reject(&Capacity.place_on_node/2)
