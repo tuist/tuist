@@ -40,7 +40,7 @@ use crate::{
     constants::{
         ACTION_CACHE_TRUNK_SCAN_FACTOR, BACKFILL_APPLY_GROUP_RECORDS,
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
-        CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
+        CAS_CAPACITY_DEFAULT_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
         MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
         ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_ANALYTICS_OUTBOX,
@@ -12509,10 +12509,14 @@ impl SegmentRingLimits {
 /// capacity and the data-dir filesystem size.
 ///
 /// The budget is `configured_capacity_bytes` when set, otherwise
-/// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. Either way it is
-/// capped at `CAS_CAPACITY_MAX_DISK_PERCENT` of the filesystem to leave initial
-/// space for metadata and rotation. Actual free space is checked at rotation:
-/// metadata and staging can outgrow that estimate. Floored at the legacy 1/2/2
+/// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. A configured budget is
+/// the operator's statement of what the ring may hold after metadata and
+/// staging, so it is honoured up to the filesystem less the one segment a
+/// rotation appends before evicting. The managed control plane derives it
+/// from the claim with those reserves already taken out; a flat percentage of
+/// the filesystem on top of that stranded a fifth of every large thin volume,
+/// whose filesystem is the claim plus a fixed workspace. Actual free space is
+/// still checked at rotation: metadata and staging can outgrow any estimate. Floored at the legacy 1/2/2
 /// ring so small disks (or hosts where the filesystem size cannot be
 /// determined) keep the pre-existing behavior. Generations keep the legacy
 /// 1:2:2 old/current/new proportions.
@@ -12522,7 +12526,7 @@ fn resolve_segment_ring_limits(
 ) -> SegmentRingLimits {
     let floor = SegmentRingLimits::legacy_floor();
 
-    let ceiling_bytes = disk_total_bytes.map(|total| total / 100 * CAS_CAPACITY_MAX_DISK_PERCENT);
+    let ceiling_bytes = disk_total_bytes.map(|total| total.saturating_sub(MAX_SEGMENT_BYTES));
     let budget_bytes = match (configured_capacity_bytes, ceiling_bytes) {
         (Some(configured), Some(ceiling)) => Some(configured.min(ceiling)),
         (Some(configured), None) => Some(configured),
@@ -14004,12 +14008,23 @@ mod tests {
 
     #[test]
     fn segment_ring_limits_cap_configured_capacity_below_disk_size() {
-        // 80% of 10 GiB rounds down to 15 whole segments, regardless of the
-        // configured 1 TiB.
+        // 10 GiB less the rotation segment is 19 whole segments, regardless of
+        // the configured 1 TiB, so the appended segment still fits.
         let limits = resolve_segment_ring_limits(Some(1024 * GIB), Some(10 * GIB));
 
-        assert_eq!(limits.total_segments(), 15);
-        assert!(limits.capacity_bytes() <= 10 * GIB * 80 / 100);
+        assert_eq!(limits.total_segments(), 19);
+        assert!(limits.capacity_bytes() + MAX_SEGMENT_BYTES <= 10 * GIB);
+    }
+
+    #[test]
+    fn segment_ring_limits_honour_configured_capacity_above_eighty_percent() {
+        // A 256 GiB thin claim's filesystem is 258 GiB; the control plane
+        // derives a ring of about 246 GiB (95%). The former 80% cap held it at
+        // 206 GiB.
+        let configured = 246 * GIB;
+        let limits = resolve_segment_ring_limits(Some(configured), Some(258 * GIB));
+
+        assert_eq!(limits.capacity_bytes(), configured);
     }
 
     #[test]
