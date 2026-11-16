@@ -34,7 +34,7 @@ defmodule TuistWeb.DashboardNavigationTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
     stub(FeatureFlags, :sandboxes_enabled?, fn _ -> false end)
-    stub(FeatureFlags, :code_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :guild_enabled?, fn _ -> false end)
     paths = user |> DashboardNavigation.pages(user.account, nil) |> Enum.map(& &1.path)
     refute Enum.any?(paths, &String.contains?(&1, ["/runners", "/sandboxes", "/ai"]))
   end

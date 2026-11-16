@@ -25,7 +25,7 @@ defmodule TuistWeb.API.FeatureFlagsController do
              enabled: %Schema{
                type: :array,
                items: %Schema{type: :string},
-               description: "The names of the enabled flags. Known values: `code`."
+               description: "The names of the enabled flags. Known values: `guild`."
              }
            },
            required: [:enabled]

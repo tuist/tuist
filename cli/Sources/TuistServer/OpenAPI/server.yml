@@ -15137,7 +15137,7 @@ components:
     FeatureFlags:
       properties:
         enabled:
-          description: 'The names of the enabled flags. Known values: `code`.'
+          description: 'The names of the enabled flags. Known values: `guild`.'
           items:
             type: string
             x-struct:
@@ -59955,7 +59955,7 @@ paths:
               schema:
                 properties:
                   enabled:
-                    description: 'The names of the enabled flags. Known values: `code`.'
+                    description: 'The names of the enabled flags. Known values: `guild`.'
                     items:
                       type: string
                       x-struct:

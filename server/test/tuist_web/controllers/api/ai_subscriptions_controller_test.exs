@@ -173,8 +173,8 @@ defmodule TuistWeb.API.AISubscriptionsControllerTest do
     assert json_response(start.(), 429)
   end
 
-  test "is not found for users without the code flag", %{bearer: bearer} do
-    stub(FeatureFlags, :code_enabled?, fn _user -> false end)
+  test "is not found for users without the guild flag", %{bearer: bearer} do
+    stub(FeatureFlags, :guild_enabled?, fn _user -> false end)
 
     for request <- [
           &get(&1, @base),
