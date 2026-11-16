@@ -490,8 +490,8 @@
   & [data-part="stack-frame"] {
     display: grid;
     grid-template-columns: subgrid;
-    grid-column: 1 / -1;
     row-gap: var(--noora-spacing-2);
+    grid-column: 1 / -1;
 
     & [data-part="frame-function"] {
       color: var(--noora-surface-label-primary);
