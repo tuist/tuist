@@ -431,8 +431,18 @@ private struct CacheDebuggerSettingsRenderer {
 
         // Replace home-file and stale source maps, but let an explicit initializer extend or override the map.
         // Resolve it separately so an unreadable prefix map still leaves the user initializer sourced.
+        // Nothing attaches a debugger to tests on CI, and preparing relocations runs dsymutil for every test bundle.
+        // Jenkins doesn't set CI; BUILD_NUMBER is not checked because projects commonly define it as a build setting.
         return """
         set -eu
+
+        case "${CI:-}" in
+          "" | 0 | false | FALSE | False | no | NO) ;;
+          *) exit 0 ;;
+        esac
+        if [ -n "${JENKINS_URL:-}" ]; then
+          exit 0
+        fi
 
         lldb_init_file=\(shellQuoted(lldbInitPath.pathString))
         overlay_file=\(shellQuoted(overlayPath.pathString))
