@@ -10,6 +10,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.CIContextCard
+  import TuistWeb.Runs.CIProviderIcon
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.PullRequestButton
   import TuistWeb.Runs.RanByBadge
