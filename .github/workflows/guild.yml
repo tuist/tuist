@@ -29,7 +29,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: code
+        working-directory: guild
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,7 +39,7 @@ jobs:
           python-version: '3.13'
       - uses: ./.github/actions/mise
         with:
-          working_directory: code
+          working_directory: guild
           install_args: rust github:tuist/once
           cache: "false"
       - name: Authenticate hosted cache and insights
@@ -63,7 +63,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: code
+        working-directory: guild
     env:
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
@@ -71,7 +71,7 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: |
-            code
+            guild
             app/Fixtures/Navigation
             .github/actions/mise
       - uses: actions/setup-python@v5
@@ -104,7 +104,7 @@ jobs:
         run: choco install nsis minisign -y --no-progress
       - uses: ./.github/actions/mise
         with:
-          working_directory: code
+          working_directory: guild
           install_args: rust github:tuist/once jq yq
           cache: "false"
       - name: Authenticate hosted cache and insights
@@ -165,7 +165,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: code
+        working-directory: guild
     steps:
       - uses: actions/checkout@v4
         with:
@@ -175,7 +175,7 @@ jobs:
           python-version: '3.13'
       - uses: ./.github/actions/mise
         with:
-          working_directory: code
+          working_directory: guild
           install_args: rust github:tuist/once${{ env.PUBLISH_SIGNED_PREVIEW == 'true' && ' 1password-cli tuist' || '' }}
           cache: "false"
       - name: Authenticate hosted cache and insights
@@ -225,7 +225,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: code
+        working-directory: guild
     steps:
       - uses: actions/checkout@v4
         with:
@@ -235,7 +235,7 @@ jobs:
           python-version: '3.13'
       - uses: ./.github/actions/mise
         with:
-          working_directory: code
+          working_directory: guild
           install_args: rust github:tuist/once
           cache: "false"
       - name: Authenticate hosted cache and insights
@@ -260,7 +260,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: code
+        working-directory: guild
     steps:
       - uses: actions/checkout@v4
         with:
@@ -274,7 +274,7 @@ jobs:
           java-version: '17'
       - uses: ./.github/actions/mise
         with:
-          working_directory: code
+          working_directory: guild
           install_args: rust kotlin github:tuist/once
           cache: "false"
       - name: Authenticate hosted cache and insights
