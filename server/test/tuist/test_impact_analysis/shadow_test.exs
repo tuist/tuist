@@ -2,6 +2,7 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.TestImpactAnalysis.Candidate
+  alias Tuist.TestImpactAnalysis.Carry
   alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.TestImpactAnalysis.Shadow
   alias Tuist.TestImpactAnalysis.Snapshots
@@ -80,11 +81,11 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
       [CoverageFixtures.file(@test_file, [count], [is_test: true] ++ blob.(@test_file))]
   end
 
-  defp params(head_sha, changed_files) do
+  defp params(head_sha, changed_files, baseline_sha \\ "c1") do
     %{
       build_system: "xcode",
       head_sha: head_sha,
-      baseline_sha: "c1",
+      baseline_sha: baseline_sha,
       git_branch: "feature",
       modules: [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: false}],
       changed_files: changed_files,
@@ -94,15 +95,16 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
 
   defp changed(path, blob, modules \\ ["AppTests"]), do: %{path: path, status: "M", blob: blob, affected_modules: modules}
 
-  defp decide(project, head_sha, changed_files) do
-    {:ok, %{run: run}} = Runs.create(project, params(head_sha, changed_files))
+  defp decide(project, head_sha, changed_files, baseline_sha \\ "c1") do
+    {:ok, %{run: run}} = Runs.create(project, params(head_sha, changed_files, baseline_sha))
     {:ok, result} = Shadow.decide(project, run)
     {run, result}
   end
 
-  # Each test's `{decision, reason}` by name.
-  defp by_name(project, %{decisions: decisions}) do
-    snapshot = Snapshots.at(project.id, "c1", "App", "")
+  # Each test's `{decision, reason}` by name, named from the checkpoint at
+  # `sha`.
+  defp by_name(project, %{decisions: decisions}, sha \\ "c1") do
+    snapshot = Snapshots.at(project.id, sha, "App", "")
     tests = Candidate.evaluate(project.id, snapshot, [])
     named = Snapshots.names(project.id, snapshot, Enum.map(tests, & &1.idx))
     names = Map.new(tests, &{&1.test_case_id, named[&1.idx].name})
@@ -194,6 +196,157 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     assert count.("test_impact_snapshot_lines") == 2 * refs
   end
 
+  test "a changed file no evidence includes selects its module's tests whatever the branch's previous run says",
+       %{project: project, account: account} do
+    # Both pushes change Math.swift and add an image AppTests' module owns.
+    changes = [changed("Sources/Math.swift", "m2"), changed("Resources/Image.png", "i1")]
+
+    {:ok, %{run: previous_run}} = Runs.create(project, params("c2", changes))
+
+    CoverageFixtures.run_with_coverage(project, account, files(%{"Sources/Math.swift" => "m2"}), %{
+      git_commit_sha: "c2",
+      git_branch: "feature",
+      partial: true,
+      test_impact_run_id: previous_run.id,
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 1,
+          test_cases: [%{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 10}]
+        }
+      ],
+      coverage_evidence: %{
+        paths: @paths,
+        scopes: [
+          %{
+            kind: "test",
+            module: "AppTests",
+            suite: "MathTests",
+            name: "testAdd()",
+            files: [0, 5],
+            lines: [[1, 1], [1, 1]]
+          }
+        ]
+      }
+    })
+
+    {_run, result} = decide(project, "c3", changes)
+    assert length(result.candidates) == 2
+
+    assert by_name(project, result) == %{
+             # The previous run ran it with the same Math.swift, but the image is
+             # still unknown to its evidence.
+             "testAdd()" => {:selected, :impacted},
+             "testSub()" => {:selected, :owned_without_evidence},
+             "testUpper()" => {:selected, :owned_without_evidence},
+             "sum()" => {:selected, :no_evidence},
+             "testCore()" => {:skipped, :unaffected}
+           }
+  end
+
+  test "a failure at a newer baseline stands against older evidence the branch's overlay keeps",
+       %{project: project, account: account} do
+    CoverageFixtures.seed_history(account, [CoverageFixtures.commit("p1", ["c1"], 5)])
+    CoverageFixtures.seed_listing(account, "c2", @paths ++ ["Package.resolved"])
+    test_case = fn name, suite, status -> %{name: name, test_suite_name: suite, status: status, duration: 10} end
+
+    scope = fn suite, name, files ->
+      %{
+        kind: "test",
+        module: "AppTests",
+        suite: suite,
+        name: name,
+        files: files,
+        lines: Enum.map(files, fn _ -> [1, 1] end)
+      }
+    end
+
+    # Main's full run at c2 adds testDiv(), which shifts the numbers after it,
+    # and testUpper() fails there.
+    CoverageFixtures.run_with_coverage(project, account, files(), %{
+      git_commit_sha: "c2",
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "failure",
+          duration: 1,
+          test_cases: [
+            test_case.("testAdd()", "MathTests", "success"),
+            test_case.("testDiv()", "MathTests", "success"),
+            test_case.("testSub()", "MathTests", "success"),
+            test_case.("testUpper()", "StringTests", "failure"),
+            test_case.("sum()", "SumTests", "success")
+          ]
+        },
+        %{
+          name: "CoreTests",
+          status: "success",
+          duration: 1,
+          test_cases: [test_case.("testCore()", "CoreSuite", "success")]
+        }
+      ],
+      coverage_evidence: %{
+        paths: @paths,
+        scopes: [
+          scope.("MathTests", "testAdd()", [0, 5]),
+          scope.("MathTests", "testDiv()", [0]),
+          scope.("MathTests", "testSub()", [1]),
+          scope.("StringTests", "testUpper()", [2]),
+          %{kind: "test", module: "CoreTests", suite: "CoreSuite", name: "testCore()", files: [3], lines: [[1, 1]]},
+          %{kind: "target", module: "CoreTests", files: [3, 4], lines: [[1, 1], [1, 1]]}
+        ]
+      }
+    })
+
+    # Afterwards, the branch's previous push, against c1, runs testAdd() over
+    # Math.swift at m2 and a new testMul(); testUpper() keeps c1's pass there.
+    previous = [changed("Sources/Math.swift", "m2")]
+    {:ok, %{run: previous_run}} = Runs.create(project, params("p1", previous))
+
+    CoverageFixtures.run_with_coverage(project, account, files(%{"Sources/Math.swift" => "m2"}), %{
+      git_commit_sha: "p1",
+      git_branch: "feature",
+      partial: true,
+      test_impact_run_id: previous_run.id,
+      test_modules: [
+        %{
+          name: "AppTests",
+          status: "success",
+          duration: 1,
+          test_cases: [test_case.("testAdd()", "MathTests", "success"), test_case.("testMul()", "MathTests", "success")]
+        }
+      ],
+      coverage_evidence: %{
+        paths: @paths,
+        scopes: [scope.("MathTests", "testAdd()", [0, 5]), scope.("MathTests", "testMul()", [0])]
+      }
+    })
+
+    {run, result} = decide(project, "c3", previous, "c2")
+    assert length(result.candidates) == 2
+
+    assert by_name(project, result, "c2") == %{
+             # Ran on the previous push's tree, with the same Math.swift.
+             "testAdd()" => {:skipped, :unaffected},
+             "testDiv()" => {:selected, :impacted},
+             "testSub()" => {:skipped, :unaffected},
+             # The overlay's pass is c1's, older than c2's failure.
+             "testUpper()" => {:selected, :failed_last_run},
+             "sum()" => {:selected, :no_evidence},
+             "testCore()" => {:skipped, :unaffected}
+           }
+
+    # The skip list is read in c2's numbering, not the overlay's c1 one.
+    snapshot = Snapshots.at(project.id, "c2", "App", "")
+    tests = Candidate.evaluate(project.id, snapshot, [])
+    named = Snapshots.names(project.id, snapshot, Enum.map(tests, & &1.idx))
+    names = Map.new(tests, &{&1.test_case_id, named[&1.idx].name})
+
+    assert project.id |> Carry.skipped_tests(run.id) |> Enum.map(&names[&1.test_case_id]) |> Enum.sort() ==
+             ["testAdd()", "testCore()", "testSub()"]
+  end
+
   test "lists the files a test depends on in a snapshot", %{project: project} do
     snapshot = Snapshots.at(project.id, "c1", "App", "")
     tests = Candidate.evaluate(project.id, snapshot, [])
@@ -252,6 +405,16 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
         ]
       }
     })
+
+    # The overlay ends with the checkpoint it numbers its tests by.
+    {overlay, checkpoint} =
+      Snapshots.latest_branch_overlay(project.id, "feature", %{scheme: "App", platform: ""}, "c3", DateTime.utc_now())
+
+    assert DateTime.compare(overlay.expires_at, checkpoint.expires_at) != :gt
+
+    # A second full run at c1 writes c1 a newer checkpoint; the overlay
+    # keeps the one it was written against.
+    full_run(project, account, "c1", files())
 
     # c3 carries the same two blobs and changes Sub.swift too.
     {_run, result} = decide(project, "c3", previous ++ [changed("Sources/Sub.swift", "b3")])

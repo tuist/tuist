@@ -16,11 +16,14 @@ defmodule Tuist.TestImpactAnalysis.Shadow do
     (`Tuist.GitHistory.changed_files/4`). It's left out when any part is
     missing or truncated, or a tracked file changed.
 
-  A test is decided by the newest candidate where its files are unchanged:
-  skipped when it passed there, `failed_last_run` when it didn't; selected
-  with the primary's reason when there's none. A changed test file's suites
-  and a changed file no evidence includes select through the primary's diff
-  whatever the other candidate says, as they do today.
+  A test is decided by the candidate whose evidence of it ran last among
+  those where its files are unchanged: skipped when it passed there,
+  `failed_last_run` when it didn't; selected with the primary's reason when
+  there's none. A test the branch's overlay doesn't replace has its
+  checkpoint's evidence there, as old as that checkpoint. A changed test
+  file's suites and the tests of a module a changed file no evidence
+  includes affects select through the primary's diff whatever the other
+  candidate says, as they do today.
 
   The decision is stored in `test_impact_run_decisions`, one bitmap per
   decision, reason and the snapshot whose evidence decided it, numbered as
@@ -69,10 +72,10 @@ defmodule Tuist.TestImpactAnalysis.Shadow do
           |> by_id()
       }
 
+      # The primary first: it wins a tie, such as a row the branch's overlay
+      # keeps from the same checkpoint.
       candidates =
-        [branch_candidate(project, run, scope, checkpoint, diff.changed_files), primary]
-        |> Enum.reject(&is_nil/1)
-        |> Enum.sort_by(& &1.snapshot.ran_at, {:desc, DateTime})
+        Enum.reject([primary, branch_candidate(project, run, scope, checkpoint, diff.changed_files)], &is_nil/1)
 
       decisions = combine(primary, candidates)
       store(project.id, run.id, checkpoint, primary, decisions)
@@ -94,17 +97,27 @@ defmodule Tuist.TestImpactAnalysis.Shadow do
 
   defp combine(primary, candidates) do
     Map.new(primary.tests, fn {test_case_id, test} ->
-      decided = if test.reason not in @final_reasons, do: Enum.find_value(candidates, &unchanged_in(&1, test_case_id))
+      decided = if !final?(test), do: newest_unchanged(candidates, test_case_id)
       {reason, candidate} = decided || {test.reason, primary}
       {test_case_id, %{idx: test.idx, decision: decision(reason), reason: reason, snapshot_id: evidence_id(candidate)}}
     end)
   end
 
-  defp unchanged_in(candidate, test_case_id) do
-    with %{} = test <- Map.get(candidate.tests, test_case_id), true <- Candidate.unchanged?(test) do
-      {test.reason, candidate}
-    else
-      _ -> nil
+  defp final?(test), do: test.reason in @final_reasons or test.owned
+
+  defp newest_unchanged(candidates, test_case_id) do
+    candidates
+    |> Enum.flat_map(fn candidate ->
+      with %{} = test <- Map.get(candidate.tests, test_case_id), true <- Candidate.unchanged?(test) do
+        [{test.reason, candidate, Candidate.evidence_ran_at(candidate.layers, test)}]
+      else
+        _ -> []
+      end
+    end)
+    |> Enum.max_by(&elem(&1, 2), DateTime, fn -> nil end)
+    |> case do
+      nil -> nil
+      {reason, candidate, _ran_at} -> {reason, candidate}
     end
   end
 
@@ -223,24 +236,35 @@ defmodule Tuist.TestImpactAnalysis.Shadow do
     |> Map.values()
     |> Enum.group_by(&{&1.decision, &1.reason, &1.snapshot_id}, & &1.idx)
     |> Enum.each(fn {{decision, reason, snapshot_id}, idx} ->
-      IngestRepo.query!(
-        """
-        INSERT INTO test_impact_run_decisions
-          (project_id, test_impact_run_id, snapshot_id, evidence_snapshot_id, decision, reason, tests, inserted_at)
-        SELECT {project_id:Int64}, {run_id:UUID}, {snapshot_id:UUID}, {evidence_snapshot_id:UUID}, {decision:String},
-          {reason:String}, bitmapBuild({idx:Array(UInt32)}), {inserted_at:DateTime64(6)}
-        """,
-        %{
-          project_id: project_id,
-          run_id: run_id,
-          snapshot_id: checkpoint.id,
-          evidence_snapshot_id: snapshot_id,
-          decision: to_string(decision),
-          reason: to_string(reason),
-          idx: Enum.sort(idx),
-          inserted_at: inserted_at
-        }
-      )
+      # Numbers go as ranges, a chunk per row: a parameter holds at most
+      # 128 KiB, and the key keeps chunks from replacing each other.
+      idx
+      |> Snapshots.idx_chunks()
+      |> Enum.with_index()
+      |> Enum.each(fn {chunk, i} ->
+        IngestRepo.query!(
+          """
+          INSERT INTO test_impact_run_decisions (project_id, test_impact_run_id, snapshot_id, evidence_snapshot_id,
+            decision, reason, chunk, tests, decided, inserted_at)
+          SELECT {project_id:Int64}, {run_id:UUID}, {snapshot_id:UUID}, {evidence_snapshot_id:UUID}, {decision:String},
+            {reason:String}, {chunk:UInt16}, groupBitmapState(toUInt32(test_idx)), {decided:UInt32},
+            {inserted_at:DateTime64(6)}
+          FROM (#{Snapshots.idx_sql()})
+          """,
+          %{
+            project_id: project_id,
+            run_id: run_id,
+            snapshot_id: checkpoint.id,
+            evidence_snapshot_id: snapshot_id,
+            decision: to_string(decision),
+            reason: to_string(reason),
+            chunk: i,
+            idx: chunk,
+            decided: map_size(decisions),
+            inserted_at: inserted_at
+          }
+        )
+      end)
     end)
 
     primary

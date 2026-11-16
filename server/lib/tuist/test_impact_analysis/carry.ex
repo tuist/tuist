@@ -78,28 +78,30 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     params = %{project_id: project_id, run_id: run_id}
 
     decisions = """
-    test_impact_run_decisions WHERE project_id = {project_id:Int64} AND test_impact_run_id = {run_id:UUID}
+    test_impact_run_decisions FINAL WHERE project_id = {project_id:Int64} AND test_impact_run_id = {run_id:UUID}
     """
 
-    case Snapshots.query!("SELECT count() FROM #{decisions}", params) do
-      [[0]] ->
-        nil
+    # A decision written only in part, its storing having failed midway,
+    # counts as none.
+    complete =
+      "SELECT count() > 0 AND sum(bitmapCardinality(tests)) = any(decided) FROM #{decisions}"
+      |> Snapshots.query!(params)
+      |> then(fn [[complete]] -> complete in [true, 1] end)
 
-      _ ->
-        # An overlay numbers its tests as its checkpoint does, so a number
-        # names the same test in either layer.
-        """
-        SELECT toString(any(test_case_id)), any(module_name), any(suite_name)
-        FROM test_impact_snapshot_tests FINAL
-        WHERE project_id = {project_id:Int64}
-          AND snapshot_id IN (SELECT arrayJoin([snapshot_id, evidence_snapshot_id]) FROM #{decisions})
-          AND test_idx IN (SELECT arrayJoin(bitmapToArray(tests)) FROM #{decisions} AND decision = 'skipped')
-        GROUP BY test_idx
-        """
-        |> Snapshots.query!(params)
-        |> Enum.map(fn [test_case_id, module_name, suite_name] ->
-          %{test_case_id: test_case_id, module_name: module_name, suite_name: suite_name}
-        end)
+    if complete do
+      # Every number is in the numbering of the primary checkpoint
+      # (`snapshot_id`), whichever snapshot's evidence decided it.
+      """
+      SELECT toString(test_case_id), module_name, suite_name
+      FROM test_impact_snapshot_tests FINAL
+      WHERE project_id = {project_id:Int64}
+        AND snapshot_id IN (SELECT snapshot_id FROM #{decisions})
+        AND test_idx IN (SELECT arrayJoin(bitmapToArray(tests)) FROM #{decisions} AND decision = 'skipped')
+      """
+      |> Snapshots.query!(params)
+      |> Enum.map(fn [test_case_id, module_name, suite_name] ->
+        %{test_case_id: test_case_id, module_name: module_name, suite_name: suite_name}
+      end)
     end
   end
 
@@ -245,11 +247,11 @@ defmodule Tuist.TestImpactAnalysis.Carry do
 
   defp test_units(tests, context) do
     baseline = baseline_results(tests, context)
-    from_overlays = baseline |> Enum.reject(&match?({_test, {:ok, _unit}}, &1)) |> overlay_results(context)
+    from_overlays = baseline |> Enum.reject(&match?({_test, {{:ok, _unit}, _ran_at}}, &1)) |> overlay_results(context)
 
     {units, reasons} =
-      Enum.reduce(baseline, {[], %{}}, fn {test, result}, {units, reasons} ->
-        case Map.get(from_overlays, test.test_case_id, result) do
+      Enum.reduce(baseline, {[], %{}}, fn {test, found}, {units, reasons} ->
+        case Map.get(from_overlays, test.test_case_id, result(found)) do
           nil -> {units, reasons}
           {:gap, reason} -> {units, Map.put(reasons, test.test_case_id, reason)}
           {:ok, unit} -> {[Map.put(unit, :tests, [test]) | units], reasons}
@@ -260,12 +262,13 @@ defmodule Tuist.TestImpactAnalysis.Carry do
     {kept, Map.merge(reasons, guard_reasons)}
   end
 
-  # Each test with what the baseline's checkpoints make of it. The evaluated
-  # checkpoints are dropped on return, before any overlay is evaluated.
+  # Each test with what the baseline's checkpoints make of it and when that
+  # evidence ran (`found_at/2`). The evaluated checkpoints are dropped on
+  # return, before any overlay is evaluated.
   defp baseline_results(tests, context) do
     modules = tests |> Enum.map(& &1.module_name) |> Enum.uniq()
     evaluated = context |> candidates() |> Enum.map(&evaluate(context, &1, modules))
-    Enum.map(tests, fn test -> {test, Enum.find_value(evaluated, &found(&1, test.test_case_id))} end)
+    Enum.map(tests, fn test -> {test, Enum.find_value(evaluated, &found_at(&1, test.test_case_id))} end)
   end
 
   # What the overlays carry of the tests the baseline couldn't, by test case
@@ -281,7 +284,7 @@ defmodule Tuist.TestImpactAnalysis.Carry do
         %{}
 
       overlays ->
-        Map.new(leftover, fn {test, result} -> {test.test_case_id, or_overlay(result, overlays, test.test_case_id)} end)
+        Map.new(leftover, fn {test, found} -> {test.test_case_id, or_overlay(found, overlays, test.test_case_id)} end)
     end
   end
 
@@ -381,16 +384,32 @@ defmodule Tuist.TestImpactAnalysis.Carry do
   end
 
   # What the baseline can't carry an overlay may: only a test it carries is
-  # taken from it, and the baseline's reason stays otherwise.
-  defp or_overlay({:ok, _unit} = carried, _overlays, _test_case_id), do: carried
-
+  # taken from it, and the baseline's reason stays otherwise. A failure at
+  # the baseline stands against evidence that ran before it, such as a row
+  # an overlay keeps from an older checkpoint, as `Shadow` decides it.
   defp or_overlay(baseline, overlays, test_case_id) do
+    {result, failed_at} = baseline || {nil, nil}
+
     Enum.find_value(overlays, fn overlay ->
-      case found(overlay, test_case_id) do
-        {:ok, _unit} = carried -> carried
+      case found_at(overlay, test_case_id) do
+        {{:ok, _unit} = carried, ran_at} -> if after_failure?(result, failed_at, ran_at), do: carried
         _ -> nil
       end
-    end) || baseline
+    end) || result
+  end
+
+  defp after_failure?({:gap, :test_failed}, failed_at, ran_at), do: DateTime.after?(ran_at, failed_at)
+  defp after_failure?(_result, _failed_at, _ran_at), do: true
+
+  defp result(nil), do: nil
+  defp result({result, _ran_at}), do: result
+
+  # `found/2` with when the test's evidence ran: its row's layer's run.
+  defp found_at(candidate, test_case_id) do
+    case found(candidate, test_case_id) do
+      nil -> nil
+      result -> {result, Candidate.evidence_ran_at(candidate.layers, Map.fetch!(candidate.tests, test_case_id))}
+    end
   end
 
   # A test the snapshot has no evidence for is looked up in the next one.

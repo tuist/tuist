@@ -62,9 +62,6 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     max_insert_threads: 2
   ]
 
-  @doc "How long a snapshot is kept after its run, in days."
-  def retention_days, do: @retention_days
-
   @doc """
   Records the snapshots of a commit's runs (`Tuist.Tests.Coverage.Commits.runs/2`).
   """
@@ -99,9 +96,20 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   def backfill(%Project{} = project, days \\ 1) do
     since = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
 
-    from(c in CoverageCommit, where: c.project_id == ^project.id and c.ran_at >= ^since, select: c.git_commit_sha)
-    |> Repo.all()
-    |> Enum.each(&record(project, Commits.runs(project.id, &1)))
+    runs =
+      from(c in CoverageCommit,
+        where: c.project_id == ^project.id and c.ran_at >= ^since,
+        order_by: c.ran_at,
+        select: c.git_commit_sha
+      )
+      |> Repo.all()
+      |> Enum.map(&Commits.runs(project.id, &1))
+
+    # Every checkpoint first: an overlay is written only against its
+    # baseline's checkpoint, which a later commit in the list can hold.
+    for commit_runs <- runs, do: record(project, Enum.filter(commit_runs, &(Map.get(&1, :partial) == false)))
+    for commit_runs <- runs, do: record(project, commit_runs)
+    :ok
   end
 
   @doc """
@@ -113,7 +121,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       where:
         s.project_id == ^project_id and s.commit_sha == ^commit_sha and s.kind == :checkpoint and
           s.expires_at > ^DateTime.utc_now(),
-      order_by: [desc: s.ran_at],
+      order_by: [desc: s.ran_at, desc: s.inserted_at],
       limit: 1
     )
     |> scheme_filter(scheme)
@@ -287,8 +295,11 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
           ran_at: utc(run.ran_at),
           expires_at: expires_at
         },
-        on_conflict: {:replace, [:id, :repository_id, :git_branch, :test_run_ids, :tests_count, :ran_at, :expires_at]},
-        conflict_target: {:unsafe_fragment, "(project_id, commit_sha, scheme, platform) WHERE kind = 'checkpoint'"}
+        # A commit's earlier checkpoints stay until they expire: the overlays
+        # written against them read their numbering. Two folds of the commit
+        # can write the same one at once.
+        on_conflict: :nothing,
+        conflict_target: :id
       )
 
       delete_expired(project.id)
@@ -313,7 +324,8 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   defp insert_overlay(project, run, impact_run, checkpoint, id, changed_files) do
-    expires_at = expires_at(run.ran_at)
+    # Its tests not overridden are its checkpoint's, so it ends with it.
+    expires_at = Enum.min([expires_at(run.ran_at), checkpoint.expires_at], DateTime)
 
     params = %{
       project_id: project.id,
@@ -351,24 +363,28 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     execute!(files_sql("snapshot_tests UNION ALL SELECT test_idx, m, s, n FROM checkpoint_module_tests"), params)
     write_lines(project.id, params, run.ran_at)
 
-    Repo.insert!(%Snapshot{
-      id: id,
-      project_id: project.id,
-      repository_id: run.git_repository_id,
-      commit_sha: impact_run.commit_sha,
-      kind: :overlay,
-      checkpoint_id: checkpoint.id,
-      base_sha: impact_run.baseline_sha,
-      scheme: run.scheme || "",
-      platform: run.platform,
-      git_branch: impact_run.git_branch || run.git_branch || "",
-      test_run_ids: [run.test_run_id],
-      test_impact_run_id: impact_run.id,
-      tests_count: checkpoint.tests_count,
-      overridden_count: count(project.id, id),
-      ran_at: utc(run.ran_at),
-      expires_at: expires_at
-    })
+    Repo.insert!(
+      %Snapshot{
+        id: id,
+        project_id: project.id,
+        repository_id: run.git_repository_id,
+        commit_sha: impact_run.commit_sha,
+        kind: :overlay,
+        checkpoint_id: checkpoint.id,
+        base_sha: impact_run.baseline_sha,
+        scheme: run.scheme || "",
+        platform: run.platform,
+        git_branch: impact_run.git_branch || run.git_branch || "",
+        test_run_ids: [run.test_run_id],
+        test_impact_run_id: impact_run.id,
+        tests_count: checkpoint.tests_count,
+        overridden_count: count(project.id, id),
+        ran_at: utc(run.ran_at),
+        expires_at: expires_at
+      },
+      on_conflict: :nothing,
+      conflict_target: :id
+    )
   end
 
   # The impact run's diff from its baseline, whole and without a tracked file:
@@ -847,12 +863,14 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   @doc false
-  # Expands the `{idx:Array(UInt32)}` ranges of `idx_chunks/1` back into
-  # `test_idx` rows.
-  def idx_sql do
+  # Expands the ranges of `idx_chunks/1` in the `Array(UInt32)` parameter
+  # `param` back into `test_idx` rows.
+  def idx_sql(param \\ "idx") do
+    idx = "{#{param}:Array(UInt32)}"
+
     """
-    SELECT arrayJoin(arrayFlatten(arrayMap(i -> range({idx:Array(UInt32)}[2 * i - 1], {idx:Array(UInt32)}[2 * i] + 1),
-      range(1, intDiv(length({idx:Array(UInt32)}), 2) + 1)))) AS test_idx
+    SELECT arrayJoin(arrayFlatten(arrayMap(i -> range(#{idx}[2 * i - 1], #{idx}[2 * i] + 1),
+      range(1, intDiv(length(#{idx}), 2) + 1)))) AS test_idx
     """
   end
 

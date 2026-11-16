@@ -23,10 +23,12 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
 
   @doc """
   The snapshot's tests, in `modules` when given, each as `%{idx,
-  test_case_id, module_name, suite_name, status, reason,
-  executed_changed}`, against `changed_files` (`%{path, affected_modules}`):
-  `executed_changed` when a file the test or its suite's setup executed
-  changed, which is what coverage carry checks.
+  test_case_id, module_name, suite_name, status, layer, reason,
+  executed_changed, owned}`, against `changed_files` (`%{path,
+  affected_modules}`): `executed_changed` when a file the test or its
+  suite's setup executed changed, which is what coverage carry checks, and
+  `owned` when a changed file no evidence includes affects its module,
+  whichever rule decided it first.
   """
   def evaluate(project_id, %{checkpoint: checkpoint} = layers, changed_files, modules \\ nil) do
     overlay = Map.get(layers, :overlay)
@@ -55,9 +57,17 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
       test
       |> Map.put(:reason, reason(test, merged, owned_modules))
       |> Map.put(:executed_changed, MapSet.member?(merged.direct, test.idx))
+      |> Map.put(:owned, MapSet.member?(owned_modules, test.module_name))
     end)
     |> Enum.sort_by(& &1.idx)
   end
+
+  @doc """
+  When the evidence of one of `evaluate/4`'s tests ran: its overlay's run
+  for a test the overlay replaces, its checkpoint's otherwise.
+  """
+  def evidence_ran_at(%{overlay: %{} = overlay}, %{layer: :overlay}), do: overlay.ran_at
+  def evidence_ran_at(%{checkpoint: checkpoint}, _test), do: checkpoint.ran_at
 
   @doc "Whether the test's files didn't change: it's skipped, or selected only because it failed there."
   def unchanged?(%{reason: reason}), do: reason in [:unaffected, :failed_last_run]

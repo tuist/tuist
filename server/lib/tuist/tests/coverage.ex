@@ -61,7 +61,6 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.IngestRepo
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.ExcludedPaths
@@ -553,6 +552,7 @@ defmodule Tuist.Tests.Coverage do
   @retention_tables %{
     files: [
       "coverage_files",
+      "coverage_target_sources",
       "coverage_test_sources",
       "test_impact_diffs",
       "test_impact_run_tests"
@@ -570,8 +570,7 @@ defmodule Tuist.Tests.Coverage do
   (`Tuist.Environment.coverage_commit_retention_days/1`). The tables get it
   at creation; this re-applies it after the configuration changed. The
   commits' uploaded listings keep their own fixed days
-  (`Tuist.GitHistory.listing_retention_days/0`), and the targets' hash
-  sources their test maps' (`Tuist.TestImpactAnalysis.Snapshots.retention_days/0`).
+  (`Tuist.GitHistory.listing_retention_days/0`).
   """
   def apply_retention do
     detail =
@@ -591,15 +590,7 @@ defmodule Tuist.Tests.Coverage do
     listing_days = GitHistory.listing_retention_days()
     IngestRepo.query!("ALTER TABLE git_commit_files MODIFY TTL toDateTime(inserted_at) + INTERVAL #{listing_days} DAY")
 
-    # A target's hash source is read to carry from its run's test map, so it
-    # lives as long as the map does.
-    source_days = Snapshots.retention_days()
-
-    IngestRepo.query!(
-      "ALTER TABLE coverage_target_sources MODIFY TTL toDateTime(inserted_at) + INTERVAL #{source_days} DAY"
-    )
-
-    detail ++ commits ++ [{"git_commit_files", listing_days}, {"coverage_target_sources", source_days}]
+    detail ++ commits ++ [{"git_commit_files", listing_days}]
   end
 
   def percentage(_covered, 0), do: 0.0

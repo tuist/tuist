@@ -5,8 +5,10 @@ defmodule Tuist.Repo.Migrations.CreateTestImpactSnapshots do
   maps themselves live in ClickHouse (`test_impact_snapshot_tests` and
   `test_impact_snapshot_files`) under the row's id.
 
-  A `checkpoint` is written from a commit's newest full run of a scope
-  (repository, scheme, platform), so a commit has at most one per scope. An
+  A `checkpoint` is written from a commit's full runs of a scope
+  (repository, scheme, platform), and again when another full run of it
+  arrives; readers take the newest, and the earlier ones stay for the
+  overlays written against them until they expire. An
   `overlay` is written from a run that had an impact run, against the
   checkpoint at that impact run's baseline (`checkpoint_id`, `base_sha`),
   and keyed by the commit the impact run checked out, which is GitHub's
@@ -39,12 +41,6 @@ defmodule Tuist.Repo.Migrations.CreateTestImpactSnapshots do
       add :expires_at, :timestamptz, null: false
       timestamps(type: :timestamptz, updated_at: false)
     end
-
-    create unique_index(:test_impact_snapshots, [:project_id, :commit_sha, :scheme, :platform],
-             where: "kind = 'checkpoint'",
-             name: :test_impact_snapshots_checkpoint_index,
-             concurrently: true
-           )
 
     create index(:test_impact_snapshots, [:project_id, :commit_sha], concurrently: true)
     create index(:test_impact_snapshots, [:project_id, :git_branch, :ran_at], concurrently: true)

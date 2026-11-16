@@ -40,7 +40,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
   - `test_impact_run_decisions`: what each impact run's decision made of a
     snapshot's tests, one bitmap per decision and reason, in the numbering
     of `snapshot_id`; `evidence_snapshot_id` is the snapshot whose evidence
-    decided them.
+    decided them. A large bitmap is written in `chunk`s, each under
+    ClickHouse's limit on a query parameter, and `decided` is how many tests
+    the whole decision holds, so a decision written only in part is told
+    from a complete one.
 
   Everything else expires 31 days after the run that wrote it
   (`expires_at`), and decisions 31 days after the request.
@@ -156,11 +159,13 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
       `evidence_snapshot_id` UUID,
       `decision` Enum8('selected' = 1, 'skipped' = 2),
       `reason` LowCardinality(String),
+      `chunk` UInt16,
       `tests` AggregateFunction(groupBitmap, UInt32),
+      `decided` UInt32,
       `inserted_at` DateTime64(6)
     )
     ENGINE = #{Migration.engine("ReplacingMergeTree(inserted_at)")}
-    ORDER BY (project_id, test_impact_run_id, decision, reason, evidence_snapshot_id)
+    ORDER BY (project_id, test_impact_run_id, decision, reason, evidence_snapshot_id, chunk)
     TTL toDateTime(inserted_at) + INTERVAL 31 DAY
     """)
   end
