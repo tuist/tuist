@@ -15,7 +15,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   archived snapshot whose node copy is gone keeps its row with no
   `node_name`; one that was never archived is dropped.
 
-  A popular archived snapshot is also copied onto other nodes
+  An archived snapshot of a popular lineage is also copied onto other nodes
   (`Tuist.Sandboxes.DiskSnapshotCopy`, `copy/1`): a spawn that finds every
   node holding it full otherwise pays the archive download on its path. The
   nodes are placed as runner cache volumes are (`Tuist.Runners.VolumePlacement`):
@@ -62,9 +62,9 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # A report can be older than a save that just finished.
   @report_grace_seconds 120
   @save_timeout 120_000
-  # A snapshot is popular once this many Orbs were spawned from it, or from
-  # the snapshot it refreshes, within the window. Measured in production
-  # (2026-11): a busy project spawns over ten Orbs a day from one snapshot.
+  # A snapshot is popular once this many Orbs were spawned in its lineage
+  # within the window. Measured in production (2026-11): a busy project
+  # spawns over ten Orbs a day.
   @popular_spawns 2
   @popularity_window_hours 24
   # An Orb in these states holds memory on its node.
@@ -618,11 +618,15 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   defp copyable?(%DiskSnapshot{state: :ready, archived_at: %DateTime{}}), do: true
   defp copyable?(%DiskSnapshot{}), do: false
 
-  # The Orbs spawned within the window from the snapshot's Amp identifier,
-  # or from the one its source Orb was spawned from: Amp refreshes a project
-  # snapshot under a new identifier, and the new one is as popular as the
-  # one it replaces. Each is the span it held memory: from its creation to
-  # its last change, still open (`nil`) while it is live.
+  # The Orbs spawned within the window in the snapshot's lineage, or from its
+  # Amp identifier or the one its source Orb was spawned from (Orbs spawned
+  # before lineages were recorded on them). Amp refreshes a project snapshot
+  # under a new identifier at nearly every spawn, so a fresh snapshot is as
+  # popular as its lineage; counting only its own identifiers left it
+  # unpopular when archived, and its copies came after the next spawn had
+  # already missed (measured in production, 2026-11). Each is the span it
+  # held memory: from its creation to its last change, still open (`nil`)
+  # while it is live.
   defp spawns(%DiskSnapshot{} = snapshot) do
     base =
       if snapshot.source_sandbox_id,
@@ -631,10 +635,18 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     ids = Enum.reject([snapshot.amp_snapshot_id, base], &is_nil/1)
     since = DateTime.add(now(), -@popularity_window_hours, :hour)
 
-    from(s in Sandbox,
-      where: s.account_id == ^snapshot.account_id and s.amp_base_snapshot_id in ^ids and s.inserted_at >= ^since,
-      select: {s.inserted_at, s.state, s.updated_at}
-    )
+    query =
+      from(s in Sandbox,
+        where: s.account_id == ^snapshot.account_id and s.inserted_at >= ^since,
+        select: {s.inserted_at, s.state, s.updated_at}
+      )
+
+    query =
+      if snapshot.lineage_id,
+        do: where(query, [s], s.amp_snapshot_lineage_id == ^snapshot.lineage_id or s.amp_base_snapshot_id in ^ids),
+        else: where(query, [s], s.amp_base_snapshot_id in ^ids)
+
+    query
     |> Repo.all()
     |> Enum.map(fn {started, state, updated} -> {started, if(state not in @live_states, do: updated)} end)
   end

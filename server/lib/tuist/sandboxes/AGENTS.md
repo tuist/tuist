@@ -257,14 +257,19 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `disk_snapshots` key is left alone.
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
-  A popular archived snapshot (two Orbs spawned from its Amp id, or from
-  the id it refreshes, in 24 hours) also gets extra node copies
+  An archived snapshot of a popular lineage (two Orbs spawned in its
+  `lineage_id`, recorded on each Orb as `sandboxes.amp_snapshot_lineage_id`,
+  in 24 hours) also gets extra node copies
   (`sandbox_disk_snapshot_copies`, `DiskSnapshots.copy/1`,
   `CopyDiskSnapshotWorker` on its own `sandbox_snapshot_copies` queue): the
   node downloads the archive (`copy_disks`) into its snapshot directory, under
   the snapshot's id. They are queued after a spawn that missed every node
   holding the snapshot and once a snapshot finishes archiving, so a refreshed
-  snapshot of a busy project is copied out before its first miss. Spawns
+  snapshot of a busy project is copied out before its first miss. Count the
+  lineage, not the Amp ids: Amp refreshes the snapshot at nearly every spawn
+  and deletes the old row, so a fresh snapshot's own ids have at most one
+  spawn when it is archived, and its copies came only after the next spawn
+  had missed. Spawns
   place on any node holding a ready copy (`Capacity.place_on_node/2` takes the
   list). Copies are placed as runner cache volumes are
   (`Tuist.Runners.VolumePlacement`): by the snapshot's `lineage_id`, which a

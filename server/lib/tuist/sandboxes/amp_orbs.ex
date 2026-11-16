@@ -250,7 +250,12 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       |> Map.put(:amp_orb_id, orb_id)
       |> Map.put(:amp_base_snapshot_id, snapshot_id(params))
 
-    Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: disk_snapshot(account, attrs, params))
+    snapshot = disk_snapshot(account, attrs, params)
+    # The lineage its copies are placed by, which a save of this Orb inherits.
+    lineage_id = (snapshot && snapshot.lineage_id) || attrs.amp_base_snapshot_id
+    attrs = Map.put(attrs, :amp_snapshot_lineage_id, lineage_id)
+
+    Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: snapshot)
   end
 
   # Placement refusal leaves an error row with no node. It is safe to retry

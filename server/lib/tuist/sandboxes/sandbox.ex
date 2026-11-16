@@ -36,6 +36,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :anthropic_session_id, :string
     field :amp_orb_id, :string
     field :amp_base_snapshot_id, :string
+    field :amp_snapshot_lineage_id, :string
     field :amp_creator_user_id, :string
     field :amp_creator_username, :string
     field :amp_creator_name, :string
@@ -117,6 +118,7 @@ defmodule Tuist.Sandboxes.Sandbox do
       :anthropic_session_id,
       :amp_orb_id,
       :amp_base_snapshot_id,
+      :amp_snapshot_lineage_id,
       :amp_integration_id,
       :provider_environment_id,
       :template,
