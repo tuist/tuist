@@ -1166,7 +1166,7 @@ checksum = "b62ddb9cb1ec0a098ad4bbf9344d0713fa193ae1a80af55febcff2627b6a00c1"
 dependencies = [
  "getrandom 0.2.16",
  "instant",
- "rand 0.8.5",
+ "rand 0.8.6",
 ]
 
 [[package]]
@@ -1729,7 +1729,7 @@ dependencies = [
  "moka",
  "partition",
  "paste",
- "prometheus 0.14.0",
+ "prometheus",
  "promql-parser",
  "rand 0.9.4",
  "serde",
@@ -2127,7 +2127,7 @@ dependencies = [
  "lazy_static",
  "moka",
  "parking_lot 0.12.4",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "query",
  "rand 0.9.4",
@@ -2240,7 +2240,7 @@ dependencies = [
  "parquet",
  "plugins",
  "pprof",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "query",
  "rand 0.9.4",
@@ -2682,7 +2682,7 @@ dependencies = [
  "lazy_static",
  "moka",
  "object-store",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "rand 0.9.4",
  "regex",
@@ -2860,7 +2860,7 @@ dependencies = [
  "once_cell",
  "paste",
  "pin-project",
- "prometheus 0.14.0",
+ "prometheus",
  "ratelimit",
  "serde",
  "snafu 0.8.6",
@@ -2908,7 +2908,7 @@ dependencies = [
  "common-telemetry",
  "nix 0.30.1",
  "num_cpus",
- "prometheus 0.14.0",
+ "prometheus",
  "sysinfo",
  "tokio",
 ]
@@ -2931,7 +2931,7 @@ dependencies = [
  "opentelemetry-semantic-conventions 0.30.0",
  "opentelemetry_sdk",
  "parking_lot 0.12.4",
- "prometheus 0.14.0",
+ "prometheus",
  "serde",
  "serde_json",
  "tempfile",
@@ -4552,7 +4552,7 @@ dependencies = [
  "num_cpus",
  "object-store",
  "partition",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "query",
  "reqwest 0.13.4",
@@ -5267,7 +5267,7 @@ checksum = "fe5e43d0f78a42ad591453aedb1d7ae631ce7ee445c7643691055a9ed8d3b01c"
 dependencies = [
  "log",
  "once_cell",
- "rand 0.8.5",
+ "rand 0.8.6",
 ]
 
 [[package]]
@@ -5312,7 +5312,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b679f25009b51b71506296f95fb6362ba7d0151172fa7373a8d1611b8bc5d10f"
 dependencies = [
  "getrandom 0.2.16",
- "rand 0.8.5",
+ "rand 0.8.6",
  "siphasher",
  "wide",
 ]
@@ -5513,7 +5513,7 @@ dependencies = [
  "meta-client",
  "operator",
  "pretty_assertions",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "query",
  "rand 0.9.4",
@@ -5683,7 +5683,7 @@ dependencies = [
  "otel-arrow-rust",
  "partition",
  "pipeline",
- "prometheus 0.14.0",
+ "prometheus",
  "promql-parser",
  "prost 0.14.1",
  "query",
@@ -8213,10 +8213,10 @@ dependencies = [
  "lazy_static",
  "object-store",
  "pin-project",
- "prometheus 0.14.0",
- "protobuf 2.28.0",
+ "prometheus",
+ "protobuf",
+ "protobuf-codegen",
  "protoc-bin-vendored",
- "protoc-rust",
  "raft-engine",
  "rand 0.9.4",
  "rskafka",
@@ -8614,7 +8614,7 @@ dependencies = [
  "once_cell",
  "ordered-float 4.6.0",
  "partition",
- "prometheus 0.14.0",
+ "prometheus",
  "rand 0.9.4",
  "regex",
  "rskafka",
@@ -8695,7 +8695,7 @@ dependencies = [
  "mur3",
  "object-store",
  "partition",
- "prometheus 0.14.0",
+ "prometheus",
  "serde",
  "serde_json",
  "smallvec",
@@ -8838,7 +8838,7 @@ dependencies = [
  "parquet",
  "partition",
  "pin-project",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "puffin",
  "rand 0.9.4",
@@ -9065,7 +9065,7 @@ dependencies = [
  "mysql-common-derive 0.31.2",
  "num-bigint 0.4.6",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "regex",
  "rust_decimal",
  "saturating",
@@ -9378,7 +9378,7 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "smallvec",
  "zeroize",
 ]
@@ -9648,7 +9648,7 @@ dependencies = [
  "object_store_opendal",
  "opendal",
  "opendal-http-transport-reqwest",
- "prometheus 0.14.0",
+ "prometheus",
  "reqwest 0.13.4",
  "serde",
  "snafu 0.8.6",
@@ -9878,7 +9878,7 @@ checksum = "404e766cc2e4e4c9225ce08605ae151f768a05a41a448a235e016b1aea9ff98f"
 dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
- "prometheus 0.14.0",
+ "prometheus",
 ]
 
 [[package]]
@@ -10227,7 +10227,7 @@ dependencies = [
  "partition",
  "path-slash",
  "percent-encoding",
- "prometheus 0.14.0",
+ "prometheus",
  "query",
  "regex",
  "serde",
@@ -10291,7 +10291,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
 dependencies = [
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
 ]
 
@@ -10588,7 +10588,7 @@ dependencies = [
  "datafusion-physical-expr",
  "datatypes",
  "moka",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "snafu 0.8.6",
@@ -11014,7 +11014,7 @@ dependencies = [
  "once_cell",
  "operator",
  "ordered-float 4.6.0",
- "prometheus 0.14.0",
+ "prometheus",
  "query",
  "regex",
  "serde",
@@ -11271,7 +11271,7 @@ dependencies = [
  "prost 0.12.6",
  "prost-build 0.12.6",
  "prost-derive 0.12.6",
- "protobuf 3.7.2",
+ "protobuf",
  "sha2 0.10.9",
  "smallvec",
  "spin 0.10.1",
@@ -11453,21 +11453,6 @@ dependencies = [
 
 [[package]]
 name = "prometheus"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d33c28a30771f7f96db69893f78b857f7450d7e0237e9c8fc6427a81bae7ed1"
-dependencies = [
- "cfg-if",
- "fnv",
- "lazy_static",
- "memchr",
- "parking_lot 0.12.4",
- "protobuf 2.28.0",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "prometheus"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ca5326d8d0b950a9acd87e6a3f94745394f62e4dae1b1ee22b2bc0c394af43a"
@@ -11479,7 +11464,7 @@ dependencies = [
  "memchr",
  "parking_lot 0.12.4",
  "procfs",
- "protobuf 3.7.2",
+ "protobuf",
  "thiserror 2.0.21",
 ]
 
@@ -11515,7 +11500,7 @@ dependencies = [
  "futures",
  "greptime-proto",
  "lazy_static",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "snafu 0.8.6",
  "tokio",
@@ -11736,15 +11721,6 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
-dependencies = [
- "bytes",
-]
-
-[[package]]
-name = "protobuf"
 version = "3.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
@@ -11756,11 +11732,33 @@ dependencies = [
 
 [[package]]
 name = "protobuf-codegen"
-version = "2.28.0"
+version = "3.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "033460afb75cf755fcfc16dfaed20b86468082a2ea24e05ac35ab4a099a017d6"
+checksum = "5d3976825c0014bbd2f3b34f0001876604fe87e0c86cd8fa54251530f1544ace"
 dependencies = [
- "protobuf 2.28.0",
+ "anyhow",
+ "once_cell",
+ "protobuf",
+ "protobuf-parse",
+ "regex",
+ "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-parse"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4aeaa1f2460f1d348eeaeed86aea999ce98c1bded6f089ff8514c9d9dbdc973"
+dependencies = [
+ "anyhow",
+ "indexmap 2.14.2",
+ "log",
+ "protobuf",
+ "protobuf-support",
+ "tempfile",
+ "thiserror 1.0.69",
+ "which",
 ]
 
 [[package]]
@@ -11770,16 +11768,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
 dependencies = [
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protoc"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0218039c514f9e14a5060742ecd50427f8ac4f85a6dc58f2ddb806e318c55ee"
-dependencies = [
- "log",
- "which",
 ]
 
 [[package]]
@@ -11845,18 +11833,6 @@ name = "protoc-bin-vendored-win32"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95067976aca6421a523e491fce939a3e65249bac4b977adee0ee9771568e8aa3"
-
-[[package]]
-name = "protoc-rust"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22f8a182bb17c485f20bdc4274a8c39000a61024cfe461c799b50fec77267838"
-dependencies = [
- "protobuf 2.28.0",
- "protobuf-codegen",
- "protoc",
- "tempfile",
-]
 
 [[package]]
 name = "psl"
@@ -11934,7 +11910,7 @@ dependencies = [
  "lz4_flex 0.11.6",
  "moka",
  "pin-project",
- "prometheus 0.14.0",
+ "prometheus",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -12020,7 +11996,7 @@ dependencies = [
  "partition",
  "paste",
  "pretty_assertions",
- "prometheus 0.14.0",
+ "prometheus",
  "promql",
  "promql-parser",
  "prost 0.14.1",
@@ -12162,8 +12138,6 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 [[package]]
 name = "raft-engine"
 version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1213c3a24e3fee8afcc74b2be08c4081adde96f092e0fc1c607abb3e16ae722e"
 dependencies = [
  "byteorder",
  "crc32fast",
@@ -12181,9 +12155,9 @@ dependencies = [
  "num-derive",
  "num-traits",
  "parking_lot 0.12.4",
- "prometheus 0.13.4",
+ "prometheus",
  "prometheus-static-metric",
- "protobuf 2.28.0",
+ "protobuf",
  "rayon",
  "scopeguard",
  "serde",
@@ -12194,9 +12168,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -12909,7 +12883,7 @@ dependencies = [
  "digest 0.10.7",
  "hmac 0.12.1",
  "pbkdf2",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -12989,7 +12963,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3a8fb4672e840a587a66fc577a5491375df51ddb88f2a2c2a792598c326fe14"
 dependencies = [
  "quote",
- "rand 0.8.5",
+ "rand 0.8.6",
  "syn 2.0.117",
 ]
 
@@ -13069,7 +13043,7 @@ dependencies = [
  "bytes",
  "num-traits",
  "postgres-types",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rkyv",
  "serde",
  "serde_json",
@@ -13768,7 +13742,7 @@ dependencies = [
  "pipeline",
  "postgres-types",
  "pprof",
- "prometheus 0.14.0",
+ "prometheus",
  "promql-parser",
  "prost 0.14.1",
  "query",
@@ -14522,7 +14496,7 @@ dependencies = [
  "memchr",
  "once_cell",
  "percent-encoding",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rsa 0.9.10",
  "serde",
  "sha1 0.10.6",
@@ -14590,7 +14564,7 @@ dependencies = [
  "md-5 0.10.6",
  "memchr",
  "once_cell",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -14787,7 +14761,7 @@ dependencies = [
  "itertools 0.14.0",
  "lazy_static",
  "num_enum 0.7.4",
- "prometheus 0.14.0",
+ "prometheus",
  "prost 0.14.1",
  "serde",
  "serde_json",
@@ -15741,9 +15715,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-metrics"
-version = "0.3.1"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eace09241d62c98b7eeb1107d4c5c64ca3bd7da92e8c218c153ab3a78f9be112"
+checksum = "0e0410015c6db7b67b9c9ab2a3af4d74a942d637ff248d0d055073750deac6f9"
 dependencies = [
  "futures-util",
  "pin-project-lite",
@@ -15753,13 +15727,13 @@ dependencies = [
 
 [[package]]
 name = "tokio-metrics-collector"
-version = "0.2.3"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8092b7a97ed5dac2f44892db190eca8f476ede0fa585bc87664de4151cd0b64"
+checksum = "f360c6fa7fd188e65904979ea07f1f44c57f0759ab18ecca88551c26acdf4cd6"
 dependencies = [
  "lazy_static",
  "parking_lot 0.12.4",
- "prometheus 0.13.4",
+ "prometheus",
  "tokio",
  "tokio-metrics",
 ]
@@ -16070,7 +16044,7 @@ dependencies = [
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.5",
+ "rand 0.8.6",
  "slab",
  "tokio",
  "tokio-util",
@@ -17716,9 +17690,9 @@ dependencies = [
 
 [[package]]
 name = "xxhash-rust"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
+checksum = "4d93c89cdc2d3a63c3ec48ffe926931bdc069eafa8e4402fe6d8f790c9d1e576"
 
 [[package]]
 name = "yaml-rust"
