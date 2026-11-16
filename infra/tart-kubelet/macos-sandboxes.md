@@ -143,6 +143,24 @@ the golden image's 100 and a cache volume's 20), and a host reservation picks a
 host without it among hosts that converge equally soon and hold the image. Warm
 sandbox Pods do not carry the preference.
 
+An evicted session can still move as its disk alone (`internal/macosandbox/archive.go`).
+A clone of a stacked image reads the image's disk from Tart's content store and
+writes to its own `overlay.asif`, so that file holds every write of the session,
+its workspace volume included. `OpArchive` uploads it with the VM's `config.json`
+and `nvram.bin` in sandboxd's archive format (`infra/sandboxd/pkg/archive`, holes
+left out) through the server's presigned part URLs, and changes nothing on the
+host; the server deletes the sandbox once the upload completes, and a resume or
+delete meanwhile interrupts it. A create with `from_archive` clones the same
+image on another host, puts the archived files in place (the archived config
+keeps the guest install's machine identity), cold boots and remounts the
+workspace volume at `/Users/runner/work`. Processes, simulators and memory are
+lost. Only a sandbox whose guest flushed its disks (`/bin/sync` through
+`tart exec`) right before it last stopped running is archived, since unflushed
+writes live only in the checkpoint; standalone images are refused. Hosts
+advertise this with `archives` in their hello. After each eviction save the host
+logs `macOS sandbox saved disk usage` with the allocated bytes of `overlay.asif`
+and of the checkpoint, the size an archive starts from.
+
 Every native VM also owns a resource-requesting execution Pod. The host serializes
 final native and CI launches under one gate and rereads bound Pending, Running
 and Terminating Pods, enforcing CPU, RAM and Apple's two-VM limit. A resident

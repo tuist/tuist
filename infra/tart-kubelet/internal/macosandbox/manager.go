@@ -41,6 +41,8 @@ type Runtime interface {
 	Save(context.Context, *Record) error
 	Delete(context.Context, *Record) error
 	Recover(context.Context, *Record) error
+	// Archive uploads an evicted sandbox's disk; it changes nothing on the host.
+	Archive(context.Context, *Record, protocol.ArchiveArgs) (protocol.ArchiveResult, error)
 	Exec(context.Context, *Record, protocol.ExecArgs, func(protocol.Stream)) (protocol.ExecResult, error)
 	Worker(context.Context, *Record, string, map[string]string) (WorkerStatus, error)
 	// GuestCPU is the guest's recent CPU use by its sandbox user, in
@@ -99,6 +101,10 @@ type Record struct {
 	// Checkout is the grant of the session whose export the host takes at the
 	// VM's next fence.
 	Checkout *protocol.CheckoutGrant `json:"checkout,omitempty"`
+	// DisksSynced: the guest flushed its file systems to disk right before the
+	// VM last stopped running, so its disk files alone hold what it wrote. An
+	// archive carries no checkpoint, so only such a sandbox is archived.
+	DisksSynced bool `json:"disks_synced,omitempty"`
 }
 
 // Warm VMs carry their own prefix: a host restart deletes the unclaimed ones
@@ -144,6 +150,8 @@ type Manager struct {
 	Gate    sync.Mutex
 	records map[string]*Record
 	active  map[string]int
+	// archiving cancels each sandbox's upload in progress (archive.go).
+	archiving map[string]context.CancelFunc
 	// Ready and booting warm VMs by Pod UID, and whether one is booting.
 	warm        map[types.UID]*warmVM
 	warmBooting bool
@@ -302,6 +310,16 @@ func (m *Manager) get(id string) (*Record, error) {
 	}
 	return r, nil
 }
+
+// sameCreate compares create arguments by value, archive source included,
+// so a retried create from an archive matches its journal.
+func sameCreate(a, b protocol.CreateArgs) bool {
+	if (a.FromArchive == nil) != (b.FromArchive == nil) || (a.FromArchive != nil && *a.FromArchive != *b.FromArchive) {
+		return false
+	}
+	a.FromArchive, b.FromArchive = nil, nil
+	return a == b
+}
 func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
@@ -312,7 +330,7 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 		a.TemplateTag, _ = m.Templates.Image(a.Template)
 	}
 	if r := m.records[a.SandboxID]; r != nil {
-		if r.CreateArgs != a {
+		if !sameCreate(r.CreateArgs, a) {
 			return errors.New("sandbox already exists with different configuration")
 		}
 		if r.State == "running" && r.Operation == "" {
@@ -398,6 +416,7 @@ func (m *Manager) Resume(ctx context.Context, id string) error {
 // an idle eviction. Reservations are reacquired before any guest instruction.
 func (m *Manager) resume(ctx context.Context, r *Record) error {
 	var err error
+	m.interruptArchive(r.SandboxID)
 	if r.Operation != "" || r.State == "error" {
 		return errors.New("sandbox requires reconciliation")
 	}
@@ -488,6 +507,7 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	if r == nil {
 		return nil
 	}
+	m.interruptArchive(id)
 	if err := m.begin(r, "delete"); err != nil {
 		return err
 	}

@@ -92,6 +92,9 @@ func (t *TartRuntime) options(r *Record) tart.RunOptions {
 	return tart.RunOptions{Suspendable: true, DetachedLogs: true, SharedDirs: shares}
 }
 func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
+	if r.FromArchive != nil {
+		return t.restore(ctx, r)
+	}
 	if err := t.Warm(ctx, r); err != nil {
 		return err
 	}
@@ -135,11 +138,7 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if err := c.RegenerateIdentity(ctx, r.VMName()); err != nil {
 		return err
 	}
-	env := filepath.Join(c.HomeDir, "env", r.envName())
-	if err := os.MkdirAll(env, 0700); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(env, "tuist.env"), []byte("TUIST_SANDBOX=1\n"), 0600); err != nil {
+	if err := t.writeEnv(c.HomeDir, r); err != nil {
 		return err
 	}
 	// Without the cache the VM boots without a share, and its sessions clone.
@@ -166,6 +165,15 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	err = t.addWorkspace(ctx, r)
 	lap("workspace")
 	return err
+}
+
+// writeEnv writes the env share that boots the image in sandbox mode.
+func (t *TartRuntime) writeEnv(home string, r *Record) error {
+	env := filepath.Join(home, "env", r.envName())
+	if err := os.MkdirAll(env, 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(env, "tuist.env"), []byte("TUIST_SANDBOX=1\n"), 0600)
 }
 
 // Claim finishes a booted VM for its sandbox: the workspace quota is the
@@ -205,6 +213,7 @@ func (t *TartRuntime) addWorkspace(ctx context.Context, r *Record) error {
 }
 
 func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
+	r.DisksSynced = false
 	if r.Resident {
 		start := time.Now()
 		if _, err := t.control(ctx, r, "resume"); err != nil {
@@ -304,9 +313,22 @@ func (t *TartRuntime) Pause(ctx context.Context, r *Record) error {
 	} else if busy {
 		return errors.New("sandbox has active guest work")
 	}
-
+	t.syncGuest(ctx, r)
 	_, err := t.control(ctx, r, "pause")
 	return err
+}
+
+// syncGuest flushes the guest's file systems to its disk before the VM stops
+// running, and records whether that worked: what the guest wrote but did
+// not flush lives only in its memory, which an archive cannot carry.
+func (t *TartRuntime) syncGuest(ctx context.Context, r *Record) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sync")
+	r.DisksSynced = err == nil
+	if err != nil {
+		slog.Warn("macOS sandbox pauses without flushing its disks", "sandbox_id", r.SandboxID, "error", err)
+	}
 }
 func (t *TartRuntime) Save(ctx context.Context, r *Record) error {
 	if err := t.checkDisk(ctx, r); err != nil {
@@ -318,6 +340,7 @@ func (t *TartRuntime) Save(ctx context.Context, r *Record) error {
 		} else if busy {
 			return errors.New("sandbox has active guest work")
 		}
+		t.syncGuest(ctx, r)
 	}
 
 	if _, err := t.control(ctx, r, "pause"); err != nil {

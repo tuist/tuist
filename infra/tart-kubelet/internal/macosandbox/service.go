@@ -440,7 +440,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Templates: templates(), Sandboxes: m.Snapshot()}
+				return protocol.Hello{Platform: "darwin", Archives: true, Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Templates: templates(), Sandboxes: m.Snapshot()}
 			},
 			Report: func() protocol.Report {
 				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Disk: disk(), Sandboxes: m.Snapshot(), Templates: templates()}
@@ -575,7 +575,11 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 	if args.NodeUID != m.NodeUID {
 		return protocol.ErrorResult(cmd.ID, errors.New("sandbox owner generation changed"))
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	timeout := 2 * time.Minute
+	if cmd.Op == protocol.OpArchive || (cmd.Op == protocol.OpCreate && args.FromArchive != nil) {
+		timeout = archiveTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	started := time.Now()
 	var err error
@@ -597,6 +601,11 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data = map[string]any{"resident": true, "snapshot_ms": time.Since(started).Milliseconds()}
 	case protocol.OpDelete:
 		err = m.Delete(ctx, args.SandboxID)
+	case protocol.OpArchive:
+		var a protocol.ArchiveArgs
+		if err = json.Unmarshal(cmd.Args, &a); err == nil {
+			data, err = m.Archive(ctx, a)
+		}
 	case protocol.OpExec:
 		data, err = m.Exec(ctx, protocol.ExecArgs{SandboxID: args.SandboxID, Cmd: args.Cmd, Env: args.Env, Cwd: args.Cwd, TimeoutMs: args.TimeoutMs}, out)
 	case protocol.OpStartWorker:

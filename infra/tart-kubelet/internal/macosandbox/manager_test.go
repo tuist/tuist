@@ -27,6 +27,10 @@ type fakeRuntime struct {
 	saveStarted, saveRelease chan struct{}
 	creates, warms, recovers int
 	claimedVolumeGB          int
+	// unflushed fails the guest flush before a pause; archiveStarted, when
+	// set, holds an archive until its context ends.
+	unflushed      bool
+	archiveStarted chan struct{}
 	// Warm VMs boot in the background.
 	mu          sync.Mutex
 	cpuPermille int64
@@ -65,6 +69,7 @@ func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
 	return nil
 }
 func (f *fakeRuntime) Resume(_ context.Context, r *Record) error {
+	r.DisksSynced = false
 	if f.states[r.SandboxID] != "paused" && f.states[r.SandboxID] != "evicted" {
 		return errors.New("not paused")
 	}
@@ -75,6 +80,7 @@ func (f *fakeRuntime) Pause(_ context.Context, r *Record) error {
 	if f.busy {
 		return errors.New("busy")
 	}
+	r.DisksSynced = !f.unflushed
 	f.states[r.SandboxID] = "paused"
 	return nil
 }
@@ -89,6 +95,9 @@ func (f *fakeRuntime) Save(ctx context.Context, r *Record) error {
 	}
 	if f.saveErr != nil {
 		return f.saveErr
+	}
+	if r.State == "running" {
+		r.DisksSynced = !f.unflushed
 	}
 	f.states[r.SandboxID] = "evicted"
 	return nil
@@ -117,6 +126,14 @@ func (f *fakeRuntime) Recover(_ context.Context, r *Record) error {
 		r.Resident = false
 	}
 	return nil
+}
+func (f *fakeRuntime) Archive(ctx context.Context, r *Record, _ protocol.ArchiveArgs) (protocol.ArchiveResult, error) {
+	if f.archiveStarted != nil {
+		close(f.archiveStarted)
+		<-ctx.Done()
+		return protocol.ArchiveResult{}, ctx.Err()
+	}
+	return protocol.ArchiveResult{Bytes: 1, SHA256: "sum", DisksSynced: true}, nil
 }
 func (f *fakeRuntime) Busy(context.Context, *Record) (bool, error)      { return f.busy, nil }
 func (f *fakeRuntime) GuestCPU(context.Context, *Record) (int64, error) { return f.cpuPermille, nil }
