@@ -415,6 +415,56 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       refute DiskSnapshots.queue_copies(lone)
     end
 
+    test "a Claude Code snapshot is popular through its environment's sessions and is copied past the high-water mark" do
+      account = AccountsFixtures.account_fixture()
+
+      agent_environment =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_03")
+
+      snapshot =
+        disk_snapshot_fixture(
+          account: account,
+          agent_environment_id: agent_environment.id,
+          repository: "acme/app",
+          setup_sha256: "abc",
+          node_name: "node-a",
+          archive_key: "snapshot-key",
+          archive_bytes: 2048,
+          archive_sha256: "cafe",
+          archived_at: DateTime.utc_now()
+        )
+
+      # A builder has no session and does not count.
+      sandbox_fixture(account: account, agent_environment_id: agent_environment.id, node_name: "node-a")
+
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: agent_environment.id,
+        anthropic_session_id: "s1",
+        node_name: "node-a"
+      )
+
+      refute DiskSnapshots.queue_copies(snapshot)
+
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: agent_environment.id,
+        anthropic_session_id: "s2",
+        node_name: "node-a"
+      )
+
+      assert DiskSnapshots.queue_copies(snapshot)
+
+      # 72 GiB reserved: the copy's 18 GiB passes 85% of node-b's budget but
+      # fits the whole of it, which an Amp snapshot's copy would not get.
+      sandbox_fixture(node_name: "node-b", state: :paused, workspace_gb: 60)
+      stub(Nodes, :connected_nodes, fn -> Enum.map(~w(node-a node-b), &copy_node/1) end)
+      expect(Nodes, :call, fn "node-b", "copy_disks", _args, _opts -> {:ok, %{}} end)
+
+      assert :ok = DiskSnapshots.copy(snapshot)
+      assert copied_nodes(snapshot) == ["node-b"]
+    end
+
     test "a failed copy gives its reservation back" do
       snapshot = popular_snapshot()
       stub(Nodes, :connected_nodes, fn -> [copy_node("node-a"), copy_node("node-b")] end)

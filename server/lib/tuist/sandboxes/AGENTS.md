@@ -299,7 +299,14 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   Linux fleet's 2.2 TiB budget while no node had room for a new sandbox.
   Copies go with their snapshot
   (expiry, supersede), after 24 hours unused, after 45 minutes stuck
-  copying, and when their node stops listing them.
+  copying, and when their node stops listing them. A Claude Code repository
+  snapshot is popular through its environment's sessions (builders, which
+  have no session, do not count; sandboxes do not record their repository,
+  so an environment's sessions count for each repository's snapshot), is
+  placed by its environment and repository, and its copies may fill the
+  node's whole disk budget instead of stopping at the high-water mark:
+  Linux nodes run at the mark, which would refuse them all. A copy in use
+  above the mark makes the disk-pressure sweep archive an idle Orb sooner.
   A Claude Code repository snapshot has no Amp id: it is keyed by
   `agent_environment_id`, `repository` and `setup_sha256`, saved from a
   paused builder sandbox (`save_build/2`), and replaces the environment's

@@ -627,6 +627,24 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   # already missed (measured in production, 2026-11). Each is the span it
   # held memory: from its creation to its last change, still open (`nil`)
   # while it is live.
+  #
+  # A Claude Code snapshot has no Amp identifier: its spawns are the
+  # sessions of its environment (builders have no session). Sandboxes do not
+  # record their repository, so an environment's sessions count for each of
+  # its repositories' snapshots.
+  defp spawns(%DiskSnapshot{agent_environment_id: agent_environment_id}) when is_integer(agent_environment_id) do
+    since = DateTime.add(now(), -@popularity_window_hours, :hour)
+
+    from(s in Sandbox,
+      where:
+        s.agent_environment_id == ^agent_environment_id and not is_nil(s.anthropic_session_id) and
+          s.inserted_at >= ^since,
+      select: {s.inserted_at, s.state, s.updated_at}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {started, state, updated} -> {started, if(state not in @live_states, do: updated)} end)
+  end
+
   defp spawns(%DiskSnapshot{} = snapshot) do
     base =
       if snapshot.source_sandbox_id,
@@ -675,7 +693,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   site, weighted by disk budget. The snapshot's own node counts when it is
   among them, and a snapshot gets at most four copies however busy it is. A node that cannot take the copy, because its reserved disk
   would pass the archive high-water mark (so a copy never pushes an Orb into
-  the archive), passes it to the next node in that order. The copy is
+  the archive; a Claude Code snapshot's copy only its whole budget), passes
+  it to the next node in that order. The copy is
   reserved under the node's lock before the download, like a save. Answers
   `{:error, :no_capacity}` when fewer nodes than that hold it.
   """
@@ -730,9 +749,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       |> Repo.insert()
     end
 
-    budget_percent = Environment.sandbox_archive_disk_high_water_percent() || 100
-
-    case Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: budget_percent) do
+    case Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: copy_budget_percent(snapshot)) do
       {:ok, copy} ->
         case fill_copy(snapshot, copy) do
           {:ok, _copy} -> {:cont, {holders + 1, room - 1}}
@@ -743,6 +760,20 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
         {:cont, acc}
     end
   end
+
+  # A Claude Code snapshot's copies may fill the node's whole disk budget, as
+  # its sandboxes do: Linux nodes run at the archive high-water mark, which
+  # would refuse every copy. Above the mark the disk-pressure sweep drops a
+  # copy unused for an hour before it archives an Orb, and a node without
+  # room for a sandbox drops a copy first (`Archives.make_node_room/2`).
+  # Amp snapshots stay under the mark, so their copies never archive an Orb.
+  defp copy_budget_percent(%DiskSnapshot{agent_environment_id: id}) when is_integer(id), do: 100
+  defp copy_budget_percent(_snapshot), do: Environment.sandbox_archive_disk_high_water_percent() || 100
+
+  # A Claude Code snapshot's copies are placed by its environment and
+  # repository, which every rebuild keeps.
+  defp placement_key(%DiskSnapshot{account_id: account_id, agent_environment_id: id, repository: repository})
+       when is_integer(id), do: "#{account_id}/claude-code/#{id}/#{repository}"
 
   # A snapshot's copies are placed by its account and lineage. Snapshots
   # saved before lineages were recorded are their own lineage.
