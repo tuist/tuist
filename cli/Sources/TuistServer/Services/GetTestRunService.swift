@@ -99,7 +99,7 @@ public struct GetTestRunService: GetTestRunServicing {
             modelIdentifier: String? = "MacBookPro18,3",
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
-            status: Operations.getTestRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
+            status: String = "success",
             totalTestCount: Int = 42,
             xcodeVersion: String? = "15.0"
         ) -> Self {

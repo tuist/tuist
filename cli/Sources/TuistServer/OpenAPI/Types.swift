@@ -552,6 +552,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/mix/builds/{build_id}/get(getMixBuild)`.
     func getMixBuild(_ input: Operations.getMixBuild.Input) async throws -> Operations.getMixBuild.Output
+    /// Get one Pulse error issue: its summary, occurrences and latest scrubbed event.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)`.
+    func getPulseErrorIssue(_ input: Operations.getPulseErrorIssue.Input) async throws -> Operations.getPulseErrorIssue.Output
     /// List cacheable tasks for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
@@ -2943,6 +2948,21 @@ extension APIProtocol {
     ) async throws -> Operations.getMixBuild.Output {
         try await getMixBuild(Operations.getMixBuild.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// Get one Pulse error issue: its summary, occurrences and latest scrubbed event.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)`.
+    public func getPulseErrorIssue(
+        path: Operations.getPulseErrorIssue.Input.Path,
+        query: Operations.getPulseErrorIssue.Input.Query,
+        headers: Operations.getPulseErrorIssue.Input.Headers = .init()
+    ) async throws -> Operations.getPulseErrorIssue.Output {
+        try await getPulseErrorIssue(Operations.getPulseErrorIssue.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -15041,8 +15061,20 @@ public enum Components {
             public var meta: Components.Schemas.PulseQuery.metaPayload
             /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload`.
             public struct rowsPayloadPayload: Codable, Hashable, Sendable {
+                /// Distinct impacted account handles.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/accounts`.
+                public var accounts: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/culprit`.
+                public var culprit: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/duration_ms`.
                 public var duration_ms: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/events`.
+                public var events: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/fingerprint`.
+                public var fingerprint: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/first_seen`.
+                public var first_seen: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/labels`.
                 public struct labelsPayload: Codable, Hashable, Sendable {
                     /// A container of undocumented properties.
@@ -15063,16 +15095,81 @@ public enum Components {
                 }
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/labels`.
                 public var labels: Components.Schemas.PulseQuery.rowsPayloadPayload.labelsPayload?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/last_seen`.
+                public var last_seen: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/latest_event_id`.
+                public var latest_event_id: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/level`.
                 public var level: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/message`.
                 public var message: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/name`.
                 public var name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_seriesPayloadPayload`.
+                public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_seriesPayloadPayload/value1`.
+                    public var value1: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_seriesPayloadPayload/value2`.
+                    public var value2: Swift.String?
+                    /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - value1:
+                    ///   - value2:
+                    public init(
+                        value1: Swift.Double? = nil,
+                        value2: Swift.String? = nil
+                    ) {
+                        self.value1 = value1
+                        self.value2 = value2
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        var errors: [any Error] = []
+                        do {
+                            self.value1 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        do {
+                            self.value2 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                            [
+                                self.value1,
+                                self.value2
+                            ],
+                            type: Self.self,
+                            codingPath: decoder.codingPath,
+                            errors: errors
+                        )
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                            self.value1,
+                            self.value2
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_seriesPayload`.
+                public typealias occurrence_seriesPayloadPayload = [Components.Schemas.PulseQuery.rowsPayloadPayload.occurrence_seriesPayloadPayloadPayload]
+                /// Errors: 60 equal occurrence buckets over the window.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_series`.
+                public typealias occurrence_seriesPayload = [Components.Schemas.PulseQuery.rowsPayloadPayload.occurrence_seriesPayloadPayload]
+                /// Errors: 60 equal occurrence buckets over the window.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/occurrence_series`.
+                public var occurrence_series: Components.Schemas.PulseQuery.rowsPayloadPayload.occurrence_seriesPayload?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/platform`.
+                public var platform: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/service`.
                 public var service: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/timestamp`.
                 public var timestamp: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/title`.
+                public var title: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/trace_id`.
                 public var trace_id: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/PulseQuery/rowsPayload/value`.
@@ -15139,56 +15236,124 @@ public enum Components {
                 /// Creates a new `rowsPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - accounts: Distinct impacted account handles.
+                ///   - culprit:
                 ///   - duration_ms:
+                ///   - events:
+                ///   - fingerprint:
+                ///   - first_seen:
                 ///   - labels:
+                ///   - last_seen:
+                ///   - latest_event_id:
                 ///   - level:
                 ///   - message:
                 ///   - name:
+                ///   - occurrence_series: Errors: 60 equal occurrence buckets over the window.
+                ///   - platform:
                 ///   - service:
                 ///   - timestamp:
+                ///   - title:
                 ///   - trace_id:
                 ///   - value:
                 public init(
+                    accounts: Swift.Int? = nil,
+                    culprit: Swift.String? = nil,
                     duration_ms: Swift.Double? = nil,
+                    events: Swift.Int? = nil,
+                    fingerprint: Swift.String? = nil,
+                    first_seen: Swift.String? = nil,
                     labels: Components.Schemas.PulseQuery.rowsPayloadPayload.labelsPayload? = nil,
+                    last_seen: Swift.String? = nil,
+                    latest_event_id: Swift.String? = nil,
                     level: Swift.String? = nil,
                     message: Swift.String? = nil,
                     name: Swift.String? = nil,
+                    occurrence_series: Components.Schemas.PulseQuery.rowsPayloadPayload.occurrence_seriesPayload? = nil,
+                    platform: Swift.String? = nil,
                     service: Swift.String? = nil,
                     timestamp: Swift.String? = nil,
+                    title: Swift.String? = nil,
                     trace_id: Swift.String? = nil,
                     value: Components.Schemas.PulseQuery.rowsPayloadPayload.valuePayload? = nil
                 ) {
+                    self.accounts = accounts
+                    self.culprit = culprit
                     self.duration_ms = duration_ms
+                    self.events = events
+                    self.fingerprint = fingerprint
+                    self.first_seen = first_seen
                     self.labels = labels
+                    self.last_seen = last_seen
+                    self.latest_event_id = latest_event_id
                     self.level = level
                     self.message = message
                     self.name = name
+                    self.occurrence_series = occurrence_series
+                    self.platform = platform
                     self.service = service
                     self.timestamp = timestamp
+                    self.title = title
                     self.trace_id = trace_id
                     self.value = value
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case accounts
+                    case culprit
                     case duration_ms
+                    case events
+                    case fingerprint
+                    case first_seen
                     case labels
+                    case last_seen
+                    case latest_event_id
                     case level
                     case message
                     case name
+                    case occurrence_series
+                    case platform
                     case service
                     case timestamp
+                    case title
                     case trace_id
                     case value
                 }
                 public init(from decoder: any Decoder) throws {
                     let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.accounts = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .accounts
+                    )
+                    self.culprit = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .culprit
+                    )
                     self.duration_ms = try container.decodeIfPresent(
                         Swift.Double.self,
                         forKey: .duration_ms
                     )
+                    self.events = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .events
+                    )
+                    self.fingerprint = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .fingerprint
+                    )
+                    self.first_seen = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .first_seen
+                    )
                     self.labels = try container.decodeIfPresent(
                         Components.Schemas.PulseQuery.rowsPayloadPayload.labelsPayload.self,
                         forKey: .labels
+                    )
+                    self.last_seen = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .last_seen
+                    )
+                    self.latest_event_id = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .latest_event_id
                     )
                     self.level = try container.decodeIfPresent(
                         Swift.String.self,
@@ -15202,6 +15367,14 @@ public enum Components {
                         Swift.String.self,
                         forKey: .name
                     )
+                    self.occurrence_series = try container.decodeIfPresent(
+                        Components.Schemas.PulseQuery.rowsPayloadPayload.occurrence_seriesPayload.self,
+                        forKey: .occurrence_series
+                    )
+                    self.platform = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .platform
+                    )
                     self.service = try container.decodeIfPresent(
                         Swift.String.self,
                         forKey: .service
@@ -15209,6 +15382,10 @@ public enum Components {
                     self.timestamp = try container.decodeIfPresent(
                         Swift.String.self,
                         forKey: .timestamp
+                    )
+                    self.title = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .title
                     )
                     self.trace_id = try container.decodeIfPresent(
                         Swift.String.self,
@@ -15219,13 +15396,23 @@ public enum Components {
                         forKey: .value
                     )
                     try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "accounts",
+                        "culprit",
                         "duration_ms",
+                        "events",
+                        "fingerprint",
+                        "first_seen",
                         "labels",
+                        "last_seen",
+                        "latest_event_id",
                         "level",
                         "message",
                         "name",
+                        "occurrence_series",
+                        "platform",
                         "service",
                         "timestamp",
+                        "title",
                         "trace_id",
                         "value"
                     ])
@@ -20144,6 +20331,121 @@ public enum Components {
                 case url
             }
         }
+        /// - Remark: Generated from `#/components/schemas/PulseErrorEvent`.
+        public struct PulseErrorEvent: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/account_handle`.
+            public var account_handle: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/environment`.
+            public var environment: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/event_id`.
+            public var event_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/level`.
+            public var level: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/release`.
+            public var release: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/server_name`.
+            public var server_name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/timestamp`.
+            public var timestamp: Swift.String
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/title`.
+            public var title: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseErrorEvent/trace_id`.
+            public var trace_id: Swift.String?
+            /// Creates a new `PulseErrorEvent`.
+            ///
+            /// - Parameters:
+            ///   - account_handle:
+            ///   - environment:
+            ///   - event_id:
+            ///   - level:
+            ///   - release:
+            ///   - server_name:
+            ///   - timestamp:
+            ///   - title:
+            ///   - trace_id:
+            public init(
+                account_handle: Swift.String? = nil,
+                environment: Swift.String? = nil,
+                event_id: Swift.String? = nil,
+                level: Swift.String? = nil,
+                release: Swift.String? = nil,
+                server_name: Swift.String? = nil,
+                timestamp: Swift.String,
+                title: Swift.String? = nil,
+                trace_id: Swift.String? = nil
+            ) {
+                self.account_handle = account_handle
+                self.environment = environment
+                self.event_id = event_id
+                self.level = level
+                self.release = release
+                self.server_name = server_name
+                self.timestamp = timestamp
+                self.title = title
+                self.trace_id = trace_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case account_handle
+                case environment
+                case event_id
+                case level
+                case release
+                case server_name
+                case timestamp
+                case title
+                case trace_id
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.account_handle = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .account_handle
+                )
+                self.environment = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .environment
+                )
+                self.event_id = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .event_id
+                )
+                self.level = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .level
+                )
+                self.release = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .release
+                )
+                self.server_name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .server_name
+                )
+                self.timestamp = try container.decode(
+                    Swift.String.self,
+                    forKey: .timestamp
+                )
+                self.title = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .title
+                )
+                self.trace_id = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .trace_id
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "account_handle",
+                    "environment",
+                    "event_id",
+                    "level",
+                    "release",
+                    "server_name",
+                    "timestamp",
+                    "title",
+                    "trace_id"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest`.
         public struct UploadCommitsRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload`.
@@ -22126,8 +22428,20 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/PulseRow`.
         public struct PulseRow: Codable, Hashable, Sendable {
+            /// Distinct impacted account handles.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PulseRow/accounts`.
+            public var accounts: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/culprit`.
+            public var culprit: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/duration_ms`.
             public var duration_ms: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/events`.
+            public var events: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/fingerprint`.
+            public var fingerprint: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/first_seen`.
+            public var first_seen: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/labels`.
             public struct labelsPayload: Codable, Hashable, Sendable {
                 /// A container of undocumented properties.
@@ -22148,16 +22462,81 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/PulseRow/labels`.
             public var labels: Components.Schemas.PulseRow.labelsPayload?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/last_seen`.
+            public var last_seen: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/latest_event_id`.
+            public var latest_event_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/level`.
             public var level: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/message`.
             public var message: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/name`.
             public var name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_seriesPayloadPayload`.
+            public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_seriesPayloadPayload/value1`.
+                public var value1: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_seriesPayloadPayload/value2`.
+                public var value2: Swift.String?
+                /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                ///   - value2:
+                public init(
+                    value1: Swift.Double? = nil,
+                    value2: Swift.String? = nil
+                ) {
+                    self.value1 = value1
+                    self.value2 = value2
+                }
+                public init(from decoder: any Decoder) throws {
+                    var errors: [any Error] = []
+                    do {
+                        self.value1 = try decoder.decodeFromSingleValueContainer()
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self.value2 = try decoder.decodeFromSingleValueContainer()
+                    } catch {
+                        errors.append(error)
+                    }
+                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                        [
+                            self.value1,
+                            self.value2
+                        ],
+                        type: Self.self,
+                        codingPath: decoder.codingPath,
+                        errors: errors
+                    )
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                        self.value1,
+                        self.value2
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_seriesPayload`.
+            public typealias occurrence_seriesPayloadPayload = [Components.Schemas.PulseRow.occurrence_seriesPayloadPayloadPayload]
+            /// Errors: 60 equal occurrence buckets over the window.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_series`.
+            public typealias occurrence_seriesPayload = [Components.Schemas.PulseRow.occurrence_seriesPayloadPayload]
+            /// Errors: 60 equal occurrence buckets over the window.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PulseRow/occurrence_series`.
+            public var occurrence_series: Components.Schemas.PulseRow.occurrence_seriesPayload?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/platform`.
+            public var platform: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/service`.
             public var service: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/timestamp`.
             public var timestamp: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PulseRow/title`.
+            public var title: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/trace_id`.
             public var trace_id: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PulseRow/value`.
@@ -22224,56 +22603,124 @@ public enum Components {
             /// Creates a new `PulseRow`.
             ///
             /// - Parameters:
+            ///   - accounts: Distinct impacted account handles.
+            ///   - culprit:
             ///   - duration_ms:
+            ///   - events:
+            ///   - fingerprint:
+            ///   - first_seen:
             ///   - labels:
+            ///   - last_seen:
+            ///   - latest_event_id:
             ///   - level:
             ///   - message:
             ///   - name:
+            ///   - occurrence_series: Errors: 60 equal occurrence buckets over the window.
+            ///   - platform:
             ///   - service:
             ///   - timestamp:
+            ///   - title:
             ///   - trace_id:
             ///   - value:
             public init(
+                accounts: Swift.Int? = nil,
+                culprit: Swift.String? = nil,
                 duration_ms: Swift.Double? = nil,
+                events: Swift.Int? = nil,
+                fingerprint: Swift.String? = nil,
+                first_seen: Swift.String? = nil,
                 labels: Components.Schemas.PulseRow.labelsPayload? = nil,
+                last_seen: Swift.String? = nil,
+                latest_event_id: Swift.String? = nil,
                 level: Swift.String? = nil,
                 message: Swift.String? = nil,
                 name: Swift.String? = nil,
+                occurrence_series: Components.Schemas.PulseRow.occurrence_seriesPayload? = nil,
+                platform: Swift.String? = nil,
                 service: Swift.String? = nil,
                 timestamp: Swift.String? = nil,
+                title: Swift.String? = nil,
                 trace_id: Swift.String? = nil,
                 value: Components.Schemas.PulseRow.valuePayload? = nil
             ) {
+                self.accounts = accounts
+                self.culprit = culprit
                 self.duration_ms = duration_ms
+                self.events = events
+                self.fingerprint = fingerprint
+                self.first_seen = first_seen
                 self.labels = labels
+                self.last_seen = last_seen
+                self.latest_event_id = latest_event_id
                 self.level = level
                 self.message = message
                 self.name = name
+                self.occurrence_series = occurrence_series
+                self.platform = platform
                 self.service = service
                 self.timestamp = timestamp
+                self.title = title
                 self.trace_id = trace_id
                 self.value = value
             }
             public enum CodingKeys: String, CodingKey {
+                case accounts
+                case culprit
                 case duration_ms
+                case events
+                case fingerprint
+                case first_seen
                 case labels
+                case last_seen
+                case latest_event_id
                 case level
                 case message
                 case name
+                case occurrence_series
+                case platform
                 case service
                 case timestamp
+                case title
                 case trace_id
                 case value
             }
             public init(from decoder: any Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.accounts = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .accounts
+                )
+                self.culprit = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .culprit
+                )
                 self.duration_ms = try container.decodeIfPresent(
                     Swift.Double.self,
                     forKey: .duration_ms
                 )
+                self.events = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .events
+                )
+                self.fingerprint = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .fingerprint
+                )
+                self.first_seen = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .first_seen
+                )
                 self.labels = try container.decodeIfPresent(
                     Components.Schemas.PulseRow.labelsPayload.self,
                     forKey: .labels
+                )
+                self.last_seen = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .last_seen
+                )
+                self.latest_event_id = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .latest_event_id
                 )
                 self.level = try container.decodeIfPresent(
                     Swift.String.self,
@@ -22287,6 +22734,14 @@ public enum Components {
                     Swift.String.self,
                     forKey: .name
                 )
+                self.occurrence_series = try container.decodeIfPresent(
+                    Components.Schemas.PulseRow.occurrence_seriesPayload.self,
+                    forKey: .occurrence_series
+                )
+                self.platform = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .platform
+                )
                 self.service = try container.decodeIfPresent(
                     Swift.String.self,
                     forKey: .service
@@ -22294,6 +22749,10 @@ public enum Components {
                 self.timestamp = try container.decodeIfPresent(
                     Swift.String.self,
                     forKey: .timestamp
+                )
+                self.title = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .title
                 )
                 self.trace_id = try container.decodeIfPresent(
                     Swift.String.self,
@@ -22304,13 +22763,23 @@ public enum Components {
                     forKey: .value
                 )
                 try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "accounts",
+                    "culprit",
                     "duration_ms",
+                    "events",
+                    "fingerprint",
+                    "first_seen",
                     "labels",
+                    "last_seen",
+                    "latest_event_id",
                     "level",
                     "message",
                     "name",
+                    "occurrence_series",
+                    "platform",
                     "service",
                     "timestamp",
+                    "title",
                     "trace_id",
                     "value"
                 ])
@@ -23798,6 +24267,710 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case storage_key
                 case upload_url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/PulseErrorIssue`.
+        public struct PulseErrorIssue: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload`.
+            public struct eventsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/account_handle`.
+                public var account_handle: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/environment`.
+                public var environment: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/event_id`.
+                public var event_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/level`.
+                public var level: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/release`.
+                public var release: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/server_name`.
+                public var server_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/timestamp`.
+                public var timestamp: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/title`.
+                public var title: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/eventsPayload/trace_id`.
+                public var trace_id: Swift.String?
+                /// Creates a new `eventsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - environment:
+                ///   - event_id:
+                ///   - level:
+                ///   - release:
+                ///   - server_name:
+                ///   - timestamp:
+                ///   - title:
+                ///   - trace_id:
+                public init(
+                    account_handle: Swift.String? = nil,
+                    environment: Swift.String? = nil,
+                    event_id: Swift.String? = nil,
+                    level: Swift.String? = nil,
+                    release: Swift.String? = nil,
+                    server_name: Swift.String? = nil,
+                    timestamp: Swift.String,
+                    title: Swift.String? = nil,
+                    trace_id: Swift.String? = nil
+                ) {
+                    self.account_handle = account_handle
+                    self.environment = environment
+                    self.event_id = event_id
+                    self.level = level
+                    self.release = release
+                    self.server_name = server_name
+                    self.timestamp = timestamp
+                    self.title = title
+                    self.trace_id = trace_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case account_handle
+                    case environment
+                    case event_id
+                    case level
+                    case release
+                    case server_name
+                    case timestamp
+                    case title
+                    case trace_id
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.account_handle = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .account_handle
+                    )
+                    self.environment = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .environment
+                    )
+                    self.event_id = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .event_id
+                    )
+                    self.level = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .level
+                    )
+                    self.release = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .release
+                    )
+                    self.server_name = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .server_name
+                    )
+                    self.timestamp = try container.decode(
+                        Swift.String.self,
+                        forKey: .timestamp
+                    )
+                    self.title = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .title
+                    )
+                    self.trace_id = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .trace_id
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "account_handle",
+                        "environment",
+                        "event_id",
+                        "level",
+                        "release",
+                        "server_name",
+                        "timestamp",
+                        "title",
+                        "trace_id"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/events`.
+            public typealias eventsPayload = [Components.Schemas.PulseErrorIssue.eventsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/events`.
+            public var events: Components.Schemas.PulseErrorIssue.eventsPayload
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue`.
+            public struct issuePayload: Codable, Hashable, Sendable {
+                /// Distinct impacted account handles.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/accounts`.
+                public var accounts: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/culprit`.
+                public var culprit: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/duration_ms`.
+                public var duration_ms: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/events`.
+                public var events: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/fingerprint`.
+                public var fingerprint: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/first_seen`.
+                public var first_seen: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/labels`.
+                public struct labelsPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `labelsPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/labels`.
+                public var labels: Components.Schemas.PulseErrorIssue.issuePayload.labelsPayload?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/last_seen`.
+                public var last_seen: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/latest_event_id`.
+                public var latest_event_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/level`.
+                public var level: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/message`.
+                public var message: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/name`.
+                public var name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/occurrence_seriesPayloadPayload`.
+                public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/occurrence_seriesPayloadPayload/value1`.
+                    public var value1: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/occurrence_seriesPayloadPayload/value2`.
+                    public var value2: Swift.String?
+                    /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - value1:
+                    ///   - value2:
+                    public init(
+                        value1: Swift.Double? = nil,
+                        value2: Swift.String? = nil
+                    ) {
+                        self.value1 = value1
+                        self.value2 = value2
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        var errors: [any Error] = []
+                        do {
+                            self.value1 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        do {
+                            self.value2 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                            [
+                                self.value1,
+                                self.value2
+                            ],
+                            type: Self.self,
+                            codingPath: decoder.codingPath,
+                            errors: errors
+                        )
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                            self.value1,
+                            self.value2
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/occurrence_seriesPayload`.
+                public typealias occurrence_seriesPayloadPayload = [Components.Schemas.PulseErrorIssue.issuePayload.occurrence_seriesPayloadPayloadPayload]
+                /// Errors: 60 equal occurrence buckets over the window.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/occurrence_series`.
+                public typealias occurrence_seriesPayload = [Components.Schemas.PulseErrorIssue.issuePayload.occurrence_seriesPayloadPayload]
+                /// Errors: 60 equal occurrence buckets over the window.
+                ///
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/occurrence_series`.
+                public var occurrence_series: Components.Schemas.PulseErrorIssue.issuePayload.occurrence_seriesPayload?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/platform`.
+                public var platform: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/service`.
+                public var service: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/timestamp`.
+                public var timestamp: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/title`.
+                public var title: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/trace_id`.
+                public var trace_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/value`.
+                public struct valuePayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/value/value1`.
+                    public var value1: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/value/value2`.
+                    public var value2: Swift.String?
+                    /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/value/value3`.
+                    public var value3: Swift.String?
+                    /// Creates a new `valuePayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - value1:
+                    ///   - value2:
+                    ///   - value3:
+                    public init(
+                        value1: Swift.Double? = nil,
+                        value2: Swift.String? = nil,
+                        value3: Swift.String? = nil
+                    ) {
+                        self.value1 = value1
+                        self.value2 = value2
+                        self.value3 = value3
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        var errors: [any Error] = []
+                        do {
+                            self.value1 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        do {
+                            self.value2 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        do {
+                            self.value3 = try decoder.decodeFromSingleValueContainer()
+                        } catch {
+                            errors.append(error)
+                        }
+                        try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                            [
+                                self.value1,
+                                self.value2,
+                                self.value3
+                            ],
+                            type: Self.self,
+                            codingPath: decoder.codingPath,
+                            errors: errors
+                        )
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                            self.value1,
+                            self.value2,
+                            self.value3
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue/value`.
+                public var value: Components.Schemas.PulseErrorIssue.issuePayload.valuePayload?
+                /// Creates a new `issuePayload`.
+                ///
+                /// - Parameters:
+                ///   - accounts: Distinct impacted account handles.
+                ///   - culprit:
+                ///   - duration_ms:
+                ///   - events:
+                ///   - fingerprint:
+                ///   - first_seen:
+                ///   - labels:
+                ///   - last_seen:
+                ///   - latest_event_id:
+                ///   - level:
+                ///   - message:
+                ///   - name:
+                ///   - occurrence_series: Errors: 60 equal occurrence buckets over the window.
+                ///   - platform:
+                ///   - service:
+                ///   - timestamp:
+                ///   - title:
+                ///   - trace_id:
+                ///   - value:
+                public init(
+                    accounts: Swift.Int? = nil,
+                    culprit: Swift.String? = nil,
+                    duration_ms: Swift.Double? = nil,
+                    events: Swift.Int? = nil,
+                    fingerprint: Swift.String? = nil,
+                    first_seen: Swift.String? = nil,
+                    labels: Components.Schemas.PulseErrorIssue.issuePayload.labelsPayload? = nil,
+                    last_seen: Swift.String? = nil,
+                    latest_event_id: Swift.String? = nil,
+                    level: Swift.String? = nil,
+                    message: Swift.String? = nil,
+                    name: Swift.String? = nil,
+                    occurrence_series: Components.Schemas.PulseErrorIssue.issuePayload.occurrence_seriesPayload? = nil,
+                    platform: Swift.String? = nil,
+                    service: Swift.String? = nil,
+                    timestamp: Swift.String? = nil,
+                    title: Swift.String? = nil,
+                    trace_id: Swift.String? = nil,
+                    value: Components.Schemas.PulseErrorIssue.issuePayload.valuePayload? = nil
+                ) {
+                    self.accounts = accounts
+                    self.culprit = culprit
+                    self.duration_ms = duration_ms
+                    self.events = events
+                    self.fingerprint = fingerprint
+                    self.first_seen = first_seen
+                    self.labels = labels
+                    self.last_seen = last_seen
+                    self.latest_event_id = latest_event_id
+                    self.level = level
+                    self.message = message
+                    self.name = name
+                    self.occurrence_series = occurrence_series
+                    self.platform = platform
+                    self.service = service
+                    self.timestamp = timestamp
+                    self.title = title
+                    self.trace_id = trace_id
+                    self.value = value
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case accounts
+                    case culprit
+                    case duration_ms
+                    case events
+                    case fingerprint
+                    case first_seen
+                    case labels
+                    case last_seen
+                    case latest_event_id
+                    case level
+                    case message
+                    case name
+                    case occurrence_series
+                    case platform
+                    case service
+                    case timestamp
+                    case title
+                    case trace_id
+                    case value
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.accounts = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .accounts
+                    )
+                    self.culprit = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .culprit
+                    )
+                    self.duration_ms = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .duration_ms
+                    )
+                    self.events = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .events
+                    )
+                    self.fingerprint = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .fingerprint
+                    )
+                    self.first_seen = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .first_seen
+                    )
+                    self.labels = try container.decodeIfPresent(
+                        Components.Schemas.PulseErrorIssue.issuePayload.labelsPayload.self,
+                        forKey: .labels
+                    )
+                    self.last_seen = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .last_seen
+                    )
+                    self.latest_event_id = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .latest_event_id
+                    )
+                    self.level = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .level
+                    )
+                    self.message = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .message
+                    )
+                    self.name = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .name
+                    )
+                    self.occurrence_series = try container.decodeIfPresent(
+                        Components.Schemas.PulseErrorIssue.issuePayload.occurrence_seriesPayload.self,
+                        forKey: .occurrence_series
+                    )
+                    self.platform = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .platform
+                    )
+                    self.service = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .service
+                    )
+                    self.timestamp = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .timestamp
+                    )
+                    self.title = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .title
+                    )
+                    self.trace_id = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .trace_id
+                    )
+                    self.value = try container.decodeIfPresent(
+                        Components.Schemas.PulseErrorIssue.issuePayload.valuePayload.self,
+                        forKey: .value
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "accounts",
+                        "culprit",
+                        "duration_ms",
+                        "events",
+                        "fingerprint",
+                        "first_seen",
+                        "labels",
+                        "last_seen",
+                        "latest_event_id",
+                        "level",
+                        "message",
+                        "name",
+                        "occurrence_series",
+                        "platform",
+                        "service",
+                        "timestamp",
+                        "title",
+                        "trace_id",
+                        "value"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/issue`.
+            public var issue: Components.Schemas.PulseErrorIssue.issuePayload
+            /// The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message).
+            ///
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/latest_event`.
+            public var latest_event: OpenAPIRuntime.OpenAPIObjectContainer
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta`.
+            public struct metaPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/end_at`.
+                public var end_at: Swift.String
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/has_next_page`.
+                public var has_next_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/has_previous_page`.
+                public var has_previous_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/page`.
+                public var page: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/page_size`.
+                public var page_size: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/total_count`.
+                public var total_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta/total_pages`.
+                public var total_pages: Swift.Int
+                /// Creates a new `metaPayload`.
+                ///
+                /// - Parameters:
+                ///   - end_at:
+                ///   - has_next_page:
+                ///   - has_previous_page:
+                ///   - page:
+                ///   - page_size:
+                ///   - total_count:
+                ///   - total_pages:
+                public init(
+                    end_at: Swift.String,
+                    has_next_page: Swift.Bool,
+                    has_previous_page: Swift.Bool,
+                    page: Swift.Int,
+                    page_size: Swift.Int,
+                    total_count: Swift.Int,
+                    total_pages: Swift.Int
+                ) {
+                    self.end_at = end_at
+                    self.has_next_page = has_next_page
+                    self.has_previous_page = has_previous_page
+                    self.page = page
+                    self.page_size = page_size
+                    self.total_count = total_count
+                    self.total_pages = total_pages
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case end_at
+                    case has_next_page
+                    case has_previous_page
+                    case page
+                    case page_size
+                    case total_count
+                    case total_pages
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.end_at = try container.decode(
+                        Swift.String.self,
+                        forKey: .end_at
+                    )
+                    self.has_next_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_next_page
+                    )
+                    self.has_previous_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_previous_page
+                    )
+                    self.page = try container.decode(
+                        Swift.Int.self,
+                        forKey: .page
+                    )
+                    self.page_size = try container.decode(
+                        Swift.Int.self,
+                        forKey: .page_size
+                    )
+                    self.total_count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_count
+                    )
+                    self.total_pages = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_pages
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "end_at",
+                        "has_next_page",
+                        "has_previous_page",
+                        "page",
+                        "page_size",
+                        "total_count",
+                        "total_pages"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/meta`.
+            public var meta: Components.Schemas.PulseErrorIssue.metaPayload
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_seriesPayloadPayload`.
+            public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_seriesPayloadPayload/value1`.
+                public var value1: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_seriesPayloadPayload/value2`.
+                public var value2: Swift.String?
+                /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - value1:
+                ///   - value2:
+                public init(
+                    value1: Swift.Double? = nil,
+                    value2: Swift.String? = nil
+                ) {
+                    self.value1 = value1
+                    self.value2 = value2
+                }
+                public init(from decoder: any Decoder) throws {
+                    var errors: [any Error] = []
+                    do {
+                        self.value1 = try decoder.decodeFromSingleValueContainer()
+                    } catch {
+                        errors.append(error)
+                    }
+                    do {
+                        self.value2 = try decoder.decodeFromSingleValueContainer()
+                    } catch {
+                        errors.append(error)
+                    }
+                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                        [
+                            self.value1,
+                            self.value2
+                        ],
+                        type: Self.self,
+                        codingPath: decoder.codingPath,
+                        errors: errors
+                    )
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                        self.value1,
+                        self.value2
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_seriesPayload`.
+            public typealias occurrence_seriesPayloadPayload = [Components.Schemas.PulseErrorIssue.occurrence_seriesPayloadPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_series`.
+            public typealias occurrence_seriesPayload = [Components.Schemas.PulseErrorIssue.occurrence_seriesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/occurrence_series`.
+            public var occurrence_series: Components.Schemas.PulseErrorIssue.occurrence_seriesPayload
+            /// - Remark: Generated from `#/components/schemas/PulseErrorIssue/warnings`.
+            public var warnings: [Swift.String]
+            /// Creates a new `PulseErrorIssue`.
+            ///
+            /// - Parameters:
+            ///   - events:
+            ///   - issue:
+            ///   - latest_event: The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message).
+            ///   - meta:
+            ///   - occurrence_series:
+            ///   - warnings:
+            public init(
+                events: Components.Schemas.PulseErrorIssue.eventsPayload,
+                issue: Components.Schemas.PulseErrorIssue.issuePayload,
+                latest_event: OpenAPIRuntime.OpenAPIObjectContainer,
+                meta: Components.Schemas.PulseErrorIssue.metaPayload,
+                occurrence_series: Components.Schemas.PulseErrorIssue.occurrence_seriesPayload,
+                warnings: [Swift.String]
+            ) {
+                self.events = events
+                self.issue = issue
+                self.latest_event = latest_event
+                self.meta = meta
+                self.occurrence_series = occurrence_series
+                self.warnings = warnings
+            }
+            public enum CodingKeys: String, CodingKey {
+                case events
+                case issue
+                case latest_event
+                case meta
+                case occurrence_series
+                case warnings
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.events = try container.decode(
+                    Components.Schemas.PulseErrorIssue.eventsPayload.self,
+                    forKey: .events
+                )
+                self.issue = try container.decode(
+                    Components.Schemas.PulseErrorIssue.issuePayload.self,
+                    forKey: .issue
+                )
+                self.latest_event = try container.decode(
+                    OpenAPIRuntime.OpenAPIObjectContainer.self,
+                    forKey: .latest_event
+                )
+                self.meta = try container.decode(
+                    Components.Schemas.PulseErrorIssue.metaPayload.self,
+                    forKey: .meta
+                )
+                self.occurrence_series = try container.decode(
+                    Components.Schemas.PulseErrorIssue.occurrence_seriesPayload.self,
+                    forKey: .occurrence_series
+                )
+                self.warnings = try container.decode(
+                    [Swift.String].self,
+                    forKey: .warnings
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "events",
+                    "issue",
+                    "latest_event",
+                    "meta",
+                    "occurrence_series",
+                    "warnings"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/OnceRunStatus`.
@@ -46972,18 +48145,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/skipped_tests`.
                             public var skipped_tests: Swift.Int?
-                            /// Run status.
+                            /// Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/status`.
-                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                                case success = "success"
-                                case failure = "failure"
-                                case skipped = "skipped"
-                            }
-                            /// Run status.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/status`.
-                            public var status: Operations.listTestRuns.Output.Ok.Body.jsonPayload.test_runsPayloadPayload.statusPayload
+                            public var status: Swift.String
                             /// Total number of test cases.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/total_test_count`.
@@ -47002,7 +48167,7 @@ public enum Operations {
                             ///   - ran_tests: Number of test cases that ran.
                             ///   - scheme: Build scheme.
                             ///   - skipped_tests: Number of skipped test cases.
-                            ///   - status: Run status.
+                            ///   - status: Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones.
                             ///   - total_test_count: Total number of test cases.
                             public init(
                                 actor: Components.Schemas.ReportActor? = nil,
@@ -47016,7 +48181,7 @@ public enum Operations {
                                 ran_tests: Swift.Int? = nil,
                                 scheme: Swift.String? = nil,
                                 skipped_tests: Swift.Int? = nil,
-                                status: Operations.listTestRuns.Output.Ok.Body.jsonPayload.test_runsPayloadPayload.statusPayload,
+                                status: Swift.String,
                                 total_test_count: Swift.Int? = nil
                             ) {
                                 self.actor = actor
@@ -58302,6 +59467,7 @@ public enum Operations {
                     case metrics = "metrics"
                     case logs = "logs"
                     case traces = "traces"
+                    case errors = "errors"
                 }
                 ///
                 ///
@@ -58766,7 +59932,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Account not found
+            /// Account or issue not found
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/{signal}/analytics/get(getPulseAnalytics)/responses/404`.
             ///
@@ -79952,6 +81118,1210 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get one Pulse error issue: its summary, occurrences and latest scrubbed event.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)`.
+    public enum getPulseErrorIssue {
+        public static let id: Swift.String = "getPulseErrorIssue"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/path/fingerprint`.
+                public var fingerprint: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - fingerprint:
+                public init(
+                    account_handle: Swift.String,
+                    fingerprint: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.fingerprint = fingerprint
+                }
+            }
+            public var path: Operations.getPulseErrorIssue.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query/service`.
+                public var service: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query/end_at`.
+                public var end_at: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query/range`.
+                @frozen public enum rangePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case _15m = "15m"
+                    case _1h = "1h"
+                    case _6h = "6h"
+                    case _24h = "24h"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/query/range`.
+                public var range: Operations.getPulseErrorIssue.Input.Query.rangePayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - service:
+                ///   - end_at:
+                ///   - page:
+                ///   - page_size:
+                ///   - range:
+                public init(
+                    service: Swift.String,
+                    end_at: Swift.String? = nil,
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    range: Operations.getPulseErrorIssue.Input.Query.rangePayload? = nil
+                ) {
+                    self.service = service
+                    self.end_at = end_at
+                    self.page = page
+                    self.page_size = page_size
+                    self.range = range
+                }
+            }
+            public var query: Operations.getPulseErrorIssue.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPulseErrorIssue.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPulseErrorIssue.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getPulseErrorIssue.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getPulseErrorIssue.Input.Path,
+                query: Operations.getPulseErrorIssue.Input.Query,
+                headers: Operations.getPulseErrorIssue.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload`.
+                        public struct eventsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/account_handle`.
+                            public var account_handle: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/environment`.
+                            public var environment: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/event_id`.
+                            public var event_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/level`.
+                            public var level: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/release`.
+                            public var release: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/server_name`.
+                            public var server_name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/timestamp`.
+                            public var timestamp: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/title`.
+                            public var title: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/eventsPayload/trace_id`.
+                            public var trace_id: Swift.String?
+                            /// Creates a new `eventsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - account_handle:
+                            ///   - environment:
+                            ///   - event_id:
+                            ///   - level:
+                            ///   - release:
+                            ///   - server_name:
+                            ///   - timestamp:
+                            ///   - title:
+                            ///   - trace_id:
+                            public init(
+                                account_handle: Swift.String? = nil,
+                                environment: Swift.String? = nil,
+                                event_id: Swift.String? = nil,
+                                level: Swift.String? = nil,
+                                release: Swift.String? = nil,
+                                server_name: Swift.String? = nil,
+                                timestamp: Swift.String,
+                                title: Swift.String? = nil,
+                                trace_id: Swift.String? = nil
+                            ) {
+                                self.account_handle = account_handle
+                                self.environment = environment
+                                self.event_id = event_id
+                                self.level = level
+                                self.release = release
+                                self.server_name = server_name
+                                self.timestamp = timestamp
+                                self.title = title
+                                self.trace_id = trace_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case account_handle
+                                case environment
+                                case event_id
+                                case level
+                                case release
+                                case server_name
+                                case timestamp
+                                case title
+                                case trace_id
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.account_handle = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .account_handle
+                                )
+                                self.environment = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .environment
+                                )
+                                self.event_id = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .event_id
+                                )
+                                self.level = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .level
+                                )
+                                self.release = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .release
+                                )
+                                self.server_name = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .server_name
+                                )
+                                self.timestamp = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .timestamp
+                                )
+                                self.title = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .title
+                                )
+                                self.trace_id = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .trace_id
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "account_handle",
+                                    "environment",
+                                    "event_id",
+                                    "level",
+                                    "release",
+                                    "server_name",
+                                    "timestamp",
+                                    "title",
+                                    "trace_id"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/events`.
+                        public typealias eventsPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/events`.
+                        public var events: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue`.
+                        public struct issuePayload: Codable, Hashable, Sendable {
+                            /// Distinct impacted account handles.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/accounts`.
+                            public var accounts: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/culprit`.
+                            public var culprit: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/duration_ms`.
+                            public var duration_ms: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/events`.
+                            public var events: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/fingerprint`.
+                            public var fingerprint: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/first_seen`.
+                            public var first_seen: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/labels`.
+                            public struct labelsPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `labelsPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/labels`.
+                            public var labels: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.labelsPayload?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/last_seen`.
+                            public var last_seen: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/latest_event_id`.
+                            public var latest_event_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/level`.
+                            public var level: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/message`.
+                            public var message: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/name`.
+                            public var name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/occurrence_seriesPayloadPayload`.
+                            public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/occurrence_seriesPayloadPayload/value1`.
+                                public var value1: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/occurrence_seriesPayloadPayload/value2`.
+                                public var value2: Swift.String?
+                                /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - value1:
+                                ///   - value2:
+                                public init(
+                                    value1: Swift.Double? = nil,
+                                    value2: Swift.String? = nil
+                                ) {
+                                    self.value1 = value1
+                                    self.value2 = value2
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    var errors: [any Error] = []
+                                    do {
+                                        self.value1 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    do {
+                                        self.value2 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                        [
+                                            self.value1,
+                                            self.value2
+                                        ],
+                                        type: Self.self,
+                                        codingPath: decoder.codingPath,
+                                        errors: errors
+                                    )
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                                        self.value1,
+                                        self.value2
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/occurrence_seriesPayload`.
+                            public typealias occurrence_seriesPayloadPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.occurrence_seriesPayloadPayloadPayload]
+                            /// Errors: 60 equal occurrence buckets over the window.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/occurrence_series`.
+                            public typealias occurrence_seriesPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.occurrence_seriesPayloadPayload]
+                            /// Errors: 60 equal occurrence buckets over the window.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/occurrence_series`.
+                            public var occurrence_series: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.occurrence_seriesPayload?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/platform`.
+                            public var platform: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/service`.
+                            public var service: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/timestamp`.
+                            public var timestamp: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/title`.
+                            public var title: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/trace_id`.
+                            public var trace_id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/value`.
+                            public struct valuePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/value/value1`.
+                                public var value1: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/value/value2`.
+                                public var value2: Swift.String?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/value/value3`.
+                                public var value3: Swift.String?
+                                /// Creates a new `valuePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - value1:
+                                ///   - value2:
+                                ///   - value3:
+                                public init(
+                                    value1: Swift.Double? = nil,
+                                    value2: Swift.String? = nil,
+                                    value3: Swift.String? = nil
+                                ) {
+                                    self.value1 = value1
+                                    self.value2 = value2
+                                    self.value3 = value3
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    var errors: [any Error] = []
+                                    do {
+                                        self.value1 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    do {
+                                        self.value2 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    do {
+                                        self.value3 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                        [
+                                            self.value1,
+                                            self.value2,
+                                            self.value3
+                                        ],
+                                        type: Self.self,
+                                        codingPath: decoder.codingPath,
+                                        errors: errors
+                                    )
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                                        self.value1,
+                                        self.value2,
+                                        self.value3
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue/value`.
+                            public var value: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.valuePayload?
+                            /// Creates a new `issuePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - accounts: Distinct impacted account handles.
+                            ///   - culprit:
+                            ///   - duration_ms:
+                            ///   - events:
+                            ///   - fingerprint:
+                            ///   - first_seen:
+                            ///   - labels:
+                            ///   - last_seen:
+                            ///   - latest_event_id:
+                            ///   - level:
+                            ///   - message:
+                            ///   - name:
+                            ///   - occurrence_series: Errors: 60 equal occurrence buckets over the window.
+                            ///   - platform:
+                            ///   - service:
+                            ///   - timestamp:
+                            ///   - title:
+                            ///   - trace_id:
+                            ///   - value:
+                            public init(
+                                accounts: Swift.Int? = nil,
+                                culprit: Swift.String? = nil,
+                                duration_ms: Swift.Double? = nil,
+                                events: Swift.Int? = nil,
+                                fingerprint: Swift.String? = nil,
+                                first_seen: Swift.String? = nil,
+                                labels: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.labelsPayload? = nil,
+                                last_seen: Swift.String? = nil,
+                                latest_event_id: Swift.String? = nil,
+                                level: Swift.String? = nil,
+                                message: Swift.String? = nil,
+                                name: Swift.String? = nil,
+                                occurrence_series: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.occurrence_seriesPayload? = nil,
+                                platform: Swift.String? = nil,
+                                service: Swift.String? = nil,
+                                timestamp: Swift.String? = nil,
+                                title: Swift.String? = nil,
+                                trace_id: Swift.String? = nil,
+                                value: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.valuePayload? = nil
+                            ) {
+                                self.accounts = accounts
+                                self.culprit = culprit
+                                self.duration_ms = duration_ms
+                                self.events = events
+                                self.fingerprint = fingerprint
+                                self.first_seen = first_seen
+                                self.labels = labels
+                                self.last_seen = last_seen
+                                self.latest_event_id = latest_event_id
+                                self.level = level
+                                self.message = message
+                                self.name = name
+                                self.occurrence_series = occurrence_series
+                                self.platform = platform
+                                self.service = service
+                                self.timestamp = timestamp
+                                self.title = title
+                                self.trace_id = trace_id
+                                self.value = value
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case accounts
+                                case culprit
+                                case duration_ms
+                                case events
+                                case fingerprint
+                                case first_seen
+                                case labels
+                                case last_seen
+                                case latest_event_id
+                                case level
+                                case message
+                                case name
+                                case occurrence_series
+                                case platform
+                                case service
+                                case timestamp
+                                case title
+                                case trace_id
+                                case value
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.accounts = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .accounts
+                                )
+                                self.culprit = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .culprit
+                                )
+                                self.duration_ms = try container.decodeIfPresent(
+                                    Swift.Double.self,
+                                    forKey: .duration_ms
+                                )
+                                self.events = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .events
+                                )
+                                self.fingerprint = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .fingerprint
+                                )
+                                self.first_seen = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .first_seen
+                                )
+                                self.labels = try container.decodeIfPresent(
+                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.labelsPayload.self,
+                                    forKey: .labels
+                                )
+                                self.last_seen = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .last_seen
+                                )
+                                self.latest_event_id = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .latest_event_id
+                                )
+                                self.level = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .level
+                                )
+                                self.message = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .message
+                                )
+                                self.name = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .name
+                                )
+                                self.occurrence_series = try container.decodeIfPresent(
+                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.occurrence_seriesPayload.self,
+                                    forKey: .occurrence_series
+                                )
+                                self.platform = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .platform
+                                )
+                                self.service = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .service
+                                )
+                                self.timestamp = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .timestamp
+                                )
+                                self.title = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .title
+                                )
+                                self.trace_id = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .trace_id
+                                )
+                                self.value = try container.decodeIfPresent(
+                                    Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.valuePayload.self,
+                                    forKey: .value
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "accounts",
+                                    "culprit",
+                                    "duration_ms",
+                                    "events",
+                                    "fingerprint",
+                                    "first_seen",
+                                    "labels",
+                                    "last_seen",
+                                    "latest_event_id",
+                                    "level",
+                                    "message",
+                                    "name",
+                                    "occurrence_series",
+                                    "platform",
+                                    "service",
+                                    "timestamp",
+                                    "title",
+                                    "trace_id",
+                                    "value"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/issue`.
+                        public var issue: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload
+                        /// The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/latest_event`.
+                        public var latest_event: OpenAPIRuntime.OpenAPIObjectContainer
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta`.
+                        public struct metaPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/end_at`.
+                            public var end_at: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/has_next_page`.
+                            public var has_next_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/has_previous_page`.
+                            public var has_previous_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/page`.
+                            public var page: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/page_size`.
+                            public var page_size: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/total_count`.
+                            public var total_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta/total_pages`.
+                            public var total_pages: Swift.Int
+                            /// Creates a new `metaPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - end_at:
+                            ///   - has_next_page:
+                            ///   - has_previous_page:
+                            ///   - page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            public init(
+                                end_at: Swift.String,
+                                has_next_page: Swift.Bool,
+                                has_previous_page: Swift.Bool,
+                                page: Swift.Int,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
+                            ) {
+                                self.end_at = end_at
+                                self.has_next_page = has_next_page
+                                self.has_previous_page = has_previous_page
+                                self.page = page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case end_at
+                                case has_next_page
+                                case has_previous_page
+                                case page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.end_at = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .end_at
+                                )
+                                self.has_next_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_next_page
+                                )
+                                self.has_previous_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_previous_page
+                                )
+                                self.page = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .page
+                                )
+                                self.page_size = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .page_size
+                                )
+                                self.total_count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_count
+                                )
+                                self.total_pages = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_pages
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "end_at",
+                                    "has_next_page",
+                                    "has_previous_page",
+                                    "page",
+                                    "page_size",
+                                    "total_count",
+                                    "total_pages"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/meta`.
+                        public var meta: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.metaPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/occurrence_seriesPayloadPayload`.
+                        public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/occurrence_seriesPayloadPayload/value1`.
+                            public var value1: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/occurrence_seriesPayloadPayload/value2`.
+                            public var value2: Swift.String?
+                            /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - value1:
+                            ///   - value2:
+                            public init(
+                                value1: Swift.Double? = nil,
+                                value2: Swift.String? = nil
+                            ) {
+                                self.value1 = value1
+                                self.value2 = value2
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                var errors: [any Error] = []
+                                do {
+                                    self.value1 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                do {
+                                    self.value2 = try decoder.decodeFromSingleValueContainer()
+                                } catch {
+                                    errors.append(error)
+                                }
+                                try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                    [
+                                        self.value1,
+                                        self.value2
+                                    ],
+                                    type: Self.self,
+                                    codingPath: decoder.codingPath,
+                                    errors: errors
+                                )
+                            }
+                            public func encode(to encoder: any Encoder) throws {
+                                try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                                    self.value1,
+                                    self.value2
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/occurrence_seriesPayload`.
+                        public typealias occurrence_seriesPayloadPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.occurrence_seriesPayloadPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/occurrence_series`.
+                        public typealias occurrence_seriesPayload = [Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.occurrence_seriesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/occurrence_series`.
+                        public var occurrence_series: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.occurrence_seriesPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/json/warnings`.
+                        public var warnings: [Swift.String]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - events:
+                        ///   - issue:
+                        ///   - latest_event: The latest event: the events fields plus its scrubbed Sentry projection (exception, breadcrumbs, tags, extra, contexts, request, message).
+                        ///   - meta:
+                        ///   - occurrence_series:
+                        ///   - warnings:
+                        public init(
+                            events: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayload,
+                            issue: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload,
+                            latest_event: OpenAPIRuntime.OpenAPIObjectContainer,
+                            meta: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.metaPayload,
+                            occurrence_series: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.occurrence_seriesPayload,
+                            warnings: [Swift.String]
+                        ) {
+                            self.events = events
+                            self.issue = issue
+                            self.latest_event = latest_event
+                            self.meta = meta
+                            self.occurrence_series = occurrence_series
+                            self.warnings = warnings
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case events
+                            case issue
+                            case latest_event
+                            case meta
+                            case occurrence_series
+                            case warnings
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.events = try container.decode(
+                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.eventsPayload.self,
+                                forKey: .events
+                            )
+                            self.issue = try container.decode(
+                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.issuePayload.self,
+                                forKey: .issue
+                            )
+                            self.latest_event = try container.decode(
+                                OpenAPIRuntime.OpenAPIObjectContainer.self,
+                                forKey: .latest_event
+                            )
+                            self.meta = try container.decode(
+                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.metaPayload.self,
+                                forKey: .meta
+                            )
+                            self.occurrence_series = try container.decode(
+                                Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload.occurrence_seriesPayload.self,
+                                forKey: .occurrence_series
+                            )
+                            self.warnings = try container.decode(
+                                [Swift.String].self,
+                                forKey: .warnings
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "events",
+                                "issue",
+                                "latest_event",
+                                "meta",
+                                "occurrence_series",
+                                "warnings"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getPulseErrorIssue.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Pulse data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getPulseErrorIssue.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getPulseErrorIssue.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters or query
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getPulseErrorIssue.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getPulseErrorIssue.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Authentication required
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getPulseErrorIssue.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getPulseErrorIssue.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// User membership and account read required
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getPulseErrorIssue.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getPulseErrorIssue.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Account or issue not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getPulseErrorIssue.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getPulseErrorIssue.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.TooManyRequests.Body) {
+                    self.body = body
+                }
+            }
+            /// Pulse rate limited
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getPulseErrorIssue.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getPulseErrorIssue.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/GET/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getPulseErrorIssue.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getPulseErrorIssue.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// Pulse unavailable or query result limit exceeded
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/errors/issues/{fingerprint}/get(getPulseErrorIssue)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.getPulseErrorIssue.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.getPulseErrorIssue.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
                             response: self
                         )
                     }
@@ -102070,6 +104440,7 @@ public enum Operations {
                     case metrics = "metrics"
                     case logs = "logs"
                     case traces = "traces"
+                    case errors = "errors"
                 }
                 ///
                 ///
@@ -102154,7 +104525,7 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/service_op`.
                 public var service_op: Operations.queryPulse.Input.Query.service_opPayload?
-                /// Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id.
+                /// Signal-specific column: metrics name/value; logs timestamp/service/level/message/trace_id; traces timestamp/service/name/duration_ms/trace_id; errors last_seen/first_seen/events/accounts/title/service/level.
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/query/sort_by`.
                 @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -102166,6 +104537,11 @@ public enum Operations {
                     case message = "message"
                     case trace_id = "trace_id"
                     case duration_ms = "duration_ms"
+                    case last_seen = "last_seen"
+                    case first_seen = "first_seen"
+                    case events = "events"
+                    case accounts = "accounts"
+                    case title = "title"
                 }
                 ///
                 ///
@@ -102355,8 +104731,20 @@ public enum Operations {
                         public var meta: Operations.queryPulse.Output.Ok.Body.jsonPayload.metaPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload`.
                         public struct rowsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Distinct impacted account handles.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/accounts`.
+                            public var accounts: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/culprit`.
+                            public var culprit: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/duration_ms`.
                             public var duration_ms: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/events`.
+                            public var events: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/fingerprint`.
+                            public var fingerprint: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/first_seen`.
+                            public var first_seen: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/labels`.
                             public struct labelsPayload: Codable, Hashable, Sendable {
                                 /// A container of undocumented properties.
@@ -102377,16 +104765,81 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/labels`.
                             public var labels: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.labelsPayload?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/last_seen`.
+                            public var last_seen: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/latest_event_id`.
+                            public var latest_event_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/level`.
                             public var level: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/message`.
                             public var message: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/name`.
                             public var name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_seriesPayloadPayload`.
+                            public struct occurrence_seriesPayloadPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_seriesPayloadPayload/value1`.
+                                public var value1: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_seriesPayloadPayload/value2`.
+                                public var value2: Swift.String?
+                                /// Creates a new `occurrence_seriesPayloadPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - value1:
+                                ///   - value2:
+                                public init(
+                                    value1: Swift.Double? = nil,
+                                    value2: Swift.String? = nil
+                                ) {
+                                    self.value1 = value1
+                                    self.value2 = value2
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    var errors: [any Error] = []
+                                    do {
+                                        self.value1 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    do {
+                                        self.value2 = try decoder.decodeFromSingleValueContainer()
+                                    } catch {
+                                        errors.append(error)
+                                    }
+                                    try Swift.DecodingError.verifyAtLeastOneSchemaIsNotNil(
+                                        [
+                                            self.value1,
+                                            self.value2
+                                        ],
+                                        type: Self.self,
+                                        codingPath: decoder.codingPath,
+                                        errors: errors
+                                    )
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeFirstNonNilValueToSingleValueContainer([
+                                        self.value1,
+                                        self.value2
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_seriesPayload`.
+                            public typealias occurrence_seriesPayloadPayload = [Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.occurrence_seriesPayloadPayloadPayload]
+                            /// Errors: 60 equal occurrence buckets over the window.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_series`.
+                            public typealias occurrence_seriesPayload = [Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.occurrence_seriesPayloadPayload]
+                            /// Errors: 60 equal occurrence buckets over the window.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/occurrence_series`.
+                            public var occurrence_series: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.occurrence_seriesPayload?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/platform`.
+                            public var platform: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/service`.
                             public var service: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/timestamp`.
                             public var timestamp: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/title`.
+                            public var title: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/trace_id`.
                             public var trace_id: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/pulse/{signal}/GET/responses/200/content/json/rowsPayload/value`.
@@ -102453,56 +104906,124 @@ public enum Operations {
                             /// Creates a new `rowsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - accounts: Distinct impacted account handles.
+                            ///   - culprit:
                             ///   - duration_ms:
+                            ///   - events:
+                            ///   - fingerprint:
+                            ///   - first_seen:
                             ///   - labels:
+                            ///   - last_seen:
+                            ///   - latest_event_id:
                             ///   - level:
                             ///   - message:
                             ///   - name:
+                            ///   - occurrence_series: Errors: 60 equal occurrence buckets over the window.
+                            ///   - platform:
                             ///   - service:
                             ///   - timestamp:
+                            ///   - title:
                             ///   - trace_id:
                             ///   - value:
                             public init(
+                                accounts: Swift.Int? = nil,
+                                culprit: Swift.String? = nil,
                                 duration_ms: Swift.Double? = nil,
+                                events: Swift.Int? = nil,
+                                fingerprint: Swift.String? = nil,
+                                first_seen: Swift.String? = nil,
                                 labels: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.labelsPayload? = nil,
+                                last_seen: Swift.String? = nil,
+                                latest_event_id: Swift.String? = nil,
                                 level: Swift.String? = nil,
                                 message: Swift.String? = nil,
                                 name: Swift.String? = nil,
+                                occurrence_series: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.occurrence_seriesPayload? = nil,
+                                platform: Swift.String? = nil,
                                 service: Swift.String? = nil,
                                 timestamp: Swift.String? = nil,
+                                title: Swift.String? = nil,
                                 trace_id: Swift.String? = nil,
                                 value: Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.valuePayload? = nil
                             ) {
+                                self.accounts = accounts
+                                self.culprit = culprit
                                 self.duration_ms = duration_ms
+                                self.events = events
+                                self.fingerprint = fingerprint
+                                self.first_seen = first_seen
                                 self.labels = labels
+                                self.last_seen = last_seen
+                                self.latest_event_id = latest_event_id
                                 self.level = level
                                 self.message = message
                                 self.name = name
+                                self.occurrence_series = occurrence_series
+                                self.platform = platform
                                 self.service = service
                                 self.timestamp = timestamp
+                                self.title = title
                                 self.trace_id = trace_id
                                 self.value = value
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case accounts
+                                case culprit
                                 case duration_ms
+                                case events
+                                case fingerprint
+                                case first_seen
                                 case labels
+                                case last_seen
+                                case latest_event_id
                                 case level
                                 case message
                                 case name
+                                case occurrence_series
+                                case platform
                                 case service
                                 case timestamp
+                                case title
                                 case trace_id
                                 case value
                             }
                             public init(from decoder: any Decoder) throws {
                                 let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.accounts = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .accounts
+                                )
+                                self.culprit = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .culprit
+                                )
                                 self.duration_ms = try container.decodeIfPresent(
                                     Swift.Double.self,
                                     forKey: .duration_ms
                                 )
+                                self.events = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .events
+                                )
+                                self.fingerprint = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .fingerprint
+                                )
+                                self.first_seen = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .first_seen
+                                )
                                 self.labels = try container.decodeIfPresent(
                                     Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.labelsPayload.self,
                                     forKey: .labels
+                                )
+                                self.last_seen = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .last_seen
+                                )
+                                self.latest_event_id = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .latest_event_id
                                 )
                                 self.level = try container.decodeIfPresent(
                                     Swift.String.self,
@@ -102516,6 +105037,14 @@ public enum Operations {
                                     Swift.String.self,
                                     forKey: .name
                                 )
+                                self.occurrence_series = try container.decodeIfPresent(
+                                    Operations.queryPulse.Output.Ok.Body.jsonPayload.rowsPayloadPayload.occurrence_seriesPayload.self,
+                                    forKey: .occurrence_series
+                                )
+                                self.platform = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .platform
+                                )
                                 self.service = try container.decodeIfPresent(
                                     Swift.String.self,
                                     forKey: .service
@@ -102523,6 +105052,10 @@ public enum Operations {
                                 self.timestamp = try container.decodeIfPresent(
                                     Swift.String.self,
                                     forKey: .timestamp
+                                )
+                                self.title = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .title
                                 )
                                 self.trace_id = try container.decodeIfPresent(
                                     Swift.String.self,
@@ -102533,13 +105066,23 @@ public enum Operations {
                                     forKey: .value
                                 )
                                 try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "accounts",
+                                    "culprit",
                                     "duration_ms",
+                                    "events",
+                                    "fingerprint",
+                                    "first_seen",
                                     "labels",
+                                    "last_seen",
+                                    "latest_event_id",
                                     "level",
                                     "message",
                                     "name",
+                                    "occurrence_series",
+                                    "platform",
                                     "service",
                                     "timestamp",
+                                    "title",
                                     "trace_id",
                                     "value"
                                 ])
@@ -102952,7 +105495,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Account not found
+            /// Account or issue not found
             ///
             /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/pulse/{signal}/get(queryPulse)/responses/404`.
             ///
@@ -113472,18 +116015,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
-                        /// Run status.
+                        /// Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                            case failure = "failure"
-                            case skipped = "skipped"
-                        }
-                        /// Run status.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/status`.
-                        public var status: Operations.getTestRun.Output.Ok.Body.jsonPayload.statusPayload
+                        public var status: Swift.String
                         /// Total number of test cases.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/total_test_count`.
@@ -113510,7 +116045,7 @@ public enum Operations {
                         ///   - model_identifier: Model identifier.
                         ///   - ran_at: ISO 8601 timestamp when the run executed.
                         ///   - scheme: Build scheme.
-                        ///   - status: Run status.
+                        ///   - status: Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones.
                         ///   - total_test_count: Total number of test cases.
                         ///   - xcode_version: Xcode version.
                         public init(
@@ -113529,7 +116064,7 @@ public enum Operations {
                             model_identifier: Swift.String? = nil,
                             ran_at: Foundation.Date? = nil,
                             scheme: Swift.String? = nil,
-                            status: Operations.getTestRun.Output.Ok.Body.jsonPayload.statusPayload,
+                            status: Swift.String,
                             total_test_count: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {

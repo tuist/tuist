@@ -94,7 +94,7 @@ struct TestListCommandService: TestListCommandServicing {
         let initialRows = initialTestRuns.map { testRun in
             [
                 testRun.id,
-                testRun.status.rawValue,
+                testRun.status,
                 testRun.scheme ?? "-",
                 Formatters.formatDuration(testRun.duration),
                 testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
@@ -124,7 +124,7 @@ struct TestListCommandService: TestListCommandServicing {
                 return page.test_runs.map { testRun in
                     [
                         testRun.id,
-                        testRun.status.rawValue,
+                        testRun.status,
                         testRun.scheme ?? "-",
                         Formatters.formatDuration(testRun.duration),
                         testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",

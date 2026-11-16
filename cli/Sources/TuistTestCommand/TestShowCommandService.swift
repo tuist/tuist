@@ -81,16 +81,17 @@ struct TestShowCommandService: TestShowCommandServicing {
         // Status header
         let statusLabel: String
         switch run.status {
-        case .success: statusLabel = "passed"
-        case .failure: statusLabel = "failed"
-        case .skipped: statusLabel = "skipped"
+        case "success": statusLabel = "passed"
+        case "failure": statusLabel = "failed"
+        case "in_progress": statusLabel = "in progress"
+        default: statusLabel = run.status.replacingOccurrences(of: "_", with: " ")
         }
         info.append("Test Run (\(statusLabel))".bold())
 
         // Result
         info.append("")
         info.append("Result".bold())
-        info.append("  Status:       \(run.status.rawValue)")
+        info.append("  Status:       \(run.status)")
         info.append("  Duration:     \(Formatters.formatDuration(run.duration))")
         info.append("  Flaky:        \(run.is_flaky ? "Yes" : "No")")
 
