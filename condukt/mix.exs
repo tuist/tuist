@@ -45,6 +45,10 @@ defmodule Condukt.MixProject do
       # this upgrade and remains part of the supported provider surface.
       {:ex_aws_auth, "~> 1.4"},
 
+      # HTTP client for `Condukt.SessionStore.ObjectStore.S3`, which signs with
+      # Req's built-in AWS Signature V4. ReqLLM depends on it already.
+      {:req, "~> 0.5"},
+
       # JSON Schema validation for operation input/output
       {:jsv, "~> 0.16"},
 
@@ -220,6 +224,10 @@ defmodule Condukt.MixProject do
           Condukt.SessionStore.Snapshot,
           Condukt.SessionStore.Memory,
           Condukt.SessionStore.Disk,
+          Condukt.SessionStore.ObjectStore,
+          Condukt.SessionStore.ObjectStore.Bucket,
+          Condukt.SessionStore.ObjectStore.S3,
+          Condukt.SessionStore.ObjectStore.Memory,
           Condukt.SessionStore.Conformance
         ],
         Compaction: [
