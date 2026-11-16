@@ -654,7 +654,7 @@ channel a later `Release Candidate 2` moves. The longer
 Xcode 27.1 RC retirement removes RC builds and pools and the temporary
 stable bootstrap pin only after the additive chart is deployed and a
 versioned release includes stable. Keep the bootstrap image for rollback.
-The default stays 26.6. Follow the [retirement runbook](xcode-27.1-retirement.md)
+Follow the [retirement runbook](xcode-27.1-retirement.md)
 for merge prerequisites and required post-rollout reconciliation, including
 profiles saved by old replicas and jobs requeued after their claims release.
 Use the documented release `eval` with `Ecto.Migrator.with_repo/2` for this

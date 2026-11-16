@@ -603,19 +603,15 @@ runnersFleet:
     - vcpus: 8
       memoryGb: 24
       default: true
-  xcodeOverrides:
-    "27.2":
-      # RC build 27B48, published before merge. Remove this bootstrap pin
-      # once a versioned runner-image release includes the 27.2 profile.
-      imageTag: macos-27-2-069e7465
   xcodeVersions:
     - xcodeVersion: "27.3-beta"
-    # The customer selector is 27.2; its base is explicitly 27.2-rc.
+    # New accounts' protected `macos` profile takes the default; existing
+    # profiles keep the Xcode they were created with (mostly 26.6).
     - xcodeVersion: "27.2"
+      default: true
     - xcodeVersion: "27.1"
     - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
-      default: true
     - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"

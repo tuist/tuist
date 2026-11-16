@@ -745,6 +745,9 @@ func (m *Manager) PauseWith(ctx context.Context, args protocol.PauseArgs) (res p
 	if err != nil {
 		return res, err
 	}
+	if err := m.awaitLazyDisks(ctx, id, sb); err != nil {
+		return res, err
+	}
 	sb.opMu.Lock()
 	defer sb.opMu.Unlock()
 	if !m.current(id, sb) {

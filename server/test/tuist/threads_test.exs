@@ -50,7 +50,7 @@ defmodule Tuist.ThreadsTest do
 
   test "revoked feature access denies existing history", %{user: user, account: account} do
     {:ok, thread} = Threads.create(user, account, request())
-    stub(FeatureFlags, :code_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :guild_enabled?, fn _ -> false end)
     assert {:error, :forbidden} = Threads.get(user, account, thread.id)
     assert {:error, :forbidden} = Threads.list(user, account)
     assert {:error, :forbidden} = Threads.snapshot(user, account, :inbox)
@@ -284,7 +284,7 @@ defmodule Tuist.ThreadsTest do
         :permission -> Accounts.update_user_role_in_organization(user, organization, :user)
         :inactive -> Repo.update!(change(user, active: false))
         :disabled -> Repo.update!(change(user, disabled_at: DateTime.utc_now(:second)))
-        :feature -> stub(FeatureFlags, :code_enabled?, fn _ -> false end)
+        :feature -> stub(FeatureFlags, :guild_enabled?, fn _ -> false end)
       end
 
       assert {:error, :forbidden} = Threads.claim(claimed.id)
@@ -300,7 +300,7 @@ defmodule Tuist.ThreadsTest do
         :permission -> Accounts.update_user_role_in_organization(user, organization, :admin)
         :inactive -> Repo.update!(change(Repo.reload!(user), active: true))
         :disabled -> Repo.update!(change(Repo.reload!(user), disabled_at: nil))
-        :feature -> stub(FeatureFlags, :code_enabled?, fn _ -> true end)
+        :feature -> stub(FeatureFlags, :guild_enabled?, fn _ -> true end)
       end
 
       assert :ok = Threads.recover()

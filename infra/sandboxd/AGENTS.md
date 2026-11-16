@@ -201,7 +201,10 @@ memory image until they cold boot.
   disk fetches the rest, and once both are complete the files replace the
   mounts (detached lazily) and Firecracker reopens its drives on them
   (`PATCH /drives`); `memory_loaded` waits for the disks too. A pause
-  waits for the fill (up to ten minutes) before it saves the sandbox; a
+  waits up to 30 s for the fill with the guest still running, so it stays
+  inside the server's 120 s pause call, and otherwise refuses (`sandbox
+  disks are still loading from its archive`) and leaves the guest running
+  for a later pause to succeed; a
   disk chunk that cannot be fetched kills the VM; a daemon restart during
   the fill leaves the sandbox in error. Without root and `/dev/fuse`, and
   for a cold boot, the disks are filled before the VM starts.

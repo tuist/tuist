@@ -115,7 +115,7 @@ defmodule TuistWeb.ThreadsChannelTest do
   test "flag withdrawal closes a previously authorized subscription", %{token: token, topic: topic} do
     {:ok, socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
     {:ok, _, socket} = subscribe_and_join(socket, ThreadsChannel, topic)
-    stub(FeatureFlags, :code_enabled?, fn _user -> false end)
+    stub(FeatureFlags, :guild_enabled?, fn _user -> false end)
     allow(FeatureFlags, self(), socket.channel_pid)
     monitor = Process.monitor(socket.channel_pid)
     send(socket.channel_pid, :poll_snapshot)

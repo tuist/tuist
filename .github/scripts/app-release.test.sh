@@ -73,10 +73,10 @@ def triggers(path):
             selected = not pattern.startswith("!")
     return selected
 
-for path in ["code/gpui/src/main.rs", "code/crates/core/src/lib.rs",
-             "code/apple/Sources/AppWorkspace.swift", "code/android/src/dev/tuist/code/MainActivity.kt",
-             "code/once.toml", "code/mise.toml", "code/README.md"]:
-    assert not triggers(path), f"Tuist Code triggers shipping release: {path}"
+for path in ["guild/gpui/src/main.rs", "guild/crates/core/src/lib.rs",
+             "guild/apple/Sources/AppWorkspace.swift", "guild/android/src/dev/tuist/guild/MainActivity.kt",
+             "guild/once.toml", "guild/mise.toml", "guild/README.md"]:
+    assert not triggers(path), f"Tuist Guild triggers shipping release: {path}"
     assert not releases(path), path
 
 for path in ["app/Sources/TuistApp/App.swift", "app/Resources/TuistApp/icon.png",
@@ -86,18 +86,18 @@ for path in ["app/Sources/TuistApp/App.swift", "app/Resources/TuistApp/icon.png"
     assert triggers(path), f"Shipping release no longer triggers: {path}"
     assert releases(path), path
 PY
-ok 'Tuist Code cannot trigger or influence shipping release detection'
+ok 'Tuist Guild cannot trigger or influence shipping release detection'
 
 # shellcheck disable=SC2016 # Keep the runner workspace expression literal.
-test "$(yq -r '.env.MISE_CEILING_PATHS' "$root/.github/workflows/code.yml")" = '${{ github.workspace }}' ||
-  fail 'Tuist Code CI must stop mise before the parent toolchain on every platform'
+test "$(yq -r '.env.MISE_CEILING_PATHS' "$root/.github/workflows/guild.yml")" = '${{ github.workspace }}' ||
+  fail 'Tuist Guild CI must stop mise before the parent toolchain on every platform'
 physical_root=$(cd "$root" && pwd -P)
 MISE_IGNORED_CONFIG_PATHS='' MISE_CEILING_PATHS="$physical_root" \
-  mise -C "$root/code" config ls --json > "$scratch/code-configs.json"
-jq -e --arg code "$physical_root/code/mise.toml" --arg parent "$physical_root/mise.toml" \
-  'any(.[]; .path == $code) and all(.[]; .path != $parent)' "$scratch/code-configs.json" >/dev/null ||
-  fail 'Tuist Code CI loaded the parent toolchain or lost its own toolchain'
-ok 'Tuist Code CI retains its toolchain without loading the parent configuration'
+  mise -C "$root/guild" config ls --json > "$scratch/guild-configs.json"
+jq -e --arg code "$physical_root/guild/mise.toml" --arg parent "$physical_root/mise.toml" \
+  'any(.[]; .path == $code) and all(.[]; .path != $parent)' "$scratch/guild-configs.json" >/dev/null ||
+  fail 'Tuist Guild CI loaded the parent toolchain or lost its own toolchain'
+ok 'Tuist Guild CI retains its toolchain without loading the parent configuration'
 
 # shellcheck disable=SC2016 # Assert literal GitHub expressions, never interpolate them.
 jq -e '

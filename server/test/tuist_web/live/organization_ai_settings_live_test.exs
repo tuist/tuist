@@ -14,7 +14,7 @@ defmodule TuistWeb.OrganizationAISettingsLiveTest do
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: user)
-    stub(FeatureFlags, :organization_code_enabled?, fn actor -> actor.id == organization.account.id end)
+    stub(FeatureFlags, :organization_guild_enabled?, fn actor -> actor.id == organization.account.id end)
     %{user: user, account: organization.account, organization: organization, conn: log_in_user(conn, user)}
   end
 
@@ -126,7 +126,7 @@ defmodule TuistWeb.OrganizationAISettingsLiveTest do
     member = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(member, org)
     assert_raise NotFoundError, fn -> live(log_in_user(conn, member), ~p"/#{account.name}/settings/ai/routing") end
-    stub(FeatureFlags, :organization_code_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> false end)
     {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings")
     refute has_element?(lv, ~s(a[href="/#{account.name}/settings/ai/routing"]))
     assert_raise NotFoundError, fn -> live(conn, ~p"/#{account.name}/settings/ai/routing") end
@@ -134,7 +134,7 @@ defmodule TuistWeb.OrganizationAISettingsLiveTest do
 
   test "flag revocation while settings are open prevents writes", %{conn: conn, user: user, account: account} do
     {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/ai/routing")
-    stub(FeatureFlags, :organization_code_enabled?, fn _ -> false end)
+    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> false end)
 
     lv
     |> form("#organization-ai-connection-form",
@@ -143,7 +143,7 @@ defmodule TuistWeb.OrganizationAISettingsLiveTest do
     |> render_submit()
 
     assert_redirect(lv, ~p"/#{account.name}/settings")
-    stub(FeatureFlags, :organization_code_enabled?, fn _ -> true end)
+    stub(FeatureFlags, :organization_guild_enabled?, fn _ -> true end)
     assert {:ok, %{connections: []}} = OrganizationAI.settings(user, account)
   end
 
