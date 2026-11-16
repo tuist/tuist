@@ -284,6 +284,7 @@ defmodule TuistWeb.PulseLiveTest do
           "function" => "MyApp.Worker.run/1",
           "filename" => "lib/worker.ex",
           "lineno" => 42,
+          "context_line" => "raise \"<script>source</script>\"",
           "in_app" => true
         }
       ]
@@ -297,6 +298,16 @@ defmodule TuistWeb.PulseLiveTest do
       "level" => "error",
       "environment" => "production",
       "release" => "1.2.3",
+      "sdk" => "sentry-elixir/11.0",
+      "request" => %{"method" => "POST", "url" => "https://example.test/api/projects"},
+      "breadcrumbs" => [
+        %{
+          "timestamp" => 1_790_000_010.5,
+          "category" => "http",
+          "message" => "<script>breadcrumb</script>",
+          "level" => "warning"
+        }
+      ],
       "tags" => %{"deployment.region" => "eu-central", "worker" => "<script>tag</script>"},
       "contexts" => %{
         "runtime.name" => "Elixir",
@@ -360,10 +371,16 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(detail, "#pulse-issue-overview", "Elixir")
     assert has_element?(detail, "#pulse-issue-overview", "First seen in this period")
     assert has_element?(detail, "#pulse-event-tags", "<script>tag</script>")
-    assert has_element?(detail, "#pulse-event-contexts [data-part='context-heading']", "runtime")
+    assert has_element?(detail, "#pulse-event-contexts [data-part='context-heading']", "Runtime")
     assert has_element?(detail, "#pulse-event-contexts", "1.20.2")
     assert has_element?(detail, "#pulse-event-extra code.language-json .boolean", "false")
-    assert has_element?(detail, "#pulse-stack-frames-0 th", "File")
+    assert has_element?(detail, "#pulse-stack-frames-0 [data-part='frame-context']", "raise \"<script>source</script>\"")
+    assert has_element?(detail, "#pulse-event-request", "POST")
+    assert has_element?(detail, "#pulse-event-request", "https://example.test/api/projects")
+    assert has_element?(detail, "#pulse-event-breadcrumbs", "<script>breadcrumb</script>")
+    assert has_element?(detail, "#pulse-event-breadcrumbs [data-part='timeline-time']", "14:13:30 UTC")
+    assert has_element?(detail, "#pulse-event-sdk", "sentry-elixir")
+    assert has_element?(detail, "#pulse-event-sdk", "11.0")
     refute html =~ "<script>"
     detail |> element("#pulse-error-occurrences-tab") |> render_click()
     render_async(detail)
@@ -376,6 +393,9 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(occurrence, "#pulse-stacktrace", "MyApp.Worker")
     assert has_element?(occurrence, "#pulse-stacktrace", "lib/worker.ex:42")
     assert has_element?(occurrence, "#pulse-stacktrace", "RootCause")
+    assert has_element?(occurrence, "#pulse-event-request", "POST")
+    assert has_element?(occurrence, "#pulse-event-breadcrumbs", "<script>breadcrumb</script>")
+    assert has_element?(occurrence, "#pulse-event-sdk", "sentry-elixir")
     assert has_element?(occurrence, "[data-part='metadata-grid']", String.duplicate("b", 16))
     assert has_element?(occurrence, "#pulse-event-extra code.language-json .string", "<script>extra</script>")
 
@@ -405,12 +425,16 @@ defmodule TuistWeb.PulseLiveTest do
     path = "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}/events/#{event["event_id"]}?service=server"
     {:ok, view, _} = live(ctx.conn, path)
     render_async(view)
-    assert has_element?(view, "#pulse-stacktrace", "No exception recorded")
+    assert has_element?(view, "#pulse-stacktrace [data-part='message-body']", "Message only")
+    refute has_element?(view, "#pulse-stacktrace", "No exception recorded")
     assert has_element?(view, "#pulse-stacktrace", "This event recorded a message, not an exception.")
     refute has_element?(view, "#pulse-stacktrace [data-part='stack-frame']")
     refute has_element?(view, "#pulse-event-tags")
     refute has_element?(view, "#pulse-event-contexts")
     refute has_element?(view, "#pulse-event-extra")
+    refute has_element?(view, "#pulse-event-request")
+    refute has_element?(view, "#pulse-event-breadcrumbs")
+    refute has_element?(view, "#pulse-event-sdk")
 
     # The issue page's latest-event summary leaves out empty environment and
     # release values instead of rendering blank badges.

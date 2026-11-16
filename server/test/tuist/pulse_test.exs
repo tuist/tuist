@@ -335,7 +335,7 @@ defmodule Tuist.PulseTest do
   end
 
   @issue_columns ~w(service fingerprint events accounts first_seen last_seen title culprit level platform latest_event_id)
-  @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle)
+  @event_columns ~w(timestamp event_id title level environment release server_name trace_id account_handle sdk)
   @fingerprint String.duplicate("a1", 32)
 
   test "errors list issues by service and fingerprint, filtered and sorted before paging", ctx do
@@ -443,7 +443,7 @@ defmodule Tuist.PulseTest do
     finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
     start = finish - 3600
     parent = self()
-    event = ["ee", "RuntimeError: boom", "error", "production", "1.0", "pod", "0af7", "tuist"]
+    event = ["ee", "RuntimeError: boom", "error", "production", "1.0", "pod", "0af7", "tuist", "sentry-elixir/11.0"]
 
     stub(Req, :request, fn request ->
       sql = request.options.params[:sql]
@@ -492,7 +492,10 @@ defmodule Tuist.PulseTest do
           assert String.ends_with?(sql, "ORDER BY timestamp DESC, event_id ASC LIMIT 2 OFFSET 2")
 
           response(
-            sql_body(@event_columns, [[ns(finish) | event], [ns(start) + 5, "dd", nil, "error", nil, nil, nil, nil, nil]])
+            sql_body(@event_columns, [
+              [ns(finish) | event],
+              [ns(start) + 5, "dd", nil, "error", nil, nil, nil, nil, nil, nil]
+            ])
           )
       end
     end)
@@ -568,7 +571,7 @@ defmodule Tuist.PulseTest do
 
       response(
         sql_body(@event_columns ++ ["event"], [
-          [ns(1_794_329_254), event_id, "KeyError", "error", "production", nil, "pod", nil, nil] ++
+          [ns(1_794_329_254), event_id, "KeyError", "error", "production", nil, "pod", nil, nil, "sentry-elixir/11.0"] ++
             [%{"contexts" => %{"trace.span_id" => "b7ad"}, "request" => %{"url" => "/x"}, "user" => %{}}]
         ])
       )
@@ -578,6 +581,7 @@ defmodule Tuist.PulseTest do
              Pulse.error_event(ctx.user, ctx.account, @fingerprint, event_id, %{"service" => "server"})
 
     assert event["title"] == "KeyError"
+    assert event["sdk"] == "sentry-elixir/11.0"
     assert event["contexts"] == %{"trace.span_id" => "b7ad"}
     refute Map.has_key?(event, "user")
 
