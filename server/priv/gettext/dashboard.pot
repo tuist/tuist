@@ -3016,8 +3016,8 @@ msgstr ""
 msgid "Mix Cache"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:278
-#: lib/tuist_web/live/mix_build_live.ex:319
+#: lib/tuist_web/live/mix_build_live.ex:279
+#: lib/tuist_web/live/mix_build_live.ex:320
 #: lib/tuist_web/live/pulse_live.ex:574
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
@@ -3025,12 +3025,12 @@ msgid "No data"
 msgstr ""
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:172
-#: lib/tuist_web/live/mix_build_live.ex:343
+#: lib/tuist_web/live/mix_build_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "All results"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:295
+#: lib/tuist_web/live/mix_build_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Hits divided by hits plus misses. Work without a cache lookup is excluded."
 msgstr ""
@@ -3040,8 +3040,8 @@ msgstr ""
 msgid "No matching cache entries"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:337
-#: lib/tuist_web/live/mix_build_live.ex:342
+#: lib/tuist_web/live/mix_build_live.ex:338
+#: lib/tuist_web/live/mix_build_live.ex:343
 #: lib/tuist_web/live/toolchain_cache_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Not cached"
@@ -3062,12 +3062,12 @@ msgstr ""
 msgid "No cache measurements yet"
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:290
+#: lib/tuist_web/live/mix_build_live.ex:291
 #, elixir-autogen, elixir-format
 msgid "Artifacts restored from local snapshots or the shared remote CAS."
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:292
+#: lib/tuist_web/live/mix_build_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Cache lookups without reusable local or remote artifacts."
 msgstr ""
@@ -3082,12 +3082,12 @@ msgstr ""
 msgid "Successful client CAS transfers and local fallback copies, with provenance on each build's task rows. Remote timings measure transfers; local timings include verification and installation. Throughput is bytes divided by operation time. Compilation and linked resources are excluded. CAS Outputs separately shows only Kura-reported remote transfers."
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:299
+#: lib/tuist_web/live/mix_build_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS download bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
 msgstr ""
 
-#: lib/tuist_web/live/mix_build_live.ex:306
+#: lib/tuist_web/live/mix_build_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Successful client CAS upload bytes and local snapshot copy bytes. CAS Outputs shows only Kura-reported remote transfers."
 msgstr ""

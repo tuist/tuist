@@ -12,7 +12,8 @@ defmodule Tuist.Pulse do
   accept literal, case-insensitive text (`*` selects all). Trace rows represent
   individual spans; error rows are issues (`Tuist.Pulse.Errors`).
 
-  Service filters apply to every signal and level to logs and errors. Each has an optional
+  Service filters apply to every signal, level to logs and errors, and
+  environment to errors, where it selects events before issues are grouped. Each has an optional
   `_op`: eq (default, case-sensitive), contains or not_contains
   (case-insensitive literal). Filters are ANDed and empty values ignored. Search
   is a literal case-insensitive projected-row search. All filtering and sorting
@@ -183,8 +184,8 @@ defmodule Tuist.Pulse do
   window (the gauge at the current window's start for metrics). Missing values
   remain nil, independently in each period; only the current period has points.
 
-  One snapshot is aligned down to the chart step (at most 240 seconds). Log
-  charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
+  One snapshot is aligned down to the chart step (at most 240 seconds). Log and
+  error charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
   at most 360 points. Full-window totals are independent queries, never sums of
   chart buckets. Trace counts are spans, not traces. Duration quantiles are
   approximate.
@@ -193,7 +194,7 @@ defmodule Tuist.Pulse do
     with true <- authorized?(user, account),
          {:ok, seconds} <- analytics_range(signal, params),
          {:ok, client} <- credentials() do
-      step = if signal == "logs", do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
+      step = if signal in ~w(logs errors), do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
       now = DateTime.to_unix(DateTime.utc_now(), :second)
       finish = now - rem(now, step)
       window = %{start: finish - seconds, finish: finish, seconds: seconds, step: step}

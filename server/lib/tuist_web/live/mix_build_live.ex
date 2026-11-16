@@ -8,6 +8,7 @@ defmodule TuistWeb.MixBuildLive do
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.CIProviderIcon
   import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 

@@ -7,7 +7,7 @@
 ---
 # Gradle önbelleği {#gradle-cache}
 
-Tuist, derleme yapıtlarını uzaktan paylaşmak için [Gradle'ın yerleşik derleme önbelleği](https://docs.gradle.org/current/userguide/build_cache.html) ile entegre olan bir Gradle eklentisi sağlar. Bir görevin çıktıları zaten önbellekte olduğunda, Gradle yürütmeyi atlar ve sonucu Tuist'in uzak önbelleğinden çeker; bu sayede ekibiniz ve CI ortamlarınız arasında derleme süresi tasarrufu sağlanır. Yavaş bir derlemenin hangi bölümünün önbellek tarafından ortadan kaldırıldığını ve projede öncelikle neyin düzeltilmesi gerektiğini öğrenmek için [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds) sayfasına bakın.
+Tuist, derleme yapıtlarını uzaktan paylaşmak için [Gradle'ın yerleşik derleme önbelleği](https://docs.gradle.org/current/userguide/build_cache.html) ile entegre olan bir Gradle eklentisi sağlar. Bir görevin çıktıları zaten önbellekteyse, Gradle yürütmeyi atlar ve sonucu Tuist'in uzak önbelleğinden çeker; bu da ekibiniz ve CI ortamlarınızda derleme süresini kısaltır. Gradle'ın yerel ve uzak derleme önbelleklerinin güncellik kontrollerinden ve yapılandırma önbelleğinden nasıl farklı olduğunu öğrenmek için bkz. <.localized_link href="/references/concepts/build-cache#gradle">Derleme önbelleği nedir?</.localized_link>. Yavaş bir derlemenin hangi bölümünün önbellekle ortadan kalktığını ve projede öncelikle neyin düzeltilmesi gerektiğini görmek için bkz. [Yavaş derlemeler](https://tuist.dev/solutions/slow-builds).
 
 <.localized_link href="/guides/install-gradle-plugin">Tuist Gradle eklentisi</.localized_link> kurulduktan sonra, `gradle.properties` dosyanızda Gradle'ın derleme önbelleğini de etkinleştirmeniz gerekir:
 
@@ -15,11 +15,11 @@ Tuist, derleme yapıtlarını uzaktan paylaşmak için [Gradle'ın yerleşik der
 org.gradle.caching=true
 ```
 
-Bu ayar olmadan, Gradle derleme önbelleği alt sistemini — uzak bir önbellek yapılandırılmış olsa bile — etkinleştirmez ve tüm görevler önbelleğe isabet etmeden veya önbelleği doldurmadan yürütülür. Etkinleştirildiğinde Gradle, Tuist'i uzak derleme önbelleği olarak kullanır; önbellek isabetlerinde önbelleğe alınmış görev çıktılarını indirir ve görev yürütmesinden sonra bunları yükler.
+Bu olmadan, Gradle derleme önbelleği alt sistemini — uzak önbellek yapılandırılmış olsa bile — etkinleştirmez ve tüm görevler önbelleğe isabet etmeden veya önbelleği doldurmadan yürütülür. Etkinleştirildiğinde, Gradle Tuist'i uzak derleme önbelleği olarak kullanır; önbellek isabetlerinde önbelleğe alınmış görev çıktılarını indirir ve görev yürütmesinden sonra bunları yükler.
 
 ## Önbellek yükleme politikası {#cache-upload-policy}
 
-Varsayılan olarak eklenti, yapıtları hem indirir hem de uzak önbelleğe yükler. Yüklemeleri `buildCache` bloğundaki `push` seçeneğiyle kontrol edebilirsiniz:
+Varsayılan olarak, eklenti yapıtları hem indirir hem de uzak önbelleğe yükler. Yüklemeleri, `buildCache` bloğundaki `push` seçeneğiyle kontrol edebilirsiniz:
 
 ```kotlin
 tuist {
@@ -39,19 +39,19 @@ tuist {
 }
 ```
 
-Bu kurulumla yerel derlemeler, yükleme yapmadan önbelleğe alınmış yapıtlardan yararlanır; CI derlemeleri ise ekibin geri kalanı için önbelleği doldurur.
+Bu kurulumla, yerel derlemeler yükleme yapmadan önbelleğe alınmış yapıtlardan yararlanırken, CI derlemeleri ekibin geri kalanı için önbelleği doldurur.
 
 ## Sürekli entegrasyon {#continuous-integration}
 
-CI ortamları için <.localized_link href="/guides/server/authentication#continuous-integration">Kimlik Doğrulama kılavuzu</.localized_link>ndaki yöntemlerden birini kullanarak kimlik doğrulaması yapın. Sağlayıcıya özel CI örnekleri için <.localized_link href="/guides/integrations/continuous-integration">Sürekli Entegrasyon kılavuzuna</.localized_link> bakın.
+CI ortamları için, <.localized_link href="/guides/server/authentication#continuous-integration">Kimlik Doğrulama kılavuzu</.localized_link>ndaki yöntemlerden birini kullanarak kimlik doğrulaması yapın. Sağlayıcıya özel CI örnekleri için <.localized_link href="/guides/integrations/continuous-integration">Sürekli Entegrasyon kılavuzuna</.localized_link> bakın.
 
 ### Yerel derleme önbelleğini devre dışı bırakma {#disabling-the-local-build-cache}
 
 Gradle hem yerel hem de uzak bir derleme önbelleği tutar. Yerel derleme önbelleği, görev çıktılarını diskte `~/.gradle/caches/build-cache-1` altında saklar.
 
-Tuist uzak derleme önbelleği olarak yapılandırıldığında, CI üzerinde yerel derleme önbelleğini devre dışı bırakmanız önerilir. Bu, CI çalıştırıcılarında gereksiz yapıtların depolanmasını önler ve derlemelerin her zaman ekibin geri kalanı için yeni girdilerle uzak önbelleği doldurmasını sağlar.
+Tuist uzak derleme önbelleği olarak yapılandırıldığında, CI üzerinde yerel derleme önbelleğini devre dışı bırakmanız önerilir. Bu, CI çalıştırıcılarında gereksiz yapıtların depolanmasını önler ve derlemelerin ekibin geri kalanı için her zaman yeni girdilerle uzak önbelleği doldurmasını sağlar.
 
-CI üzerinde Gradle'ın yerel derleme önbelleğini `settings.gradle.kts` dosyanızda devre dışı bırakın:
+`settings.gradle.kts` içindeki CI için Gradle'ın yerel derleme önbelleğini devre dışı bırakın:
 
 ```kotlin
 buildCache {
@@ -61,7 +61,7 @@ buildCache {
 }
 ```
 
-Bu, yerel geliştirme için yerel derleme önbelleğini kullanılabilir tutarken CI üzerinde devre dışı bırakır; burada Tuist'in uzak önbelleği yapıt paylaşımını yönetir.
+Bu, yerel geliştirme için yerel derleme önbelleğini kullanılabilir tutarken, yapıt paylaşımını Tuist'in uzak önbelleğinin yönettiği CI üzerinde onu devre dışı bırakır.
 
 ## Yapılandırma referansı {#configuration-reference}
 

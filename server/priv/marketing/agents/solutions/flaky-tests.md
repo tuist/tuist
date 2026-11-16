@@ -11,7 +11,7 @@ A flaky test passes and fails on the same code. Each failure costs more than a r
 - **Eroded trust.** Once a team learns that red often means nothing, real regressions get retried and merged too.
 - **Hidden cost.** Blanket retries turn a flaky test green, so the cost moves into longer jobs and extra machine time instead of disappearing.
 
-Common causes are shared state between tests, timing assumptions and fixed waits, test order dependence, unavailable external services, and resource pressure on the machine. Tuist does not guess which one applies. It records every attempt, so the evidence points to the cause.
+Common causes are shared state between tests, timing assumptions and fixed waits, test order dependence, unavailable external services, and resource pressure on the machine; [What is a flaky test?](/en/docs-markdown/references/concepts/flaky-test) explains each one. Tuist does not guess which one applies. It records every attempt, so the evidence points to the cause.
 
 ## How Tuist addresses it
 
@@ -57,6 +57,7 @@ Ask it to group failure signatures, distinguish shared-environment failures from
 
 ## Further reading
 
+- [What is a flaky test?](/en/docs-markdown/references/concepts/flaky-test), a vendor-neutral reference on causes, retries and quarantine in Xcode, Gradle, and Bazel, and how to measure flakiness.
 - [Stop flaky tests from blocking your PRs](/blog/2026/01/27/flaky-tests) on detection, tracking, and quarantine.
 - [Tuist now supports detecting flaky tests](/blog/2024/07/10/detecting-flaky-tests) on how detection started.
 - Related guides: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and the [Tests feature guide](/marketing-markdown/tests).

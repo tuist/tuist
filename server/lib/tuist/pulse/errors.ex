@@ -36,7 +36,7 @@ defmodule Tuist.Pulse.Errors do
     search =
       if opts.query == "*", do: "", else: " AND strpos(lower(title), lower(#{literal(opts.query)})) > 0"
 
-    window = "#{bounds(opts.finish - opts.seconds, opts.finish)}#{search}"
+    window = "#{bounds(opts.finish - opts.seconds, opts.finish)}#{search}#{environment(opts.params)}"
 
     query =
       "SELECT #{@issue_columns} FROM errors WHERE #{window} " <>
@@ -52,6 +52,20 @@ defmodule Tuist.Pulse.Errors do
       error -> error
     end
   end
+
+  # Issues group events, so an environment filter selects the events counted
+  # rather than filtering grouped rows afterwards.
+  defp environment(%{"environment" => value} = params) when value != "" do
+    actual = "lower(coalesce(environment, ''))"
+
+    case Map.get(params, "environment_op", "eq") do
+      "eq" -> " AND environment = #{literal(value)}"
+      "contains" -> " AND strpos(#{actual}, lower(#{literal(value)})) > 0"
+      "not_contains" -> " AND strpos(#{actual}, lower(#{literal(value)})) = 0"
+    end
+  end
+
+  defp environment(_params), do: ""
 
   defp issue_series([], _window, _opts, _request), do: {:ok, %{}}
 

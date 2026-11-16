@@ -749,6 +749,13 @@ defmodule Tuist.Docs.Sidebar do
 
     [
       %Group{
+        label: "Concepts",
+        items: [
+          %Item{label: "Flaky tests", slug: "/en/references/concepts/flaky-test"},
+          %Item{label: "Build cache", slug: "/en/references/concepts/build-cache"}
+        ]
+      },
+      %Group{
         label: "Examples",
         items: [
           %Item{

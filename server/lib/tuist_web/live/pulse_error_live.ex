@@ -390,10 +390,11 @@ defmodule TuistWeb.PulseErrorLive do
           title={dgettext("dashboard_pulse", "No exception recorded")}
         />
         <section :for={{exception, index} <- Enum.with_index(@exceptions)} data-part="exception">
-          <div data-part="exception-heading">
-            <h3>{exception["type"] || dgettext("dashboard_pulse", "Exception")}</h3>
-            <p :if={exception["value"]}>{exception["value"]}</p>
+          <div data-part="exception-metadata">
+            <span data-part="meta-label">{dgettext("dashboard_pulse", "Exception")}</span>
+            <span data-part="meta-value">{exception["type"] || "—"}</span>
           </div>
+          <pre :if={exception["value"]} data-part="message-body">{exception["value"]}</pre>
           <.table_empty_state
             :if={(exception["frames"] || []) == []}
             title={dgettext("dashboard_pulse", "No stack frames recorded")}
@@ -407,22 +408,17 @@ defmodule TuistWeb.PulseErrorLive do
               :for={frame <- Enum.reverse(exception["frames"] || [])}
               data-part="stack-frame"
               data-in-app={to_string(frame["in_app"] == true)}
+              title={
+                if frame["in_app"] == true,
+                  do: dgettext("dashboard_pulse", "In app"),
+                  else: dgettext("dashboard_pulse", "External")
+              }
             >
-              <div data-part="frame-header">
-                <span
-                  data-part="frame-indicator"
-                  title={
-                    if frame["in_app"] == true,
-                      do: dgettext("dashboard_pulse", "In app"),
-                      else: dgettext("dashboard_pulse", "External")
-                  }
-                />
-                <code data-part="frame-function">{frame_function(frame)}</code>
-                <span data-part="frame-location">{frame_location(frame)}</span>
-              </div>
+              <span data-part="frame-function">{frame_function(frame)}</span>
+              <span data-part="frame-location">{frame_location(frame)}</span>
               <div :if={frame["context_line"] not in [nil, ""]} data-part="frame-context">
                 <span data-part="line-number">{frame["lineno"]}</span>
-                <pre><code>{frame["context_line"]}</code></pre>
+                <pre>{frame["context_line"]}</pre>
               </div>
             </div>
           </div>

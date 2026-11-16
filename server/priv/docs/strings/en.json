@@ -178,6 +178,17 @@
         "examples": {
           "text": "Examples"
         },
+        "concepts": {
+          "text": "Concepts",
+          "items": {
+            "flaky-test": {
+              "text": "Flaky tests"
+            },
+            "build-cache": {
+              "text": "Build cache"
+            }
+          }
+        },
         "libraries": {
           "text": "Libraries"
         },

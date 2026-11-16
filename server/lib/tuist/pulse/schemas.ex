@@ -70,6 +70,8 @@ defmodule Tuist.Pulse.Schemas do
       search: string(),
       level: string(),
       level_op: operator(),
+      environment: %{string() | description: "Errors only: an event environment, such as production."},
+      environment_op: operator(),
       sort_by: %Schema{
         type: :string,
         enum:

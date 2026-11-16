@@ -1619,6 +1619,10 @@
         max-width: 1200px;
       }
 
+      /* Questions read as regular-weight headings, like the guide's
+         (see faq.css). */
+      --faq-question-weight: var(--noora-font-weight-regular);
+
       & > [data-part="text"] {
         display: flex;
         flex-direction: column;
@@ -1637,10 +1641,6 @@
           font: var(--noora-font-weight-regular) var(--noora-font-display-small);
         }
       }
-
-      /* Questions read as regular-weight headings, like the guide's
-         (see faq.css). */
-      --faq-question-weight: var(--noora-font-weight-regular);
     }
 
     /* Every heading on the provider pages is regular weight; section
@@ -1741,10 +1741,10 @@
           & > li {
             margin-top: 0;
             padding-left: 0;
-            list-style: none;
             /* Each point: its lead phrase in the primary color at regular
                weight, the explanation after it in the secondary color. */
             color: var(--noora-surface-label-secondary);
+            list-style: none;
 
             /* Same size and weight as the rest of the point; only the
                color differs. */
