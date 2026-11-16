@@ -83,7 +83,7 @@ defmodule Tuist.ProjectsTest do
     # Given
     organization = AccountsFixtures.organization_fixture(name: "tuist")
     account = Accounts.get_account_from_organization(organization)
-    project = ProjectsFixtures.project_fixture(name: "tuist-project", account_id: account.id)
+    project = stored(ProjectsFixtures.project_fixture(name: "tuist-project", account_id: account.id))
 
     # When
     {:ok, got} = Projects.get_project_by_slug("tuist/tuist-project")
@@ -96,7 +96,7 @@ defmodule Tuist.ProjectsTest do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
-    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+    project = stored(ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account]))
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
     organization_two = AccountsFixtures.organization_fixture()
@@ -345,7 +345,7 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      project = stored(ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account]))
 
       # When
       got = Projects.get_all_project_accounts(account)
@@ -362,8 +362,8 @@ defmodule Tuist.ProjectsTest do
 
     test "get all project accounts for an authenticated account subject" do
       account = AccountsFixtures.account_fixture()
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
-      project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      project_one = stored(ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account]))
+      project_two = stored(ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account]))
 
       got =
         Projects.get_all_project_accounts(%AuthenticatedAccount{
@@ -419,7 +419,7 @@ defmodule Tuist.ProjectsTest do
 
     test "get all project accounts for an authenticated account with project_ids only includes the permitted projects" do
       account = AccountsFixtures.account_fixture()
-      allowed_project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      allowed_project = stored(ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account]))
       ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
 
       got =
@@ -457,13 +457,13 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      project_one = stored(ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account]))
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       project_two =
-        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account])
+        stored(ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account]))
 
       # When
       got = Projects.get_all_project_accounts(user)
@@ -529,7 +529,7 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      project = stored(ProjectsFixtures.project_fixture(account_id: account.id))
 
       # When
       got =
@@ -822,7 +822,7 @@ defmodule Tuist.ProjectsTest do
   describe "get_project_by_full_token/1" do
     test "returns project with a token" do
       # Given
-      project = ProjectsFixtures.project_fixture()
+      project = stored(ProjectsFixtures.project_fixture())
       token = Projects.create_project_token(project)
 
       # When
@@ -840,7 +840,7 @@ defmodule Tuist.ProjectsTest do
       got = Projects.get_project_by_full_token(project.token)
 
       # Then
-      assert got == project
+      assert got.id == project.id
     end
 
     test "returns nil when the token does not exist" do
@@ -1876,4 +1876,8 @@ defmodule Tuist.ProjectsTest do
       assert is_nil(unchanged.logo_storage_key)
     end
   end
+
+  # Rows are read back without the legacy token, which is only held in memory
+  # when it is generated.
+  defp stored(project), do: %{project | token: nil}
 end

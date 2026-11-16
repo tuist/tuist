@@ -3,10 +3,13 @@ defmodule Tuist.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
   """
+  import Ecto.Query, only: [from: 2]
+
   alias Ecto.Adapters.SQL
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
   alias Tuist.Sandboxes.Archives
@@ -81,9 +84,7 @@ defmodule Tuist.Release do
   def migrate do
     load_app()
 
-    Logger.info(
-      "Migrating with a pool of size of #{:tuist |> Application.get_env(Tuist.Repo) |> Keyword.get(:pool_size)}"
-    )
+    Logger.info("Migrating with a pool of size of #{:tuist |> Application.get_env(Repo) |> Keyword.get(:pool_size)}")
 
     assert_supported_clickhouse_version()
 
@@ -279,7 +280,7 @@ defmodule Tuist.Release do
     Application.load(@app)
 
     {:ok, result, _apps} =
-      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
         with_insert_only_oban(fn -> CacheVolumes.delete(account_id, volume_id) end)
       end)
 
@@ -293,6 +294,56 @@ defmodule Tuist.Release do
 
       {:error, :not_found} ->
         raise "Account #{account_id} has no runner cache volume #{inspect(volume_id)}"
+    end
+  end
+
+  @doc """
+  Reports how many legacy user and project tokens (the ones without a
+  `tuist_` prefix) are still set and how many authenticated within `days`,
+  to decide when they can be retired:
+
+      bin/tuist rpc 'Tuist.Release.legacy_token_usage()'
+  """
+  def legacy_token_usage(days \\ 30) do
+    since = DateTime.add(DateTime.utc_now(), -days, :day)
+
+    usage =
+      for table <- ["users", "projects"], into: %{} do
+        {table,
+         Repo.one(
+           from(r in table,
+             select: %{
+               set: filter(count(r.id), not is_nil(r.token_hash)),
+               used_since: filter(count(r.id), r.legacy_token_last_used_at >= ^since),
+               plaintext: filter(count(r.id), not is_nil(r.token))
+             }
+           )
+         )}
+      end
+
+    Logger.info("Legacy tokens (used within #{days} days): #{inspect(usage)}")
+    usage
+  end
+
+  @doc """
+  Hashes the legacy tokens written by replicas that predate hashing and clears
+  the plaintext `users.token` and `projects.token` columns. The digest is taken
+  from the plaintext, so a token an old replica replaced during the rollout
+  (a password reset) is not left matching its previous digest. Run it once every
+  replica runs the hashed lookup; a later migration drops the columns:
+
+      bin/tuist rpc 'Tuist.Release.clear_plaintext_legacy_tokens()'
+  """
+  def clear_plaintext_legacy_tokens do
+    for table <- ["users", "projects"], into: %{} do
+      {:ok, %{num_rows: count}} =
+        SQL.query(
+          Repo,
+          "UPDATE #{table} SET token_hash = sha256(convert_to(token, 'UTF8')), token = NULL WHERE token IS NOT NULL",
+          []
+        )
+
+      {table, count}
     end
   end
 
@@ -381,7 +432,7 @@ defmodule Tuist.Release do
   defp configure_migration_database_url(nil), do: :ok
 
   defp configure_migration_database_url(url) do
-    config = Application.fetch_env!(@app, Tuist.Repo)
+    config = Application.fetch_env!(@app, Repo)
 
     # Release migrations run through Ecto.Migrator.with_repo/3, which starts
     # the Repo from application config and does not accept a separate URL.
@@ -389,7 +440,7 @@ defmodule Tuist.Release do
     # when the runtime DATABASE_URL points at a narrower web role.
     Application.put_env(
       @app,
-      Tuist.Repo,
+      Repo,
       Keyword.merge(config, Environment.database_config_from_url(url))
     )
   end
@@ -403,7 +454,7 @@ defmodule Tuist.Release do
     end
   end
 
-  defp ensure_database_schema(repo) when repo == Tuist.Repo do
+  defp ensure_database_schema(repo) when repo == Repo do
     if Environment.default_database_schema?() do
       :ok
     else
@@ -633,7 +684,7 @@ defmodule Tuist.Release do
     end
   end
 
-  defp grant_runtime_role(repo) when repo == Tuist.Repo do
+  defp grant_runtime_role(repo) when repo == Repo do
     case Environment.database_runtime_role() do
       role when is_binary(role) and role != "" ->
         do_grant_runtime_role(repo, role)
@@ -688,7 +739,7 @@ defmodule Tuist.Release do
   # TUIST_DATABASE_PROCESSOR_ROLE, which the chart
   # sets only for managed CNPG migration Jobs, so self-hosted and non-CNPG
   # deployments leave the role untouched.
-  defp grant_processor_role(repo) when repo == Tuist.Repo do
+  defp grant_processor_role(repo) when repo == Repo do
     case Environment.database_processor_role() do
       role when is_binary(role) and role != "" ->
         do_grant_processor_role(repo, role)
@@ -756,7 +807,7 @@ defmodule Tuist.Release do
   # owner, so enabling swiftRegistrySync carries its own grants instead of
   # the drift-prone manual `infra/cnpg/tuist-swift-registry-sync-grants.sql`
   # runbook.
-  defp grant_swift_registry_sync_role(repo) when repo == Tuist.Repo do
+  defp grant_swift_registry_sync_role(repo) when repo == Repo do
     case Environment.database_swift_registry_sync_role() do
       role when is_binary(role) and role != "" ->
         do_grant_swift_registry_sync_role(repo, role)
@@ -792,7 +843,7 @@ defmodule Tuist.Release do
   # untouched. Applied on every migrate so the allowlist tracks the schema
   # declaratively rather than drifting behind a manual psql runbook — the
   # `.sql` file is only a bootstrap/restore fallback.
-  defp grant_grafana_role(repo) when repo == Tuist.Repo do
+  defp grant_grafana_role(repo) when repo == Repo do
     case Environment.database_grafana_role() do
       role when is_binary(role) and role != "" ->
         do_grant_grafana_role(repo, role)

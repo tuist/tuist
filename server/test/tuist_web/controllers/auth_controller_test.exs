@@ -162,7 +162,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert conn |> post("/auth/device_codes/CLI-CODE", %{"type" => "cli"}) |> redirected_to() ==
                "/auth/device_codes/CLI-CODE/success?type=cli"
 
-      assert json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :ok)["token"] == user.token
+      assert json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :ok)["access_token"]
       assert %{"message" => _} = json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :bad_request)
     end
 
@@ -219,7 +219,6 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "typing the user code approves it once, however it is written", %{
       conn: conn,
-      user: user,
       device_code: device_code
     } do
       typed = device_code.user_code |> Accounts.format_user_code() |> String.downcase()
@@ -227,7 +226,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert conn |> post("/auth/device", %{"user_code" => typed}) |> redirected_to() ==
                "/auth/device/success?type=cli"
 
-      assert json_response(get(build_conn(), "/api/auth/device_code/#{device_code.code}"), :ok)["token"] == user.token
+      assert json_response(get(build_conn(), "/api/auth/device_code/#{device_code.code}"), :ok)["access_token"]
       assert json_response(get(build_conn(), "/api/auth/device_code/#{device_code.code}"), :bad_request)
       assert conn |> post("/auth/device", %{"user_code" => typed}) |> redirected_to() == "/auth/device"
     end

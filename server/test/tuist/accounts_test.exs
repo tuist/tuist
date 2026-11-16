@@ -76,8 +76,8 @@ defmodule Tuist.AccountsTest do
       AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, -1, :second))
       at_end = AccountsFixtures.user_fixture(created_at: end_at)
 
-      assert Accounts.new_users_in_period(start_at, end_at) == [first, later]
-      assert Accounts.new_users_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
+      assert Enum.map(Accounts.new_users_in_period(start_at, end_at), & &1.id) == [first.id, later.id]
+      assert Enum.map(Accounts.new_users_in_period(end_at, DateTime.add(end_at, 1, :hour)), & &1.id) == [at_end.id]
     end
 
     test "returns an empty list when no users were created in the period" do

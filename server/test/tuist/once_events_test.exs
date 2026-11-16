@@ -28,6 +28,7 @@ defmodule Tuist.OnceEventsTest do
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.RunEventService
   alias Tuist.OnceEvents.TestCaseRun
+  alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.TelemetryCapture
@@ -35,7 +36,7 @@ defmodule Tuist.OnceEventsTest do
   setup do
     project = ProjectsFixtures.project_fixture()
     {:ok, run} = OnceEvents.upsert_run(%{project_id: project.id, run_id: UUIDv7.generate()})
-    %{run: run, project: Tuist.Projects.get_project_by_id(project.id)}
+    %{run: run, project: Projects.get_project_by_id(project.id)}
   end
 
   test "records each declared action without adding target summaries", %{run: run} do
@@ -820,7 +821,11 @@ defmodule Tuist.OnceEventsTest do
   end
 
   test "authenticates the configured project slug and rejects another project", %{project: project} do
-    stream = %GRPC.Server.Stream{adapter: HeadersAdapter, payload: %{"authorization" => "Bearer " <> project.token}}
+    stream = %GRPC.Server.Stream{
+      adapter: HeadersAdapter,
+      payload: %{"authorization" => "Bearer " <> Projects.create_project_token(project)}
+    }
+
     request = %GetArgvHashKeyRequest{project_id: "#{project.account.name}/#{project.name}"}
     assert %ArgvHashKey{key_bytes: key} = RunEventService.get_argv_hash_key(request, stream)
     assert byte_size(key) == 32
@@ -1250,7 +1255,7 @@ defmodule Tuist.OnceEventsTest do
     token
   end
 
-  defp project_token_stream(project, headers), do: stream_with(project.token, headers)
+  defp project_token_stream(project, headers), do: stream_with(Projects.create_project_token(project), headers)
 
   defp stream_with(token, headers) do
     test_process = self()
@@ -1288,7 +1293,7 @@ defmodule Tuist.OnceEventsTest do
 
     %GRPC.Server.Stream{
       adapter: HeadersAdapter,
-      payload: %{"authorization" => "Bearer " <> project.token},
+      payload: %{"authorization" => "Bearer " <> Projects.create_project_token(project)},
       __interface__: %{
         send_reply: fn stream, reply, _opts ->
           send(test_process, {:ack, reply})

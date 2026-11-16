@@ -128,7 +128,9 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Then
       response = json_response(conn, :ok)
 
-      assert response["token"] == user.token
+      # The legacy user token is no longer handed out.
+      refute Map.has_key?(response, "token")
+      assert is_binary(response["access_token"])
 
       {:ok, access_token_claims} =
         Tuist.Authentication.decode_and_verify(response["access_token"], %{
