@@ -1822,3 +1822,32 @@ server pods host agent sessions themselves.
 {{- define "tuist.agentsEnabled" -}}
 {{- if and .Values.server.enabled .Values.agents.enabled .Values.server.cluster.enabled }}true{{- end }}
 {{- end }}
+
+{{/*
+Which keys Tuist.Vault holds and which one it encrypts new values with. Plain
+env vars on every workload that reads the server config Secret, rather than
+keys in that Secret, so changing either rolls the pods. A pod refuses to boot
+while the synced Secret lacks a listed key, so no pod can be serving without a
+key another pod writes with.
+*/}}
+{{- define "tuist.encryptionCurrentKeyEnv" -}}
+{{- $keys := .Values.server.config.encryptionKeys -}}
+{{- $ids := $keys.keyIds | default list -}}
+{{- with $keys.currentKeyId }}
+{{- if and $ids (not (has . $ids)) }}
+{{- fail (printf "server.config.encryptionKeys.currentKeyId %q must be listed in keyIds, so every pod holds it before any pod writes with it." .) }}
+{{- end }}
+{{- if and (eq . "V1") (not $keys.legacyKey) }}
+{{- fail "server.config.encryptionKeys.currentKeyId is V1, which legacyKey: false stops syncing." }}
+{{- end }}
+- name: TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY
+  value: {{ . | quote }}
+{{- end }}
+{{- if and (has "V1" $ids) (not $keys.legacyKey) }}
+{{- fail "server.config.encryptionKeys.keyIds lists V1, which legacyKey: false stops syncing." }}
+{{- end }}
+{{- with $ids }}
+- name: TUIST_SECRET_KEY_ENCRYPTION_KEY_IDS
+  value: {{ join "," . | quote }}
+{{- end }}
+{{- end -}}

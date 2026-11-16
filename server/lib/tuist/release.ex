@@ -20,6 +20,7 @@ defmodule Tuist.Release do
   alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
+  alias Tuist.Vault.Reencryption
 
   require Logger
 
@@ -443,6 +444,52 @@ defmodule Tuist.Release do
 
     Logger.info("Legacy tokens (used within #{days} days): #{inspect(usage)}")
     usage
+  end
+
+  @doc """
+  Re-encrypts every stored `Tuist.Vault.Binary` value, and the ciphertexts
+  `Tuist.Vault.Reencryption.embedded_tables/0` lists, under `key_id`, which
+  must already be the current encryption key
+  (`TUIST_SECRET_KEY_ENCRYPTION_CURRENT_KEY`) on every node:
+
+      bin/tuist eval 'Tuist.Release.reencrypt_vault("<key id>")'
+
+  It works in bounded batches and skips values already under the key, so
+  rerun it after an interruption. Raises, so the command exits nonzero, when
+  a value could not be decrypted with any configured key; drop a retired key
+  only after a run passes, and after the Oban jobs queued before the key
+  change have run, since some carry values encrypted with `Tuist.Vault`.
+  Options: `batch_size` (default 500).
+  """
+  def reencrypt_vault(key_id, opts \\ []) when is_binary(key_id) do
+    Application.load(@app)
+
+    {:ok, counts, _apps} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        with_vault(fn -> Reencryption.run(key_id, opts) end)
+      end)
+
+    failed = for {field, %{failed: failed}} <- counts, failed != 0, do: "#{field} (#{failed})"
+
+    if failed != [] do
+      raise "Some values could not be re-encrypted: #{Enum.join(failed, ", ")}. Keep the retired keys."
+    end
+
+    counts
+  end
+
+  defp with_vault(fun) do
+    if Process.whereis(Tuist.Vault) do
+      fun.()
+    else
+      {:ok, pid} = Tuist.Vault.start_link()
+
+      try do
+        fun.()
+      after
+        GenServer.stop(pid)
+      end
+    end
   end
 
   defp with_insert_only_oban(fun) do
