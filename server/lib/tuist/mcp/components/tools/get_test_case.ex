@@ -88,7 +88,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
            @authorization_category,
            "Test case not found: #{test_case_id}"
          ) do
-      {:ok, test_case, _project} -> reply_with_test_case(test_case)
+      {:ok, test_case, project} -> reply_with_test_case(test_case, project)
       {:error, message} -> EMCP.Tool.error(message)
     end
   end
@@ -103,7 +103,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
              @authorization_category
            ),
          {:ok, test_case} <- find_test_case_by_name(project.id, module_name, suite_name, name) do
-      reply_with_test_case(test_case)
+      reply_with_test_case(test_case, project)
     else
       {:error, message} -> EMCP.Tool.error(message)
     end
@@ -147,9 +147,12 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
     end
   end
 
-  defp reply_with_test_case(test_case) do
+  defp reply_with_test_case(test_case, project) do
     analytics = Analytics.test_case_analytics_by_id(test_case.project_id, test_case.id)
-    reliability_rate = Analytics.test_case_reliability_by_id(test_case.project_id, test_case.id, "main")
+
+    reliability_rate =
+      Analytics.test_case_reliability_by_id(test_case.project_id, test_case.id, project.default_branch || "main")
+
     flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
 
     data = %{

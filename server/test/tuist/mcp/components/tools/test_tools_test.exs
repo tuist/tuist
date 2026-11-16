@@ -546,6 +546,40 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert_received {:filters, %{module_name: "OrdersTest", suite_name: "create_order/2", name: "creates 100%"}}
     end
 
+    test "computes reliability on the project's default branch" do
+      project = %{id: "project-id", name: "project-name", default_branch: "develop"}
+      project_id = project.id
+
+      test_case = %{
+        id: "test-case-id",
+        project_id: project_id,
+        name: "testLogin",
+        module_name: "AuthTests",
+        suite_name: "LoginSuite",
+        is_flaky: false,
+        state: "enabled",
+        last_status: :success,
+        last_duration: 10,
+        avg_duration: 12
+      }
+
+      stub(Tests, :get_test_case_by_id, fn "test-case-id" -> {:ok, test_case} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Analytics, :test_case_analytics_by_id, fn ^project_id, "test-case-id" -> %{total_count: 4, failed_count: 1} end)
+
+      stub(Analytics, :test_case_reliability_by_id, fn ^project_id, "test-case-id", "develop" -> 75.0 end)
+      stub(Analytics, :get_test_case_flakiness_rate, fn ^test_case -> 0.0 end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetTestCase.call(conn, %{"test_case_id" => "test-case-id"})
+
+      assert JSON.decode!(text)["reliability_rate"] == 75.0
+    end
+
     test "returns error without test_case_id or identifier" do
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
