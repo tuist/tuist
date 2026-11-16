@@ -99,6 +99,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/pulse-grafana-tests"
           "$RUNNER_TEMP/pulse-grafana-tests/bin/pip" install PyYAML==6.0.3
           "$RUNNER_TEMP/pulse-grafana-tests/bin/python" infra/helm/pulse-grafana/test_chart.py
+          bash -n .github/scripts/pulse-datanode-rollout.sh
           node --check .github/scripts/pulse-smoke.mjs
           node --check .github/scripts/pulse-live-smoke.mjs
           node --test .github/scripts/openobserve-preflight.test.mjs
@@ -513,6 +514,9 @@ jobs:
             kubectl -n observability delete pod pulse-0 --wait=true --timeout=120s
             echo "Moved Service pulse from the standalone pod to the cluster frontends." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
+          # Held datanodes do not restart with the upgrade; this restarts them
+          # one at a time with their regions moved away first.
+          bash .github/scripts/pulse-datanode-rollout.sh
           kubectl -n observability wait --for=condition=Ready externalsecret/pulse-credentials --timeout=60s
           if [[ "$DASHBOARD_ENABLED" == true ]]; then
             kubectl -n observability wait --for=condition=Ready externalsecret/pulse-dashboard-auth --timeout=60s
@@ -533,6 +537,9 @@ jobs:
           fi
           for workload in "${workloads[@]}"; do
             kubectl -n observability rollout restart "$workload"
+            if [[ "$workload" == statefulset/pulse-datanode ]]; then
+              bash .github/scripts/pulse-datanode-rollout.sh
+            fi
             kubectl -n observability rollout status "$workload" --timeout=600s
           done
           jq '.spec.containers[0].env += [{name:"SMOKE_READ_ONLY",value:"true"}]' "$dir/smoke.json" > "$dir/read.json"
@@ -605,6 +612,7 @@ jobs:
           if [[ -f "$KUBECONFIG" ]]; then
             kubectl -n observability delete pod "$SMOKE_POD" "$SMOKE_POD-cluster" "$STORAGE_POD" --ignore-not-found --wait=true --timeout=30s
             kubectl -n observability delete pod "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
+            kubectl -n observability delete pod "pulse-rollout-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --ignore-not-found --wait=true --timeout=30s
             kubectl -n observability delete externalsecret "$STORAGE_POD" "$STORAGE_POD-reset" --ignore-not-found --wait=true --timeout=30s
           fi
 
