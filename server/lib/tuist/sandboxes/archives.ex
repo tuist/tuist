@@ -84,6 +84,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
@@ -216,6 +217,9 @@ defmodule Tuist.Sandboxes.Archives do
       DiskSnapshots.drop_copy(node_names, idle_only: opts[:disk_pressure] == true) ->
         true
 
+      DiskSnapshots.drop_archived_node_copy(node_names, idle_only: opts[:disk_pressure] == true) ->
+        true
+
       !Environment.sandbox_archive_after_hours() or node_names == [] ->
         false
 
@@ -339,7 +343,7 @@ defmodule Tuist.Sandboxes.Archives do
           node_names
       end
 
-    base = if opts[:ci], do: idle_paused(), else: idle_paused_orbs()
+    base = if opts[:ci], do: idle_paused(), else: idle_paused_sessions()
 
     if uploading_on?(node_names) do
       {:ok, :skipped}
@@ -380,7 +384,7 @@ defmodule Tuist.Sandboxes.Archives do
     Repo.exists?(from s in Sandbox, where: s.node_name in ^node_names and not is_nil(s.archive_upload_id))
   end
 
-  defp archivable(base \\ idle_paused_orbs()) do
+  defp archivable(base \\ idle_paused_sessions()) do
     retry_before = DateTime.add(now(), -@retry_after_minutes, :minute)
 
     from s in base,
@@ -390,7 +394,12 @@ defmodule Tuist.Sandboxes.Archives do
              s.archive_attempted_at < s.paused_at)
   end
 
-  defp idle_paused_orbs, do: where(idle_paused(), [s], not is_nil(s.amp_orb_id))
+  # Orbs and Claude Code sessions' sandboxes: their next spawn restores an
+  # archived one (`AmpOrbs`, `Router.find_or_create_sandbox/3`).
+  defp idle_paused_sessions do
+    claude_code = from(e in AgentEnvironment, where: e.kind == :claude_code, select: e.id)
+    where(idle_paused(), [s], not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code))
+  end
 
   # Remote-execution rows belong to their scheduler and lease, never archived.
   defp idle_paused do

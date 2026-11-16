@@ -69,8 +69,10 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   reason (quota, or per node, with each macOS host's first failing check)
   is logged when the item is held, once a minute while it waits and at
   the deadline. When no node has disk for a new sandbox, `place/2` and the
-  admission check ask `Archives.make_node_room/1` to archive the oldest
-  paused Orb on those nodes, any account's, and the refusal stays
+  admission check ask `Archives.make_node_room/1` for room on those nodes
+  (a snapshot copy, then an archived snapshot's node copy, then the archive
+  of the oldest paused Orb or Claude Code sandbox, any account's), and the
+  refusal stays
   `:no_capacity`, which callers retry. Never leave an item
   unacknowledged to wait for room: Anthropic offers it three times, 5 s
   apart, then stops; it stays `queued`, can no longer be acknowledged, and
@@ -287,7 +289,15 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   is the first thing `Archives.make_node_room/2` gives up (the proactive
   `disk_pressure` sweep only gives up a copy unused for an hour: an Orb spawned
   on a copy pushes its node over the high-water mark, and dropping that copy
-  re-downloaded a popular snapshot every hour). Copies go with their snapshot
+  re-downloaded a popular snapshot every hour). Once a node holds no copy to
+  give up, an archived snapshot's own node copy goes next, least recently
+  used first and under the same one-hour rule for the sweep
+  (`drop_archived_node_copy/2`): the row keeps its archive with `node_name`
+  nil, so the next spawn from it boots from the archive. Archived snapshots
+  otherwise stay on their node until they expire, each holding a snapshot
+  ceiling: in production (2026-11) 24 of them held about 720 GiB of the
+  Linux fleet's 2.2 TiB budget while no node had room for a new sandbox.
+  Copies go with their snapshot
   (expiry, supersede), after 24 hours unused, after 45 minutes stuck
   copying, and when their node stops listing them.
   A Claude Code repository snapshot has no Amp id: it is keyed by
@@ -321,7 +331,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   minute until the build expires. Anything else logs the output's tail, deletes the
   builder and fails the build. Never save a sandbox a session used: every
   later session of the environment boots from the snapshot.
-- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb
+- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs and
+  Claude Code sessions' sandboxes (other environments' sandboxes are
+  archived only off a node CI takes or that refused their resume; their next
+  spawn restores them too, since `Router.find_or_create_sandbox/3` keeps an
+  archived row and `prepare_residency/3` restores it). Before Claude Code
+  sandboxes were archived, paused ones held their ceilings for the 14-day
+  retention (in production, 2026-11, 16 of them held about 544 GiB). An Orb
   paused longer than `Environment.sandbox_archive_after_hours/0` (off when
   unset), or the least recently paused one on nodes whose disk refused a new sandbox (`make_node_room/1`, at most
   one upload from them at a time), is uploaded by its node (`archive` command with presigned multipart

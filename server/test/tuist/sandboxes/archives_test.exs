@@ -543,6 +543,47 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       Archives.run()
     end
 
+    test "archives a Claude Code session's sandbox paused past the threshold, not another environment's",
+         %{account: account} do
+      claude_code =
+        agent_environment_fixture(account: account, kind: :claude_code, anthropic_environment_id: "ccpool_archive")
+
+      managed = agent_environment_fixture(account: account)
+
+      # Paused longer, so it would go first if other environments' sandboxes qualified.
+      other =
+        sandbox_fixture(
+          account: account,
+          agent_environment_id: managed.id,
+          anthropic_session_id: "session-managed",
+          state: :paused,
+          node_name: "node-a",
+          paused_at: hours_ago(48)
+        )
+
+      sandbox =
+        sandbox_fixture(
+          account: account,
+          agent_environment_id: claude_code.id,
+          anthropic_session_id: "session-claude-code",
+          state: :paused,
+          node_name: "node-a",
+          paused_at: hours_ago(25)
+        )
+
+      sandbox_id = sandbox.id
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: ^sandbox_id}, _opts -> archive_result() end)
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(sandbox)
+      assert %Sandbox{state: :paused, node_name: "node-a"} = Repo.reload!(other)
+    end
+
     test "leaves non-Amp sandboxes and busy Orbs alone", %{account: account} do
       sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: hours_ago(48))
       paused_orb(account, residency_work_id: "amp:busy")

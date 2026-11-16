@@ -541,5 +541,40 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       assert Archives.make_node_room(["node-b"])
       refute Repo.reload(used)
     end
+
+    test "with no copy left, a node gives up its archived snapshots' node copies before archiving an Orb" do
+      stub(Environment, :sandbox_archive_after_hours, fn -> 24 end)
+      stub(Nodes, :call, fn "node-b", "delete_disks", _args, _opts -> {:ok, %{}} end)
+      two_hours_ago = DateTime.add(DateTime.utc_now(), -2 * 3600)
+
+      idle = popular_snapshot(node_name: "node-b", last_used_at: two_hours_ago)
+      used = popular_snapshot(node_name: "node-b", amp_snapshot_id: "proj-2")
+      # Not archived yet: the node holds its only copy.
+      only = disk_snapshot_fixture(node_name: "node-b", last_used_at: DateTime.add(DateTime.utc_now(), -3 * 3600))
+
+      sandbox_fixture(
+        amp_orb_id: "amp-idle",
+        node_name: "node-b",
+        state: :paused,
+        paused_at: DateTime.add(DateTime.utc_now(), -3600)
+      )
+
+      reserved = Capacity.reserved_disk_bytes(copy_node("node-b"))
+
+      assert Archives.make_node_room(["node-b"], disk_pressure: true)
+      assert %DiskSnapshot{node_name: nil} = Repo.reload!(idle)
+      assert Capacity.reserved_disk_bytes(copy_node("node-b")) < reserved
+      refute_enqueued(worker: ArchiveSandboxesWorker)
+
+      # The sweep keeps one used in the last hour and archives an idle Orb instead.
+      assert Archives.make_node_room(["node-b"], disk_pressure: true)
+      assert Repo.reload!(used).node_name == "node-b"
+      assert_enqueued(worker: ArchiveSandboxesWorker, args: %{node_names: ["node-b"], disk_pressure: true})
+
+      # A node that refused a sandbox gives it up too, never the only copy.
+      assert Archives.make_node_room(["node-b"])
+      assert %DiskSnapshot{node_name: nil} = Repo.reload!(used)
+      assert Repo.reload!(only).node_name == "node-b"
+    end
   end
 end

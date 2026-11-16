@@ -147,7 +147,8 @@ defmodule Tuist.Sandboxes.Router do
   """
   def find_or_create_sandbox(agent_environment, session_id, opts \\ []) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-      %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
+      # An archived one is restored by `Sandboxes.prepare_residency/3`.
+      %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming, :archived] ->
         {:ok, sandbox, false}
 
       %Sandbox{platform: :darwin, state: :error} ->

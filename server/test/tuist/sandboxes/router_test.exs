@@ -117,6 +117,47 @@ defmodule Tuist.Sandboxes.RouterTest do
     assert %Sandbox{state: :running, residency_work_id: "work_7", residency_epoch: 7} = Repo.reload!(sandbox)
   end
 
+  test "restores the session's archived sandbox instead of replacing it", %{
+    account: account,
+    agent_environment: agent_environment
+  } do
+    sandbox =
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: agent_environment.id,
+        anthropic_session_id: "session_archived",
+        state: :archived,
+        node_name: nil,
+        paused_at: DateTime.add(DateTime.utc_now(), -30, :hour),
+        archive_key: "sandbox-archives/#{account.id}/x/y.sbxa",
+        archive_bytes: 1024,
+        archive_sha256: "abc123",
+        archived_at: DateTime.add(DateTime.utc_now(), -5, :hour)
+      )
+
+    sandbox_id = sandbox.id
+    stub(Tuist.Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+    stub(Tuist.Storage, :delete_object, fn _key, _account -> :ok end)
+
+    expect(Capacity, :place, fn %Sandbox{id: ^sandbox_id, state: :creating} = placed ->
+      Repo.update!(Sandbox.update_changeset(placed, %{node_name: "node-a"}))
+      {:ok, "node-a"}
+    end)
+
+    expect(Nodes, :call, fn "node-a",
+                            "create",
+                            %{sandbox_id: ^sandbox_id, from_archive: %{url: "https://s3/get"}},
+                            _opts ->
+      {:ok, %{}}
+    end)
+
+    expect(Nodes, :call, fn "node-a", "start_worker", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+
+    assert :ok = Router.dispatch(agent_environment, work_item("session_archived", "work_8"))
+
+    assert %Sandbox{state: :running, node_name: "node-a", residency_work_id: "work_8"} = Repo.reload!(sandbox)
+  end
+
   test "replaces an errored sandbox for the session", %{account: account, agent_environment: agent_environment} do
     dead =
       sandbox_fixture(
