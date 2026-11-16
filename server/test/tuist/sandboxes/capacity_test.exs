@@ -852,6 +852,28 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
     end
 
+    test "explains why each node cannot take a sandbox", %{template: template} do
+      reclaiming = connect_elastic(template)
+      set_grant(reclaiming, allocation_reclaim: true)
+      # A second guest does not fit the 8 GiB floor, and the grant does not
+      # offer the 8.6 GiB a growth needs.
+      limited = connect_elastic(template)
+      resident(template, limited)
+      set_grant(limited, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)
+      # The grant offers the growth; the carve-out only has not grown.
+      unsized = connect_elastic(template)
+      resident(template, unsized)
+      roomy = connect_elastic(template)
+
+      assert Capacity.refusal_reasons(new_sandbox(template), [reclaiming, limited, unsized, roomy, "gone"]) == %{
+               reclaiming => :ci_reclaim,
+               limited => :allocation_limit,
+               unsized => :growth_failed,
+               roomy => :room,
+               "gone" => :not_ready
+             }
+    end
+
     test "a carve-out row created at 1 GiB before the daemon connected budgets and shrinks from the floor" do
       {node, image} = connect_execution(%{})
       set_grant(node, memory_limit_bytes: @gib)

@@ -444,6 +444,9 @@ config :logger, :console,
     :preferred_node,
     :checkout_nodes,
     :placement_path,
+    # Why each node holding a disk snapshot refused a sandbox
+    # (`Capacity.refusal_reasons/2`).
+    :refusals,
     :amp_snapshot_id,
     :last_used_at,
     :freed_bytes,
