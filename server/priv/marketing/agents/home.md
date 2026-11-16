@@ -14,7 +14,7 @@ We believe teams should optimize their projects first, then the environments in 
 
 1. **Understand and improve the project.** Inspect dependency fan-out, task inputs, compilation, test setup, and retries through [Build Insights](/en/docs-markdown/guides/features/build-insights) and [Test Insights](/en/docs-markdown/guides/features/test-insights).
 2. **Avoid repeated work.** Reuse compatible Gradle task outputs, Bazel action outputs, or Xcode compilation outputs through [Cache](/marketing-markdown/cache). For Elixir, reuse supported compiled dependencies through the [shared remote cache](/en/docs-markdown/guides/features/cache/elixir); application source files are not cached.
-3. **Optimize the execution environment for the work that remains.** Measure queueing, machine size, parallelism, and cache locality. [Tuist Runners](/marketing-markdown/compute) are an optional, invite-only choice, not a prerequisite.
+3. **Optimize the execution environment for the work that remains.** Measure queueing, machine size, parallelism, and cache locality. [Tuist Runners](/marketing-markdown/runners) are an optional, invite-only choice, not a prerequisite.
 
 Compare [total workflow costs](/marketing-markdown/compare#compare-total-costs), including execution and Tuist's own usage-based terms. Our recommendation is to reduce avoidable work before sizing the capacity for what remains.
 
@@ -62,7 +62,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 | Bottleneck | Area | What it does |
 | --- | --- | --- |
 | Rebuilding code another machine already built | [Cache](/marketing-markdown/cache) | Shares compatible module, Xcode compilation, Gradle task, Bazel action, and Elixir dependency outputs. Rust compilation caching is experimental; Once support is in canary. |
-| Slow, queued, or self-maintained CI machines | [Compute](/marketing-markdown/compute) | Tuist Runners: managed macOS and Linux CI runners next to the same cache. Invite-only. |
+| Slow, queued, or self-maintained CI machines | [Runners](/marketing-markdown/runners) | Tuist Runners: managed macOS and Linux CI runners next to the same cache. Invite-only. |
 | Slow, flaky, or opaque test suites | [Tests](/marketing-markdown/tests) | Test insights, flaky-test detection and quarantine, test sharding, selective testing. |
 | Sharing development builds for review | [Previews](/marketing-markdown/previews) | Shares supported mobile apps, macOS apps, and macOS/Linux command-line distributions through a link. |
 | Not knowing why builds are slow | [Build Insights](/en/docs-markdown/guides/features/build-insights) | Records local and CI build durations, cache behavior, and failures. |

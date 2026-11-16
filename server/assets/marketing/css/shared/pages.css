@@ -1,3 +1,10 @@
+/* Mobile Safari (and every iOS browser) inflates long paragraphs but not
+   flex or grid content, so sizes drift between sections; keep authored sizes. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /*
  * Page container for the redesigned pages: yields exactly
  * --marketing-page-width of content on wide viewports, with

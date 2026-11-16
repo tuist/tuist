@@ -44,6 +44,12 @@ dividers. All four showcase cards carry their illustrations. --%>
       />
     </header>
 
+    <TuistWeb.Marketing.MarketingComponents.logo_strip
+      id="tests-toolchains-title"
+      title={dgettext("marketing", "Supported toolchains")}
+      items={TuistWeb.Marketing.MarketingComponents.build_system_logos()}
+    />
+
     <section data-part="features" aria-labelledby="tests-features-title">
       <div data-part="text">
         <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>

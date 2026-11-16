@@ -40,4 +40,4 @@ Tuist Runners are invite-only. Their macOS and Linux rates are listed on the liv
 
 - [Live pricing and comparison table](/pricing)
 - [Product overview](/marketing-markdown)
-- [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Compute](/marketing-markdown/compute)
+- [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Runners](/marketing-markdown/runners)

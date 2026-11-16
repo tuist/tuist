@@ -8,14 +8,14 @@ Buildkite is a CI/CD platform with pipeline orchestration, hosted and self-hoste
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents. [Caching](/marketing-markdown/cache), [tests](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) serve work shared by developers, agents, and CI. Tuist is not CI orchestration. An existing pipeline can keep scheduling jobs while supported Tuist integrations provide reuse and build/test evidence.
+Tuist is build infrastructure for engineering teams and coding agents. [Caching](/marketing-markdown/cache), [tests](/marketing-markdown/tests), and [CI runners](/marketing-markdown/runners) serve work shared by developers, agents, and CI. Tuist is not CI orchestration. An existing pipeline can keep scheduling jobs while supported Tuist integrations provide reuse and build/test evidence.
 
 ## Compare the responsibilities
 
 | Criterion | Buildkite | Tuist |
 | --- | --- | --- |
 | Setup | Define a pipeline and connect hosted or self-hosted agents. Add test collection and execution tooling for the testing features you need. See [getting started](https://buildkite.com/docs/pipelines/getting-started). | Configure a supported [Tuist integration](/en/docs-markdown/guides/get-started) within the current development and CI workflow. |
-| What runs where | Pipelines coordinate jobs executed by Buildkite-hosted or customer-managed agents. That execution choice is distinct from orchestration. | Keep existing local and CI execution for supported services; evaluate [Tuist Compute](/marketing-markdown/compute) independently and check its current availability. |
+| What runs where | Pipelines coordinate jobs executed by Buildkite-hosted or customer-managed agents. That execution choice is distinct from orchestration. | Keep existing local and CI execution for supported services; evaluate [Tuist Runners for Buildkite](/marketing-markdown/runners/buildkite) independently and check its current availability. |
 | Caching | Buildkite documents hosted-agent volumes and a separate key-based Buildkite Cache for hosted and self-hosted agents in its [cache guide](https://buildkite.com/docs/pipelines/hosted-agents/cache-volumes). Evaluate the mechanism and access policy you need. | [Tuist Cache](/marketing-markdown/cache) shares compatible outputs across supported developer, CI, and coding-agent workflows, independently of a pipeline migration. |
 | Test visibility | [Test Engine](https://buildkite.com/docs/pipelines/reduce-flaky-tests) uses historical data for flaky-test detection, quarantine, and recovery workflows. | [Tuist Tests](/marketing-markdown/tests) provides reported outcomes and test history, with supported acceleration and reliability features. Assign overlapping test policies to one owner during a pilot. |
 | Agents and CI together | [Buildkite's coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents) documents MCP, skills, and agent access to logs, pipeline configuration, and test results. | [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) exposes authorized build and test evidence. Your existing CI can remain responsible for scheduling and delivery. |
@@ -37,4 +37,4 @@ Add one Tuist integration to an existing pipeline without changing scheduling or
 
 Sources checked on **2026-11-08**. Written by Tuist, not an independent benchmark. Primary sources: [Pipelines getting started](https://buildkite.com/docs/pipelines/getting-started), [hosted-agent cache volumes](https://buildkite.com/docs/pipelines/hosted-agents/cache-volumes), [flaky-test management](https://buildkite.com/docs/pipelines/reduce-flaky-tests), and [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents). Confirm execution options, integration support, and plan terms for your requirements; no numeric prices or savings are asserted.
 
-Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Compute](/marketing-markdown/compute), [documentation](/en/docs-markdown/guides/get-started), [pricing](/marketing-markdown/pricing), and [all comparisons](/marketing-markdown/compare).
+Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Runners](/marketing-markdown/runners), [documentation](/en/docs-markdown/guides/get-started), [pricing](/marketing-markdown/pricing), and [all comparisons](/marketing-markdown/compare).

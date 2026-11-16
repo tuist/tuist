@@ -12,7 +12,7 @@ Cirun also documents [cache acceleration](https://docs.cirun.io/caching/). Its a
 
 | Requirement | Tuist | Cirun evidence to evaluate |
 | --- | --- | --- |
-| Own the execution location | Tuist caching and insights can use supported existing machines; [Tuist Runners](/marketing-markdown/compute) are optional. | Cirun manages GitHub Actions runners on connected clouds and on-premises infrastructure. Evaluate cloud credentials, images, lifecycle, and operations. |
+| Own the execution location | Tuist caching and insights can use supported existing machines; [Tuist Runners](/marketing-markdown/runners) are optional. | Cirun manages GitHub Actions runners on connected clouds and on-premises infrastructure. Evaluate cloud credentials, images, lifecycle, and operations. |
 | Own directory-cache storage | Tuist runner cache volumes are distinct from its remote build-output cache. | Cirun's cache guide documents customer-owned S3 in automatic mode and an explicit action for S3-compatible storage. |
 | Share toolchain-keyed outputs | [Cache](/marketing-markdown/cache) connects supported compatible local, CI, and agent builds. | The cited cache mechanism implements the Actions archive-cache contract. Evaluate any build-system endpoint separately rather than assuming equivalent granularity. |
 | Investigate build/test outcomes | Tuist [Build Insights](/en/docs-markdown/guides/features/build-insights), [Tests](/marketing-markdown/tests), and [MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) expose supported records. | Runner management solves provisioning and execution control. Evaluate Cirun's available diagnostics for your actual task; missing documentation is not proof of absent analytics. |

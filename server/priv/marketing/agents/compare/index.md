@@ -4,7 +4,7 @@ Choose build infrastructure by the work your team needs to do. Compare Tuist wit
 
 ## What is Tuist?
 
-Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) support the work around a code change. Tuist is not CI orchestration or just another coding agent. You can keep the delivery workflow and agents you already use while adopting supported Tuist capabilities.
+Tuist is build infrastructure for engineering teams and coding agents. Shared [caching](/marketing-markdown/cache), [test visibility](/marketing-markdown/tests), and [CI runners](/marketing-markdown/runners) support the work around a code change. Tuist is not CI orchestration or just another coding agent. You can keep the delivery workflow and agents you already use while adopting supported Tuist capabilities.
 
 ## Start with the decision, not a feature checklist
 
@@ -38,4 +38,4 @@ For a different evaluation, the existing guides remain available: [Appcircle](/m
 
 Sources checked on **2026-11-08** for the three featured comparisons. This hub is written by Tuist, not an independent ranking. Definitions are grounded in [Develocity Build Scan](https://develocity.ai/product/build-scan/), [Namespace caching](https://namespace.so/docs/solutions/github-actions/caching), and [Buildkite Pipelines](https://buildkite.com/docs/pipelines/getting-started). The detailed guides link the primary sources behind each criterion and identify facts that need a workload-specific evaluation. No prices, benchmarks, customer endorsements, or feature gaps are invented.
 
-Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Compute](/marketing-markdown/compute), [documentation](/en/docs-markdown/guides/get-started), and [pricing](/marketing-markdown/pricing).
+Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Runners](/marketing-markdown/runners), [documentation](/en/docs-markdown/guides/get-started), and [pricing](/marketing-markdown/pricing).
