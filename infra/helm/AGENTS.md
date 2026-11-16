@@ -62,8 +62,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   that live field. Every Linux job uses the existing regional cache directly.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
-  and a published versioned runner image containing stable. Keep 26.6 as the
-  default. Follow the prerequisites, rollback floor and required
+  and a published versioned runner image containing stable. Follow the prerequisites, rollback floor and required
   post-rollout reconciliation in
   [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
 
@@ -73,7 +72,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   other images' bursts wait for. Images with a job in most weekday working
   hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
   one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
-  27.0 keeps two and the default image 26.6 one (`runnersFleet.xcodeOverrides`).
+  27.0 keeps two and 26.6 one (`runnersFleet.xcodeOverrides`). The catalog
+  default is 27.2, but it only seeds new accounts' protected `macos`
+  profile; existing accounts' `tuist-macos` stays on 26.6, so 26.6 keeps
+  its floors and the rack also keeps one 27.2 runner for new accounts.
   Re-measure from `tuist.runner_jobs` before changing them.
   The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
   Staging and canary run one lent rack host with two slots: staging warms

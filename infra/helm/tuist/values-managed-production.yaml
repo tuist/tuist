@@ -1679,8 +1679,9 @@ rackFleet:
   # (raised below) and 26.3's nightly 12, and the in-use pools are funded
   # first when floors sum past the rack's seats.
   #
-  # 26.6 also keeps one runner whatever its history, since a new account's
-  # first job lands there and `tuist-macos` resolves there.
+  # 26.6 and 27.2 also keep one runner each whatever their history.
+  # `tuist-macos` resolves to 26.6 for the accounts created before 27.2
+  # became the catalog default, and a new account's first job lands on 27.2.
   #
   runners:
     enabled: true
@@ -1700,6 +1701,12 @@ rackFleet:
       maxReplicas: 32
     xcodeOverrides:
       "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxLearnedWarmPoolFloor: 8
+          maxReplicas: 32
+      "27.2":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
@@ -2220,14 +2227,13 @@ runnersFleet:
   # without a floor. Images with jobs in fewer hours (27.1 in 9, the 16 vCPU
   # pools, older Xcodes) sit cold so an unused runner doesn't tie up a host.
   #
-  # The default (26.6) keeps one although it had a job in only 3 of those
-  # hours, since a new account's first job lands there and `tuist-macos`
-  # resolves there. That resolution goes through each account's
-  # protected `macos` profile, which stores `xcode_version` at account
-  # creation — so bumping the catalog default only redirects new
-  # accounts. Move existing accounts' profile in the same change, or
-  # their traffic stays on the old pool while the floor warms an idle
-  # one. Revisit once we open the runners to general signups where the
+  # 26.6 keeps one although it had a job in only 3 of those hours, since
+  # it was the default until 2026-11-16 and `tuist-macos` still resolves
+  # there for existing accounts. That resolution goes through each
+  # account's protected `macos` profile, which stores `xcode_version` at
+  # account creation, so moving the catalog default to 27.2 only
+  # redirected new accounts; existing profiles were deliberately left on
+  # 26.6, and the floor stays with their traffic. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
     "27.3-beta":
