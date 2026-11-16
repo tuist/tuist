@@ -179,6 +179,21 @@ API server). A fresh OVH join installs the kubelet minor of its CAPI Machine's
    server does after ten quiet minutes); if it never does, ask its creator
    to stop the thread, or accept losing what it has not pushed. Errored rows
    are listed but do not block: they cannot be archived.
+
+   An archive that fails backs its sandbox off for five minutes while the
+   next one moves; the check counts those rows, and the server logs
+   `sandboxes: could not move a sandbox off a node CI reclaims` with the
+   `sandbox_id` and reason. `{:disks_not_synced, :no_capacity}` means a
+   sandboxd restart paused it without syncing its disks: the node refuses
+   that archive until a resume and a synced pause refresh it, and a node CI
+   reclaims admits no resume. Uncordon the Node, wait for the check to say it
+   is not reclaimed, refresh the sandbox, then cordon again; the drain then
+   archives it:
+
+   ```bash
+   kubectl -n tuist exec deploy/tuist-tuist-server -- \
+     bin/tuist rpc 'Tuist.Sandboxes.Archives.request(Tuist.Sandboxes.get_sandbox_by_id("<sandbox id>"))'
+   ```
 3. Check the Node reports the new kubelet version, 30 allocatable CPUs on a
    32-thread box, and the `tuist.dev/pod-level-resource-managers` label.
 

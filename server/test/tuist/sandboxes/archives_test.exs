@@ -3,6 +3,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
   use Mimic
 
   import Ecto.Query
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -192,6 +193,36 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect_failed_upload(plain.id)
       assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true)
       assert {:ok, :skipped} = Archives.archive_oldest_on(["node-a"], ci: true)
+    end
+
+    test "an unsynced pause the reclaiming node cannot refresh backs off, says so, and lets the next one move",
+         %{account: account} do
+      # A daemon restart paused it without syncing: the node refuses its archive,
+      # and the refresh needs a resume the reclaiming node does not admit.
+      unsynced = paused(account, amp_orb_id: "orb-1", paused_at: hours_ago(2))
+      next = paused(account, amp_orb_id: "orb-2", paused_at: hours_ago(1))
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{sandbox_id: id}, _opts ->
+        assert id == unsynced.id
+        {:error, "disks were not synced by the last pause: #{id}"}
+      end)
+
+      expect(Storage, :multipart_abort, fn _key, "upload-1", _account -> :ok end)
+      expect(Capacity, :admit, fn _sandbox -> {:error, :no_capacity} end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, _reason} = Archives.archive_oldest_on(["node-a"], ci: true)
+        end)
+
+      assert log =~ "could not move a sandbox off a node CI reclaims"
+      assert log =~ unsynced.id
+      assert %Sandbox{state: :paused, archive_attempted_at: %DateTime{}, archive_upload_id: nil} = Repo.reload!(unsynced)
+
+      expect_failed_upload(next.id)
+      capture_log(fn -> assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true) end)
     end
 
     test "leaves the sandboxes where they are once the reservation is gone, or with the tier off",

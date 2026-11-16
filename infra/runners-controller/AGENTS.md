@@ -1119,6 +1119,14 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- \
 It lists each sandbox still on the node (state, account, Orb, whether a
 turn holds it, upload state) and queues the next archive. A sandbox in a
 turn waits for the turn to end; errored rows are listed but do not block.
+A failed archive backs its sandbox off for five minutes while the next one
+moves; the check counts those rows, and the server logs `sandboxes: could
+not move a sandbox off a node CI reclaims` with the reason. One paused by a
+sandboxd restart (`{:disks_not_synced, :no_capacity}`) needs a resume the
+reclaiming node cannot admit: uncordon, run
+`Tuist.Sandboxes.Archives.request(Tuist.Sandboxes.get_sandbox_by_id("<id>"))`
+once the check says the node is not reclaimed, and cordon again
+(`infra/cluster-api-provider-tuist/docs/exclusive-runner-cpus.md`).
 Nothing enforces this: deleting the Machine earlier loses the sandboxes
 still listed.
 

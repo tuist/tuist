@@ -352,7 +352,7 @@ defmodule Tuist.Sandboxes.Archives do
     if uploading_on?(node_names) do
       {:ok, :skipped}
     else
-      base |> archivable() |> on_nodes(node_names) |> archive_first()
+      base |> archivable() |> on_nodes(node_names) |> archive_first(opts[:ci] == true)
     end
   end
 
@@ -377,14 +377,29 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
-  defp archive_first(query) do
+  # A node drain (`ci`) reruns until the node is empty, so say why a run
+  # left its sandbox on the node: a skip or failure is otherwise silent.
+  defp archive_first(query, ci) do
     query
     |> order_by([s], asc: s.paused_at, asc: s.id)
     |> limit(1)
     |> Repo.one()
     |> case do
-      nil -> {:ok, :skipped}
-      sandbox -> archive(sandbox)
+      nil ->
+        {:ok, :skipped}
+
+      sandbox ->
+        result = archive(sandbox)
+
+        if ci and not match?({:ok, %Sandbox{state: :archived}}, result) do
+          Logger.warning("sandboxes: could not move a sandbox off a node CI reclaims",
+            sandbox_id: sandbox.id,
+            node: sandbox.node_name,
+            reason: inspect(result)
+          )
+        end
+
+        result
     end
   end
 
@@ -704,13 +719,25 @@ defmodule Tuist.Sandboxes.Archives do
 
   # Older daemon shutdowns paused without syncing. Never drop the memory
   # image or bypass the node's sync guard: admit a resume and synced pause,
-  # then let the next sweep upload the refreshed checkpoint.
+  # then let the next sweep upload the refreshed checkpoint. A node that
+  # admits no resume, such as one CI reclaims, backs the sandbox off like a
+  # failed upload, so it does not stay the oldest candidate of every run.
   defp finish({:error, "disks were not synced by the last pause: " <> _id}, %{sandbox: sandbox} = upload) do
     discard(Sandbox, upload, cancelled: true)
 
     case Sandboxes.sync_paused_disks(sandbox) do
-      {:ok, _} -> {:ok, :skipped}
-      {:error, _} = error -> error
+      {:ok, _} ->
+        {:ok, :skipped}
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: archiving a sandbox failed",
+          sandbox_id: sandbox.id,
+          node: sandbox.node_name,
+          reason: inspect({:disks_not_synced, reason})
+        )
+
+        mark_attempted(Sandbox, sandbox.id)
+        {:error, {:disks_not_synced, reason}}
     end
   end
 
