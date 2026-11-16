@@ -9,8 +9,9 @@ defmodule Tuist.Runners.ActionsCache do
 
   This index scopes and orders entries the way GitHub does. A job saves under
   its own ref and restores from its ref, its pull request's base branch and the
-  repository's default branch, in that order. Scope comes from GitHub's API for
-  the job the runner executes, never from the job.
+  repository's default branch, in that order. Scope comes from GitHub, through
+  its `workflow_run` webhook or its API, for the job the runner executes, never
+  from the job.
 
   Only the trusted storage agent calls this module.
   """

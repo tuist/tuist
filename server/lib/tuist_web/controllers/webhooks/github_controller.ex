@@ -6,6 +6,8 @@ defmodule TuistWeb.Webhooks.GitHubController do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Workers.DispatchWorker
+  alias Tuist.Runners.Workers.RecordWorkflowRunWorker
+  alias Tuist.Runners.WorkflowRuns
   alias Tuist.VCS
 
   require Logger
@@ -204,6 +206,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "workflow_job" ->
         handle_workflow_job(conn, params)
 
+      "workflow_run" ->
+        handle_workflow_run(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
@@ -313,6 +318,36 @@ defmodule TuistWeb.Webhooks.GitHubController do
         conn
         |> put_status(:service_unavailable)
         |> json(%{status: "error", reason: "transient"})
+    end
+  end
+
+  # GitHub sends `requested` when it creates a run attempt, before the run's
+  # jobs are queued. The run's cache scope inputs are stored so the jobs' Actions
+  # cache and cache volumes need not ask GitHub's API (`Tuist.Runners.WorkflowRuns`).
+  defp handle_workflow_run(conn, params) do
+    with %{"action" => "requested", "installation" => %{"id" => installation_id}} when is_integer(installation_id) <-
+           params,
+         %{} = run <- WorkflowRuns.from_webhook(params) do
+      args =
+        Map.merge(
+          %{
+            "run" => run,
+            "installation_id" => installation_id,
+            "delivery_guid" => conn |> get_req_header("x-github-delivery") |> List.first()
+          },
+          bound_account_args(conn)
+        )
+
+      case args |> RecordWorkflowRunWorker.new() |> Oban.insert() do
+        {:ok, _job} ->
+          conn |> put_status(:ok) |> json(%{status: "ok"})
+
+        {:error, reason} ->
+          Logger.warning("runners: failed to enqueue workflow run; returning 503", reason: inspect(reason))
+          conn |> put_status(:service_unavailable) |> json(%{status: "error", reason: "transient"})
+      end
+    else
+      _ -> conn |> put_status(:ok) |> json(%{status: "ok"})
     end
   end
 
