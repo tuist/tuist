@@ -168,6 +168,8 @@ jobs:
         run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
       - name: Test remote execution alerts
         run: bash infra/helm/k8s-monitoring/test-remote-execution-alerts.sh
+      - name: Test alert copies split across Pulse environments
+        run: bash infra/helm/k8s-monitoring/test-pulse-environment-copies.sh
       - name: Test Kura thin pool alerts
         run: |
           mise use -g aqua:prometheus/alertmanager@0.28.1

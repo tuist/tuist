@@ -17,10 +17,14 @@ tunnel to `*`. Production's live sources, all on the production PDC network:
 | Tuist Pulse Traces | `cg3i1ttjazsaof` | Jaeger | `:4000/v1/jaeger` |
 | Tuist Pulse SQL | `pulse-sql` | PostgreSQL | `:4003`, database `public` |
 
+Staging and canary each have a metrics source on their own PDC network:
+`Tuist Pulse Metrics (staging)` (`pulse-metrics-staging`) and `(canary)`
+(`pulse-metrics-canary`), same endpoint. Management has no PDC network yet.
+
 [`pulse-datasources.json`](pulse-datasources.json) holds their Grafana HTTP API
 bodies (`PUT /api/datasources/uid/<uid>`); Grafana Cloud does not import it.
-Tuist Pulse Logs (`fg3i1s2e8w4qof`, Loki) cannot work and only remains for the
-November 6 test rules.
+Tuist Pulse Logs (`fg3i1s2e8w4qof`, Loki) cannot work and no rule reads it
+since the November 6 test rules were deleted.
 
 **Credentials are deliberately absent.** Every source logs in as the read-only
 `dashboard` user with the environment's `PULSE_TOKEN/password`, entered by a
@@ -40,9 +44,48 @@ moving those rules.
 
 Since November 16, 2026, the production-only PromQL rules read Tuist Pulse
 Metrics: every rule whose queries select only `tuist-production` series and
-look back at most six hours. Only their data source changed; labels,
-thresholds, pending periods, no-data and error states and routing did not.
-Each had run for a night as a silent copy whose alerts matched the original's.
+look back at most six hours. Their labels, thresholds, pending periods,
+no-data states and routing did not change. Each had run for a night as a
+silent copy whose alerts matched the original's.
+
+### Rules that span environments
+
+A rule whose queries cover several clusters runs as one copy per Pulse
+metrics source, with the original UID plus `-prod`, `-stg` or `-can`
+(`remote-execution-vm-preparation-fail-stg` and `-can` are shortened to fit
+Grafana's 40-character limit). Each copy keeps the original's query; the
+source decides the environment. Staging copies add the label `env=staging`
+so the existing staging notification route takes them. When management or
+external senders still report to Grafana Cloud, the original stays on
+`grafanacloud-prom` with `cluster!~"tuist-production|tuist-staging|tuist-canary"`
+added to every selector (`k8s_cluster_name` for CNPG Postgres Instance Down),
+so no environment is evaluated twice. Rules whose metrics only production
+emits today stay on production Pulse under their own UID and get `-stg` and
+`-can` copies with **No Data: Normal**, so they start alerting once those
+environments emit them. [`test-pulse-environment-copies.sh`](test-pulse-environment-copies.sh)
+checks the committed rule files for this layout.
+
+### Error states
+
+Pulse data source rules use **Error: Keep last state**. A query that fails
+(a datanode restart, a scan rejected for memory, a tunnel blip) keeps the
+rule's last state instead of raising `DatasourceError`. Rules that already
+treated errors as Normal kept that. Seven rules that page through IRM keep
+**Error: Error**, so a Pulse outage still reaches the on-call: `tuist-production-http-5xx`,
+`runner-cache-volume-saves-failing`, `dfkmt5dtpx43kb`, `cfl2e4b9eg8aoc`,
+`ffxqtj0ye58g0b`, `tuist-production-vm-allocator-burst` and
+`ffz1ualjy8fswd-prod`.
+
+Because Keep last state hides an unreachable Pulse, four watchdogs in group
+**Pulse** alert on it, each pending five minutes with no-data and error set
+to Alerting:
+
+| Rule | Source | Condition | Severity |
+| --- | --- | --- | --- |
+| `pulse-production-unavailable` | production metrics | `count(up{cluster="tuist-production"})` < 100 | critical, Incidents |
+| `pulse-sql-unavailable` | Pulse SQL | no log rows in the last 5 minutes | critical, Incidents |
+| `pulse-staging-unavailable` | staging metrics | `count(up)` < 1 | warning |
+| `pulse-canary-unavailable` | canary metrics | `count(up)` < 1 | warning |
 
 The 16 rules that read the `kura:*` recordings inline them instead, because
 Grafana writes recordings to `<url>/api/v1/write` and Pulse accepts remote
@@ -50,12 +93,6 @@ write only at `/v1/prometheus/write` for the write-only `tuist` user. The four
 recordings still run on Grafana Cloud for its dashboards and stop with it.
 Inlined, `topk by (...) (1, timestamp(kura:...))` compares evaluation times
 rather than sample times, which only differs while a pool changes region.
-
-**Pulse - production metrics unavailable to Grafana**
-(`pulse-production-unavailable`, group **Pulse**) pages through Incidents when
-`count(up{cluster="tuist-production"})` on Pulse fails, returns nothing or
-drops below 100 for five minutes. Without it, an unreachable Pulse would leave
-every rule above with `noDataState: OK` silent.
 
 Pulse 1.3.0 fails to plan `a or b` when `b` contains a vector join
 (`* on (...) group_left`, `!= on`) and `a` is empty or a different table. Put
@@ -67,11 +104,11 @@ right side fails the same way; `Linux fleet cannot seat a shape`
 
 ### Still on Grafana Cloud
 
-- Rules that also cover staging, canary or management keep reading
-  `grafanacloud-prom` until each has a per-environment copy. Staging and canary
-  have `Tuist Pulse Metrics (staging)` (`pulse-metrics-staging`) and
-  `(canary)` (`pulse-metrics-canary`) on their PDC networks; management has no
-  PDC network yet.
+- The Cloud originals of split rules, for clusters outside Pulse (see above).
+- Missing-telemetry rules built on `absent_over_time`: `ffvvcpp359qm8d`,
+  `dg1ew04a5qfwge`, `bg1ewhe80qosgc` and `kura-thin-pool-metrics-missing`.
+  Pulse returns nothing where Prometheus returns 1 for an absent series, so
+  on Pulse they could never fire.
 - Long windows Pulse does not hold yet: `cfyi8f0lyqayof`, `dfygid92hevi8d` (3
   days) and `fg1c6ql650pvka` (7 days, also `label_replace(vector(...))`, which
   Pulse rejects).
@@ -80,10 +117,8 @@ right side fails the same way; `Linux fleet cannot seat a shape`
 - Senders that write only to Grafana Cloud (the external cache VMs, Synthetic
   Monitoring) and the Grafana Cloud usage rules.
 
-The `pulse-shadow` folder (**Pulse shadow (silent)**) keeps silent copies of
-the remaining rules, titled `[Pulse] <title>` with a `pulse_shadow_of` label,
-routed to the receiver without integrations. Delete a copy once its original
-reads Pulse.
+The silent copies in the `pulse-shadow` folder were deleted on November 16
+once their originals were cut over or split.
 
 ### Reduce scan width before increasing memory
 
@@ -93,7 +128,10 @@ rules. Sum each bucket's `increase` by `(cluster, pod, le)` before joining
 region/tenant metadata. This lets Pulse push the aggregation into the datanode
 and omit scrape labels from the historical scan. Keep `increase` inside the
 sum so independent counter resets remain correct. Keep the original one-/three-day
-windows, fullness gate, output labels, threshold and pending period.
+windows, fullness gate, output labels, threshold and pending period. Both
+shadows were deleted on November 16 with the rest of the folder; their
+originals (`afx2mswafmvi8a`, `dfygid92hevi8d`) still read Grafana Cloud, so
+apply these queries when a Pulse copy of them is created.
 
 Run `bash infra/helm/k8s-monitoring/test-pulse-metric-alerts.sh` with `promtool`
 on PATH for offline parity checks, including independent counter resets and
@@ -148,14 +186,20 @@ containing a space yields only its first word; no rule reads such a field. Two
 rules stay on Grafana Cloud because their logs never reach Pulse: cache-nginx
 502 (the cache hosts) and Synthetic Monitoring's failed executions.
 
-The production queries target production's Pulse. `CNPG Replication Link Break`
-groups by cluster across environments, so it needs one copy per environment's
-data source, like the metric rules that span clusters.
+Nine log rules read Pulse SQL. Only production's Pulse serves SQL, so these
+target production. Three groups stay on Grafana Cloud Loki:
 
-Paging rules then depend on Pulse and the tunnel. Set **Error** to **Error** on
-rules routed to IRM, so an unreachable Pulse raises `DatasourceError` through
-the same policy instead of reading as healthy, and keep a heartbeat outside
-Pulse's failure domain.
+- `CNPG Replication Link Break` (`cfsogt8cgh14wc`) groups by cluster across
+  environments, and staging and canary have no SQL source.
+- The 15 web-vitals rules (groups **Browser RUM quality** and **Web
+  performance**): their scans over every Faro line overran Pulse's datanode
+  scan memory and failed other reads, so they went back to Loki at a
+  one-minute interval.
+- Cache-nginx 502 and Synthetic Monitoring failures, whose logs never reach
+  Pulse (above).
+
+Paging log rules follow the error states above, and `pulse-sql-unavailable`
+watches the SQL path.
 
 Validated on staging on November 15, 2026: all 43 queries run on Pulse 1.3.0-1
 with the expected columns; the infrastructure queries, rewritten for staging,

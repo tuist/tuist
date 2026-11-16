@@ -6,8 +6,11 @@ directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 temporary="$(mktemp -d)"
 trap 'rm -rf "${temporary}"' EXIT
 
-rule="${directory}/kura-availability-alert-rules.json"
+rules="${directory}/kura-availability-alert-rules.json"
 amtool="${AMTOOL:-amtool}"
+# test-pulse-environment-copies.sh keeps the other copies in step with this one.
+jq '[.[] | select(.uid == "ffz1ualjy8fswd-prod")]' "${rules}" > "${temporary}/production.json"
+rule="${temporary}/production.json"
 
 jq -e '
   .[0] as $rule
