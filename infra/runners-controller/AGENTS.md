@@ -81,8 +81,8 @@ cancellable and leaves the reserve intact. See
   competes. The reconciler runs the per-pool target through
   `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier priority
   allocation over the pools sharing `(OS, FleetSelector)`:
-  (1) real load (`occupied + queued`), (2) each pool's
-  `minWarmPoolFloor` above its load, then (3) the speculative
+  (1) real load (`occupied + queued`, plus one withheld contender),
+  (2) baselines and learned warm spare, then (3) the speculative
   95th-percentile buffer above that. `occupied` is the distinct union of
   live claims and open runner sessions, so post-job cache and teardown
   work keeps its host funded after the GitHub completion webhook releases
@@ -99,29 +99,9 @@ cancellable and leaves the reserve intact. See
   cold-start — a job queued now beats a warm Pod for a job that might
   arrive, and the scale-down cooldown damps the reap.
 
-  The floor tier funds pools in use (load now, or a runner session in the
-  last hour: `Signals.InUse`) before pools that only hold a learned floor,
-  in `capByShape` too. Learned floors on a busy rack sum past its seats, and
-  an even split left the pools whose jobs were arriving short of warm
-  runners while pools with no job in an hour stayed warm. The floors of
-  pools not in use are then funded whole, the pool with jobs in the most
-  hours of the last two weeks first (the server's `hours_with_jobs`
-  signal), then the most recently used (`status.lastDemandAt`, the recency
-  tart-kubelet ranks goldens by), so a pool with fan-outs every working
-  hour stays warm before one whose only jobs are a nightly run. On
-  2026-11-13 an even split left neither with its burst warm, and ranking by
-  recency alone then gave the nightly pool every seat because its last job
-  ended four minutes later. A server without the signal reports 0 for
-  every pool, which leaves recency to decide.
-
-  A tier that cannot be funded in full is split proportionally to cost,
-  and the whole Pods the rounding leaves go one per pool per round to the
-  pools with the largest target (which includes the hourly peak), then by
-  name (`grantRemainder`). Every rack image keeps a one-Pod floor, and
-  without this one queued job past capacity rounded every floor to zero:
-  all images went cold for one job, and the freed slots sat unassigned.
-  Now only as many floors yield as the load needs, least recently used
-  image first.
+  - Keep byte allocation and `capByShape` warm priorities aligned: baseline, active burst, recently used quiet burst, then idle burst. A baseline is the explicit `minWarmPoolFloor`, or one above load for pools in use, bounded by target. All warm stock yields to real load.
+  - Fund each warm tier whole in `hours_with_jobs`, `status.lastDemandAt`, then name order. Concentrating bursts deliberately favors frequently used pools over equal warm shares. Withheld-only queues retain one tier-1 contender but do not earn active burst priority or recent-use status on that basis alone.
+  - Split only speculative p95 headroom proportionally to cost; grant whole Pods left by rounding to the largest targets, then by name (`grantRemainder`). Do not raise learned caps to hide an unfunded warm budget.
 
   **Cross-pool preemption** (`controllers/preemption.go`). The cooldown
   damps a pool's own oscillation, but it must not hold idle runners
@@ -131,7 +111,7 @@ cancellable and leaves the reserve intact. See
   idle runners at once instead of deferring:
 
   - *Starved* means the sibling has Pods the scheduler refused with
-    `Insufficient …` for at least `preemptionWait` (30s), backed by
+    `Insufficient …` for at least `preemptionWait` (5s), backed by
     dispatchable `queued` jobs its own idle bound Pods cannot absorb:
     `min(rejected, queued - idleBound)`. `withheld` work (accounts at
     their concurrency limit) never preempts. Entitlement is not checked
@@ -273,9 +253,8 @@ cancellable and leaves the reserve intact. See
     This has to be a shared cap rather than `maxReplicas`, because a
     macOS shape renders one pool per Xcode version: five pools each
     capped at the two M4-XL hosts compose to ten. Inside the cap, seats
-    go load first, then warm floor, then headroom, one Pod per pool per
-    round (so contenders do not both lose a seat) in name order (so the
-    split is stable across reconciles).
+    follow the byte allocator's baseline and burst priorities. Load and
+    headroom remain one Pod per pool per round in name order.
 
     Both platforms. It was darwin-only until 2026-09-02, on the grounds
     that kata pins memory and oversubscribes CPU so the byte budget was
@@ -343,6 +322,8 @@ cancellable and leaves the reserve intact. See
     seat, and reserving a one-host fleet would take every pool out of
     service until it cleared. Waiting is correct there, and the
     allocator's cross-pool reclaim already arranges it.
+
+    Before the ordinary reservation graces, a five-second sustained `Insufficient` rejection may reserve a host only when fresh dispatchable demand exceeds bound idle runners and its idle victims are warm, nonstale, past their grace, and entirely surplus to their pools' current replica allocations. Confirm fit with uncached Pods across namespaces, including native sandbox VM slots; never accelerate a reservation that must wait for a running job or count a deleting runner's seat twice. Keep the slower paths below.
 
     When a qualifying Pod has sat unscheduled past `reservationGrace`
     (2m), or past `idleHostReservationGrace` (30s) when the best

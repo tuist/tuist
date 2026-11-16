@@ -1,6 +1,7 @@
 package scaling
 
 import (
+	"maps"
 	"testing"
 	"time"
 )
@@ -157,11 +158,15 @@ func TestAllocateFleet_ZeroCapacityHonorsLoadNotFloor(t *testing.T) {
 // composition the incident ran through.
 func macDemand(name string, s Signals, k PolicyKnobs) PoolDemand {
 	return PoolDemand{
-		Name:       name,
-		PerPodCost: 1,
-		Floor:      k.MinWarmPoolFloor,
-		Load:       s.Load(),
-		Target:     DesiredReplicas(s, k),
+		Name:             name,
+		PerPodCost:       1,
+		Floor:            WarmFloor(s, k),
+		MinWarmPoolFloor: k.MinWarmPoolFloor,
+		Active:           s.CurrentOccupancy()+s.Queued > 0,
+		InUse:            s.InUse(),
+		HoursWithJobs:    s.HoursWithJobs,
+		Load:             s.Load(),
+		Target:           DesiredReplicas(s, k),
 	}
 }
 
@@ -448,10 +453,105 @@ func TestAllocateFleet_IdlePoolsFloorStillOutranksHeadroom(t *testing.T) {
 		{Name: "idle", PerPodCost: slot, Floor: 2, Target: 2},
 	}
 
-	got := AllocateFleet(pools, 3*slot, nil)
+	// One load, one recent-use baseline and the idle floor fit. Only
+	// peak's remaining speculative headroom must yield.
+	got := AllocateFleet(pools, 4*slot, nil)
 
-	if got["peak"] != 1 || got["idle"] != 2 {
+	if got["peak"] != 2 || got["idle"] != 2 {
 		t.Errorf("an idle pool's floor should be funded before p95 headroom, got %v", got)
+	}
+}
+
+func TestAllocateFleet_BurstPriority(t *testing.T) {
+	knobs := PolicyKnobs{MaxLearnedWarmPoolFloor: 4, MaxReplicas: 20}
+	for _, tc := range []struct {
+		name     string
+		pools    []PoolDemand
+		capacity int32
+		want     map[string]int32
+	}{
+		{
+			name: "recent quiet pool keeps baseline but yields burst to active pool",
+			pools: []PoolDemand{
+				macDemand("active", Signals{Occupied: 1, LearnedWarmFloor: 3}, knobs),
+				macDemand("quiet", Signals{P95ConcurrentLastHour: 3, LearnedWarmFloor: 3, HoursWithJobs: 300}, knobs),
+			},
+			capacity: 5, want: map[string]int32{"active": 4, "quiet": 1},
+		},
+		{
+			name: "whole active bursts ordered by usage rather than name",
+			pools: []PoolDemand{
+				macDemand("a", Signals{Queued: 1, LearnedWarmFloor: 4, HoursWithJobs: 20}, knobs),
+				macDemand("z", Signals{Queued: 1, LearnedWarmFloor: 4, HoursWithJobs: 100}, knobs),
+			},
+			capacity: 7, want: map[string]int32{"a": 2, "z": 5},
+		},
+		{
+			name: "recency then name break active usage ties",
+			pools: []PoolDemand{
+				{Name: "a", PerPodCost: 1, Load: 1, Floor: 4, Target: 4, Active: true, InUse: true, LastDemandAt: time.Unix(1, 0)},
+				{Name: "z", PerPodCost: 1, Load: 1, Floor: 4, Target: 4, Active: true, InUse: true, LastDemandAt: time.Unix(2, 0)},
+				{Name: "b", PerPodCost: 1, Load: 1, Floor: 4, Target: 4, Active: true, InUse: true, LastDemandAt: time.Unix(2, 0)},
+			},
+			capacity: 8, want: map[string]int32{"a": 2, "z": 2, "b": 4},
+		},
+		{
+			name: "one baseline fits and usage wins before name",
+			pools: []PoolDemand{
+				macDemand("a", Signals{P95ConcurrentLastHour: 2, LearnedWarmFloor: 4, HoursWithJobs: 20}, knobs),
+				macDemand("z", Signals{P95ConcurrentLastHour: 2, LearnedWarmFloor: 4, HoursWithJobs: 100}, knobs),
+			},
+			capacity: 1, want: map[string]int32{"a": 0, "z": 1},
+		},
+		{
+			name: "explicit minimum survives before active burst",
+			pools: []PoolDemand{
+				macDemand("active", Signals{Queued: 1, LearnedWarmFloor: 4}, knobs),
+				macDemand("unused", Signals{}, PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 20}),
+			},
+			capacity: 5, want: map[string]int32{"active": 4, "unused": 1},
+		},
+		{
+			name: "withheld-only contender earns no active burst priority",
+			pools: []PoolDemand{
+				macDemand("active", Signals{Queued: 1, LearnedWarmFloor: 3}, knobs),
+				macDemand("withheld", Signals{Withheld: 100, LearnedWarmFloor: 4, HoursWithJobs: 300}, knobs),
+			},
+			capacity: 5, want: map[string]int32{"active": 4, "withheld": 1},
+		},
+		{
+			name: "recent burst precedes more frequently used idle pool",
+			pools: []PoolDemand{
+				macDemand("recent", Signals{P95ConcurrentLastHour: 2, LearnedWarmFloor: 4}, knobs),
+				macDemand("idle", Signals{LearnedWarmFloor: 4, HoursWithJobs: 300}, knobs),
+			},
+			capacity: 5, want: map[string]int32{"recent": 4, "idle": 1},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, shapeLimited := range []bool{false, true} {
+				capacity := int64(tc.capacity)
+				var caps map[string]int32
+				if shapeLimited {
+					capacity = 100
+					caps = map[string]int32{"shared": tc.capacity}
+				}
+				for _, reverse := range []bool{false, true} {
+					pools := append([]PoolDemand(nil), tc.pools...)
+					for i := range pools {
+						pools[i].ShapeKey = "shared"
+					}
+					if reverse {
+						for i, j := 0, len(pools)-1; i < j; i, j = i+1, j-1 {
+							pools[i], pools[j] = pools[j], pools[i]
+						}
+					}
+					if got := AllocateFleet(pools, capacity, caps); !maps.Equal(got, tc.want) {
+						t.Errorf("shapeLimited=%v reverse=%v: got %v, want %v", shapeLimited, reverse, got, tc.want)
+					}
+				}
+			}
+		})
 	}
 }
 
