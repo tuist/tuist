@@ -1278,11 +1278,12 @@ this does not establish complete attribution for every collector or source.
 
 ### Pulse errors
 
-Services whose Sentry DSN points at Pulse (`/v1/sentry/<service>/...`, see
-`infra/helm/pulse/README.md`) have their error events stored in the
+Services whose Sentry DSN points at Pulse, or that send it a copy beside Atlas
+(the server's web instances and Kura, with the tuist chart's `sentryPulse`;
+`/v1/sentry/<service>/...`, see `infra/helm/pulse/README.md`), have their error events stored in the
 `errors` table of the same `public` database, one row per event, so its storage
-location, buckets and access identities are those of the telemetry above. Until
-a service's DSN is switched, its events go only to Atlas. Rows hold the occurrence time, the producing service, the
+location, buckets and access identities are those of the telemetry above. Other
+services' events, and these when their copy is off, go only to Atlas. Rows hold the occurrence time, the producing service, the
 Atlas-compatible grouping `fingerprint`, Sentry `event_id`, level, environment,
 release, platform, pod `server_name`, transaction, logger, exception type and
 value, title, culprit, `trace_id` (which relates the error to spans and logs),

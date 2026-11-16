@@ -2012,6 +2012,17 @@ defmodule Tuist.Environment do
     get([:sentry, :dsn], secrets)
   end
 
+  # A second DSN that receives a copy of every error, for comparing Pulse with
+  # the primary backend. See TuistCommon.SentryHTTPClient. Only web instances
+  # copy: the processors and registry sync read the same config Secret, but
+  # Pulse's NetworkPolicy admits only the web pods.
+  def sentry_pulse_dsn(secrets \\ secrets(), mode \\ mode()) do
+    case {mode, get([:sentry, :pulse_dsn], secrets)} do
+      {:web, dsn} when dsn not in [nil, ""] -> dsn
+      _ -> nil
+    end
+  end
+
   def secret_key_base(secrets \\ secrets()) do
     get([:secret_key, :base], secrets)
   end

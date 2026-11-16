@@ -602,6 +602,10 @@ if Tuist.Environment.error_tracking_enabled?() do
   if pod_name do
     config :sentry, server_name: pod_name
   end
+
+  if pulse_dsn = Tuist.Environment.sentry_pulse_dsn(secrets) do
+    config :tuist_common, sentry_pulse_dsn: pulse_dsn
+  end
 end
 
 if Tuist.Environment.env() not in [:test] do
