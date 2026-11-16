@@ -257,7 +257,6 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
         ) async throws -> Context? {
             guard let cache = environment["TUIST_CARGO_CACHE_DIR"], let session = environment["TUIST_CARGO_SESSION"],
                   let recorder = environment["TUIST_CARGO_RECORDER"], let out = environment["OUT_DIR"],
-                  !environment.keys.contains(where: { $0.hasPrefix("LD_") || $0.hasPrefix("DYLD_") }),
                   let madeOf = try? String(
                       contentsOfFile: String(real.dropLast(realSuffix.count)) + madeOfSuffix,
                       encoding: .utf8
@@ -270,6 +269,7 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
             let identity = try await CargoToolchainIdentity.resolve(
                 rustc, environment: environment, directory: directory, process: process
             )
+            guard identity.admitsLoader(environment) else { return nil }
             let relocation = CargoRelocation(environment: environment, sysroot: identity.sysroot)
             var inputs = [version, CargoReadRecorder.version, madeOf, directory.pathString]
             inputs += arguments

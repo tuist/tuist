@@ -51,6 +51,7 @@ The following still build normally:
 - Incremental compilations, custom targets, and unsupported compiler arguments or source inputs.
 - Metadata-only `cargo check` invocations.
 - Compilations that emit unexpected compiler output.
+- Compilations that run with dynamic loader settings, such as `LD_PRELOAD`, or with `LD_LIBRARY_PATH` directories outside the Rust toolchain and the target directory, for example ones inherited from your shell or a `build.build-dir` outside the target directory.
 
 A pre-existing global compiler wrapper disables Tuist's compilation cache and compiler observer. Custom workspace wrappers also bypass caching. See <.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">compiler tool compatibility</.localized_link>.
 
