@@ -167,6 +167,10 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	// Adding the volume takes 1 to 2 s, so it happens before a claim waits.
 	err = t.addWorkspace(ctx, r)
 	lap("workspace")
+	if err == nil && strings.HasPrefix(r.VMName(), warmVMPrefix) {
+		err = t.primeVolumeDelete(ctx, r)
+		lap("prime")
+	}
 	return err
 }
 
@@ -177,6 +181,28 @@ func (t *TartRuntime) writeEnv(home string, r *Record) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(env, "tuist.env"), []byte("TUIST_SANDBOX=1\n"), 0600)
+}
+
+// primeVolumeDelete adds and deletes a scratch volume while a warm VM waits.
+// A guest's first APFS volume delete takes 5 to 11 s and later ones under
+// 1 s, so without it a claim of another workspace size paid the first one.
+func (t *TartRuntime) primeVolumeDelete(ctx context.Context, r *Record) error {
+	_, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c", `set -eu
+/bin/mkdir -p /private/tmp/tuist-scratch
+container=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
+/usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxScratch -mountpoint /private/tmp/tuist-scratch >/dev/null
+`+deleteVolumeAt("/private/tmp/tuist-scratch"))
+	return err
+}
+
+// deleteVolumeAt deletes the volume mounted at a path. It is unmounted
+// with umount -f first: Disk Arbitration's unmount waited up to 11 s on a
+// newly booted guest, the forced one takes about 40 ms.
+func deleteVolumeAt(path string) string {
+	return fmt.Sprintf(`volume=$(/usr/sbin/diskutil info -plist %[1]s | /usr/bin/plutil -extract DeviceIdentifier raw -o - -)
+/usr/bin/sudo -n /sbin/umount -f %[1]s
+/usr/bin/sudo -n /usr/sbin/diskutil apfs deleteVolume "$volume" >/dev/null
+`, path)
 }
 
 // Claim finishes a booted VM for its sandbox: the workspace quota is the
@@ -196,18 +222,20 @@ func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
 
 // addWorkspace mounts a volume with the sandbox's quota at the workspace.
 // APFS cannot change an existing volume's quota, so a VM that already has a
-// volume of another size replaces it.
+// volume of another size replaces it. Spotlight is off on the volume, as on
+// the image's root, so it does not index the sandbox's work.
 func (t *TartRuntime) addWorkspace(ctx context.Context, r *Record) error {
 	replace := ""
 	if r.WorkspaceVolumeGB != 0 {
-		replace = `/usr/bin/sudo -n /usr/sbin/diskutil apfs deleteVolume "$(/usr/sbin/diskutil info -plist /Users/runner/work | /usr/bin/plutil -extract DeviceIdentifier raw -o - -)"
-`
+		replace = deleteVolumeAt("/Users/runner/work")
 	}
 	// The image's sandbox boot mode disables runner dispatch before its halt
 	// trap is armed. No runner service-account credential is shared with it.
 	if _, err := t.client(r).Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
 %scontainer=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
 /usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
+/usr/bin/sudo -n /usr/bin/touch /Users/runner/work/.metadata_never_index
+/usr/bin/sudo -n /usr/bin/mdutil -i off /Users/runner/work >/dev/null
 /usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, replace, r.WorkspaceGB)); err != nil {
 		return err
 	}

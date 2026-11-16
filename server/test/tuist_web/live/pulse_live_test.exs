@@ -391,16 +391,47 @@ defmodule TuistWeb.PulseLiveTest do
   end
 
   test "event details distinguish missing exceptions and missing stack frames", ctx do
-    event = %{"event_id" => issue()["latest_event_id"], "title" => "Message only", "exception" => []}
+    event = %{
+      "event_id" => issue()["latest_event_id"],
+      "timestamp" => issue()["last_seen"],
+      "title" => "Message only",
+      "message" => "Message only",
+      "environment" => "",
+      "release" => "",
+      "exception" => []
+    }
+
     stub(Pulse, :error_event, fn _, _, _, _, _ -> {:ok, %{event: event, warnings: []}} end)
     path = "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}/events/#{event["event_id"]}?service=server"
     {:ok, view, _} = live(ctx.conn, path)
     render_async(view)
     assert has_element?(view, "#pulse-stacktrace", "No exception recorded")
+    assert has_element?(view, "#pulse-stacktrace", "This event recorded a message, not an exception.")
     refute has_element?(view, "#pulse-stacktrace [data-part='stack-frame']")
     refute has_element?(view, "#pulse-event-tags")
     refute has_element?(view, "#pulse-event-contexts")
     refute has_element?(view, "#pulse-event-extra")
+
+    # The issue page's latest-event summary leaves out empty environment and
+    # release values instead of rendering blank badges.
+    stub(Pulse, :error_issue, fn _, _, _, _ ->
+      {:ok,
+       %{
+         issue: issue(),
+         events: [event],
+         latest_event: event,
+         occurrence_series: [],
+         meta: meta(),
+         warnings: []
+       }}
+    end)
+
+    {:ok, view, _} = live(ctx.conn, "/#{ctx.account.name}/~/pulse/errors/issues/#{fingerprint()}?service=server")
+    render_async(view)
+    assert has_element?(view, "#pulse-stacktrace dd[title='2026-09-21 14:13:30.123456 UTC']")
+    refute has_element?(view, "#pulse-stacktrace dd", "2026-09-21 14:13:30.123456")
+    refute has_element?(view, "#pulse-stacktrace dt", "Environment")
+    refute has_element?(view, "#pulse-stacktrace dt", "Release")
   end
 
   test "error detail routes remain private and fail visibly", ctx do

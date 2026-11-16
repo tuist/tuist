@@ -85,6 +85,44 @@ the remaining rules, titled `[Pulse] <title>` with a `pulse_shadow_of` label,
 routed to the receiver without integrations. Delete a copy once its original
 reads Pulse.
 
+### Reduce scan width before increasing memory
+
+[`pulse-metric-alert-queries.json`](pulse-metric-alert-queries.json) holds
+**proposed, not applied** replacements for query A of the two retention shadow
+rules. Sum each bucket's `increase` by `(cluster, pod, le)` before joining
+region/tenant metadata. This lets Pulse push the aggregation into the datanode
+and omit scrape labels from the historical scan. Keep `increase` inside the
+sum so independent counter resets remain correct. Keep the original one-/three-day
+windows, fullness gate, output labels, threshold and pending period.
+
+Run `bash infra/helm/k8s-monitoring/test-pulse-metric-alerts.sh` with `promtool`
+on PATH for offline parity checks, including independent counter resets and
+missing metadata. Profile the complete expression on the deployed Pulse too:
+
+```sql
+EXPLAIN ANALYZE VERBOSE
+WITH q AS (
+  TQL EVAL (1794836760, 1794836760, '60s') <expression>
+)
+SELECT * FROM q LIMIT 1000;
+```
+
+Choose a retained, fixed evaluation timestamp and compare old/new sequentially.
+Compare projected columns, scan output bytes, file/range counts and returned
+labels/values. Output bytes are cumulative throughput, not peak scan reservations;
+do not report their reduction as a measured reduction in peak memory. Compaction
+and cache warmth can change timings between runs. For result comparisons, use
+`AS retention` after the TQL expression and cast that value to string in SQL so
+histogram NaNs survive Grafana's JSON transport.
+
+These are query-only replacements, not provisioning payloads. Before applying
+them, read each complete live rule and change only its matching query model's
+`expr`; preserve data sources, other queries, condition, labels, routing and
+evaluation settings. Publishing Grafana changes requires separate approval.
+Do not repoint the original Cloud rules as part of the optimization. The daily
+rule was retired (see `alerts.md`); separately review whether its remaining
+shadow is still useful rather than silently deleting it.
+
 ## Log alert rules use SQL
 
 Pulse accepts Loki pushes but serves no Loki query API, and only Jaeger's trace

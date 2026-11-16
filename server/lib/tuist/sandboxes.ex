@@ -749,7 +749,11 @@ defmodule Tuist.Sandboxes do
           sandbox_id: sandbox.id,
           disk_snapshot_id: disk_snapshot.id,
           node: Enum.join(held, ","),
-          reason: inspect(reason)
+          reason: inspect(reason),
+          refusals:
+            sandbox
+            |> Capacity.refusal_reasons(held)
+            |> Enum.map_join(",", fn {node_name, refusal} -> "#{node_name}=#{refusal}" end)
         )
 
         create_from_disk_snapshot_archive(sandbox, args, disk_snapshot)
@@ -798,8 +802,17 @@ defmodule Tuist.Sandboxes do
     sandbox |> release_node() |> create_from_disk_snapshot_archive(args, disk_snapshot)
   end
 
-  defp create_after_failed_clone(_sandbox, args, node_name, %DiskSnapshot{}) do
-    with {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+  defp create_after_failed_clone(sandbox, args, node_name, %DiskSnapshot{}) do
+    create_template_after_failure(sandbox, args, node_name)
+  end
+
+  # A create the server stopped waiting for (a timeout) can still be running
+  # or done on the node, which refuses a second create under the same id
+  # ("sandbox already exists"). The node's delete waits for that create and
+  # removes it, and succeeds for an id the node does not hold.
+  defp create_template_after_failure(sandbox, args, node_name) do
+    with {:ok, _data} <- Nodes.call(node_name, "delete", %{sandbox_id: sandbox.id}, []),
+         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
       {:ok, node_name, data}
     end
   end
@@ -807,7 +820,12 @@ defmodule Tuist.Sandboxes do
   defp create_from_disk_snapshot_archive(sandbox, args, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot) do
     with {:ok, source} <- Archives.restore_source(disk_snapshot),
          {:ok, node_name} <- place_restore(sandbox, disk_snapshot) do
-      case Nodes.call(node_name, "create", Map.put(args, :from_archive, source), timeout: @restore_timeout) do
+      # The node gives up on the restore when the server stops waiting for
+      # it, instead of finishing it in the background (up to 15 minutes).
+      expires_at = DateTime.add(DateTime.utc_now(), @restore_timeout, :millisecond)
+      restore_args = Map.merge(args, %{from_archive: source, expires_at_unix: DateTime.to_unix(expires_at)})
+
+      case Nodes.call(node_name, "create", restore_args, timeout: @restore_timeout) do
         {:ok, data} ->
           DiskSnapshots.touch(disk_snapshot)
           # Every node holding it was full or failed: copy it out ahead of
@@ -824,9 +842,7 @@ defmodule Tuist.Sandboxes do
             reason: inspect(reason)
           )
 
-          with {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
-            {:ok, node_name, data}
-          end
+          create_template_after_failure(sandbox, args, node_name)
       end
     else
       {:error, reason} ->

@@ -361,13 +361,14 @@ defmodule TuistWeb.PulseErrorLive do
         <dl :if={@navigate} data-part="metadata-grid">
           <.detail_field
             label={dgettext("dashboard_pulse", "Latest event")}
-            value={PulseLive.timestamp_label(@event["timestamp"])}
+            value={PulseLive.timestamp_relative(@event["timestamp"])}
+            title={PulseLive.timestamp_label(@event["timestamp"]) <> " UTC"}
           />
-          <div :if={@event["environment"]}>
+          <div :if={@event["environment"] not in [nil, ""]}>
             <dt>{dgettext("dashboard_pulse", "Environment")}</dt>
             <dd><.badge label={@event["environment"]} style="light-fill" /></dd>
           </div>
-          <div :if={@event["release"]}>
+          <div :if={@event["release"] not in [nil, ""]}>
             <dt>{dgettext("dashboard_pulse", "Release")}</dt>
             <dd><.badge label={@event["release"]} style="light-fill" /></dd>
           </div>
@@ -375,6 +376,10 @@ defmodule TuistWeb.PulseErrorLive do
         <.table_empty_state
           :if={@exceptions == []}
           title={dgettext("dashboard_pulse", "No exception recorded")}
+          subtitle={
+            if @event["message"] not in [nil, ""],
+              do: dgettext("dashboard_pulse", "This event recorded a message, not an exception.")
+          }
         />
         <section :for={{exception, index} <- Enum.with_index(@exceptions)} data-part="exception">
           <div data-part="exception-heading">

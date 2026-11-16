@@ -669,6 +669,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       end)
 
       expect(Nodes, :call, fn "node-a", "delete_disks", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "delete", %{sandbox_id: _}, _opts -> {:ok, %{}} end)
 
       expect(Nodes, :call, fn "node-a", "create", args, _opts ->
         refute Map.has_key?(args, :from_disk_snapshot)
@@ -782,14 +783,20 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       assert %DiskSnapshot{node_name: nil, archive_key: "snapshot-key"} = Repo.reload!(snapshot)
     end
 
-    test "a failed create from the archive boots the template on the same node", %{account: account} do
+    test "a timed-out create from the archive boots the template on the same node", %{account: account} do
       archived_snapshot(account, node_name: nil)
       expect(Capacity, :place, fn _sandbox -> {:ok, "node-b"} end)
       expect(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://s3/snapshot" end)
 
-      expect(Nodes, :call, fn "node-b", "create", %{from_archive: _}, _opts ->
-        {:error, "restoring archive: checksum mismatch"}
+      # The node stops the restore when the server stops waiting for it...
+      expect(Nodes, :call, fn "node-b", "create", %{from_archive: _, expires_at_unix: expires_at}, opts ->
+        assert_in_delta expires_at, System.os_time(:second) + div(opts[:timeout], 1000), 5
+        {:error, :timeout}
       end)
+
+      # ...and still holds the sandbox until it has unwound, so the template
+      # create under the same id goes after a delete.
+      expect(Nodes, :call, fn "node-b", "delete", %{sandbox_id: _}, _opts -> {:ok, %{}} end)
 
       expect(Nodes, :call, fn "node-b", "create", args, _opts ->
         refute Map.has_key?(args, :from_archive)

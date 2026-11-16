@@ -737,6 +737,50 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  @doc """
+  Why each of `node_names` cannot take the sandbox, read right after a
+  placement on them was refused, for its log: `:not_ready`, `:disk_budget`,
+  `:disk_space`, the grant's outcome when the runners controller does not
+  allow the memory (`:ci_reclaim`, `:allocation_limit`, `:expired`,
+  `:missing_grant`, `:replaced_pod`), `:ceiling` when the carve-out cannot
+  grow that far, `:growth_failed` when the grant allowed a growth that did
+  not land (the kubelet deferred it), and `:room` when the node has room
+  by now.
+  """
+  def refusal_reasons(%Sandbox{template: template} = sandbox, node_names) when is_list(node_names) do
+    ready = Map.new(ready_nodes(template), &{&1.name, &1})
+    charge = charge_bytes(sandbox)
+
+    Map.new(node_names, fn node_name ->
+      reason =
+        case Map.fetch(ready, node_name) do
+          :error -> :not_ready
+          {:ok, node} -> node_refusal(node, sandbox, charge)
+        end
+
+      {node_name, reason}
+    end)
+  end
+
+  defp node_refusal(node, sandbox, charge) do
+    reserved = reserved_bytes(node.name)
+
+    grant =
+      if elastic?(node),
+        do: allocation_outcome(Repo.get(SandboxNode, node.name), node, reserved + charge + @daemon_reserve_bytes),
+        else: :allowed
+
+    cond do
+      not disk_room?(node, sandbox) -> :disk_budget
+      not disk_space?(node, sandbox) -> :disk_space
+      grant != :allowed -> grant
+      memory_fits?(node, reserved, charge) -> :room
+      not elastic?(node) -> :no_memory
+      node.elastic.memory_ceiling_bytes - @daemon_reserve_bytes - reserved < charge -> :ceiling
+      true -> :growth_failed
+    end
+  end
+
   # Preferred nodes go first: their room, then a growth of their carve-out
   # (waiting no longer than an admission does, since a preferred node saves
   # seconds), and only then another node's room. Pausing idle sandboxes still
