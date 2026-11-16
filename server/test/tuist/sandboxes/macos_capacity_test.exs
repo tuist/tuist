@@ -2,6 +2,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
@@ -73,6 +74,23 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     assert {:ok, name} = Capacity.place(sandbox())
     assert name == warm.name
+  end
+
+  test "placement logs why a host holding a warm VM was not chosen", %{node: node} do
+    Logger.put_module_level(MacosCapacity, :info)
+    on_exit(fn -> Logger.delete_module_level(MacosCapacity) end)
+    warm_template = %{name: "macos", ready: true, tag: "image@sha256:abc", warm: ["8x8192"]}
+    warm = %{node | name: "rack-b04", templates: [warm_template], admission: Map.put(node.admission, "slots", 0)}
+    stale = %{node | name: "rack-b05", admission: Map.put(node.admission, "observed_at", "2020-01-01T00:00:00Z")}
+    cold = %{node | name: "rack-b06"}
+
+    stub(Nodes, :connected_nodes, fn -> [cold, stale, warm] end)
+
+    log = capture_log([level: :info], fn -> assert {:ok, "rack-b06"} = Capacity.place(sandbox()) end)
+
+    assert log =~ "sandboxes: macOS placement"
+    assert log =~ "shape=8x8192"
+    assert log =~ "hosts=b04=warm:refused_no_capacity_no_slot b05=grant_stale b06=chosen"
   end
 
   test "turns on a running VM need no grant, even when CI closed it during the restore", %{node: node} do
