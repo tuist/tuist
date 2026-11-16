@@ -2591,7 +2591,7 @@ msgstr "Роль, которую получают участники при пр
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr "Pro включает тот же бесплатный лимит, а сверх него действует ценообразование на основе использования."
 
-#: lib/tuist/accounts/user_notifier.ex:793
+#: lib/tuist/accounts/user_notifier.ex:854
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr "Доступ к удалённому кэшу приостановлен для этого аккаунта. Перейдите на Pro, чтобы продолжить использовать кэш, или дождитесь сброса бесплатного лимита."
@@ -2601,24 +2601,25 @@ msgstr "Доступ к удалённому кэшу приостановлен
 msgid "Review usage and upgrade"
 msgstr "Проверить использование и перейти на другой план"
 
-#: lib/tuist/accounts/user_notifier.ex:802
+#: lib/tuist/accounts/user_notifier.ex:863
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr "Вы приближаетесь к лимиту Air"
 
-#: lib/tuist/accounts/user_notifier.ex:803
+#: lib/tuist/accounts/user_notifier.ex:864
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr "Вы близки к исчерпанию ежемесячного бесплатного лимита. Перейдите на Pro до достижения лимита, чтобы доступ к удалённому кэшу не прерывался."
 
 #: lib/tuist/accounts/user_notifier.ex:608
-#: lib/tuist/accounts/user_notifier.ex:695
-#: lib/tuist/accounts/user_notifier.ex:733
+#: lib/tuist/accounts/user_notifier.ex:715
+#: lib/tuist/accounts/user_notifier.ex:756
+#: lib/tuist/accounts/user_notifier.ex:794
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr "Вы получили это письмо, потому что управляете этим аккаунтом Tuist."
 
-#: lib/tuist/accounts/user_notifier.ex:792
+#: lib/tuist/accounts/user_notifier.ex:853
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr "Вы достигли лимита плана Air"
@@ -2628,22 +2629,22 @@ msgstr "Вы достигли лимита плана Air"
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr "Ваш бесплатный лимит сбрасывается %{date} (UTC)."
 
-#: lib/tuist/accounts/user_notifier.ex:773
+#: lib/tuist/accounts/user_notifier.ex:834
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr "Новые задачи на раннерах приостановлены для этого аккаунта. Перейдите на план Pro, чтобы продолжать запускать задачи, или дождитесь сброса бесплатного лимита раннеров."
 
-#: lib/tuist/accounts/user_notifier.ex:772
+#: lib/tuist/accounts/user_notifier.ex:833
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr "Вы достигли лимита раннеров плана Air"
 
-#: lib/tuist/accounts/user_notifier.ex:783
+#: lib/tuist/accounts/user_notifier.ex:844
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr "Вы приближаетесь к месячному бесплатному лимиту раннеров. Перейдите на план Pro до достижения лимита, чтобы продолжить использовать раннеры."
 
-#: lib/tuist/accounts/user_notifier.ex:782
+#: lib/tuist/accounts/user_notifier.ex:843
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr "Вы приближаетесь к лимиту раннеров плана Air"
@@ -2663,12 +2664,12 @@ msgstr "%{account_name} достиг %{percentage}% лимита раннеро�
 msgid "All rights reserved."
 msgstr "Все права защищены."
 
-#: lib/tuist/accounts/user_notifier.ex:820
+#: lib/tuist/accounts/user_notifier.ex:881
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
 msgstr "Здравствуйте, %{email}. Вы можете изменить адрес электронной почты, нажав кнопку ниже:"
 
-#: lib/tuist/accounts/user_notifier.ex:825
+#: lib/tuist/accounts/user_notifier.ex:886
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
 msgstr "Если вы не запрашивали это изменение, проигнорируйте это письмо."
@@ -2678,13 +2679,13 @@ msgstr "Если вы не запрашивали это изменение, п�
 msgid "This email was sent by Tuist. By using our services, you agree to our"
 msgstr "Это письмо отправлено Tuist. Используя наши сервисы, вы соглашаетесь с нашими"
 
-#: lib/tuist/accounts/user_notifier.ex:816
+#: lib/tuist/accounts/user_notifier.ex:877
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
 msgstr "Инструкции по обновлению адреса электронной почты"
 
-#: lib/tuist/accounts/user_notifier.ex:818
-#: lib/tuist/accounts/user_notifier.ex:824
+#: lib/tuist/accounts/user_notifier.ex:879
+#: lib/tuist/accounts/user_notifier.ex:885
 #, elixir-autogen, elixir-format
 msgid "Update your email"
 msgstr "Обновить адрес электронной почты"
@@ -2734,12 +2735,12 @@ msgstr "Исходящий трафик кэша:"
 msgid "of your usage"
 msgstr "от вашего использования"
 
-#: lib/tuist/accounts/user_notifier.ex:756
+#: lib/tuist/accounts/user_notifier.ex:817
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
 msgstr "Использовано %{usage} из %{limit} запросов к кэшу"
 
-#: lib/tuist/accounts/user_notifier.ex:749
+#: lib/tuist/accounts/user_notifier.ex:810
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
 msgstr "Использовано %{usage} из %{limit} исходящего трафика кэша"
@@ -2835,8 +2836,8 @@ msgstr "Платеж за подписку аккаунта '%{account}' не п
 msgid "A payment for your subscription failed"
 msgstr "Платеж за вашу подписку не прошел"
 
-#: lib/tuist/accounts/user_notifier.ex:694
-#: lib/tuist/accounts/user_notifier.ex:732
+#: lib/tuist/accounts/user_notifier.ex:755
+#: lib/tuist/accounts/user_notifier.ex:793
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2852,47 +2853,47 @@ msgstr "Ваш план ограничен бесплатным тарифом A
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
 msgstr "Ваш план остается активным, пока система повторяет попытку оплаты. Оплатите открытый счет или обновите способ оплаты, чтобы сохранить доступ."
 
-#: lib/tuist/accounts/user_notifier.ex:675
+#: lib/tuist/accounts/user_notifier.ex:736
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr "Платеж за подписку Tuist для %{account_name} не прошел"
 
-#: lib/tuist/accounts/user_notifier.ex:692
+#: lib/tuist/accounts/user_notifier.ex:753
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr "Оплатите неоплаченный счёт или обновите способ оплаты, чтобы сохранить тариф:"
 
-#: lib/tuist/accounts/user_notifier.ex:682
+#: lib/tuist/accounts/user_notifier.ex:743
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
 msgstr "Не удалось списать средства с сохранённого способа оплаты для подписки %{account_name}. Платёж будет повторён автоматически."
 
-#: lib/tuist/accounts/user_notifier.ex:680
+#: lib/tuist/accounts/user_notifier.ex:741
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr "Платёж за подписку не прошёл"
 
-#: lib/tuist/accounts/user_notifier.ex:687
+#: lib/tuist/accounts/user_notifier.ex:748
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
 msgstr "Ваш тариф остаётся активным, пока система повторяет попытки оплаты. Если платёж всё ещё не пройдёт после окончания повторных попыток, доступ для %{account_name} будет ограничен бесплатным уровнем тарифа Air до оплаты счёта."
 
-#: lib/tuist/accounts/user_notifier.ex:714
+#: lib/tuist/accounts/user_notifier.ex:775
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr "%{account_name} переведён на тариф Air из-за сбоя оплаты подписки"
 
-#: lib/tuist/accounts/user_notifier.ex:726
+#: lib/tuist/accounts/user_notifier.ex:787
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr "Оплата неоплаченного счёта восстановит ваш тариф. Также можно обновить способ оплаты перед оплатой:"
 
-#: lib/tuist/accounts/user_notifier.ex:721
+#: lib/tuist/accounts/user_notifier.ex:782
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
 msgstr "Не удалось получить оплату за подписку %{account_name}, и повторные попытки завершены. Теперь доступ для %{account_name} ограничен бесплатным уровнем тарифа Air."
 
-#: lib/tuist/accounts/user_notifier.ex:719
+#: lib/tuist/accounts/user_notifier.ex:780
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr "Ваш аккаунт переведён на тариф Air"
@@ -3131,7 +3132,7 @@ msgstr "Ключ доступа удален"
 msgid "The passkeys that can sign in to your Tuist account were changed."
 msgstr "Список ключей доступа, которые могут использоваться для входа в ваш аккаунт Tuist, был изменен."
 
-#: lib/tuist/accounts/user_notifier.ex:740
+#: lib/tuist/accounts/user_notifier.ex:801
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
 msgstr "Использовано %{usage} из %{limit} бесплатных минут раннера, учитываемых как минуты macOS (%{linux} минут Linux считаются как %{limit})"
@@ -3661,3 +3662,38 @@ msgstr "Вы израсходовали 80% предоплаченных кре�
 #, elixir-autogen, elixir-format
 msgid "Your prepaid runner credits are exhausted. Further billable runner usage continues at the standard on-demand rates; jobs are not blocked."
 msgstr "Ваши предоплаченные кредиты раннера исчерпаны. Дальнейшее использование раннеров будет оплачиваться по стандартным тарифам on-demand; выполнение задач не блокируется."
+
+#: lib/tuist/accounts/user_notifier.ex:691
+#, elixir-autogen, elixir-format
+msgid "As a precaution after a security incident, we recommend rotating the credentials of %{account_name}: revoke its account and project tokens and create new ones."
+msgstr "В качестве меры предосторожности после инцидента безопасности мы рекомендуем обновить учетные данные %{account_name}: отзовите токены аккаунта и проектов, а затем создайте новые."
+
+#: lib/tuist/accounts/user_notifier.ex:683
+#, elixir-autogen, elixir-format
+msgid "As a precaution after a security incident, we revoked the credentials of %{account_name}: browser sessions, CLI sign-ins, account tokens, project tokens and legacy tokens. Members need to sign in again."
+msgstr "В качестве меры предосторожности после инцидента безопасности мы отозвали учетные данные %{account_name}: браузерные сессии, входы через CLI, токены аккаунта, токены проектов и устаревшие токены. Участникам необходимо войти снова."
+
+#: lib/tuist/accounts/user_notifier.ex:701
+#, elixir-autogen, elixir-format
+msgid "Create new tokens and update them wherever they are used, such as the TUIST_TOKEN variable of your CI. Where your CI supports it, use OpenID Connect instead, which needs no stored token."
+msgstr "Создайте новые токены и обновите их везде, где они используются, например в переменной TUIST_TOKEN вашего CI. Если ваш CI поддерживает OpenID Connect, используйте его вместо токенов, так как он не требует хранения токена."
+
+#: lib/tuist/accounts/user_notifier.ex:714
+#, elixir-autogen, elixir-format
+msgid "Manage tokens"
+msgstr "Управление токенами"
+
+#: lib/tuist/accounts/user_notifier.ex:707
+#, elixir-autogen, elixir-format
+msgid "Read more about the incident: %{url}"
+msgstr "Подробнее об инциденте: %{url}"
+
+#: lib/tuist/accounts/user_notifier.ex:690
+#, elixir-autogen, elixir-format
+msgid "Rotate the Tuist credentials of %{account_name}"
+msgstr "Обновить учетные данные Tuist для %{account_name}"
+
+#: lib/tuist/accounts/user_notifier.ex:680
+#, elixir-autogen, elixir-format
+msgid "We revoked the Tuist credentials of %{account_name}"
+msgstr "Мы отозвали учетные данные Tuist для %{account_name}"

@@ -154,6 +154,31 @@ defmodule TuistWeb.Storybook.Breadcrumbs do
         ]
       },
       %VariationGroup{
+        id: :with_build_tools,
+        description: "Breadcrumbs with build tool icons next to labels",
+        variations: [
+          %Variation{
+            id: :build_tool_icons,
+            attributes: %{
+              id: "breadcrumbs-build-tools",
+              style: "slash"
+            },
+            slots: [
+              """
+              <.breadcrumb id="org-build-tools" label="Tuist" show_avatar avatar_color="blue" />
+              <.breadcrumb id="project-build-tools" label="desktop-app" build_tool="once">
+                <.breadcrumb_item id="bt-bazel" value="codex-bazel" label="codex-bazel" build_tool="bazel" href="#" />
+                <.breadcrumb_item id="bt-once" value="desktop-app" label="desktop-app" build_tool="once" href="#" selected={true} />
+                <.breadcrumb_item id="bt-gradle" value="duckduckgo-android" label="duckduckgo-android" build_tool="gradle" href="#" />
+                <.breadcrumb_item id="bt-mix" value="entire-insights-e2e" label="entire-insights-e2e" build_tool="mix" href="#" />
+                <.breadcrumb_item id="bt-xcode" value="ios-app" label="ios-app" build_tool="xcode" href="#" />
+              </.breadcrumb>
+              """
+            ]
+          }
+        ]
+      },
+      %VariationGroup{
         id: :dropdown_variations,
         description: "Breadcrumbs with different dropdown configurations",
         variations: [

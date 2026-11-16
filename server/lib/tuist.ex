@@ -388,6 +388,8 @@ defmodule Tuist do
       Runners.ExecutionTokens,
       Runners.Workers.CloseDisconnectedInteractiveSessionWorker,
       Runners.Workers.DispatchWorker,
+      Runners.Workers.RecordWorkflowRunWorker,
+      Runners.WorkflowRuns,
       Runners.Workers.ExpireInteractiveSessionsWorker,
       Runners.Workers.OrphanedRunnersWorker,
       Runners.Workers.WebhookRedeliveryWorker,

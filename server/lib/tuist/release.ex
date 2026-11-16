@@ -6,6 +6,10 @@ defmodule Tuist.Release do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Adapters.SQL
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.CredentialRevocation
+  alias Tuist.Accounts.Workers.CredentialRotationNoticeWorker
+  alias Tuist.Billing.AirUsageNotifications
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
@@ -313,6 +317,89 @@ defmodule Tuist.Release do
       {:error, :not_found} ->
         raise "Account #{account_id} has no runner cache volume #{inspect(volume_id)}"
     end
+  end
+
+  @doc """
+  Revokes customer-facing credentials in bulk
+  (`Tuist.Accounts.CredentialRevocation`), for everyone or for one account,
+  on a live node so connected dashboards are disconnected too:
+
+      bin/tuist rpc 'Tuist.Release.revoke_credentials(<account id>)'
+      bin/tuist rpc 'Tuist.Release.revoke_credentials(:everything)'
+
+  Follow it with `send_credential_rotation_notice/2` so admins know to create
+  new tokens.
+  """
+  def revoke_credentials(:everything) do
+    counts = CredentialRevocation.revoke_everything()
+    Logger.warning("Revoked every customer credential: #{inspect(counts)}")
+    counts
+  end
+
+  def revoke_credentials(account_id) when is_integer(account_id) do
+    case CredentialRevocation.revoke_account(account_id) do
+      {:ok, counts} ->
+        Logger.warning("Revoked the credentials of account #{account_id}: #{inspect(counts)}")
+        counts
+
+      {:error, :not_found} ->
+        raise "No account #{account_id}"
+    end
+  end
+
+  @doc """
+  Emails the admins of one account, or of every account (personal accounts
+  reach their owner), a credential rotation notice
+  (`Tuist.Accounts.Workers.CredentialRotationNoticeWorker`), on a live node:
+
+      bin/tuist rpc 'Tuist.Release.send_credential_rotation_notice(<account id>, kind: :revoked)'
+      bin/tuist rpc 'Tuist.Release.send_credential_rotation_notice(:everything, kind: :rotate, details_url: "https://...")'
+
+  `kind` is `:revoked` after `revoke_credentials/1`, or `:rotate` to ask
+  admins to rotate them. `notice_id` names the sending: pass the one a run
+  returned to resume it without emailing anyone twice. Returns how many
+  notices it queued, not counting those an earlier run already queued.
+  """
+  def send_credential_rotation_notice(scope, opts) do
+    kind = Keyword.fetch!(opts, :kind)
+    true = kind in [:revoked, :rotate]
+    notice_id = Keyword.get_lazy(opts, :notice_id, &Ecto.UUID.generate/0)
+    args = %{notice_id: notice_id, kind: kind, details_url: Keyword.get(opts, :details_url)}
+
+    queued =
+      case scope do
+        :everything ->
+          queue_rotation_notices_from(0, args, 0)
+
+        account_id when is_integer(account_id) ->
+          queue_rotation_notices(Repo.all(from(a in Account, where: a.id == ^account_id)), args)
+      end
+
+    Logger.info("Queued #{queued} credential rotation notices for notice #{notice_id}")
+    %{notice_id: notice_id, queued: queued}
+  end
+
+  defp queue_rotation_notices_from(after_id, args, queued) do
+    accounts = Repo.all(from(a in Account, where: a.id > ^after_id, order_by: a.id, limit: 500))
+
+    case accounts do
+      [] -> queued
+      _ -> queue_rotation_notices_from(List.last(accounts).id, args, queued + queue_rotation_notices(accounts, args))
+    end
+  end
+
+  defp queue_rotation_notices(accounts, args) do
+    accounts
+    |> Enum.flat_map(fn account ->
+      account
+      |> AirUsageNotifications.recipients()
+      |> Enum.reject(&(is_nil(&1) or not &1.active))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.map(&CredentialRotationNoticeWorker.new(Map.merge(args, %{account_id: account.id, user_id: &1.id})))
+    end)
+    # One insert per job, because uniqueness, which makes a resumed sending
+    # skip the notices already queued, is not enforced by `Oban.insert_all/1`.
+    |> Enum.count(fn changeset -> match?({:ok, %Oban.Job{conflict?: false}}, Oban.insert(changeset)) end)
   end
 
   @doc """

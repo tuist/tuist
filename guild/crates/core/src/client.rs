@@ -24,9 +24,6 @@ struct Vault {
     profiles: Vec<Profile>,
     active_profile_id: Option<String>,
     generation: u64,
-    /// Tuist app sessions the user signed out of here, by storage key and identity.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    unlinked: Vec<(String, String)>,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -44,10 +41,6 @@ struct Profile {
     rejected: bool,
     #[serde(default)]
     memberships_rejected: bool,
-    /// The Tuist app's Keychain storage key when this profile uses its
-    /// session. Those tokens are never written to this vault.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    shared: Option<String>,
 }
 
 struct Attempt {
@@ -64,11 +57,6 @@ pub struct MobileClient {
     dirty: bool,
     attempt: Option<Attempt>,
     threads: Threads,
-    /// Tuist's state directory, for the refresh lock; the environment's by default.
-    #[cfg(target_os = "macos")]
-    state: Option<std::path::PathBuf>,
-    #[cfg(target_os = "macos")]
-    pending_shared: Option<shared::Pending>,
 }
 
 impl MobileClient {
@@ -91,7 +79,6 @@ impl MobileClient {
                     "id":p.id, "server":p.server, "handle":p.handle, "email":p.email,
                     "organization":p.organization, "organizations":p.organizations,
                     "rejected":p.rejected || p.memberships_rejected,
-                    "shared":p.shared.is_some(),
                 })
             })
             .collect();
@@ -112,7 +99,9 @@ impl MobileClient {
             self.vault = match read.get("value") {
                 Some(Value::Null) => Vault::default(),
                 Some(Value::String(value)) => {
-                    serde_json::from_str(value).map_err(|_| "Invalid private vault")?
+                    let (vault, migrated) = migrate(value)?;
+                    self.dirty |= migrated;
+                    vault
                 }
                 _ => return Err("Could not read private vault"),
             };
@@ -126,16 +115,10 @@ impl MobileClient {
             write(host, &self.vault)?;
             self.dirty = false;
         }
-        #[cfg(target_os = "macos")]
-        self.flush_shared(host)?;
         let request: Value = serde_json::from_str(input).map_err(|_| "Invalid request")?;
         let args = &request["args"];
         match text(&request, "operation")? {
-            "snapshot" => {
-                #[cfg(target_os = "macos")]
-                self.sync_shared(host)?;
-                Ok(Value::Null)
-            }
+            "snapshot" => Ok(Value::Null),
             "cancel_sign_in" => {
                 self.attempt = None;
                 Ok(Value::Null)
@@ -284,15 +267,6 @@ impl MobileClient {
 
     fn remove_active(&mut self, host: &mut dyn Host) -> Result<()> {
         let mut next = self.vault.clone();
-        // Signing out of the Tuist app's session here leaves the Tuist app signed in.
-        if let Some(p) = next
-            .profiles
-            .iter()
-            .find(|p| Some(&p.id) == next.active_profile_id.as_ref())
-            && let Some(key) = &p.shared
-        {
-            next.unlinked.push((key.clone(), p.identity.clone()));
-        }
         next.profiles
             .retain(|p| Some(&p.id) != next.active_profile_id.as_ref());
         next.active_profile_id = next
@@ -438,7 +412,6 @@ impl MobileClient {
             organizations: old.map(|p| p.organizations).unwrap_or_default(),
             rejected: false,
             memberships_rejected: false,
-            shared: None,
         });
         next.active_profile_id = Some(id);
         self.commit(next, host)?;
@@ -449,10 +422,6 @@ impl MobileClient {
         let p = &self.vault.profiles[index];
         if p.rejected {
             return Err("Sign in required");
-        }
-        #[cfg(target_os = "macos")]
-        if let Some(key) = p.shared.clone() {
-            return self.refresh_shared(index, &key, host);
         }
         let claims = Claims::parse(&p.access).map_err(|_| "Invalid token identity")?;
         if claims.exp > now()? + 30 {
@@ -635,18 +604,44 @@ fn action(host: &mut dyn Host, value: Value) -> Result<Value> {
 }
 
 fn write(host: &mut dyn Host, vault: &Vault) -> Result<()> {
-    let mut vault = vault.clone();
-    for p in vault.profiles.iter_mut().filter(|p| p.shared.is_some()) {
-        p.access.clear();
-        p.refresh.clear();
-        p.client_id.clear();
-    }
-    let response = action(host,json!({"type":"write","value":serde_json::to_string(&vault).map_err(|_| "Could not encode private vault")?}))
+    let response = action(host,json!({"type":"write","value":serde_json::to_string(vault).map_err(|_| "Could not encode private vault")?}))
         .map_err(|_| "Could not save private vault")?;
     if response["ok"] != true {
         return Err("Could not save private vault");
     }
     Ok(())
+}
+
+/// Earlier macOS builds used the Tuist app's Keychain session for some profiles
+/// (`shared`, stored without tokens) and remembered the ones signed out here
+/// (`unlinked`). Those profiles are dropped, so their users sign in to Tuist Guild
+/// once; the Tuist app's session is never read or changed. Returns whether the
+/// vault changed and must be written back.
+fn migrate(value: &str) -> Result<(Vault, bool)> {
+    let mut raw: Value = serde_json::from_str(value).map_err(|_| "Invalid private vault")?;
+    let mut migrated = raw
+        .as_object_mut()
+        .and_then(|vault| vault.remove("unlinked"))
+        .is_some();
+    if let Some(profiles) = raw.get_mut("profiles").and_then(Value::as_array_mut) {
+        let count = profiles.len();
+        profiles.retain(|p| p.get("shared").is_none_or(Value::is_null));
+        migrated |= profiles.len() != count;
+    }
+    let mut vault: Vault = serde_json::from_value(raw).map_err(|_| "Invalid private vault")?;
+    if migrated
+        && !vault
+            .profiles
+            .iter()
+            .any(|p| Some(&p.id) == vault.active_profile_id.as_ref())
+    {
+        vault.active_profile_id = vault
+            .profiles
+            .iter()
+            .find(|p| !p.rejected && !p.memberships_rejected)
+            .map(|p| p.id.clone());
+    }
+    Ok((vault, migrated))
 }
 
 fn now() -> Result<i64> {
@@ -823,7 +818,5 @@ fn scrub(value: &mut Value, profiles: &[Profile]) {
     }
 }
 
-#[cfg(target_os = "macos")]
-mod shared;
 #[cfg(test)]
 mod tests;

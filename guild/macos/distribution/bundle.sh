@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Signs a copy of the TuistGuildMacOS build with Tuist's Developer ID certificate,
-# notarizes and staples it, and leaves delivery/macos/Tuist Guild.app. A stable
-# Developer ID signature lets macOS remember "Always Allow" for the Tuist app's
-# Keychain session; ad-hoc signatures change on every build, so macOS would ask
-# again each time. Follows atlas-native/macos/distribution/bundle.sh without push
+# notarizes and staples it, and leaves delivery/macos/Tuist Guild.app. Follows atlas-native/macos/distribution/bundle.sh without push
 # provisioning: Tuist Guild needs no restricted entitlements. Never mutates Once's
 # outputs.
 # Vault credentials must never enter inherited shell tracing or verbose output.
@@ -49,8 +46,7 @@ identity=$(security find-identity -v -p codesigning "$keychain" \
     | awk -v team="($team)\"" 'index($0, "\"Developer ID Application:") && index($0, team) { print $2; exit }')
 [[ $identity =~ ^[A-F0-9]{40}$ ]] || fail 'No Developer ID Application identity for the Tuist team'
 
-# Hardened runtime with no entitlements: no sandbox, so the app reaches the Tuist
-# app's login-keychain items and ~/.local/state/tuist like the Tuist app does.
+# Hardened runtime with no entitlements.
 codesign --force --sign "$identity" --keychain "$keychain" --options runtime --timestamp "$app"
 codesign --verify --strict --deep "$app"
 [[ "$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p')" = "$team" ]] || fail 'Expected the Tuist team signature'

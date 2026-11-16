@@ -1,5 +1,6 @@
 defmodule Tuist.Runners.WorkflowJobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
@@ -187,12 +188,20 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     test "the stamped handle does not match the minting claim's" do
       account = account_fixture()
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_028))
-      minting_claimed_at = DateTime.utc_now()
+      now = DateTime.utc_now()
+      stub(DateTime, :utc_now, fn -> now end)
+      # Distinct generations must not depend on consecutive clock reads advancing.
+      minting_claimed_at = DateTime.add(now, -1, :microsecond)
 
       assert :ok = WorkflowJobs.transition_executing(910_028, "runner-x", "pod-1")
 
+      row = get_row!(910_028)
+      assert DateTime.compare(row.claimed_at, now) == :eq
       assert :noop = WorkflowJobs.requeue_by_handle(910_028, minting_claimed_at)
       assert get_row!(910_028).status == "running"
+
+      assert :ok = WorkflowJobs.requeue_by_handle(910_028, row.claimed_at)
+      assert get_row!(910_028).status == "queued"
     end
   end
 

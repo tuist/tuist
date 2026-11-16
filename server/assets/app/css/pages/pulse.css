@@ -352,8 +352,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
-    border-radius: var(--noora-radius-4);
     box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-4);
     padding: var(--noora-spacing-5);
     min-width: 0;
 
@@ -374,9 +374,9 @@
     align-items: center;
     gap: var(--noora-spacing-3);
     min-width: 0;
-    overflow-wrap: anywhere;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    overflow-wrap: anywhere;
   }
 
   & [data-part="context-icon"],
@@ -403,9 +403,9 @@
     overflow: auto;
     color: var(--noora-surface-label-primary);
     font-family: var(--noora-font-code);
+    direction: ltr;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    direction: ltr;
   }
 
   & [data-part="message-note"] {
@@ -428,8 +428,8 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--noora-spacing-4);
-    border-radius: var(--noora-radius-4);
     box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-4);
     padding: var(--noora-spacing-4);
   }
 
@@ -473,8 +473,8 @@
   }
 
   & [data-part="stack-frames"] {
-    border-radius: var(--noora-radius-3);
     box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-3);
     overflow: hidden;
   }
 

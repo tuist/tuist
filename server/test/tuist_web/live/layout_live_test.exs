@@ -152,7 +152,7 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: project.id,
                      selected: true,
                      href: ~p"/#{organization.account.name}/#{project.name}",
-                     badge: %{label: "Xcode", color: "focus"}
+                     build_tool: "xcode"
                    }
                  ],
                  footer_items: [
@@ -165,7 +165,7 @@ defmodule TuistWeb.LayoutLiveTest do
                    }
                  ],
                  label: project.name,
-                 badge: %{label: "Xcode", color: "focus"}
+                 build_tool: "xcode"
                }
              ]
 

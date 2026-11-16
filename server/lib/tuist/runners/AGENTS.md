@@ -56,7 +56,10 @@ independent. Old internal cohort labels remain hidden during rolling upgrades.
 (see `infra/runner-cache/AGENTS.md`); only the storage agent calls it.
 
 - Scope comes from `Identity.github_run/1` for the Pod's executed job, cached
-  per workflow run attempt. A same-repository pull request saves under
+  per workflow run attempt. It reads the run the App's `workflow_run`
+  `requested` webhook stored (`WorkflowRuns`, kept three days) and asks
+  GitHub's API (two requests, about 750 ms) only for runs it lacks; both are
+  GitHub's word, never the job's. A same-repository pull request saves under
   `refs/pull/<n>/merge` and reads its base branch; other runs of the repository
   save under `refs/heads/<head_branch>`; a run from a fork saves under
   `fork/<head repository ID>/<branch>`. Every job also reads the default branch.

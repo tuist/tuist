@@ -497,7 +497,8 @@ jobs:
                 if .name == "PULSE_URL" then .value = "http://pulse-frontend.observability:4000"
                 elif .name == "SMOKE_RUN" then .value = $run else . end)' "$dir/smoke.json" > "$dir/cluster-smoke.json"
             kubectl create -f "$dir/cluster-smoke.json" > /dev/null
-            kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$probe" --timeout=180s
+            kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$probe" --timeout=180s ||
+              { kubectl -n observability logs "$probe" || true; exit 1; }
             kubectl -n observability logs "$probe"
             kubectl -n observability delete pod "$probe" --wait=true --timeout=30s > /dev/null
             # 3. Move Service `pulse` to the frontends. Standalone stays until the
@@ -526,7 +527,8 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/pulse-deploy"
           kubectl create -f "$dir/smoke.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s ||
+            { kubectl -n observability logs "$SMOKE_POD" || true; exit 1; }
           kubectl -n observability logs "$SMOKE_POD"
           kubectl -n observability delete pod "$SMOKE_POD" --wait=true --timeout=30s > /dev/null
           # Reread after restarting every stateful process that held the data.
@@ -544,7 +546,8 @@ jobs:
           done
           jq '.spec.containers[0].env += [{name:"SMOKE_READ_ONLY",value:"true"}]' "$dir/smoke.json" > "$dir/read.json"
           kubectl create -f "$dir/read.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=180s ||
+            { kubectl -n observability logs "$SMOKE_POD" || true; exit 1; }
           kubectl -n observability logs "$SMOKE_POD"
       - name: Verify recent real collector telemetry
         if: inputs.verify_telemetry
@@ -556,7 +559,8 @@ jobs:
             '.spec.activeDeadlineSeconds = 360 | .spec.containers[0].command = ["node","--input-type=module","-e",$script]' \
             "$dir/smoke.json" > "$dir/live-smoke.json"
           kubectl create -f "$dir/live-smoke.json" > /dev/null
-          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=360s
+          kubectl -n observability wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$SMOKE_POD" --timeout=360s ||
+            { kubectl -n observability logs "$SMOKE_POD" || true; exit 1; }
           kubectl -n observability logs "$SMOKE_POD"
       - name: Remove the standalone backend after the cluster qualified
         if: env.MIGRATE_STANDALONE == 'true'

@@ -52,6 +52,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
     {"@daily", CacheVolumeCleanupWorker},
     {"@hourly", Tuist.Runners.Workers.ActionsCacheSweepWorker},
+    {"@hourly", Tuist.Runners.Workers.WorkflowRunSweepWorker},
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
     {"@hourly", PruneJobKeysWorker},

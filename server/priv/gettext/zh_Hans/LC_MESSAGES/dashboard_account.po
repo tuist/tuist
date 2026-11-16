@@ -2585,7 +2585,7 @@ msgstr "成员通过自动注册加入时获得的角色。"
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr "Pro 套餐包含相同的免费额度，超出部分按用量计费。"
 
-#: lib/tuist/accounts/user_notifier.ex:793
+#: lib/tuist/accounts/user_notifier.ex:854
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr "此账户的远程缓存访问已暂停。升级到 Pro 以继续使用缓存，或等待您的免费额度重置。"
@@ -2595,24 +2595,25 @@ msgstr "此账户的远程缓存访问已暂停。升级到 Pro 以继续使用�
 msgid "Review usage and upgrade"
 msgstr "查看用量并升级"
 
-#: lib/tuist/accounts/user_notifier.ex:802
+#: lib/tuist/accounts/user_notifier.ex:863
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr "您即将达到 Air 套餐限额"
 
-#: lib/tuist/accounts/user_notifier.ex:803
+#: lib/tuist/accounts/user_notifier.ex:864
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr "您正在接近每月的免费额度。请在达到限额前升级到 Pro，以保持远程缓存访问不中断。"
 
 #: lib/tuist/accounts/user_notifier.ex:608
-#: lib/tuist/accounts/user_notifier.ex:695
-#: lib/tuist/accounts/user_notifier.ex:733
+#: lib/tuist/accounts/user_notifier.ex:715
+#: lib/tuist/accounts/user_notifier.ex:756
+#: lib/tuist/accounts/user_notifier.ex:794
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr "你收到此邮件是因为你是此 Tuist 账户的管理员。"
 
-#: lib/tuist/accounts/user_notifier.ex:792
+#: lib/tuist/accounts/user_notifier.ex:853
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr "你已达到 Air 套餐限额"
@@ -2622,22 +2623,22 @@ msgstr "你已达到 Air 套餐限额"
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr "你的免费额度将于 %{date}（UTC）重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:773
+#: lib/tuist/accounts/user_notifier.ex:834
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr "此账户的新运行器作业已暂停。升级到 Pro 套餐以继续运行作业，或等待你的免费运行器额度重置。"
 
-#: lib/tuist/accounts/user_notifier.ex:772
+#: lib/tuist/accounts/user_notifier.ex:833
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr "你已达到 Air 运行器限额"
 
-#: lib/tuist/accounts/user_notifier.ex:783
+#: lib/tuist/accounts/user_notifier.ex:844
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr "你即将用完每月的免费运行器额度。在达到限额之前升级到 Pro 套餐，以便继续使用运行器。"
 
-#: lib/tuist/accounts/user_notifier.ex:782
+#: lib/tuist/accounts/user_notifier.ex:843
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr "你即将达到 Air 运行器限额"
@@ -2657,12 +2658,12 @@ msgstr "%{account_name} 已达到其 Air 运行器配额的 %{percentage}%"
 msgid "All rights reserved."
 msgstr "版权所有。"
 
-#: lib/tuist/accounts/user_notifier.ex:820
+#: lib/tuist/accounts/user_notifier.ex:881
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
 msgstr "你好，%{email}，点击下方按钮即可更改邮箱："
 
-#: lib/tuist/accounts/user_notifier.ex:825
+#: lib/tuist/accounts/user_notifier.ex:886
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
 msgstr "如果你未请求此更改，请忽略本邮件。"
@@ -2672,13 +2673,13 @@ msgstr "如果你未请求此更改，请忽略本邮件。"
 msgid "This email was sent by Tuist. By using our services, you agree to our"
 msgstr "本邮件由 Tuist 发送。使用我们的服务即表示你同意我们的"
 
-#: lib/tuist/accounts/user_notifier.ex:816
+#: lib/tuist/accounts/user_notifier.ex:877
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
 msgstr "更新邮箱说明"
 
-#: lib/tuist/accounts/user_notifier.ex:818
-#: lib/tuist/accounts/user_notifier.ex:824
+#: lib/tuist/accounts/user_notifier.ex:879
+#: lib/tuist/accounts/user_notifier.ex:885
 #, elixir-autogen, elixir-format
 msgid "Update your email"
 msgstr "更新你的邮箱"
@@ -2728,12 +2729,12 @@ msgstr "缓存流出量："
 msgid "of your usage"
 msgstr "占你的用量"
 
-#: lib/tuist/accounts/user_notifier.ex:756
+#: lib/tuist/accounts/user_notifier.ex:817
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
 msgstr "已使用 %{usage} / %{limit} 次缓存请求"
 
-#: lib/tuist/accounts/user_notifier.ex:749
+#: lib/tuist/accounts/user_notifier.ex:810
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
 msgstr "已使用 %{usage} / %{limit} 缓存出站流量"
@@ -2827,8 +2828,8 @@ msgstr "账户 '%{account}' 的订阅付款失败，因此该账户已被限制�
 msgid "A payment for your subscription failed"
 msgstr "你的订阅付款失败"
 
-#: lib/tuist/accounts/user_notifier.ex:694
-#: lib/tuist/accounts/user_notifier.ex:732
+#: lib/tuist/accounts/user_notifier.ex:755
+#: lib/tuist/accounts/user_notifier.ex:793
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2844,47 +2845,47 @@ msgstr "在支付未结发票之前，你的计划将被限制为 Air 计划的�
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
 msgstr "在重试付款期间，你的计划保持活跃状态。请支付未结发票或更新支付方式以维持服务。"
 
-#: lib/tuist/accounts/user_notifier.ex:675
+#: lib/tuist/accounts/user_notifier.ex:736
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr "%{account_name} 的 Tuist 订阅付款失败"
 
-#: lib/tuist/accounts/user_notifier.ex:692
+#: lib/tuist/accounts/user_notifier.ex:753
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr "支付未结发票或更新付款方式以保留当前套餐："
 
-#: lib/tuist/accounts/user_notifier.ex:682
+#: lib/tuist/accounts/user_notifier.ex:743
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
 msgstr "我们无法对 %{account_name} 订阅的已存档付款方式扣款。系统将自动重试付款。"
 
-#: lib/tuist/accounts/user_notifier.ex:680
+#: lib/tuist/accounts/user_notifier.ex:741
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr "你的订阅付款失败"
 
-#: lib/tuist/accounts/user_notifier.ex:687
+#: lib/tuist/accounts/user_notifier.ex:748
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
 msgstr "在重试付款期间，你的套餐保持有效。如果重试结束后仍未成功，%{account_name} 将受限为 Air 套餐的免费层级，直到发票付清为止。"
 
-#: lib/tuist/accounts/user_notifier.ex:714
+#: lib/tuist/accounts/user_notifier.ex:775
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr "由于订阅付款失败，%{account_name} 已切换至 Air 套餐"
 
-#: lib/tuist/accounts/user_notifier.ex:726
+#: lib/tuist/accounts/user_notifier.ex:787
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr "支付未结发票即可恢复你的套餐。你也可以在付款前更新付款方式："
 
-#: lib/tuist/accounts/user_notifier.ex:721
+#: lib/tuist/accounts/user_notifier.ex:782
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
 msgstr "我们无法收取 %{account_name} 订阅的费用，且重试已结束。%{account_name} 现在受限为 Air 套餐的免费层级。"
 
-#: lib/tuist/accounts/user_notifier.ex:719
+#: lib/tuist/accounts/user_notifier.ex:780
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr "你的账户已切换至 Air 套餐"
@@ -3123,7 +3124,7 @@ msgstr "通行密钥已移除"
 msgid "The passkeys that can sign in to your Tuist account were changed."
 msgstr "可用于登录你 Tuist 账户的通行密钥已更改。"
 
-#: lib/tuist/accounts/user_notifier.ex:740
+#: lib/tuist/accounts/user_notifier.ex:801
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
 msgstr "已使用 %{usage} / %{limit} 分钟免费运行器时长，按 macOS 分钟计算（%{linux} Linux 分钟折合为 %{limit}）"
@@ -3653,3 +3654,38 @@ msgstr "你已消耗 80% 的预付费 Runner 点数。点数用尽后，任务�
 #, elixir-autogen, elixir-format
 msgid "Your prepaid runner credits are exhausted. Further billable runner usage continues at the standard on-demand rates; jobs are not blocked."
 msgstr "你的预付费 Runner 点数已用尽。后续可计费的 Runner 用量将按标准的按需费率继续计费；任务不会被阻止。"
+
+#: lib/tuist/accounts/user_notifier.ex:691
+#, elixir-autogen, elixir-format
+msgid "As a precaution after a security incident, we recommend rotating the credentials of %{account_name}: revoke its account and project tokens and create new ones."
+msgstr "出于安全事件后的预防措施，我们建议轮换 %{account_name} 的凭据：撤销其账户和项目令牌并创建新令牌。"
+
+#: lib/tuist/accounts/user_notifier.ex:683
+#, elixir-autogen, elixir-format
+msgid "As a precaution after a security incident, we revoked the credentials of %{account_name}: browser sessions, CLI sign-ins, account tokens, project tokens and legacy tokens. Members need to sign in again."
+msgstr "出于安全事件后的预防措施，我们已撤销 %{account_name} 的凭据：浏览器会话、CLI 登录、账户令牌、项目令牌和旧版令牌。成员需要重新登录。"
+
+#: lib/tuist/accounts/user_notifier.ex:701
+#, elixir-autogen, elixir-format
+msgid "Create new tokens and update them wherever they are used, such as the TUIST_TOKEN variable of your CI. Where your CI supports it, use OpenID Connect instead, which needs no stored token."
+msgstr "创建新令牌并在所有使用位置进行更新，例如 CI 中的 TUIST_TOKEN 变量。如果 CI 支持，请改用 OpenID Connect，它无需存储令牌。"
+
+#: lib/tuist/accounts/user_notifier.ex:714
+#, elixir-autogen, elixir-format
+msgid "Manage tokens"
+msgstr "管理令牌"
+
+#: lib/tuist/accounts/user_notifier.ex:707
+#, elixir-autogen, elixir-format
+msgid "Read more about the incident: %{url}"
+msgstr "阅读有关此事件的更多信息：%{url}"
+
+#: lib/tuist/accounts/user_notifier.ex:690
+#, elixir-autogen, elixir-format
+msgid "Rotate the Tuist credentials of %{account_name}"
+msgstr "轮换 %{account_name} 的 Tuist 凭据"
+
+#: lib/tuist/accounts/user_notifier.ex:680
+#, elixir-autogen, elixir-format
+msgid "We revoked the Tuist credentials of %{account_name}"
+msgstr "我们已撤销 %{account_name} 的 Tuist 凭据"
