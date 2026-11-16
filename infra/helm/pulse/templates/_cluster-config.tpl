@@ -62,8 +62,8 @@ root = {{ printf "%sdistributed/" .Values.storage.prefix | quote }}
 [region_engine.mito]
 num_workers = 2
 auto_flush_interval = "1m"
-global_write_buffer_size = "128MB"
-global_write_buffer_reject_size = "256MB"
+global_write_buffer_size = {{ .Values.cluster.datanode.writeBufferSize | quote }}
+global_write_buffer_reject_size = {{ .Values.cluster.datanode.writeBufferRejectSize | quote }}
 write_cache_size = {{ .Values.cluster.datanode.writeCacheSize | quote }}
 {{- if has .Values.environment .Values.cluster.gc.environments }}
 [region_engine.mito.gc]

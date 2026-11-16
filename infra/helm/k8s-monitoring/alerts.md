@@ -9031,14 +9031,22 @@ To respond:
 
 1. `pulse_mito_scan_memory_usage_bytes` per pod shows which datanode is full.
 2. Find what it serves: `SELECT * FROM information_schema.region_peers`.
-3. Raise the datanode memory limit in `infra/helm/pulse/values-production.yaml`
-   (the budget follows it), or migrate other regions off that datanode.
+3. Check the L0 file count below before adding memory. Raise the datanode
+   memory limit in `infra/helm/pulse/values-production.yaml` (the budget
+   follows it), or migrate other regions off that datanode.
 4. The lasting fix is partitioning the metric table so reads spread over
    every datanode.
 
 `pulse_mito_flush_requests_total` by `reason` is scraped alongside it. A
-steady `reason="EngineFull"` rate means the 128 MB write buffer forces tiny SST
-files, which makes every scan open more files.
+steady `reason="EngineFull"` rate means the datanode's shared write buffer
+(`cluster.datanode.writeBufferSize`) forces tiny SST files. That matters more
+than the budget's size: a scan merges every overlapping file at once and
+reserves one projected row group (about 16 MiB on the metric region) per file.
+On 2026-11-16, with the budget already doubled to 2 GiB, the 128 MB buffer
+flushed the metric region every ~5 s, so a rule over the last few minutes
+merged ~64 L0 files (~1 GiB) and two at once filled the budget. Count the L0
+files of the region with
+`SELECT level, count(*) FROM information_schema.ssts_manifest WHERE region_id = <id> GROUP BY level`.
 
 ### Pulse datanode telemetry missing
 

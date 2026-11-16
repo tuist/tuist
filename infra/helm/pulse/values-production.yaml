@@ -28,6 +28,14 @@ cluster:
     resources:
       requests: {cpu: "1", memory: 4Gi}
       limits: {memory: 8Gi}
+    # At 128MB the shared write buffer filled within seconds, so the metric
+    # region flushed a 1MB, one-row-group L0 file every ~5s (64 files in 6
+    # minutes between compactions). A scan of recent data merges every
+    # overlapping file at once and reserves ~16MiB of scan memory per file, so
+    # each alert rule needed ~1GiB and two at once filled the 2GiB budget.
+    # 1GB is upstream's own default for an 8Gi node.
+    writeBufferSize: 1GB
+    writeBufferRejectSize: 2GB
   etcd:
     resources:
       requests: {cpu: 250m, memory: 512Mi}
