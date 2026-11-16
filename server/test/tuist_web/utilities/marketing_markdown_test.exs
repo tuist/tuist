@@ -44,7 +44,6 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/changelog",
                  "/community",
                  "/compare",
-                 "/compute",
                  "/customers",
                  "/download",
                  "/globe",
@@ -53,6 +52,10 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
                  "/openness",
                  "/previews",
                  "/pricing",
+                 "/runners",
+                 "/runners/buildkite",
+                 "/runners/github-actions",
+                 "/runners/gitlab-ci",
                  "/security",
                  "/solutions/bazel-github-actions",
                  "/solutions/bazel-remote-cache",
@@ -148,6 +151,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
              Enum.sort(
                [
                  "/compare",
+                 "/runners/buildkite",
+                 "/runners/github-actions",
+                 "/runners/gitlab-ci",
                  "/solutions/bazel-github-actions",
                  "/solutions/bazel-remote-cache",
                  "/solutions/ci-costs",
@@ -438,7 +444,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
   test "guides prioritize project improvements before execution environments across toolchains" do
     for path <-
-          ["/", "/cache", "/compute", "/pricing"] ++
+          ["/", "/cache", "/runners", "/pricing"] ++
             Enum.reject(@comparison_paths, &(Path.basename(&1) in @featured_providers)) ++
             [
               "/solutions/slow-builds",
@@ -483,14 +489,14 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   end
 
   test "documents important feature-specific constraints" do
-    assert MarketingMarkdown.get("/compute") =~ "invite-only"
-    assert MarketingMarkdown.get("/compute") =~ "[Tuist charges]"
+    assert MarketingMarkdown.get("/runners") =~ "invite-only"
+    assert MarketingMarkdown.get("/runners") =~ "[Tuist charges]"
     assert MarketingMarkdown.get("/tests") =~ "generated-project requirements"
     assert MarketingMarkdown.get("/tests") =~ "early-access"
     assert MarketingMarkdown.get("/tests") =~ "/guides/features/test-insights/flaky-tests"
     assert MarketingMarkdown.get("/previews") =~ "device builds must be correctly signed"
     assert MarketingMarkdown.get("/previews") =~ "not in a sandbox"
-    assert MarketingMarkdown.get("/compute") =~ "/guides/features/runners"
+    assert MarketingMarkdown.get("/runners") =~ "/guides/features/runners"
     assert MarketingMarkdown.get("/pricing") =~ "does not duplicate numeric rates"
   end
 end

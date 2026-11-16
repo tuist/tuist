@@ -803,13 +803,17 @@ defmodule Tuist.DashboardSearchTest do
     })
 
     projects = [xcode, gradle, cargo, mix, bazel, once]
-    failed = DashboardSearch.search(projects, "is:build status:failed")
+    # Each search runs one provider per build system, one after another. On a
+    # loaded CI ClickHouse they can exceed the default 2-second budget, which
+    # skips the remaining providers (here the once runs) instead of failing.
+    search = &DashboardSearch.search(projects, &1, deadline: System.monotonic_time(:millisecond) + 60_000)
+    failed = search.("is:build status:failed")
     assert failed.unavailable == []
     assert length(failed.results) == 4
     assert Enum.all?(failed.results, &(&1.subtitle =~ "failed"))
-    assert length(DashboardSearch.search(projects, "is:build status:running").results) == 2
-    assert [%{title: "passed"}] = DashboardSearch.search(projects, "is:build status:passed").results
-    assert DashboardSearch.search(projects, "is:preview status:passed").results == []
+    assert %{unavailable: [], results: [_, _]} = search.("is:build status:running")
+    assert %{unavailable: [], results: [%{title: "passed"}]} = search.("is:build status:passed")
+    assert %{unavailable: [], results: []} = search.("is:preview status:passed")
   end
 
   test "Gradle, Cargo and Mix use only their own PR refs and filter before the global cap" do

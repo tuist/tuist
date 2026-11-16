@@ -456,6 +456,12 @@ defmodule TuistWeb.Router do
 
   # Marketing
 
+  scope "/" do
+    pipe_through [:marketing_markdown]
+
+    redirect("/marketing-markdown/compute", "/marketing-markdown/runners", :permanent, preserve_query_string: true)
+  end
+
   scope "/", TuistWeb do
     pipe_through [:marketing_markdown]
 
@@ -473,6 +479,13 @@ defmodule TuistWeb.Router do
     # The flaky-tests and test-insights pages folded into the tests page.
     redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
     redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
+
+    # The compute page became the runners page, named for what people search.
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      prefix = Localization.locale_path_prefix(locale)
+
+      redirect(Path.join(prefix, "/compute"), Path.join(prefix, "/runners"), :permanent, preserve_query_string: true)
+    end
 
     # Keep the raw query; Redirect's preserve_query_string re-encodes decoded params.
     match(:*, "/es/build-insights", LegacyRedirectsPlug, to: "/es/docs/guides/features/build-insights")
@@ -593,9 +606,9 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
-      get Path.join(locale_path_prefix, "/compute"),
+      get Path.join(locale_path_prefix, "/runners"),
           MarketingController,
-          :compute,
+          :runners,
           metadata: @marketing_route_metadata,
           private: private
 

@@ -1,4 +1,4 @@
-<%!-- Redesigned compute page (styles in css/routes/compute.css). Same
+<%!-- CI runners page (styles in css/routes/compute.css). Same
 frame recipe as the cache page: left-aligned hero card, features frame
 (intro text + two full-width showcase cards + 2x2 grid), CTA between
 dithered dividers. --%>
@@ -18,121 +18,56 @@ dithered dividers. --%>
         <canvas data-part="canvas"></canvas>
       </div>
       <h1 data-part="title">
-        <span data-part="line">{dgettext("marketing", "Compute for your")}</span>
-        <span data-part="line">{dgettext("marketing", "build work.")}</span>
+        <span data-part="line">{dgettext("marketing", "Faster macOS and")}</span>
+        <span data-part="line">{dgettext("marketing", "Linux CI runners.")}</span>
       </h1>
+      <%!-- The CI providers are named by the switch below and linked from
+      the logo strip under the hero, so the subtitle doesn't list them. --%>
       <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "For teams and coding agents constrained by build environments: run existing CI jobs next to your shared cache. Compute is invite-only; keep your CI workflows."
+          "Managed runners with a build cache on the same network. Change one line in your pipeline; there is no fleet to maintain. Currently invite-only."
         )}
       </p>
-      <%!-- The migration, one per CI: a GitHub/GitLab/Buildkite switch
-      over the diff it selects (swap the runs-on label, the tag, or the
-      agent queue). Code stays untranslated, like the illustrations'
-      annotations. The added line types out behind a blinking terminal
-      cursor — once per page load, and again whenever the switch changes
-      CI (ComputeHeroDiff); the typed/cursor spans stay glued together
-      on one line so no whitespace opens between the text and the caret. --%>
-      <div data-part="migration" id="compute-hero-migration" phx-hook="ComputeHeroDiff">
-        <.button_group data-part="ci-switch" aria-label={dgettext("marketing", "CI provider")}>
-          <.button_group_item
-            label="GitHub"
-            data-ci="github"
-            data-selected
-            aria-pressed="true"
-          />
-          <.button_group_item
-            label="GitLab"
-            data-ci="gitlab"
-            aria-pressed="false"
-          />
-          <.button_group_item
-            label="Buildkite"
-            data-ci="buildkite"
-            aria-pressed="false"
-          />
-        </.button_group>
-        <div data-part="diff" data-ci="github" aria-hidden="true" id="compute-hero-diff">
-          <span data-part="variant" data-ci="github">
-            <span data-part="line" data-line="removed">
-              <span data-part="sign">-</span>
-              <span data-part="code">runs-on: macos-latest</span>
-            </span>
-            <span data-part="line" data-line="added">
-              <span data-part="sign">+</span>
-              <span data-part="code"><span data-part="typed">runs-on: tuist-macos</span><span data-part="cursor"></span></span>
-            </span>
-          </span>
-          <span data-part="variant" data-ci="gitlab">
-            <span data-part="line" data-line="removed">
-              <span data-part="sign">-</span>
-              <span data-part="code">tags: [macos]</span>
-            </span>
-            <span data-part="line" data-line="added">
-              <span data-part="sign">+</span>
-              <span data-part="code"><span data-part="typed">tags: [tuist-macos]</span><span data-part="cursor"></span></span>
-            </span>
-          </span>
-          <span data-part="variant" data-ci="buildkite">
-            <span data-part="line" data-line="removed">
-              <span data-part="sign">-</span>
-              <span data-part="code">queue: "macos"</span>
-            </span>
-            <span data-part="line" data-line="added">
-              <span data-part="sign">+</span>
-              <span data-part="code"><span data-part="typed">queue: "tuist-macos"</span><span data-part="cursor"></span></span>
-            </span>
-          </span>
-        </div>
-      </div>
-      <%!-- First-paint arm for the typewriter: stashes and clears the
-      added lines before the browser paints, so the full text never
-      flashes ahead of the hook's typing. Skips under reduced motion.
-      The CSP nonce is required — without it the browser blocks the
-      inline script and the hook's fallback arming takes over. The
-      watchdog restores the lines if the hook never takes over (a stale
-      or failed bundle.js) — an empty strip must not outlive the arm. --%>
-      <script nonce={TuistWeb.CSP.get_csp_nonce()}>
-        (() => {
-          if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-          var diff = document.getElementById("compute-hero-diff");
-          var typed = diff ? diff.querySelectorAll('[data-part="typed"]') : [];
-          if (!typed.length) return;
-          typed.forEach((span) => {
-            span.dataset.text = span.textContent;
-            span.textContent = "";
-          });
-          diff.setAttribute("data-armed", "");
-          setTimeout(() => {
-            if (!diff.hasAttribute("data-typing") && !diff.hasAttribute("data-hooked")) {
-              typed.forEach((span) => (span.textContent = span.dataset.text));
-              diff.removeAttribute("data-armed");
-            }
-          }, 3000);
-        })();
-      </script>
-      <.button
-        href={
-          TuistWeb.Marketing.MarketingHTML.localized_href(
-            "https://tuist.dev/en/docs/guides/features/runners"
-          )
-        }
-        variant="secondary"
-        label={dgettext("marketing", "Read docs")}
-      />
+      <.runners_migration providers={~w(github gitlab buildkite bitrise)} />
+      <nav data-part="actions">
+        <.button
+          href="mailto:contact@tuist.dev?subject=Tuist%20Runners%20access"
+          label={dgettext("marketing", "Request access")}
+        />
+        <.button
+          href={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              "https://tuist.dev/en/docs/guides/features/runners"
+            )
+          }
+          variant="secondary"
+          label={dgettext("marketing", "Read docs")}
+        />
+      </nav>
     </header>
+
+    <TuistWeb.Marketing.MarketingComponents.logo_strip
+      id="compute-providers-title"
+      title={dgettext("marketing", "Supported CI providers")}
+      items={[
+        {"GitHub Actions", "brand_github", "/runners/github-actions"},
+        {"GitLab CI", "brand_gitlab", "/runners/gitlab-ci"},
+        {"Buildkite", "brand_buildkite", "/runners/buildkite"},
+        {"Bitrise", "brand_bitrise", nil}
+      ]}
+    />
 
     <section data-part="features" aria-labelledby="compute-features-title">
       <div data-part="text">
         <span data-part="eyebrow">{dgettext("marketing", "Features")}</span>
         <h2 data-part="title" id="compute-features-title">
-          {dgettext("marketing", "Compute without the infrastructure work")}
+          {dgettext("marketing", "CI runners without the fleet work")}
         </h2>
         <p data-part="description">
           {dgettext(
             "marketing",
-            "Tuist is build infrastructure for engineering teams and coding agents."
+            "Tuist is build infrastructure for engineering teams and coding agents. Keep your CI provider, pipelines, and triggers, point jobs at our managed macOS and Linux machines, and let us handle images, capacity, and upkeep."
           )}
         </p>
       </div>
@@ -319,11 +254,13 @@ dithered dividers. --%>
             </div>
           </figure>
           <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Built into your build platform")}</h3>
+            <h3 data-part="title">
+              {dgettext("marketing", "Every CI job, with its build data")}
+            </h3>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Connect available job records with reported build performance, cache activity, and machine metrics. The evidence available depends on your integration."
+                "See each runner job next to its build performance, cache activity, and CPU and memory usage in the Tuist dashboard. The detail available depends on your CI integration."
               )}
             </p>
           </div>
@@ -478,11 +415,13 @@ dithered dividers. --%>
             </div>
           </figure>
           <div data-part="text">
-            <h3 data-part="title">{dgettext("marketing", "Cache-ready by default")}</h3>
+            <h3 data-part="title">
+              {dgettext("marketing", "A build cache on the same network")}
+            </h3>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Persistent volumes and colocated caching keep build data close to your runners for faster reads, writes, and repeat jobs."
+                "Runners sit next to the Tuist cache your team's machines and agents already share, and cache volumes keep directories like DerivedData and Gradle caches between jobs, so repeat runs skip work."
               )}
             </p>
           </div>
@@ -491,7 +430,7 @@ dithered dividers. --%>
       <%!-- Band heading introducing the grid (Figma: 1200-wide, 64px gap
       above and below); its top hairline closes the showcase band. --%>
       <h3 data-part="subheading" id="compute-grid-title">
-        {dgettext("marketing", "Everything else, built in")}
+        {dgettext("marketing", "Everything you need from a CI runner")}
       </h3>
       <%!-- 2x2 feature grid divided by hairlines, same cell recipe as the
       cache page. Each figure reserves the artwork's slot until the real
@@ -523,11 +462,13 @@ dithered dividers. --%>
             ></canvas>
           </figure>
           <div data-part="text">
-            <h4 data-part="title">{dgettext("marketing", "Managed capacity")}</h4>
+            <h4 data-part="title">
+              {dgettext("marketing", "No fleet to maintain")}
+            </h4>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Run jobs without maintaining your own fleet. Jobs can queue when their requested shape exceeds available account capacity."
+                "Retire the Mac minis and autoscaling groups. Jobs run on Tuist's managed fleet within your account's concurrency limits and queue only when they would exceed them."
               )}
             </p>
           </div>
@@ -563,11 +504,13 @@ dithered dividers. --%>
             </div>
           </figure>
           <div data-part="text">
-            <h4 data-part="title">{dgettext("marketing", "Powerful compute, ready")}</h4>
+            <h4 data-part="title">
+              {dgettext("marketing", "Machines sized for the job")}
+            </h4>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Choose an available machine profile with the capacity and tooling your job needs. Check the dashboard for current shapes and versions."
+                "Pick a macOS or Linux profile by CPU, memory, and Xcode version, and reference it from your pipeline. Linux runners include KVM for Android emulators."
               )}
             </p>
           </div>
@@ -604,11 +547,13 @@ dithered dividers. --%>
             </div>
           </figure>
           <div data-part="text">
-            <h4 data-part="title">{dgettext("marketing", "Debug where it failed")}</h4>
+            <h4 data-part="title">
+              {dgettext("marketing", "Debug failed jobs")}
+            </h4>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Use available job records and reported machine metrics to investigate the environment where work ran. Log and step visibility depends on the CI integration."
+                "Inspect the job record and machine metrics of the runner where a job failed. Log and step visibility depends on your CI integration."
               )}
             </p>
           </div>
@@ -652,11 +597,13 @@ dithered dividers. --%>
             </div>
           </figure>
           <div data-part="text">
-            <h4 data-part="title">{dgettext("marketing", "Stay current with Apple")}</h4>
+            <h4 data-part="title">
+              {dgettext("marketing", "Latest Xcode and macOS")}
+            </h4>
             <p data-part="description">
               {dgettext(
                 "marketing",
-                "Run your workflows on current Xcode and macOS versions without maintaining images or installing toolchains yourself."
+                "Run on current Xcode and macOS releases without building runner images or installing toolchains yourself."
               )}
             </p>
           </div>
@@ -664,59 +611,6 @@ dithered dividers. --%>
       </div>
     </section>
 
-    <%!-- CTA framed by dithered divider bands, same recipe as the cache
-    page's closing CTA. --%>
-    <div data-part="features-divider" aria-hidden="true">
-      <canvas
-        data-part="dither"
-        id="compute-cta-divider-top-dither"
-        phx-hook="DitherTexture"
-        data-pitch="2"
-        data-dot="2"
-        data-top="0"
-        data-bottom="0.95"
-        data-wave="0.335"
-        data-wave-scale="2.5"
-        data-levels="0"
-        data-speed="1"
-        data-phase="22.1"
-        data-dither="on"
-        data-opacity="0.3"
-      ></canvas>
-    </div>
-
-    <section data-part="cta" aria-labelledby="cta-title">
-      <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
-      <h2 id="cta-title">{dgettext("marketing", "Supercharge your development")}</h2>
-      <div data-part="actions" role="group" aria-labelledby="cta-title">
-        <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
-        <.button
-          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
-          target="_blank"
-          rel="noopener noreferrer"
-          variant="secondary"
-          label={dgettext("marketing", "Talk to us")}
-        />
-      </div>
-    </section>
-
-    <div data-part="features-divider" aria-hidden="true">
-      <canvas
-        data-part="dither"
-        id="compute-cta-divider-bottom-dither"
-        phx-hook="DitherTexture"
-        data-pitch="2"
-        data-dot="2"
-        data-top="0"
-        data-bottom="0.95"
-        data-wave="0.335"
-        data-wave-scale="2.5"
-        data-levels="0"
-        data-speed="1"
-        data-phase="29.6"
-        data-dither="on"
-        data-opacity="0.3"
-      ></canvas>
-    </div>
+    <.runners_cta />
   </main>
 </TuistWeb.Marketing.Layouts.marketing>

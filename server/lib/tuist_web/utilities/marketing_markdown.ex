@@ -24,7 +24,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
     Path.join(@guide_directory, "[a-z]*.md"),
     Path.join(@guide_directory, "solutions/[a-z]*.md"),
     Path.join(@guide_directory, "compare/[a-z]*.md"),
-    Path.join(@guide_directory, "build-systems/[a-z]*.md")
+    Path.join(@guide_directory, "build-systems/[a-z]*.md"),
+    Path.join(@guide_directory, "runners/[a-z]*.md")
   ]
   @policy_pattern Path.expand("../../../priv/marketing/pages/*.md", __DIR__)
   @patterns [@policy_pattern | @guide_patterns]
@@ -65,7 +66,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   @decision_guides @guides
                    |> Enum.filter(fn {path, _markdown} ->
                      path in ["/compare", "/build-systems"] or
-                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/"])
+                       String.starts_with?(path, ["/solutions/", "/compare/", "/build-systems/", "/runners/"])
                    end)
                    |> Map.new(fn {path, markdown} ->
                      [heading, description | _rest] = String.split(markdown, "\n\n")
@@ -154,6 +155,17 @@ defmodule TuistWeb.Utilities.MarketingMarkdown do
   def guide_page_paths, do: @guide_pages |> Map.keys() |> Enum.sort()
 
   def guide_page(path), do: Map.get(@guide_pages, path)
+
+  # The short name of any authored guide, for breadcrumbs: its heading up to
+  # the first colon ("Tuist Runners" for "# Tuist Runners: managed …").
+  # Covers landing pages such as `/runners` that parent decision guides
+  # without being one themselves.
+  def short_title(path) do
+    case Map.fetch(@guides, path) do
+      {:ok, "# " <> markdown} -> markdown |> String.split("\n", parts: 2) |> hd() |> String.split(": ") |> hd()
+      _ -> nil
+    end
+  end
 
   def get(path) do
     case Map.fetch(@pages, path) do
