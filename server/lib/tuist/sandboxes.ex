@@ -31,6 +31,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Events
+  alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
@@ -49,6 +50,7 @@ defmodule Tuist.Sandboxes do
   # A restore downloads the archive before it boots. Amp's dispatch allows
   # 240 seconds per request.
   @restore_timeout to_timeout(second: 200)
+  @macos_restore_timeout to_timeout(minute: 31)
   @exec_default_timeout_ms 60_000
   @exec_max_timeout_ms 600_000
   @exec_timeout_slack_ms 10_000
@@ -681,6 +683,18 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  # A macOS restore clones the archived image, pulling it by digest when
+  # the host's template moved on, and downloads the disk delta before it
+  # boots, within the host's own 30 minutes.
+  defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, {:archive, source}, _prefer) do
+    args = Map.merge(args, %{from_archive: source, template_tag: sandbox.template_tag})
+
+    with {:ok, node_name} <- place_restore(sandbox),
+         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @macos_restore_timeout) do
+      {:ok, node_name, data}
+    end
+  end
+
   defp place_and_create(sandbox, args, {:archive, source}, _prefer) do
     with {:ok, node_name} <- place_restore(sandbox),
          {:ok, data} <-
@@ -842,7 +856,23 @@ defmodule Tuist.Sandboxes do
   # matches the one that wrote it, so it waits for room on those, taking the
   # node it was archived from only when no other can; only when none is
   # connected does it cold boot its disks on another.
-  defp place_restore(sandbox, archive \\ nil) do
+  defp place_restore(sandbox, archive \\ nil)
+
+  # A Mac already running the archived image restores without a pull.
+  defp place_restore(%Sandbox{platform: :darwin} = sandbox, nil) do
+    site = Archives.restore_site(sandbox)
+
+    restores = fn node ->
+      (is_nil(site) or Sites.shard_storage_site(node.name) == site) and MacosCapacity.restores?(node, sandbox)
+    end
+
+    case Capacity.place(sandbox, &(restores.(&1) and MacosCapacity.runs_image?(&1, sandbox))) do
+      {:error, :no_capacity} -> Capacity.place(sandbox, restores)
+      placed -> placed
+    end
+  end
+
+  defp place_restore(sandbox, archive) do
     subject = archive || sandbox
     site = Archives.restore_site(subject)
     on_site = restore_nodes(site, Archives.lazy_disks?(subject))
@@ -939,10 +969,11 @@ defmodule Tuist.Sandboxes do
   defp running_or_resume(%Sandbox{state: :paused} = sandbox) do
     case do_resume(sandbox) do
       # Its own node has no room for it (CI filling it or reserving it), and
-      # a paused Linux sandbox can only resume there until it is archived:
-      # queue that, so a later resume restores it on any node with room. A
-      # resume the node admits before the upload ends cancels it.
-      {:error, :no_capacity} = error when sandbox.platform == :linux ->
+      # a paused sandbox can only resume there until it is archived: queue
+      # that, so a later resume restores it on any node with room. A resume
+      # the node admits before the upload ends cancels it. A macOS VM still
+      # resident on its host is not archived (`Archives.archivable?/1`).
+      {:error, reason} = error when reason == :no_capacity or (is_tuple(reason) and elem(reason, 0) == :host_busy) ->
         Archives.move_off(sandbox)
         error
 
@@ -1708,6 +1739,13 @@ defmodule Tuist.Sandboxes do
     |> Enum.each(&delete_orphan(node_name, &1))
 
     reconcile_missing(node_name, reported_ids, report["generation"])
+
+    # The macOS counterpart of a reclaim (`Capacity.reconcile_allocation/1`):
+    # CI reserved the host, so its evicted sessions move to storage.
+    if report["platform"] == "darwin" and MacosCapacity.ci_reserved?(node_name),
+      do: Archives.move_off_node(node_name)
+
+    :ok
   end
 
   def reconcile_node_report(_node_name, _report), do: :ok
@@ -1797,7 +1835,8 @@ defmodule Tuist.Sandboxes do
   end
 
   defp reconcile_known_report(sandbox, node_name, generation, reported) do
-    if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == generation) do
+    if sandbox.platform != :darwin or sandbox.state == :archived or
+         (sandbox.node_name == node_name and sandbox.node_uid == generation) do
       reconcile_reported(sandbox, node_name, reported)
 
       if sandbox.platform == :darwin and is_binary(sandbox.residency_work_id) and

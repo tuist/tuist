@@ -428,6 +428,20 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   completes, after which it restores on any node and cold boots (files kept,
   processes and memory lost). Off with the tier. Archived non-Orb rows keep
   the 14-day retention of their pause.
+  macOS sessions move the same way once evicted (`resident` false; a
+  resident pause still holds its VM and is never archived), from hosts
+  whose hello sets `archives`: a darwin report whose fresh grant is denied
+  (`MacosCapacity.ci_reserved?/1`, CI's host reservation) calls
+  `move_off_node/1`, and a refused resume (`:no_capacity` or
+  `{:host_busy, _}`) calls `move_off/1`. The host uploads the stacked
+  clone's disk delta (`overlay.asif`, `config.json`, `nvram.bin`) with no
+  memory: its checkpoint is encrypted for that Mac, so a moved session
+  always cold boots. A restore goes to a Mac with `archives` and the
+  template (`MacosCapacity.restores?/2`), one already running the archived
+  `template_tag` first (`runs_image?/2`); it passes that tag in the create,
+  so a host on a newer release pulls the archived digest, and waits up to
+  31 minutes (not reverted as stuck before 35). Hosts without `archives` back
+  their sessions off like a failed upload. Disk pressure is Linux-only.
   Before a cordoned box's Machine is deleted, operators run
   `Tuist.Release.sandbox_node_drain/1` (`Archives.node_drain/1`): it lists
   the agent sandboxes still on the node, queues the next archive, and
