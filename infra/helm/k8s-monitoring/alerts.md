@@ -4,8 +4,12 @@ The monitoring chart sends the signals needed to distinguish a Kubernetes
 control-endpoint interruption from an etcd stall, a Hetzner load-balancer
 failure, or a stable outbound-gateway failure.
 
-All queries below are suitable for Grafana-managed alert rules. Use the
-Grafana Cloud metrics data source and evaluate them every minute.
+All queries below are suitable for Grafana-managed alert rules. Evaluate them
+every minute. Most rules now read Pulse rather than the Grafana Cloud metrics
+data source, and rules that span environments run as one copy per Pulse data
+source. [Pulse storage with Grafana Cloud](pulse-grafana.md) lists which rules
+read where, the copy layout, and the error states on Pulse; where it disagrees
+with a rule's section below, it wins.
 
 The metrics `cluster` label uses `tuist-production`, `tuist-staging`,
 `tuist-canary`, and `tuist-management`. The Cluster API
@@ -2434,11 +2438,14 @@ says so, which matters once a region has boxes with different budgets.
 
 Rule `efss9ss24579ce`, **Runner Host Disk Buffer**, folder `Alerts`, group
 `Runners`: evaluate every minute, threshold **A < 10**, pending **15m**.
-Keep **No Data: NoData**, **Error: Error**, and the existing notification
-policy routing. The separately provisioned payload is
-[`runner-host-disk-alert-rule.json`](runner-host-disk-alert-rule.json); Helm
-does not install it. Before updating the live rule, GET it again and merge
-only the intended query/annotation changes into its current configuration.
+It runs as `efss9ss24579ce-prod`, `-stg` and `-can` on the Pulse metrics data
+sources with **No Data: NoData**, **Error: Keep last state**, and the existing
+notification policy routing; `efss9ss24579ce` itself stays on Grafana Cloud
+for clusters outside Pulse. The separately provisioned payload is
+[`runner-host-disk-alert-rule.json`](runner-host-disk-alert-rule.json), an
+array of all four; Helm does not install it. Before updating the live rules,
+GET them again and merge only the intended query/annotation changes into their
+current configuration.
 Do not replace notification policies or add a zero/healthy fallback.
 
 ```promql

@@ -117,7 +117,7 @@ defmodule Tuist.Sandboxes do
 
     defaults =
       if Map.get(attrs, :platform) in [:darwin, "darwin"] do
-        %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: Xcode.template(xcode_version)}
+        %{vcpus: 8, memory_mb: 8192, workspace_gb: 30, template: Xcode.template(xcode_version)}
       else
         Map.put(@default_shape, :template, @default_template)
       end

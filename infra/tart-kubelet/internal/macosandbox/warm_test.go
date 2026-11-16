@@ -68,7 +68,7 @@ func waitWarmPhase(t *testing.T, s *Service, pod *corev1.Pod, phase corev1.PodPh
 }
 
 func warmArgs(memoryMB int) protocol.CreateArgs {
-	return protocol.CreateArgs{SandboxID: uuid.NewString(), VCPUs: 8, MemoryMB: memoryMB, WorkspaceGB: 10, Template: "macos", TemplateTag: warmTestImage}
+	return protocol.CreateArgs{SandboxID: uuid.NewString(), VCPUs: 8, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB, Template: "macos", TemplateTag: warmTestImage}
 }
 
 func TestWarmPodBootsAsWarmCapacityAndCreateClaimsIt(t *testing.T) {
@@ -90,8 +90,8 @@ func TestWarmPodBootsAsWarmCapacityAndCreateClaimsIt(t *testing.T) {
 	if runtime.creates != 0 {
 		t.Fatal("a matching warm VM was available but the sandbox cold-booted")
 	}
-	if runtime.claimedVolumeGB != 10 {
-		t.Fatalf("the claim did not receive the warm VM's 10 GB workspace volume: %d", runtime.claimedVolumeGB)
+	if runtime.claimedVolumeGB != warmWorkspaceGB {
+		t.Fatalf("the claim did not receive the warm VM's workspace volume: %d", runtime.claimedVolumeGB)
 	}
 	if got := m.records[a.SandboxID].VM; got != warmVMPrefix+string(pod.UID) {
 		t.Fatalf("claimed record runs on %q", got)

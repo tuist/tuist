@@ -52,7 +52,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     "linux-large" => %{platform: :linux, template: "default", vcpus: 8, memory_mb: 16_384, workspace_gb: 10},
     "linux-xxlarge" => %{platform: :linux, template: "default", vcpus: 16, memory_mb: 32_768, workspace_gb: 10},
     "linux-3xlarge" => %{platform: :linux, template: "default", vcpus: 16, memory_mb: 45_056, workspace_gb: 10},
-    "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 10}
+    "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 30}
   }
 
   @xcode_orb_type ~r/\Amacos-xcode-[0-9]+(-[0-9]+)*\z/

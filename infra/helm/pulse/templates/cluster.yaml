@@ -391,6 +391,16 @@ spec:
   serviceName: pulse-datanode
   replicas: {{ .Values.cluster.datanode.replicas }}
   podManagementPolicy: Parallel
+  {{- if has .Values.environment .Values.cluster.datanode.drainedRolloutEnvironments }}
+  # Held: template changes restart no datanode until
+  # .github/scripts/pulse-datanode-rollout.sh moves each one's regions away
+  # and lowers the partition to it. Not OnDelete, which never advances
+  # status.currentRevision and so would fail pulse-readiness.sh.
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: {{ .Values.cluster.datanode.replicas }}
+  {{- end }}
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain

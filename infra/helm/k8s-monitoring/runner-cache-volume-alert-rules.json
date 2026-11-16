@@ -8,48 +8,56 @@
     "condition": "D",
     "data": [
       {
-        "datasourceUid": "grafanacloud-logs",
-        "model": {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "editorMode": "code",
-          "expr": "label_replace((count(sum by (use) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result=~`invalid_image|incomplete|error|timeout` [1h]))) or vector(0)), \"platform\", \"macos\", \"\", \"\") or label_replace((count(sum by (use) (count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result=~`invalid_image|incomplete|error|timeout` [1h]))) or vector(0)), \"platform\", \"linux\", \"\", \"\")",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "A"
-        },
-        "queryType": "instant",
         "refId": "A",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 3600,
           "to": 0
-        }
-      },
-      {
-        "datasourceUid": "grafanacloud-logs",
+        },
+        "datasourceUid": "pulse-sql",
         "model": {
           "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
           },
           "editorMode": "code",
-          "expr": "label_replace(count(sum by (use) (count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result!~`unchanged|withheld|release_pending|cancelled` [1h]))), \"platform\", \"macos\", \"\", \"\") or label_replace(count(sum by (use) (count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"publish\"` | json result=\"result\", use=\"use\" | result!~`unchanged|withheld|release_pending|cancelled` [1h]))), \"platform\", \"linux\", \"\", \"\")",
+          "format": "table",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "B"
-        },
-        "queryType": "instant",
-        "refId": "B",
-        "relativeTimeRange": {
-          "from": 3600,
-          "to": 0
+          "rawQuery": true,
+          "rawSql": "SELECT platform, count(DISTINCT CASE WHEN result IN ('invalid_image', 'incomplete', 'error', 'timeout') THEN use END) AS value\nFROM (\n  SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n  FROM opentelemetry_logs\n  WHERE timestamp > now() - INTERVAL '1 hour'\n    AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND body LIKE '%\"msg\":\"cache phase\"%' OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%')\n    AND body LIKE '%\"operation\":\"publish\"%'\n) l\nGROUP BY platform",
+          "refId": "A"
         }
       },
       {
+        "refId": "B",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT platform, count(DISTINCT CASE WHEN result NOT IN ('unchanged', 'withheld', 'release_pending', 'cancelled') THEN use END) AS value\nFROM (\n  SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n  FROM opentelemetry_logs\n  WHERE timestamp > now() - INTERVAL '1 hour'\n    AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND body LIKE '%\"msg\":\"cache phase\"%' OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%')\n    AND body LIKE '%\"operation\":\"publish\"%'\n) l\nGROUP BY platform",
+          "refId": "B"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "datasource": {
@@ -61,15 +69,15 @@
           "maxDataPoints": 43200,
           "refId": "C",
           "type": "math"
-        },
-        "queryType": "expression",
-        "refId": "C",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       },
       {
+        "refId": "D",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "datasource": {
@@ -81,12 +89,6 @@
           "maxDataPoints": 43200,
           "refId": "D",
           "type": "math"
-        },
-        "queryType": "expression",
-        "refId": "D",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       }
     ],
@@ -117,48 +119,56 @@
     "condition": "D",
     "data": [
       {
-        "datasourceUid": "grafanacloud-logs",
-        "model": {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "editorMode": "code",
-          "expr": "label_replace((sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume (not authorized;|larger than this host))` | json result=\"result\" | result!~`success|cancelled` [1h])) or vector(0)), \"platform\", \"macos\", \"\", \"\") or label_replace((sum(count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"acquire\"` | json result=\"result\" | result!~`success|cancelled|execution_pending` [1h])) or vector(0)), \"platform\", \"linux\", \"\", \"\")",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "A"
-        },
-        "queryType": "instant",
         "refId": "A",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 3600,
           "to": 0
-        }
-      },
-      {
-        "datasourceUid": "grafanacloud-logs",
+        },
+        "datasourceUid": "pulse-sql",
         "model": {
           "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
           },
           "editorMode": "code",
-          "expr": "label_replace(sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume (not authorized;|larger than this host))` | json result=\"result\" | result!=`cancelled` [1h])), \"platform\", \"macos\", \"\", \"\") or label_replace(sum(count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"operation\":\"acquire\"` | json result=\"result\" | result!~`cancelled|execution_pending` [1h])), \"platform\", \"linux\", \"\", \"\")",
+          "format": "table",
           "intervalMs": 1000,
           "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "B"
-        },
-        "queryType": "instant",
-        "refId": "B",
-        "relativeTimeRange": {
-          "from": 3600,
-          "to": 0
+          "rawQuery": true,
+          "rawSql": "SELECT platform, sum(CASE WHEN platform = 'macos' AND result NOT IN ('success', 'cancelled') OR platform = 'linux' AND result NOT IN ('success', 'cancelled', 'execution_pending') THEN 1 ELSE 0 END) AS value\nFROM (\n  SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n  FROM opentelemetry_logs\n  WHERE timestamp > now() - INTERVAL '1 hour'\n    AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND regexp_like(body, '\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume (not authorized;|larger than this host))') OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%' AND body LIKE '%\"operation\":\"acquire\"%')\n) l\nGROUP BY platform",
+          "refId": "A"
         }
       },
       {
+        "refId": "B",
+        "queryType": "",
+        "relativeTimeRange": {
+          "from": 3600,
+          "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT platform, sum(CASE WHEN platform = 'macos' AND result <> 'cancelled' OR platform = 'linux' AND result NOT IN ('cancelled', 'execution_pending') THEN 1 ELSE 0 END) AS value\nFROM (\n  SELECT CASE WHEN json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' THEN 'macos' ELSE 'linux' END AS platform, COALESCE(regexp_match(body, '\"result\":\"([^\"]*)\"')[1], '') AS result, COALESCE(regexp_match(body, '\"use\":\"([^\"]*)\"')[1], '') AS use\n  FROM opentelemetry_logs\n  WHERE timestamp > now() - INTERVAL '1 hour'\n    AND ((json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND regexp_like(body, '\"msg\":\"(cache phase\",\"operation\":\"attach\"|custom cache volume (not authorized;|larger than this host))') OR (json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%' AND body LIKE '%\"operation\":\"acquire\"%')\n) l\nGROUP BY platform",
+          "refId": "B"
+        }
+      },
+      {
+        "refId": "C",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "datasource": {
@@ -170,15 +180,15 @@
           "maxDataPoints": 43200,
           "refId": "C",
           "type": "math"
-        },
-        "queryType": "expression",
-        "refId": "C",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       },
       {
+        "refId": "D",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "datasource": {
@@ -190,16 +200,10 @@
           "maxDataPoints": 43200,
           "refId": "D",
           "type": "math"
-        },
-        "queryType": "expression",
-        "refId": "D",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "10m",
     "isPaused": false,
@@ -224,27 +228,34 @@
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-logs",
-        "model": {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "editorMode": "code",
-          "expr": "(sum(count_over_time({cluster=\"tuist-production\", namespace=\"tuist-runners\", service_name=\"agent\"} |= `\"msg\":\"cache volume operation\"` |= `\"result\":\"execution_pending\"` |~ `\"operation\":\"(acquire|checkout_acquire)\"` [30m])) or vector(0)) + (sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |~ `\"msg\":\"(custom cache volume not authorized in time|[^\"]*execution_pending)` [30m])) or vector(0))",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "A"
-        },
-        "queryType": "instant",
         "refId": "A",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 1800,
           "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '30 minutes'\n  AND ((json_get_string(resource_attributes, 'cluster') = 'tuist-production' AND json_get_string(resource_attributes, 'namespace') = 'tuist-runners' AND json_get_string(resource_attributes, 'service_name') = 'agent') AND body LIKE '%\"msg\":\"cache volume operation\"%' AND body LIKE '%\"result\":\"execution_pending\"%' AND regexp_like(body, '\"operation\":\"(acquire|checkout_acquire)\"') OR (json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production') AND regexp_like(body, '\"msg\":\"(custom cache volume not authorized in time|[^\"]*execution_pending)'))",
+          "refId": "A"
         }
       },
       {
+        "refId": "C",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "conditions": [
@@ -266,16 +277,10 @@
           "maxDataPoints": 43200,
           "refId": "C",
           "type": "threshold"
-        },
-        "queryType": "expression",
-        "refId": "C",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "5m",
     "isPaused": false,
@@ -407,27 +412,34 @@
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-logs",
-        "model": {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "editorMode": "code",
-          "expr": "sum(count_over_time({job=\"tuist-macos-tart-kubelet\", env=\"production\"} |= `\"msg\":\"cache phase\"` |= `\"operation\":\"publish\"` |= `\"result\":\"incomplete\"` [1h])) or vector(0)",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "A"
-        },
-        "queryType": "instant",
         "refId": "A",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 3600,
           "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '1 hour'\n  AND (json_get_string(resource_attributes, 'job') = 'tuist-macos-tart-kubelet' AND json_get_string(resource_attributes, 'env') = 'production')\n  AND body LIKE '%\"msg\":\"cache phase\"%'\n  AND body LIKE '%\"operation\":\"publish\"%'\n  AND body LIKE '%\"result\":\"incomplete\"%'",
+          "refId": "A"
         }
       },
       {
+        "refId": "C",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "conditions": [
@@ -449,16 +461,10 @@
           "maxDataPoints": 43200,
           "refId": "C",
           "type": "threshold"
-        },
-        "queryType": "expression",
-        "refId": "C",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "0s",
     "isPaused": false,
@@ -483,27 +489,34 @@
     "condition": "C",
     "data": [
       {
-        "datasourceUid": "grafanacloud-logs",
-        "model": {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "editorMode": "code",
-          "expr": "sum(count_over_time({cluster=\"tuist-production\", service_name=\"tuist\"} |= `execution token disagrees with the recorded execution` [30m])) or vector(0)",
-          "intervalMs": 1000,
-          "maxDataPoints": 43200,
-          "queryType": "instant",
-          "refId": "A"
-        },
-        "queryType": "instant",
         "refId": "A",
+        "queryType": "",
         "relativeTimeRange": {
           "from": 1800,
           "to": 0
+        },
+        "datasourceUid": "pulse-sql",
+        "model": {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse-sql"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value\nFROM opentelemetry_logs\nWHERE timestamp > now() - INTERVAL '30 minutes'\n  AND json_get_string(resource_attributes, 'cluster') = 'tuist-production'\n  AND json_get_string(resource_attributes, 'service_name') = 'tuist'\n  AND body LIKE '%execution token disagrees with the recorded execution%'",
+          "refId": "A"
         }
       },
       {
+        "refId": "C",
+        "queryType": "expression",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
         "datasourceUid": "__expr__",
         "model": {
           "conditions": [
@@ -525,16 +538,10 @@
           "maxDataPoints": 43200,
           "refId": "C",
           "type": "threshold"
-        },
-        "queryType": "expression",
-        "refId": "C",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
         }
       }
     ],
-    "execErrState": "Error",
+    "execErrState": "KeepLast",
     "folderUID": "df5dn1g4rckxsf",
     "for": "0s",
     "isPaused": false,

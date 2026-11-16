@@ -16,7 +16,7 @@ amtool="${AMTOOL:-amtool}"
 # and canary never page.
 jq -e 'length == 6 and all(.[];
   .condition == "C" and .ruleGroup == "Kura thin pools" and .isPaused == false and
-  .noDataState == "OK" and .execErrState == "Error" and
+  .noDataState == "OK" and .execErrState == (if .data[0].datasourceUid == "grafanacloud-prom" then "Error" else "KeepLast" end) and
   (has("notification_settings") | not) and
   (.labels.severity | IN("warning", "critical")) and
   (.data[] | select(.refId == "C") | .model |

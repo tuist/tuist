@@ -144,6 +144,28 @@ migration has not run yet.
 Each cluster workload restarts when its own rendered configuration changes, not
 on unrelated value changes.
 
+### Datanode restarts
+
+A datanode that stops takes its regions offline until metasrv fails them over,
+so reads (Grafana alert rules, dashboards) fail in the meantime. In the
+environments listed in `cluster.datanode.drainedRolloutEnvironments` (staging
+first), the chart holds the datanode StatefulSet at `partition: replicas`, so
+no template change restarts a datanode by itself. The deployment then runs
+[`pulse-datanode-rollout.sh`](../../../.github/scripts/pulse-datanode-rollout.sh),
+which for one datanode at a time moves its leader regions to the others with
+`ADMIN migrate_region`, lowers the partition to it, waits for it to be Ready on
+the new revision, and moves the same regions back. It ends holding the
+partition again. It is upstream's drain-before-restart done from outside
+Pulse, so the fork carries no code for it.
+
+- `kubectl rollout restart` alone restarts nothing there; run the script after
+  it, as the deployment's reread check does.
+- A failed run leaves the partition lowered and some datanodes on the old
+  revision, which `pulse-readiness.sh` rejects. Rerun the deployment: the
+  script skips datanodes already on the update revision. Regions it moved away
+  before failing stay where they are.
+- Region failover still covers unplanned stops (node failure, eviction).
+
 ## Deployment order and gates
 
 `Pulse Deployment` accepts `environment=staging`, `canary` or

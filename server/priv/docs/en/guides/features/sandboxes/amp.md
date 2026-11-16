@@ -32,8 +32,8 @@ You need to be an administrator of both the Amp workspace and the Tuist account.
    | `linux-large` | Linux | 8 vCPU, 16 GiB RAM, 10 GB workspace |
    | `linux-xxlarge` | Linux | 16 vCPU, 32 GiB RAM, 10 GB workspace |
    | `linux-3xlarge` | Linux | 16 vCPU, 44 GiB RAM, 10 GB workspace |
-   | `macos` | macOS with the default Xcode | 8 vCPU, 8 GiB RAM, 10 GB workspace |
-   | `macos-xcode-<version>` | macOS with that Xcode, such as `macos-xcode-26-1-1` for Xcode 26.1.1 | 8 vCPU, 8 GiB RAM, 10 GB workspace |
+   | `macos` | macOS with the default Xcode | 8 vCPU, 8 GiB RAM, 30 GB workspace |
+   | `macos-xcode-<version>` | macOS with that Xcode, such as `macos-xcode-26-1-1` for Xcode 26.1.1 | 8 vCPU, 8 GiB RAM, 30 GB workspace |
 
 3. In Tuist, open **Sandboxes** in your account's dashboard, click **Connect** on the Amp card, and paste the token.
 
