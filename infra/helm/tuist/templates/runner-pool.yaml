@@ -269,6 +269,15 @@ shape fails the render, since a job would get less than its profile names.
 */}}
 {{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict) "stacked" ($rackRunners.stackedImages | default false)) }}
 {{- end }}
+{{- /*
+The catalog pools of the Xcodes macOS sandboxes serve rank first in the golden
+budget (`tuist.dev/macos-sandbox-template`), so every rack host keeps the
+images the sandbox templates are cloned from.
+*/}}
+{{- $sandboxXcodeVersions := list }}
+{{- if .Values.sandboxes.macos.enabled }}
+{{- $sandboxXcodeVersions = include "tuist.macosSandboxXcodeVersions" . | fromJsonArray }}
+{{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
 {{- $xcodeTag := $xcodeVersion | replace "." "-" }}
@@ -336,6 +345,9 @@ metadata:
     {{- end }}
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
+    {{- end }}
+    {{- if has $xcodeVersion $sandboxXcodeVersions }}
+    tuist.dev/macos-sandbox-template: "true"
     {{- end }}
     {{- with $site }}
     tuist.dev/site: {{ . | quote }}
@@ -428,6 +440,9 @@ metadata:
     {{- end }}
     {{- if $xcode.default }}
     tuist.dev/xcode-default: "true"
+    {{- end }}
+    {{- if has $xcodeVersion $sandboxXcodeVersions }}
+    tuist.dev/macos-sandbox-template: "true"
     {{- end }}
     {{- with $site }}
     tuist.dev/site: {{ . | quote }}

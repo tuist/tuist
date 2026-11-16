@@ -76,3 +76,43 @@ func (s *Service) checkPreparingControl(ctx context.Context, control *corev1.Pod
 	}
 	return nil
 }
+
+// templateRetryInterval spaces retries of a template whose image could not be
+// prepared yet, such as one that is not in the CI store on a host below the
+// cold-pull disk floor.
+var templateRetryInterval = 5 * time.Minute
+
+// prepareTemplates prepares the templates after the default, one at a time,
+// while the control Pod that configured them stays current, and adds each to
+// templates once its image is in the sandbox store. Each one is usually a CI
+// runner image the host already holds, so seeding it from the CI store takes
+// seconds. A template that fails is retried after the others.
+func (s *Service) prepareTemplates(ctx context.Context, control *corev1.Pod, runtime *TartRuntime, templates *Templates, pending []TemplateConfig) {
+	for len(pending) > 0 {
+		var failed []TemplateConfig
+		for _, t := range pending {
+			err := s.withPreparingControl(ctx, control, func(prepareCtx context.Context) error {
+				return ensureImage(prepareCtx, runtime.Client, s.CIStore, t.Image)
+			})
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil {
+				slog.Warn("macOS sandbox template not prepared yet", "template", t.Template, "image", t.Image, "error", err)
+				failed = append(failed, t)
+				continue
+			}
+			templates.set(t.Template, t.Image)
+			slog.Info("macOS sandbox template ready", "template", t.Template, "image", t.Image)
+		}
+		pending = failed
+		if len(pending) == 0 {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(templateRetryInterval):
+		}
+	}
+}

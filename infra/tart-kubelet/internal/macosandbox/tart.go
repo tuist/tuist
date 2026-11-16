@@ -61,8 +61,10 @@ func BuildRuntime(ctx context.Context, root string) (string, error) {
 }
 
 type TartRuntime struct {
-	Client                 *tart.Client
-	Image, Template, Tools string
+	Client *tart.Client
+	// Templates maps each prepared template to the image its VMs clone.
+	Templates *Templates
+	Tools     string
 	// Checkouts gives each VM its checkout share; nil without the runner cache.
 	Checkouts Checkouts
 	// rootfs is the root disk ceiling diskRoom reserves per sandbox, as
@@ -99,7 +101,8 @@ func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
 // Warm clones and boots a VM up to a ready guest bridge. Nothing in it
 // belongs to a sandbox yet, so a warm VM can wait for one.
 func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
-	if r.Template != t.Template {
+	image, ok := t.Templates.Image(r.Template)
+	if !ok {
 		return errors.New("unknown macOS template")
 	}
 	if r.RuntimePath == "" {
@@ -119,7 +122,7 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if err := t.roomForClone(ctx, c, r.MemoryMB); err != nil {
 		return err
 	}
-	if err := c.Clone(ctx, t.Image, r.VMName()); err != nil {
+	if err := c.Clone(ctx, image, r.VMName()); err != nil {
 		return err
 	}
 	lap("clone")

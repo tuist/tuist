@@ -1537,6 +1537,43 @@ and follows a release together.
 {{- end -}}
 
 {{/*
+The Xcodes macOS sandboxes serve, as a JSON array of version strings with
+`sandboxes.macos.xcodeVersion` (the default) first, then each
+`sandboxes.macos.xcodeVersions` entry. Each one is a sandbox template,
+`macos-xcode-<xcode-dashes>`, that boots the Xcode's catalog runner image, and
+`macos` boots the default. A version beyond the default needs the rack's
+golden budget, which keeps the served images on every rack host
+(`tuist.dev/macos-sandbox-template` on their catalog pools), and has to be in
+`runnersFleet.xcodeVersions`. The server validates `xcode_version` against
+this list (`TUIST_MACOS_SANDBOX_XCODE_VERSIONS`).
+*/}}
+{{- define "tuist.macosSandboxXcodeVersions" -}}
+{{- $macos := .Values.sandboxes.macos -}}
+{{- $versions := list ($macos.xcodeVersion | toString) -}}
+{{- $catalog := list -}}
+{{- range (.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- $catalog = append $catalog (.xcodeVersion | toString) -}}
+{{- end -}}
+{{- $budget := int (dig "goldenBudget" 0 (.Values.rackFleet.runners | default dict)) -}}
+{{- range ($macos.xcodeVersions | default list) -}}
+{{- $version := . | toString -}}
+{{- if not (has $version $versions) -}}
+{{- if not (has $version $catalog) -}}
+{{- fail (printf "sandboxes.macos.xcodeVersions: %s is not in runnersFleet.xcodeVersions" $version) -}}
+{{- end -}}
+{{- if $macos.image -}}
+{{- fail "sandboxes.macos.xcodeVersions needs the catalog images: leave sandboxes.macos.image empty" -}}
+{{- end -}}
+{{- $versions = append $versions $version -}}
+{{- end -}}
+{{- end -}}
+{{- if and (gt (len $versions) 1) (lt $budget (len $versions)) -}}
+{{- fail (printf "sandboxes.macos.xcodeVersions: %d Xcodes need rackFleet.runners.goldenBudget of at least %d, which keeps their images on every rack host" (len $versions) (len $versions)) -}}
+{{- end -}}
+{{- toJson $versions -}}
+{{- end -}}
+
+{{/*
 The stacked runner image for a catalog Xcode version:
 `<runnersFleet.runnerImageRepository>@<digest>` with the digest
 `runnersFleet.runnerImageStackedDigests` resolves for it, or empty when it has

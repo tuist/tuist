@@ -201,28 +201,24 @@ func (s *Service) warmTick(ctx, parent context.Context) error {
 }
 
 // warmRecord describes the VM a warm Pod asks for. It must match what a
-// sandbox create would boot: the manager's template image and a supported
+// sandbox create would boot: a prepared template's image and a supported
 // shape. Anything else cold-creates, so the Pod fails instead of booting.
 func (m *Manager) warmRecord(pod *corev1.Pod) (*Record, string) {
 	if len(pod.Spec.Containers) != 1 {
 		return nil, "a warm Pod has exactly one container"
 	}
 	c := pod.Spec.Containers[0]
-	if c.Image != m.TemplateTag {
-		return nil, fmt.Sprintf("image %q is not the host's sandbox template %q", c.Image, m.TemplateTag)
+	template, ok := m.Templates.Name(c.Image)
+	if !ok {
+		return nil, fmt.Sprintf("image %q is not one of the host's prepared sandbox templates", c.Image)
 	}
 	cpu, memory := c.Resources.Requests.Cpu().MilliValue(), c.Resources.Requests.Memory().Value()
 	vcpus, memoryMB := int(cpu/1000), int(memory/(1024*1024))
 	if cpu%1000 != 0 || vcpus != 8 || (memoryMB != 8192 && memoryMB != 16384 && memoryMB != 24576) || memory%(1024*1024) != 0 {
 		return nil, "unsupported warm VM shape"
 	}
-	runtime, ok := m.Runtime.(*TartRuntime)
-	template := ""
-	if ok {
-		template = runtime.Template
-	}
 	return &Record{VM: warmVMPrefix + string(pod.UID), RuntimePath: m.RuntimePath, ToolsPath: m.ToolsPath, NodeUID: m.NodeUID,
-		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: m.TemplateTag, VCPUs: vcpus, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB}}, ""
+		CreateArgs: protocol.CreateArgs{Template: template, TemplateTag: c.Image, VCPUs: vcpus, MemoryMB: memoryMB, WorkspaceGB: warmWorkspaceGB}}, ""
 }
 
 // warmWorkspaceGB is the workspace a warm VM gets before it is claimed: the
@@ -273,11 +269,13 @@ func (s *Service) bootWarm(ctx context.Context, m *Manager, w *warmVM, pod *core
 	}
 }
 
-// claimWarm hands a ready warm VM of the requested shape to a sandbox. The
+// claimWarm hands a ready warm VM of the requested image and shape to a
+// sandbox, whichever of the image's template names it asks for (`macos` and
+// the default Xcode's `macos-xcode-<version>` boot the same image). The
 // caller holds the launch gate.
 func (m *Manager) claimWarm(a protocol.CreateArgs) *warmVM {
 	for uid, w := range m.warm {
-		if w.ready && w.rec.Template == a.Template && w.rec.TemplateTag == a.TemplateTag && w.rec.VCPUs == a.VCPUs && w.rec.MemoryMB == a.MemoryMB {
+		if w.ready && w.rec.TemplateTag == a.TemplateTag && w.rec.VCPUs == a.VCPUs && w.rec.MemoryMB == a.MemoryMB {
 			delete(m.warm, uid)
 			return w
 		}
@@ -400,13 +398,15 @@ func (m *Manager) onWarmVM(id string) bool {
 	return r != nil && strings.HasPrefix(r.VM, warmVMPrefix)
 }
 
-// warmShapes lists the ready warm VMs for the server's placement.
-func (m *Manager) warmShapes() []string {
+// warmShapes lists the ready warm VMs a create of template would claim, for
+// the server's placement.
+func (m *Manager) warmShapes(template string) []string {
+	image, _ := m.Templates.Image(template)
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	shapes := []string{}
 	for _, w := range m.warm {
-		if w.ready {
+		if w.ready && image != "" && w.rec.TemplateTag == image {
 			shapes = append(shapes, fmt.Sprintf("%dx%d", w.rec.VCPUs, w.rec.MemoryMB))
 		}
 	}
