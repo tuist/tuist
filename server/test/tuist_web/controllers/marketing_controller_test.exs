@@ -112,6 +112,18 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
       assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+
+      # Only stories with a confirmed onboarding date show one; the rest show none.
+      since =
+        Map.new(slides, fn slide ->
+          {hd(LazyHTML.attribute(slide, "data-company")),
+           slide |> LazyHTML.query("[data-part=since]") |> LazyHTML.text()}
+        end)
+
+      assert since["monday"] =~ "Using Tuist since June 2022"
+      assert since["trendyol"] =~ "Using Tuist since September 2023"
+      refute since["monzo"] =~ "Using Tuist since"
+      refute since["openai"] =~ "Using Tuist since"
     end
 
     test "omits the cache download count while the globe has no data", %{conn: conn} do
@@ -988,6 +1000,29 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert redirected_to(conn) ==
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
+    end
+
+    test "renders the customer's before and after figures and onboarding date", %{conn: conn} do
+      html = conn |> get(~p"/customers/trendyol") |> html_response(200) |> LazyHTML.from_document()
+
+      rows =
+        html
+        |> LazyHTML.query("[data-part=results] tbody tr")
+        |> Enum.map(fn row -> row |> LazyHTML.query("th, td") |> Enum.map(&LazyHTML.text/1) end)
+
+      assert rows == [
+               ["CI build time", "30 min", "10 min"],
+               ["Clean Xcode environment ready for UI tests", "15+ min", "~30 s"]
+             ]
+
+      assert html |> LazyHTML.query("[data-part=facts]") |> LazyHTML.text() =~
+               ~r/Using Tuist since\s+September 2023/
+    end
+
+    test "omits the before and after table when a story reports no figures", %{conn: conn} do
+      html = conn |> get(~p"/customers/hyperconnect") |> html_response(200)
+
+      refute html =~ ~s(data-part="results")
     end
 
     test "renders a case study with its generated cover artwork on the social card", %{conn: conn} do
