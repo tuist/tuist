@@ -134,6 +134,9 @@ public struct AppBundle: Equatable {
         /// Information about all of the icons used by the app.
         public let bundleIcons: BundleIcons?
 
+        /// The macOS icon file in Contents/Resources (CFBundleIconFile), with or without the .icns extension.
+        public let iconFile: String?
+
         init(
             version: String,
             buildVersion: String,
@@ -142,7 +145,8 @@ public struct AppBundle: Equatable {
             bundleId: String,
             minimumOSVersion: Version,
             supportedPlatforms: [DestinationType],
-            bundleIcons: BundleIcons?
+            bundleIcons: BundleIcons?,
+            iconFile: String? = nil
         ) {
             self.version = version
             self.buildVersion = buildVersion
@@ -152,6 +156,7 @@ public struct AppBundle: Equatable {
             self.minimumOSVersion = minimumOSVersion
             self.supportedPlatforms = supportedPlatforms
             self.bundleIcons = bundleIcons
+            self.iconFile = iconFile
         }
 
         enum CodingKeys: String, CodingKey {
@@ -163,6 +168,7 @@ public struct AppBundle: Equatable {
             case minimumOSVersion = "MinimumOSVersion"
             case supportedPlatforms = "CFBundleSupportedPlatforms"
             case bundleIcons = "CFBundleIcons"
+            case iconFile = "CFBundleIconFile"
         }
 
         /// macOS bundles use LSMinimumSystemVersion instead of MinimumOSVersion
@@ -206,6 +212,7 @@ public struct AppBundle: Equatable {
                 BundleIcons.self,
                 forKey: .bundleIcons
             )
+            iconFile = try container.decodeIfPresent(String.self, forKey: .iconFile)
         }
 
         #if DEBUG
@@ -217,7 +224,8 @@ public struct AppBundle: Equatable {
                 bundleId: String = "dev.tuist.App",
                 minimumOSVersion: Version = Version("17.4"),
                 supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
-                bundleIcons: BundleIcons = .test()
+                bundleIcons: BundleIcons = .test(),
+                iconFile: String? = nil
             ) -> Self {
                 .init(
                     version: version,
@@ -227,7 +235,8 @@ public struct AppBundle: Equatable {
                     bundleId: bundleId,
                     minimumOSVersion: minimumOSVersion,
                     supportedPlatforms: supportedPlatforms,
-                    bundleIcons: bundleIcons
+                    bundleIcons: bundleIcons,
+                    iconFile: iconFile
                 )
             }
         #endif
