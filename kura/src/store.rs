@@ -40,19 +40,19 @@ use crate::{
     constants::{
         ACTION_CACHE_TRUNK_SCAN_FACTOR, BACKFILL_APPLY_GROUP_RECORDS,
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
-        CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
-        DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_ANALYTICS_OUTBOX,
-        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
-        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
-        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
-        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
-        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS,
-        ROCKSDB_RECYCLE_LOG_FILE_NUM, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
-        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_CANDIDATE_RUN,
-        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
-        SEGMENT_RETIREMENT_HANDOFF_BACKLOG, SYNC_FEED_TRIM_BATCH_ROWS,
+        CAS_CAPACITY_DEFAULT_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS,
+        DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES, MAX_PEER_PAGE_ITEMS,
+        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_ANALYTICS_OUTBOX, ROCKSDB_CF_KEY_VALUE,
+        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
+        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
+        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
+        ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS, ROCKSDB_RECYCLE_LOG_FILE_NUM,
+        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
+        SEGMENT_EVICTION_CANDIDATE_RUN, SEGMENT_EVICTION_MAX_BATCH_BYTES,
+        SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN, SEGMENT_RETIREMENT_HANDOFF_BACKLOG,
+        SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -4760,7 +4760,7 @@ impl Store {
     // for reclamation while holding the writer barrier (or a promotion pin).
     fn check_segment_headroom(&self, incoming_size: u64) -> Result<(), String> {
         let required = segment_rotation_required_bytes(incoming_size);
-        let target = required.saturating_add(2 * MAX_SEGMENT_BYTES);
+        let target = segment_headroom_target_bytes(incoming_size);
         let Some(available) = self.available_segment_disk_bytes() else {
             return Ok(());
         };
@@ -12413,6 +12413,11 @@ fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
         .saturating_mul(SEGMENT_FREE_SPACE_MARGIN)
 }
 
+/// Free space below which a rotation requests disk-pressure reclamation.
+fn segment_headroom_target_bytes(incoming_size: u64) -> u64 {
+    segment_rotation_required_bytes(incoming_size).saturating_add(2 * MAX_SEGMENT_BYTES)
+}
+
 #[cfg(unix)]
 fn available_disk_bytes(path: &Path) -> Option<u64> {
     use std::ffi::CString;
@@ -12509,20 +12514,31 @@ impl SegmentRingLimits {
 /// capacity and the data-dir filesystem size.
 ///
 /// The budget is `configured_capacity_bytes` when set, otherwise
-/// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. Either way it is
-/// capped at `CAS_CAPACITY_MAX_DISK_PERCENT` of the filesystem to leave initial
-/// space for metadata and rotation. Actual free space is checked at rotation:
-/// metadata and staging can outgrow that estimate. Floored at the legacy 1/2/2
-/// ring so small disks (or hosts where the filesystem size cannot be
-/// determined) keep the pre-existing behavior. Generations keep the legacy
-/// 1:2:2 old/current/new proportions.
+/// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. A configured budget is
+/// the operator's statement of what the ring may hold after metadata and
+/// staging, so it is honoured up to what a full ring can hold without crossing
+/// the disk-pressure target: the filesystem less that target and the segment a
+/// rotation appends before evicting. A larger ring would never be held, since
+/// every eviction past it would run as pressure reclamation instead of
+/// ordinary rotation. The managed control plane derives it
+/// from the claim with those reserves already taken out; a flat percentage of
+/// the filesystem on top of that stranded a fifth of every large thin volume,
+/// whose filesystem is the claim plus a fixed workspace. Actual free space is
+/// still checked at rotation: metadata and staging can outgrow any estimate.
+/// Floored at the legacy 1/2/2 ring so small disks (or hosts where the
+/// filesystem size cannot be determined) keep the pre-existing behavior.
+/// Generations keep the legacy 1:2:2 old/current/new proportions.
 fn resolve_segment_ring_limits(
     configured_capacity_bytes: Option<u64>,
     disk_total_bytes: Option<u64>,
 ) -> SegmentRingLimits {
     let floor = SegmentRingLimits::legacy_floor();
 
-    let ceiling_bytes = disk_total_bytes.map(|total| total / 100 * CAS_CAPACITY_MAX_DISK_PERCENT);
+    let ceiling_bytes = disk_total_bytes.map(|total| {
+        total.saturating_sub(
+            segment_headroom_target_bytes(MAX_SEGMENT_BYTES).saturating_add(MAX_SEGMENT_BYTES),
+        )
+    });
     let budget_bytes = match (configured_capacity_bytes, ceiling_bytes) {
         (Some(configured), Some(ceiling)) => Some(configured.min(ceiling)),
         (Some(configured), None) => Some(configured),
@@ -14004,12 +14020,29 @@ mod tests {
 
     #[test]
     fn segment_ring_limits_cap_configured_capacity_below_disk_size() {
-        // 80% of 10 GiB rounds down to 15 whole segments, regardless of the
-        // configured 1 TiB.
+        // 10 GiB less the 2 GiB pressure target and the appended rotation
+        // segment is 15 whole segments, regardless of the configured 1 TiB, so
+        // a full ring plus that segment never reaches pressure reclamation.
         let limits = resolve_segment_ring_limits(Some(1024 * GIB), Some(10 * GIB));
 
         assert_eq!(limits.total_segments(), 15);
-        assert!(limits.capacity_bytes() <= 10 * GIB * 80 / 100);
+        assert!(
+            limits.capacity_bytes()
+                + MAX_SEGMENT_BYTES
+                + segment_headroom_target_bytes(MAX_SEGMENT_BYTES)
+                <= 10 * GIB
+        );
+    }
+
+    #[test]
+    fn segment_ring_limits_honour_configured_capacity_above_eighty_percent() {
+        // A 256 GiB thin claim's filesystem is 258 GiB; the control plane
+        // derives a ring of about 246 GiB (95%). The former 80% cap held it at
+        // 206 GiB.
+        let configured = 246 * GIB;
+        let limits = resolve_segment_ring_limits(Some(configured), Some(258 * GIB));
+
+        assert_eq!(limits.capacity_bytes(), configured);
     }
 
     #[test]
