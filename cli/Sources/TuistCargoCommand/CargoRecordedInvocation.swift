@@ -48,7 +48,6 @@ struct CargoRecordedInvocation: CargoCacheAction {
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil, let recorder = environment["TUIST_CARGO_RECORDER"],
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
               environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
-              !environment.keys.contains(where: { $0.hasPrefix("LD_") || $0.hasPrefix("DYLD_") }),
               let executable = arguments.first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
               !arguments.contains(where: {
                   $0.hasPrefix("@") || $0.hasPrefix("--print") || $0 == "--test" || $0 == "-o"
@@ -99,6 +98,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
         let identity = try await CargoToolchainIdentity.resolve(
             executable, environment: environment, directory: directory, process: process
         )
+        guard identity.admitsLoader(environment) else { return nil }
         let relocation = CargoRelocation(environment: environment, sysroot: identity.sysroot)
         let inputHasher = CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0) })
         let base = URL(fileURLWithPath: directory.pathString)
@@ -332,6 +332,35 @@ struct CargoToolchainIdentity: Codable {
 
     var sysroot: URL { URL(fileURLWithPath: sysrootPath) }
     var compilerFiles: [URL] { compilerPaths.map { URL(fileURLWithPath: $0) } }
+
+    /// Whether the dynamic loader settings in `environment` leave caching on. Cargo sets `LD_LIBRARY_PATH` for every
+    /// process it starts: directories in the target (a unit's or the profile's `deps`, native search paths printed
+    /// inside it), then what it inherited, which rustup's proxy starts with the toolchain's `lib`; empty when
+    /// there is nothing to add. Those hold the toolchain's libraries and the build's own outputs. Any other loader
+    /// setting, such as another search directory, `LD_PRELOAD`, `LD_AUDIT` or `DYLD_*`, can inject code or reads that
+    /// hashing its value cannot cover. Paths compare resolved, as the loader opens them: rustup names a linked
+    /// toolchain through its link, and an entry inside the target can link elsewhere.
+    func admitsLoader(_ environment: [String: String]) -> Bool {
+        func resolved(_ path: String) -> String {
+            guard let real = realpath(path, nil) else { return URL(fileURLWithPath: path).standardizedFileURL.path }
+            defer { free(real) }
+            return String(cString: real)
+        }
+        let toolchain = [sysroot.appendingPathComponent("lib").path, targetLibdirPath].map(resolved)
+        let target = environment["TUIST_CARGO_TARGET_DIR"].map { resolved($0) + "/" }
+        return environment.allSatisfy { name, value in
+            guard name.hasPrefix("LD_") || name.hasPrefix("DYLD_") else { return true }
+            // glibc separates entries with `:` or `;`. An empty value searches nothing, but an empty entry in a list
+            // searches the working directory.
+            return name == "LD_LIBRARY_PATH" && (value.isEmpty || value.split(
+                omittingEmptySubsequences: false, whereSeparator: { $0 == ":" || $0 == ";" }
+            ).allSatisfy { entry in
+                guard entry.hasPrefix("/") else { return false }
+                let path = resolved(String(entry))
+                return toolchain.contains(path) || target.map { (path + "/").hasPrefix($0) } == true
+            })
+        }
+    }
 
     static func resolve(
         _ executable: String, environment: [String: String], directory: AbsolutePath, process: CargoProcess

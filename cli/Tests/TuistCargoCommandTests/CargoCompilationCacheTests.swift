@@ -647,6 +647,57 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.prepare(environment: environment)?.compilerInputs != nil)
     }
 
+    @Test(.inTemporaryDirectory) func admitsOnlyTheLoaderSearchPathCargoBuilds() async throws {
+        let fixture = try await fixture()
+        let toolchain = fixture.invocation.toolchain.path
+        let target = fixture.root.appendingPathComponent("target").path
+        let dylibUnit = target + "/debug/build/dylib/0123456789abcdef/out"
+        let elsewhere = fixture.root.appendingPathComponent("elsewhere").path
+        let linkedToolchain = fixture.root.appendingPathComponent("linked-toolchain").path
+        let escaping = dylibUnit + "/native"
+        for directory in [dylibUnit, elsewhere] {
+            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        }
+        // rustup names a linked toolchain through its link; a native search path inside the target can leave it.
+        try FileManager.default.createSymbolicLink(atPath: linkedToolchain, withDestinationPath: toolchain)
+        try FileManager.default.createSymbolicLink(atPath: escaping, withDestinationPath: elsewhere)
+        let cases: [([String: String], Bool)] = [
+            // Cargo started without rustup's proxy, through it, and with a dylib dependency's outputs.
+            (["LD_LIBRARY_PATH": ""], true),
+            (["LD_LIBRARY_PATH": toolchain + "/lib"], true),
+            (["LD_LIBRARY_PATH": dylibUnit + ":" + toolchain + "/lib"], true),
+            (["LD_LIBRARY_PATH": toolchain + "/lib/rustlib/host/lib"], true),
+            (["LD_LIBRARY_PATH": linkedToolchain + "/lib"], true),
+            (["LD_LIBRARY_PATH": escaping], false),
+            (["LD_LIBRARY_PATH": dylibUnit + ";" + elsewhere], false),
+            (["LD_LIBRARY_PATH": toolchain + "/lib;"], false),
+            (["LD_LIBRARY_PATH": "/usr/local/lib:" + toolchain + "/lib"], false),
+            (["LD_LIBRARY_PATH": toolchain], false),
+            (["LD_LIBRARY_PATH": toolchain + "/lib/rustlib"], false),
+            (["LD_LIBRARY_PATH": toolchain + "/lib:"], false),
+            (["LD_LIBRARY_PATH": "lib"], false),
+            (["LD_LIBRARY_PATH": target + "-other/out"], false),
+            (["LD_LIBRARY_PATH": target + "/../elsewhere"], false),
+            (["LD_LIBRARY_PATH": toolchain + "/lib", "LD_PRELOAD": toolchain + "/lib/compiler"], false),
+            (["LD_AUDIT": toolchain + "/lib/compiler"], false),
+            (["DYLD_FALLBACK_LIBRARY_PATH": toolchain + "/lib"], false),
+        ]
+        for (loader, admitted) in cases {
+            let environment = fixture.invocation.environment
+                .merging(["TUIST_CARGO_TARGET_DIR": target, "TUIST_CARGO_RECORDER": "/recorder"]) { $1 }
+                .merging(loader) { $1 }
+            #expect(try await (fixture.prepare(environment: environment) != nil) == admitted, "\(loader)")
+            let recorded = try await CargoRecordedInvocation.prepare(
+                fixture.invocation.arguments, environment: environment, directory: fixture.invocation.directory,
+                process: CargoProcess(runner: CommandRunner())
+            )
+            #expect((recorded != nil) == admitted, "recorded \(loader)")
+        }
+        // Without a known target directory, no entry inside it is Cargo's.
+        let unknown = fixture.invocation.environment.merging(["LD_LIBRARY_PATH": dylibUnit]) { $1 }
+        #expect(try await fixture.prepare(environment: unknown) == nil)
+    }
+
     @Test(.inTemporaryDirectory) func rejectsSourceAndOutputSymlinks() async throws {
         let fixture = try await fixture()
         let link = fixture.invocation.package.appendingPathComponent("linked.rs")
