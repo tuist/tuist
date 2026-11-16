@@ -116,7 +116,11 @@ defmodule TuistWeb.API.TestsController do
                    id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
                    actor: ReportActor,
                    duration: %Schema{type: :integer, description: "Duration in milliseconds."},
-                   status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
+                   status: %Schema{
+                     type: :string,
+                     description:
+                       "Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones."
+                   },
                    is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
                    is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
                    scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
@@ -1023,7 +1027,11 @@ defmodule TuistWeb.API.TestsController do
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
              actor: ReportActor,
-             status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
+             status: %Schema{
+               type: :string,
+               description:
+                 "Run status: success, failure, skipped, in_progress, processing or failed_processing. More values can be added, so clients should accept unknown ones."
+             },
              duration: %Schema{type: :integer, description: "Duration in milliseconds."},
              is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
              is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
