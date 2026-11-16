@@ -100,6 +100,8 @@ jobs:
           "$RUNNER_TEMP/pulse-grafana-tests/bin/pip" install PyYAML==6.0.3
           "$RUNNER_TEMP/pulse-grafana-tests/bin/python" infra/helm/pulse-grafana/test_chart.py
           bash -n .github/scripts/pulse-datanode-rollout.sh
+          bash -n .github/scripts/pulse-probe.sh
+          bash -n .github/scripts/pulse-metric-split.sh
           node --check .github/scripts/pulse-smoke.mjs
           node --check .github/scripts/pulse-live-smoke.mjs
           node --test .github/scripts/openobserve-preflight.test.mjs

@@ -28,13 +28,11 @@ if [[ "$mode" != rollout && "$mode" != rebalance ]]; then
   echo "usage: $0 [rollout|rebalance]" >&2
   exit 2
 fi
-namespace=${PULSE_NAMESPACE:-observability}
+# shellcheck source=.github/scripts/pulse-probe.sh
+source "$(dirname "${BASH_SOURCE[0]}")/pulse-probe.sh"
 statefulset=pulse-datanode
-probe=${PULSE_ROLLOUT_POD:-pulse-rollout-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}}
 # A move flushes the region and replays its WAL tail on the target.
 replay_timeout=${PULSE_MIGRATION_TIMEOUT_SECONDS:-120}
-
-k() { kubectl -n "$namespace" "$@"; }
 
 read -r replicas partition < <(k get statefulset "$statefulset" -o json | jq -r '
   [.spec.replicas, (.spec.updateStrategy.rollingUpdate.partition // 0)] | @tsv')
@@ -61,35 +59,7 @@ if [[ "$mode" == rollout ]]; then
   fi
 fi
 
-# SQL goes through a probe pod that mounts the pilot login, as the smoke
-# probes do, so the credential never reaches this runner.
-cleanup() { k delete pod "$probe" --ignore-not-found --wait=false > /dev/null 2>&1 || true; }
-trap cleanup EXIT
-# A deployment runs this script more than once with the same probe name, and
-# the previous run deletes its probe without waiting.
-k delete pod "$probe" --ignore-not-found --wait=true --timeout=120s > /dev/null
-jq -n --arg name "$probe" '
-  {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
-    restartPolicy:"Never",activeDeadlineSeconds:5400,automountServiceAccountToken:false,
-    nodeSelector:{"node.cluster.x-k8s.io/pool":"general"},
-    securityContext:{runAsNonRoot:true,runAsUser:65532,fsGroup:65532,seccompProfile:{type:"RuntimeDefault"}},
-    volumes:[{name:"auth",secret:{secretName:"pulse-auth",defaultMode:288}}],
-    containers:[{name:"probe",image:"curlimages/curl:8.12.1",command:["sleep","5400"],
-      securityContext:{allowPrivilegeEscalation:false,readOnlyRootFilesystem:true,capabilities:{drop:["ALL"]}},
-      volumeMounts:[{name:"auth",mountPath:"/auth",readOnly:true}],
-      resources:{requests:{cpu:"10m",memory:"16Mi"},limits:{memory:"64Mi"}}}]}}
-' | k create -f - > /dev/null
-k wait --for=condition=Ready "pod/$probe" --timeout=120s > /dev/null
-
-# Prints the result rows of one statement as JSON arrays, one per line.
-sql() {
-  # shellcheck disable=SC2016 # Expanded by the probe's shell, not this one.
-  k exec "$probe" -- sh -c '
-    curl -sS --fail-with-body --max-time 60 -u "pilot:$(sed -n "s/^pilot=//p" /auth/passwd)" \
-      -H "X-Pulse-DB-Name: public" --data-urlencode "sql=$1" \
-      "http://pulse.observability:4000/v1/sql?db=public"' sh "$1" |
-    jq -c '.output[0].records.rows[]'
-}
+start_probe
 
 # Physical regions only: region_peers also lists every metric-engine logical
 # table under its physical table's route, with region IDs that do not exist.
