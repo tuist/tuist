@@ -16,8 +16,8 @@ pub const DESIRED_CURRENT_SEGMENTS: usize = 2;
 pub const DESIRED_NEW_SEGMENTS: usize = 2;
 // CAS capacity policy. When KURA_CAS_CAPACITY_BYTES is unset the segment-ring
 // budget derives from the data-dir filesystem size. A configured value is
-// capped at the filesystem less one segment so rotation (which appends a new
-// segment before evicting the oldest one) can never run the disk full. The
+// capped so a full ring plus the segment rotation appends before evicting the
+// oldest one stays above the disk-pressure target (2.5 GiB in all). The
 // legacy 1/2/2 generation counts above remain the floor, so nodes without
 // disk-size information keep today's behavior.
 pub const CAS_CAPACITY_DEFAULT_DISK_PERCENT: u64 = 50;

@@ -136,7 +136,7 @@ config:
   tmpDirMaxBytes: 8589934592
   # Artifact-body budget for the CAS segment ring. Leave unset to derive
   # 50% of the data volume's filesystem size at startup. A set value is
-  # honoured up to the filesystem less one 512 MiB segment, so leave room
+  # honoured up to the filesystem less 2.5 GiB of rotation headroom, so leave room
   # for metadata and tmpDirMaxBytes staging when it shares the volume.
   casCapacityBytes: null
   fileDescriptors:

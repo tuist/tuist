@@ -4760,7 +4760,7 @@ impl Store {
     // for reclamation while holding the writer barrier (or a promotion pin).
     fn check_segment_headroom(&self, incoming_size: u64) -> Result<(), String> {
         let required = segment_rotation_required_bytes(incoming_size);
-        let target = required.saturating_add(2 * MAX_SEGMENT_BYTES);
+        let target = segment_headroom_target_bytes(incoming_size);
         let Some(available) = self.available_segment_disk_bytes() else {
             return Ok(());
         };
@@ -12413,6 +12413,11 @@ fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
         .saturating_mul(SEGMENT_FREE_SPACE_MARGIN)
 }
 
+/// Free space below which a rotation requests disk-pressure reclamation.
+fn segment_headroom_target_bytes(incoming_size: u64) -> u64 {
+    segment_rotation_required_bytes(incoming_size).saturating_add(2 * MAX_SEGMENT_BYTES)
+}
+
 #[cfg(unix)]
 fn available_disk_bytes(path: &Path) -> Option<u64> {
     use std::ffi::CString;
@@ -12511,8 +12516,11 @@ impl SegmentRingLimits {
 /// The budget is `configured_capacity_bytes` when set, otherwise
 /// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. A configured budget is
 /// the operator's statement of what the ring may hold after metadata and
-/// staging, so it is honoured up to the filesystem less the one segment a
-/// rotation appends before evicting. The managed control plane derives it
+/// staging, so it is honoured up to what a full ring can hold without crossing
+/// the disk-pressure target: the filesystem less that target and the segment a
+/// rotation appends before evicting. A larger ring would never be held, since
+/// every eviction past it would run as pressure reclamation instead of
+/// ordinary rotation. The managed control plane derives it
 /// from the claim with those reserves already taken out; a flat percentage of
 /// the filesystem on top of that stranded a fifth of every large thin volume,
 /// whose filesystem is the claim plus a fixed workspace. Actual free space is
@@ -12526,7 +12534,11 @@ fn resolve_segment_ring_limits(
 ) -> SegmentRingLimits {
     let floor = SegmentRingLimits::legacy_floor();
 
-    let ceiling_bytes = disk_total_bytes.map(|total| total.saturating_sub(MAX_SEGMENT_BYTES));
+    let ceiling_bytes = disk_total_bytes.map(|total| {
+        total.saturating_sub(
+            segment_headroom_target_bytes(MAX_SEGMENT_BYTES).saturating_add(MAX_SEGMENT_BYTES),
+        )
+    });
     let budget_bytes = match (configured_capacity_bytes, ceiling_bytes) {
         (Some(configured), Some(ceiling)) => Some(configured.min(ceiling)),
         (Some(configured), None) => Some(configured),
@@ -14008,12 +14020,18 @@ mod tests {
 
     #[test]
     fn segment_ring_limits_cap_configured_capacity_below_disk_size() {
-        // 10 GiB less the rotation segment is 19 whole segments, regardless of
-        // the configured 1 TiB, so the appended segment still fits.
+        // 10 GiB less the 2 GiB pressure target and the appended rotation
+        // segment is 15 whole segments, regardless of the configured 1 TiB, so
+        // a full ring plus that segment never reaches pressure reclamation.
         let limits = resolve_segment_ring_limits(Some(1024 * GIB), Some(10 * GIB));
 
-        assert_eq!(limits.total_segments(), 19);
-        assert!(limits.capacity_bytes() + MAX_SEGMENT_BYTES <= 10 * GIB);
+        assert_eq!(limits.total_segments(), 15);
+        assert!(
+            limits.capacity_bytes()
+                + MAX_SEGMENT_BYTES
+                + segment_headroom_target_bytes(MAX_SEGMENT_BYTES)
+                <= 10 * GIB
+        );
     }
 
     #[test]
