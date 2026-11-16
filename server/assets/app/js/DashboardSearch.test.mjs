@@ -107,6 +107,43 @@ test("project pages stay scoped, hide redundant projects and allow an explicit p
   );
 });
 
+test("project search includes account pages unless a project filter is explicit", () => {
+  const projectPages = [
+    { title: "Settings", description: "", project: "ios", destination: "/settings", path: "/acme/ios/settings" },
+  ];
+  const context = {
+    input: { value: "", selectionStart: 0 },
+    filters: [],
+    projects: [{ name: "ios", pages: projectPages }],
+    catalogLoaded: false,
+    recentPages: [],
+    el: { dataset: { project: "ios", pages: JSON.stringify([...pages, ...projectPages]) } },
+    labels: { documentation: "Documentation" },
+    resources: [],
+  };
+
+  for (const loaded of [false, true]) {
+    context.catalogLoaded = loaded;
+    context.input.value = "";
+    assert.deepEqual(
+      DashboardSearch.searchResults.call(context).map((result) => result.path),
+      ["/acme/ios/settings", ...pages.map((page) => page.path)],
+    );
+    context.input.value = "billing";
+    assert.deepEqual(
+      DashboardSearch.searchResults.call(context).map((result) => result.path),
+      ["/acme/billing", "/acme/settings/billing"],
+    );
+    context.input.value = "project:ios billing";
+    assert.deepEqual(DashboardSearch.searchResults.call(context), []);
+    context.input.value = "project:ios settings";
+    assert.deepEqual(
+      DashboardSearch.searchResults.call(context).map((result) => result.path),
+      ["/acme/ios/settings"],
+    );
+  }
+});
+
 test("Command-K and Ctrl-K work without consuming repeated, composed or remote-session keys", () => {
   const key = { key: "k", metaKey: true };
   assert.equal(searchShortcut(key), true);
