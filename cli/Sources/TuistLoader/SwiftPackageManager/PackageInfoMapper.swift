@@ -1207,12 +1207,21 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } else {
                 nil
             }
-            moduleMap = try await moduleMapGenerator.generate(
+            let generatedModuleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: resolvedModuleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
+            // Below tools version 6.5, SwiftPM ignores a pure Swift target's public headers directory,
+            // including a module map there for other build systems (ReactiveCocoa's names its Objective-C target's headers).
+            if generatedModuleMap != .none,
+               try await isSwiftOnlyModule(target: target, targetPath: targetPath, toolsVersion: packageInfo.toolsVersion)
+            {
+                moduleMap = ModuleMap.none
+            } else {
+                moduleMap = generatedModuleMap
+            }
         default:
             moduleMapModuleName = nil
             moduleMap = nil
@@ -1495,26 +1504,54 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// Whether the target compiles C++ or Objective-C++ sources. SwiftPM links the C++ standard library into every client of
     /// such a module, which a client that only compiles Swift, C, or Objective-C would otherwise not link.
     private func hasCxxSources(target: PackageInfo.Target, targetPath: AbsolutePath) async throws -> Bool {
-        guard target.type.supportsSources else { return false }
-        let cxxExtensions = "{cpp,cc,cxx,mm}"
+        let cxxExtensions: Set<String> = ["cpp", "cc", "cxx", "mm"]
+        return try await !sourceExtensions(target: target, targetPath: targetPath) {
+            !$0.isDisjoint(with: cxxExtensions)
+        }.isDisjoint(with: cxxExtensions)
+    }
+
+    /// Whether SwiftPM builds the target as a Swift module without an underlying Clang module. Like
+    /// `PackageBuilder`, a Swift target only gets one from its public headers directory when it also
+    /// compiles C-family sources or, from tools version 6.5, when that directory exists.
+    private func isSwiftOnlyModule(
+        target: PackageInfo.Target, targetPath: AbsolutePath, toolsVersion: XcodeGraph.Version
+    ) async throws -> Bool {
+        guard toolsVersion < XcodeGraph.Version(6, 5, 0) else { return false }
+        let clangExtensions: Set<String> = ["c", "m", "mm", "cc", "cpp", "cxx", "s", "S"]
+        let extensions = try await sourceExtensions(target: target, targetPath: targetPath) {
+            $0.contains("swift") && !$0.isDisjoint(with: clangExtensions)
+        }
+        return extensions.contains("swift") && extensions.isDisjoint(with: clangExtensions)
+    }
+
+    /// Extensions of the target's non-excluded source files, read in a single traversal of each source
+    /// path that stops as soon as `isComplete` holds for the extensions found so far.
+    private func sourceExtensions(
+        target: PackageInfo.Target, targetPath: AbsolutePath, until isComplete: (Set<String>) -> Bool
+    ) async throws -> Set<String> {
+        guard target.type.supportsSources else { return [] }
         let excludedPaths = try target.exclude.map { targetPath.appending(try RelativePath(validating: $0)) }
         let sourcePaths = try target.sources?.map { targetPath.appending(try RelativePath(validating: $0)) } ?? [targetPath]
+        var extensions: Set<String> = []
+        func record(_ path: AbsolutePath) -> Bool {
+            guard let fileExtension = path.extension,
+                  !excludedPaths.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+            else { return false }
+            extensions.insert(fileExtension)
+            return isComplete(extensions)
+        }
         for sourcePath in sourcePaths {
-            let candidates: [AbsolutePath] = if try await fileSystem.exists(sourcePath, isDirectory: true) {
-                try await fileSystem.glob(directory: sourcePath, include: ["*.\(cxxExtensions)", "**/*.\(cxxExtensions)"])
-                    .collect()
-            } else if let fileExtension = sourcePath.extension, ["cpp", "cc", "cxx", "mm"].contains(fileExtension) {
-                [sourcePath]
-            } else {
-                []
-            }
-            if candidates.contains(where: { candidate in
-                !excludedPaths.contains(where: { candidate.isDescendantOfOrEqual(to: $0) })
-            }) {
-                return true
+            if try await fileSystem.exists(sourcePath, isDirectory: true) {
+                for try await candidate in try fileSystem.glob(directory: sourcePath, include: ["*", "**/*"])
+                    where record(candidate)
+                {
+                    return extensions
+                }
+            } else if record(sourcePath) {
+                return extensions
             }
         }
-        return false
+        return extensions
     }
 
     private func prebuiltDependency(

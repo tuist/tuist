@@ -2127,6 +2127,71 @@ struct PackageInfoMapperTests {
         )
     }
 
+    /// ReactiveCocoa's Swift target ships `include/module.modulemap` for its Xcode project, naming headers
+    /// of a sibling Objective-C target. Like SwiftPM, only targets with C-family sources (or a public
+    /// headers directory from tools version 6.5) get a Clang module from their public headers directory.
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider,
+        arguments: [
+            (["Signal.swift"], XcodeGraph.Version(5, 2, 0), false),
+            (["Signal.swift", "Runtime.m"], XcodeGraph.Version(5, 2, 0), true),
+            (["Signal.swift"], XcodeGraph.Version(6, 5, 0), true),
+            (["Runtime.m"], XcodeGraph.Version(5, 2, 0), true),
+            (["Signal.swift", "Nested/Thunk.S"], XcodeGraph.Version(5, 2, 0), true),
+            (["Signal.swift", "Nested/Impl.c"], XcodeGraph.Version(5, 2, 0), true),
+            (["Signal.swift", "Nested/Impl.cpp"], XcodeGraph.Version(5, 2, 0), true),
+            (["Signal.swift"], XcodeGraph.Version(6, 4, 0), false),
+            (["Signal.swift", "Excluded/Runtime.m"], XcodeGraph.Version(5, 2, 0), false),
+        ]
+    )
+    func map_whenSwiftTargetHasModuleMapInPublicHeaders(
+        sources: [String], toolsVersion: XcodeGraph.Version, usesModuleMap: Bool
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let targetPath = basePath.appending(try RelativePath(validating: "Package/Sources/ReactiveCocoa"))
+        let includePath = targetPath.appending(component: "include")
+        try await fileSystem.makeDirectory(at: includePath)
+        try await fileSystem.writeText(
+            "framework module ReactiveCocoa {\n umbrella header \"ReactiveCocoa.h\"\n export *\n}\n",
+            at: includePath.appending(component: "module.modulemap")
+        )
+        try await fileSystem.makeDirectory(at: targetPath.appending(component: "Excluded"))
+        for source in sources {
+            let sourcePath = targetPath.appending(try RelativePath(validating: source))
+            try await fileSystem.makeDirectory(at: sourcePath.parentDirectory)
+            try await fileSystem.writeText("", at: sourcePath)
+        }
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [.init(name: "ReactiveCocoa", type: .library(.automatic), targets: ["ReactiveCocoa"])],
+                    targets: [.test(name: "ReactiveCocoa", exclude: ["Excluded"])],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil,
+                    toolsVersion: toolsVersion
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        let settings = try #require(target.settings?.base)
+        if usesModuleMap {
+            #expect(target.headers != nil)
+            #expect(settings["MODULEMAP_FILE"] == "$(SRCROOT)/Sources/ReactiveCocoa/include/module.modulemap")
+        } else {
+            #expect(target.headers == nil)
+            #expect(settings["MODULEMAP_FILE"] == nil)
+            #expect(settings["HEADER_SEARCH_PATHS"] == nil)
+            #expect(settings["DEFINES_MODULE"] == nil)
+        }
+    }
+
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider, arguments: ["Excluded", "Vendor.1"])
     func map_whenHasHeadersWithExclude(excludedDirectory: String) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
