@@ -226,12 +226,15 @@ defmodule Tuist.Release do
 
       bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>")'
 
-  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/1`).
+  Cordoning the Node starts the drain (`Tuist.Sandboxes.Archives.node_drain/2`).
   Raises, so the command exits nonzero, until no sandbox but errored ones is
-  left; rerun it until it passes.
+  left; rerun it until it passes. A turn that does not end moves too with
+  `pause_turns: true`, which pauses it with its memory:
+
+      bin/tuist rpc 'Tuist.Release.sandbox_node_drain("<node>", pause_turns: true)'
   """
-  def sandbox_node_drain(node_name) when is_binary(node_name) do
-    drain = Archives.node_drain(node_name)
+  def sandbox_node_drain(node_name, opts \\ []) when is_binary(node_name) do
+    drain = Archives.node_drain(node_name, opts)
 
     if !drain.reclaiming,
       do: IO.puts("#{node_name} is not reclaimed by CI: cordon the Node; nothing is archived until it is.")

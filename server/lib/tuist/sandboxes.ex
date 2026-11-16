@@ -871,7 +871,8 @@ defmodule Tuist.Sandboxes do
   # a memory image resumes warm only on a node whose snapshot compatibility
   # matches the one that wrote it, so it waits for room on those, taking the
   # node it was archived from only when no other can; only when none is
-  # connected does it cold boot its disks on another.
+  # connected does it cold boot its disks on another, unless its disks were
+  # not synced (`Archives.warm_only?/1`), which waits for one.
   defp place_restore(sandbox, archive \\ nil)
 
   # A Mac already running the archived image restores without a pull.
@@ -896,7 +897,7 @@ defmodule Tuist.Sandboxes do
     case Archives.memory_compat(subject) do
       nil when is_nil(site) -> Capacity.place(sandbox)
       nil -> Capacity.place(sandbox, on_site)
-      compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(subject))
+      compat -> place_warm(sandbox, on_site, compat, Archives.origin_nodes(subject), Archives.warm_only?(subject))
     end
   end
 
@@ -908,8 +909,9 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp place_warm(sandbox, on_site, compat, origin) do
+  defp place_warm(sandbox, on_site, compat, origin, warm_only) do
     case Capacity.place(sandbox, &(on_site.(&1) and Map.get(&1, :snapshot_compat) == compat), avoid: origin) do
+      {:error, :no_node} when warm_only -> {:error, :no_capacity}
       {:error, :no_node} -> Capacity.place(sandbox, on_site)
       placed -> placed
     end
@@ -969,9 +971,27 @@ defmodule Tuist.Sandboxes do
       # under the host's grant check. A grant that closed while the VM
       # booted or restored must not refuse the turn: the VM already holds
       # its slot, and the refusal would only fail the spawn for a retry.
-      if admitted?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
+      if admitted?,
+        do: record_residency(sandbox, work_id),
+        else: sandbox |> begin_residency(work_id) |> move_off_reclaimed_node(sandbox)
     end
   end
+
+  # A node CI reclaims admits no new turn. Pause the idle VM and queue its
+  # archive now, so the retried turn restores it on another node instead of
+  # waiting for the next allocation observation to pause it.
+  defp move_off_reclaimed_node(
+         {:error, :no_capacity} = error,
+         %Sandbox{state: :running, residency_work_id: nil} = sandbox
+       ) do
+    if Capacity.ci_reclaim?(sandbox.node_name) and not commands_running?(sandbox) do
+      with {:ok, paused} <- do_pause(sandbox), do: Archives.move_off(paused)
+    end
+
+    error
+  end
+
+  defp move_off_reclaimed_node(result, _sandbox), do: result
 
   defp with_fresh(id, fun) do
     case get_sandbox_by_id(id) do
@@ -1154,6 +1174,36 @@ defmodule Tuist.Sandboxes do
   end
 
   defp do_pause(%Sandbox{state: :running}), do: {:error, :no_node}
+
+  @doc """
+  Pauses a running sandbox even while a turn holds it, for a node drain
+  (`Archives.node_drain/2` with `pause_turns: true`), and queues its archive.
+  The pause keeps its memory, so the archive restores it warm on another
+  node; commands the turn runs before that restore fail. A worker is stopped
+  first, as a daemon shutdown does: Anthropic re-queues its session. Answers
+  the node's refusal, such as an exec in flight, which a later drain check
+  retries.
+  """
+  def pause_turn(%Sandbox{id: id}) do
+    with_sandbox_lock(
+      id,
+      fn ->
+        with_fresh(id, fn
+          %Sandbox{state: :running} = sandbox ->
+            if sandbox.agent_environment_id, do: stop_worker(sandbox)
+
+            with {:ok, paused} <- do_pause(sandbox) do
+              Archives.move_off(paused)
+              {:ok, paused}
+            end
+
+          %Sandbox{} ->
+            {:ok, :skipped}
+        end)
+      end,
+      wait: false
+    )
+  end
 
   @doc """
   Refreshes an unsynced paused checkpoint before archiving, through normal

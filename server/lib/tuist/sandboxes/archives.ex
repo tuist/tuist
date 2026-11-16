@@ -99,6 +99,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.Workers.RecoverArchiveUploadWorker
   alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
+  alias Tuist.Tasks
 
   require Logger
 
@@ -268,12 +269,18 @@ defmodule Tuist.Sandboxes.Archives do
   queues the next archive, so a check keeps the drain moving. A running Orb
   in a turn pauses when Amp pauses it or the guest goes idle for ten minutes.
 
+  With `pause_turns: true`, it also pauses the running sandboxes a turn
+  still holds (`Sandboxes.pause_turn/1`), in the background: their memory
+  travels with the archive, so the turn continues on another node once its
+  sandbox is restored, and one with an exec in flight is tried again by the
+  next check.
+
   `drained` is true once only errored rows are left: they hold a jail that
   cannot be archived and are lost with the box, like the release would lose
   them anyway. Remote-execution rows belong to their scheduler and are not
   listed.
   """
-  def node_drain(node_name) when is_binary(node_name) do
+  def node_drain(node_name, opts \\ []) when is_binary(node_name) do
     reclaiming = Capacity.ci_reclaim?(node_name)
     if reclaiming, do: move_off_node(node_name)
 
@@ -297,6 +304,12 @@ defmodule Tuist.Sandboxes.Archives do
           }
       )
 
+    if reclaiming and opts[:pause_turns] do
+      for %{state: :running, residency_work_id: work_id, id: id} <- sandboxes, is_binary(work_id) do
+        Tasks.run_async(fn -> pause_turn(id, node_name) end)
+      end
+    end
+
     %{
       node: node_name,
       reclaiming: reclaiming,
@@ -304,6 +317,17 @@ defmodule Tuist.Sandboxes.Archives do
       sandboxes: sandboxes,
       drained: Enum.all?(sandboxes, &(&1.state == :error))
     }
+  end
+
+  defp pause_turn(id, node_name) do
+    with %Sandbox{} = sandbox <- Sandboxes.get_sandbox_by_id(id),
+         {:error, reason} <- Sandboxes.pause_turn(sandbox) do
+      Logger.warning("sandboxes: could not pause a turn off a node CI reclaims",
+        sandbox_id: id,
+        node: node_name,
+        reason: inspect(reason)
+      )
+    end
   end
 
   @doc """
@@ -766,10 +790,13 @@ defmodule Tuist.Sandboxes.Archives do
   # `node` is the node it was archived from, which a warm restore avoids.
   # `lazy_disks`: the disks are chunked ahead of the disk stream too, which
   # only a node whose hello sets `lazy_disks` can restore.
+  # A node archives a pause that did not sync its disks only with its
+  # memory (`disks_synced: false`); such an archive never cold boots.
   defp archive_memory(%{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat} = data, node)
        when is_integer(offset) and offset > 0 and is_binary(sha256) and is_binary(compat) do
     memory = %{"tail_offset" => offset, "tail_sha256" => sha256, "compat" => compat, "node" => node}
-    if data["lazy_disks"] == true, do: Map.put(memory, "lazy_disks", true), else: memory
+    memory = if data["lazy_disks"] == true, do: Map.put(memory, "lazy_disks", true), else: memory
+    if data["disks_synced"] == false, do: Map.put(memory, "warm_only", true), else: memory
   end
 
   defp archive_memory(_data, _node), do: nil
@@ -1077,6 +1104,13 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def memory_compat(%Sandbox{archive_memory: %{"compat" => compat}}), do: compat
   def memory_compat(_subject), do: nil
+
+  @doc """
+  Whether an archive restores only warm: its node archived a pause that
+  had not synced the guest's disks, so they miss what only its memory holds.
+  """
+  def warm_only?(%Sandbox{archive_memory: %{"warm_only" => true}}), do: true
+  def warm_only?(_subject), do: false
 
   @doc """
   The node an archive with memory was written from, as a list for

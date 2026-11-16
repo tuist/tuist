@@ -225,6 +225,69 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       capture_log(fn -> assert {:error, "upload failed"} = Archives.archive_oldest_on(["node-a"], ci: true) end)
     end
 
+    test "a turn the reclaiming node refuses pauses its idle VM and queues the archive now", %{account: account} do
+      sandbox = sandbox_fixture(account: account, amp_orb_id: "orb-1", state: :running, node_name: "node-a")
+      stub(Capacity, :admit_turn, fn _sandbox, _apply -> {:error, :no_capacity} end)
+
+      expect(Nodes, :call, fn "node-a", "pause", %{sync_disks: true}, _opts -> {:ok, %{"disks_synced" => true}} end)
+      assert {:error, :no_capacity} = Sandboxes.prepare_residency(sandbox, "amp:orb-1")
+      assert %Sandbox{state: :paused, residency_work_id: nil} = Repo.reload!(sandbox)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == sandbox.id
+
+      # A node merely full keeps the VM running for the retried turn.
+      other = sandbox_fixture(account: account, amp_orb_id: "orb-2", state: :running, node_name: "node-b")
+      reject(&Nodes.call/4)
+      assert {:error, :no_capacity} = Sandboxes.prepare_residency(other, "amp:orb-2")
+      assert Repo.reload!(other).state == :running
+    end
+
+    test "the drain check pauses turns that do not end only when asked, workers stopped first", %{account: account} do
+      orb =
+        sandbox_fixture(
+          account: account,
+          amp_orb_id: "orb-1",
+          state: :running,
+          node_name: "node-a",
+          residency_work_id: "amp:orb-1"
+        )
+
+      environment = agent_environment_fixture(account: account)
+
+      session =
+        sandbox_fixture(
+          account: account,
+          agent_environment_id: environment.id,
+          state: :running,
+          node_name: "node-a",
+          residency_work_id: "session-1"
+        )
+
+      test_pid = self()
+
+      stub(Nodes, :call, fn "node-a", op, %{sandbox_id: id}, _opts ->
+        send(test_pid, {op, id})
+        if op == "pause", do: {:ok, %{"disks_synced" => true}}, else: {:ok, %{}}
+      end)
+
+      assert %{drained: false} = Archives.node_drain("node-a")
+      refute_received {_op, _id}
+      assert Repo.reload!(orb).state == :running
+
+      assert %{drained: false} = Archives.node_drain("node-a", pause_turns: true)
+
+      for sandbox <- [orb, session] do
+        assert %Sandbox{state: :paused, residency_work_id: nil} = Repo.reload!(sandbox)
+      end
+
+      session_id = session.id
+      orb_id = orb.id
+      assert_received {"stop_worker", ^session_id}
+      refute_received {"stop_worker", ^orb_id}
+      queued = for job <- all_enqueued(worker: ArchiveSandboxesWorker), id = job.args["sandbox_id"], do: id
+      assert Enum.sort(queued) == Enum.sort([orb.id, session.id])
+    end
+
     test "leaves the sandboxes where they are once the reservation is gone, or with the tier off",
          %{account: account} do
       paused(account, paused_at: hours_ago(1))
@@ -1126,6 +1189,35 @@ defmodule Tuist.Sandboxes.ArchivesTest do
                AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
 
       assert Repo.reload!(sandbox).archive_key == nil
+    end
+
+    test "an unsynced pause archived with its memory never cold boots", %{account: account} do
+      sandbox = paused_orb(account, amp_orb_id: "amp-thread")
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "node-a", "archive", %{memory: true}, _opts ->
+        {:ok, result} = archive_result()
+
+        {:ok,
+         Map.merge(result, %{"disks_synced" => false, "tail_offset" => 900, "tail_sha256" => "tail", "compat" => "zen5"})}
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "node-a", "delete", _args, _opts -> {:ok, %{}} end)
+      assert {:ok, %Sandbox{state: :archived, archive_memory: %{"warm_only" => true}}} = Archives.archive(sandbox)
+
+      # No node of its kind is connected: it waits instead of cold booting.
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      expect(Capacity, :place, fn _placed, _warm, [avoid: ["node-a"]] -> {:error, :no_node} end)
+      reject(&Capacity.place/2)
+      stub(Storage, :delete_object, fn _key, _account -> flunk("the only copy of an unsynced Orb went") end)
+
+      assert {:error, :no_capacity} =
+               AmpOrbs.dispatch(account, "amp-thread", %{operation: "spawn", orb_token: "fresh"})
+
+      assert %Sandbox{state: :archived, archive_key: key} = Repo.reload!(sandbox)
+      assert is_binary(key)
     end
 
     test "a memory report that beats the create answer still lets the archive go", %{account: account} do
