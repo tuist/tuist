@@ -185,16 +185,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   @doc """
   Saves the disks of a build's paused builder sandbox as the repository's
   snapshot, replacing the environment's older snapshots of the repository,
-  and ends the build.
+  and ends the build. The snapshot takes over the builder's disk
+  reservation, since the caller deletes the builder next: a node with room
+  for the builder has room for its snapshot.
   """
   def save_build(%DiskSnapshot{state: :building} = build, %Sandbox{state: :paused, node_name: node_name} = sandbox)
       when is_binary(node_name) do
     with {:ok, ready} <-
-           do_save(sandbox, %{
-             agent_environment_id: build.agent_environment_id,
-             repository: build.repository,
-             setup_sha256: build.setup_sha256
-           }) do
+           do_save(
+             sandbox,
+             %{
+               agent_environment_id: build.agent_environment_id,
+               repository: build.repository,
+               setup_sha256: build.setup_sha256
+             },
+             releases: sandbox
+           ) do
       Repo.delete_all(from(s in DiskSnapshot, where: s.id == ^build.id))
       {:ok, ready}
     end
@@ -230,7 +236,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   def save(%Sandbox{state: state}, _amp_snapshot_id), do: {:error, {:invalid_state, state}}
 
-  defp do_save(%Sandbox{node_name: node_name} = sandbox, key) do
+  defp do_save(%Sandbox{node_name: node_name} = sandbox, key, reserve_opts \\ []) do
     attrs = %{
       account_id: sandbox.account_id,
       source_sandbox_id: sandbox.id,
@@ -245,9 +251,12 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
     with {:ok, node} <- connected_node(node_name),
          {:ok, snapshot} <-
-           Capacity.reserve_disk_snapshot(node, attrs, fn ->
-             %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert()
-           end) do
+           Capacity.reserve_disk_snapshot(
+             node,
+             attrs,
+             fn -> %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert() end,
+             reserve_opts
+           ) do
       case Nodes.call(node_name, "save_disks", %{sandbox_id: sandbox.id, snapshot_id: snapshot.id},
              timeout: @save_timeout
            ) do

@@ -18,7 +18,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   `Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker` runs until the
   build ends, follows it. When the command exits 0, it pauses the builder,
   which syncs its disks, saves them (`DiskSnapshots.save_build/2`) and
-  deletes the builder; any other end fails the build, which keeps the
+  deletes the builder. A node without disk for the snapshot keeps the
+  paused builder and is asked to make room until the build expires; any
+  other end fails the build, which keeps the
   script from building the repository again for an hour.
 
   Only the clone gets a credential: the token `Router.credentials/3` mints
@@ -29,6 +31,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Commands
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
@@ -210,7 +213,16 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       _ = Sandboxes.delete(paused)
       :ok
     else
-      {:error, reason} -> fail(build, sandbox, {:save, reason})
+      # The builder's node has no disk for the snapshot yet. The paused
+      # builder keeps the finished work while the archive tier frees room
+      # there, as it does for a new sandbox; `DiskSnapshots.delete_expired/0`
+      # bounds the wait.
+      {:error, :no_capacity} ->
+        Archives.make_node_room([sandbox.node_name])
+        {:snooze, @retry_seconds}
+
+      {:error, reason} ->
+        fail(build, sandbox, {:save, reason})
     end
   end
 

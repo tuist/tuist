@@ -308,7 +308,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   clones as `user` with a contents-read token in its environment, unsets
   it and runs the script as `user` in a login shell with
   `Sandboxes.tuist_env/2`. Exit 0 pauses the builder (syncing its disks),
-  saves and deletes it; anything else logs the output's tail, deletes the
+  saves and deletes it. The snapshot takes over the builder's disk
+  reservation (`Capacity.reserve_disk_snapshot/4`'s `releases:`): nodes run
+  near their budget, and a second ceiling on top of the builder's would be
+  refused. A save the node still refuses (its filesystem) keeps the paused
+  builder, asks `Archives.make_node_room/1` for room and retries every
+  minute until the build expires. Anything else logs the output's tail, deletes the
   builder and fails the build. Never save a sandbox a session used: every
   later session of the environment boots from the snapshot.
 - `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs. An Orb

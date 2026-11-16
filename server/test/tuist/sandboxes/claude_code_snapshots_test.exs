@@ -154,6 +154,36 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert [{:create, _create}, {:exec, _start}] = node_calls()
   end
 
+  test "a finished build saves within its builder's disk reservation and waits while the node's filesystem is full", %{
+    build: build,
+    test_pid: test_pid
+  } do
+    stub_node(test_pid)
+    assert {:snooze, 30} = advance(build)
+    _calls = node_calls()
+    finish_command(build, 0)
+
+    template = %{name: "default", ready: true, tag: "sha-new", rootfs_bytes: 1}
+    node = %{name: "node-a", templates: [template]}
+    builder = Repo.get!(Sandbox, build.id)
+    connect = fn disk -> stub(Nodes, :connected_nodes, fn -> [Map.put(node, :disk, disk)] end) end
+
+    # No room on the filesystem: the finished builder stays, paused.
+    connect.(%{available_bytes: 0})
+    assert {:snooze, 60} = advance(build)
+    assert [{:pause, _pause}] = node_calls()
+    assert %DiskSnapshot{state: :building} = Repo.get!(DiskSnapshot, build.id)
+    assert %Sandbox{state: :paused} = Repo.get!(Sandbox, build.id)
+
+    # A budget that holds only the builder holds its snapshot, which
+    # replaces it.
+    connect.(%{budget_bytes: Capacity.disk_ceiling_bytes(builder, node)})
+    assert :ok = advance(build)
+    assert [{:save_disks, save}, {:delete, _delete}] = node_calls()
+    assert %DiskSnapshot{state: :ready, repository: "acme/app"} = Repo.get!(DiskSnapshot, save.snapshot_id)
+    refute Repo.get(Sandbox, build.id)
+  end
+
   test "a failed script deletes the builder and keeps the script from building the repository for a while", %{
     agent_environment: agent_environment,
     build: build,
