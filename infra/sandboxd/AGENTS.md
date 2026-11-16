@@ -143,7 +143,10 @@ memory image until they cold boot.
   image.
 - `archive {sandbox_id, part_size, part_urls, memory, lazy_disks}`: refuse unless the
   sandbox is paused with `disks_synced`, so a cold restore of the disks
-  alone is always possible; stream `vmlinux`, `rootfs.ext4` and
+  alone is always possible, or its current memory image travels with it
+  (below), which holds what the guest had not synced: the header then says
+  `disks_synced: false`, and a `create` from it on a node of another
+  snapshot compatibility fails instead of cold booting; stream `vmlinux`, `rootfs.ext4` and
   `workspace.ext4` as one zstd object (`pkg/archive`: magic `SBXARC1`, a JSON
   header, file records with data blocks at their offsets, holes and zero
   blocks left out) cut into `part_size` parts, each PUT to the next
@@ -734,7 +737,7 @@ removed.
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
 Anthropic re-queues the session on its next event) and pauses every running
-sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
+sandbox, syncing its disks like the server's pauses, within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
 cold booting, except one that changes the Firecracker version. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
 

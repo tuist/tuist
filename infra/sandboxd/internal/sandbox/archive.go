@@ -112,9 +112,15 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 	if meta.State != protocol.StatePaused {
 		return res, fmt.Errorf("%w: %s is %s", ErrNotPaused, args.SandboxID, meta.State)
 	}
-	// The archive holds no memory image, so writes still in the guest's
-	// page cache would restore as zeroed blocks.
-	if !meta.DisksSynced {
+	// The memory image travels when the server can restore it and it is
+	// the one the disks belong to, written by this Firecracker; otherwise
+	// the restore cold boots anyway.
+	withMemory := args.Memory && !meta.ColdBoot && meta.FirecrackerVersion == m.cfg.FirecrackerVersion && m.cfg.SnapshotCompat != ""
+	// After a pause that did not sync, writes still in the guest's page
+	// cache are only in the memory image: without it they would restore as
+	// zeroed blocks, and with it the archive restores warm only
+	// (createFromArchive).
+	if !meta.DisksSynced && !withMemory {
 		return res, fmt.Errorf("%w: %s", ErrDisksNotSynced, args.SandboxID)
 	}
 
@@ -127,11 +133,8 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 		Template: meta.Template, Tag: meta.Tag, WorkspaceGB: meta.WorkspaceGB,
 		SourceSandbox: meta.ID, CreatedAt: time.Now().UTC(), DisksSynced: meta.DisksSynced,
 	}
-	// The memory image travels when the server can restore it and it is
-	// the one the disks belong to, written by this Firecracker; otherwise
-	// the restore cold boots anyway.
 	var memory *archivedMemory
-	if args.Memory && !meta.ColdBoot && meta.FirecrackerVersion == m.cfg.FirecrackerVersion && m.cfg.SnapshotCompat != "" {
+	if withMemory {
 		if memory, err = openMemory(sb.root); err != nil {
 			return res, err
 		}
@@ -389,6 +392,11 @@ func (m *Manager) createFromArchive(ctx context.Context, sb *Sandbox, args proto
 	if header.Memory != nil {
 		if header.Memory.Compat == m.cfg.SnapshotCompat && header.Memory.Size == int64(args.MemoryMB)<<20 {
 			return m.warmCreate(ctx, sb, src, args.WorkspaceGB, uid, log)
+		}
+		// Its disks miss what the guest had not synced; only the memory
+		// image holds it.
+		if !header.DisksSynced {
+			return res, fmt.Errorf("%w: compat %s, node %s", ErrArchiveNeedsWarmRestore, header.Memory.Compat, m.cfg.SnapshotCompat)
 		}
 		log.Warn("archived memory needs another kind of node; cold booting the disks", "compat", header.Memory.Compat, "node_compat", m.cfg.SnapshotCompat)
 		for _, name := range []string{firecracker.SnapshotPath, archive.MemoryIndexName} {

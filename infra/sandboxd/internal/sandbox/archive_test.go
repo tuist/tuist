@@ -469,6 +469,52 @@ func TestArchiveWithMemoryResumesWarmOnACompatibleNode(t *testing.T) {
 	}
 }
 
+func TestUnsyncedPauseArchivesOnlyWithItsMemory(t *testing.T) {
+	ctx := context.Background()
+	node := func(compat string) *harness {
+		h := newHarness(t)
+		h.m.cfg.SnapshotCompat = compat
+		h.launcher.SizedMemory = true
+		return h
+	}
+	h := node("zen5")
+	store, server := newObjectStore(t)
+	args := protocol.CreateArgs{SandboxID: "src", Template: "default", VCPUs: 2, MemoryMB: 128, WorkspaceGB: 1}
+	if _, err := h.m.Create(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Pause(ctx, "src"); err != nil {
+		t.Fatal(err)
+	}
+	archiveArgs := archiveArgs(server, "src")
+	if _, err := h.m.Archive(ctx, archiveArgs); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("an unsynced pause archived without its memory: %v", err)
+	}
+	archiveArgs.Memory = true
+	res, err := h.m.Archive(ctx, archiveArgs)
+	if err != nil {
+		t.Fatalf("an unsynced pause must archive with its memory: %v", err)
+	}
+	if res.DisksSynced || res.TailOffset <= 0 || res.Compat != "zen5" {
+		t.Fatalf("archive result %+v must carry the memory and say the disks are unsynced", res)
+	}
+	source := &protocol.ArchiveSource{URL: server.URL + "/archive", Bytes: res.Bytes, SHA256: res.SHA256, TailOffset: res.TailOffset, TailSHA256: res.TailSHA256}
+
+	// A node that cannot load the memory must not cold boot the disks.
+	other := node("zen4")
+	restore := args
+	restore.SandboxID, restore.FromArchive = "cold", source
+	if _, err := other.m.Create(ctx, restore); !errors.Is(err, ErrArchiveNeedsWarmRestore) {
+		t.Fatalf("an unsynced archive cold booted on an incompatible node: %v", err)
+	}
+	if vm.Exists(vm.JailDir(other.jailBase, "cold")) {
+		t.Fatal("a refused restore must remove its jail")
+	}
+	if len(store.object()) == 0 {
+		t.Fatal("a refused restore must leave the archive")
+	}
+}
+
 func TestArchiveWithLazyDisksRestoresTheirDisks(t *testing.T) {
 	if !fakevm.UserfaultfdSupported() {
 		t.Skip("this kernel has no unprivileged userfaultfd")

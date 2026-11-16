@@ -30,9 +30,10 @@ const (
 )
 
 var (
-	ErrDiskSnapshotNotFound = errors.New("disk snapshot not found")
-	ErrDisksNotSynced       = errors.New("disks were not synced by the last pause")
-	ErrDiskSnapshotMismatch = errors.New("disk snapshot does not match the requested sandbox")
+	ErrDiskSnapshotNotFound    = errors.New("disk snapshot not found")
+	ErrDisksNotSynced          = errors.New("disks were not synced by the last pause")
+	ErrArchiveNeedsWarmRestore = errors.New("archive of an unsynced pause restores only on a node that loads its memory")
+	ErrDiskSnapshotMismatch    = errors.New("disk snapshot does not match the requested sandbox")
 )
 
 type diskSnapshotMeta struct {
