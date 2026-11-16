@@ -344,19 +344,17 @@ struct CargoCompilerObserver { // swiftlint:disable:this type_body_length
         return client
     }
 
+    /// Parses complete lines of rustc's JSON messages: the first `remaining` diagnostics, and the `emit` kind of every
+    /// artifact notification into `emitted`.
     static func diagnostics(
-        from pending: inout Data, remaining: Int, invocation: (any CargoCacheAction)?
+        from pending: inout Data, remaining: Int, emitted: inout Set<String>
     ) -> [CargoDiagnostic] {
         var result: [CargoDiagnostic] = []
         while let newline = pending.firstIndex(of: 10) {
             let line = pending.prefix(upTo: newline)
             pending.removeSubrange(...newline)
             guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
-            if json["$message_type"] as? String == "artifact", json["emit"] as? String == "metadata" {
-                // Cargo pipelines dependents as soon as this notification is forwarded. Certify
-                // the atomically installed metadata first; this is admission, not cache publication.
-                try? invocation?.certifyOutputs(metadataOnly: true)
-            }
+            if json["$message_type"] as? String == "artifact", let emit = json["emit"] as? String { emitted.insert(emit) }
             guard result.count < remaining,
                   let level = json["level"] as? String, ["error", "warning"].contains(level),
                   let message = json["message"] as? String else { continue }

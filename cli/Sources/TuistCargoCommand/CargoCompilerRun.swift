@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Synchronization
 import TuistProcess
 import TuistREAPI
 
@@ -22,12 +23,25 @@ protocol CargoHookRun: AnyObject {
     /// Finishes a run whose process never reported an exit: it did not start, or its client went away. A failure, but
     /// not one a verified hit would have hidden.
     func abandon() async
+    /// Like `standardError`, for a caller that can stop `command`, which lets the run hold standard error back while it
+    /// looks the cache up. `nil` once that found the outputs: the caller stops the command and, once it exited, calls
+    /// `restore` instead of `settle`.
+    func standardErrorUnlessCached(_ bytes: Data) -> Data?
+    /// The command exited on its own: what `standardErrorUnlessCached` still holds, to forward before the exit.
+    func exited() -> Data
+    /// Restores the outputs found while the stopped command ran: their messages to replay, and the part Cargo need not
+    /// wait for. `nil` when they could not be restored after all; the run then starts over, and `command` runs again.
+    func restore() async -> (messages: CargoReplay, publish: @Sendable () async -> Void)?
 }
 
 extension CargoHookRun {
     func abandon() async {
         await finish(succeeded: false)
     }
+
+    func standardErrorUnlessCached(_ bytes: Data) -> Data? { standardError(bytes) }
+    func exited() -> Data { Data() }
+    func restore() async -> (messages: CargoReplay, publish: @Sendable () async -> Void)? { nil }
 
     func settle(succeeded: Bool) async -> @Sendable () async -> Void {
         await finish(succeeded: succeeded)
@@ -38,7 +52,7 @@ extension CargoHookRun {
 /// A compilation the cache missed, from the compiler's start to publication. Whoever runs `command` (this process, or
 /// the hook client of a served session, which keeps Cargo's jobserver and stdio) feeds it the compiler's output and
 /// forwards the standard error `standardError` returns, then calls `finish`.
-final class CargoCompilerRun: CargoHookRun {
+final class CargoCompilerRun: CargoHookRun { // swiftlint:disable:this type_body_length
     let command: [String]
     let environment: [String: String]
     private let arguments: [String]
@@ -64,6 +78,32 @@ final class CargoCompilerRun: CargoHookRun {
     private var abandoned = false
     private var diagnostics: [CargoDiagnostic] = []
     private var pending = Data()
+    /// The artifact notifications (`emit` kinds) in the latest standard error.
+    private var emitted: Set<String> = []
+    /// Standard error held back while the cache may still hold this compilation (`standardErrorUnlessCached`).
+    private var held: Data?
+    /// Whether `held` announces rustc's metadata, which is certified when released.
+    private var heldMetadata = false
+    private var looksUp = true
+    private var lookup: Lookup?
+    private var found: Found?
+
+    /// A compilation without a usable source list, keyed from the dep-info rustc writes right after macro expansion
+    /// and looked up while rustc goes on.
+    private final class Lookup {
+        var task: Task<Void, Never>?
+        let done = DispatchSemaphore(value: 0)
+        /// `nil` while running, then the entry found, if any.
+        let outcome = Mutex<Found??>(nil)
+    }
+
+    private struct Found {
+        let cache: CargoCompilationCache
+        let fetched: CargoCompilationCache.Fetched
+        let sources: CargoReadSet?
+        let measurement: CargoCacheMeasurement
+        let replayed: CargoReplay
+    }
 
     init(
         command: [String], environment: [String: String], arguments: [String], hookEnvironment: [String: String],
@@ -97,13 +137,139 @@ final class CargoCompilerRun: CargoHookRun {
     /// Takes the compiler's standard error and returns it for forwarding. Cargo pipelines dependents as soon as a
     /// metadata artifact notification is forwarded, so the metadata is certified before these bytes are returned.
     func standardError(_ bytes: Data) -> Data {
+        take(bytes)
+        if emitted.contains("metadata") {
+            // Cargo pipelines dependents as soon as this notification is forwarded. Certify
+            // the atomically installed metadata first; this is admission, not cache publication.
+            try? invocation?.certifyOutputs(metadataOnly: true)
+        }
+        return bytes
+    }
+
+    private func take(_ bytes: Data) {
         if stdout.count + stderr.count + bytes.count <= 1_000_000 { stderr.append(bytes) } else { bounded = false }
         pending.append(bytes)
         if pending.count > 1_000_000 { pending.removeAll() }
+        emitted = []
         diagnostics += CargoCompilerObserver.diagnostics(
-            from: &pending, remaining: 100 - diagnostics.count, invocation: invocation
+            from: &pending, remaining: 100 - diagnostics.count, emitted: &emitted
         )
+    }
+
+    /// Like Kache, a strict compilation without a usable source list is keyed once rustc has written its dep-info,
+    /// right after macro expansion, rather than after it finished: when that key hits, rustc is stopped and the entry
+    /// restored. Until the lookup ends, standard error is held back, so a hit's replayed messages are the only ones
+    /// Cargo sees and no dependent starts from rustc's metadata. rustc writes a library's outputs itself, without a
+    /// linker, so stopping it at any point leaves nothing running.
+    func standardErrorUnlessCached(_ bytes: Data) -> Data? {
+        if held == nil, lookup == nil, looksUp {
+            looksUp = false
+            // A verifying compilation must compile, never restore an entry it found meanwhile.
+            if strict, cache != nil, verification == nil, (invocation as? CargoCacheInvocation)?.sourceIndex != nil {
+                held = Data()
+            }
+        }
+        guard held != nil else { return standardError(bytes) }
+        take(bytes)
+        held?.append(bytes)
+        if emitted.contains("metadata") { heldMetadata = true }
+        if lookup == nil {
+            guard emitted.contains("dep-info") else { return emitted.isEmpty ? Data() : release() }
+            guard let started = lookUp() else { return release() }
+            lookup = started
+        }
+        guard let lookup else { return release() }
+        // rustc writes its metadata after its dep-info: Cargo must not hear of it before the lookup ended.
+        if emitted.contains("metadata") || emitted.contains("link") { lookup.done.wait() }
+        guard let outcome = lookup.outcome.withLock({ $0 }) else { return Data() }
+        self.lookup = nil
+        if let entry = outcome {
+            found = entry
+            held = nil
+            heldMetadata = false
+            return nil
+        }
+        return release()
+    }
+
+    /// Ends holding standard error back, certifying metadata rustc announced meanwhile before it is forwarded.
+    private func release() -> Data {
+        let bytes = held ?? Data()
+        held = nil
+        if heldMetadata { try? invocation?.certifyOutputs(metadataOnly: true) }
+        heldMetadata = false
         return bytes
+    }
+
+    /// Keys the compilation from rustc's dep-info and looks that key up, unless the key is the one that already missed.
+    private func lookUp() -> Lookup? {
+        guard let rust = invocation as? CargoCacheInvocation, let cache else { return nil }
+        let lookup = Lookup()
+        lookup.task = Task { [lookup] in
+            var entry: Found?
+            defer {
+                lookup.outcome.withLock { $0 = .some(entry) }
+                lookup.done.signal()
+            }
+            let (keyed, sources) = rust.refreshed()
+            guard let keyed, sources != nil else { return }
+            let measurement = CargoCacheMeasurement(invocation: keyed)
+            let replayed = CargoReplay()
+            guard var rekeyed = try? CargoCompilationCache(
+                invocation: keyed, root: cache.root, remote: cache.remote, measurement: measurement
+            ) else { return }
+            rekeyed.replay = { replayed.stdout = $0; replayed.stderr = $1 }
+            guard let fetched = try? await rekeyed.fetch() else { return }
+            entry = Found(cache: rekeyed, fetched: fetched, sources: sources, measurement: measurement, replayed: replayed)
+        }
+        return lookup
+    }
+
+    func exited() -> Data {
+        // The lookup shares the invocation's input hasher with publication, so it ends first.
+        if let lookup {
+            lookup.task?.cancel()
+            lookup.done.wait()
+            self.lookup = nil
+        }
+        return release()
+    }
+
+    func restore() async -> (messages: CargoReplay, publish: @Sendable () async -> Void)? {
+        let entry = found
+        found = nil
+        // Objects are named after the dep-info file, the last output also of a metadata-only compilation.
+        if let invocation = entry?.cache.invocation, let outputs = entry?.fetched.result.outputFiles.map(\.path),
+           let depInfo = invocation.files.last,
+           let names = try? CargoCacheInputs.entries(of: invocation.output, prefix: String(depInfo.dropLast(2)) + ".")
+        {
+            // rustc stopped after its metadata may have begun writing objects beside the outputs.
+            for name in Set(names).subtracting(outputs) where invocation.acceptsOutput(name) {
+                let file = invocation.output.appendingPathComponent(name)
+                if let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                   modified >= started { try? FileManager.default.removeItem(at: file) }
+            }
+        }
+        guard let entry, (try? await entry.cache.install(entry.fetched)) == true else {
+            // Compiled again from the start: the stopped compiler's messages and reads are incomplete.
+            stdout = Data()
+            stderr = Data()
+            bounded = true
+            diagnostics = []
+            pending = Data()
+            if let log { try? FileManager.default.removeItem(at: log) }
+            return nil
+        }
+        entry.measurement.outcome(hit: true)
+        return (entry.replayed, { [self] in
+            if let sources = entry.sources, let rust = invocation as? CargoCacheInvocation {
+                await rust.remember(sources, remote: remote)
+            }
+            // After the list is remembered, so a build waiting on this key finds the restored entry through it.
+            flight?.release()
+            entry.measurement.write()
+            if let log { try? FileManager.default.removeItem(at: log) }
+        })
     }
 
     func finish(succeeded: Bool) async {

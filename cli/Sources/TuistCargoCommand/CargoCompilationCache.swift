@@ -56,7 +56,7 @@ struct CargoCompilationCache { // swiftlint:disable:this type_body_length
     private let rendered: Entry?
 
     /// An action result's index: the key, and the width of the diagnostics it holds, if any.
-    private struct Entry {
+    fileprivate struct Entry {
         let command: Data
         let action: Data
         let digest: REAPI.Digest
@@ -100,14 +100,45 @@ struct CargoCompilationCache { // swiftlint:disable:this type_body_length
     func restoreLocally() async throws -> Bool {
         for entry in entries {
             try Task.checkCancellation()
-            let localStarted = Date()
-            let data = try? boundedData(index(entry), maximum: 2_000_000)
-            measurement.timing("read", duration: Date().timeIntervalSince(localStarted))
-            if let data, let result = try? REAPI.ActionResult(serializedBytes: data),
+            if let result = localResult(entry),
                (try? await materialize(result, entry: entry, downloadMissing: false)) == true { return true }
         }
         try Task.checkCancellation()
         return false
+    }
+
+    /// An entry `fetch` found, with its blobs in the local store.
+    struct Fetched {
+        let result: REAPI.ActionResult
+        fileprivate let entry: Entry
+        let remote: Bool
+    }
+
+    /// Finds the entry, locally first, and brings its blobs into the local store without touching the outputs, for a
+    /// compiler that is still running: `install` restores it once the compiler has stopped.
+    func fetch() async throws -> Fetched? {
+        for entry in entries {
+            try Task.checkCancellation()
+            if let result = localResult(entry), (try? await stage(result, downloadMissing: false)) == true {
+                return Fetched(result: result, entry: entry, remote: false)
+            }
+        }
+        guard let remote else { return nil }
+        for entry in entries {
+            try Task.checkCancellation()
+            let started = Date()
+            guard let result = try await remote.actionResult(for: entry.digest) else { continue }
+            measurement.timing("read", duration: Date().timeIntervalSince(started))
+            if try await stage(result, downloadMissing: true) { return Fetched(result: result, entry: entry, remote: true) }
+        }
+        return nil
+    }
+
+    private func localResult(_ entry: Entry) -> REAPI.ActionResult? {
+        let started = Date()
+        let data = try? boundedData(index(entry), maximum: 2_000_000)
+        measurement.timing("read", duration: Date().timeIntervalSince(started))
+        return data.flatMap { try? REAPI.ActionResult(serializedBytes: $0) }
     }
 
     func restoreRemotely() async throws -> Bool {
@@ -346,6 +377,12 @@ struct CargoCompilationCache { // swiftlint:disable:this type_body_length
     }
 
     private func materialize(_ result: REAPI.ActionResult, entry: Entry, downloadMissing: Bool) async throws -> Bool {
+        guard try await stage(result, downloadMissing: downloadMissing) else { return false }
+        return try await install(Fetched(result: result, entry: entry, remote: downloadMissing))
+    }
+
+    /// Checks an entry and brings its blobs into the local store, downloading missing ones when allowed.
+    private func stage(_ result: REAPI.ActionResult, downloadMissing: Bool) async throws -> Bool {
         guard result.exitCode == 0, result.outputDirectories.isEmpty,
               result.outputFileSymlinks.isEmpty, result.outputDirectorySymlinks.isEmpty, result.outputSymlinks.isEmpty,
               !result.hasStdoutDigest, !result.hasStderrDigest,
@@ -394,6 +431,15 @@ struct CargoCompilationCache { // swiftlint:disable:this type_body_length
             }
             guard complete else { measurement.failure(endpoint: !download.remoteFailures.isEmpty); return false }
         }
+        return true
+    }
+
+    /// Moves a staged entry's outputs into place and replays its messages.
+    func install(_ fetched: Fetched) async throws -> Bool {
+        let (result, entry) = (fetched.result, fetched.entry)
+        let staging = root.appendingPathComponent("staging/" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
         try await invocation.validateDependencies(restoring: true)
         let replayed = result.stderrRaw.split(separator: 10, omittingEmptySubsequences: false).filter { line in
             (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any])?["$message_type"] as? String != Self
@@ -464,7 +510,7 @@ struct CargoCompilationCache { // swiftlint:disable:this type_body_length
         }
         try invocation.certifyOutputs(metadataOnly: false)
         // A remote entry is kept locally; a local one, read from the index just now, renews its use like a blob.
-        if downloadMissing {
+        if fetched.remote {
             try CargoBlobStore.write(try result.serializedData(), to: index(entry))
         } else {
             CargoBlobStore.markUsed(index(entry).path)

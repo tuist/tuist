@@ -30,9 +30,11 @@ import TuistREAPI
 /// Frames are a tag byte and a little-endian 32-bit length. Client to server: `Q` compiler, `S` build-script or `N`
 /// native compiler request (working directory, then counted NUL-terminated arguments and environment), `o`/`e`
 /// compiler output, `x` exit status. Server to client: `O`/`E` output to write, `R` command to run (counted arguments
-/// and environment), `X` exit status to exit with, `F` fall back.
+/// and environment), `K` (in place of `E`) stop the compiler, which the cache holds, and report its exit, `X` exit
+/// status to exit with, `F` fall back. After `K`, the server restores the outputs and replies `O`, `E` and `X`, or,
+/// when it could not, `R` again.
 final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_length
-    static let version = "tuist-cargo-hook-v3"
+    static let version = "tuist-cargo-hook-v4"
     static let socketVariable = "TUIST_CARGO_HOOK_SOCKET"
     static let fallbackVariable = "TUIST_CARGO_HOOK_FALLBACK"
     /// The client the `cc` shim starts in a served session.
@@ -200,28 +202,50 @@ final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_leng
             _ = Self.write(connection, "F", Data())
             return
         }
-        guard Self.write(connection, "R", Self.encode(run.command, run.environment.map { "\($0.key)=\($0.value)" })) else {
-            Self.wait { await run.abandon() }
-            return
-        }
         var status: Int32?
-        loop: while let (tag, bytes) = Self.read(connection) {
-            switch tag {
-            case UInt8(ascii: "o"): run.standardOutput(bytes)
-            case UInt8(ascii: "e"):
-                guard Self.write(connection, "E", run.standardError(bytes)) else { break loop }
-            case UInt8(ascii: "x"):
-                status = bytes.count == 4 ? bytes
-                    .withUnsafeBytes { Int32(littleEndian: $0.loadUnaligned(as: Int32.self)) } : 1
-                break loop
-            default: break loop
+        while true {
+            guard Self.write(connection, "R", Self.encode(run.command, run.environment.map { "\($0.key)=\($0.value)" }))
+            else {
+                _ = run.exited()
+                Self.wait { await run.abandon() }
+                return
+            }
+            status = nil
+            var stopped = false
+            loop: while let (tag, bytes) = Self.read(connection) {
+                switch tag {
+                case UInt8(ascii: "o"): run.standardOutput(bytes)
+                case UInt8(ascii: "e"):
+                    // `K`: the run found its outputs in the cache, so the client stops the compiler and reports its exit.
+                    guard let forward = run.standardErrorUnlessCached(bytes) else {
+                        stopped = true
+                        guard Self.write(connection, "K", Data()) else { break loop }
+                        continue
+                    }
+                    guard Self.write(connection, "E", forward) else { break loop }
+                case UInt8(ascii: "x"):
+                    status = bytes.count == 4 ? bytes
+                        .withUnsafeBytes { Int32(littleEndian: $0.loadUnaligned(as: Int32.self)) } : 1
+                    break loop
+                default: break loop
+                }
+            }
+            // Outputs are restored only once the stopped compiler exited.
+            guard stopped, status != nil else { break }
+            if let (messages, publish) = Self.wait({ await run.restore() }) {
+                _ = Self.write(connection, "O", messages.stdout) && Self.write(connection, "E", messages.stderr)
+                    && Self.write(connection, "X", Self.status(0))
+                Self.wait { await publish() }
+                return
             }
         }
+        let held = run.exited()
         guard let status else {
             Self.wait { await run.abandon() }
             _ = Self.write(connection, "X", Self.status(1))
             return
         }
+        if !held.isEmpty { _ = Self.write(connection, "E", held) }
         // Cargo starts dependents once the exit is reported, so publication waits only for what they need.
         let publish = Self.wait { await run.settle(succeeded: status == 0) }
         _ = Self.write(connection, "X", Self.status(status))
@@ -316,6 +340,7 @@ final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_leng
     #include <errno.h>
     #include <fcntl.h>
     #include <poll.h>
+    #include <signal.h>
     #include <spawn.h>
     #include <stdint.h>
     #include <stdlib.h>
@@ -460,7 +485,7 @@ final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_leng
         int32_t status = 127;
         if (spawned == 0) {
             struct pollfd pipes[2] = {{out[0], POLLIN, 0}, {err[0], POLLIN, 0}};
-            int open_pipes = 2;
+            int open_pipes = 2, stopped = 0;
             char chunk[65536], tag = 0, *reply = NULL;
             uint32_t reply_length = 0;
             while (open_pipes > 0) {
@@ -470,13 +495,17 @@ final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_leng
                     ssize_t got = read(pipes[i].fd, chunk, sizeof(chunk));
                     if (got < 0 && errno == EINTR) continue;
                     if (got <= 0) { close(pipes[i].fd); pipes[i].fd = -1; open_pipes--; continue; }
+                    if (stopped) continue;
                     if (i == 0) {
                         write_all(1, chunk, (size_t)got);
                         if (sock >= 0 && send_frame('o', chunk, (uint32_t)got) != 0) { close(sock); sock = -1; }
                     } else if (sock >= 0 && send_frame('e', chunk, (uint32_t)got) == 0
-                               && read_frame(&tag, &reply, &reply_length) == 0 && tag == 'E') {
-                        /* Forwarded only once the server has certified any metadata this announces. */
-                        write_all(2, reply, reply_length);
+                               && read_frame(&tag, &reply, &reply_length) == 0 && (tag == 'E' || tag == 'K')) {
+                        /* Forwarded only once the server has certified any metadata this announces. `K`: the server
+                           found the compiler's outputs in the cache, so it stops; its output no longer matters, and
+                           the server restores the outputs once it exited. */
+                        if (tag == 'K') { kill(pid, SIGKILL); stopped = 1; }
+                        else write_all(2, reply, reply_length);
                     } else {
                         if (sock >= 0) { close(sock); sock = -1; }
                         write_all(2, chunk, (size_t)got);

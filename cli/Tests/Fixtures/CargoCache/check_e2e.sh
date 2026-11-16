@@ -3,10 +3,11 @@
 # local-only.
 #
 # `m` is a workspace library with a rustc warning and a Clippy warning, behind `dep`, another workspace library: a warm
-# check restores `dep`, certifies its metadata and restores `m` against it, replaying the warning. Check entries never
-# serve a build. `ext` lives outside the workspace, so `cargo clippy` compiles it with rustc and it keeps its check
-# entry. Clippy compilations have entries of their own, replay Clippy's warnings, and miss when Clippy's arguments, its
-# configuration file or the package manifest change; enabling the `cargo` lints, which run `cargo metadata`, is never
+# check restores `dep`, certifies its metadata and restores `m` against it, replaying the warning; without its list, a
+# served hook restores `m` from its dep-info while rustc runs. Check entries never serve a build. `ext` lives outside
+# the workspace, so `cargo clippy` compiles it with rustc and it keeps its check entry. Clippy compilations have entries
+# of their own, replay Clippy's warnings, and miss when Clippy's arguments, its configuration file or the package
+# manifest change; enabling the `cargo` lints, which run `cargo metadata`, is never
 # cached. `uses` calls a workspace proc macro, so only the read recorder (arm64 macOS, x86_64 and aarch64 Linux)
 # caches it, for both commands.
 # Expected values are computed here.
@@ -61,6 +62,15 @@ cargo_run check-warm check
 expect check-warm "hit hit hit $recorded" "$DEP $M $EXT $USES"
 logged check-warm "$dead_code" || fail "check-warm: the restored crate's warning was not replayed"
 logged check-warm "$len_zero" && fail "check-warm: rustc showed a Clippy warning"
+
+# Without its remembered list, a session's hook keys `m` from its dep-info while rustc runs and restores the check entry,
+# whose outputs are only metadata and dep-info. Elsewhere `m` compiles first.
+rm -rf "$XDG_CACHE_HOME"/tuist/Cargo/*/reads
+early=miss
+[ "$(uname -s)" != Darwin ] || early=hit
+cargo_run check-forgotten-list check
+expect check-forgotten-list "$early" "$M"
+expect check-forgotten-list-warnings 1 "$(grep -cF "$dead_code" "$ROOT/check-forgotten-list.log")"
 
 # A check's metadata never stands in for a build's.
 cargo_run build-after-check build
