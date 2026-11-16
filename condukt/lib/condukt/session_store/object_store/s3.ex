@@ -43,16 +43,6 @@ defmodule Condukt.SessionStore.ObjectStore.S3 do
   end
 
   @impl true
-  def head(config, key) do
-    case request(config, method: :head, url: object_url(config, key)) do
-      {:ok, %{status: 200}} -> :ok
-      {:ok, %{status: 404}} -> :not_found
-      {:ok, response} -> {:error, {:http, response.status}}
-      {:error, exception} -> {:error, {:transport, Exception.message(exception)}}
-    end
-  end
-
-  @impl true
   def list(config, prefix, start_after), do: list(config, prefix, start_after, nil, [])
 
   defp list(config, prefix, start_after, token, acc) do

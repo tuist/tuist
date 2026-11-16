@@ -23,8 +23,6 @@ defmodule Condukt.SessionStore.ObjectStoreTest do
     @impl true
     def get({memory, _hook}, key), do: Memory.get(memory, key)
     @impl true
-    def head({memory, _hook}, key), do: Memory.head(memory, key)
-    @impl true
     def list({memory, _hook}, prefix, start_after), do: Memory.list(memory, prefix, start_after)
     @impl true
     def delete({memory, _hook}, key), do: Memory.delete(memory, key)
@@ -134,6 +132,46 @@ defmodule Condukt.SessionStore.ObjectStoreTest do
 
       {:ok, manifests} = Memory.list(memory, "condukt/sessions/a/manifest/", nil)
       assert length(manifests) <= 3
+    end
+
+    # Two takeovers later, the manifests the oldest writer would collide with
+    # are deleted and its fence object is cleared. It still has to be refused,
+    # or a save that rewrites the history deletes segments the current
+    # manifest points to.
+    test "refuses a writer two owners back", %{store_opts: opts} do
+      first = Keyword.put(opts, :epoch, 1)
+      long = for n <- 1..3, do: Message.user("turn #{n}")
+      assert :ok = ObjectStore.save(Snapshot.new(%{messages: long}), first)
+
+      Task.await(
+        Task.async(fn ->
+          second = Keyword.put(opts, :epoch, 2)
+          assert {:ok, _} = ObjectStore.load(second)
+          assert :ok = ObjectStore.save(Snapshot.new(%{messages: long ++ [Message.user("turn 4")]}), second)
+          assert :ok = ObjectStore.clear_journal(second)
+        end)
+      )
+
+      current = Task.await(Task.async(fn -> ObjectStore.load(Keyword.put(opts, :epoch, 3)) end))
+      assert {:ok, %{messages: [_, _, _, _]}} = current
+
+      assert ObjectStore.append_journal([{:resume, 1, nil}], first) == {:error, :fenced}
+      assert ObjectStore.save(Snapshot.new(%{messages: [Message.user("rewritten")]}), first) == {:error, :fenced}
+      assert ObjectStore.clear(first) == {:error, :fenced}
+      assert ObjectStore.load(Keyword.put(opts, :epoch, 3)) == current
+    end
+
+    # The owner between them claimed but stopped before it wrote anything else.
+    test "refuses a writer two owners back when the owner between them only claimed", %{store_opts: opts} do
+      first = Keyword.put(opts, :epoch, 1)
+      assert :ok = ObjectStore.save(Snapshot.new(%{messages: [Message.user("kept")]}), first)
+
+      for epoch <- [2, 3] do
+        Task.await(Task.async(fn -> assert {:ok, _} = ObjectStore.load(Keyword.put(opts, :epoch, epoch)) end))
+      end
+
+      assert ObjectStore.clear(first) == {:error, :fenced}
+      assert {:ok, %{messages: [%{content: "kept"}]}} = ObjectStore.load(Keyword.put(opts, :epoch, 3))
     end
 
     test "a write at an epoch older than the session's is refused", %{store_opts: opts} do

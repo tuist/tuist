@@ -19,9 +19,6 @@ defmodule Condukt.SessionStore.ObjectStore.Bucket do
 
   @callback get(term(), key :: String.t()) :: {:ok, binary()} | :not_found | {:error, term()}
 
-  @doc "Whether the key has an object, without reading it."
-  @callback head(term(), key :: String.t()) :: :ok | :not_found | {:error, term()}
-
   @doc "Every key under `prefix` that sorts after `start_after`, in ascending order."
   @callback list(term(), prefix :: String.t(), start_after :: String.t() | nil) ::
               {:ok, [String.t()]} | {:error, term()}
