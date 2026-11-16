@@ -185,7 +185,7 @@ let dependencies: [PackageDescription.Package.Dependency] = [
     .package(url: "https://github.com/aws-amplify/amplify-swift", exact: "2.49.1"),
     .package(url: "https://github.com/aws-amplify/amplify-swift-utils-notifications", exact: "1.1.1"),
     .package(url: "https://github.com/awslabs/aws-crt-swift", exact: "0.48.0"),
-    .package(url: "https://github.com/awslabs/aws-sdk-swift", exact: "1.2.59"),
+    .package(url: "https://github.com/awslabs/aws-sdk-swift", exact: "1.5.79"),
     .package(url: "https://github.com/awslabs/smithy-swift", exact: "0.125.0"),
     .package(url: "https://github.com/stephencelis/SQLite.swift", exact: "0.15.3"),
     .package(url: "https://github.com/apple/swift-log", exact: "1.6.3"),
