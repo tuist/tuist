@@ -713,3 +713,55 @@ func TestBorrowerStampsTheTakeoverInOneWrite(t *testing.T) {
 		t.Fatalf("pushes = %d, torn writes = %v", len(p.configs), torn)
 	}
 }
+
+// A host whose Node has been quiet for half the token lifetime may hold an
+// expired token, so the drift loop pushes it a fresh kubeconfig although its
+// config has not changed: once per half lifetime, and never to a Ready Node.
+func TestBorrowerRepushesTheCredentialOfAQuietNode(t *testing.T) {
+	r, p := newLeaseReconciler(t, offeredLease(), tailscaleSecret())
+	grant(t, r, reconcileLease(t, r))
+	reconcileLease(t, r)
+	if len(p.configs) != 1 {
+		t.Fatalf("pushes = %d after the takeover, want 1", len(p.configs))
+	}
+	ttl := r.CredentialsManager.CredentialTTL()
+	setReady := func(status corev1.ConditionStatus, heartbeat time.Time) {
+		t.Helper()
+		node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: borrowedNode}}
+		if err := r.Get(context.Background(), client.ObjectKeyFromObject(node), node); apierrors.IsNotFound(err) {
+			if err := r.Create(context.Background(), node); err != nil {
+				t.Fatal(err)
+			}
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		node.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: status, LastHeartbeatTime: metav1.NewTime(heartbeat)}}
+		if err := r.Status().Update(context.Background(), node); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Ready, or quiet for less than half the lifetime: nothing to push.
+	setReady(corev1.ConditionTrue, time.Now().Add(-ttl))
+	reconcileLease(t, r)
+	setReady(corev1.ConditionUnknown, time.Now().Add(-ttl/2+time.Hour))
+	reconcileLease(t, r)
+	if len(p.configs) != 1 {
+		t.Fatalf("pushed to a Node whose token cannot have expired: %d pushes", len(p.configs))
+	}
+
+	// Quiet past half the lifetime: one fresh kubeconfig, not one per reconcile.
+	setReady(corev1.ConditionUnknown, time.Now().Add(-ttl/2-time.Hour))
+	reconcileLease(t, r)
+	reconcileLease(t, r)
+	if len(p.configs) != 2 || p.configs[1].Kubeconfig == "" || p.configs[1].TakeOver {
+		t.Fatalf("pushes = %d, want one credential push", len(p.configs))
+	}
+
+	// Still quiet half a lifetime after that push: another one.
+	r.credentialRepush.pushed(borrowedNode, time.Now().Add(-ttl/2-time.Minute))
+	reconcileLease(t, r)
+	if len(p.configs) != 3 {
+		t.Fatalf("pushes = %d, want the credential pushed again", len(p.configs))
+	}
+}

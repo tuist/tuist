@@ -125,11 +125,7 @@ func (m *Manager) EnsureTartKubeletIdentity(ctx context.Context, node, fleet str
 		return nil, err
 	}
 
-	ttl := m.NodeCredentialTTL
-	if ttl <= 0 {
-		ttl = DefaultNodeCredentialTTL
-	}
-	seconds := int64(ttl / time.Second)
+	seconds := int64(m.CredentialTTL() / time.Second)
 	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: m.Namespace, Name: saName}}
 	req := &authenticationv1.TokenRequest{Spec: authenticationv1.TokenRequestSpec{ExpirationSeconds: &seconds}}
 	if err := m.Client.SubResource("token").Create(ctx, sa, req); err != nil {
@@ -197,6 +193,14 @@ func (m *Manager) HasNodeIdentityRoles(ctx context.Context, node string) (bool, 
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// CredentialTTL is the lifetime of the tokens minted for macOS hosts.
+func (m *Manager) CredentialTTL() time.Duration {
+	if m.NodeCredentialTTL <= 0 {
+		return DefaultNodeCredentialTTL
+	}
+	return m.NodeCredentialTTL
 }
 
 // RetireLegacyNodeToken deletes the long-lived token Secret of a host that

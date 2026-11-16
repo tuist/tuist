@@ -2,6 +2,7 @@ package macos
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 )
@@ -274,5 +276,31 @@ func TestNodeAccessGrantsAnUnpushedHostItsIdentityRoles(t *testing.T) {
 	}
 	if got, _ := getRole(t, r, testNamespace, pinned.Name); !reflect.DeepEqual(got.Rules, pinned.Rules) {
 		t.Fatalf("rewrote the operator's identity Role: %+v", got.Rules)
+	}
+}
+
+// A namespace whose grant cannot be written does not hold up the others.
+func TestNodeAccessGrantsOtherNamespacesWhenOneFails(t *testing.T) {
+	objs := append(accessNodeObjects(accessNode, "tart-kubelet"),
+		accessPod("a", accessNode, func(p *corev1.Pod) { p.Spec.Containers[0].Env = []corev1.EnvVar{secretEnv("runner-env")} }),
+		accessPod("b", accessNode, func(p *corev1.Pod) {
+			p.Namespace = "terminating"
+			p.Spec.Containers[0].Env = []corev1.EnvVar{secretEnv("x")}
+		}))
+	r := newNodeAccess(t, objs...)
+	r.Client = interceptor.NewClient(r.Client.(client.WithWatch), interceptor.Funcs{
+		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			if obj.GetNamespace() == "terminating" {
+				return apierrors.NewForbidden(rbacv1.Resource("roles"), obj.GetName(), errors.New("namespace is terminating"))
+			}
+			return c.Create(ctx, obj, opts...)
+		},
+	})
+	r.Credentials.Client = r.Client
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: accessNode}}); err == nil {
+		t.Fatal("the failed namespace's error was swallowed")
+	}
+	if _, ok := getRole(t, r, "tuist-runners", credentials.NodePodRefsName(accessNode)); !ok {
+		t.Fatal("one namespace's failure kept another's grant from being written")
 	}
 }

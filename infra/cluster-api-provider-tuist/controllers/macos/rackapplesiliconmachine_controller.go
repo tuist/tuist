@@ -59,6 +59,8 @@ const RackMachineFinalizer = "rackapplesilicon.cluster.x-k8s.io/finalizer"
 //     object that ever referred to it.
 type RackAppleSiliconMachineReconciler struct {
 	client.Client
+	// credentialRepush re-pushes a quiet host's kubeconfig; see its doc.
+	credentialRepush   credentialRepush
 	Scheme             *runtime.Scheme
 	CredentialsManager *credentials.Manager
 	Recorder           record.EventRecorder
@@ -508,7 +510,21 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 		clearUpdateFailure(machine, reason, logger, r.Recorder)
 		terminal = false
 	}
-	if !drift || terminal {
+	if terminal {
+		return ctrl.Result{}, nil
+	}
+	// A host whose Node has been quiet long enough for its token to have
+	// expired gets a fresh one through the same push (credentialRepush). A
+	// host lent to another cluster gets its kubeconfig from there.
+	credentialStale := false
+	if !drift && machine.Spec.NodeCluster == nil {
+		stale, err := r.credentialRepush.due(ctx, r.Client, machine.Name, r.CredentialsManager.CredentialTTL(), time.Now())
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		credentialStale = stale
+	}
+	if !drift && !credentialStale {
 		return ctrl.Result{}, nil
 	}
 
@@ -561,6 +577,11 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 	machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
 	machine.Status.HostConfigHash = desiredHash
 	machine.Status.TartKubeletUpdateAttempts = 0
+	r.credentialRepush.pushed(machine.Name, time.Now())
+	if credentialStale {
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "CredentialRepushed",
+			"Pushed a fresh kubeconfig: the Node had not heartbeat for half the token lifetime")
+	}
 	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
 		"Rolled tart-kubelet to %s on %s", r.TartKubeletBinarySHA, host.Name)
 	logger.Info("rolled new host config", "host", host.Name, "sha", r.TartKubeletBinarySHA, "hostConfigHash", desiredHash)

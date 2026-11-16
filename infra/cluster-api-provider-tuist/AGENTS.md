@@ -69,8 +69,11 @@ Apple Silicon uses the `tart-kubelet` role, with a short-lived token the host
 rotates (`credentials.EnsureTartKubeletIdentity`) and node-scoped grants the
 node access controller (`controllers/macos/node_access_controller.go`) keeps:
 see "Node access" in [`infra/tart-kubelet`](../tart-kubelet/AGENTS.md). A
-macOS host's token lives `--node-credential-ttl` (7 days); one cut off longer
-needs a fresh push (drift, or re-bootstrap) to rejoin. The chart's admission
+macOS host's token lives `--node-credential-ttl` (7 days). A host whose Node
+has been NotReady or Unknown with no heartbeat for half that gets a fresh
+kubeconfig through the drift push, at most once per half lifetime
+(`controllers/macos/credential_repush.go`), so one cut off longer than its
+token rejoins once it is reachable again. The chart's admission
 policy holds a host to its own Node's labels, taints and Pods; the real-API
 test is `controllers/macos/node_scope_envtest_test.go` (needs helm and
 `KUBEBUILDER_ASSETS`, skips without). The sections below detail the

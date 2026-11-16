@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -686,5 +687,26 @@ func TestPodStatusDatesFinishFromTheGuestReportNotTheReconcile(t *testing.T) {
 	got := status.ContainerStatuses[0].State.Terminated.FinishedAt.Time
 	if drift := got.Sub(exited); drift < -2*time.Second || drift > 2*time.Second {
 		t.Fatalf("FinishedAt = %v, want the guest's report time %v (drift %v)", got, exited, drift)
+	}
+}
+
+// A lasting 403 backs off to the usual 30 s instead of retrying every 2 s,
+// and a Pod that got its grant starts again at 2 s.
+func TestNodeAccessRetryBacksOff(t *testing.T) {
+	r := &Reconciler{}
+	var got []time.Duration
+	for i := 0; i < 6; i++ {
+		got = append(got, r.nodeAccessRetry("a"))
+	}
+	want := []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second, 30 * time.Second}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("retries = %v, want %v", got, want)
+	}
+	if other := r.nodeAccessRetry("b"); other != 2*time.Second {
+		t.Fatalf("another Pod's first retry = %v", other)
+	}
+	r.nodeAccessGranted("a")
+	if again := r.nodeAccessRetry("a"); again != 2*time.Second {
+		t.Fatalf("retry after the grant landed = %v", again)
 	}
 }

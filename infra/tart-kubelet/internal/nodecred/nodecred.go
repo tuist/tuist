@@ -46,7 +46,10 @@ const (
 
 // Seed makes tokenFile hold the newest of the kubeconfig's inline token and
 // the file's own. The operator pushes a fresh inline token with every
-// kubeconfig, which must win over an older file a previous run wrote. It
+// kubeconfig, which must win over an older file a previous run wrote. A file
+// token of another identity (issuer or subject), such as the lender
+// cluster's on a rack host this cluster took over, never wins, however new:
+// iat from two API servers says nothing about which token is current. It
 // returns the file's path, or "" when the kubeconfig names none (a
 // kubeconfig from an operator that predates rotation).
 func Seed(kubeconfigPath string) (string, error) {
@@ -70,7 +73,9 @@ func Seed(kubeconfigPath string) (string, error) {
 	if err == nil {
 		inlineClaims, inlineErr := parseClaims(inline)
 		fileClaims, fileErr := parseClaims(strings.TrimSpace(string(current)))
-		if fileErr == nil && (inlineErr != nil || !inlineClaims.IssuedAt.After(fileClaims.IssuedAt)) {
+		sameIdentity := inlineErr == nil && fileErr == nil &&
+			inlineClaims.Issuer == fileClaims.Issuer && inlineClaims.Subject == fileClaims.Subject
+		if fileErr == nil && (inlineErr != nil || sameIdentity && !inlineClaims.IssuedAt.After(fileClaims.IssuedAt)) {
 			return auth.TokenFile, nil
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -83,7 +88,10 @@ func Seed(kubeconfigPath string) (string, error) {
 type Rotator struct {
 	Client kubernetes.Interface
 	File   string
-	// Lifetime is what a new token asks for. Zero means DefaultLifetime.
+	// Lifetime is what a new token asks for when the current one's can't be
+	// read. Zero means DefaultLifetime. Otherwise a new token asks for the
+	// current one's lifetime, which the operator chose (its
+	// --node-credential-ttl).
 	Lifetime time.Duration
 	// Interval is how often the token's age is checked. Zero means an hour.
 	Interval time.Duration
@@ -126,8 +134,8 @@ func (r *Rotator) RotateIfDue(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	claims, err := parseClaims(strings.TrimSpace(string(raw)))
-	if err == nil && !claims.dueAt().Before(now()) {
+	claims, claimsErr := parseClaims(strings.TrimSpace(string(raw)))
+	if claimsErr == nil && !claims.dueAt().Before(now()) {
 		return false, nil
 	}
 	review, err := r.Client.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authenticationv1.SelfSubjectReview{}, metav1.CreateOptions{})
@@ -139,7 +147,9 @@ func (r *Rotator) RotateIfDue(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("host identity %q is not a ServiceAccount", review.Status.UserInfo.Username)
 	}
 	lifetime := r.Lifetime
-	if lifetime <= 0 {
+	if claimsErr == nil {
+		lifetime = claims.ExpiresAt.Sub(claims.IssuedAt)
+	} else if lifetime <= 0 {
 		lifetime = DefaultLifetime
 	}
 	seconds := int64(lifetime / time.Second)
@@ -156,8 +166,9 @@ func (r *Rotator) RotateIfDue(ctx context.Context) (bool, error) {
 }
 
 type claims struct {
-	IssuedAt  time.Time
-	ExpiresAt time.Time
+	Issuer, Subject string
+	IssuedAt        time.Time
+	ExpiresAt       time.Time
 }
 
 // dueAt is when the token is replaced: maxAge after it was issued, or half
@@ -183,8 +194,10 @@ func parseClaims(token string) (claims, error) {
 		return claims{}, err
 	}
 	var c struct {
-		Iat int64 `json:"iat"`
-		Exp int64 `json:"exp"`
+		Iss string `json:"iss"`
+		Sub string `json:"sub"`
+		Iat int64  `json:"iat"`
+		Exp int64  `json:"exp"`
 	}
 	if err := json.Unmarshal(payload, &c); err != nil {
 		return claims{}, err
@@ -192,7 +205,7 @@ func parseClaims(token string) (claims, error) {
 	if c.Iat == 0 || c.Exp <= c.Iat {
 		return claims{}, errors.New("token carries no lifetime")
 	}
-	return claims{IssuedAt: time.Unix(c.Iat, 0), ExpiresAt: time.Unix(c.Exp, 0)}, nil
+	return claims{Issuer: c.Iss, Subject: c.Sub, IssuedAt: time.Unix(c.Iat, 0), ExpiresAt: time.Unix(c.Exp, 0)}, nil
 }
 
 // writeAtomic replaces path with a 0600 file holding token, so client-go

@@ -2,6 +2,7 @@ package macos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -126,28 +127,33 @@ func (r *NodeAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	name := credentials.NodePodRefsName(nodeName)
 	keep := map[string]bool{}
+	// One namespace that refuses a write (one being deleted, say) must not
+	// hold up the others' grants, revocations or the legacy token's
+	// retirement: its errors are returned after the rest is done, and its
+	// current grant is kept until it can be rewritten.
+	var errs []error
 	for namespace, refs := range podReferences(pods.Items) {
 		rules := refs.rules()
 		if len(rules) == 0 {
 			continue
 		}
-		if err := r.Credentials.EnsureNodeRole(ctx, namespace, name, nodeName, credentials.NodeAccessPodRefs, rules, owner); err != nil {
-			return ctrl.Result{}, fmt.Errorf("grant %s its Pods' references in %s: %w", nodeName, namespace, err)
-		}
 		keep[namespace] = true
+		if err := r.Credentials.EnsureNodeRole(ctx, namespace, name, nodeName, credentials.NodeAccessPodRefs, rules, owner); err != nil {
+			errs = append(errs, fmt.Errorf("grant %s its Pods' references in %s: %w", nodeName, namespace, err))
+		}
 	}
 	if err := r.Credentials.DeleteNodeRoles(ctx, nodeName, credentials.NodeAccessPodRefs, name, keep); err != nil {
-		return ctrl.Result{}, fmt.Errorf("revoke %s's stale grants: %w", nodeName, err)
+		errs = append(errs, fmt.Errorf("revoke %s's stale grants: %w", nodeName, err))
 	}
 
 	// A host running from a rotated token no longer needs the long-lived one
 	// older operators minted; deleting its Secret revokes it.
 	if node.Labels[credentials.KubeletCredentialLabel] == credentials.KubeletCredentialToken {
 		if err := r.Credentials.RetireLegacyNodeToken(ctx, nodeName); err != nil {
-			return ctrl.Result{}, fmt.Errorf("retire %s's legacy token: %w", nodeName, err)
+			errs = append(errs, fmt.Errorf("retire %s's legacy token: %w", nodeName, err))
 		}
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, errors.Join(errs...)
 }
 
 func (r *NodeAccessReconciler) revoke(ctx context.Context, node string) error {

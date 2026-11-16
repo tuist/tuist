@@ -61,6 +61,8 @@ const (
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
+	// credentialRepush re-pushes a quiet host's kubeconfig; see its doc.
+	credentialRepush        credentialRepush
 	APIReader               client.Reader
 	ProcessorDeploymentName string
 	Scheme                  *runtime.Scheme
@@ -698,7 +700,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		clearUpdateFailure(machine, reason, logger, r.Recorder)
 		terminalFailure = false
 	}
-	if configDrift && !terminalFailure {
+	// A host whose Node has been quiet long enough for its token to have
+	// expired gets a fresh one through the same push (credentialRepush).
+	credentialStale := false
+	if !configDrift && !terminalFailure {
+		stale, err := r.credentialRepush.due(ctx, r.Client, machine.Name, r.CredentialsManager.CredentialTTL(), time.Now())
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		credentialStale = stale
+	}
+	if (configDrift || credentialStale) && !terminalFailure {
 		ip := machineIP(machine)
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -810,6 +822,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
 		machine.Status.HostConfigHash = desiredHostConfigHash
 		machine.Status.TartKubeletUpdateAttempts = 0
+		r.credentialRepush.pushed(machine.Name, time.Now())
+		if credentialStale {
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "CredentialRepushed",
+				"Pushed a fresh kubeconfig: the Node had not heartbeat for half the token lifetime")
+		}
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
 			"Rolled tart-kubelet to %s", r.TartKubeletBinarySHA)
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA,

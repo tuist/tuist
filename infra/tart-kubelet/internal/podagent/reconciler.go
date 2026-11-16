@@ -207,6 +207,11 @@ type Reconciler struct {
 	// now is the clock for the golden retry interval. Nil uses time.Now.
 	now func() time.Time
 
+	// accessWaits counts the 403s each Pod met in a row while its node
+	// access grant had not landed (nodeAccessRetry).
+	accessMu    sync.Mutex
+	accessWaits map[types.UID]int
+
 	// requeueEvents re-enqueues a Pod whose readiness probe result changed
 	// or whose golden base finished materializing, without waiting for the
 	// periodic requeue. Nil outside a manager (tests); sends never block.
@@ -422,7 +427,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	if err := r.createPod(ctx, pod); err != nil {
+	err := r.createPod(ctx, pod)
+	if !apierrors.IsForbidden(err) {
+		r.nodeAccessGranted(pod.UID)
+	}
+	if err != nil {
 		reason := "TartCreateFailed"
 		switch {
 		case errors.Is(err, errGoldenPulling):
@@ -435,10 +444,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// The operator grants a host the Secrets, ConfigMaps and
 			// ServiceAccount tokens its Pods name once it sees the Pod bound
 			// here (node access), which can trail this reconcile by a moment.
-			// Ask again soon rather than after the usual 30 seconds.
-			logger.Info("waiting for this node's access to the Pod's references", "reason", err.Error())
+			// Ask again soon, backing off while the 403 lasts (the operator
+			// is down, or the Pod names something it was not granted).
+			retry := r.nodeAccessRetry(pod.UID)
+			logger.Info("waiting for this node's access to the Pod's references", "reason", err.Error(), "retryIn", retry)
 			_ = r.publishStatus(ctx, pod, &corev1.PodStatus{Phase: corev1.PodPending, Message: err.Error(), Reason: "WaitingForNodeAccess"})
-			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: retry}, nil
 		default:
 			logger.Error(err, "create failed; will retry")
 		}
@@ -2113,4 +2124,29 @@ func (s *Store) Snapshot() map[string]*Entry {
 		out[k] = v
 	}
 	return out
+}
+
+// nodeAccessRetry is how long to wait before retrying a Pod whose references
+// this host may not read yet: 2 s, doubling with each 403 in a row, up to
+// the usual 30 s.
+func (r *Reconciler) nodeAccessRetry(uid types.UID) time.Duration {
+	r.accessMu.Lock()
+	defer r.accessMu.Unlock()
+	if r.accessWaits == nil {
+		r.accessWaits = map[types.UID]int{}
+	}
+	n := r.accessWaits[uid]
+	r.accessWaits[uid] = n + 1
+	retry := 2 * time.Second
+	for i := 0; i < n && retry < 30*time.Second; i++ {
+		retry *= 2
+	}
+	return min(retry, 30*time.Second)
+}
+
+// nodeAccessGranted resets the backoff once the Pod got past its references.
+func (r *Reconciler) nodeAccessGranted(uid types.UID) {
+	r.accessMu.Lock()
+	defer r.accessMu.Unlock()
+	delete(r.accessWaits, uid)
 }

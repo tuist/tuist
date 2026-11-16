@@ -16,7 +16,11 @@ import (
 )
 
 func jwt(iat, exp time.Time) string {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"iat":%d,"exp":%d}`, iat.Unix(), exp.Unix())))
+	return jwtFor("https://kube.prod", "system:serviceaccount:tuist:tart-kubelet-b01", iat, exp)
+}
+
+func jwtFor(iss, sub string, iat, exp time.Time) string {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"iss":%q,"sub":%q,"iat":%d,"exp":%d}`, iss, sub, iat.Unix(), exp.Unix())))
 	return "h." + payload + ".s"
 }
 
@@ -137,5 +141,67 @@ func TestRotatorReplacesTheTokenOnlyWhenDue(t *testing.T) {
 	}
 	if rotated, _ := r.RotateIfDue(context.Background()); !rotated {
 		t.Fatal("did not rotate a capped token past half its lifetime")
+	}
+}
+
+// A rotated token keeps the lifetime the operator gave the first one
+// (--node-credential-ttl), not the host's default.
+func TestRotatorKeepsTheOperatorsLifetime(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "token")
+	now := time.Now()
+	client := fake.NewClientset()
+	client.PrependReactor("create", "selfsubjectreviews", func(ktesting.Action) (bool, runtime.Object, error) {
+		r := &authenticationv1.SelfSubjectReview{}
+		r.Status.UserInfo.Username = "system:serviceaccount:tuist:tart-kubelet-b01"
+		return true, r, nil
+	})
+	var asked []int64
+	client.PrependReactor("create", "serviceaccounts", func(a ktesting.Action) (bool, runtime.Object, error) {
+		asked = append(asked, *a.(ktesting.CreateActionImpl).Object.(*authenticationv1.TokenRequest).Spec.ExpirationSeconds)
+		tr := &authenticationv1.TokenRequest{}
+		tr.Status.Token = jwt(now, now.Add(24*time.Hour))
+		return true, tr, nil
+	})
+	r := &Rotator{Client: client, File: file, Now: func() time.Time { return now }}
+
+	// The operator pushed a 24 h token; 13 h in, it is past half its life.
+	if err := os.WriteFile(file, []byte(jwt(now.Add(-13*time.Hour), now.Add(11*time.Hour))), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if rotated, err := r.RotateIfDue(context.Background()); err != nil || !rotated {
+		t.Fatalf("rotated = %v, %v", rotated, err)
+	}
+	if len(asked) != 1 || asked[0] != int64(24*time.Hour/time.Second) {
+		t.Fatalf("asked for %v seconds, want the 24 h the operator chose", asked)
+	}
+
+	// An unreadable token falls back to the default.
+	if err := os.WriteFile(file, []byte("opaque"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.RotateIfDue(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if asked[1] != int64(DefaultLifetime/time.Second) {
+		t.Fatalf("asked for %d seconds for an unreadable token, want the default", asked[1])
+	}
+}
+
+// On a rack host another cluster lent, the lender's tart-kubelet can rotate
+// the file after the borrower minted its token. The borrower's pushed token
+// must win although the lender's is newer: it is the only one this
+// cluster's API server accepts.
+func TestSeedPrefersThePushedTokenOfAnotherIdentity(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	pushed := jwtFor("https://kube.staging", "system:serviceaccount:tuist-staging:tart-kubelet-mini-01", now.Add(-time.Hour), now.Add(6*24*time.Hour))
+	kubeconfig := writeKubeconfig(t, dir, pushed)
+	file := filepath.Join(dir, "token")
+	lender := jwtFor("https://kube.prod", "system:serviceaccount:tuist:tart-kubelet-mini-01", now, now.Add(7*24*time.Hour))
+	if err := os.WriteFile(file, []byte(lender), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Seed(kubeconfig); err != nil || read(t, file) != pushed {
+		t.Fatal("kept the lender's newer token over this cluster's pushed one")
 	}
 }

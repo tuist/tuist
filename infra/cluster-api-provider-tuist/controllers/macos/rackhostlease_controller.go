@@ -46,6 +46,8 @@ const RackHostLeaseFinalizer = "rackhostlease.infrastructure.cluster.x-k8s.io/fi
 // this env only once it stopped pushing itself.
 type RackHostLeaseReconciler struct {
 	client.Client
+	// credentialRepush re-pushes a quiet host's kubeconfig; see its doc.
+	credentialRepush   credentialRepush
 	Scheme             *runtime.Scheme
 	Recorder           record.EventRecorder
 	CredentialsManager *credentials.Manager
@@ -250,7 +252,21 @@ func (r *RackHostLeaseReconciler) reconcileDrift(ctx context.Context, lease *inf
 		clearUpdateFailure(lease, reason, logger, r.Recorder)
 		terminal = false
 	}
-	if !hostConfigDrift(desired, lease.Status.HostConfigHash) || terminal {
+	if terminal {
+		return ctrl.Result{}, nil
+	}
+	// A host whose Node has been quiet long enough for its token to have
+	// expired gets a fresh one through the same push (credentialRepush).
+	drift := hostConfigDrift(desired, lease.Status.HostConfigHash)
+	credentialStale := false
+	if !drift {
+		stale, err := r.credentialRepush.due(ctx, r.Client, node, r.CredentialsManager.CredentialTTL(), time.Now())
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		credentialStale = stale
+	}
+	if !drift && !credentialStale {
 		return ctrl.Result{}, nil
 	}
 	if _, err := r.push(ctx, lease, node, privateKey, false); err != nil {
@@ -263,6 +279,11 @@ func (r *RackHostLeaseReconciler) reconcileDrift(ctx context.Context, lease *inf
 	lease.Status.HostConfigHash = desired
 	lease.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
 	lease.Status.TartKubeletUpdateAttempts = 0
+	r.credentialRepush.pushed(node, time.Now())
+	if credentialStale {
+		r.Recorder.Eventf(lease, corev1.EventTypeNormal, "CredentialRepushed",
+			"Pushed a fresh kubeconfig to %s: the Node had not heartbeat for half the token lifetime", node)
+	}
 	r.Recorder.Eventf(lease, corev1.EventTypeNormal, "AgentRolled", "Rolled tart-kubelet to %s on %s", r.TartKubeletBinarySHA, lease.Name)
 	return ctrl.Result{}, nil
 }
