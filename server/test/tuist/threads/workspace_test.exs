@@ -10,7 +10,6 @@ defmodule Tuist.Threads.WorkspaceTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.ProviderEnvironment
   alias Tuist.Sandboxes.Sandbox
-  alias Tuist.Threads
   alias Tuist.Threads.Repository
   alias Tuist.Threads.Run
   alias Tuist.Threads.Thread
