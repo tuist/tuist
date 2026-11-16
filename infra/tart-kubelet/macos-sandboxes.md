@@ -350,7 +350,7 @@ Placement (`Sandboxes.place_and_create/4`, darwin clause): a create from a
 snapshot goes through `MacosCapacity.place/2` restricted to the hosts holding it.
 When none can take it or the clone fails, an archived snapshot is restored on
 another host like an archived session (`create {from_archive, template_tag}`,
-placed by `place_restore/3`); without an archive, or when no host can restore
+placed by `place_macos_restore/3`); without an archive, or when no host can restore
 it, the template boots on any host at once, since waiting for the snapshot's
 host could take as long as a CI job.
 

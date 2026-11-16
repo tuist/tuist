@@ -201,20 +201,9 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
-  # macOS hosts keep no disk snapshots. Reporting a save that never happened
-  # would let Amp record a project snapshot and try it on later Orbs instead
-  # of running setup, so a pause that asks for one fails like any unsaved one.
-  defp save_snapshot(%Sandbox{platform: :darwin} = sandbox, params) do
-    if snapshot_id(params) do
-      Logger.warning("sandboxes: macOS Orbs keep no project snapshots", sandbox_id: sandbox.id)
-      {:error, :snapshot_not_saved}
-    else
-      {:ok, sandbox}
-    end
-  end
-
   # Amp records the snapshot once the pause succeeds and boots later Orbs
-  # from it, so a save that failed must fail the pause. The Orb stays paused;
+  # from it, so a save that failed must fail the pause. A macOS host saves
+  # only a stopped VM's disks, so a save there also evicts the paused VM. The Orb stays paused;
   # a replayed pause tries the save again.
   defp save_snapshot(sandbox, params) do
     case snapshot_id(params) do

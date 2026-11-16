@@ -319,6 +319,63 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
                Capacity.disk_snapshot_ceiling_bytes(snapshot, copy_node("node-c"))
     end
 
+    defp mac_host(name, tag, budget_gib \\ 1000),
+      do: %{
+        name: name,
+        platform: "darwin",
+        archives: true,
+        generation: "uid-" <> name,
+        disk: %{budget_bytes: budget_gib * @gib, available_bytes: 500 * @gib, snapshots_bytes: 0},
+        templates: [%{name: "macos", tag: tag, ready: true, rootfs_bytes: 200 * @gib}]
+      }
+
+    defp mac_snapshot,
+      do:
+        popular_snapshot(
+          platform: :darwin,
+          node_name: "mac-a",
+          template: "macos",
+          template_tag: "img@sha256:a",
+          disk_bytes: 5 * @gib
+        )
+
+    # A macOS snapshot is an overlay on the image it was saved from: it
+    # copies to hosts that restore archives of its template, which clone that
+    # image even when their template moved on, reserves the bytes its host
+    # measured rather than a whole root disk, and names the host's
+    # incarnation.
+    test "copies a popular macOS snapshot to hosts restoring its template's archives with room for its bytes" do
+      snapshot = mac_snapshot()
+
+      hosts = [
+        mac_host("mac-a", "img@sha256:a"),
+        mac_host("mac-b", "img@sha256:b"),
+        Map.put(mac_host("mac-c", "img@sha256:a"), :archives, false),
+        copy_node("node-x")
+      ]
+
+      stub(Nodes, :connected_nodes, fn -> hosts end)
+      stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find(hosts, &(&1.name == name))} end)
+
+      expect(Nodes, :call, fn "mac-b", "copy_disks", args, _opts ->
+        assert %{snapshot_id: id, template: "macos", node_uid: "uid-mac-b", bytes: bytes, template_tag: "img@sha256:a"} =
+                 args
+
+        assert id == snapshot.id and bytes == 5 * @gib
+        {:ok, %{"bytes" => 5 * @gib}}
+      end)
+
+      assert :ok = DiskSnapshots.copy(snapshot)
+      assert Enum.sort(DiskSnapshots.held_nodes(snapshot)) == ["mac-a", "mac-b"]
+
+      # A host whose budget cannot take the bytes gets no copy.
+      other = mac_snapshot()
+      stub(Nodes, :connected_nodes, fn -> [mac_host("mac-a", "img@sha256:a"), mac_host("mac-d", "img@sha256:a", 4)] end)
+      reject(&Nodes.call/4)
+      assert {:error, :no_capacity} = DiskSnapshots.copy(other)
+      assert DiskSnapshots.held_nodes(other) == ["mac-a"]
+    end
+
     test "every snapshot of a lineage is copied to the same nodes, however the nodes are listed" do
       account = AccountsFixtures.account_fixture()
       nodes = Enum.map(1..8, &copy_node("node-#{&1}"))

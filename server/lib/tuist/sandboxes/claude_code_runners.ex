@@ -23,7 +23,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeRunners do
   which ends the residency and pauses the sandbox; the session's next message
   resumes the same sandbox, checkout included.
 
-  When the environment has a setup script, a new Linux sandbox boots from
+  When the environment has a setup script, a new sandbox boots from
   the repository's snapshot, where the runner finds its clone in place and
   only fetches what changed since. A new session that finds no snapshot
   starts on the template and has one built for the sessions after it

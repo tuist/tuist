@@ -176,7 +176,7 @@ defmodule TuistWeb.API.SandboxesController do
       type: :string,
       nullable: true,
       description:
-        "Claude Code environments on Linux: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. Changing the script builds each repository again. At most 64 KB."
+        "Claude Code environments: a Bash script that prepares a repository, such as installing dependencies or prebuilding. When a session finds no snapshot of its repository, a builder sandbox clones the default branch, runs the script there as the sandbox's user for up to an hour and saves the disks; later sessions boot from that snapshot. On macOS a build starts only on a host with no other VM and both VM slots free. Changing the script or the image builds each repository again. At most 64 KB."
     }
   }
 

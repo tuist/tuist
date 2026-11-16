@@ -273,6 +273,21 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   places on the node are deleted from it, rows whose copy the node no longer
   lists lose it after a two-minute grace (dropped unless archived). A daemon that reports no
   `disk_snapshots` key is left alone.
+  A macOS Orb's snapshot (`platform: :darwin`) is saved by its host as a
+  stopped Tart VM after an eviction, which `save` records by clearing the
+  row's `resident`; it reserves no server-side ceiling (the host reports its
+  `bytes` in `disk.snapshots_bytes`, which `MacosCapacity.disk_room?` counts),
+  records the host-measured `disk_bytes`, and a create from it goes only to
+  hosts holding it (`MacosCapacity.place/2`); else an archived one is
+  restored like an archived macOS session (`place_macos_restore/3`, `from_archive`
+  with the snapshot's `template_tag`), and without an archive, or when that
+  fails, the template boots on any host at once. Misses queue copies. It is
+  archived and copied like a Linux snapshot, sized by `disk_bytes`, onto
+  hosts serving its template that restore archives
+  (`MacosCapacity.snapshot_hosts/1`, which clone the image it was saved
+  from, pulled if their template moved on), admitted by
+  `MacosCapacity.reserve_snapshot_copy/3`. Snapshot commands, which have no
+  sandbox row, carry the host's current `node_uid` (`Nodes.command_args/2`).
   `Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker` (hourly) deletes
   snapshots unused for 72 hours and saves stuck for 15 minutes.
   An archived snapshot of a popular lineage (two Orbs spawned in its
@@ -335,8 +350,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   one build and a failed script waits an hour. `delete_expired/0` drops
   builds older than 90 minutes with their builder and failed rows after an
   hour.
-- `Tuist.Sandboxes.ClaudeCodeSnapshots`: a Linux `claude_code` environment's
-  optional `setup_script`. `ClaudeCodeRunners` creates a session's sandbox
+- `Tuist.Sandboxes.ClaudeCodeSnapshots`: a `claude_code` environment's
+  optional `setup_script`, on Linux and macOS. A macOS builder runs the
+  script without `runuser` (guest commands already run as `runner`) and is
+  placed only on a host where it leaves a granted slot free
+  (`MacosCapacity`'s `slots/1`): it holds a slot for up to an hour and
+  serves no session, so it waits for an idle host instead of taking one CI
+  could use. `ClaudeCodeRunners` creates a session's sandbox
   from the repository's snapshot; a new session without one starts on the
   template and, after its worker started, requests a build. Nothing runs
   in a session's sandbox before its runner, so the spawn lease never limits

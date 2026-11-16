@@ -16,7 +16,12 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
   same id as its builder sandbox, which becomes `failed` when the build
   fails; at most one of either exists per key.
 
-  Once ready, the copy is also uploaded to object storage (the `archive_*`
+  `platform` is the OS of the sandbox it was saved from. A macOS host keeps
+  its snapshots as stopped Tart VMs whose overlay holds only what the guest
+  wrote, measured as `disk_bytes`; they are archived and copied like Linux
+  ones, but only onto hosts running the image they were saved from.
+
+  Once ready, a Linux copy is also uploaded to object storage (the `archive_*`
   fields, like a sandbox archive's) so any node can create a sandbox from
   it. An archived snapshot whose node copy is gone keeps its row with a
   nil `node_name`.
@@ -50,6 +55,8 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
     field :archive_attempted_at, :utc_datetime
     field :repository, :string
     field :setup_sha256, :string
+    field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
+    field :disk_bytes, :integer
 
     belongs_to :account, Account
     belongs_to :source_sandbox, Sandbox, type: :binary_id
@@ -72,7 +79,8 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
       :last_used_at,
       :agent_environment_id,
       :repository,
-      :setup_sha256
+      :setup_sha256,
+      :platform
     ])
     |> validate_required([:account_id, :node_name, :template, :workspace_gb, :last_used_at])
     |> validate_key()
@@ -119,6 +127,7 @@ defmodule Tuist.Sandboxes.DiskSnapshot do
     cast(snapshot, attrs, [
       :state,
       :last_used_at,
+      :disk_bytes,
       :node_name,
       :archive_store,
       :archive_key,

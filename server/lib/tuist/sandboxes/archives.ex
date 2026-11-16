@@ -630,7 +630,7 @@ defmodule Tuist.Sandboxes.Archives do
   # disk snapshot) on `node` into the store `select_store/3` picks, and
   # presigns its part URLs for the node.
   defp start_upload(account, %{name: node_name} = node, subject, key) do
-    max_bytes = Capacity.disk_snapshot_ceiling_bytes(subject, node) + @kernel_allowance_bytes + memory_allowance(subject)
+    max_bytes = archive_ceiling_bytes(subject, node) + @kernel_allowance_bytes + memory_allowance(subject)
     max_bytes = max_bytes + div(max_bytes, 100)
     {store, actor} = select_store(account, node_name, max_bytes)
 
@@ -648,6 +648,10 @@ defmodule Tuist.Sandboxes.Archives do
       :unsupported
     end
   end
+
+  # A macOS snapshot is the overlay its host measured, not a whole root disk.
+  defp archive_ceiling_bytes(%DiskSnapshot{platform: :darwin, disk_bytes: bytes}, _node) when is_integer(bytes), do: bytes
+  defp archive_ceiling_bytes(subject, node), do: Capacity.disk_snapshot_ceiling_bytes(subject, node)
 
   defp memory_allowance(%Sandbox{platform: :darwin}), do: 0
 
@@ -904,6 +908,10 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  # A macOS snapshot's upload is its overlay, sized by the bytes its host
+  # measured; one saved before they were recorded is never uploaded.
+  defp disk_snapshot_archivable?(%DiskSnapshot{platform: :darwin, disk_bytes: nil}), do: false
+
   defp disk_snapshot_archivable?(%DiskSnapshot{state: :ready, node_name: node_name, archived_at: nil})
        when is_binary(node_name) do
     Environment.sandbox_archive_after_hours() != nil
@@ -919,7 +927,8 @@ defmodule Tuist.Sandboxes.Archives do
 
     from(s in DiskSnapshot,
       where:
-        s.state == :ready and not is_nil(s.node_name) and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+        s.state == :ready and (s.platform == :linux or not is_nil(s.disk_bytes)) and not is_nil(s.node_name) and
+          is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
           (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before),
       order_by: [desc: s.last_used_at],
       limit: @per_run
@@ -986,7 +995,11 @@ defmodule Tuist.Sandboxes.Archives do
     Nodes.call(
       snapshot.node_name,
       "archive_disks",
-      %{snapshot_id: snapshot.id, part_size: upload.part_size, part_urls: upload.urls},
+      Nodes.command_args(snapshot.node_name, %{
+        snapshot_id: snapshot.id,
+        part_size: upload.part_size,
+        part_urls: upload.urls
+      }),
       timeout: @archive_timeout
     )
   end

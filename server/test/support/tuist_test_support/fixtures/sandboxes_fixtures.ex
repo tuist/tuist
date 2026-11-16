@@ -134,6 +134,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       template: Keyword.get(opts, :template, "default"),
       template_tag: Keyword.get(opts, :template_tag, "sha-abc"),
       workspace_gb: Keyword.get(opts, :workspace_gb, 10),
+      platform: Keyword.get(opts, :platform, :linux),
+      disk_bytes: Keyword.get(opts, :disk_bytes),
       state: Keyword.get(opts, :state, :ready),
       last_used_at: opts |> Keyword.get(:last_used_at, DateTime.utc_now()) |> truncate(),
       archive_store: Keyword.get(opts, :archive_store),

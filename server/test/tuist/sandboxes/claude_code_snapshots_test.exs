@@ -134,6 +134,54 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshotsTest do
     assert ClaudeCodeSnapshots.find(agent_environment, %{owner: "acme", name: "app"}).id == snapshot.id
   end
 
+  test "a macOS build runs the script as the guest's user and saves the builder's disks on its host", %{
+    account: account,
+    test_pid: test_pid
+  } do
+    agent_environment =
+      agent_environment_fixture(
+        account: account,
+        kind: :claude_code,
+        anthropic_environment_id: "ccpool_01macos",
+        platform: :darwin,
+        template: "default",
+        vcpus: 8,
+        memory_mb: 8192,
+        setup_script: @setup_script
+      )
+
+    {:ok, build} =
+      DiskSnapshots.start_build(agent_environment, "acme/app", ClaudeCodeSnapshots.setup_sha256(@setup_script))
+
+    stub_node(test_pid)
+
+    assert {:snooze, 30} = advance(build)
+    assert [{:create, create}, {:hold_residency, _hold}, {:exec, start}] = node_calls()
+    assert create.sandbox_id == build.id
+    assert %Sandbox{platform: :darwin} = Repo.get!(Sandbox, build.id)
+
+    # macOS runs guest commands as `runner` already: no runuser, which the
+    # guest lacks.
+    command = start.env["TUIST_COMMAND"]
+    assert command =~ "git clone --quiet"
+    refute command =~ "runuser"
+    assert command =~ "'/Users/runner/work/claude-code/acme/app' 'https://github.com/acme/app'"
+
+    finish_command(build, 0)
+    assert :ok = advance(build)
+    calls = node_calls()
+    assert {:pause, pause} = List.keyfind(calls, :pause, 0)
+    assert {:save_disks, save} = List.keyfind(calls, :save_disks, 0)
+    assert List.keymember?(calls, :delete, 0)
+    assert pause.sync_disks
+    assert save.sandbox_id == build.id
+
+    assert %DiskSnapshot{state: :ready, platform: :darwin, repository: "acme/app"} =
+             snapshot = Repo.get!(DiskSnapshot, save.snapshot_id)
+
+    assert ClaudeCodeSnapshots.find(agent_environment, %{owner: "acme", name: "app"}).id == snapshot.id
+  end
+
   test "a builder another admission of the account kept out is created on a later check", %{
     build: build,
     test_pid: test_pid

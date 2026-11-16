@@ -10,6 +10,8 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshot
+  alias Tuist.Sandboxes.DiskSnapshotCopy
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
@@ -287,7 +289,7 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       not Enum.all?([granted_memory, granted_cpu, granted_slots, node_memory, node_cpus], &is_integer/1) -> :no_report
       memory > min(node_memory, granted_memory) -> :no_memory
       cpus * 1000 > min(node_cpus * 1000, granted_cpu) -> :no_cpu
-      length(others) >= min(2, granted_slots) -> :no_slot
+      length(others) + slots(sandbox) > min(2, granted_slots) -> :no_slot
       true -> disk_status(node, sandbox)
     end
   end
@@ -295,6 +297,16 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   defp disk_status(node, sandbox) do
     if resident_pause?(sandbox) or disk_room?(node, sandbox), do: :ok, else: :no_disk
   end
+
+  # A Claude Code snapshot build (`Tuist.Sandboxes.ClaudeCodeSnapshots`),
+  # whose builder has the build's id, holds its slot for up to an hour and
+  # serves no session, so it runs only on a host it leaves a granted slot
+  # free on: an idle host, while CI has not claimed its slots.
+  defp slots(%Sandbox{id: id}) when is_binary(id) do
+    if Repo.exists?(from(d in DiskSnapshot, where: d.id == ^id and d.state == :building)), do: 2, else: 1
+  end
+
+  defp slots(_sandbox), do: 1
 
   # A VM paused in memory resumes without touching the disk, which the
   # host does not check for it either.
@@ -304,21 +316,84 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   # The host's final check (`diskRoom` in tart-kubelet), from its report:
   # every VM it holds, evicted ones included, reserves its whole root disk
   # and two memory images against half the filesystem, and a launch leaves
-  # two memory images and 20 GiB free. Rows rather than the report decide
+  # two memory images and 20 GiB free, after what its disk snapshots hold
+  # (`disk.snapshots_bytes`, which only the host measures; a save made since
+  # its last report is still caught by the host's own check, and the create
+  # moves on to the next host). Rows rather than the report decide
   # which VMs it holds, as in `Capacity.reserved_disk_bytes/1`: a create in
   # flight is not in the report yet. Errored rows count while the host
   # still reports them. A host that reports no budget (an older
   # tart-kubelet) is not budgeted here; its own check still applies.
   defp disk_room?(%{disk: %{budget_bytes: budget, available_bytes: available}} = node, sandbox)
        when is_integer(budget) and budget > 0 and is_integer(available) do
-    id = Map.get(sandbox, :id)
+    rootfs = rootfs_bytes(node, sandbox.template)
 
+    reserved_disk_bytes(node, sandbox.template, Map.get(sandbox, :id)) + disk_ceiling_bytes(rootfs, sandbox.memory_mb) <=
+      budget and available >= sandbox.memory_mb * 2 * @mib + @free_disk_reserve_bytes
+  end
+
+  defp disk_room?(_node, _sandbox), do: true
+
+  @doc """
+  Hosts that can take a copy of a macOS disk snapshot: connected, serving
+  its template and restoring archives. A host whose template moved on to a
+  newer image pulls the one the snapshot was saved from, which its overlay
+  sits on, as an archived session's restore does. The grant is not needed:
+  a copy takes disk, not a VM slot.
+  """
+  def snapshot_hosts(%DiskSnapshot{} = snapshot) do
+    Enum.filter(Nodes.connected_nodes(), &(&1[:platform] == "darwin" and restores?(&1, snapshot)))
+  end
+
+  @doc """
+  Records a copy of `snapshot` on `node` with `insert` when the host's disk
+  budget holds the snapshot's measured bytes on top of its VMs, its
+  snapshots and the copies already downloading to it, under the host's
+  lock. The host checks again before downloading.
+  """
+  def reserve_snapshot_copy(node, %DiskSnapshot{disk_bytes: bytes} = snapshot, insert)
+      when is_integer(bytes) and is_function(insert, 0) do
+    Repo.transaction(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock($1::integer, hashtext($2))", [7302, node.name])
+
+      if snapshot_room?(node, snapshot.template, bytes) do
+        case insert.() do
+          {:ok, copy} -> copy
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      else
+        Repo.rollback(:no_capacity)
+      end
+    end)
+  end
+
+  def reserve_snapshot_copy(_node, _snapshot, _insert), do: {:error, :no_capacity}
+
+  defp snapshot_room?(%{disk: %{budget_bytes: budget, available_bytes: available}} = node, template, bytes)
+       when is_integer(budget) and budget > 0 and is_integer(available) do
+    downloading =
+      Repo.one(
+        from(c in DiskSnapshotCopy,
+          join: s in assoc(c, :disk_snapshot),
+          where: c.node_name == ^node.name and c.state == :copying,
+          select: type(coalesce(sum(s.disk_bytes), 0), :integer)
+        )
+      )
+
+    reserved_disk_bytes(node, template, nil) + downloading + bytes <= budget and
+      available >= bytes + @free_disk_reserve_bytes
+  end
+
+  defp snapshot_room?(_node, _template, _bytes), do: true
+
+  # The VMs the host holds and the snapshots it reported.
+  defp reserved_disk_bytes(node, template, id) do
     reported =
       for %{id: reported_id} <- Map.get(node, :sandboxes, []), {:ok, uuid} <- [Ecto.UUID.cast(reported_id)], do: uuid
 
-    rootfs = rootfs_bytes(node, sandbox.template)
+    rootfs = rootfs_bytes(node, template)
 
-    reserved =
+    vms =
       from(s in Sandbox,
         where: s.node_name == ^node.name and s.state in ^@on_disk,
         or_where: s.node_name == ^node.name and s.state == :error and s.id in ^reported,
@@ -329,11 +404,8 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       |> Enum.map(&disk_ceiling_bytes(rootfs, &1.memory_mb))
       |> Enum.sum()
 
-    reserved + disk_ceiling_bytes(rootfs, sandbox.memory_mb) <= budget and
-      available >= sandbox.memory_mb * 2 * @mib + @free_disk_reserve_bytes
+    vms + (Map.get(node.disk, :snapshots_bytes) || 0)
   end
-
-  defp disk_room?(_node, _sandbox), do: true
 
   defp disk_ceiling_bytes(rootfs, memory_mb), do: rootfs + memory_mb * 2 * @mib + 128 * @mib
 

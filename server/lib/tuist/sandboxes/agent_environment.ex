@@ -183,13 +183,11 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     |> validate_federation_fields()
   end
 
-  # Only Claude Code runners start from a repository's snapshot, and only
-  # Linux nodes save one.
+  # Only Claude Code runners start from a repository's snapshot.
   defp validate_setup_script(changeset) do
-    if get_field(changeset, :setup_script) in [nil, ""] or
-         (get_field(changeset, :kind) == :claude_code and get_field(changeset, :platform) == :linux),
-       do: changeset,
-       else: add_error(changeset, :setup_script, "is only supported by Linux Claude Code environments")
+    if get_field(changeset, :setup_script) in [nil, ""] or get_field(changeset, :kind) == :claude_code,
+      do: changeset,
+      else: add_error(changeset, :setup_script, "is only supported by Claude Code environments")
   end
 
   # The token exchange needs every id, so a partial set is rejected rather

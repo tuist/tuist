@@ -10,6 +10,7 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
+  alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
 
@@ -61,6 +62,35 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     first |> Repo.reload!() |> Ecto.Changeset.change(state: :paused, resident: false) |> Repo.update!()
     assert {:ok, _} = Capacity.place(sandbox())
+  end
+
+  test "a Claude Code snapshot builder is placed only on a host whose granted slots are both free", %{node: node} do
+    environment =
+      agent_environment_fixture(
+        kind: :claude_code,
+        anthropic_environment_id: "ccpool_01macos",
+        platform: :darwin,
+        template: "macos",
+        vcpus: 8,
+        memory_mb: 8192,
+        setup_script: "brew bundle\n"
+      )
+
+    {:ok, build} = DiskSnapshots.start_build(environment, "acme/app", "sha")
+    builder = sandbox(id: build.id, vcpus: 4, memory_mb: 4096)
+
+    one_slot = %{node | admission: Map.put(node.admission, "slots", 1)}
+    stub(Nodes, :connected_nodes, fn -> [one_slot] end)
+    assert {:error, :no_capacity} = Capacity.place(builder)
+
+    stub(Nodes, :connected_nodes, fn -> [node] end)
+    session = sandbox(vcpus: 4, memory_mb: 4096)
+    assert {:ok, _name} = Capacity.place(session)
+    assert {:error, :no_capacity} = Capacity.place(builder)
+
+    session |> Repo.reload!() |> Repo.delete!()
+    assert {:ok, name} = Capacity.place(builder)
+    assert name == node.name
   end
 
   test "placement prefers a host with a warm VM of the requested shape", %{node: node} do

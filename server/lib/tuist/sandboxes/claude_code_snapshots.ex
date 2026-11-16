@@ -1,6 +1,6 @@
 defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   @moduledoc """
-  Repo-ready disk snapshots for Claude Code sessions on Linux.
+  Repo-ready disk snapshots for Claude Code sessions on Linux and macOS.
 
   A `:claude_code` environment with a `setup_script` boots a new session's
   sandbox from the newest snapshot of the session's repository (`find/2`).
@@ -67,12 +67,25 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   exec runuser -u #{@user} -- /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
   """
 
+  # A macOS guest runs every command as the runner's user already.
+  @macos_build_script """
+  set -eu
+  path=$1 url=$2 script=$3
+  mkdir -p "$(dirname "$path")"
+  rm -rf "$path" "$path.sbx-clone"
+  git clone --quiet "$url" "$path.sbx-clone"
+  mv "$path.sbx-clone" "$path"
+  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+  cd "$path"
+  exec /bin/bash -c 'exec > >(tee "$HOME/.claude-code-setup.log") 2>&1; exec /bin/bash -l -c "$1" setup' sh "$script"
+  """
+
   @doc """
   The snapshot a new sandbox of the session's `repository` boots from, or
-  nil: for Linux environments with a setup script, the newest one of the
+  nil: for environments with a setup script, the newest one of the
   repository saved with the current script.
   """
-  def find(%AgentEnvironment{platform: :linux, setup_script: script} = agent_environment, %{owner: owner, name: name})
+  def find(%AgentEnvironment{setup_script: script} = agent_environment, %{owner: owner, name: name})
       when is_binary(script) and script != "" do
     DiskSnapshots.find_ready_for_repository(agent_environment, "#{owner}/#{name}", setup_sha256(script))
   end
@@ -83,10 +96,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   Starts building the repository's snapshot with the environment's current
   script, unless a build of it runs or recently failed. Always `:ok`.
   """
-  def request_build(%AgentEnvironment{platform: :linux, setup_script: script} = agent_environment, %{
-        owner: owner,
-        name: name
-      })
+  def request_build(%AgentEnvironment{setup_script: script} = agent_environment, %{owner: owner, name: name})
       when is_binary(script) and script != "" do
     repository = "#{owner}/#{name}"
 
@@ -125,7 +135,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
     build = Repo.preload(build, agent_environment: :account)
 
     case build.agent_environment do
-      %AgentEnvironment{platform: :linux, setup_script: script} = agent_environment when is_binary(script) ->
+      %AgentEnvironment{setup_script: script} = agent_environment when is_binary(script) ->
         if setup_sha256(script) == build.setup_sha256,
           do: advance(build, agent_environment, Sandboxes.get_sandbox_by_id(build.id)),
           else: abandon(build)
@@ -161,7 +171,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
   defp create_builder(build, agent_environment) do
     attrs = %{
       agent_environment_id: agent_environment.id,
-      platform: :linux,
+      platform: agent_environment.platform,
       template: agent_environment.template,
       vcpus: agent_environment.vcpus,
       memory_mb: agent_environment.memory_mb,
@@ -189,7 +199,7 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
     case Commands.start(sandbox, %{
            id: build.id,
            command: "/bin/sh",
-           args: ["-c", @build_script, "sh", path, url, agent_environment.setup_script],
+           args: ["-c", build_script(sandbox), "sh", path, url, agent_environment.setup_script],
            env: env,
            cwd: "/",
            timeout_ms: @build_timeout_ms
@@ -199,6 +209,9 @@ defmodule Tuist.Sandboxes.ClaudeCodeSnapshots do
       {:error, reason} -> fail(build, sandbox, reason)
     end
   end
+
+  defp build_script(%Sandbox{platform: :darwin}), do: @macos_build_script
+  defp build_script(_sandbox), do: @build_script
 
   defp save(build, sandbox) do
     with {:ok, paused} <- paused(sandbox),

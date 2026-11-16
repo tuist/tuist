@@ -43,6 +43,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshotCopy
+  alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.BuildRepositorySnapshotWorker
@@ -244,30 +245,30 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       template: sandbox.template,
       template_tag: sandbox.template_tag,
       workspace_gb: sandbox.workspace_gb,
+      platform: sandbox.platform,
       last_used_at: now()
     }
 
     attrs = Map.merge(attrs, key)
+    insert = fn -> %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert() end
 
     with {:ok, node} <- connected_node(node_name),
-         {:ok, snapshot} <-
-           Capacity.reserve_disk_snapshot(
-             node,
-             attrs,
-             fn -> %DiskSnapshot{} |> DiskSnapshot.create_changeset(attrs) |> Repo.insert() end,
-             reserve_opts
-           ) do
-      case Nodes.call(node_name, "save_disks", %{sandbox_id: sandbox.id, snapshot_id: snapshot.id},
-             timeout: @save_timeout
-           ) do
+         {:ok, snapshot} <- reserve_disk(sandbox, node, attrs, insert, reserve_opts) do
+      case Nodes.call(node_name, "save_disks", save_args(sandbox, snapshot), timeout: @save_timeout) do
         {:ok, data} ->
-          {:ok, ready} = snapshot |> DiskSnapshot.update_changeset(%{state: :ready, last_used_at: now()}) |> Repo.update()
+          {:ok, ready} =
+            snapshot
+            |> DiskSnapshot.update_changeset(%{state: :ready, last_used_at: now(), disk_bytes: data["bytes"]})
+            |> Repo.update()
+
+          release_macos_slot(sandbox)
 
           Logger.info("sandboxes: disk snapshot saved",
             disk_snapshot_id: ready.id,
             sandbox_id: sandbox.id,
             node: node_name,
-            duration_ms: data["duration_ms"]
+            duration_ms: data["duration_ms"],
+            bytes: data["bytes"]
           )
 
           delete_superseded(ready, sandbox)
@@ -280,6 +281,22 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       end
     end
   end
+
+  # A macOS snapshot holds only the blocks its overlay wrote, which only the
+  # host can measure: the host admits the save against its disk budget and
+  # reports the bytes its snapshots hold (`MacosCapacity`). The Linux ceiling
+  # would charge each one a whole macOS root disk.
+  defp reserve_disk(%Sandbox{platform: :darwin}, _node, _attrs, insert, _opts), do: insert.()
+  defp reserve_disk(_sandbox, node, attrs, insert, opts), do: Capacity.reserve_disk_snapshot(node, attrs, insert, opts)
+
+  # A macOS host saves only a stopped VM's disks, so the save evicted the
+  # paused VM and gave its slot back. The host's next report says so too;
+  # this frees the slot for placement without waiting for it.
+  defp release_macos_slot(%Sandbox{platform: :darwin, id: id}) do
+    Repo.update_all(from(s in Sandbox, where: s.id == ^id and s.state == :paused), set: [resident: false])
+  end
+
+  defp release_macos_slot(_sandbox), do: :ok
 
   # The refresh chain a save continues: the lineage of an older save of this
   # id or of the snapshot the Orb was spawned from, else the id the Orb was
@@ -457,7 +474,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
   end
 
   defp delete_node_copy(snapshot_id, node_name) do
-    case Nodes.call(node_name, "delete_disks", %{snapshot_id: snapshot_id}, []) do
+    case Nodes.call(node_name, "delete_disks", Nodes.command_args(node_name, %{snapshot_id: snapshot_id}), []) do
       {:ok, _data} ->
         :ok
 
@@ -713,8 +730,8 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     site = Archives.restore_site(snapshot)
 
     peers =
-      snapshot.template
-      |> Capacity.ready_nodes()
+      snapshot
+      |> copy_candidates()
       |> Enum.filter(&(is_nil(site) or Sites.shard_storage_site(&1.name) == site))
       |> Map.new(&{&1.name, &1})
 
@@ -739,6 +756,17 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     end
   end
 
+  # A macOS snapshot only copies onto hosts running the image it was saved
+  # from; a Linux one onto any node with its template.
+  defp copy_candidates(%DiskSnapshot{platform: :darwin} = snapshot), do: MacosCapacity.snapshot_hosts(snapshot)
+  defp copy_candidates(%DiskSnapshot{template: template}), do: Capacity.ready_nodes(template)
+
+  defp reserve_copy(%DiskSnapshot{platform: :darwin} = snapshot, node, insert),
+    do: MacosCapacity.reserve_snapshot_copy(node, snapshot, insert)
+
+  defp reserve_copy(snapshot, node, insert),
+    do: Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: copy_budget_percent(snapshot))
+
   # Enough nodes hold the lineage, or the snapshot has its most copies.
   defp enough?({holders, room}, wanted), do: holders >= wanted or room <= 0
 
@@ -749,7 +777,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       |> Repo.insert()
     end
 
-    case Capacity.reserve_disk_snapshot(node, snapshot, insert, budget_percent: copy_budget_percent(snapshot)) do
+    case reserve_copy(snapshot, node, insert) do
       {:ok, copy} ->
         case fill_copy(snapshot, copy) do
           {:ok, _copy} -> {:cont, {holders + 1, room - 1}}
@@ -792,6 +820,14 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
 
   defp fill_copy(snapshot, %DiskSnapshotCopy{node_name: node_name} = copy) do
     args = %{snapshot_id: snapshot.id, template: snapshot.template, workspace_gb: snapshot.workspace_gb}
+    # A macOS host admits the copy's measured bytes before downloading, and
+    # clones the image the snapshot was saved from.
+    args =
+      if snapshot.platform == :darwin,
+        do: Map.merge(args, %{bytes: snapshot.disk_bytes, template_tag: snapshot.template_tag}),
+        else: args
+
+    args = Nodes.command_args(node_name, args)
 
     with {:ok, source} <- Archives.restore_source(snapshot),
          {:ok, data} <- Nodes.call(node_name, "copy_disks", Map.put(args, :from_archive, source), timeout: @copy_timeout) do
@@ -919,7 +955,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     )
 
     Tasks.run_async(fn ->
-      case Nodes.call(node_name, "delete_disks", %{snapshot_id: snapshot_id}, []) do
+      case Nodes.call(node_name, "delete_disks", Nodes.command_args(node_name, %{snapshot_id: snapshot_id}), []) do
         {:ok, _data} ->
           :ok
 
@@ -932,6 +968,12 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
       end
     end)
   end
+
+  # A macOS host runs only commands that name its current incarnation.
+  defp save_args(%Sandbox{platform: :darwin} = sandbox, snapshot),
+    do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id, node_uid: sandbox.node_uid}
+
+  defp save_args(sandbox, snapshot), do: %{sandbox_id: sandbox.id, snapshot_id: snapshot.id}
 
   defp connected_node(node_name) do
     case Enum.find(Nodes.connected_nodes(), &(&1.name == node_name)) do

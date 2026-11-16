@@ -413,7 +413,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert response["message"] =~ "minLength"
     end
 
-    test "sets a Linux Claude Code environment's setup script and refuses one on other environments", %{
+    test "sets a Claude Code environment's setup script and refuses one on other environments", %{
       conn: conn,
       account: account
     } do

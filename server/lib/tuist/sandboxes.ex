@@ -699,6 +699,56 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  # A macOS snapshot lives on the host that saved it and on the hosts it was
+  # copied to. When none can take the sandbox (CI holds their slots, or they
+  # refuse) or the clone fails, an archived snapshot is restored on another
+  # host, as on Linux; without an archive, or when no host can restore it,
+  # the template boots at once, since waiting for a holder could take as
+  # long as a CI job. A popular snapshot is copied out for the next spawn.
+  defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, %DiskSnapshot{} = disk_snapshot, _prefer) do
+    held = DiskSnapshots.held_nodes(disk_snapshot)
+
+    case Capacity.place(sandbox, &(&1.name in held)) do
+      {:ok, node_name} ->
+        clone_args = Map.put(args, :from_disk_snapshot, disk_snapshot.id)
+        sandbox = Repo.reload!(sandbox)
+
+        case node_call(%{sandbox | node_name: node_name}, "create", clone_args, timeout: @create_timeout) do
+          {:ok, data} ->
+            DiskSnapshots.touch(disk_snapshot, node_name)
+            {:ok, node_name, Map.put(data, "disk_snapshot_id", disk_snapshot.id)}
+
+          {:error, reason} ->
+            Logger.warning("sandboxes: create from a macOS disk snapshot failed",
+              sandbox_id: sandbox.id,
+              disk_snapshot_id: disk_snapshot.id,
+              node: node_name,
+              reason: inspect(reason)
+            )
+
+            DiskSnapshots.forget_if_missing(disk_snapshot, node_name, reason)
+            DiskSnapshots.queue_copies(disk_snapshot)
+            # The host keeps a failed create's record until it deletes it, so
+            # the template boots on another host, unless the host had no
+            # snapshot and so created nothing.
+            refused = if snapshot_missing?(reason), do: [], else: [node_name]
+            sandbox |> release_node() |> create_from_macos_snapshot_archive(args, disk_snapshot, refused)
+        end
+
+      {:error, reason} ->
+        Logger.info("sandboxes: no macOS host holding the disk snapshot can take the sandbox",
+          sandbox_id: sandbox.id,
+          disk_snapshot_id: disk_snapshot.id,
+          node: Enum.join(held, ","),
+          reason: inspect(reason)
+        )
+
+        # Copy it out ahead of the project's next spawn, as a Linux miss does.
+        DiskSnapshots.queue_copies(disk_snapshot)
+        create_from_macos_snapshot_archive(sandbox, args, disk_snapshot, [])
+    end
+  end
+
   # A node holding the snapshot (its own, or one it was copied to) clones
   # it fastest, so those go first. When none of them can take the sandbox
   # or the clone fails, an archived snapshot boots from its archive on any
@@ -758,6 +808,53 @@ defmodule Tuist.Sandboxes do
 
   # A macOS host's own checks (its CI grant, its disk) are final and can
   # refuse a create the server placed, after which the host discards the
+  # Restores the snapshot's archive like an archived session's
+  # (`place_macos_restore/3`); its overlay needs the image it was saved
+  # from, which the host pulls when its template moved on. A host that
+  # refuses for room passes it to the next; any other failure leaves the
+  # create's record on that host, so the template boots on another.
+  defp create_from_macos_snapshot_archive(sandbox, args, %DiskSnapshot{archived_at: %DateTime{}} = disk_snapshot, refused) do
+    with {:ok, source} <- Archives.restore_source(disk_snapshot),
+         {:ok, node_name} <- place_macos_restore(sandbox, refused, disk_snapshot) do
+      restore_args = Map.merge(args, %{from_archive: source, template_tag: disk_snapshot.template_tag})
+      sandbox = Repo.reload!(sandbox)
+
+      case node_call(%{sandbox | node_name: node_name}, "create", restore_args, timeout: @macos_restore_timeout) do
+        {:ok, data} ->
+          DiskSnapshots.touch(disk_snapshot)
+          {:ok, node_name, Map.merge(data, %{"disk_snapshot_id" => disk_snapshot.id, "disk_snapshot_archive" => true})}
+
+        {:error, reason} ->
+          sandbox = release_node(sandbox)
+
+          if host_refused?(reason) do
+            create_from_macos_snapshot_archive(sandbox, args, disk_snapshot, [node_name | refused])
+          else
+            Logger.warning("sandboxes: create from a macOS disk snapshot archive failed, booting the template",
+              sandbox_id: sandbox.id,
+              disk_snapshot_id: disk_snapshot.id,
+              node: node_name,
+              reason: inspect(reason)
+            )
+
+            create_on_macos_host(sandbox, args, &place_macos_create/2, @create_timeout, [node_name | refused])
+          end
+      end
+    else
+      {:error, reason} ->
+        Logger.info("sandboxes: no macOS host can restore the disk snapshot archive, booting the template",
+          sandbox_id: sandbox.id,
+          disk_snapshot_id: disk_snapshot.id,
+          reason: inspect(reason)
+        )
+
+        create_on_macos_host(sandbox, args, &place_macos_create/2, @create_timeout, refused)
+    end
+  end
+
+  defp create_from_macos_snapshot_archive(sandbox, args, %DiskSnapshot{}, refused),
+    do: create_on_macos_host(sandbox, args, &place_macos_create/2, @create_timeout, refused)
+
   # VM itself. The create, or the restore, moves on to the next host
   # instead of failing. Placement recorded the host's incarnation, which
   # the host checks.
@@ -787,6 +884,8 @@ defmodule Tuist.Sandboxes do
 
   defp place_macos_create(sandbox, []), do: Capacity.place(sandbox)
   defp place_macos_create(sandbox, refused), do: Capacity.place(sandbox, &(&1.name not in refused))
+
+  defp snapshot_missing?(reason), do: is_binary(reason) and String.contains?(reason, "disk snapshot not found")
 
   # A capacity refusal, plain or with the host's reason. One joined with
   # another error (a line break) is not only a refusal.
@@ -907,15 +1006,17 @@ defmodule Tuist.Sandboxes do
 
   # A Mac already running the archived image restores without a pull. A
   # restore never claims a warm VM.
-  defp place_macos_restore(sandbox, refused) do
-    site = Archives.restore_site(sandbox)
+  # `archive` is the sandbox itself, or the disk snapshot it is created from.
+  defp place_macos_restore(sandbox, refused, archive \\ nil) do
+    subject = archive || sandbox
+    site = Archives.restore_site(subject)
 
     restores = fn node ->
-      (is_nil(site) or Sites.shard_storage_site(node.name) == site) and MacosCapacity.restores?(node, sandbox) and
+      (is_nil(site) or Sites.shard_storage_site(node.name) == site) and MacosCapacity.restores?(node, subject) and
         node.name not in refused
     end
 
-    case MacosCapacity.place(sandbox, &(restores.(&1) and MacosCapacity.runs_image?(&1, sandbox)), claims_warm: false) do
+    case MacosCapacity.place(sandbox, &(restores.(&1) and MacosCapacity.runs_image?(&1, subject)), claims_warm: false) do
       {:error, :no_capacity} -> MacosCapacity.place(sandbox, restores, claims_warm: false)
       placed -> placed
     end
