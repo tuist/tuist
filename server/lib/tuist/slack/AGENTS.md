@@ -4,6 +4,12 @@
 
 - Archived report channels are permanent destination failures: after delivery, lock and reload the project, clear only the destination that was attempted, then discard the job. Preserve replacement destinations, the installation, unrelated destinations and `last_reported_at`; cleanup failures must still propagate for retry. Never hold the lock during the Slack request.
 
+## Bot token rotation
+
+- Installation bot tokens rotate: access tokens expire after 12 hours and each refresh token is single-use. Get a token only through `Tuist.Slack.installation_access_token/1`, and rotate only through `rotate_installation_token/2`, which calls Slack under the installation's row lock and retries transient failures inside Slack's grace period.
+- Every refresh needs the app's client secret. Rotate the Slack client secret only together with the server's `slack.client_secret`; a mismatch breaks bot-token destinations within 12 hours.
+- Token rotation cannot be turned off for a Slack app, and rolling back past the rotation code or its migration leaves exchanged installations without refreshes. Fix forward.
+
 ## OAuth: local end-to-end testing
 
 Automation notifications use `Client.deliver_once/2`: one bounded HTTP request without Req retries or redirects, returning snooze for rate limits, error for transient failures, and discard for permanent rejections. Oban owns retries; keep the existing reporting transports compatible.

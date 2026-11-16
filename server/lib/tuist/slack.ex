@@ -39,6 +39,107 @@ defmodule Tuist.Slack do
     |> Repo.update()
   end
 
+  # Refresh on use only when the token is about to expire; the scheduled
+  # `TokenRotationWorker` normally refreshes well before that.
+  @refresh_on_use_margin_seconds 300
+
+  # Errors after which Slack may or may not have rotated the tokens. Slack keeps
+  # accepting a used refresh token for a short grace period, so retrying right
+  # away (still under the row lock) recovers a response that never reached us
+  # instead of leaving the installation with a revoked refresh token.
+  @transient_rotation_errors [:unavailable, "internal_error", "service_unavailable", "fatal_error", "request_timeout"]
+  @rotation_retry_delays_ms [500, 1_000]
+
+  @doc """
+  Returns a bot access token for the installation that is valid right now.
+
+  Installations still holding a long-lived token (no `refresh_token`) use it
+  as is: `TokenRotationWorker` exchanges it once Slack token rotation is
+  enabled for the app. Rotated tokens are refreshed when they expire within
+  five minutes. If that refresh fails while the current token is still
+  valid, the current token is returned.
+  """
+  def installation_access_token(%Installation{refresh_token: nil, access_token: token}), do: {:ok, token}
+
+  def installation_access_token(%Installation{access_token: token} = installation) do
+    if rotation_due?(installation, @refresh_on_use_margin_seconds) do
+      case rotate_installation_token(installation, @refresh_on_use_margin_seconds) do
+        {:ok, %Installation{access_token: token}} ->
+          {:ok, token}
+
+        {:error, reason} ->
+          if rotation_due?(installation, 0), do: {:error, reason}, else: {:ok, token}
+      end
+    else
+      {:ok, token}
+    end
+  end
+
+  @doc """
+  Exchanges a long-lived token for a rotating pair (`oauth.v2.exchange`), or
+  refreshes a rotating token that expires within `margin_seconds`.
+
+  Slack refresh tokens are single-use and a long-lived token can be exchanged
+  only once, so the Slack request runs while holding the installation's row
+  lock: concurrent callers on any replica wait, re-read the row, and use the
+  tokens the first caller stored instead of redeeming a revoked refresh token.
+  The request has a bounded timeout and happens at most every few hours per
+  installation.
+  """
+  def rotate_installation_token(%Installation{id: id}, margin_seconds) do
+    Repo.transaction(
+      fn ->
+        current = Repo.one(from(i in Installation, where: i.id == ^id, lock: "FOR UPDATE"))
+
+        cond do
+          is_nil(current) ->
+            Repo.rollback(:not_found)
+
+          not rotation_due?(current, margin_seconds) ->
+            current
+
+          true ->
+            with {:ok, tokens} <- request_token_rotation(current, @rotation_retry_delays_ms),
+                 {:ok, updated} <-
+                   update_installation(current, %{
+                     access_token: tokens.access_token,
+                     refresh_token: tokens.refresh_token,
+                     access_token_expires_at:
+                       DateTime.utc_now() |> DateTime.add(tokens.expires_in, :second) |> DateTime.truncate(:second)
+                   }) do
+              updated
+            else
+              {:error, reason} -> Repo.rollback(reason)
+            end
+        end
+      end,
+      timeout: to_timeout(minute: 1)
+    )
+  end
+
+  defp request_token_rotation(installation, retry_delays_ms) do
+    result =
+      case installation do
+        %Installation{refresh_token: nil, access_token: token} -> Client.exchange_token(token)
+        %Installation{refresh_token: refresh_token} -> Client.refresh_token(refresh_token)
+      end
+
+    case {result, retry_delays_ms} do
+      {{:error, error}, [delay | rest]} when error in @transient_rotation_errors ->
+        Process.sleep(delay)
+        request_token_rotation(installation, rest)
+
+      _ ->
+        result
+    end
+  end
+
+  defp rotation_due?(%Installation{refresh_token: nil}, _margin_seconds), do: true
+
+  defp rotation_due?(%Installation{access_token_expires_at: expires_at}, margin_seconds) do
+    DateTime.compare(expires_at, DateTime.add(DateTime.utc_now(), margin_seconds, :second)) != :gt
+  end
+
   def delete_installation(%Installation{account_id: account_id} = installation) do
     result =
       Ecto.Multi.new()
@@ -327,9 +428,10 @@ defmodule Tuist.Slack do
     Client.post_to_webhook(webhook_url, blocks)
   end
 
-  defp deliver(_webhook_url, %Installation{access_token: token}, channel_id, blocks)
-       when is_binary(token) and is_binary(channel_id) do
-    Client.post_message(token, channel_id, blocks)
+  defp deliver(_webhook_url, %Installation{} = installation, channel_id, blocks) when is_binary(channel_id) do
+    with {:ok, token} <- installation_access_token(installation) do
+      Client.post_message(token, channel_id, blocks)
+    end
   end
 
   defp deliver(_webhook_url, _installation, _channel_id, _blocks), do: :ok

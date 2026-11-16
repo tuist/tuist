@@ -85,11 +85,13 @@ defmodule Tuist.Slack.Workers.ReportWorker do
         blocks = Reports.report(project, last_report_at: project.last_reported_at)
         handle_webhook_result(SlackClient.post_to_webhook(webhook_url, blocks), project)
 
-      {:bot_token, %Installation{access_token: token}, channel_id} ->
+      {:bot_token, %Installation{} = installation, channel_id} ->
         blocks = Reports.report(project, last_report_at: project.last_reported_at)
 
-        case SlackClient.post_message(token, channel_id, blocks) do
-          :ok -> mark_reported(project)
+        with {:ok, token} <- Slack.installation_access_token(installation),
+             :ok <- SlackClient.post_message(token, channel_id, blocks) do
+          mark_reported(project)
+        else
           {:error, reason} -> handle_post_message_error(reason, project)
         end
     end

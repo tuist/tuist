@@ -15,6 +15,7 @@ defmodule Tuist.Slack.Client do
   alias Tuist.Environment
 
   @oauth_token_url "https://slack.com/api/oauth.v2.access"
+  @oauth_exchange_url "https://slack.com/api/oauth.v2.exchange"
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
 
   # Slack incoming-webhook error strings that mean the destination is dead
@@ -93,6 +94,69 @@ defmodule Tuist.Slack.Client do
     @oauth_token_url
     |> Req.post(form: body)
     |> handle_oauth_response()
+  end
+
+  @doc """
+  Exchanges a long-lived bot token for an expiring access token and a
+  refresh token (`oauth.v2.exchange`). Slack accepts each token only once and
+  answers `token_rotation_not_enabled` while rotation is off for the app.
+  """
+  def exchange_token(access_token) do
+    rotate_token(@oauth_exchange_url, %{token: access_token})
+  end
+
+  @doc """
+  Redeems a single-use refresh token for a new access token and refresh token
+  (`oauth.v2.access` with `grant_type=refresh_token`).
+  """
+  def refresh_token(refresh_token) do
+    rotate_token(@oauth_token_url, %{grant_type: "refresh_token", refresh_token: refresh_token})
+  end
+
+  # One bounded attempt without Req retries. Transport failures and 5xx
+  # responses return `:unavailable`: Slack may have rotated the tokens without
+  # us seeing the response, so only the caller, which holds the installation
+  # lock, may retry (inside Slack's grace period for the used refresh token).
+  defp rotate_token(url, params) do
+    form =
+      Map.merge(params, %{client_id: Environment.slack_client_id(), client_secret: Environment.slack_client_secret()})
+
+    response =
+      Req.post(url,
+        form: form,
+        retry: false,
+        redirect: false,
+        receive_timeout: 10_000,
+        pool_timeout: 5_000,
+        connect_options: [timeout: 5_000]
+      )
+
+    case response do
+      {:ok,
+       %Req.Response{
+         status: 200,
+         body: %{
+           "ok" => true,
+           "access_token" => access_token,
+           "refresh_token" => refresh_token,
+           "expires_in" => expires_in
+         }
+       }}
+      when is_binary(access_token) and is_binary(refresh_token) and is_integer(expires_in) ->
+        {:ok, %{access_token: access_token, refresh_token: refresh_token, expires_in: expires_in}}
+
+      {:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}} ->
+        {:error, error}
+
+      {:ok, %Req.Response{status: status}} when status >= 500 ->
+        {:error, :unavailable}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error, "Slack token rotation responded #{status}"}
+
+      {:error, _reason} ->
+        {:error, :unavailable}
+    end
   end
 
   @doc """

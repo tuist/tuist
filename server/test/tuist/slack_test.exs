@@ -4,8 +4,10 @@ defmodule Tuist.SlackTest do
 
   alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Slack
   alias Tuist.Slack.Client
+  alias Tuist.Slack.Installation
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AlertsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -197,6 +199,155 @@ defmodule Tuist.SlackTest do
     end
   end
 
+  describe "installation_access_token/1" do
+    test "uses a long-lived token without contacting Slack" do
+      installation = SlackFixtures.slack_installation_fixture(access_token: "xoxb-legacy")
+      reject(&Client.exchange_token/1)
+      reject(&Client.refresh_token/1)
+
+      assert {:ok, "xoxb-legacy"} = Slack.installation_access_token(installation)
+    end
+
+    test "uses a rotated token that is not about to expire without contacting Slack" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-current",
+          refresh_token: "xoxe-1-current",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+        )
+
+      reject(&Client.refresh_token/1)
+
+      assert {:ok, "xoxe.xoxb-current"} = Slack.installation_access_token(installation)
+    end
+
+    test "refreshes an expiring token and stores the new refresh token for the next refresh" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-old",
+          refresh_token: "xoxe-1-old",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        )
+
+      expect(Client, :refresh_token, fn "xoxe-1-old" ->
+        {:ok, %{access_token: "xoxe.xoxb-new", refresh_token: "xoxe-1-new", expires_in: 43_200}}
+      end)
+
+      assert {:ok, "xoxe.xoxb-new"} = Slack.installation_access_token(installation)
+
+      stored = Repo.get!(Installation, installation.id)
+      assert stored.access_token == "xoxe.xoxb-new"
+      assert stored.refresh_token == "xoxe-1-new"
+      assert DateTime.diff(stored.access_token_expires_at, DateTime.utc_now()) in 43_100..43_200
+    end
+
+    test "keeps using a still-valid token when its refresh fails" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-current",
+          refresh_token: "xoxe-1-current",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        )
+
+      # The first attempt and two immediate retries.
+      expect(Client, :refresh_token, 3, fn _ -> {:error, "service_unavailable"} end)
+
+      assert {:ok, "xoxe.xoxb-current"} = Slack.installation_access_token(installation)
+      assert Repo.get!(Installation, installation.id).refresh_token == "xoxe-1-current"
+    end
+
+    test "returns the refresh error once the token has expired" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-expired",
+          refresh_token: "xoxe-1-revoked",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), -60, :second)
+        )
+
+      expect(Client, :refresh_token, fn _ -> {:error, "invalid_refresh_token"} end)
+
+      assert {:error, "invalid_refresh_token"} = Slack.installation_access_token(installation)
+    end
+  end
+
+  describe "rotate_installation_token/2" do
+    test "exchanges a long-lived token once and stores the rotating pair" do
+      installation = SlackFixtures.slack_installation_fixture(access_token: "xoxb-legacy")
+
+      expect(Client, :exchange_token, fn "xoxb-legacy" ->
+        {:ok, %{access_token: "xoxe.xoxb-1", refresh_token: "xoxe-1-1", expires_in: 43_200}}
+      end)
+
+      assert {:ok, %Installation{access_token: "xoxe.xoxb-1", refresh_token: "xoxe-1-1"}} =
+               Slack.rotate_installation_token(installation, 7200)
+    end
+
+    test "uses tokens another caller already rotated instead of redeeming the stale refresh token" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-old",
+          refresh_token: "xoxe-1-old",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        )
+
+      # Another replica refreshed after this caller loaded the installation.
+      {:ok, _} =
+        Slack.update_installation(installation, %{
+          access_token: "xoxe.xoxb-new",
+          refresh_token: "xoxe-1-new",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 43_200, :second)
+        })
+
+      reject(&Client.refresh_token/1)
+
+      assert {:ok, %Installation{access_token: "xoxe.xoxb-new"}} =
+               Slack.rotate_installation_token(installation, 300)
+    end
+
+    test "retries a refresh whose response was lost, with the same refresh token" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-old",
+          refresh_token: "xoxe-1-old",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        )
+
+      # Mimic consumes expectations in order: a lost response, then the retry.
+      expect(Client, :refresh_token, fn "xoxe-1-old" -> {:error, :unavailable} end)
+
+      expect(Client, :refresh_token, fn "xoxe-1-old" ->
+        {:ok, %{access_token: "xoxe.xoxb-new", refresh_token: "xoxe-1-new", expires_in: 43_200}}
+      end)
+
+      assert {:ok, %Installation{access_token: "xoxe.xoxb-new", refresh_token: "xoxe-1-new"}} =
+               Slack.rotate_installation_token(installation, 300)
+    end
+
+    test "does not retry a refresh Slack rejected" do
+      installation =
+        SlackFixtures.slack_installation_fixture(
+          access_token: "xoxe.xoxb-old",
+          refresh_token: "xoxe-1-revoked",
+          access_token_expires_at: DateTime.add(DateTime.utc_now(), 60, :second)
+        )
+
+      expect(Client, :refresh_token, 1, fn _ -> {:error, "invalid_refresh_token"} end)
+
+      assert {:error, "invalid_refresh_token"} = Slack.rotate_installation_token(installation, 300)
+    end
+
+    test "keeps the long-lived token while token rotation is disabled for the app" do
+      installation = SlackFixtures.slack_installation_fixture(access_token: "xoxb-legacy")
+      expect(Client, :exchange_token, fn _ -> {:error, "token_rotation_not_enabled"} end)
+
+      assert {:error, "token_rotation_not_enabled"} = Slack.rotate_installation_token(installation, 7200)
+
+      stored = Repo.get!(Installation, installation.id)
+      assert stored.access_token == "xoxb-legacy"
+      assert is_nil(stored.refresh_token)
+    end
+  end
+
   describe "delete_installation/1" do
     test "deletes a Slack installation" do
       # Given
@@ -208,7 +359,7 @@ defmodule Tuist.SlackTest do
 
       # Then
       assert {:ok, _deleted} = result
-      assert Repo.get(Tuist.Slack.Installation, installation.id) == nil
+      assert Repo.get(Installation, installation.id) == nil
     end
 
     test "clears slack fields from projects when deleting installation" do
