@@ -6,7 +6,7 @@ msgstr "Language: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr "Рассылка от команды Tuist с обновлениями продукта, нашим взглядом на современную разработку приложений и планами на будущее. Будьте в курсе наших направлений и причин, по которым мы их выбираем."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:93
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:97
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:97
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:478
 #, elixir-autogen, elixir-format
@@ -18,7 +18,7 @@ msgstr "О нас"
 msgid "Beyond expectations"
 msgstr "Превосходя ожидания"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:97
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:101
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:292
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:616
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:4
@@ -34,7 +34,7 @@ msgstr "Блог"
 msgid "Blog posts by the Tuist team."
 msgstr "Публикации блога от команды Tuist."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:129
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr "Bluesky"
@@ -83,7 +83,7 @@ msgstr "Можно ли изменить или отменить тарифны�
 msgid "Changelog"
 msgstr "Журнал изменений"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:70
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:74
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:933
 #, elixir-autogen, elixir-format
 msgid "Community"
@@ -105,12 +105,12 @@ msgstr "Поддержка сообщества"
 msgid "Community support via forum"
 msgstr "Поддержка сообщества через форум"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:90
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Company"
 msgstr "Компания"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:100
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Contact"
 msgstr "Контакты"
@@ -120,7 +120,7 @@ msgstr "Контакты"
 msgid "Contact us"
 msgstr "Связаться с нами"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:155
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cookie policy"
 msgstr "Политика использования файлов cookie"
@@ -141,7 +141,7 @@ msgstr "Дашборд"
 msgid "Developers"
 msgstr "Разработчики"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1059
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
 msgstr "Ознакомьтесь с гибкими тарифными планами Tuist. Бесплатный уровень без ограничений по времени и оплата только за фактическое использование. Кроме того, для проектов с открытым исходным кодом это бесплатно навсегда."
@@ -233,7 +233,7 @@ msgstr "Получайте помощь, когда она нужна, чере�
 msgid "Get started"
 msgstr "Начать работу"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:127
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:131
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "GitHub"
@@ -254,7 +254,7 @@ msgstr "Разверните сервер Tuist на своей инфрастр
 msgid "How can I estimate the cost for my project?"
 msgstr "Как оценить стоимость для моего проекта?"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:159
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Imprint"
 msgstr "Импринт"
@@ -275,7 +275,7 @@ msgstr "Есть ли бесплатный пробный период для п
 msgid "Is there a minimum contract length?"
 msgstr "Есть ли минимальный срок контракта?"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:83
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:87
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Issues"
@@ -292,12 +292,12 @@ msgstr "Последнее обновление %{date}"
 msgid "Learn about Tuist and meet the team"
 msgstr "Узнайте о Tuist и познакомьтесь с командой"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:144
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Legal"
 msgstr "Юридическая информация"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:135
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "LinkedIn"
 msgstr "LinkedIn"
@@ -312,23 +312,23 @@ msgstr "Загрузить ещё"
 msgid "Log in"
 msgstr "Войти"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:106
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Longevity"
 msgstr "Долговечность"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:123
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr "Mastodon"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:79
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:83
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Newsletter"
 msgstr "Рассылка"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1215
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1221
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -339,12 +339,12 @@ msgstr "Не удалось подтвердить подписку на рас�
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
 msgstr "Нет, минимальный срок контракта не требуется. Вы можете отменить подписку в любое время."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:258
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Ongoing incident"
 msgstr "Текущий инцидент"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:102
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Openness"
 msgstr "Открытость"
@@ -381,7 +381,7 @@ msgstr "Цена за единицу сверх лимитов бесплатн�
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:43
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:285
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:613
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1054
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr "Цены"
@@ -396,7 +396,7 @@ msgstr "Приоритетная поддержка"
 msgid "Priority support via Slack channel"
 msgstr "Приоритетная поддержка через канал Slack"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:151
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Privacy policy"
 msgstr "Политика конфиденциальности"
@@ -425,7 +425,7 @@ msgstr "Registry"
 msgid "Resources"
 msgstr "Ресурсы"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:110
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Security"
 msgstr "Безопасность"
@@ -450,14 +450,14 @@ msgstr "Зарегистрироваться"
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
 msgstr "После внедрения Tuist в наш iOS-проект мы заметили значительный рост масштабируемости и производительности. В целом процесс разработки стал быстрее и эффективнее, что позволило команде сосредоточиться на создании новых возможностей, не отвлекаясь на ограничения инструментов."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:72
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:76
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:115
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:943
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:120
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Socials"
 msgstr "Социальные сети"
@@ -527,7 +527,7 @@ msgstr "Индивидуальные юридические условия"
 msgid "Talk to us"
 msgstr "Связаться с нами"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:147
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Terms of service"
 msgstr "Условия использования"
@@ -552,9 +552,9 @@ msgstr "Отслеживайте и уменьшайте размер прило
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:546
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:600
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:960
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1053
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1132
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1146
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1059
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1138
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1152
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:87
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:61
 #, elixir-autogen, elixir-format
@@ -672,7 +672,7 @@ msgstr "Проверка не пройдена. Пожалуйста, попро
 msgid "Verification link expired or invalid. Please try signing up again."
 msgstr "Ссылка для подтверждения истекла или недействительна. Попробуйте зарегистрироваться снова."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:140
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Videos"
 msgstr "Видео"
@@ -860,7 +860,7 @@ msgstr "Клиенты Tuist"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:14
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:24
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1103
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1109
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Tests"
@@ -915,17 +915,17 @@ msgstr "Все"
 msgid "All features, no credit card required"
 msgstr "Все возможности, карта не требуется"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:191
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on"
 msgstr "Спросите о Tuist в"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:203
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on %{assistant}"
 msgstr "Спросите о Tuist в %{assistant}"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:252
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
 msgstr "Все системы работают нормально"
@@ -1050,7 +1050,7 @@ msgstr "Завершить задачу"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:10
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:16
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1084
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1090
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:172
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:570
 #, elixir-autogen, elixir-format
@@ -1069,7 +1069,7 @@ msgstr "Создать логи"
 msgid "Customer stories"
 msgstr "Истории клиентов"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:74
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Discourse"
 msgstr "Discourse"
@@ -1498,7 +1498,7 @@ msgstr "Копировать текстовый логотип в SVG"
 msgid "Download brand assets"
 msgstr "Скачать фирменные материалы"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:114
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:118
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:504
 #, elixir-autogen, elixir-format
 msgid "Brand"
@@ -2200,18 +2200,18 @@ msgstr "Брендовые материалы"
 msgid "Community links"
 msgstr "Ссылки сообщества"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:291
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:295
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Dark theme"
 msgstr "Тёмная тема"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:211
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Footer navigation"
 msgstr "Навигация в подвале"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:283
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:287
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "Light theme"
@@ -2232,8 +2232,8 @@ msgstr "Мобильная навигация"
 msgid "Organizations using Tuist"
 msgstr "Организации, использующие Tuist"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:236
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:237
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:240
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "SOC 2 Type II certified"
 msgstr "Сертификат SOC 2 Type II"
@@ -2243,7 +2243,7 @@ msgstr "Сертификат SOC 2 Type II"
 msgid "Search posts"
 msgstr "Поиск по статьям"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:275
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:279
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "System theme"
@@ -2390,7 +2390,7 @@ msgstr "Как учитываются запросы?"
 msgid "How is egress measured?"
 msgstr "Как измеряется исходящий трафик?"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1030
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Is usage on Tuist Runners billed differently?"
 msgstr "Использование Tuist Runners оплачивается иначе?"
@@ -2425,7 +2425,7 @@ msgstr "Что считается исходящим трафиком кэша �
 msgid "Which test cases are billed?"
 msgstr "Какие тесты тарифицируются?"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1031
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1037
 #, elixir-autogen, elixir-format
 msgid "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
 msgstr "Да. Исходящий трафик кэша и запросы от Tuist Runners учитываются с коэффициентом 0,5, а тесты, запущенные на Tuist Runners, бесплатны."
@@ -2648,7 +2648,7 @@ msgstr "%{vcpus} vCPU · %{memory} ГБ"
 msgid "/min"
 msgstr "/мин"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
 #, elixir-autogen, elixir-format
 msgid "How are Tuist Runners billed?"
 msgstr "Как тарифицируются Tuist Runners?"
@@ -2725,7 +2725,7 @@ msgstr "100 бесплатных минут macOS и 2500 бесплатных �
 msgid "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
 msgstr "Включено во все тарифы, даже в Air. Минуты Linux рассчитываются для машины с 2 vCPU / 8 ГБ, поэтому машина меньшей мощности будет работать дольше."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1019
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1025
 #, elixir-autogen, elixir-format
 msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
 msgstr "За каждую минуту выполнения задачи, от момента запуска задачи вашим CI-провайдером до её завершения, без округления до целых минут. Загрузка и очистка машины не тарифицируются. Каждый план включает 100 бесплатных минут macOS и 2500 бесплатных минут Linux в месяц, рассчитанных для машины Linux с 2 vCPU / 8 ГБ, и 100 ГБ хранилища кэша; дополнительное хранилище стоит $0.10 за ГБ-месяц. Годовые обязательства и большие объемы использования дают скидки. Свяжитесь с нами по адресу contact@tuist.dev для настройки годового тарифа или тарификации по объему."
@@ -2761,12 +2761,12 @@ msgstr "%{memory} ГБ / vCPU"
 msgid "All Tuist Runners machines and rates"
 msgstr "Все машины и тарифы Tuist Runners"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:65
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Build systems"
 msgstr "Системы сборки"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:66
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Compare Tuist"
 msgstr "Сравнение с Tuist"
@@ -2796,7 +2796,7 @@ msgstr "Руководства"
 msgid "Handle flaky tests"
 msgstr "Работа с нестабильными тестами"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1023
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1029
 #, elixir-autogen, elixir-format
 msgid "How does Tuist compare to other build and CI providers?"
 msgstr "Чем Tuist отличается от других систем сборки и CI-провайдеров?"
@@ -2831,7 +2831,7 @@ msgstr "Медленные сборки"
 msgid "Slow tests"
 msgstr "Медленные тесты"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1030
 #, elixir-autogen, elixir-format
 msgid "Tuist adds build and test capabilities to the CI you already use instead of replacing it. Our <a href=\"%{compare_url}\">comparison guides</a> cover providers such as Develocity, BuildBuddy, Bitrise, and CircleCI, and the <a href=\"%{costs_url}\">CI costs guide</a> shows where spend usually goes before you buy more compute."
 msgstr "Tuist добавляет возможности сборки и тестирования к уже используемому вами CI, не заменяя его. Наши <a href=\"%{compare_url}\">руководства по сравнению</a> охватывают такие провайдеры, как Develocity, BuildBuddy, Bitrise и CircleCI, а <a href=\"%{costs_url}\">руководство по расходам на CI</a> показывает, куда обычно уходят средства, прежде чем вы увеличите вычислительные мощности."
@@ -2871,7 +2871,7 @@ msgstr "Выберите доступный профиль машины с вы�
 msgid "Compare your options"
 msgstr "Сравните варианты"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1082
 #, elixir-autogen, elixir-format
 msgid "Compute for build work · Tuist"
 msgstr "Вычислительные ресурсы для сборок · Tuist"
@@ -2942,7 +2942,7 @@ msgstr "Повторно используйте совместимые резу�
 msgid "Reuse what you've"
 msgstr "Используйте повторно то, что у вас уже есть"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1070
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
 #, elixir-autogen, elixir-format
 msgid "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
 msgstr "Запускайте существующие задачи CI рядом с вашим общим кэшем сборок. Tuist Compute — это опциональная среда выполнения, доступная только по приглашению, для команд и агентов написания кода."
@@ -2952,7 +2952,7 @@ msgstr "Запускайте существующие задачи CI рядом
 msgid "Run jobs without maintaining your own fleet. Jobs can queue when their requested shape exceeds available account capacity."
 msgstr "Запускайте задачи без необходимости поддерживать собственный парк серверов. Задачи могут становиться в очередь, если запрашиваемая конфигурация превышает доступную емкость аккаунта."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1102
 #, elixir-autogen, elixir-format
 msgid "Test insights, sharding, and trustworthy feedback · Tuist"
 msgstr "Аналитика тестов, шардирование и надежная обратная связь · Tuist"
@@ -2962,7 +2962,7 @@ msgstr "Аналитика тестов, шардирование и надеж�
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Блог Tuist: инженерия и инфраструктура сборок"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1090
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
 msgstr "Анализируйте медленные и нестабильные тесты, распределяйте нагрузку при тестировании и используйте выборочное тестирование там, где оно поддерживается. Сохраняйте текущий CI и внедряйте Tuist поэтапно."
@@ -3046,3 +3046,18 @@ msgstr "Использует Tuist с"
 #, elixir-autogen, elixir-format
 msgid "Using Tuist since %{date}"
 msgstr "Использует Tuist с %{date}"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
+#, elixir-autogen, elixir-format
+msgid "Is there a free Bazel remote cache?"
+msgstr "Есть ли бесплатный удалённый кэш для Bazel?"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1019
+#, elixir-autogen, elixir-format
+msgid "Yes. The Air plan includes Tuist's Bazel remote cache at no cost within the free cache allowance, with no credit card required. Uploads and storage are free, and downloads count toward the allowance. Our <a href=\"%{guide_url}\">Bazel remote cache guide</a> explains how to set it up."
+msgstr "Да. План Air включает удалённый кэш Bazel от Tuist бесплатно в рамках лимита бесплатного кэша, без необходимости привязывать банковскую карту. Загрузка и хранение бесплатны, а скачивания учитываются в лимите. В нашем <a href=\"%{guide_url}\">руководстве по удалённому кэшу Bazel</a> объясняется, как его настроить."
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Bazel cache for GitHub Actions"
+msgstr "Кэш Bazel для GitHub Actions"

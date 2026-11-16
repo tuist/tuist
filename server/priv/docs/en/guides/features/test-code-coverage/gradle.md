@@ -35,7 +35,30 @@ Or turn it on for one invocation, such as a CI job, with an environment variable
 TUIST_TEST_COVERAGE=1 ./gradlew test
 ```
 
+Test tasks with coverage on and off have separate build cache entries (see [Performance impact](#performance-impact)), so prefer the setting when your CI and local builds share a build cache: turning coverage on only in CI keeps them from reusing each other's test results.
+
 With coverage on, the plugin applies Gradle's `jacoco` plugin to every JVM project. JaCoCo's agent comes from your project's repositories, as it would if you applied the plugin yourself. A project that already configures JaCoCo keeps its settings, and its own reports keep working.
+
+### Android projects {#android-projects}
+
+The plugin measures the local unit tests of Android projects, such as `testDebugUnitTest`. Instrumented tests that run on a device or emulator aren't measured.
+
+If your unit tests use Robolectric, tell JaCoCo to include the classes Robolectric loads. Robolectric defines your app's classes in its own class loader, and JaCoCo skips such classes by default, so the code those tests run would show as uncovered. In the Android project's `build.gradle.kts`:
+
+```kotlin
+pluginManager.withPlugin("jacoco") {
+    tasks.withType<Test>().configureEach {
+        extensions.configure<JacocoTaskExtension> {
+            isIncludeNoLocationClasses = true
+            excludes = listOf("jdk.internal.*")
+        }
+    }
+}
+```
+
+The block applies only when coverage is on, because that is when the plugin applies `jacoco`.
+
+Android unit tests run on JUnit 4 by default, which records coverage but not [which code each test ran](#per-test-evidence). To record it, run them on the JUnit Platform through JUnit Vintage.
 
 ### Sharded runs {#sharded-runs}
 
@@ -48,6 +71,8 @@ A commit's coverage often comes from several jobs, such as one per shard. Tuist 
 ```sh
 ./gradlew tuistCoverageComplete
 ```
+
+When a single job runs all of a commit's tests, run the task as a step after the tests instead, including when tests fail: a run with failing tests still reported its coverage.
 
 The task reads the commit from `GIT_COMMIT` or the checkout's `HEAD`; pass `-Ptuist.coverage.commit=<sha>` to name another one. Until a commit is complete, its coverage shows as **In progress** and stays out of its branch's trend.
 

@@ -6,7 +6,7 @@ msgstr "Language: ka\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr "Tuist-ის გუნდისგან სიახლეები: პროდუქტის განახლებები, ჩვენი ხედვა თანამედროვე აპლიკაციების შექმნაზე და სამომავლო გეგმები. იყავით საქმის კურსში — გაიგეთ, საით მივდივართ და რატომ."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:93
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:97
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:97
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:478
 #, elixir-autogen, elixir-format
@@ -18,7 +18,7 @@ msgstr "შესახებ"
 msgid "Beyond expectations"
 msgstr "მოლოდინებს მიღმა"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:97
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:101
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:292
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:616
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:4
@@ -34,7 +34,7 @@ msgstr "ბლოგი"
 msgid "Blog posts by the Tuist team."
 msgstr "ბლოგის პოსტები Tuist-ის გუნდისგან."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:129
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Bluesky"
 msgstr "Bluesky"
@@ -83,7 +83,7 @@ msgstr "შემიძლია ნებისმიერ დროს შე
 msgid "Changelog"
 msgstr "ცვლილებების ჟურნალი"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:70
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:74
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:933
 #, elixir-autogen, elixir-format
 msgid "Community"
@@ -105,12 +105,12 @@ msgstr "საზოგადოების მხარდაჭერა"
 msgid "Community support via forum"
 msgstr "საზოგადოების მხარდაჭერა ფორუმის საშუალებით"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:90
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Company"
 msgstr "კომპანია"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:100
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Contact"
 msgstr "კონტაქტი"
@@ -120,7 +120,7 @@ msgstr "კონტაქტი"
 msgid "Contact us"
 msgstr "დაგვიკავშირდით"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:155
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Cookie policy"
 msgstr "Cookie-ების პოლიტიკა"
@@ -141,7 +141,7 @@ msgstr "დაფა"
 msgid "Developers"
 msgstr "დეველოპერები"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1059
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1065
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
 msgstr "გაეცანით Tuist-ის მოქნილ საფასო გეგმებს. ისარგებლეთ უფასო პაკეტით დროის შეზღუდვების გარეშე და გადაიხადეთ მხოლოდ იმისთვის, რასაც იყენებთ. ღია კოდის პროექტებისთვის კი სამუდამოდ უფასოა."
@@ -233,7 +233,7 @@ msgstr "მიიღეთ დახმარება, როცა გჭი�
 msgid "Get started"
 msgstr "დაწყება"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:127
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:131
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "GitHub"
@@ -254,7 +254,7 @@ msgstr "განათავსეთ Tuist Server თქვენს ინფ
 msgid "How can I estimate the cost for my project?"
 msgstr "როგორ შემიძლია პროექტის ღირებულების შეფასება?"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:159
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Imprint"
 msgstr "საიურიდიკო ინფორმაცია"
@@ -275,7 +275,7 @@ msgstr "არის თუ არა უფასო საცდელი პ�
 msgid "Is there a minimum contract length?"
 msgstr "არსებობს თუ არა კონტრაქტის მინიმალური ხანგრძლივობა?"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:83
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:87
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:63
 #, elixir-autogen, elixir-format
 msgid "Issues"
@@ -292,12 +292,12 @@ msgstr "ბოლო განახლება %{date}"
 msgid "Learn about Tuist and meet the team"
 msgstr "შეიტყვეთ მეტი Tuist-ის შესახებ და გაიცანით გუნდი"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:144
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Legal"
 msgstr "იურიდიული"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:135
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "LinkedIn"
 msgstr "LinkedIn"
@@ -312,23 +312,23 @@ msgstr "მეტის ჩატვირთვა"
 msgid "Log in"
 msgstr "შესვლა"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:106
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Longevity"
 msgstr "ხანგრძლივობა"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:123
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Mastodon"
 msgstr "Mastodon"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:79
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:83
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Newsletter"
 msgstr "ნიუსლეთერი"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1215
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1221
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -339,12 +339,12 @@ msgstr "ნიუსლეთერის ვერიფიკაცია ვ�
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
 msgstr "არა, კონტრაქტის მინიმალური ვადა არ არსებობს. შეგიძლიათ ნებისმიერ დროს გააუქმოთ."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:258
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Ongoing incident"
 msgstr "მიმდინარე ინციდენტი"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:102
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:106
 #, elixir-autogen, elixir-format
 msgid "Openness"
 msgstr "გახსნილობა"
@@ -381,7 +381,7 @@ msgstr "ფასი ერთეულზე უფასო პაკეტი
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:43
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:285
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:613
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1054
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr "ფასები"
@@ -396,7 +396,7 @@ msgstr "პრიორიტეტული მხარდაჭერა"
 msgid "Priority support via Slack channel"
 msgstr "პრიორიტეტული მხარდაჭერა Slack-ის არხის მეშვეობით"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:151
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Privacy policy"
 msgstr "კონფიდენციალურობის პოლიტიკა"
@@ -425,7 +425,7 @@ msgstr "Registry"
 msgid "Resources"
 msgstr "რესურსები"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:110
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Security"
 msgstr "უსაფრთხოება"
@@ -450,14 +450,14 @@ msgstr "რეგისტრაცია"
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
 msgstr "iOS პროექტში Tuist-ის დანერგვის შემდეგ, ჩვენ მნიშვნელოვანი გაუმჯობესებები შევნიშნეთ მასშტაბირებადობასა და პროდუქტიულობაში. საერთო ჯამში, მან ჩვენი განვითარების პროცესი უფრო სწრაფი და ეფექტური გახადა, რამაც გუნდს საშუალება მისცა ფოკუსირებულიყო ფუნქციების შექმნაზე ინსტრუმენტების შეზღუდვების გამო სიჩქარის დაკარგვის გარეშე."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:72
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:76
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:115
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:943
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:120
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Socials"
 msgstr "სოციალური ქსელები"
@@ -527,7 +527,7 @@ msgstr "მორგებული იურიდიული პირობ�
 msgid "Talk to us"
 msgstr "დაგვიკავშირდით"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:147
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Terms of service"
 msgstr "მომსახურების პირობები"
@@ -552,9 +552,9 @@ msgstr "თვალყური ადევნეთ და შეამცი
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:546
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:600
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:960
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1053
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1132
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1146
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1059
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1138
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1152
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:87
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:61
 #, elixir-autogen, elixir-format
@@ -672,7 +672,7 @@ msgstr "ვერიფიკაცია ვერ მოხერხდა. �
 msgid "Verification link expired or invalid. Please try signing up again."
 msgstr "ვერიფიკაციის ბმული ვადაგასულია ან არასწორია. გთხოვთ, სცადოთ ხელახლა დარეგისტრირება."
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:140
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Videos"
 msgstr "ვიდეოები"
@@ -860,7 +860,7 @@ msgstr "Tuist-ის მომხმარებლები"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:14
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:24
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1103
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1109
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "Tests"
@@ -915,17 +915,17 @@ msgstr "ყველა"
 msgid "All features, no credit card required"
 msgstr "ყველა ფუნქცია, საბარათო მონაცემების გარეშე"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:191
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on"
 msgstr "Tuist-ის შესახებ იკითხეთ"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:203
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Ask about Tuist on %{assistant}"
 msgstr "Tuist-ის შესახებ იკითხეთ %{assistant}-ში"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:252
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "All systems normal"
 msgstr "ყველა სისტემა ნორმალურად მუშაობს"
@@ -1050,7 +1050,7 @@ msgstr "დავალების დასრულება"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:10
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:16
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1084
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1090
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:172
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:570
 #, elixir-autogen, elixir-format
@@ -1069,7 +1069,7 @@ msgstr "ლოგების შექმნა"
 msgid "Customer stories"
 msgstr "მომხმარებლის ისტორიები"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:74
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:78
 #, elixir-autogen, elixir-format
 msgid "Discourse"
 msgstr "Discourse"
@@ -1498,7 +1498,7 @@ msgstr "სახელწოდების კოპირება SVG ფო
 msgid "Download brand assets"
 msgstr "ბრენდული რესურსების ჩამოტვირთვა"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:114
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:118
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:504
 #, elixir-autogen, elixir-format
 msgid "Brand"
@@ -2200,18 +2200,18 @@ msgstr "ბრენდის რესურსები"
 msgid "Community links"
 msgstr "კომუნიკაციის ბმულები"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:291
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:295
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Dark theme"
 msgstr "მუქი თემა"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:211
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Footer navigation"
 msgstr "ფუტერის ნავიგაცია"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:283
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:287
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "Light theme"
@@ -2232,8 +2232,8 @@ msgstr "მობილური ნავიგაცია"
 msgid "Organizations using Tuist"
 msgstr "ორგანიზაციები, რომლებიც იყენებენ Tuist-ს"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:236
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:237
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:240
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "SOC 2 Type II certified"
 msgstr "SOC 2 Type II სერტიფიცირებული"
@@ -2243,7 +2243,7 @@ msgstr "SOC 2 Type II სერტიფიცირებული"
 msgid "Search posts"
 msgstr "პოსტების ძიება"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:275
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:279
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "System theme"
@@ -2390,7 +2390,7 @@ msgstr "როგორ ითვლება მოთხოვნები?"
 msgid "How is egress measured?"
 msgstr "როგორ იზომება გადმოწერილი მონაცემების (egress) მოცულობა?"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1030
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Is usage on Tuist Runners billed differently?"
 msgstr "იხდება თუ არა Tuist Runner-ებზე გამოყენებისთვის განსხვავებული გადახდა?"
@@ -2425,7 +2425,7 @@ msgstr "რა ითვლება ქეშიდან გადმოწე
 msgid "Which test cases are billed?"
 msgstr "რომელი სატესტო შემთხვევები იბეგრება?"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1031
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1037
 #, elixir-autogen, elixir-format
 msgid "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
 msgstr "დიახ. Tuist Runners-დან ქეშის ეგრესი და მოთხოვნები ნახევარ ფასად ითვლება, ხოლო Tuist Runners-ზე გაშვებული სატესტო შემთხვევები უფასოა."
@@ -2648,7 +2648,7 @@ msgstr "%{vcpus} vCPU · %{memory} GB"
 msgid "/min"
 msgstr "/წთ"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
 #, elixir-autogen, elixir-format
 msgid "How are Tuist Runners billed?"
 msgstr "როგორ ხდება Tuist Runners-ის გადახდა?"
@@ -2725,7 +2725,7 @@ msgstr "100 უფასო macOS და 2,500 უფასო Linux წუთ�
 msgid "Included on every plan, Air too. Linux minutes are counted on a 2 vCPU / 8 GB machine, so a smaller one runs longer."
 msgstr "შედის ყველა გეგმაში, Air-იც კი. Linux წუთები ითვლება 2 vCPU / 8 GB მანქანაზე, ასე რომ პატარა მანქანა უფრო დიდხანს მუშაობს."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1019
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1025
 #, elixir-autogen, elixir-format
 msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
 msgstr "ჯობის დროის თითოეული წუთისთვის, მაშინ როცა თქვენი CI პროვაიდერი იწყებს ჯობას და მთავრდება მისი დასრულებით, მთელი წუთების დამრგვალების გარეშე. მანქანის ჩართვა და გასუფთავება არ იბეგრება. ყველა გეგმაში შედის 100 უფასო macOS წუთი და 2,500 უფასო Linux წუთი თვეში, რაც ითვლება 2 vCPU / 8 GB Linux მანქანაზე, და 100 GB ქეშის მოცულობის შენახვა, ამის შემდეგ შენახვა ღირს $0.10 თითოეულ GB-თვეზე. წლიური ვალდებულებები და მაღალი გამოყენება ფასდაკლებებს იღებს. დაგვიკავშირდით contact@tuist.dev-ზე წლიური ან მოცულობითი ფასების შესაქმნელად."
@@ -2761,12 +2761,12 @@ msgstr "%{memory} GB / vCPU"
 msgid "All Tuist Runners machines and rates"
 msgstr "ყველა Tuist Runners მანქანა და ტარიფები"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:65
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Build systems"
 msgstr "ბილდის სისტემები"
 
-#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:66
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Compare Tuist"
 msgstr "Tuist-ის შედარება"
@@ -2796,7 +2796,7 @@ msgstr "სახელმძღვანელოები"
 msgid "Handle flaky tests"
 msgstr "არასტაბილური ტესტების მართვა"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1023
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1029
 #, elixir-autogen, elixir-format
 msgid "How does Tuist compare to other build and CI providers?"
 msgstr "როგორ შეედრება Tuist სხვა ბილდისა და CI პროვაიდერებს?"
@@ -2831,7 +2831,7 @@ msgstr "ნელი ბილდები"
 msgid "Slow tests"
 msgstr "ნელი ტესტები"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1030
 #, elixir-autogen, elixir-format
 msgid "Tuist adds build and test capabilities to the CI you already use instead of replacing it. Our <a href=\"%{compare_url}\">comparison guides</a> cover providers such as Develocity, BuildBuddy, Bitrise, and CircleCI, and the <a href=\"%{costs_url}\">CI costs guide</a> shows where spend usually goes before you buy more compute."
 msgstr "Tuist ამატებს ბილდისა და ტესტირების შესაძლებლობებს თქვენს უკვე გამოყენებულ CI-ში, ნაცვლად მისი ჩანაცვლებისა. ჩვენი <a href=\"%{compare_url}\">შედარების სახელმძღვანელოები</a> მოიცავს ისეთ პროვაიდერებს, როგორიცაა Develocity, BuildBuddy, Bitrise და CircleCI, ხოლო <a href=\"%{costs_url}\">CI ხარჯების სახელმძღვანელო</a> გიჩვენებთ, თუ სად მიდის ხარჯები ძირითადად, სანამ დამატებით გამოთვლით რესურსებს შეიძენთ."
@@ -2871,7 +2871,7 @@ msgstr "აირჩიეთ ხელმისაწვდომი მან�
 msgid "Compare your options"
 msgstr "შეადარეთ ვარიანტები"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1082
 #, elixir-autogen, elixir-format
 msgid "Compute for build work · Tuist"
 msgstr "გამოთვლითი რესურსები ბილდებისთვის · Tuist"
@@ -2942,7 +2942,7 @@ msgstr "ხელახლა გამოიყენეთ თავსებ�
 msgid "Reuse what you've"
 msgstr "ხელახლა გამოიყენეთ ის, რაც უკვე"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1070
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1076
 #, elixir-autogen, elixir-format
 msgid "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
 msgstr "გაუშვით არსებული CI დავალებები თქვენს საერთო ბილდის ქეშთან ერთად. Tuist Compute არის ოფციონალური, მხოლოდ მოწვევით ხელმისაწვდომი შესრულების გარემო გუნდებისა და კოდირების აგენტებისთვის."
@@ -2952,7 +2952,7 @@ msgstr "გაუშვით არსებული CI დავალებ�
 msgid "Run jobs without maintaining your own fleet. Jobs can queue when their requested shape exceeds available account capacity."
 msgstr "გაუშვით დავალებები საკუთარი ფლოტის მართვის გარეშე. დავალებები შეიძლება ჩადგნენ რიგში, როცა მათი მოთხოვნილი კონფიგურაცია აღემატება ანგარიშის ხელმისაწვდომ სიმძლავრეს."
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1102
 #, elixir-autogen, elixir-format
 msgid "Test insights, sharding, and trustworthy feedback · Tuist"
 msgstr "ტესტების ანალიტიკა, შარდინგი და სანდო უკუკავშირი · Tuist"
@@ -2962,7 +2962,7 @@ msgstr "ტესტების ანალიტიკა, შარდინ
 msgid "Tuist Blog: engineering and build infrastructure"
 msgstr "Tuist-ის ბლოგი: ინჟინერია და ბილდის ინფრასტრუქტურა"
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1090
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1096
 #, elixir-autogen, elixir-format
 msgid "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
 msgstr "გაიგეთ ნელი და არასტაბილური ტესტების მიზეზები, გაანაწილეთ ტესტების დატვირთვა და გამოიყენეთ შერჩევითი ტესტირება იქ, სადაც ეს მხარდაჭერილია. შეინარჩუნეთ თქვენი CI და დანერგეთ Tuist ეტაპობრივად."
@@ -3046,3 +3046,18 @@ msgstr "Tuist-ის გამოყენება დაწყებული�
 #, elixir-autogen, elixir-format
 msgid "Using Tuist since %{date}"
 msgstr "Tuist-ის გამოყენება დაწყებულია %{date}-დან"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
+#, elixir-autogen, elixir-format
+msgid "Is there a free Bazel remote cache?"
+msgstr "არსებობს თუ არა Bazel-ის უფასო დისტანციური ქეში?"
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1019
+#, elixir-autogen, elixir-format
+msgid "Yes. The Air plan includes Tuist's Bazel remote cache at no cost within the free cache allowance, with no credit card required. Uploads and storage are free, and downloads count toward the allowance. Our <a href=\"%{guide_url}\">Bazel remote cache guide</a> explains how to set it up."
+msgstr "დიახ. Air გეგმა მოიცავს Tuist-ის Bazel დისტანციურ ქეშს უფასოდ, თავისუფალი ქეშის ლიმიტის ფარგლებში, საკრედიტო ბარათის მითითების გარეშე. ატვირთვა და შენახვა უფასოა, ხოლო ჩამოტვირთვები ითვლება ლიმიტში. ჩვენი <a href=\"%{guide_url}\">Bazel დისტანციური ქეშის სახელმძღვანელო</a> განმარტავს, როგორ მოახდინოთ მისი კონფიგურაცია."
+
+#: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Bazel cache for GitHub Actions"
+msgstr "Bazel ქეში GitHub Actions-ისთვის"

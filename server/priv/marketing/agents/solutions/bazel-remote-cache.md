@@ -117,7 +117,7 @@ Bazel supports credentials in the cache URL, headers with `--remote_header`, mTL
 
 ### Does a remote cache give me remote execution?
 
-No. A remote cache reuses results that already exist; every cache miss still runs on the machine that ran Bazel. Remote execution is a separate service that runs those misses elsewhere; Tuist offers it on Linux executors on request, so [contact us](mailto:contact@tuist.dev) if you need it. Measure your hit rate and critical path first, because avoided actions help on any machine.
+No. A remote cache reuses results that already exist; every cache miss still runs on the machine that ran Bazel. Remote execution is a separate service that runs those misses elsewhere; Tuist offers it on Linux executors to enabled accounts, so [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it. Measure your hit rate and critical path first, because avoided actions help on any machine.
 
 ### Should developers write to the shared cache, or only CI?
 

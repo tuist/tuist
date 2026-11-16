@@ -41,9 +41,9 @@ write app/Cargo.toml '[package]\nname = "app"\nversion = "0.1.0"\nedition = "202
 write app/src/main.rs 'fn main() { println!("{}", m::value() + linked::magnitude() as u64 - 4); }\n'
 (cd "$ws" && cargo generate-lockfile --offline 2> /dev/null)
 
-# The read recorder supports arm64 macOS only; elsewhere the refused library stays uncached.
+# The read recorder supports arm64 macOS and x86_64/aarch64 Linux; elsewhere the refused library stays uncached.
 warm_linked=
-[ "$(uname -sm)" != "Darwin arm64" ] || warm_linked=hit
+case "$(uname -sm)" in "Darwin arm64" | "Linux x86_64" | "Linux aarch64") warm_linked=hit ;; esac
 
 build_sources cold
 expect cold "0 1 miss miss" "$STATUS $OUTPUT $M $LINKED"

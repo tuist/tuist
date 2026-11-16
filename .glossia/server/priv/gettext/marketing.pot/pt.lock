@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "8d1838f4138e9e37f71e54358be04e00e2e3b841de56cfdaab6044e9b42024de",
+  "hash": "2bfed9f00b926b6eea17794173f61d71f3aed0537bd74c7a60399d4661b27904",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:13": {
-                  "content_hash": "f024991c29d9f3058021d98c5f97434062099976c1c51aa546ddf23a86b650c1"
+                  "content_hash": "78496b3504512591cc593063784a590218082830bc2bbe1b92fc15610068ce38"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "27bec5ce4b72cc3b5c2c20e320c375b7bd590233e7b44b99a3cf1d7483401938",
+          "hash": "b85feafc175944253a5e264fd63cfa59d0c3c9cd481857d63c85f34226dd74d4",
           "kind": "source",
           "label": "server/priv/gettext/marketing.pot",
           "metadata": {
-            "content_hash": "235d9d91fef3902ab42c5dce761eda76f7ddef5fec6d54395db8b8958af64d21"
+            "content_hash": "a809c8deb4c9dee6941d925c736bd4911d5e8d320b05bfebf92e4440a6eedaba"
           }
         },
         {
@@ -226,14 +226,14 @@
         }
       ],
       "details": {},
-      "hash": "8d1838f4138e9e37f71e54358be04e00e2e3b841de56cfdaab6044e9b42024de",
+      "hash": "2bfed9f00b926b6eea17794173f61d71f3aed0537bd74c7a60399d4661b27904",
       "kind": "translation_input",
       "label": "server/priv/gettext/marketing.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "2023aa3a672bcce0030f3338e8986fce16a9df6cb1c37d0e5db7890a6101a081",
+  "output_hash": "6d8253568a9d9902cadd8f198c45ca0239ac43055245b6ed5e7eedc312a17e19",
   "output_path": "server/priv/gettext/pt/LC_MESSAGES/marketing.po",
   "po_units": {
     "010b2dbbcc3f0e943f31b5728f385c55f0f22b2e9ac121d22eefc3629786efec": "ea29a07df50365cee66112f2b4a9be28aeff8b7da9d246b1099651ebd353fa65",
@@ -257,6 +257,7 @@
     "070eb6c4b4426bad4df5a179e267e5d543026e22a1cab1831eab3d698cfa00ee": "6149bb35d743d527ddbb08006bea7941efd7c7805e5348b12c9e494aea8b9007",
     "076cc0d7b0aaf02c55b602e8d340d7ca812d13fd5308ce6d31b85a5009f4c1f2": "7f876b8ac5766debc2072493dfb3eb32088dc7cabbda758e1de8244b9fdec257",
     "08175214a94523f2a9ede8a87a4d9ec500a9a6d483dc88193e791177ee45ec0b": "baade3f9243b9b7a89c794eb63c5836c8bbe7f682e5e2484d4100f81e15b4ccb",
+    "095659afefe9839a4d2f804674cf4251dd2d5b88d8014ba0047712fcceb7b0b8": "dd4504ba054cfbf9446078e41a108998a87eef5edb6e4231ab21794ff7749744",
     "099b2f7ef1cfd1c26182a43aa2dcc5ea52224c26c00783f438811e15f1225934": "176ab5db67bacc969445b6ca600f4f30d0462938b4d75e639af7cb5bfede881c",
     "0a0f81ada1c7fdf074b4899da64f458660543d526f89f9fda05748588458e777": "f43bc114317599d80a70c06bee2b1e27d059653ca0af5aa8154756bdab3d5150",
     "0a462e18e532c9e1d28a6c8689bce5c0f5eecdfa1ded6e3def63d76be27769c0": "10c23a27ea8ae1ac6c9eb4ecbbc86e9e384017c64131e963fc1825b8a3f1d7d0",
@@ -503,6 +504,7 @@
     "7673e9d93cf43753296e0e704532eb8b4196dd02a2bb454d44fad3665cc6f46f": "c63e698962a05928208f1ec0a25c8aab3d730307b99b6a64aad440e62e88ea5a",
     "772a3ab27c0ab0bd1baf8c87649731fa3c7261b822fe444d22a12e3ca1d80f33": "9a550848437f158a3a5149ff0f32c0743ce3a10375d554e9d3873f4cac973d38",
     "780bee4f755cfa9a3afa5dc0d0ac94e4dbd1f5bfb57849d065849c4e8b254cbf": "dedcdd92f3eba6becba3014d97cce3fa5d5ef0c7aae0bc1269ffa9579c374a54",
+    "781e7a0c21f45489ac2eefbff7b9c30e72c3fa44e785f0a4226a2e82236752b8": "3f916e803a840a7ba55dc81012be9b700edfe961e7c0d855786a81d3d35384d5",
     "7899ae01fa0984caf908350b2d99e4cbd3cc1cea95a63f7d3419cb35aff010cb": "c201c5ad78628357ba927f335538e09f7b662880aa90347a7fd175b4a25b63b3",
     "78ff3cb72531629e1534855ca60687112b5a2eb4762fc3057ecca4b4ade03bd6": "d13d6bf875d1bcf63f38779dc6919c31c1f3aeccffaedcde6c5049ea2d2d132c",
     "793699633e03ba37a1054539c9ec943525865bde667bd3983c1ad1859963195e": "0ca1932815e60cbc66cd4571686b1f91c2ee37b7a451d8cf3bb6d3213d122c96",
@@ -594,6 +596,7 @@
     "a16c93543c2e4f9224ffddd5a3c1502bb49fe86dd9e7bf36f552c6273933652f": "c74afe7270bd98e068c8127f60a13336aeb6a0f7c0211a1f9cafb6e773e187b4",
     "a1bd59ad81299912cce9d88bb755cd4a165e74c306c1b5441b9a8f6dec5d07a2": "8e1a1cf461dca30573435f90ba568f726cd5457244daad21499dab85eddbc220",
     "a1da33cb932001f1a8967d29d699fb3c65d0d47b7a722a5ac820dcba77b06f82": "3779bbe3ace8fd9d6446662c87372d7b934ba6c825c7de72ca899e97795fea86",
+    "a270db2ebb210789bcb24cf00da8af377f6bfe73281363df20aa4c1fa1464420": "6906ee10574754c740158b5a4f1ae26bd8c0024984e6a64100f96c4b04b43395",
     "a284a95161ed6040eb146094f6c2f14011a959d5fbfd910cb9c86f817ef8972f": "d9879a580639eccbabd0edb3fc1a79174d09efc3afe5d767b8a3f058e006e185",
     "a298bd651e83324c04fec32d3130647fb5d08594eb6b93504b35c0a84d5e3cc9": "8859bf11570345057ddfe83b4e780c56d2a9a8e900dfb10aa2a621016ea4ca6b",
     "a2fd30ceb8ed7e61804a89049723f3eb897b88e715928658a0f299aec75b45e3": "a34ca1e3b3284f208352e300ed78481b6b649d5067ee1c39389383f99e637ebd",
@@ -827,8 +830,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5db7c9d34e06273a7d30dfc80f05be34bf77b8e0",
+  "source_commit_sha": "d585d934fe7db06d55ee13c7ac7baca64afc9cd0",
   "source_path": "server/priv/gettext/marketing.pot",
-  "translated_at": "2026-11-16T08:08:36.212974Z",
-  "translation_session_id": "01a1e365-27fa-7a6a-95cc-df4c1ffa9417"
+  "translated_at": "2026-11-16T13:37:06.328502Z",
+  "translation_session_id": "01a1e491-e33c-7e49-95e6-d56baa079cc2"
 }

@@ -4,7 +4,7 @@ import TuistProcess
 import TuistREAPI
 import TuistServer
 
-struct CargoCompilerObserver {
+struct CargoCompilerObserver { // swiftlint:disable:this type_body_length
     let runner: CommandRunning
     /// The session's REAPI connection, when the outer command serves this hook; otherwise the hook connects itself.
     var sessionRemote: Task<(any REAPICacheStoring)?, Never>?

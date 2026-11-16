@@ -2,22 +2,22 @@
 {
   "title": "Claude",
   "titleTemplate": ":title · Sandboxes · Özellikler · Kılavuzlar · Tuist",
-  "description": "Claude Managed Agents oturumlarını ve Claude Code bulut oturumlarını (claude.ai, masaüstü ve mobil uygulamalar ve claude --cloud) Linux veya macOS üzerinde Tuist Sandboxes'ta çalıştırın."
+  "description": "Claude Yönetilen Ajan oturumlarını ve Claude Code bulut oturumlarını (claude.ai, masaüstü ve mobil uygulamalar ve claude --cloud) Linux veya macOS üzerinde Tuist Sandboxes'ta çalıştırın."
 }
 ---
 # Claude {#claude}
 
 > [!IMPORTANT]
-> **Davet usulü erişim**
+> **Sadece davetle**
 >
-> Tuist Sandbox’lar, hem Linux hem de macOS için şu anda davet usulü erişime açıktır. Hesabınız için erişim talep etmek üzere [bize ulaşın](mailto:contact@tuist.dev) veya [topluluk Slack](https://slack.tuist.dev) kanalında bize mesaj atın.
+> Tuist Sandbox'ları, hem Linux hem de macOS için şu anda yalnızca davetle erişilebilir. Hesabınız için erişim talep etmek üzere [bize ulaşın](mailto:contact@tuist.dev) veya [topluluk Slack](https://slack.tuist.dev) kanalında bize yazın.
 
-Anthropic, Claude’un agent döngüsünü çalıştırır ve *kendi sunucunuzda barındırdığınız bir ortam*, Claude’un araçlarının nerede çalışacağını belirler. Birini Tuist’e bağlayın; içindeki her oturum, Linux veya macOS üzerinde kendi Tuist <.localized_link href="/guides/features/sandboxes">sandbox</.localized_link>’ına sahip olur. Tuist, bu ortamların ihtiyaç duyduğu worker’ları ve runner’ları çalıştırır, böylece hiçbir şeyi kendiniz barındırmazsınız.
+Anthropic, Claude'un agent döngüsünü çalıştırır ve bir *kendi barındırdığınız ortam*, Claude'un araçlarının nerede çalışacağına karar verir. Birini Tuist'e bağlayın; içindeki her oturum, Linux veya macOS üzerinde kendi Tuist <.localized_link href="/guides/features/sandboxes">sandbox</.localized_link>'ına sahip olur. Tuist, bu ortamların ihtiyaç duyduğu worker'ları ve runner'ları çalıştırır, böylece hiçbir şeyi kendiniz barındırmazsınız.
 
 İki tür ortam vardır, her biri bir Claude ürünü içindir:
 
-- **[Claude Managed Agents](#managed-agents)**: Claude API veya Tuist’in agent-sessions API’si ile başlattığınız oturumlar. Ortamı (`env_…`) [Claude Console](https://platform.claude.com/environments) içinde oluşturursunuz ve her oturum Linux veya macOS seçebilir.
-- **[Claude Code](#claude-code)**: Geliştiricilerin claude.ai’dan, Claude masaüstü ve mobil uygulamalarından ve `claude --cloud` komutundan başlattığı bulut oturumları. Bir Claude Team veya Enterprise sahibi, claude.ai yönetici ayarlarında her platform için bir tane olmak üzere ortamları (`ccpool_…`) oluşturur ve geliştiriciler ortamı seçerek Linux veya macOS tercih eder.
+- **[Claude Managed Agents](#managed-agents)**: Claude API veya Tuist'in agent-sessions API'si ile başlattığınız oturumlar. Ortamı (`env_…`) [Claude Console](https://platform.claude.com/environments)'da oluşturursunuz ve her oturum Linux veya macOS'u seçebilir.
+- **[Claude Code](#claude-code)**: Geliştiricilerin claude.ai'den, Claude masaüstü ve mobil uygulamalarından ve `claude --cloud`'den başlattığı bulut oturumları. Bir Claude Team veya Enterprise sahibi, claude.ai yönetici ayarlarında her platform için bir tane olmak üzere ortamları (`ccpool_…`) oluşturur ve geliştiriciler ortamı seçerek Linux veya macOS'u belirler.
 
 Her ikisi de bir hesap yöneticisi tarafından Tuist API üzerinden bağlanır. `tuist auth login` ile kimlik doğrulaması yapın, ardından:
 
@@ -27,30 +27,30 @@ export TUIST_TOKEN=$(tuist auth token)
 
 ## Claude Managed Agents {#managed-agents}
 
-### Bir ortam bağlama {#managed-agents-connect}
+### Bir ortamı bağlama {#managed-agents-connect}
 
-Hesabınızın **Ayarlar → Entegrasyonlar → Claude** bölümünden bağlanın. Form, kendi sunucunuzda barındırdığınız bir ortamı ve Tuist’in oturumlarını başlatırken kullandığı kimlik bilgilerini ister:
+Hesabınızın **Ayarlar → Entegrasyonlar → Claude** bölümünden bağlanın. Form, kendi barındırdığınız bir ortamı ve Tuist'in oturumlarını başlatmak için kullandığı kimlik bilgilerini ister:
 
-1. **Ortamı oluşturun.** Claude Console’da, [Environments](https://platform.claude.com/environments) sayfasında kendi sunucunuzda barındırdığınız bir ortam oluşturun, açın ve **Generate environment key** düğmesine tıklayın. Anthropic yalnızca Console’da ortam anahtarları oluşturur.
-2. Formun üst kısmındaki seçiciyle **bir kimlik bilgisi seçin** (aşağıya bakın).
-3. **Ortam kimliğini ve anahtarını yapıştırın** ve ortamın sandbox’larının platformunu ve yapılandırmasını seçin.
+1. **Ortamı oluşturun.** Claude Console'da, [Environments](https://platform.claude.com/environments) sayfasında kendi barındırdığınız bir ortam oluşturun, açın ve **Generate environment key** düğmesine tıklayın. Anthropic, ortam anahtarlarını yalnızca Console'da oluşturur.
+2. Formun üst kısmındaki seçici ile **bir kimlik bilgisi seçin** (aşağıya bakın).
+3. **Ortam kimliğini ve anahtarını yapıştırın** ve ortamın sandbox'larının platformunu ve şeklini seçin.
 
-Tuist, herhangi bir şeyi kaydetmeden önce kimlik bilgisiyle ortamı getirir; bu nedenle yanlış bir kimlik bilgisi, kimlik veya çalışma alanı formda hata verir. Anahtarları şifreli olarak saklar ve bir daha göstermez. Bir dakika içinde Tuist, ortamın oturumlarını sunmaya başlar. Yapılandırmalar için <.localized_link href="/guides/features/sandboxes#platforms">Linux ve macOS</.localized_link> bölümüne bakın.
+Tuist, herhangi bir şeyi kaydetmeden önce ortamı kimlik bilgisiyle getirir; bu nedenle yanlış bir kimlik bilgisi, kimlik veya çalışma alanı formda hata verir. Anahtarları şifreli olarak saklar ve bir daha asla göstermez. Bir dakika içinde Tuist, ortamın oturumlarını sunmaya başlar. Şekiller için <.localized_link href="/guides/features/sandboxes#platforms">Linux ve macOS</.localized_link> bölümüne bakın.
 
-#### API anahtarıyla {#managed-agents-connect-api-key}
+#### API anahtarı ile {#managed-agents-connect-api-key}
 
-Varsayılan ve sandbox’ları denemenin en hızlı yolu. Ortamın çalışma alanında geliştirici rolüne sahip bir API anahtarı yapıştırın. Entegrasyon, API anahtarı kullanan ortamları işaretler; birine güvenmeden önce, Tuist’in uzun ömürlü bir anahtar tutmaması için bunun yerine federated identity ile bağlayın.
+Varsayılan ve sandbox'ları denemenin en hızlı yolu. Ortamın çalışma alanında geliştirici rolüne sahip bir API anahtarı yapıştırın. Entegrasyon, API anahtarı kullanan ortamları işaretler; birine güvenmeden önce, bunun yerine onu federatif bir kimlikle bağlayın, böylece Tuist uzun ömürlü bir anahtar tutmaz.
 
-#### Federated identity ile {#managed-agents-connect-federated}
+#### Federatif kimlik ile {#managed-agents-connect-federated}
 
-Tuist, Anthropic’in [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) özelliğiyle kimlik doğrulaması yapar, böylece ona asla bir Anthropic API anahtarı vermezsiniz. Anthropic kuruluşunuzda yönetici rolüne ihtiyacınız var.
+Tuist, Anthropic'in [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) özelliğiyle kimlik doğrulaması yapar, böylece ona asla bir Anthropic API anahtarı vermezsiniz. Anthropic kuruluşunuzda yönetici rolüne ihtiyacınız var.
 
-1. **Tuist’e güvenin.** Form, hesabınızın issuer URL’sini ve subject prefix’ini gösterir. Claude Console’da [Workload identity](https://platform.claude.com/settings/workload-identity-federation) bölümünü açın, **Connect workload** düğmesine tıklayın, **Custom OIDC** seçeneğini belirleyin ve bunları `workspace:developer` scope’u ile girin. Sihirbazın oluşturduğu hizmet hesabını ortamın çalışma alanına ekleyin.
-2. **ID’leri girin.** Kuruluş ID’si **Ayarlar → Organization** altında, çalışma alanı ID’si ise **Ayarlar → Workspaces** altındadır. Connect workload işlemi tamamlandığında hizmet hesabı ve federation rule ID’lerini gösterir ve Workload identity sayfasındaki rule sayfası bunları tekrar gösterir. Hiçbiri gizli değildir. Anthropic, Tuist’in token’ını reddederse Console’un [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) bölümü nedenini gösterir.
+1. **Tuist'e güvenin.** Form, hesabınızın yayıncı URL'sini ve konu ön ekini gösterir. Claude Console'da [Workload identity](https://platform.claude.com/settings/workload-identity-federation) öğesini açın, **Connect workload** düğmesine tıklayın, **Custom OIDC** seçeneğini belirleyin ve bunları `workspace:developer` kapsamıyla girin. Sihirbazın oluşturduğu hizmet hesabını ortamın çalışma alanına ekleyin.
+2. **Kimlikleri girin.** Kuruluş kimliği **Ayarlar → Organization** altında ve çalışma alanı kimliği **Ayarlar → Workspaces** altındadır. Connect workload işlemi tamamlandığında hizmet hesabı ve federasyon kuralı kimliklerini gösterir ve Workload identity'deki kural sayfası bunları tekrar gösterir. Hiçbiri gizli değildir. Anthropic, Tuist'in token'ını reddederse, Console'un [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) bölümü nedenini gösterir.
 
 #### API ile {#managed-agents-connect-api}
 
-Otomasyondan bağlanmak için [Claude Console](https://platform.claude.com/environments) içinde kendi sunucunuzda barındırdığınız bir ortam oluşturun, anahtarını üretin ve her ikisini Tuist’e gönderin:
+Otomasyondan bağlanmak için [Claude Console](https://platform.claude.com/environments)'da kendi barındırdığınız bir ortam oluşturun, anahtarını üretin ve her ikisini de Tuist'e gönderin:
 
 ```bash
 curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
@@ -61,13 +61,13 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments
   }'
 ```
 
-Tuist’in API’si aracılığıyla oturum başlatmak için ayrıca dört federation ID’sini (bkz. [API anahtarı olmadan bağlanma](#managed-agents-federation)) veya bir `anthropic_api_key` gönderin. Ortam, `"platform": "darwin"` parametresini iletmediğiniz sürece Linux üzerinde çalışır; `vcpus`, `memory_mb` ve `workspace_gb` parametreleri sandbox’ların yapılandırmasını değiştirir.
+Tuist'in API'si aracılığıyla oturumları başlatmak için ayrıca dört federasyon kimliğini ([API anahtarı olmadan bağlanma](#managed-agents-federation) bölümüne bakın) veya bir `anthropic_api_key` gönderin. Ortam, `"platform": "darwin"` geçmediğiniz sürece Linux'ta çalışır; `vcpus`, `memory_mb` ve `workspace_gb` sandbox'larının şeklini değiştirir ve `xcode_version`, macOS sandbox'larının [Xcode](#xcode) sürümünü belirler.
 
-### Bir oturum başlatma {#managed-agents-sessions}
+### Bir oturumu başlatma {#managed-agents-sessions}
 
 Her oturum, oturum başka bir platform istemediği sürece ortamın platformunda çalışır.
 
-**Claude API ile**, oturumu normal şekilde ortamın ID’siyle oluşturun ve oturumun meta verilerinde `tuist_platform` değerini `macos` veya `linux` olarak ayarlayın:
+**Claude API ile**, oturumu normal şekilde ortamın kimliğiyle oluşturun ve oturumun meta verilerinde `tuist_platform` değerini `macos` veya `linux` olarak ayarlayın:
 
 ```bash
 curl https://api.anthropic.com/v1/sessions \
@@ -85,9 +85,9 @@ curl https://api.anthropic.com/v1/sessions \
   }'
 ```
 
-`repository_url` ve isteğe bağlı olarak `repository_ref` (bir dal veya commit), Tuist’in agent’ın ilk adımından önce genel bir depoyu sandbox’a klonlamasını sağlar.
+`repository_url` ve isteğe bağlı olarak `repository_ref` (bir dal veya commit), Tuist'in agent'ın ilk dönüşünden önce genel bir depoyu sandbox'a klonlamasını sağlar.
 
-**Tuist’in agent-sessions API’si ile**, Tuist sizin için agent’ı ve oturumu oluşturur ve Tuist hesabınıza bağlı olan özel GitHub depolarını klonlar:
+**Tuist'in agent-sessions API'si ile**, Tuist sizin için agent'ı ve oturumu oluşturur ve Tuist hesabınıza bağlı olan özel GitHub depolarını klonlar:
 
 ```bash
 curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
@@ -100,32 +100,52 @@ curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-sessions" \
   }'
 ```
 
-Hesapta birden fazla ortam varsa `agent_environment_id` parametresini iletin. Oturumu `GET /agent-sessions/{id}/events` ile takip edebilir, `POST /agent-sessions/{id}/messages` ile yanıt verebilir ve `POST /agent-sessions/{id}/archive` ile sonlandırabilirsiniz.
+Hesapta birden fazla ortam olduğunda `agent_environment_id` parametresini iletin. Oturumu `GET /agent-sessions/{id}/events` ile takip edebilir, `POST /agent-sessions/{id}/messages` ile yanıt verebilir ve `POST /agent-sessions/{id}/archive` ile sonlandırabilirsiniz.
 
-Depo, Linux’ta `/workspace` dizinine, macOS’ta ise `/Users/runner/work` dizinine checkout edilir. Bir oturumun sandbox’ı, agent bir adımı tamamladıktan sonra duraklar ve sonraki mesajda devam eder.
+Depo, Linux'ta `/workspace` dizinine ve macOS'ta `/Users/runner/work` dizinine checkout edilir. Bir oturumun sandbox'ı, agent bir dönüşü tamamladıktan sonra duraklar ve sonraki mesajda devam eder.
+
+### Bir oturumun Xcode'unu seçme {#managed-agents-xcode}
+
+Bir oturumun Mac'i, Claude herhangi bir aracı çalıştırmadan önce önyüklenir, bu nedenle Claude kendi Xcode'unu seçemez. Oturumu oluşturan kişi, macOS'u seçtiği gibi bunu da seçer. Tuist, ayarlanmış olanlardan ilkini kullanır:
+
+1. Tuist'in agent-sessions API'sinde `xcode_version`, `platform` yanında. Tuist'in sunmadığı bir sürüm, oturumu oluşturduğunuzda seçebileceğiniz sürümlerin listesiyle birlikte reddedilir.
+2. Claude API ile oturum oluşturduğunuzda, oturumun meta verilerinde `tuist_xcode_version`:
+
+   ```json
+   "metadata": { "tuist_platform": "macos", "tuist_xcode_version": "26.1.1" }
+   ```
+
+3. Ortamın `xcode_version`, oturum ortamın platformunda çalıştığında.
+4. Varsayılan Xcode.
+
+Platform belirtilmeyen bir Xcode, macOS ister. Bilmeniz gereken bazı şeyler:
+
+- **Oturum Xcode'unu korur.** Sandbox'ı bir kez önyüklenir ve sonraki bir mesaj veya değiştirilen meta veriler bunu değiştirmez. Başka bir Xcode için yeni bir oturum kullanın.
+- **Tuist, ilk dönüş geldiğinde meta verileri kontrol eder.** Eğer `tuist_xcode_version`, Tuist'in sunmadığı bir Xcode'u belirtiyorsa, Tuist o dönüşü bir sandbox başlatmadan durdurur ve seçebileceğiniz sürümleri günlüğe kaydeder. Oturumu oluştururken hatayı almak için Tuist'in agent-sessions API'sini kullanın.
+- **macOS ortamında, Tuist tahmin etmek yerine bekler.** Tuist yeni bir oturumun meta verilerini okuyamazsa, ortamın Xcode'unu önyüklemek yerine dönüşü bekletir ve tekrar dener.
 
 > [!WARNING]
-> Ortama sahip olan Claude çalışma alanında oturum oluşturabilen herkes, Tuist hesabınızda oturum çalıştırabilir ve oturum meta verileriyle macOS talep edebilir. Bu çalışma alanına erişimi buna göre sınırlayın.
+> Ortamın sahibi olan Claude çalışma alanında oturum oluşturabilen herkes, Tuist hesabınızda oturum çalıştırabilir ve oturum meta verileriyle macOS'u ve onun Xcode'unu talep edebilir. Bu çalışma alanına erişimi buna göre kısıtlayın.
 
 ### API anahtarı olmadan bağlanma {#managed-agents-federation}
 
-Kontrol paneli bunu sizin için ayarlar. API üzerinden Tuist aynı şekilde çalışır: her hesabın Tuist’te kendi OpenID Connect issuer’ı vardır (`https://tuist.dev/oidc/accounts/<account id>`) ve Anthropic’e yapılan her çağrı için kısa ömürlü bir token imzalar; bunu birkaç dakikalık bir Anthropic erişim token’ıyla değiştirir. Issuer’ınıza güvenen bir federation rule, Tuist’in diğer hesaplar için imzaladığı token’ları asla kabul etmez.
+Kontrol paneli bunu sizin için ayarlar. API üzerinden Tuist aynı şekilde çalışır: her hesabın Tuist'te kendi OpenID Connect yayıncısı vardır, `https://tuist.dev/oidc/accounts/<account id>`, ve Anthropic'e yapılan her çağrı için kısa ömürlü bir token imzalar; bu token, birkaç dakika geçerli olan bir Anthropic erişim token'ı ile değiştirilir. Yayıncınıza güvenen bir federasyon kuralı, Tuist'in diğer hesaplar için imzaladığı token'ları asla kabul etmez.
 
-- Her agent ortamı yanıtı `federation_issuer_url` ve `federation_subject` (`account:123:agent-environment:456`) içerir. Console’un Custom OIDC sihirbazında issuer URL’sini kullanın ve yalnızca bu ortamı kabul etmek için tam subject’i veya hesabın tüm ortamlarını kabul etmek için `account:123:*` değerini girin. Kontrol panelinin kurulum kontrolleri `account:123:setup` subject’ini kullanır; buna yalnızca prefix izin verir. Scope olarak `workspace:developer` kullanın.
-- Kuruluş, çalışma alanı, hizmet hesabı ve rule ID’lerini oluşturma sırasında veya `PATCH /agent-environments/{id}` ile `anthropic_organization_id`, `anthropic_workspace_id`, `anthropic_service_account_id` ve `anthropic_federation_rule_id` olarak gönderin. Bir ortamda hem ID’ler hem de bir API anahtarı varsa Tuist federation kullanır.
+- Her agent ortamı yanıtı `federation_issuer_url` ve `federation_subject` (`account:123:agent-environment:456`) içerir. Konsolun Özel OIDC sihirbazında, yalnızca bu ortama izin vermek için yayıncı URL'sini ve tam olarak bu konuyu kullanın veya hesabın tüm ortamlarına izin vermek için `account:123:*` kullanın. Kontrol panelinin kurulum kontrolleri, yalnızca ön ek tarafından kabul edilen `account:123:setup` konusunu kullanır. `workspace:developer` kapsamını kullanın.
+- Organizasyon, çalışma alanı, hizmet hesabı ve kural kimliklerini oluşturma sırasında veya `PATCH /agent-environments/{id}` ile `anthropic_organization_id`, `anthropic_workspace_id`, `anthropic_service_account_id` ve `anthropic_federation_rule_id` olarak gönderin. Bir ortamda hem kimlikler hem de bir API anahtarı bulunduğunda, Tuist federasyonu kullanır.
 
 > [!NOTE]
-> Anthropic, issuer’ın anahtarlarını genel bir ana makine adından HTTPS üzerinden 443 numaralı bağlantı noktasında alır. Kendi kendine barındırılan Tuist sunucunuz internetten erişilebilir değilse, Console’da **inline** JWKS kaynağını seçin ve sunucunuzun `<issuer>/jwks.json` adresinde sunduğu anahtar kümesini yapıştırın. Tuist’in imzalama anahtarı değiştiğinde bunu yeniden yapıştırın; bu değişiklik, sunucunun `TUIST_SECRET_KEY_TOKENS` (veya ayarlanmamışsa `TUIST_SECRET_KEY_BASE`) değerinin değişmesiyle gerçekleşir.
+> Anthropic, yayıncının anahtarlarını genel bir ana makine adından 443 portu üzerinden HTTPS ile alır. Kendi sunucunuzda barındırdığınız Tuist sunucusuna internetten ulaşılamıyorsa, Konsolda **satır içi** JWKS kaynağını seçin ve sunucunuzun `<issuer>/jwks.json` adresinde sunduğu anahtar kümesini yapıştırın. Tuist'in imzalama anahtarı değiştiğinde, yani sunucunun `TUIST_SECRET_KEY_TOKENS` (veya ayarlanmamışsa `TUIST_SECRET_KEY_BASE`) değeri değiştiğinde, bunu tekrar yapıştırın.
 
 ## Claude Code {#claude-code}
 
-Claude Code bulut oturumları, geliştiricilerin [claude.ai/code](https://claude.ai/code), Claude masaüstü ve mobil uygulamaları ve `claude --cloud` üzerinden başlattığı oturumlardır. Bir oturumun nerede çalışacağını ortamına göre seçerler; bu nedenle sunmak istediğiniz her platform için bir ortam bağlamanız gerekir.
+Claude Code bulut oturumları, geliştiricilerin [claude.ai/code](https://claude.ai/code), Claude masaüstü ve mobil uygulamaları ve `claude --cloud` üzerinden başlattıkları oturumlardır. Bir oturumun nerede çalışacağını ortamına göre seçerler, bu nedenle sunmak istediğiniz her platform için bir ortam bağlarsınız.
 
 ### Ortamları bağlama {#claude-code-connect}
 
-1. Bir Claude kuruluş Sahibi, [Cloud environments](https://claude.ai/admin-settings/cloud-environments) yönetici sayfasında **Allow self-hosted environments** seçeneğini açar. Bunun için Team veya Enterprise planı gerekir; Anthropic’in [self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments) kılavuzuna bakın.
-2. Aynı sayfada, her platform için geliştiricilerin göreceği adla kendi kendine barındırılan bir ortam oluşturun; örneğin **Tuist Linux** ve **Tuist macOS**. Her ortamın `ccpool_…` ID’sini ve yalnızca bir kez gösterilen ortam anahtarını kopyalayın.
-3. Her ortamı, `kind` değeri `claude_code` olarak ayarlanmış ve platformu belirtilmiş şekilde Tuist hesabınıza bağlayın:
+1. Bir Claude organizasyon Sahibi, [Bulut ortamları](https://claude.ai/admin-settings/cloud-environments) yönetici sayfasında **Kendi barındırılan ortamlara izin ver** seçeneğini açar. Bunun için Team veya Enterprise planı gerekir; Anthropic'in [kendi barındırılan ortamlar](https://code.claude.com/docs/en/self-hosted-environments) kılavuzuna bakın.
+2. Aynı sayfada, geliştiricilerin göreceği isimle her platform için kendi barındırılan bir ortam oluşturun, örneğin **Tuist Linux** ve **Tuist macOS**. Her ortamın `ccpool_…` kimliğini ve yalnızca bir kez gösterilen ortam anahtarını kopyalayın.
+3. Her ortamı, `kind` değerini `claude_code` ve platformuna ayarlayarak Tuist hesabınıza bağlayın:
 
    ```bash
    curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
@@ -139,43 +159,57 @@ Claude Code bulut oturumları, geliştiricilerin [claude.ai/code](https://claude
      }'
    ```
 
-   Diğer ortamın ID’si ve anahtarıyla `"platform": "linux"` kullanarak tekrarlayın.
+   Diğer ortamın kimliği ve anahtarıyla `"platform": "linux"` kullanarak tekrarlayın.
 
-Bir dakika içinde ortamlar oturum almaya hazır hale gelir. Boşta kalan bir oturum sandbox’ını 30 dakika çalıştırır, ardından duraklatır; oturumun sonraki mesajı aynı sandbox’ı devam ettirir. Bekleme süresini `max_idle_seconds` ile değiştirin (en fazla 3600).
+Bir dakika içinde ortamlar oturum almaya hazır hale gelir. Boşta kalan bir oturum, sandbox'ını 30 dakika çalışır durumda tutar, ardından duraklatır; oturumun sonraki mesajı aynı sandbox'ı devam ettirir. Bekleme süresini `max_idle_seconds` ile değiştirin (maksimum 3600).
 
 ### Linux veya macOS seçme {#claude-code-choose}
 
-Geliştiriciler, bir bulut oturumu başlattıklarında ortamı ve buna bağlı olarak platformu seçerler:
+Geliştiriciler, bir bulut oturumu başlattıklarında ortamı ve dolayısıyla platformu seçerler:
 
 - **claude.ai, masaüstü ve mobil uygulamalar:** yeni bir oturumun ortam seçicisinde **Tuist Linux** veya **Tuist macOS** seçeneğini belirleyin.
-- **Claude Code CLI:** `claude` içinde `/remote-env` komutunu çalıştırın ve ortamı adına göre seçin. `claude --cloud "<task>"` ardından üzerinde çalışır. Tek bir oturum için birini seçmek üzere ID’sini iletin: `claude --cloud "<task>" --environment ccpool_...`.
-- **Tüm bir ekip veya depo:** Claude Code [settings](https://code.claude.com/docs/en/settings) içinde varsayılan ortamın ID’sini ayarlayın; örneğin bir deponun `.claude/settings.json` dosyasında:
+- **Claude Code CLI:** `claude` içinde `/remote-env` komutunu çalıştırın ve ortamı adına göre seçin. `claude --cloud "<task>"` ardından üzerinde çalışır. Tek bir oturum için bir tane seçmek üzere, kimliğini iletin: `claude --cloud "<task>" --environment ccpool_...`.
+- **Tüm bir ekip veya depo:** Claude Code [ayarlarında](https://code.claude.com/docs/en/settings) varsayılan ortamın kimliğini ayarlayın, örneğin bir deponun `.claude/settings.json` dosyasında:
 
   ```json
   { "remote": { "defaultEnvironmentId": "ccpool_..." } }
   ```
 
-Bu ortamlardaki oturumlar, kuruluşunuzun Claude Code kullanımını normal şekilde kullanır ve sandbox’ları Tuist hesabınıza yansır.
+Bu ortamlardaki oturumlar, organizasyonunuzun Claude Code kullanımını normal şekilde kullanır ve sandbox'ları Tuist hesabınıza yansır.
 
-### Daha hızlı oturum başlatma ve derlemeler {#claude-code-caching}
+### Bir Xcode seçme {#xcode}
 
-- **Tuist önbelleği:** oturumlar `TUIST_URL` alır ve hesabınız aynı rafta bir önbelleğe sahipse `TUIST_CACHE_ENDPOINT` alır. Oturumdaki Tuist CLI ve `tuist_ex` Mix görevleri, oturumun kimlik token’ıyla kendi başlarına oturum açar. Kimlik doğrulama kılavuzundaki <.localized_link href="/guides/server/authentication#claude-code-sessions">Claude Code sessions</.localized_link> bölümüne bakın.
-- **Önbelleğe alınmış checkout’lar:** hesabınızın Tuist GitHub uygulaması bir oturumun deposunu okuyabildiğinde, yeni bir oturum Tuist runner’larınızın kullandığı aynı önbelleğe alınmış checkout’tan başlar; böylece klonlamak yerine yalnızca eksik olduğu commit’leri getirir. Oturum sonlandığında, varsayılan dalın en son commit’inin nesnelerini geri verir; bu da CI’yı Tuist üzerinde çalıştırmayan depolar için bile önbelleğe alınmış checkout’u güncel tutar. Yalnızca GitHub’ın varsayılan dal için bildirdiği commit bunu günceller; bir oturumun kendi dalları bunu asla yapmaz. Bunu durdurmak için sandbox’ları devre dışı bırakın veya uygulamayı kaldırın.
-- **macOS:** Mac, her VM ile çalıştırılan Claude Code derleme oturumlarını paylaşır, bu nedenle yeni bir oturum onu indirmaz.
+Her macOS ortamı, `xcode_version` ile bağlamadığınız sürece varsayılan olan tek bir <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link> önyükler, örneğin `"xcode_version": "26.1.1"`. Birden fazlasını sunmak için, her biri için bir ortam bağlayın ve onlara göre adlandırın, örneğin **Tuist macOS · Xcode 26.1.1**. Geliştiriciler daha sonra ortamı seçerek Xcode'u seçer.
+
+Bir ortamı başka bir Xcode'a taşımak için onu güncelleyin:
+
+```bash
+curl -X PATCH "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments/<id>" \
+  -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "xcode_version": "27.0" }'
+```
+
+Yeni oturumlar yeni Xcode'u alır ve zaten bir sandbox'a sahip olan oturumlar kendi sandbox'larını korur. `null` varsayılana döner. Aynı durum, oturumlarının da [kendi seçimini yapabildiği](#managed-agents-xcode) Yönetilen Agent ortamları için de geçerlidir.
+
+### Daha hızlı oturum başlangıçları ve derlemeler {#claude-code-caching}
+
+- **Tuist önbelleği:** oturumlar `TUIST_URL` alır ve hesabınız aynı rafta bir önbelleğe sahipse `TUIST_CACHE_ENDPOINT` alır. Oturumdaki Tuist CLI ve `tuist_ex` Mix görevleri, oturumun kimlik token'ı ile kendi kendilerine giriş yapar. Kimlik doğrulama kılavuzundaki <.localized_link href="/guides/server/authentication#claude-code-sessions">Claude Code oturumları</.localized_link> bölümüne bakın.
+- **Önbelleğe alınmış checkout'lar:** hesabınızın Tuist GitHub uygulaması bir oturumun deposunu okuyabildiğinde, yeni bir oturum Tuist runner'larınızın kullandığı aynı önbelleğe alınmış checkout'tan başlar, böylece klonlamak yerine yalnızca eksik olduğu commit'leri getirir. Oturum sona erdiğinde, varsayılan dalın en son commit'inin nesnelerini geri verir; bu, CI'yı Tuist üzerinde çalıştırmayan depolar için bile önbelleğe alınmış checkout'un güncel kalmasını sağlar. Yalnızca GitHub'ın varsayılan dal için bildirdiği commit bunu günceller; bir oturumun kendi dalları bunu asla yapmaz. Bunu durdurmak için sandbox'ları devre dışı bırakın veya uygulamayı kaldırın.
+- **macOS:** Mac, her VM ile çalışan Claude Code derleme oturumlarını paylaşır, bu nedenle yeni bir oturum onu indirmek zorunda kalmaz.
 
 ## Herhangi bir Claude Code oturumundan Mac kullanma {#remote-mac}
 
-Linux üzerinde çalışan Claude Code oturumları, örneğin Anthropic tarafından barındırılan bir ortamdaki bulut oturumları, <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link> bölümünde açıklandığı gibi Tuist macOS sandbox’ında hâlâ Apple platformu kodunu derleyebilir ve test edebilir. **Tuist macOS** ortamının aksine, oturum kendi ortamını korur.
+Linux üzerinde çalışan Claude Code oturumları, örneğin Anthropic tarafından barındırılan bir ortamda bulut oturumları, <.localized_link href="/guides/features/sandboxes#coding-agents">Kodlama agent'ından Mac üzerinde derleme</.localized_link> bölümünde açıklandığı gibi yine de bir Tuist macOS sandbox'ında Apple platformu kodunu derleyip test edebilir. Bir **Tuist macOS** ortamından farklı olarak, oturum kendi ortamını korur.
 
-**Tuist Linux** ortamında kurulacak hiçbir şey yoktur: Tuist CLI ve Tuist MCP sunucusu zaten yüklüdür ve oturumun kimliğiyle oturum açar.
+Bir **Tuist Linux** ortamında kurulması gereken hiçbir şey yoktur: Tuist CLI ve Tuist MCP sunucusu zaten yüklüdür ve oturumun kimliği ile giriş yapar.
 
-Anthropic tarafından barındırılan bir ortamdaki bulut oturumları için:
+Anthropic tarafından barındırılan bir ortamda bulut oturumları için:
 
-1. Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP server</.localized_link> hizmetini oturumlara kullanılabilir hale getirin: claude.ai’de `https://tuist.dev/mcp` öğesini bağlayıcı olarak ekleyin ve oturum için etkinleştirin veya deponun commit edilmiş `.mcp.json` dosyasında bildirin.
-2. Tuist CLI’yı ortamın [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts) içine yükleyin; örneğin `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist` ile.
-3. `account:sandboxes:write` scope’una sahip bir <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> oluşturun ve bunu ortamın [environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) bölümüne `TUIST_TOKEN` olarak ekleyin. Ortamı kullanan herkes bunu okuyabilir, bu nedenle önbelleğinizi de kullanabilecek durumda olmadıkça başka bir scope vermeyin: Mac üzerindeki komutlar <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">cache access</.localized_link> yalnızca token’ın izin verdiği ölçüde elde eder, bu nedenle Mac üzerindeki derlemelerin önbelleğinizi okuyup yazabilmesi için `ci` ekleyin.
-4. Ortamın Tuist’e ulaşmasına izin verin. Anthropic’in varsayılan **Trusted** ağ erişimi `tuist.dev` içermez, bu nedenle **Custom** seçeneğini belirleyin, varsayılan alan adlarını koruyun ve **Allowed domains** listesine `tuist.dev` ekleyin. CLI, oturumun dosyalarını Mac’e `tuist.dev` üzerinden yükler, bu nedenle başka bir alan adına ihtiyacı yoktur.
+1. Tuist <.localized_link href="/guides/features/agentic-coding/mcp">MCP sunucusunu</.localized_link> oturumlar için kullanılabilir hale getirin: claude.ai'de `https://tuist.dev/mcp` bağlantısını ekleyin ve oturum için etkinleştirin veya deponun commit edilmiş `.mcp.json` dosyasında bildirin.
+2. Tuist CLI'yı ortamın [kurulum betiğine](https://code.claude.com/docs/en/cloud-environments#setup-scripts) yükleyin, örneğin `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist` ile.
+3. `account:sandboxes:write` kapsamına sahip bir <.localized_link href="/guides/server/authentication#account-tokens">hesap token'ı</.localized_link> oluşturun ve bunu ortamın [ortam değişkenlerine](https://code.claude.com/docs/en/cloud-environments#set-environment-variables) `TUIST_TOKEN` olarak ekleyin. Ortamı kullanan herkes bunu okuyabilir, bu nedenle önbelleğinizi de kullanma izni yoksa başka bir kapsam vermeyin: Mac'teki komutlar <.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">önbellek erişimi</.localized_link> yalnızca token'ın sahip olduğu ölçüde elde eder, bu nedenle Mac'teki derlemelerin önbelleğinizi okuyup yazabilmesi için `ci` ekleyin.
+4. Ortamın Tuist'e ulaşmasına izin verin. Anthropic'in varsayılan **Güvenilir** ağ erişimi `tuist.dev` içermez, bu nedenle **Özel** seçeneğini belirleyin, varsayılan alan adlarını koruyun ve `tuist.dev` öğesini **İzin verilen alan adları** listesine ekleyin. CLI, oturumun dosyalarını Mac'e `tuist.dev` üzerinden yükler, bu nedenle başka bir alan adına ihtiyacı yoktur.
 
-İlk senkronizasyondan sonra Claude, projenin sabitlenmiş Tuist sürümünü yüklemek için Mac üzerindeki depo kök dizininde `mise install` komutunu çalıştırır; Tuist 4.218.0 ve sonraki sürümler daha sonra her komutta hesabınızın önbelleğine kendi başlarına oturum açar.
+İlk senkronizasyondan sonra Claude, projenin sabitlenmiş Tuist sürümünü yüklemek için Mac'teki depo kökünde `mise install` çalıştırır; Tuist 4.218.0 ve sonraki sürümler daha sonra her komutta hesabınızın önbelleğine kendi kendilerine giriş yapar.
 
-Claude, görev tamamlandığında Mac’i siler. Geride kalan bir Mac, boşta kaldığında duraklar ve 14 gün durakladıktan sonra silinir. Bu şekilde oluşturulan Mac’ler, diğer tüm sandbox’lar gibi Tuist hesabınıza yansır.
+Görev tamamlandığında Claude Mac'i siler. Geride kalan bir Mac boşta kaldığında duraklatılır ve 14 gün duraklatıldıktan sonra silinir. Bu şekilde oluşturulan Mac'ler, diğer tüm sandbox'lar gibi Tuist hesabınıza dahil edilir.

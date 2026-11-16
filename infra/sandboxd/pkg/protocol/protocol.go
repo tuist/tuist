@@ -193,6 +193,9 @@ type Hello struct {
 	// LazyDisks: the daemon restores archives written with lazy disks
 	// (ArchiveArgs.LazyDisks), serving their disks by range.
 	LazyDisks bool `json:"lazy_disks,omitempty"`
+	// Archives: a macOS host archives its evicted sandboxes' disks (OpArchive)
+	// and creates sandboxes from such archives. Linux daemons always do.
+	Archives bool `json:"archives,omitempty"`
 }
 
 type Result struct {

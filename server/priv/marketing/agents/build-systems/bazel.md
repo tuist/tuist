@@ -1,4 +1,4 @@
-# Tuist with Bazel
+# Bazel remote cache and build insights with Tuist
 
 Tuist brings Bazel-native depth to one productivity platform for organizations with diverse build systems. Its remote action cache and build/test insights use protocols Bazel already supports, alongside the platform's supported Gradle, Xcode, Mix, and canary Once workflows. Keep your `BUILD` files, language rules, toolchains, and ordinary build commands; no migration to generated Xcode projects or Tuist Runners is required.
 
@@ -29,7 +29,7 @@ Remote caching reuses an action's existing outputs. Remote execution runs a cach
 ## How Tuist augments it
 
 - **Reuse compatible action outputs across machines.** The [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) supplies the cache portion of the Remote Execution API. A matching action can download results produced elsewhere rather than execute again. The [Bazel remote cache guide](/marketing-markdown/solutions/bazel-remote-cache) explains how it works and compares self-hosted and managed caches.
-- **Run actions remotely, on request.** Remote execution is enabled per account; [contact us](mailto:contact@tuist.dev) to turn it on. Then `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache. Setup discovers the current executor and image and sizes `--jobs` to the remote capacity. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
+- **Run actions remotely.** For enabled accounts, `tuist bazel setup --remote-execution` points Bazel at Tuist's Linux executors in addition to the remote cache; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it. Setup discovers the current executor and image and sizes `--jobs` to the remote capacity. Prepare actions for the worker toolchain rather than assuming local host tools are available remotely.
 - **Investigate recorded build work.** [Build insights](/en/docs-markdown/guides/features/build-insights/bazel) collects build events and recorded profile data. Compare invocations, targets, cache behavior, and operations before changing execution capacity.
 - **Correlate tests over time.** [Test insights](/en/docs-markdown/guides/features/test-insights/bazel) collects outcomes and individual cases from supported reports. Reporting works with normal `bazel test` after setup.
 - **Apply explicit flaky-test policies.** The `tuist bazel test` wrapper retrieves and enforces documented quarantine policies. Muting and skipping have different boundaries; skipping a target also excludes its healthy sibling cases.
@@ -57,4 +57,4 @@ A closed hosted service leaves implementation changes entirely with the provider
 
 Written by Tuist. Sources reviewed on **2026-10-09**: [Bazel remote caching](https://bazel.build/remote/caching), [remote execution](https://bazel.build/remote/rbe), [Build Event Protocol](https://bazel.build/remote/bep), and the linked Tuist references. Compare the build system at bazel.build, not a remote-infrastructure vendor's offering.
 
-[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)
+[All build systems](/marketing-markdown/build-systems) · [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle) · [Bazel cache for GitHub Actions](/marketing-markdown/solutions/bazel-github-actions) · [BuildBuddy alternative](/marketing-markdown/compare/buildbuddy) · [EngFlow alternative](/marketing-markdown/compare/engflow) · [Cache](/marketing-markdown/cache) · [Tests](/marketing-markdown/tests)

@@ -195,9 +195,9 @@ msgstr "Önbellek etkinliği, Modül önbelleği ve Xcode önbelleğinin birleş
 #: lib/tuist_web/live/once_overview_live.ex:369
 #: lib/tuist_web/live/once_runs_live.ex:396
 #: lib/tuist_web/live/project_automations_live.html.heex:1122
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:229
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:418
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:570
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:242
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:455
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:607
 #: lib/tuist_web/live/project_notifications_live.html.heex:169
 #: lib/tuist_web/live/project_notifications_live.html.heex:341
 #: lib/tuist_web/live/project_notifications_live.html.heex:627
@@ -308,7 +308,7 @@ msgstr "Genel"
 msgid "General access"
 msgstr "Genel erişim"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:359
+#: lib/tuist_web/live/project_bundle_settings_live.ex:461
 #: lib/tuist_web/live/project_notifications_live.ex:880
 #: lib/tuist_web/live/xcode_overview_live.html.heex:731
 #, elixir-autogen, elixir-format
@@ -362,9 +362,9 @@ msgstr "Yerel"
 #: lib/tuist_web/live/create_project_live.ex:83
 #: lib/tuist_web/live/project_automations_live.html.heex:95
 #: lib/tuist_web/live/project_automations_live.html.heex:1180
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:127
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:255
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:313
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:128
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:268
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:337
 #: lib/tuist_web/live/project_notifications_live.html.heex:410
 #: lib/tuist_web/live/project_notifications_live.html.heex:558
 #: lib/tuist_web/live/project_notifications_live.html.heex:652
@@ -686,7 +686,7 @@ msgid "Never"
 msgstr "Asla"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1139
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:427
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:464
 #: lib/tuist_web/live/project_notifications_live.html.heex:178
 #: lib/tuist_web/live/project_notifications_live.html.heex:349
 #: lib/tuist_web/live/project_settings_live.html.heex:160
@@ -745,9 +745,9 @@ msgstr "Kategori"
 msgid "Get notified when metrics regress"
 msgstr "Metrikler gerilediğinde bildirim al"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:141
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:258
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:327
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:142
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:271
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:351
 #: lib/tuist_web/live/project_notifications_live.html.heex:453
 #: lib/tuist_web/live/project_notifications_live.html.heex:658
 #: lib/tuist_web/live/project_notifications_live.html.heex:767
@@ -886,7 +886,7 @@ msgid "tests"
 msgstr "testler"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1142
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:237
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:250
 #: lib/tuist_web/live/project_notifications_live.html.heex:635
 #: lib/tuist_web/live/projects_live.ex:432
 #, elixir-autogen, elixir-format
@@ -898,7 +898,7 @@ msgstr "Oluştur"
 msgid "Create alert rule"
 msgstr "Uyarı kuralı oluştur"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:261
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:274
 #: lib/tuist_web/live/project_notifications_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Deviation"
@@ -979,7 +979,7 @@ msgstr "Dal"
 msgid "Bundle size"
 msgstr "Paket boyutu"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:360
+#: lib/tuist_web/live/project_bundle_settings_live.ex:462
 #: lib/tuist_web/live/project_notifications_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Download size"
@@ -1022,8 +1022,8 @@ msgstr "<strong>%{git_branch}</strong> dalındaki en son <strong>%{bundle_name}<
 msgid "Scheme"
 msgstr "Şema"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:217
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:405
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:218
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:429
 #: lib/tuist_web/live/project_notifications_live.html.heex:551
 #: lib/tuist_web/live/project_notifications_live.html.heex:565
 #: lib/tuist_web/live/project_notifications_live.html.heex:881
@@ -1060,14 +1060,15 @@ msgstr "yerel"
 msgid "Add threshold"
 msgstr "Eşik ekle"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:274
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:287
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "Tümü"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:196
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:264
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:384
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:197
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:277
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Baseline branch"
 msgstr "Referans dalı"
@@ -1077,14 +1078,14 @@ msgstr "Referans dalı"
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr "Paket boyutu referans dala kıyasla bir eşiği aştığında PR'ları engelle"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:210
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:267
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:398
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:211
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:280
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Bundle name"
 msgstr "Paket adı"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:463
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:500
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr "Paket boyutu bir sınırı aştığında PR'ları engellemek için eşik oluştur"
@@ -1094,12 +1095,12 @@ msgstr "Paket boyutu bir sınırı aştığında PR'ları engellemek için eşik
 msgid "Create size threshold"
 msgstr "Boyut eşiği oluştur"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:377
+#: lib/tuist_web/live/project_bundle_settings_live.ex:479
 #, elixir-autogen, elixir-format
 msgid "Deviation %"
 msgstr "Sapma %"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:461
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
 msgstr "Boyut eşiği yok"
@@ -1109,7 +1110,7 @@ msgstr "Boyut eşiği yok"
 msgid "Size thresholds"
 msgstr "Boyut eşikleri"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:134
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Threshold name"
 msgstr "Eşik adı"
@@ -1119,7 +1120,7 @@ msgstr "Eşik adı"
 msgid "Thresholds"
 msgstr "Eşikler"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:284
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "Update size threshold"
 msgstr "Boyut eşiğini güncelle"
@@ -1807,105 +1808,105 @@ msgstr "ör. main (isteğe bağlı)"
 msgid "Show more"
 msgstr "Daha fazla göster"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:578
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr "Ekle"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:526
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:538
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:563
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Add approver"
 msgstr "Onaylayan ekle"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:315
+#: lib/tuist_web/live/project_bundle_settings_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Anyone"
 msgstr "Herkes"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:319
+#: lib/tuist_web/live/project_bundle_settings_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "Anyone with write access to the repository."
 msgstr "Depoya yazma erişimi olan herkes."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:478
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Approvals"
 msgstr "Onaylar"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:523
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Approvers"
 msgstr "Onaylayanlar"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:480
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "Choose who can accept a bundle size increase that exceeded a threshold."
 msgstr "Eşiği aşan paket boyutu artışını kimlerin kabul edebileceğini seçin."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:285
+#: lib/tuist_web/live/project_bundle_settings_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
 msgstr "Kullanıcı adının GitHub ile doğrulanabilmesi için önce Tuist GitHub Uygulamasını bu projeye bağlayın."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:305
+#: lib/tuist_web/live/project_bundle_settings_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Enter a valid GitHub username that isn't already on the list."
 msgstr "Listede olmayan geçerli bir GitHub kullanıcı adı girin."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:550
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:593
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:587
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:630
 #, elixir-autogen, elixir-format
 msgid "GitHub username"
 msgstr "GitHub kullanıcı adı"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:292
+#: lib/tuist_web/live/project_bundle_settings_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "No GitHub user with that username."
 msgstr "Bu kullanıcı adına sahip bir GitHub kullanıcısı bulunamadı."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:614
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:651
 #, elixir-autogen, elixir-format
 msgid "No approvers"
 msgstr "Onaylayan yok"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:616
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:653
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
 msgstr "Bir GitHub kullanıcı adı eklenene kadar hiç kimse boyut artışını kabul edemez"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:323
+#: lib/tuist_web/live/project_bundle_settings_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "Only the GitHub usernames you add below."
 msgstr "Yalnızca aşağıda eklediğiniz GitHub kullanıcı adları."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:316
+#: lib/tuist_web/live/project_bundle_settings_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Selected GitHub users"
 msgstr "Seçilen GitHub kullanıcıları"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:307
-#: lib/tuist_web/live/project_bundle_settings_live.ex:312
+#: lib/tuist_web/live/project_bundle_settings_live.ex:332
+#: lib/tuist_web/live/project_bundle_settings_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "The approver could not be added."
 msgstr "Onaylayan kişi eklenemedi."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:528
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
 msgstr "Bu kişi, bir çekme isteğindeki kontrol çalışmasından eşik değerini aşan paket boyutu artışını kabul edebilir."
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:491
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Who can accept"
 msgstr "Kimler kabul edebilir"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:300
+#: lib/tuist_web/live/project_bundle_settings_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach GitHub to check that username. Try again in a moment."
 msgstr "Kullanıcı adını kontrol etmek için GitHub'a ulaşılamadı. Birazdan tekrar deneyin."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:296
+#: lib/tuist_web/live/project_bundle_settings_live.ex:321
 #, elixir-autogen, elixir-format
 msgid "That is not a valid GitHub username."
 msgstr "Geçerli bir GitHub kullanıcı adı değil."
@@ -3290,48 +3291,43 @@ msgstr "Proje panosu"
 msgid "Project settings"
 msgstr "Proje ayarları"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:375
+#: lib/tuist_web/live/project_bundle_settings_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Absolute size (MB)"
 msgstr "Mutlak boyut (MB)"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:416
+#: lib/tuist_web/live/project_bundle_settings_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr "<strong>%{size_label}</strong> değeri <strong>%{baseline_branch}</strong> üzerindeki son paketle karşılaştırıldığında <strong>%{deviation}</strong> oranından fazla arttığında PR'ları engelleyin."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:424
+#: lib/tuist_web/live/project_bundle_settings_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr "<strong>%{bundle_name}</strong> paketinin <strong>%{size_label}</strong> değeri <strong>%{baseline_branch}</strong> üzerindeki son paketle karşılaştırıldığında <strong>%{deviation}</strong> oranından fazla arttığında PR'ları engelleyin."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:362
+#: lib/tuist_web/live/project_bundle_settings_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "Enter a valid size threshold."
 msgstr "Geçerli bir boyut eşiği girin."
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:374
+#: lib/tuist_web/live/project_bundle_settings_live.ex:476
 #, elixir-autogen, elixir-format
 msgid "Percentage (%)"
 msgstr "Yüzde (%)"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:365
-#, elixir-autogen, elixir-format
-msgid "The size threshold could not be saved. Check the name and baseline branch."
-msgstr "Boyut eşiği kaydedilemedi. Adı ve temel dalı kontrol edin."
-
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:163
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:350
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:164
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Threshold type"
 msgstr "Eşik türü"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:380
+#: lib/tuist_web/live/project_bundle_settings_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "1 MB = 1,000,000 bytes"
 msgstr "1 MB = 1.000.000 bayt"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:378
+#: lib/tuist_web/live/project_bundle_settings_live.ex:480
 #, elixir-autogen, elixir-format
 msgid "Deviation (MB)"
 msgstr "Sapma (MB)"
@@ -3440,6 +3436,8 @@ msgstr "%{project} derleme ve test içgörüsü · Tuist"
 msgid "Build times and test results for %{project}, tracked with Tuist's build and test insights."
 msgstr "Tuist'in derleme ve test içgörüsüyle izlenen %{project} için derleme süreleri ve test sonuçları."
 
+#: lib/tuist_web/live/project_bundle_settings_live.ex:417
+#: lib/tuist_web/live/project_bundle_settings_live.ex:434
 #: lib/tuist_web/live/project_notifications_live.html.heex:75
 #: lib/tuist_web/live/project_notifications_live.html.heex:120
 #: lib/tuist_web/live/project_notifications_live.html.heex:138
@@ -3493,11 +3491,13 @@ msgstr "Zamanlanmadı"
 msgid "Only bundles with the selected tag are included in the report's bundle size section. Select All bundles to include every bundle."
 msgstr "Sadece seçilen etikete sahip paketler raporun paket boyutu bölümüne dahil edilir. Tüm paketleri dahil etmek için 'Tüm paketler'i seçin."
 
+#: lib/tuist_web/live/project_bundle_settings_live.ex:428
 #: lib/tuist_web/live/project_notifications_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Search tags"
 msgstr "Etiketleri ara"
 
+#: lib/tuist_web/live/project_bundle_settings_live.ex:427
 #: lib/tuist_web/live/project_notifications_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Search tags..."
@@ -3507,3 +3507,25 @@ msgstr "Etiketleri ara..."
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness is the share of the tests in scope that test selection skipped, across the period's test runs."
 msgstr "Seçici test etkinliği, dönemdeki test çalışmaları kapsamında test seçiminin atladığı testlerin oranıdır."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:549
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>."
+msgstr "<strong>%{baseline_branch}</strong> üzerindeki en son <strong>%{tag}</strong> etiketli paketle karşılaştırıldığında, <strong>%{tag}</strong> etiketli <strong>%{bundle_name}</strong> paketlerinin <strong>%{size_label}</strong> değeri <strong>%{deviation}</strong> oranından fazla artarsa PR'ları engelle."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:542
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> of bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>."
+msgstr "<strong>%{baseline_branch}</strong> üzerindeki en son <strong>%{tag}</strong> etiketli paketle karşılaştırıldığında, <strong>%{tag}</strong> etiketli paketlerin <strong>%{size_label}</strong> değeri <strong>%{deviation}</strong> oranından fazla artarsa PR'ları engelle."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:225
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:290
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:437
+#, elixir-autogen, elixir-format
+msgid "Tag"
+msgstr "Etiket"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:467
+#, elixir-autogen, elixir-format
+msgid "The size threshold could not be saved. Check the name, baseline branch, and tag."
+msgstr "Boyut eşiği kaydedilemedi. Adı, temel dalı ve etiketi kontrol edin."

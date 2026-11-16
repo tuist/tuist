@@ -786,7 +786,9 @@ func TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget(t *testing.T
 
 	signalsByFleet := map[string]scaling.Signals{
 		"macos-busy": {Fleet: "macos-busy", Claimed: 1, Queued: 1, P95ConcurrentLastHour: 2},
-		"macos-idle": {Fleet: "macos-idle", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 4},
+		// The more frequently used pool keeps its baseline when only one
+		// of the two baselines fits after real load.
+		"macos-idle": {Fleet: "macos-idle", P95ConcurrentLastHour: 4, HoursWithJobs: 100},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -891,18 +893,17 @@ func TestAutoscaler_LearnedSpareOutranksSiblingHeadroom(t *testing.T) {
 	}
 }
 
-// TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse: on a rack short of
-// seats, a pool whose jobs are arriving keeps its learned spare, and a pool
-// with no job in the last hour gives up its floor for it.
-func TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse(t *testing.T) {
+// A pool receiving work keeps its learned burst above load; a sibling that
+// ran earlier in the hour keeps a baseline, not an equal share of the burst.
+func TestAutoscaler_FullRackKeepsTheActivePoolsBurst(t *testing.T) {
 	const fleet = "runners-macos"
 	inUse := macosFleetPool("macos-in-use", fleet, 0, 0, 9)
 	inUse.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
 	idle := macosFleetPool("macos-idle", fleet, 0, 0, 9)
 	idle.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
-	// 4 single-guest hosts = 4 slots: the running job and its spare of 3.
+	// Five slots: the running job, its spare of three, and one recent baseline.
 	var nodes []client.Object
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 5; i++ {
 		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
 	}
 
@@ -919,7 +920,7 @@ func TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse(t *testing.T) {
 
 	signalsByFleet := map[string]scaling.Signals{
 		"macos-in-use": {Fleet: "macos-in-use", Claimed: 1, Occupied: 1, P95ConcurrentLastHour: 1, LearnedWarmFloor: 3},
-		"macos-idle":   {Fleet: "macos-idle", LearnedWarmFloor: 3},
+		"macos-idle":   {Fleet: "macos-idle", P95ConcurrentLastHour: 3, LearnedWarmFloor: 3},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -950,8 +951,8 @@ func TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse(t *testing.T) {
 	if gotInUse.Spec.Replicas != 4 {
 		t.Errorf("in-use Replicas = %d, want 4 (its job and its whole spare)", gotInUse.Spec.Replicas)
 	}
-	if gotIdle.Spec.Replicas != 0 {
-		t.Errorf("idle Replicas = %d, want 0 (no seat left for a floor nobody is using)", gotIdle.Spec.Replicas)
+	if gotIdle.Spec.Replicas != 1 {
+		t.Errorf("idle Replicas = %d, want 1 (baseline for a pool used earlier in the hour)", gotIdle.Spec.Replicas)
 	}
 }
 

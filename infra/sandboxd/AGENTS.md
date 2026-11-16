@@ -144,7 +144,7 @@ memory image until they cold boot.
 - `archive {sandbox_id, part_size, part_urls, memory, lazy_disks}`: refuse unless the
   sandbox is paused with `disks_synced`, so a cold restore of the disks
   alone is always possible; stream `vmlinux`, `rootfs.ext4` and
-  `workspace.ext4` as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+  `workspace.ext4` as one zstd object (`pkg/archive`: magic `SBXARC1`, a JSON
   header, file records with data blocks at their offsets, holes and zero
   blocks left out) cut into `part_size` parts, each PUT to the next
   presigned UploadPart URL (two parts in memory at most, three attempts per
@@ -152,7 +152,7 @@ memory image until they cold boot.
   written by this Firecracker, and the node's snapshot compatibility known), the object
   starts with the image's non-zero 2 MiB chunks, each a zstd frame in a
   skippable frame, and the disk stream after them also carries the VM
-  state and the chunks' index (`internal/archive/memory.go`). With
+  state and the chunks' index (`pkg/archive/memory.go`). With
   `lazy_disks` too, `rootfs.ext4` and `workspace.ext4` follow the memory as
   chunks the same way (chunks in holes left out), and the disk stream holds
   their indexes (`<disk>.index`) instead of the disks. Answers the

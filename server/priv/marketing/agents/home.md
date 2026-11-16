@@ -44,7 +44,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 
 - [Xcode](/marketing-markdown/build-systems/xcode): shared compilation outputs and build/test evidence; generated-project features remain a separate path.
 - [Gradle](/marketing-markdown/build-systems/gradle): shared cacheable task outputs and task/test insights.
-- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching, Linux remote execution on request, and build/test reporting.
+- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching, Linux remote execution for enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), and build/test reporting.
 - [Mix / Elixir](/marketing-markdown/build-systems/elixir): compiled dependency caching, compilation insights, ExUnit history, flaky detection, and test sharding.
 - [Bazel vs Gradle](/marketing-markdown/build-systems/bazel-vs-gradle): how the two differ, where each fits, and how teams run both.
 - [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.

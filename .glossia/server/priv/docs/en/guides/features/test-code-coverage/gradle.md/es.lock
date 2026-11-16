@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3f6601be6cd22efa841d365be842fe2d580f62597ffb4f84b3ac54d91a42f7e0",
+  "hash": "47126a67a2a9b40b907798a2757c3b677366fd347dbddc2f535d8d92de639ec1",
   "hash_tree": {
     "root": {
       "children": [
@@ -28,11 +28,14 @@
                 "## Setup {#setup}": {
                   "content_hash": "06eef71c229bc0a5e527b6e4c89db2a8c40b9368eb37c1652f1e9f629e3ec257"
                 },
+                "### Android projects {#android-projects}": {
+                  "content_hash": "8ac905a6f7a29a4c7ccb2cd1e5c549226d8a61880e503689f8b9b6697982dcb7"
+                },
                 "### Complete and incomplete commits {#commit-status}": {
                   "content_hash": "2bb1ffcc1bdc609641d92107a6ddb01969b93143f601a1c2479a2ebd015b0a7f"
                 },
                 "### Complete each commit on CI {#complete-each-commit}": {
-                  "content_hash": "39fd2308adab2b346fc79eb04e6655dba2bf912d0bebe8cdaf8ed268cf2440d6"
+                  "content_hash": "acf3765b437b1d43d8ef669218001de9d96ca7960e341ab961fd2c6178895575"
                 },
                 "### Sharded runs {#sharded-runs}": {
                   "content_hash": "30d64c8eedaf71016edf9ca060c31e2a23ea6be8ead2721a77493aa14d731095"
@@ -44,7 +47,7 @@
                   "content_hash": "8f8bf6466618386cf54f6b3084dec82da179fb3ea35bb4c2be7fe6de4efeb520"
                 },
                 "### Turn coverage on {#turn-coverage-on}": {
-                  "content_hash": "4c70aa3a3a49b797270a70a6e1e64fcf59fb4031d0d83f702658ef945f01b438"
+                  "content_hash": "6fb3521335a1646adedab042eeb875630933a63803d76c2ff84398cf91594368"
                 },
                 "### What Tuist measures {#what-tuist-measures}": {
                   "content_hash": "67cbf8af1407a06c0c25c543760cd9ad7ff4fcd387d4eabff6fa44f8f4ea1e05"
@@ -59,11 +62,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ffbb53348c2b7e3be8888499b73153fe50c3c684373091cf0a56c1f0cc4defe0",
+          "hash": "a45b1e2834f80e9102288a7e8c9d898cf74471cb432b83eeca3d58de851e740f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-code-coverage/gradle.md",
           "metadata": {
-            "content_hash": "f3f244e895180ea06434f7d9679cfd5a99e9e46090f61283706c74233624482b"
+            "content_hash": "3a95e0732c45af7ce8a9ea12507f6c0b27b922f26f1563e2f039d7adb6bc317f"
           }
         },
         {
@@ -275,14 +278,14 @@
         }
       ],
       "details": {},
-      "hash": "3f6601be6cd22efa841d365be842fe2d580f62597ffb4f84b3ac54d91a42f7e0",
+      "hash": "47126a67a2a9b40b907798a2757c3b677366fd347dbddc2f535d8d92de639ec1",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-code-coverage/gradle.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "27f57c78d4b6b1274d0e7e39eba73326424b09f9389c6f0a05203dacf3262c47",
+  "output_hash": "f3aa8ed529f45dd2147cc9f29939dcd57ff40e64e84741702736763fda70cd60",
   "output_path": "server/priv/docs/es/guides/features/test-code-coverage/gradle.md",
   "protection_state": "recorded",
   "provider": "",
@@ -304,8 +307,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "7a8eab39567d948780cc418386c5b5d3f39928af",
+  "source_commit_sha": "d585d934fe7db06d55ee13c7ac7baca64afc9cd0",
   "source_path": "server/priv/docs/en/guides/features/test-code-coverage/gradle.md",
-  "translated_at": "2026-11-14T07:49:53.567287Z",
-  "translation_session_id": "01a1d906-471a-77fb-b301-019f47dc1e67"
+  "translated_at": "2026-11-16T13:37:04.862280Z",
+  "translation_session_id": "01a1e491-e33c-7e49-95e6-d56baa079cc2"
 }

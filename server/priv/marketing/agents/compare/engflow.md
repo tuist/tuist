@@ -1,4 +1,4 @@
-# EngFlow alternative: Tuist for Bazel caching, remote execution, and build insights
+# EngFlow alternative: Tuist for Bazel remote caching and build insights
 
 Choose Tuist when you want an EngFlow alternative that puts Bazel's remote cache, build events, and test results on the same platform as your Xcode, Gradle, and Elixir builds. Optimize the project first, then its execution environment. Start with [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache): `tuist bazel setup` points Bazel at Tuist's remote cache and Build Event Service through a credential helper, and your `BUILD` files and commands stay the same.
 
@@ -8,7 +8,7 @@ EngFlow describes four product lines: [Remote Execution, Remote Caching, CI Runn
 
 EngFlow [does not share infrastructure between customers](https://www.engflow.com/product/remoteExecution). Its [glossary](https://docs.engflow.com/glossary.html) defines fully managed clusters in an EngFlow-created AWS or GCP account, co-managed clusters in the customer's own cloud account, and self-managed clusters that customers operate themselves. The [Build and Test UI](https://www.engflow.com/product/buildDashboard) covers invocation results, profiles, critical paths, and flaky-test status, and EngFlow documents a beta [MCP server](https://docs.engflow.com/web_ui/integrations/mcp.html) with the same data. EngFlow publishes Apache-2.0 tools such as its [credential helper](https://github.com/EngFlow/auth) and the [Bazel Invocation Analyzer](https://github.com/EngFlow/bazel_invocation_analyzer); the cluster services run under a [contract license](https://docs.engflow.com/re/config/license-server.html), and self-managed customers receive binaries.
 
-Both products reuse compatible Bazel action outputs through a remote cache and offer remote execution as a separate service. Cache reuse is not remote execution: an action missing from the cache still has to run somewhere.
+Both products reuse compatible Bazel action outputs through a remote cache and offer remote execution as a separate service; Tuist's is available to enabled accounts. Cache reuse is not remote execution: an action missing from the cache still has to run somewhere.
 
 ## Self-host software you can read
 
@@ -21,7 +21,7 @@ EngFlow also supports self-hosting: its self-managed clusters and its Free tier 
 | Requirement | Tuist | EngFlow evidence to evaluate |
 | --- | --- | --- |
 | Reuse Bazel outputs | [Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache) shares compatible action outputs between developer machines, CI, and agents, without requiring Tuist Runners. | EngFlow Remote Caching serves Bazel and other Remote Execution API clients from the customer's cluster. Compare locality, transfer, retention, and diagnostics. |
-| Execute actions on remote workers | Available on request: [contact us](mailto:contact@tuist.dev) to enable it for your account. Then `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, which read from and write to the same remote cache. Actions need to run on the executors' Linux toolchain rather than local host tools. | EngFlow documents Linux, macOS, and Windows workers, with container images for Linux. Compare the platforms your actions need. |
+| Execute actions on remote workers | For enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, which read from and write to the same remote cache. Actions need to run on the executors' Linux toolchain rather than local host tools. | EngFlow documents Linux, macOS, and Windows workers, with container images for Linux. Compare the platforms your actions need. |
 | Explain a Bazel build | [Build Insights](/en/docs-markdown/guides/features/build-insights/bazel) records invocations, profiles, critical paths, and cache behavior, with authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp) for agents. | EngFlow's Build and Test UI shows invocations, critical paths, and flakiness; its MCP server is in beta and enabled per cluster. Compare tool coverage and permissions. |
 | Operate across several toolchains | Tuist also supports Xcode, Gradle, and Elixir insights; caching and test acceleration vary by integration. | EngFlow is centered on Remote Execution API build systems, with a beta Gradle cache plugin. Verify any other integration directly. |
 | Deployment | Hosted Tuist, or [self-hosted server](/en/docs-markdown/guides/server/self-host/server) on the Enterprise plan and self-hosted [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). | Fully managed, co-managed in the customer's cloud account, or self-managed. Compare who operates the cluster and who pays the cloud bill. |
@@ -45,7 +45,7 @@ We recommend Tuist over EngFlow in three situations. This is our position as the
 - **You want a premium product experience.** We design Tuist the way a consumer product company designs its apps, with attention to the details of every page and interaction, so that engineers who are not build specialists use it every day. That is a judgment about taste you can test yourself; see [the dashboard section](#a-dashboard-built-for-the-whole-team).
 - **You chose a Bazel vendor for its expertise, and coding agents now do much of that work.** Teams have often bought from Bazel specialists like EngFlow partly for help with rules, toolchains, and migrations, and that expertise is real. Coding agents now write `BUILD` files, update rules, and trace cache misses well when they have good build evidence, which Tuist gives them through its [MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp). That shifts the decision toward the product your team uses every day. Unusual toolchains and very large migrations can still justify specialist help.
 
-Tuist also provides the remote cache and build insights without a dedicated cluster to operate, and remote execution on request. When you do self-host, you run [source-available software](#self-host-software-you-can-read) your engineers can inspect and contribute to.
+Tuist also provides the remote cache, remote execution for enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), and build insights without a dedicated cluster to operate. When you do self-host, you run [source-available software](#self-host-software-you-can-read) your engineers can inspect and contribute to.
 
 ## Switching from EngFlow
 
@@ -55,7 +55,7 @@ EngFlow is configured through Bazel flags, usually under a `--config=engflow` bl
 2. Run `tuist bazel setup` (or `tuist init` for a new project). It writes a machine-local `.bazelrc.tuist` with the cache, Build Event Service, and credential helper, and adds `try-import %workspace%/.bazelrc.tuist` to `.bazelrc`. Commit the import line and ignore the generated file.
 3. In CI, authenticate as the [CI guide](/en/docs-markdown/guides/integrations/continuous-integration) describes and run `tuist bazel setup` in each job. On GitHub Actions, see [Bazel on GitHub Actions](/marketing-markdown/solutions/bazel-github-actions).
 
-If your build depends on remote macOS or Windows workers, or on actions that need cluster-specific container images, check those actions against Tuist's Linux remote execution, which we enable on request, before moving them. The cache starts empty, so expect cold builds until CI and developers populate it.
+If your build depends on remote macOS or Windows workers, or on actions that need cluster-specific container images, check those actions against Tuist's Linux remote execution, which is available to enabled accounts ([email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it), before moving them. The cache starts empty, so expect cold builds until CI and developers populate it.
 
 ## First experiment
 
@@ -65,7 +65,7 @@ Configure [Tuist Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cach
 
 ### Is Tuist an EngFlow alternative?
 
-For Bazel remote caching, build and test results, and agent access to that evidence, yes: Tuist uses Bazel's standard remote cache and Build Event Service protocols. Tuist also runs Bazel actions remotely on Linux executors. EngFlow documents remote execution on Linux, macOS, and Windows workers and single-tenant clusters, so check the platforms and deployment model you need.
+For Bazel remote caching, build and test results, and agent access to that evidence, yes: Tuist uses Bazel's standard remote cache and Build Event Service protocols. Tuist also runs Bazel actions remotely on Linux executors for enabled accounts; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it. EngFlow documents remote execution on Linux, macOS, and Windows workers and single-tenant clusters, so check the platforms and deployment model you need.
 
 ### Do I need to change my BUILD files to switch?
 

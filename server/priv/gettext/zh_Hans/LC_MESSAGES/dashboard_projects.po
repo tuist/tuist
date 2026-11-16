@@ -195,9 +195,9 @@ msgstr "缓存效率表示模块缓存和 Xcode 缓存的综合命中率，展�
 #: lib/tuist_web/live/once_overview_live.ex:369
 #: lib/tuist_web/live/once_runs_live.ex:396
 #: lib/tuist_web/live/project_automations_live.html.heex:1122
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:229
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:418
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:570
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:242
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:455
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:607
 #: lib/tuist_web/live/project_notifications_live.html.heex:169
 #: lib/tuist_web/live/project_notifications_live.html.heex:341
 #: lib/tuist_web/live/project_notifications_live.html.heex:627
@@ -308,7 +308,7 @@ msgstr "常规"
 msgid "General access"
 msgstr "通用访问权限"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:359
+#: lib/tuist_web/live/project_bundle_settings_live.ex:461
 #: lib/tuist_web/live/project_notifications_live.ex:880
 #: lib/tuist_web/live/xcode_overview_live.html.heex:731
 #, elixir-autogen, elixir-format
@@ -362,9 +362,9 @@ msgstr "本地"
 #: lib/tuist_web/live/create_project_live.ex:83
 #: lib/tuist_web/live/project_automations_live.html.heex:95
 #: lib/tuist_web/live/project_automations_live.html.heex:1180
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:127
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:255
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:313
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:128
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:268
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:337
 #: lib/tuist_web/live/project_notifications_live.html.heex:410
 #: lib/tuist_web/live/project_notifications_live.html.heex:558
 #: lib/tuist_web/live/project_notifications_live.html.heex:652
@@ -686,7 +686,7 @@ msgid "Never"
 msgstr "从不"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1139
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:427
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:464
 #: lib/tuist_web/live/project_notifications_live.html.heex:178
 #: lib/tuist_web/live/project_notifications_live.html.heex:349
 #: lib/tuist_web/live/project_settings_live.html.heex:160
@@ -745,9 +745,9 @@ msgstr "类别"
 msgid "Get notified when metrics regress"
 msgstr "指标回退时接收通知"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:141
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:258
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:327
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:142
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:271
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:351
 #: lib/tuist_web/live/project_notifications_live.html.heex:453
 #: lib/tuist_web/live/project_notifications_live.html.heex:658
 #: lib/tuist_web/live/project_notifications_live.html.heex:767
@@ -886,7 +886,7 @@ msgid "tests"
 msgstr "测试"
 
 #: lib/tuist_web/live/project_automations_live.html.heex:1142
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:237
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:250
 #: lib/tuist_web/live/project_notifications_live.html.heex:635
 #: lib/tuist_web/live/projects_live.ex:432
 #, elixir-autogen, elixir-format
@@ -898,7 +898,7 @@ msgstr "创建"
 msgid "Create alert rule"
 msgstr "创建告警规则"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:261
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:274
 #: lib/tuist_web/live/project_notifications_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Deviation"
@@ -979,7 +979,7 @@ msgstr "分支"
 msgid "Bundle size"
 msgstr "Bundle 大小"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:360
+#: lib/tuist_web/live/project_bundle_settings_live.ex:462
 #: lib/tuist_web/live/project_notifications_live.ex:881
 #, elixir-autogen, elixir-format
 msgid "Download size"
@@ -1022,8 +1022,8 @@ msgstr "当分支 <strong>%{git_branch}</strong> 上最新 <strong>%{bundle_name
 msgid "Scheme"
 msgstr "Scheme"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:217
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:405
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:218
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:429
 #: lib/tuist_web/live/project_notifications_live.html.heex:551
 #: lib/tuist_web/live/project_notifications_live.html.heex:565
 #: lib/tuist_web/live/project_notifications_live.html.heex:881
@@ -1060,14 +1060,15 @@ msgstr "本地"
 msgid "Add threshold"
 msgstr "添加阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:274
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:287
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr "全部"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:196
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:264
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:384
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:197
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:277
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "Baseline branch"
 msgstr "基线分支"
@@ -1077,14 +1078,14 @@ msgstr "基线分支"
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr "当包大小相对于基线分支超过阈值时阻止 PR"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:210
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:267
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:398
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:211
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:280
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Bundle name"
 msgstr "包名称"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:463
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:500
 #, elixir-autogen, elixir-format
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr "创建阈值，以便在包大小超过限制时阻止 PR"
@@ -1094,12 +1095,12 @@ msgstr "创建阈值，以便在包大小超过限制时阻止 PR"
 msgid "Create size threshold"
 msgstr "创建大小阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:377
+#: lib/tuist_web/live/project_bundle_settings_live.ex:479
 #, elixir-autogen, elixir-format
 msgid "Deviation %"
 msgstr "偏差 %"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:461
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:498
 #, elixir-autogen, elixir-format
 msgid "No size thresholds"
 msgstr "无大小阈值"
@@ -1109,7 +1110,7 @@ msgstr "无大小阈值"
 msgid "Size thresholds"
 msgstr "大小阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:134
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Threshold name"
 msgstr "阈值名称"
@@ -1119,7 +1120,7 @@ msgstr "阈值名称"
 msgid "Thresholds"
 msgstr "阈值"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:284
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "Update size threshold"
 msgstr "更新大小阈值"
@@ -1807,105 +1808,105 @@ msgstr "例如 main（可选）"
 msgid "Show more"
 msgstr "显示更多"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:578
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr "添加"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:526
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:538
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:563
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Add approver"
 msgstr "添加审批人"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:315
+#: lib/tuist_web/live/project_bundle_settings_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Anyone"
 msgstr "任何人"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:319
+#: lib/tuist_web/live/project_bundle_settings_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "Anyone with write access to the repository."
 msgstr "拥有仓库写入权限的任何用户。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:478
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Approvals"
 msgstr "审批"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:523
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Approvers"
 msgstr "审批人"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:480
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:517
 #, elixir-autogen, elixir-format
 msgid "Choose who can accept a bundle size increase that exceeded a threshold."
 msgstr "选择谁可以接受超出阈值的包体积增长。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:285
+#: lib/tuist_web/live/project_bundle_settings_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to this project first, so the username can be checked against GitHub."
 msgstr "请先将 Tuist GitHub 应用连接到此项目，以便根据 GitHub 验证用户名。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:305
+#: lib/tuist_web/live/project_bundle_settings_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Enter a valid GitHub username that isn't already on the list."
 msgstr "输入一个有效的 GitHub 用户名，且该用户名尚未在列表中。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:550
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:593
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:587
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:630
 #, elixir-autogen, elixir-format
 msgid "GitHub username"
 msgstr "GitHub 用户名"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:292
+#: lib/tuist_web/live/project_bundle_settings_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "No GitHub user with that username."
 msgstr "没有使用该用户名的 GitHub 用户。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:614
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:651
 #, elixir-autogen, elixir-format
 msgid "No approvers"
 msgstr "无审批人"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:616
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:653
 #, elixir-autogen, elixir-format
 msgid "Nobody can accept a size increase until a GitHub username is added"
 msgstr "在添加 GitHub 用户名之前，无人可以接受体积增长"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:323
+#: lib/tuist_web/live/project_bundle_settings_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "Only the GitHub usernames you add below."
 msgstr "仅限你下方添加的 GitHub 用户名。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:316
+#: lib/tuist_web/live/project_bundle_settings_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Selected GitHub users"
 msgstr "已选择的 GitHub 用户"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:307
-#: lib/tuist_web/live/project_bundle_settings_live.ex:312
+#: lib/tuist_web/live/project_bundle_settings_live.ex:332
+#: lib/tuist_web/live/project_bundle_settings_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "The approver could not be added."
 msgstr "无法添加审批人。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:528
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
 msgstr "此人可以接受拉取请求检查运行中超出阈值的包大小增加。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:491
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Who can accept"
 msgstr "谁可以接受"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:300
+#: lib/tuist_web/live/project_bundle_settings_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach GitHub to check that username. Try again in a moment."
 msgstr "无法连接 GitHub 以验证该用户名。请稍后重试。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:296
+#: lib/tuist_web/live/project_bundle_settings_live.ex:321
 #, elixir-autogen, elixir-format
 msgid "That is not a valid GitHub username."
 msgstr "这不是有效的 GitHub 用户名。"
@@ -3289,48 +3290,43 @@ msgstr "项目仪表盘"
 msgid "Project settings"
 msgstr "项目设置"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:375
+#: lib/tuist_web/live/project_bundle_settings_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "Absolute size (MB)"
 msgstr "绝对大小（MB）"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:416
+#: lib/tuist_web/live/project_bundle_settings_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr "当 <strong>%{size_label}</strong> 相比 <strong>%{baseline_branch}</strong> 分支上的最新构建产物增加超过 <strong>%{deviation}</strong> 时，阻止合并 PR。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:424
+#: lib/tuist_web/live/project_bundle_settings_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr "当 <strong>%{bundle_name}</strong> 的 <strong>%{size_label}</strong> 相比 <strong>%{baseline_branch}</strong> 分支上的最新构建产物增加超过 <strong>%{deviation}</strong> 时，阻止合并 PR。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:362
+#: lib/tuist_web/live/project_bundle_settings_live.ex:464
 #, elixir-autogen, elixir-format
 msgid "Enter a valid size threshold."
 msgstr "请输入有效的大小阈值。"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:374
+#: lib/tuist_web/live/project_bundle_settings_live.ex:476
 #, elixir-autogen, elixir-format
 msgid "Percentage (%)"
 msgstr "百分比 (%)"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:365
-#, elixir-autogen, elixir-format
-msgid "The size threshold could not be saved. Check the name and baseline branch."
-msgstr "无法保存大小阈值。请检查名称和基线分支。"
-
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:163
-#: lib/tuist_web/live/project_bundle_settings_live.html.heex:350
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:164
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Threshold type"
 msgstr "阈值类型"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:380
+#: lib/tuist_web/live/project_bundle_settings_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "1 MB = 1,000,000 bytes"
 msgstr "1 MB = 1,000,000 字节"
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:378
+#: lib/tuist_web/live/project_bundle_settings_live.ex:480
 #, elixir-autogen, elixir-format
 msgid "Deviation (MB)"
 msgstr "偏差 (MB)"
@@ -3438,6 +3434,8 @@ msgstr "%{project} 构建与测试洞察 · Tuist"
 msgid "Build times and test results for %{project}, tracked with Tuist's build and test insights."
 msgstr "使用 Tuist 的构建与测试洞察，跟踪 %{project} 的构建时长和测试结果。"
 
+#: lib/tuist_web/live/project_bundle_settings_live.ex:417
+#: lib/tuist_web/live/project_bundle_settings_live.ex:434
 #: lib/tuist_web/live/project_notifications_live.html.heex:75
 #: lib/tuist_web/live/project_notifications_live.html.heex:120
 #: lib/tuist_web/live/project_notifications_live.html.heex:138
@@ -3491,11 +3489,13 @@ msgstr "未安排计划"
 msgid "Only bundles with the selected tag are included in the report's bundle size section. Select All bundles to include every bundle."
 msgstr "只有带有选定标签的包才会被计入报告的包大小部分。选择“所有包”以包含每个包。"
 
+#: lib/tuist_web/live/project_bundle_settings_live.ex:428
 #: lib/tuist_web/live/project_notifications_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Search tags"
 msgstr "搜索标签"
 
+#: lib/tuist_web/live/project_bundle_settings_live.ex:427
 #: lib/tuist_web/live/project_notifications_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Search tags..."
@@ -3505,3 +3505,25 @@ msgstr "搜索标签..."
 #, elixir-autogen, elixir-format
 msgid "Selective test effectiveness is the share of the tests in scope that test selection skipped, across the period's test runs."
 msgstr "选择性测试有效性是指在指定周期内的测试运行中，被测试选择跳过的测试占范围内测试的比例。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:549
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>."
+msgstr "当标记为 <strong>%{tag}</strong> 的 <strong>%{bundle_name}</strong> 包的 <strong>%{size_label}</strong> 相比 <strong>%{baseline_branch}</strong> 上最新标记为 <strong>%{tag}</strong> 的包增加超过 <strong>%{deviation}</strong> 时，阻止合并 PR。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:542
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> of bundles tagged <strong>%{tag}</strong> increases by more than <strong>%{deviation}</strong> compared to the latest bundle tagged <strong>%{tag}</strong> on <strong>%{baseline_branch}</strong>."
+msgstr "当标记为 <strong>%{tag}</strong> 的包的 <strong>%{size_label}</strong> 相比 <strong>%{baseline_branch}</strong> 上最新标记为 <strong>%{tag}</strong> 的包增加超过 <strong>%{deviation}</strong> 时，阻止合并 PR。"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:225
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:290
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:437
+#, elixir-autogen, elixir-format
+msgid "Tag"
+msgstr "标签"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:467
+#, elixir-autogen, elixir-format
+msgid "The size threshold could not be saved. Check the name, baseline branch, and tag."
+msgstr "无法保存大小阈值。请检查名称、基准分支和标签。"

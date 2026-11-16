@@ -41,7 +41,7 @@ To see how one command used the cache, open it from **Invocations**. The invocat
 
 ## Remote execution {#remote-execution}
 
-Tuist can also run your Bazel actions on its Linux executors, so cache misses run remotely instead of on the local machine or CI runner. Remote execution is enabled per account on request: [contact us](mailto:contact@tuist.dev) to turn it on. Once it is enabled, pass `--remote-execution` to setup:
+Tuist can also run your Bazel actions on its Linux executors, so cache misses run remotely instead of on the local machine or CI runner. Remote execution is available for enabled accounts; [email us](mailto:contact@tuist.dev) or [book a call](https://cal.tuist.dev/team/tuist/tuist) to enable it for yours. Then pass `--remote-execution` to setup:
 
 ```bash
 tuist bazel setup --remote-execution

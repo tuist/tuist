@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/archive"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
 	"github.com/tuist/tuist/infra/sandboxd/internal/fakevm"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
