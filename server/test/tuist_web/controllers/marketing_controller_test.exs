@@ -116,8 +116,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Only stories with a confirmed onboarding date show one; the rest show none.
       since =
         Map.new(slides, fn slide ->
-          {hd(LazyHTML.attribute(slide, "data-company")),
-           slide |> LazyHTML.query("[data-part=since]") |> LazyHTML.text()}
+          {hd(LazyHTML.attribute(slide, "data-company")), slide |> LazyHTML.query("[data-part=since]") |> LazyHTML.text()}
         end)
 
       assert since["monday"] =~ "Using Tuist since June 2022"
