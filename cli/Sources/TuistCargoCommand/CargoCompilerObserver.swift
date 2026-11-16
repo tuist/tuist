@@ -173,6 +173,51 @@ struct CargoCompilerObserver {
             return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
         }
         try Task.checkCancellation()
+        // Another build on this machine may be compiling the same key (worktrees or agents sharing the cache): wait for
+        // it, then look in the local store again, which also finds a key such a build stored after this one looked.
+        // Deferred and recorded compilations learn their key only from the compiler, so their flight is the key that
+        // finds their inputs.
+        var flight: CargoFlight?
+        if let root = environment["TUIST_CARGO_CACHE_DIR"].map({ URL(fileURLWithPath: $0) }),
+           let key = (invocation as? CargoCacheInvocation)?.sourceIndex?.declaredKey ?? recorded?.declared ?? invocation?.key,
+           let claim = try await CargoFlight.join(root: root, key: key.hash)
+        {
+            let debug = { (message: String) in
+                guard environment["TUIST_DEBUG"] == "1" else { return }
+                let name = (invocation ?? recorded)?.name ?? "compilation"
+                FileHandle.standardError.write(Data("Tuist Cargo cache: \(name): \(message)\n".utf8))
+            }
+            if claim.waited > 0 { debug("waited \(String(format: "%.1f", claim.waited))s for another build compiling it") }
+            var candidates: [any CargoCacheAction] = []
+            if let rust = invocation as? CargoCacheInvocation {
+                if let listed = await rust.sourceIndex?.get(remote: nil), let keyed = try? rust.keyed(sources: listed) {
+                    candidates.append(keyed)
+                } else if !rust.isDeferred { candidates.append(rust) }
+            } else if let invocation, recorded == nil { candidates.append(invocation) }
+            if let recorded, let reads = await recorded.index?.get(remote: nil), let found = recorded.with(reads) {
+                candidates.append(found)
+            }
+            for candidate in candidates {
+                let hit = CargoCacheMeasurement(invocation: candidate)
+                guard var restored = try? CargoCompilationCache(
+                    invocation: candidate, root: root, remote: nil, measurement: hit
+                ) else { continue }
+                restored.replay = { replayed.stdout = $0; replayed.stderr = $1 }
+                guard try await restored.restoreLocally() else { continue }
+                claim.release()
+                hit.outcome(hit: true)
+                hit.write()
+                await installBuildScript(arguments, environment: environment, directory: directory, native: native)
+                return .replayed(stdout: replayed.stdout, stderr: replayed.stderr)
+            }
+            if claim.waited > 0 {
+                debug("the build that compiled it stored nothing, so builds no longer wait for each other on it")
+                claim.markUnstored()
+                claim.release()
+            } else {
+                flight = claim
+            }
+        }
         if measurement?.hasRemoteFailure == true {
             cache?.remote = nil
             remote = nil
@@ -208,7 +253,7 @@ struct CargoCompilerObserver {
         return .compile(CargoCompilerRun(
             command: command, environment: compileEnvironment, arguments: arguments, hookEnvironment: environment,
             directory: directory, native: native, runner: runner, invocation: invocation, recorded: recorded,
-            cache: cache, measurement: measurement, remote: remote, log: log, strict: strict
+            cache: cache, measurement: measurement, remote: remote, log: log, strict: strict, flight: flight
         ))
     }
 

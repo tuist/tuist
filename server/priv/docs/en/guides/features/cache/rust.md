@@ -31,6 +31,8 @@ Before Cargo starts, Tuist restores the outputs of your registry and git depende
 2. On a local miss, queries Kura through the Remote Execution API (REAPI), downloads any missing content, and verifies the outputs before restoring them.
 3. On a cache miss, runs the compiler normally. After a successful compilation, it stores the outputs locally and uploads them to Kura through REAPI when authorized. The remote cache entry is published only after all of its referenced content is available.
 
+Builds on the same machine share the local cache, including builds in other worktrees or target directories. When another build is already compiling the same crate or running the same build script, Tuist waits for it and restores its outputs instead of doing the same work twice. If that build takes longer than 10 minutes, Tuist stops waiting and compiles the crate itself.
+
 Local and CI builds use the same remote cache protocol. Read and write access come from Tuist's server-issued cache credentials and your account's <.localized_link href="/guides/features/cache#restrict-uploads-to-ci">cache upload policy</.localized_link>. An account can allow developers to download while restricting uploads to CI and account tokens. Cache writers are trusted code producers: cached compiler outputs are executable code, so only grant write access to machines and tokens you trust.
 
 If remote setup fails, local caching remains available. Unavailable, missing, or corrupt cache entries fall back to compilation. An upload failure doesn't fail the build or discard its local cache entry.

@@ -178,6 +178,26 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
             context.debug("restored build-script run")
             return .replayed(stdout: stdout, stderr: stderr)
         }
+        // Like a compilation (`CargoFlight`): another build on this machine may be running the same script.
+        var flight = try? await CargoFlight.join(root: context.root, key: context.declared.hash)
+        if let claim = flight {
+            if claim.waited > 0 {
+                context.debug("waited \(String(format: "%.1f", claim.waited))s for another build running this build script")
+            }
+            if let reads = await context.index.get(remote: nil), let key = try? context.key(reads),
+               let (stdout, stderr) = await context.restore(key: key, remote: nil)
+            {
+                claim.release()
+                context.debug("restored build-script run")
+                return .replayed(stdout: stdout, stderr: stderr)
+            }
+            if claim.waited > 0 {
+                context.debug("the build that ran this build script stored nothing; builds no longer wait on it")
+                claim.markUnstored()
+                claim.release()
+                flight = nil
+            }
+        }
         let log = context.session.appendingPathComponent("reads-\(UUID().uuidString).log")
         // Started directly: `/usr/bin/env` is protected, and macOS drops `DYLD_*` when it starts.
         return .run(Run(
@@ -186,7 +206,7 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
                 environment, library: context.recorder, log: log, toolchain: context.relocation.roots
                     .first(where: { $0.placeholder == "@@TUIST_SYSROOT@@" })?.path ?? ""
             ).merging([CargoReadRecorder.scriptLogVariable: log.path]) { $1 },
-            context: context, log: log, remote: remote
+            context: context, log: log, remote: remote, flight: flight
         ))
     }
 
@@ -197,6 +217,8 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
         let context: Context?
         private let log: URL?
         private let remote: (any REAPICacheStoring)?
+        /// Held until the run is stored, so another build running the same script restores it instead.
+        private let flight: CargoFlight?
         private let started = Date()
         private var stdout = Data()
         private var stderr = Data()
@@ -204,13 +226,14 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
 
         init(
             command: [String], environment: [String: String], context: Context?, log: URL?,
-            remote: (any REAPICacheStoring)? = nil
+            remote: (any REAPICacheStoring)? = nil, flight: CargoFlight? = nil
         ) {
             self.command = command
             self.environment = environment
             self.context = context
             self.log = log
             self.remote = remote
+            self.flight = flight
         }
 
         func standardOutput(_ bytes: Data) {
@@ -237,6 +260,7 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
 
         func discard() {
             if let log { try? FileManager.default.removeItem(at: log) }
+            flight?.release()
         }
     }
 

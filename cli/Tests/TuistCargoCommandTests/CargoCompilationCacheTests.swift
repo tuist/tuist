@@ -138,6 +138,27 @@ struct CargoCompilationCacheTests {
         #expect(try Data(contentsOf: fixture.output.appendingPathComponent(fixture.invocation.files[0])) == Data("library".utf8))
     }
 
+    @Test(.inTemporaryDirectory) func buildsCompilingTheSameKeyWaitForEachOtherWithinABound() async throws {
+        let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
+        let owner = try #require(try await CargoFlight.join(root: root, key: "same"))
+        #expect(owner.waited == 0)
+        let other = try #require(try await CargoFlight.join(root: root, key: "other"), "another key must not wait")
+        #expect(other.waited == 0)
+        other.release()
+        #expect(try await CargoFlight.join(root: root, key: "same", maximumWait: 0.05) == nil)
+        let waiter = Task { try await CargoFlight.join(root: root, key: "same", maximumWait: 30) }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        owner.release()
+        let next = try #require(try await waiter.value, "a waiter must take the key over once its owner releases it")
+        #expect(next.waited > 0)
+        #expect(
+            try await CargoFlight.join(root: root, key: "same", maximumWait: 0.05) == nil,
+            "the build that took the key over must hold it against the next one"
+        )
+        next.release()
+        #expect(try await CargoFlight.join(root: root, key: "same") != nil)
+    }
+
     @Test(.inTemporaryDirectory) func successfulReuseRefreshesBlobRetention() async throws {
         let fixture = try await fixture()
         let cache = try fixture.cache()

@@ -46,6 +46,8 @@ final class CargoCompilerRun: CargoHookRun {
     private let remote: (any REAPICacheStoring)?
     private let log: URL?
     private let strict: Bool
+    /// Held until the result is stored, so another build compiling the same key restores it instead.
+    private let flight: CargoFlight?
     private let started = Date()
     private var stdout = Data()
     private var stderr = Data()
@@ -57,7 +59,7 @@ final class CargoCompilerRun: CargoHookRun {
         command: [String], environment: [String: String], arguments: [String], hookEnvironment: [String: String],
         directory: AbsolutePath, native: Bool, runner: CommandRunning, invocation: (any CargoCacheAction)?,
         recorded: CargoRecordedInvocation?, cache: CargoCompilationCache?, measurement: CargoCacheMeasurement?,
-        remote: (any REAPICacheStoring)?, log: URL?, strict: Bool
+        remote: (any REAPICacheStoring)?, log: URL?, strict: Bool, flight: CargoFlight? = nil
     ) {
         self.command = command
         self.environment = environment
@@ -73,6 +75,7 @@ final class CargoCompilerRun: CargoHookRun {
         self.remote = remote
         self.log = log
         self.strict = strict
+        self.flight = flight
     }
 
     func standardOutput(_ bytes: Data) {
@@ -116,6 +119,7 @@ final class CargoCompilerRun: CargoHookRun {
                 diagnostics: diagnostics
             )
             if !script { await publish?() }
+            flight?.release()
             measurement?.write()
             if let log { try? FileManager.default.removeItem(at: log) }
         }
