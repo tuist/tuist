@@ -57,7 +57,7 @@ cluster:
   # datanode heartbeats fail and writes are rejected, so the deploy switches it
   # with a coordinated stop (.github/scripts/pulse-gc-flip.sh).
   gc:
-    environments: [staging, canary]
+    environments: [staging, canary, production]
   frontend:
     replicas: 2
     # Set only by pulse-gc-flip.sh's deploy: runs no frontends, so writers
