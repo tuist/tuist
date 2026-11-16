@@ -472,11 +472,17 @@ defmodule Tuist.TestImpactAnalysis.Carry do
           FROM test_impact_snapshot_tests
           WHERE project_id = {project_id:Int64} AND snapshot_id IN ({snapshot_id:UUID}, {checkpoint_id:UUID})
           GROUP BY test_idx
-        )
-        SELECT l.path, toString(l.scope), t.module_name, t.suite_name, l.test_idx FROM test_impact_snapshot_lines AS l
-        LEFT JOIN tests AS t ON t.test_idx = l.test_idx
-        WHERE l.project_id = {project_id:Int64} AND l.snapshot_id = {snapshot_id:UUID} AND empty(l.line_ranges)
-          AND l.path NOT IN (
+        ),
+        refs AS (
+          SELECT scope, test_idx, epoch, line_set FROM test_impact_snapshot_lines
+          WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+        ),
+        #{Snapshots.set_files_sql("empty(ranges)")}
+        SELECT p.path, toString(r.scope), t.module_name, t.suite_name, r.test_idx FROM refs AS r
+        INNER JOIN set_files AS f ON f.epoch = r.epoch AND f.line_set = r.line_set
+        INNER JOIN line_paths AS p ON p.epoch = f.epoch AND p.path_id = f.path_id
+        LEFT JOIN tests AS t ON t.test_idx = r.test_idx
+        WHERE p.path NOT IN (
             SELECT path FROM test_impact_snapshot_files
             WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID} AND is_test
           )
@@ -530,12 +536,11 @@ defmodule Tuist.TestImpactAnalysis.Carry do
       Snapshots.query!(
         """
         WITH carried AS (#{Snapshots.idx_sql()}),
-        #{Snapshots.scope_keys_sql()}
-        SELECT path, groupUniqArrayArray(arrayFlatten(arrayMap(
-          i -> range(line_ranges[2 * i - 1], line_ranges[2 * i] + 1), range(1, intDiv(length(line_ranges), 2) + 1))))
-        FROM test_impact_snapshot_lines
-        WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
-          AND ((scope = 'test' AND test_idx IN carried)
+        #{Snapshots.scope_keys_sql()},
+        refs AS (
+          SELECT epoch, line_set FROM test_impact_snapshot_lines
+          WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+            AND ((scope = 'test' AND test_idx IN carried)
             OR (scope = 'suite' AND test_idx IN (
               SELECT test_idx FROM suite_keys WHERE (module_name, suite_name) IN (
                 SELECT module_name, suite_name FROM numbering WHERE test_idx IN carried
@@ -544,11 +549,22 @@ defmodule Tuist.TestImpactAnalysis.Carry do
             OR (scope = 'target' AND test_idx IN (
               SELECT test_idx FROM module_keys WHERE module_name IN {targets:Array(String)}
             )))
-          AND path NOT IN (
+        ),
+        #{Snapshots.set_files_sql()}
+        SELECT p.path, l.lines FROM (
+          -- Ranges are gathered per file before they're expanded: the sets
+          -- come in hash order, not by file, which makes merging each one's
+          -- lines into its file's state slow.
+          SELECT epoch, path_id, arrayDistinct(arrayFlatten(arrayMap((first, last) -> range(first, last + 1),
+            arrayFilter((x, i) -> i % 2 = 1, ranges, arrayEnumerate(ranges)),
+            arrayFilter((x, i) -> i % 2 = 0, ranges, arrayEnumerate(ranges))))) AS lines
+          FROM (SELECT epoch, path_id, groupArrayArray(ranges) AS ranges FROM set_files GROUP BY epoch, path_id)
+        ) AS l
+        INNER JOIN line_paths AS p ON p.epoch = l.epoch AND p.path_id = l.path_id
+        WHERE p.path NOT IN (
             SELECT path FROM test_impact_snapshot_files
             WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID} AND is_test
           )
-        GROUP BY path
         """,
         %{
           project_id: project_id,

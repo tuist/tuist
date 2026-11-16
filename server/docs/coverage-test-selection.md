@@ -232,15 +232,17 @@ A redesign of the evidence storage runs beside the pipeline above for projects w
 
 - **Test maps instead of per-test versions.** A commit's fold writes, through `Tuist.TestImpactAnalysis.Snapshots.record/2`, a **checkpoint** for each scope (repository, scheme, platform) its full runs measured: every test, numbered densely in module, suite and name order, and an inverted index from each repository file to the tests, suites' tests and modules' tests that executed it, as roaring bitmaps. A selective run with an impact run writes an **overlay** against its baseline's checkpoint holding only the tests whose file set or status changed. Maps are built inside ClickHouse from the runs' `coverage_files` evidence, only once the run's results are processed, under an id derived from their inputs.
 - **The shadow decision.** Each clean runs request enqueues `Workers.ShadowWorker`, which decides the run again with `Tuist.TestImpactAnalysis.Shadow`: the diff against the baseline's checkpoint (`Candidate.evaluate/4`), and the branch's newest earlier overlay, read through the diff composed from that overlay's commit to the run's (its own diff, the files changed between the two checkpoints' commits, and the run's diff), unless that composed diff changes a tracked file. Each test is decided by the newest candidate holding evidence for it, except that the primary's `test_file_changed` and `owned_without_evidence` always select. It stores one bitmap per decision, reason and deciding map in `test_impact_run_decisions`, and logs how many tests only one side skipped.
-- **Coverage carry from maps.** `Tuist.Tests.Coverage.Reported.compute(..., source: :snapshots)` carries skipped tests from the maps (`Tuist.TestImpactAnalysis.Carry`) instead of `coverage_test_sources`; each test map also stores its tests' line ranges (`test_impact_snapshot_lines`). Reads still default to the versions.
-- **Retention.** Maps and decisions expire 31 days after their run. `coverage_target_sources` follows them, since a hash-skipped module carries from its source run's map.
+- **Coverage carry from maps.** `Tuist.Tests.Coverage.Reported.compute(..., source: :snapshots)` carries skipped tests from the maps (`Tuist.TestImpactAnalysis.Carry`) instead of `coverage_test_sources`; each test map also points to its tests' line sets (`test_impact_snapshot_lines`). A line set is stored once per project and week, identified by a hash of its files and lines, so a full run writes only the sets that changed since the week's earlier runs. Reads still default to the versions.
+- **Retention.** Maps and decisions expire 31 days after their run, and a week's line sets 31 days after the week ends. `coverage_target_sources` follows them, since a hash-skipped module carries from its source run's map.
 
 | Table | What it holds |
 | --- | --- |
 | `test_impact_snapshots` (PostgreSQL, `Tuist.TestImpactAnalysis.Snapshot`) | One row per map: kind, commit, scope, runs, its checkpoint for an overlay. |
 | `test_impact_snapshot_tests` | A map's tests: number, `test_case_id`, module, suite, status and hashes of the files and lines it executed. |
 | `test_impact_snapshot_files` | The inverted index: per file, bitmaps of the tests, suites' tests and modules' tests that executed it. |
-| `test_impact_snapshot_lines` | The line ranges each test, suite setup and module ran per file, for carry. |
+| `test_impact_snapshot_lines` | Per map, the line set each test, suite setup and module ran, for carry. |
+| `test_impact_line_sets` | Each distinct line set once per project and week: per file number, the line ranges run. |
+| `test_impact_line_paths` | The week's file numbering the line sets use. |
 | `test_impact_run_decisions` | Per impact run, a bitmap of tests per decision, reason and deciding map. |
 
 ## Scope and platform

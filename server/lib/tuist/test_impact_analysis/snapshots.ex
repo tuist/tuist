@@ -270,7 +270,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       )
 
       execute!(files_sql("snapshot_tests"), params)
-      execute!(lines_sql(), params)
+      write_lines(project.id, params, run.ran_at)
 
       Repo.insert!(
         %Snapshot{
@@ -349,7 +349,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
 
     insert_stale(project.id, id, checkpoint, run, changed_files, expires_at)
     execute!(files_sql("snapshot_tests UNION ALL SELECT test_idx, m, s, n FROM checkpoint_module_tests"), params)
-    execute!(lines_sql(), params)
+    write_lines(project.id, params, run.ran_at)
 
     Repo.insert!(%Snapshot{
       id: id,
@@ -575,27 +575,119 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
 
   # The lines each of the snapshot's tests that ran, each suite's setup and
   # each module's processes outside its tests ran per repository file, as
-  # ranges. A suite's and a module's rows are numbered as their lowest test
-  # (`scope_keys_sql/0`); one with no test in the snapshot has nothing to
-  # carry and isn't written.
-  defp lines_sql do
+  # line sets: the snapshot points to each scope's set
+  # (`test_impact_snapshot_lines`), and the sets the run's week doesn't hold
+  # yet are written once (`test_impact_line_sets`), under the week's path
+  # numbers (`test_impact_line_paths`). A suite's and a module's sets are
+  # numbered as their lowest test (`scope_keys_sql/0`); one with no test in
+  # the snapshot has nothing to carry and isn't written.
+  defp write_lines(project_id, params, ran_at) do
+    epoch = epoch(ran_at)
+    params = Map.merge(params, %{epoch: epoch, sets_expire_at: sets_expire_at(epoch)})
+
+    # Path numbers are allocated one writer at a time per project.
+    {:ok, _} =
+      Repo.transaction(
+        fn ->
+          Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["test_impact_line_paths:#{project_id}"])
+          execute!(paths_sql(), params)
+        end,
+        timeout: 60_000
+      )
+
+    execute!(line_refs_sql(), params)
+    execute!(line_sets_sql(), params)
+  end
+
+  # The run's repository files the week hasn't numbered yet, numbered after
+  # the week's last.
+  defp paths_sql do
     """
-    INSERT INTO test_impact_snapshot_lines (project_id, snapshot_id, path, scope, test_idx, line_ranges, expires_at)
-    WITH report AS (
+    INSERT INTO test_impact_line_paths (project_id, epoch, path, path_id, expires_at)
+    WITH known AS (
+      SELECT path, path_id FROM test_impact_line_paths
+      WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+    )
+    SELECT {project_id:Int64}, {epoch:Date}, path,
+      toUInt32((SELECT max(path_id) FROM known) + row_number() OVER (ORDER BY path)), {sets_expire_at:DateTime}
+    FROM (
+      SELECT DISTINCT path FROM coverage_files
+      WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)} AND scope_kind = 'run'
+        AND path NOT IN (SELECT path FROM known)
+    )
+    """
+  end
+
+  # The sets the snapshot points to that the week doesn't hold yet, each
+  # from one scope that has it: only those scopes' lines are read again.
+  defp line_sets_sql do
+    """
+    INSERT INTO test_impact_line_sets (project_id, epoch, line_set, path_ids, line_ranges, expires_at)
+    WITH new_sets AS (
+      SELECT toString(scope) AS scope, test_idx FROM test_impact_snapshot_lines
+      WHERE project_id = {project_id:Int64} AND snapshot_id = {snapshot_id:UUID}
+        AND line_set NOT IN (
+          SELECT line_set FROM test_impact_line_sets WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+        )
+      LIMIT 1 BY line_set
+    ),
+    #{keyed_lines_sql("new_sets")},
+    numbers AS (
+      SELECT path, any(path_id) AS path_id FROM test_impact_line_paths
+      WHERE project_id = {project_id:Int64} AND epoch = {epoch:Date}
+      GROUP BY path
+    ),
+    sets AS (
+      SELECT #{line_set_sql()} AS line_set, arraySort(groupArray((n.path_id, k.ranges))) AS files
+      FROM keyed AS k INNER JOIN numbers AS n ON n.path = k.path
+      GROUP BY k.scope, k.idx
+    )
+    SELECT {project_id:Int64}, {epoch:Date}, line_set, arrayMap(f -> f.1, files), arrayMap(f -> f.2, files),
+      {sets_expire_at:DateTime}
+    FROM sets
+    LIMIT 1 BY line_set
+    """
+  end
+
+  defp line_refs_sql do
+    """
+    INSERT INTO test_impact_snapshot_lines (project_id, snapshot_id, scope, test_idx, epoch, line_set, expires_at)
+    WITH #{keyed_lines_sql()}
+    SELECT {project_id:Int64}, {snapshot_id:UUID}, k.scope, k.idx, {epoch:Date}, #{line_set_sql()}, {expires_at:DateTime}
+    FROM keyed AS k
+    GROUP BY k.scope, k.idx
+    """
+  end
+
+  # A set is identified by its files and their lines, not by its scope or
+  # anything else its run recorded, so identical evidence is shared. It
+  # hashes each file's path and ranges, then the sorted hashes.
+  defp line_set_sql do
+    "sipHash64(arraySort(groupArray(reinterpretAsUInt128(sipHash128(k.path, k.ranges)))))"
+  end
+
+  # `keyed`: per scope (`scope`, `idx`), the lines it ran in each repository
+  # file as ranges, only for the scopes a relation (`scope`, `test_idx`)
+  # lists when one is given. A path a shard's replaced report repeats is
+  # listed twice: readers union a scope's lines per file, so nothing
+  # deduplicates them.
+  defp keyed_lines_sql(scopes \\ nil) do
+    """
+    #{named_tests_sql()},
+    #{scope_keys_sql()},
+    #{scope_ids_sql(scopes)}
+    report AS (
       SELECT path FROM coverage_files
       WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)} AND scope_kind = 'run'
       GROUP BY path
     ),
-    -- A path a shard's replaced report repeats is written twice: readers
-    -- union a scope's lines per file, so nothing deduplicates them here.
     scope_lines AS (
       SELECT scope_kind, scope_id, path, arraySort(line_numbers) AS lines FROM coverage_files
       WHERE project_id = {project_id:Int64} AND test_run_id IN {run_ids:Array(UUID)}
         AND scope_kind IN ('test', 'suite', 'target') AND path IN (SELECT path FROM report)
+        #{if scopes, do: "AND (scope_kind, scope_id) IN (SELECT kind, id FROM scope_ids)"}
     ),
-    #{named_tests_sql()},
-    #{scope_keys_sql()},
-    keyed AS (
+    keyed_lines AS (
       SELECT l.path AS path, 'test' AS scope, t.test_idx AS idx, l.lines AS lines
       FROM scope_lines AS l INNER JOIN snapshot_tests AS t ON l.scope_id = concat(t.m, '\\x1F', t.s, '\\x1F', t.n)
       WHERE l.scope_kind = 'test'
@@ -607,12 +699,56 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
       SELECT l.path, 'target', k.test_idx, l.lines
       FROM scope_lines AS l INNER JOIN module_keys AS k ON l.scope_id = k.module_name
       WHERE l.scope_kind = 'target'
+    ),
+    keyed AS (
+      SELECT path, scope, idx,
+        arrayFlatten(arrayMap(r -> [r[1], r[-1]],
+          arraySplit((x, start) -> start, lines, arrayMap((x, i) -> i = 1 OR x != lines[i - 1] + 1, lines, arrayEnumerate(lines)))))
+          AS ranges
+      FROM keyed_lines
     )
-    SELECT {project_id:Int64}, {snapshot_id:UUID}, path, scope, idx,
-      arrayFlatten(arrayMap(r -> [r[1], r[-1]],
-        arraySplit((x, start) -> start, lines, arrayMap((x, i) -> i = 1 OR x != lines[i - 1] + 1, lines, arrayEnumerate(lines))))),
-      {expires_at:DateTime}
-    FROM keyed
+    """
+  end
+
+  # `scope_ids`: the evidence scope ids of the scopes a relation lists.
+  defp scope_ids_sql(nil), do: ""
+
+  defp scope_ids_sql(scopes) do
+    """
+    scope_ids AS (
+      SELECT 'test' AS kind, concat(m, '\\x1F', s, '\\x1F', n) AS id FROM snapshot_tests
+      WHERE ('test', test_idx) IN (SELECT scope, test_idx FROM #{scopes})
+      UNION ALL
+      SELECT 'suite', concat(module_name, '\\x1F', suite_name) FROM suite_keys
+      WHERE ('suite', test_idx) IN (SELECT scope, test_idx FROM #{scopes})
+      UNION ALL
+      SELECT 'target', module_name FROM module_keys
+      WHERE ('target', test_idx) IN (SELECT scope, test_idx FROM #{scopes})
+    ),
+    """
+  end
+
+  @doc """
+  SQL defining `set_files` (`epoch`, `line_set`, `path_id`, `ranges`): the
+  files of the line sets a `refs` relation (`epoch`, `line_set`) names, by
+  their week's number, with their lines as ranges, empty when only the file
+  is known. `where` narrows the files, as an SQL condition on `ranges`. And
+  `line_paths` (`epoch`, `path_id`, `path`): the paths of those weeks'
+  numbers, to join once the files are narrowed or merged, since a set's
+  files outnumber the paths many times over.
+  """
+  def set_files_sql(where \\ "1") do
+    """
+    set_files AS (
+      SELECT epoch, line_set, path_id, ranges FROM test_impact_line_sets
+      ARRAY JOIN path_ids AS path_id, line_ranges AS ranges
+      WHERE project_id = {project_id:Int64} AND (epoch, line_set) IN (SELECT epoch, line_set FROM refs) AND #{where}
+    ),
+    line_paths AS (
+      SELECT epoch, path_id, any(path) AS path FROM test_impact_line_paths
+      WHERE project_id = {project_id:Int64} AND epoch IN (SELECT epoch FROM refs)
+      GROUP BY epoch, path_id
+    )
     """
   end
 
@@ -755,6 +891,7 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
     params = Map.put_new(params, :checkpoint_id, @zero_uuid)
     # ClickHouse's `DateTime` parameters take whole seconds.
     params = Map.update(params, :expires_at, nil, &DateTime.to_unix/1)
+    params = Map.update(params, :sets_expire_at, nil, &DateTime.to_unix/1)
     IngestRepo.query!(sql, params, settings: @settings)
   end
 
@@ -830,6 +967,13 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   defp fresh?(ran_at), do: DateTime.after?(expires_at(ran_at), DateTime.utc_now())
 
   defp expires_at(ran_at), do: ran_at |> utc() |> DateTime.add(@retention_days * 86_400, :second)
+
+  # The week whose line sets a snapshot of a run at `ran_at` points to: the
+  # Monday that started it. A week's sets expire `@retention_days` after it
+  # ends, after every snapshot of a run in it.
+  defp epoch(ran_at), do: ran_at |> utc() |> DateTime.to_date() |> Date.beginning_of_week()
+
+  defp sets_expire_at(epoch), do: DateTime.new!(Date.add(epoch, 7 + @retention_days), ~T[00:00:00], "Etc/UTC")
 
   defp utc(%DateTime{} = at), do: at
   defp utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")

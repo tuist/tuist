@@ -21,21 +21,29 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
     file belongs to, and `target_tests` every test of a module whose
     processes executed the file only outside its tests. An overlay's rows
     index only its own tests.
-  - `test_impact_snapshot_lines`: the lines each test (`scope` `test`),
-    suite's setup (`suite`) and module's processes outside its tests
-    (`target`) ran in each file, as ranges `[first, last, first, last, …]`,
-    empty when only the file is known: what coverage carry adds for a
-    skipped test. `test_idx` is the test's number, or for a suite or a
-    module the lowest number among its tests in the snapshot's numbering (an
-    overlay's checkpoint's tests and its own). An overlay holds its own
-    tests', and its suites' and modules' that ran.
+  - `test_impact_snapshot_lines`: which line set each test (`scope`
+    `test`), suite's setup (`suite`) and module's processes outside its
+    tests (`target`) ran: what coverage carry adds for a skipped test.
+    `test_idx` is the test's number, or for a suite or a module the lowest
+    number among its tests in the snapshot's numbering (an overlay's
+    checkpoint's tests and its own). An overlay holds its own tests', and
+    its suites' and modules' that ran.
+  - `test_impact_line_sets`: each distinct line set once per project and
+    week (`epoch`, the Monday of the run that wrote it), identified by a
+    hash of its content (`line_set`): per file (`path_ids`), the lines run
+    as ranges `[first, last, first, last, …]`, empty when only the file is
+    known. Lines barely change between full runs, so a snapshot writes only
+    the sets its week doesn't hold yet. A week's sets expire 31 days after
+    the week ends, so they outlive every snapshot that points to them.
+  - `test_impact_line_paths`: the week's path numbering that
+    `test_impact_line_sets` refers to.
   - `test_impact_run_decisions`: what each impact run's decision made of a
     snapshot's tests, one bitmap per decision and reason, in the numbering
     of `snapshot_id`; `evidence_snapshot_id` is the snapshot whose evidence
     decided them.
 
-  Everything expires 31 days after the run that wrote it (`expires_at`),
-  and decisions 31 days after the request.
+  Everything else expires 31 days after the run that wrote it
+  (`expires_at`), and decisions 31 days after the request.
   """
   use Ecto.Migration
 
@@ -90,15 +98,52 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
     (
       `project_id` Int64,
       `snapshot_id` UUID,
-      `path` String CODEC(ZSTD(3)),
       `scope` Enum8('test' = 1, 'suite' = 2, 'target' = 3),
       `test_idx` UInt32 CODEC(Delta, ZSTD(1)),
-      `line_ranges` Array(UInt32) CODEC(ZSTD(3)),
+      `epoch` Date,
+      `line_set` UInt64,
       `expires_at` DateTime
     )
-    ENGINE = #{Migration.engine("MergeTree")}
-    ORDER BY (project_id, snapshot_id, path, scope, test_idx)
+    ENGINE = #{Migration.engine("ReplacingMergeTree")}
+    ORDER BY (project_id, snapshot_id, scope, test_idx)
     TTL expires_at
+    """)
+
+    # A set is one row, so a write interrupted midway never leaves a set
+    # that reads as whole.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("""
+    CREATE TABLE IF NOT EXISTS test_impact_line_sets
+    (
+      `project_id` Int64,
+      `epoch` Date,
+      `line_set` UInt64,
+      `path_ids` Array(UInt32) CODEC(Delta, ZSTD(1)),
+      `line_ranges` Array(Array(UInt32)) CODEC(ZSTD(3)),
+      `expires_at` DateTime
+    )
+    ENGINE = #{Migration.engine("ReplacingMergeTree")}
+    PARTITION BY epoch
+    ORDER BY (project_id, epoch, line_set)
+    TTL expires_at
+    SETTINGS ttl_only_drop_parts = 1
+    """)
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("""
+    CREATE TABLE IF NOT EXISTS test_impact_line_paths
+    (
+      `project_id` Int64,
+      `epoch` Date,
+      `path` String CODEC(ZSTD(3)),
+      `path_id` UInt32,
+      `expires_at` DateTime
+    )
+    ENGINE = #{Migration.engine("ReplacingMergeTree")}
+    PARTITION BY epoch
+    ORDER BY (project_id, epoch, path)
+    TTL expires_at
+    SETTINGS ttl_only_drop_parts = 1
     """)
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
@@ -123,6 +168,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactSnapshotTables do
   def down do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("DROP TABLE IF EXISTS test_impact_run_decisions")
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("DROP TABLE IF EXISTS test_impact_line_paths")
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("DROP TABLE IF EXISTS test_impact_line_sets")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("DROP TABLE IF EXISTS test_impact_snapshot_lines")
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed

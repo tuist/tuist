@@ -31,15 +31,20 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     ])
 
     CoverageFixtures.seed_listing(account, "c1", @paths ++ ["Package.resolved"])
+    full_run(project, account, "c1", files())
 
+    %{project: project, account: account}
+  end
+
+  defp full_run(project, account, sha, files) do
     test_case = fn name, suite -> %{name: name, test_suite_name: suite, status: "success", duration: 10} end
 
     scope = fn module, suite, name, files ->
       %{kind: "test", module: module, suite: suite, name: name, files: files, lines: Enum.map(files, fn _ -> [1, 1] end)}
     end
 
-    CoverageFixtures.run_with_coverage(project, account, files(), %{
-      git_commit_sha: "c1",
+    CoverageFixtures.run_with_coverage(project, account, files, %{
+      git_commit_sha: sha,
       test_modules: [
         %{
           name: "AppTests",
@@ -65,8 +70,6 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
         ]
       }
     })
-
-    %{project: project, account: account}
   end
 
   # Every file with its line covered (`count` 1), at `blobs`' blob where it names one.
@@ -167,6 +170,28 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
 
     CoverageFixtures.run_with_coverage(project, account, files(), %{attrs | test_modules: modules})
     assert %{checkpoint: %{tests_count: 1}} = Snapshots.at(project.id, "c2", "App", "")
+  end
+
+  test "a later full run that ran the same lines points to the line sets already stored",
+       %{project: project, account: account} do
+    count = fn table ->
+      [[count]] =
+        Snapshots.query!("SELECT count() FROM #{table} FINAL WHERE project_id = {project_id:Int64}", %{
+          project_id: project.id
+        })
+
+      count
+    end
+
+    sets = count.("test_impact_line_sets")
+    refs = count.("test_impact_snapshot_lines")
+
+    # Math.swift's content changed without changing the lines the tests ran.
+    full_run(project, account, "c2", files(%{"Sources/Math.swift" => "m2"}))
+
+    assert %{checkpoint: %{commit_sha: "c2"}} = Snapshots.at(project.id, "c2", "App", "")
+    assert count.("test_impact_line_sets") == sets
+    assert count.("test_impact_snapshot_lines") == 2 * refs
   end
 
   test "lists the files a test depends on in a snapshot", %{project: project} do
