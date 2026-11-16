@@ -624,6 +624,67 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
   end
 
+  describe "private_key_jwt client authentication" do
+    setup do
+      private_key_pem = 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
+      stub(Environment, :sso_client_assertion_private_keys, fn -> private_key_pem end)
+      :ok
+    end
+
+    test "configures Entra ID with Tuist's public key instead of a client secret", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["entra"]})
+      html = render_hook(lv, "select_oauth2_client_authentication", %{"value" => ["private_key_jwt"]})
+
+      assert html =~ "/.well-known/sso-client-jwks.json"
+      assert html =~ "/.well-known/sso-client-certificates/"
+      assert html =~ "Certificates &amp; secrets"
+      refute has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+
+      lv
+      |> form("#sso-form", %{
+        "sso" => %{
+          "entra_tenant_id" => "contoso.onmicrosoft.com",
+          "oauth2_client_id" => "test_client_id"
+        }
+      })
+      |> render_submit()
+
+      {:ok, organization} = Accounts.get_organization_by_id(organization.id)
+      assert organization.oauth2_client_authentication_method == :private_key_jwt
+      assert is_nil(organization.oauth2_encrypted_client_secret)
+      assert Accounts.entra_tenant(organization) == "contoso.onmicrosoft.com"
+    end
+
+    test "keeps the method while other fields change and shows the secret field again when switched back", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["okta"]})
+      render_hook(lv, "select_oauth2_client_authentication", %{"value" => ["private_key_jwt"]})
+
+      lv
+      |> form("#sso-form", %{"sso" => %{"okta_domain" => "authsettings-company.okta.com"}})
+      |> render_change()
+
+      assert has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+
+      render_hook(lv, "select_oauth2_client_authentication", %{"value" => ["client_secret_basic"]})
+
+      refute has_element?(lv, ~s([data-testid="sso-client-public-key"]))
+      assert has_element?(lv, ~s(input[name="sso[oauth2_client_secret]"]))
+    end
+  end
+
   describe "Microsoft Entra ID SSO" do
     test "disables save button when the tenant is empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")

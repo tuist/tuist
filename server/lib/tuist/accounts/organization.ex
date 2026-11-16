@@ -9,6 +9,7 @@ defmodule Tuist.Accounts.Organization do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Role
+  alias Tuist.OAuth2.SSOClientAssertion
   alias Tuist.Vault.Binary
 
   @oauth2_endpoint_fields [
@@ -31,6 +32,7 @@ defmodule Tuist.Accounts.Organization do
     :sso_automatic_enrollment,
     :sso_default_role,
     :oauth2_client_id,
+    :oauth2_client_authentication_method,
     :oauth2_encrypted_client_secret,
     :oauth2_authorize_url,
     :oauth2_token_url,
@@ -54,6 +56,13 @@ defmodule Tuist.Accounts.Organization do
     field :sso_automatic_enrollment, :boolean, default: false
     field :sso_default_role, :string, default: "user"
     field :oauth2_client_id, :string
+    # How Tuist authenticates to the organization's token endpoint: with the
+    # stored client secret, or with a client assertion signed by a Tuist key the
+    # organization registered (`private_key_jwt`), in which case no secret is kept.
+    field :oauth2_client_authentication_method, Ecto.Enum,
+      values: [client_secret_basic: 0, private_key_jwt: 1],
+      default: :client_secret_basic
+
     field :oauth2_encrypted_client_secret, Binary
     field :oauth2_authorize_url, :string
     field :oauth2_token_url, :string
@@ -81,6 +90,7 @@ defmodule Tuist.Accounts.Organization do
       :sso_automatic_enrollment,
       :sso_default_role,
       :oauth2_client_id,
+      :oauth2_client_authentication_method,
       :oauth2_encrypted_client_secret,
       :oauth2_authorize_url,
       :oauth2_token_url,
@@ -221,6 +231,7 @@ defmodule Tuist.Accounts.Organization do
     if get_field(changeset, :sso_provider) in @oauth2_providers do
       changeset
       |> validate_required([:sso_organization_id, :oauth2_client_id])
+      |> validate_oauth2_client_authentication_method()
       |> validate_oauth2_client_secret()
       |> validate_oauth2_endpoint_urls()
     else
@@ -229,11 +240,31 @@ defmodule Tuist.Accounts.Organization do
   end
 
   defp validate_oauth2_client_secret(changeset) do
-    if is_nil(get_field(changeset, :oauth2_encrypted_client_secret)) do
-      add_error(changeset, :oauth2_encrypted_client_secret, "can't be blank")
-    else
-      changeset
+    case get_field(changeset, :oauth2_client_authentication_method) do
+      # Switching to `private_key_jwt` drops the stored secret, so moving off a
+      # secret actually stops Tuist from holding it.
+      :private_key_jwt ->
+        put_change(changeset, :oauth2_encrypted_client_secret, nil)
+
+      _ ->
+        if is_nil(get_field(changeset, :oauth2_encrypted_client_secret)) do
+          add_error(changeset, :oauth2_encrypted_client_secret, "can't be blank")
+        else
+          changeset
+        end
     end
+  end
+
+  # Only checked when the method changes, so an instance whose signing keys are
+  # removed still lets existing organizations edit the rest of their settings.
+  defp validate_oauth2_client_authentication_method(changeset) do
+    validate_change(changeset, :oauth2_client_authentication_method, fn field, method ->
+      if method == :private_key_jwt and not SSOClientAssertion.available?() do
+        [{field, "is not available because this server has no SSO signing keys configured"}]
+      else
+        []
+      end
+    end)
   end
 
   defp validate_oauth2_endpoint_urls(changeset) do

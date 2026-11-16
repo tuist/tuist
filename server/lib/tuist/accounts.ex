@@ -67,6 +67,7 @@ defmodule Tuist.Accounts do
     :sso_login_domain_verified_at,
     :sso_automatic_enrollment,
     :oauth2_client_id,
+    :oauth2_client_authentication_method,
     :oauth2_client_secret,
     :oauth2_encrypted_client_secret,
     :oauth2_authorize_url,
@@ -3308,35 +3309,45 @@ defmodule Tuist.Accounts do
   @entra_user_info_url "https://graph.microsoft.com/oidc/userinfo"
   @entra_tenant_regex ~r/\A[a-zA-Z0-9][a-zA-Z0-9._-]*\z/
 
-  def oauth2_config_for_organization(%Organization{
-        sso_provider: provider,
-        sso_organization_id: sso_organization_id,
-        oauth2_client_id: client_id,
-        oauth2_encrypted_client_secret: client_secret,
-        oauth2_authorize_url: authorize_url,
-        oauth2_token_url: token_url,
-        oauth2_user_info_url: user_info_url
-      })
+  def oauth2_config_for_organization(
+        %Organization{
+          sso_provider: provider,
+          sso_organization_id: sso_organization_id,
+          oauth2_client_id: client_id,
+          oauth2_authorize_url: authorize_url,
+          oauth2_token_url: token_url,
+          oauth2_user_info_url: user_info_url
+        } = organization
+      )
       when provider in [:okta, :oauth2] and not is_nil(sso_organization_id) and not is_nil(client_id) and
-             not is_nil(client_secret) and not is_nil(authorize_url) and not is_nil(token_url) and
-             not is_nil(user_info_url) do
-    site = if provider == :okta, do: "https://#{sso_organization_id}", else: sso_organization_id
+             not is_nil(authorize_url) and not is_nil(token_url) and not is_nil(user_info_url) do
+    with {:ok, client_authentication} <- oauth2_client_authentication(organization) do
+      site = if provider == :okta, do: "https://#{sso_organization_id}", else: sso_organization_id
 
-    {:ok,
-     %{
-       site: site,
-       provider_organization_id: sso_organization_id,
-       client_id: client_id,
-       client_secret: client_secret,
-       authorize_url: authorize_url,
-       token_url: token_url,
-       user_info_url: user_info_url
-     }}
+      {:ok,
+       %{
+         site: site,
+         provider_organization_id: sso_organization_id,
+         client_id: client_id,
+         client_authentication: client_authentication,
+         authorize_url: authorize_url,
+         token_url: token_url,
+         user_info_url: user_info_url
+       }}
+    end
   end
 
   def oauth2_config_for_organization(_organization) do
     {:error, :oauth2_not_configured}
   end
+
+  defp oauth2_client_authentication(%Organization{oauth2_client_authentication_method: :private_key_jwt}),
+    do: {:ok, :private_key_jwt}
+
+  defp oauth2_client_authentication(%Organization{oauth2_encrypted_client_secret: secret}) when is_binary(secret),
+    do: {:ok, {:client_secret_basic, secret}}
+
+  defp oauth2_client_authentication(_organization), do: {:error, :oauth2_not_configured}
 
   def okta_authorize_url(domain), do: "https://#{domain}#{@okta_authorize_path}"
   def okta_token_url(domain), do: "https://#{domain}#{@okta_token_path}"

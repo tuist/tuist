@@ -2171,6 +2171,15 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  One or more RSA private keys, concatenated as PEM, that sign the client
+  assertions organizations using `private_key_jwt` SSO verify. The first key
+  signs; all are published. See `Tuist.OAuth2.SSOClientAssertion`.
+  """
+  def sso_client_assertion_private_keys(secrets \\ secrets()) do
+    get([:sso, :client_assertion_private_keys], secrets)
+  end
+
+  @doc """
   Whether cache tokens are signed with `secret_key_cache_tokens/1` yet.
 
   Deliberately separate from holding the key. Installing the key teaches a

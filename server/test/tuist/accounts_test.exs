@@ -1031,6 +1031,78 @@ defmodule Tuist.AccountsTest do
       assert reloaded_org.oauth2_encrypted_client_secret == plain_secret
     end
 
+    test "switching to private_key_jwt drops the stored client secret" do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> rsa_private_key_pem() end)
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "test.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "old_secret"
+        )
+
+      assert {:ok, updated_org} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 "oauth2_client_authentication_method" => "private_key_jwt"
+               })
+
+      {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
+      assert reloaded_org.oauth2_client_authentication_method == :private_key_jwt
+      assert is_nil(reloaded_org.oauth2_encrypted_client_secret)
+      assert {:ok, %{client_authentication: :private_key_jwt}} = Accounts.oauth2_config_for_organization(reloaded_org)
+    end
+
+    test "configures private_key_jwt without a client secret" do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> rsa_private_key_pem() end)
+      organization = AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture())
+
+      assert {:ok, updated_org} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_authentication_method: :private_key_jwt,
+                 sso_organization_id: "test.okta.com"
+               })
+
+      assert updated_org.oauth2_client_authentication_method == :private_key_jwt
+      assert is_nil(updated_org.oauth2_encrypted_client_secret)
+    end
+
+    test "rejects private_key_jwt when the server has no signing keys" do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> nil end)
+      organization = AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture())
+
+      assert {:error, changeset} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_authentication_method: :private_key_jwt,
+                 sso_organization_id: "test.okta.com"
+               })
+
+      assert %{oauth2_client_authentication_method: [_]} = errors_on(changeset)
+    end
+
+    test "switching back to a client secret requires one" do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> rsa_private_key_pem() end)
+      organization = AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture())
+
+      {:ok, organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_authentication_method: :private_key_jwt,
+          sso_organization_id: "test.okta.com"
+        })
+
+      assert {:error, changeset} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 oauth2_client_authentication_method: :client_secret_basic
+               })
+
+      assert %{oauth2_encrypted_client_secret: ["can't be blank"]} = errors_on(changeset)
+    end
+
     test "returns error when organization doesn't exist" do
       result =
         Accounts.update_sso_configuration(999_999, :okta, %{
@@ -1147,7 +1219,7 @@ defmodule Tuist.AccountsTest do
       assert config.site == "https://auth.example.com"
       assert config.provider_organization_id == "https://auth.example.com"
       assert config.client_id == "test_client_id"
-      assert config.client_secret == "test_client_secret"
+      assert config.client_authentication == {:client_secret_basic, "test_client_secret"}
       assert config.authorize_url == "https://auth.example.com/oauth2/authorize"
       assert config.token_url == "https://auth.example.com/oauth2/token"
       assert config.user_info_url == "https://auth.example.com/oauth2/userinfo"
@@ -1169,10 +1241,24 @@ defmodule Tuist.AccountsTest do
       assert config.site == "https://dev-example.okta.com"
       assert config.provider_organization_id == "dev-example.okta.com"
       assert config.client_id == "test_client_id"
-      assert config.client_secret == "test_client_secret"
+      assert config.client_authentication == {:client_secret_basic, "test_client_secret"}
       assert config.authorize_url == "https://dev-example.okta.com/oauth2/v1/authorize"
       assert config.token_url == "https://dev-example.okta.com/oauth2/v1/token"
       assert config.user_info_url == "https://dev-example.okta.com/oauth2/v1/userinfo"
+    end
+
+    test "returns error for a client-secret organization without a secret" do
+      organization = %Organization{
+        sso_provider: :oauth2,
+        sso_organization_id: "https://auth.example.com",
+        oauth2_client_id: "test_client_id",
+        oauth2_client_authentication_method: :client_secret_basic,
+        oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+        oauth2_token_url: "https://auth.example.com/oauth2/token",
+        oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+      }
+
+      assert {:error, :oauth2_not_configured} = Accounts.oauth2_config_for_organization(organization)
     end
 
     test "returns error for a non-OAuth2 organization" do
@@ -7243,5 +7329,9 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_account_ids_by_handles([account.name, downcased, "no-such-account-#{account.id}"]) ==
                %{account.name => account.id, downcased => account.id}
     end
+  end
+
+  defp rsa_private_key_pem do
+    2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
   end
 end

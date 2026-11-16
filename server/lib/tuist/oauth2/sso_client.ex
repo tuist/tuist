@@ -8,25 +8,40 @@ defmodule Tuist.OAuth2.SSOClient do
   """
 
   alias Tuist.Environment
+  alias Tuist.OAuth2.SSOClientAssertion
   alias Tuist.OAuth2.SSRFGuard
 
-  def exchange_token(token_url, code, redirect_uri, client_id, client_secret) do
-    with {:ok, request_url, request_options} <- request_url_and_options(token_url) do
+  @doc """
+  Exchanges an authorization code at the organization's token endpoint.
+
+  `client_authentication` is `{:client_secret_basic, secret}` for organizations
+  that gave Tuist a client secret, or `:private_key_jwt` for organizations that
+  registered Tuist's public key, in which case a signed client assertion
+  (RFC 7523) replaces the secret.
+  """
+  def exchange_token(token_url, code, redirect_uri, client_id, client_authentication) do
+    with {:ok, request_url, request_options} <- request_url_and_options(token_url),
+         {:ok, auth_params, auth_headers} <- client_authentication(client_authentication, client_id, token_url) do
       body =
-        URI.encode_query(%{
-          grant_type: "authorization_code",
-          code: code,
-          redirect_uri: redirect_uri
-        })
+        URI.encode_query(
+          Map.merge(
+            %{
+              grant_type: "authorization_code",
+              code: code,
+              redirect_uri: redirect_uri
+            },
+            auth_params
+          )
+        )
 
       request_options =
         Keyword.merge(request_options,
           body: body,
-          headers: [
-            {"content-type", "application/x-www-form-urlencoded"},
-            {"accept", "application/json"},
-            {"authorization", "Basic " <> Base.encode64("#{client_id}:#{client_secret}")}
-          ],
+          headers:
+            [
+              {"content-type", "application/x-www-form-urlencoded"},
+              {"accept", "application/json"}
+            ] ++ auth_headers,
           decode_body: false
         )
 
@@ -40,6 +55,23 @@ defmodule Tuist.OAuth2.SSOClient do
         {:error, reason} ->
           {:error, reason}
       end
+    end
+  end
+
+  defp client_authentication({:client_secret_basic, client_secret}, client_id, _token_url) do
+    {:ok, %{}, [{"authorization", "Basic " <> Base.encode64("#{client_id}:#{client_secret}")}]}
+  end
+
+  # The assertion's audience is the configured token URL, never the SSRF-pinned
+  # address the request is actually sent to.
+  defp client_authentication(:private_key_jwt, client_id, token_url) do
+    with {:ok, assertion} <- SSOClientAssertion.sign(client_id, token_url) do
+      {:ok,
+       %{
+         client_id: client_id,
+         client_assertion_type: SSOClientAssertion.client_assertion_type(),
+         client_assertion: assertion
+       }, []}
     end
   end
 

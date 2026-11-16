@@ -5,6 +5,7 @@ defmodule TuistWeb.WellKnownController do
   alias Tuist.Environment
   alias Tuist.MCP.Server
   alias Tuist.OAuth.Clients
+  alias Tuist.OAuth2.SSOClientAssertion
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -247,6 +248,38 @@ defmodule TuistWeb.WellKnownController do
     |> put_resp_content_type("application/json")
     |> put_resp_header("cache-control", "public, max-age=3600")
     |> json(Accounts.agent_auth_service_jwks())
+  end
+
+  @doc """
+  Publishes the keys Tuist signs `private_key_jwt` client assertions with, for
+  organizations whose identity provider fetches the client's JWKS. During a
+  rotation both the signing key and the next key are listed.
+  """
+  def sso_client_jwks(conn, _params) do
+    conn
+    |> put_resp_header("cache-control", "public, max-age=3600")
+    |> json(SSOClientAssertion.jwks())
+  end
+
+  @doc """
+  Serves the self-signed certificate of one published signing key as PEM, for
+  identity providers such as Microsoft Entra ID that take an uploaded
+  certificate instead of a JWKS.
+  """
+  def sso_client_certificate(conn, %{"kid" => kid}) do
+    case SSOClientAssertion.certificate_pem(String.trim_trailing(kid, ".pem")) do
+      {:ok, pem} ->
+        conn
+        |> put_resp_content_type("application/x-pem-file")
+        |> put_resp_header("content-disposition", ~s(attachment; filename="tuist-sso-client.pem"))
+        |> put_resp_header("cache-control", "public, max-age=3600")
+        |> send_resp(:ok, pem)
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "No published SSO client certificate has this key ID."})
+    end
   end
 
   @doc """

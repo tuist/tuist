@@ -766,7 +766,98 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
+      <div
+        :if={
+          @sso_enabled and oauth2_form_provider?(@selected_provider) and
+            (@sso_client_assertion_available or private_key_jwt?(@current_form_params))
+        }
+        data-part="section"
+      >
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Client authentication")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "How Tuist proves its identity to your provider. With a public key, you register Tuist's key with your provider and Tuist stores no secret."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.select
+            id="sso-client-authentication-select"
+            name="oauth2_client_authentication_method"
+            value={@current_form_params["oauth2_client_authentication_method"]}
+            label={dgettext("dashboard_account", "Method")}
+            on_value_change="select_oauth2_client_authentication"
+          >
+            <:item
+              value="client_secret_basic"
+              label={dgettext("dashboard_account", "Client secret")}
+            />
+            <:item
+              value="private_key_jwt"
+              label={dgettext("dashboard_account", "Tuist public key (private_key_jwt)")}
+            />
+          </.select>
+        </div>
+      </div>
+
+      <div
+        :if={
+          @sso_enabled and oauth2_form_provider?(@selected_provider) and
+            private_key_jwt?(@current_form_params)
+        }
+        data-part="section"
+        data-testid="sso-client-public-key"
+      >
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Tuist public key")}
+          </span>
+          <span data-part="description">
+            <%= if @selected_provider == "entra" do %>
+              {dgettext(
+                "dashboard_account",
+                "In your app registration, open Certificates & secrets and upload each certificate below. Tuist signs with the first one; any other is the next key during a rotation."
+              )}
+            <% else %>
+              {dgettext(
+                "dashboard_account",
+                "Set your application's client authentication to private key JWT and add Tuist's public keys, preferably through the JWKS URL below so key rotations need no action from you."
+              )}
+            <% end %>
+          </span>
+        </div>
+        <div data-part="field">
+          <.copyable_value
+            id="sso-client-jwks-url"
+            value={@sso_client_jwks_url}
+            copy_label={dgettext("dashboard_account", "Copy JWKS URL")}
+          />
+          <div :for={{kid, url} <- @sso_client_certificate_urls} data-part="certificate-link">
+            <.link_button
+              href={url}
+              label={
+                dgettext("dashboard_account", "Download certificate %{key_id}",
+                  key_id: String.slice(kid, 0, 8)
+                )
+              }
+              variant="secondary"
+              size="small"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div
+        :if={
+          @sso_enabled and oauth2_form_provider?(@selected_provider) and
+            not private_key_jwt?(@current_form_params)
+        }
+        data-part="section"
+      >
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client secret")}

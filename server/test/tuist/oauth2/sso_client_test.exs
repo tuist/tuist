@@ -31,7 +31,7 @@ defmodule Tuist.OAuth2.SSOClientTest do
                  "the-code",
                  "https://app.example.com/callback",
                  "client-id",
-                 "client-secret"
+                 {:client_secret_basic, "client-secret"}
                )
     end
 
@@ -49,7 +49,51 @@ defmodule Tuist.OAuth2.SSOClientTest do
       end)
 
       assert {:ok, _} =
-               SSOClient.exchange_token("https://idp.example.com/token", "code", "https://cb", "my-id", "my-secret")
+               SSOClient.exchange_token(
+                 "https://idp.example.com/token",
+                 "code",
+                 "https://cb",
+                 "my-id",
+                 {:client_secret_basic, "my-secret"}
+               )
+    end
+
+    test "authenticates with a signed client assertion instead of a secret for private_key_jwt" do
+      tuist_hosted()
+      private_key_pem = 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
+      stub(Environment, :sso_client_assertion_private_keys, fn -> private_key_pem end)
+      expect(SSRFGuard, :pin, fn _url -> {:ok, "https://203.0.113.10/token", "idp.example.com"} end)
+      expect(SSRFGuard, :connect_options, fn _ -> [] end)
+
+      expect(Req, :post, fn "https://203.0.113.10/token", opts ->
+        refute List.keyfind(opts[:headers], "authorization", 0)
+        body = URI.decode_query(opts[:body])
+
+        assert body["client_id"] == "my-id"
+        assert body["client_assertion_type"] == "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+        refute Map.has_key?(body, "client_secret")
+
+        # The audience is the configured token URL, not the pinned address.
+        claims = JOSE.JWT.peek_payload(body["client_assertion"]).fields
+        assert claims["aud"] == "https://idp.example.com/token"
+        assert claims["iss"] == "my-id"
+
+        {:ok, %Req.Response{status: 200, body: ~s({"access_token":"tok"})}}
+      end)
+
+      assert {:ok, %{"access_token" => "tok"}} =
+               SSOClient.exchange_token("https://idp.example.com/token", "code", "https://cb", "my-id", :private_key_jwt)
+    end
+
+    test "fails without a request when private_key_jwt has no signing keys" do
+      tuist_hosted()
+      stub(Environment, :sso_client_assertion_private_keys, fn -> nil end)
+      expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
+      expect(SSRFGuard, :connect_options, fn _ -> [] end)
+      reject(&Req.post/2)
+
+      assert {:error, :sso_client_assertion_not_configured} =
+               SSOClient.exchange_token("https://idp.example.com/token", "code", "https://cb", "my-id", :private_key_jwt)
     end
 
     test "returns an error tuple when the token endpoint returns a non-2xx status" do
@@ -62,7 +106,13 @@ defmodule Tuist.OAuth2.SSOClientTest do
       end)
 
       assert {:error, {:token_exchange_failed, 400, _body}} =
-               SSOClient.exchange_token("https://idp.example.com/token", "bad-code", "https://cb", "id", "secret")
+               SSOClient.exchange_token(
+                 "https://idp.example.com/token",
+                 "bad-code",
+                 "https://cb",
+                 "id",
+                 {:client_secret_basic, "secret"}
+               )
     end
 
     test "propagates SSRFGuard pin errors" do
@@ -70,7 +120,13 @@ defmodule Tuist.OAuth2.SSOClientTest do
       expect(SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
 
       assert {:error, :private_ip_resolved} =
-               SSOClient.exchange_token("https://10.0.0.1/token", "code", "https://cb", "id", "secret")
+               SSOClient.exchange_token(
+                 "https://10.0.0.1/token",
+                 "code",
+                 "https://cb",
+                 "id",
+                 {:client_secret_basic, "secret"}
+               )
     end
 
     test "propagates Req transport errors" do
@@ -80,7 +136,13 @@ defmodule Tuist.OAuth2.SSOClientTest do
       expect(Req, :post, fn _url, _opts -> {:error, %Mint.TransportError{reason: :timeout}} end)
 
       assert {:error, %Mint.TransportError{reason: :timeout}} =
-               SSOClient.exchange_token("https://idp.example.com/token", "code", "https://cb", "id", "secret")
+               SSOClient.exchange_token(
+                 "https://idp.example.com/token",
+                 "code",
+                 "https://cb",
+                 "id",
+                 {:client_secret_basic, "secret"}
+               )
     end
 
     test "does not pin token requests on self-hosted installations" do
@@ -95,7 +157,13 @@ defmodule Tuist.OAuth2.SSOClientTest do
       end)
 
       assert {:ok, %{"access_token" => "tok"}} =
-               SSOClient.exchange_token("https://10.0.0.1/token", "code", "https://cb", "id", "secret")
+               SSOClient.exchange_token(
+                 "https://10.0.0.1/token",
+                 "code",
+                 "https://cb",
+                 "id",
+                 {:client_secret_basic, "secret"}
+               )
     end
   end
 

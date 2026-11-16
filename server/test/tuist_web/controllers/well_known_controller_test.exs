@@ -536,4 +536,32 @@ defmodule TuistWeb.WellKnownControllerTest do
              ]["sha256_cert_fingerprints"]
     end
   end
+
+  describe "GET /.well-known/sso-client-jwks.json and /.well-known/sso-client-certificates/:kid" do
+    test "publishes every SSO signing key and serves each key's certificate", %{conn: conn} do
+      signing_key = X509.PrivateKey.new_rsa(2048)
+      next_key = X509.PrivateKey.new_rsa(2048)
+
+      stub(Environment, :sso_client_assertion_private_keys, fn ->
+        X509.PrivateKey.to_pem(signing_key) <> X509.PrivateKey.to_pem(next_key)
+      end)
+
+      %{"keys" => [signing_jwk, next_jwk]} = conn |> get("/.well-known/sso-client-jwks.json") |> json_response(200)
+
+      assert Enum.all?([signing_jwk, next_jwk], &(not Map.has_key?(&1, "d")))
+
+      certificate_conn = get(conn, "/.well-known/sso-client-certificates/#{next_jwk["kid"]}.pem")
+
+      assert response(certificate_conn, 200) =~ "-----BEGIN CERTIFICATE-----"
+      certificate = X509.Certificate.from_pem!(certificate_conn.resp_body)
+      assert X509.Certificate.public_key(certificate) == X509.PublicKey.derive(next_key)
+    end
+
+    test "returns not found for an unpublished key", %{conn: conn} do
+      stub(Environment, :sso_client_assertion_private_keys, fn -> nil end)
+
+      assert conn |> get("/.well-known/sso-client-jwks.json") |> json_response(200) == %{"keys" => []}
+      assert conn |> get("/.well-known/sso-client-certificates/unknown.pem") |> json_response(404)
+    end
+  end
 end

@@ -838,7 +838,7 @@ defmodule TuistWeb.AuthController do
              conn.params["code"],
              sso_callback_url(route_provider),
              config.client_id,
-             config.client_secret
+             config.client_authentication
            ),
          {:ok, userinfo} <- SSOClient.fetch_userinfo(config.user_info_url, token_body["access_token"]),
          {:ok, uid, email} <- validate_sso_userinfo(userinfo) do

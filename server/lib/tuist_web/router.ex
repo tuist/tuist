@@ -886,6 +886,10 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
+    get "/sso-client-jwks.json", WellKnownController, :sso_client_jwks, metadata: %{robots_txt: false}
+
+    get "/sso-client-certificates/:kid", WellKnownController, :sso_client_certificate, metadata: %{robots_txt: false}
+
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/struo", WellKnownController, :once_discovery, metadata: %{robots_txt: false}

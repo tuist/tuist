@@ -514,6 +514,7 @@ defmodule TuistWeb.API.OrganizationsController do
               sso_automatic_enrollment: false,
               oauth2_client_id: nil,
               oauth2_encrypted_client_secret: nil,
+              oauth2_client_authentication_method: :client_secret_basic,
               oauth2_authorize_url: nil,
               oauth2_token_url: nil,
               oauth2_user_info_url: nil

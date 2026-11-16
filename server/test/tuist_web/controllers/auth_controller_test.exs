@@ -10,6 +10,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.User
+  alias Tuist.Environment
   alias Tuist.OAuth2.SSOClient
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -411,6 +412,52 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert oauth_identity.user.id == existing_user.id
       assert oauth_identity.provider_organization_id == "dev-123456"
+    end
+
+    test "exchanges the code with a client assertion for a private_key_jwt organization", %{conn: conn} do
+      private_key_pem = 2048 |> X509.PrivateKey.new_rsa() |> X509.PrivateKey.to_pem()
+      stub(Environment, :sso_client_assertion_private_keys, fn -> private_key_pem end)
+      existing_user = AccountsFixtures.user_fixture(email: "existing-okta-pkjwt@authctl-example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: existing_user,
+          sso_provider: :okta,
+          sso_organization_id: "dev-pkjwt",
+          sso_login_domain: "authctl-example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "pkjwt-client",
+          oauth2_client_secret: UUIDv7.generate()
+        )
+
+      {:ok, organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_authentication_method: :private_key_jwt
+        })
+
+      expect(SSOClient, :exchange_token, fn "https://dev-pkjwt/oauth2/v1/token",
+                                            "auth-code",
+                                            _redirect_uri,
+                                            "pkjwt-client",
+                                            :private_key_jwt ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "okta-pkjwt-user", "email" => existing_user.email, "name" => "Existing User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :okta
+        })
+        |> get("/users/auth/okta/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
     end
 
     test "raises unauthorized error when organization is not configured for SSO", %{conn: conn} do
@@ -1676,7 +1723,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "https://other.authctl-example.com"
         )
 
-      stub(Tuist.Environment, :sso_require_login_domain_verification?, fn -> false end)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
       %{organization: organization, other: other}
     end
 
@@ -1719,7 +1766,7 @@ defmodule TuistWeb.AuthControllerTest do
     test "never instance-trusts the operator email domain", %{conn: conn} do
       organization =
         custom_provider_organization(
-          sso_login_domain: Tuist.Environment.operator_email_domain(),
+          sso_login_domain: Environment.operator_email_domain(),
           sso_organization_id: "https://idp.authctl-tenant.example"
         )
 
@@ -1822,7 +1869,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "a Google callback returns to its own tab after another preview rewrites the session", %{conn: conn} do
-      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      stub(Environment, :google_oauth_configured?, fn -> true end)
       user = AccountsFixtures.user_fixture(email: "tabs@authctl-example.com")
       AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, id_in_provider: "google-tabs")
       project = ProjectsFixtures.project_fixture(account: user.account)
@@ -1863,7 +1910,7 @@ defmodule TuistWeb.AuthControllerTest do
 
     @tag :session_compatibility
     test "a pre-upgrade Google callback retains its signed-session destination", %{conn: conn} do
-      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      stub(Environment, :google_oauth_configured?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google, id_in_provider: "legacy-in-flight")
       path = ~p"/#{user.account.name}/settings"
@@ -2002,7 +2049,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
-      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given: A user already exists with a specific email
       existing_user = AccountsFixtures.user_fixture(email: "existing@authctl-example.com")
 
@@ -2039,7 +2086,7 @@ defmodule TuistWeb.AuthControllerTest do
     test "a provider sign-in claims an unconfirmed account and voids the password it was registered with", %{
       conn: conn
     } do
-      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       attacker_password = "attacker password!"
       {:ok, victim} = Accounts.create_user("victim@authctl-example.com", password: attacker_password, confirmed_at: nil)
 
@@ -2061,7 +2108,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "does not link an email-matched account while email confirmation is skipped", %{conn: conn} do
-      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
       attacker_password = "attacker password!"
       # Without email confirmation the account is confirmed at registration.
       {:ok, attacker_account} = Accounts.create_user("victim@authctl-example.com", password: attacker_password)
@@ -2083,7 +2130,7 @@ defmodule TuistWeb.AuthControllerTest do
     test "links another provider while email confirmation is skipped once a provider proved the email", %{
       conn: conn
     } do
-      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
 
       user =
         Accounts.find_or_create_user_from_oauth2(%{
@@ -2150,10 +2197,10 @@ defmodule TuistWeb.AuthControllerTest do
       # The account may predate mail being configured, when sign-ups were
       # confirmed automatically, so its password may belong to whoever
       # registered the owner's address first.
-      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
-      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
-      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
-      stub(Tuist.Environment, :operator_email_domain, fn -> "authctl-example.com" end)
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "authctl-example.com" end)
       password = "StrongP@ssword!2037"
       squatted = AccountsFixtures.user_fixture(email: "auto-confirmed@authctl-example.com", password: password)
       assert squatted.confirmed_at
@@ -2250,7 +2297,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "rejects the GitHub callback when GitHub auth is disabled", %{conn: conn} do
-      stub(Tuist.Environment, :github_auth_enabled?, fn -> false end)
+      stub(Environment, :github_auth_enabled?, fn -> false end)
 
       auth = %Ueberauth.Auth{
         provider: :github,
@@ -2267,7 +2314,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "rejects the Google callback when Google auth is disabled", %{conn: conn} do
-      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+      stub(Environment, :google_auth_enabled?, fn -> false end)
 
       auth = %Ueberauth.Auth{
         provider: :google,
@@ -2284,7 +2331,7 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "rejects the Apple callback when Apple auth is disabled", %{conn: conn} do
-      stub(Tuist.Environment, :apple_auth_enabled?, fn -> false end)
+      stub(Environment, :apple_auth_enabled?, fn -> false end)
 
       auth = %Ueberauth.Auth{
         provider: :apple,

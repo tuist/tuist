@@ -346,6 +346,7 @@ defmodule Tuist do
       OAuth.Google,
       OAuth.Introspection,
       OAuth2.SSOClient,
+      OAuth2.SSOClientAssertion,
       OAuth2.SSRFGuard,
       SCIM,
       SCIM.Filter,
