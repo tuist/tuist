@@ -39,8 +39,9 @@ for environment in staging canary; do
     (one("ExternalSecret"; "pulse-dashboard-auth") |
       .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
       (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo=")) and
-      # No Sentry writer unless the environment opts in (below).
-      (.spec.data | length) == 1 and (.spec.target.template.data.passwd | contains("sentry") | not) and
+      # The Sentry writer only where values.yaml opts in: staging (see below).
+      ((.spec.data | length) == 2) == ($ns == "tuist-staging") and
+      (.spec.target.template.data.passwd | contains("sentry")) == ($ns == "tuist-staging") and
       .spec.target.template.data["ingest-username"] == "tuist" and
       (.spec.target.template.data["ingest-password"] | contains(".token"))) and
     (one("Deployment"; "pulse-frontend").spec.template.spec |
