@@ -393,5 +393,18 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     assert {:error, {node_name, :not_connected}} = Capacity.admission(environment, "paused-session")
     assert node_name == node.name
+
+    # An archived session's sandbox left its host, so any host with room admits it.
+    sandbox(
+      state: :archived,
+      agent_environment_id: environment.id,
+      anthropic_session_id: "archived-session",
+      archive_key: "k",
+      archived_at: DateTime.utc_now()
+    )
+
+    assert :ok = Capacity.admission(environment, "archived-session")
+    stub(Nodes, :connected_nodes, fn -> [put_in(node.admission["slots"], 0)] end)
+    assert {:error, {:no_node, %{}}} = Capacity.admission(environment, "archived-session")
   end
 end

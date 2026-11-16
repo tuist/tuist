@@ -108,6 +108,10 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   """
   def admission(environment, session_id) do
     case Sandboxes.get_sandbox_for_session(environment.id, session_id) do
+      # An archived sandbox has no host; it restores wherever a new one would go.
+      %Sandbox{state: :archived} = sandbox ->
+        with :ok <- quota(sandbox), do: placement(environment)
+
       %Sandbox{} = sandbox ->
         with :ok <- quota(sandbox), do: host_admission(sandbox)
 
