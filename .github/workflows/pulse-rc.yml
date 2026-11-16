@@ -67,7 +67,7 @@ jobs:
       branch: ${{ steps.resolve.outputs.branch }}
       changelog_from: ${{ steps.resolve.outputs.changelog_from }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.branch == '' && github.event.repository.default_branch || inputs.branch }}
           fetch-depth: 0
@@ -107,7 +107,7 @@ jobs:
     runs-on: tuist-linux
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}

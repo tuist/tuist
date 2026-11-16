@@ -74,6 +74,34 @@ through Helm, without a separate human kubectl elevation.
 
 Server CI's Format job runs `scripts/server-clickhouse.test.sh` against the real local/CI launcher with stubbed ClickHouse/HTTP commands and child-process-only file limits. Cover low soft limits, already-raised limits, restricted hard ceilings, unsupported raises and the already-running fast path. The launcher raises ClickHouse's soft limit to its available hard limit before spawning it; do not replace this safeguard with seed retries or reduce seed coverage to hide file-descriptor exhaustion.
 
+## Deploy sources, credentials and action pins
+
+Production deploys (`server-deployment.yml` with `environment: production`, and
+every `tuist-ops-deployment.yml` run) start with
+`scripts/production-source-guard.sh`: the run must come from main,
+`commit_sha` must be a full SHA that main contains, and every pre-built
+`sha-<hex>` image override must name a commit on main. A run from main can name
+any commit or any image a branch build pushed, so checking `github.ref` alone is
+not enough. Pass new `sha-`-tagged override inputs to the guard too. Helm CI
+runs its test, `bash .github/scripts/production-source-guard.test.sh`.
+
+The guard does not close the path on its own. Image tags are mutable, and
+overrides in other forms (Kura runtime semvers, macOS runner, CAPI and xcresult
+processor tags, digests) cannot be traced to a commit and are not checked. The
+guard also lives in the workflow it protects. The `server-k8s-production`
+environment's main-only branch policy and required reviewers remain the
+control; those settings are not in the repository.
+
+The repository-level `OP_SERVICE_ACCOUNT_TOKEN` reads the `tuist` vault (Cloudflare,
+the Automation GitHub App key, signing keys). Set it only in the env of the
+steps that call `op`, never at job or workflow level, and never in a job that
+builds pull request or branch code, including team members' pull requests.
+
+Deploy and release workflows and the composite actions under `actions/` use
+third-party actions by full commit SHA with the exact version in a trailing
+comment (`@<sha> # v4.4.0`). Renovate pins new references in those files and
+bumps SHA and comment together. `tuist/*` actions stay on major tags.
+
 ## Server production deployment
 
 `workflows/server-production-deployment.yml` decides whether a push deploys by

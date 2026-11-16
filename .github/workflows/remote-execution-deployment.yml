@@ -72,7 +72,7 @@ jobs:
         run: |
           echo "::error::Production deploys must run from refs/heads/main. Current ref: ${{ github.ref }}"
           exit 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
@@ -117,7 +117,7 @@ jobs:
       TEMPLATE_IMAGE_TAG: ${{ inputs.template_image_tag || needs.build-template.outputs.image_tag }}
       SANDBOXD_IMAGE_TAG: ${{ inputs.sandboxd_image_tag || needs.build-sandboxd.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
@@ -134,7 +134,7 @@ jobs:
               exit 1
             fi
           done
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

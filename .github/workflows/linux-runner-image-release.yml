@@ -42,7 +42,7 @@ jobs:
       release: ${{ steps.check.outputs.linux-runner-image-should-release }}
       version: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -60,7 +60,7 @@ jobs:
     runs-on: tuist-linux
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/mise
@@ -70,17 +70,17 @@ jobs:
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
@@ -103,7 +103,7 @@ jobs:
       # list in step with `runnersFleetLinux.osVersions` and the
       # Dockerfile's base stages. `latest` stays on the default release.
       - name: Build and push Ubuntu 22.04
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
@@ -146,7 +146,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create linux-runner-image GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           draft: false
           repository: tuist/tuist
@@ -182,13 +182,13 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked kubectl jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - uses: 1password/install-cli-action@v4
+      - uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
         with:
           version: 2.31.1
       - name: Load kubeconfig from 1Password

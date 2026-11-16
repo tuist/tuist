@@ -29,7 +29,7 @@ jobs:
     name: Validate and package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/mise
@@ -45,7 +45,7 @@ jobs:
           node --test .github/scripts/openobserve-smoke.test.mjs .github/scripts/openobserve-preflight.test.mjs
           mkdir -p "$RUNNER_TEMP/openobserve-chart"
           helm package infra/helm/openobserve --destination "$RUNNER_TEMP/openobserve-chart"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: openobserve-chart
           path: ${{ runner.temp }}/openobserve-chart/*.tgz

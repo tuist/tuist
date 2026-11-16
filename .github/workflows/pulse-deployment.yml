@@ -83,7 +83,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       - uses: ./.github/actions/mise
@@ -127,7 +127,7 @@ jobs:
             sleep 2
           done
           PULSE_URL=http://127.0.0.1:4000 PULSE_AUTH=pilot:ci node infra/helm/pulse/test-sentry-errors.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           # One cascade run calls this workflow once per environment.
           name: pulse-chart-${{ inputs.environment || github.event_name }}
@@ -145,7 +145,7 @@ jobs:
     outputs:
       image: ${{ steps.resolve.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -184,7 +184,7 @@ jobs:
       # The chart arguments every render and upgrade below shares.
       PULSE_CHART_ARGS: ${{ inputs.environment == 'production' && '-f infra/helm/pulse/values-production.yaml ' || '' }}--set environment=${{ inputs.environment }},storage.bucket=tuist-pulso-${{ inputs.environment }},dashboard.enabled=${{ inputs.dashboard }}${{ needs.resolve-image.outputs.image && format(',image={0}', needs.resolve-image.outputs.image) || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -192,7 +192,7 @@ jobs:
         with:
           install_args: "--locked helm kubectl jq yq node"
           cache: "false"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: pulse-chart-${{ inputs.environment }}
           path: ${{ runner.temp }}/pulse-deploy
@@ -220,7 +220,7 @@ jobs:
             helm template pulse "$dir/tuist-pulse-0.1.0.tgz" -n observability "${chart_args[@]}" \
               --set migration.standalone=serving | yq ea -o=json -I=0 '.' | jq -s 'map(select(. != null))' > "$dir/migration.json"
           fi
-      - uses: 1password/install-cli-action@v4
+      - uses: 1password/install-cli-action@1a3160d5e9de1ae0803eaa08a88746f5ae3daa50 # v4.1.0
       - name: Load selected deployment identity in CI only
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

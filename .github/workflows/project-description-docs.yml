@@ -39,10 +39,10 @@ jobs:
     timeout-minutes: 30
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Restore Swift Package Manager cache
         id: package-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .build
           key: linux-project-description-docc-swift-6.4.1-${{ hashFiles('Package.resolved') }}
@@ -57,11 +57,11 @@ jobs:
           MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" mise exec swift@6.4.1 --
           bash mise/tasks/docs/project-description.sh
       - name: Save Swift Package Manager cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .build
           key: ${{ steps.package-cache.outputs.cache-primary-key }}
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@9a0c9dd934086b7ab1d90115d455bda1c53c2bdb # v2.0.2
         if: github.ref == 'refs/heads/main'
       - name: Deploy to Cloudflare Pages
         if: github.ref == 'refs/heads/main'

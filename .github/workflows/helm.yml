@@ -40,6 +40,8 @@ on:
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
+      - .github/scripts/production-source-guard*
+      - .github/workflows/tuist-ops-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -60,6 +62,8 @@ on:
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
       - .github/scripts/tart-kubelet-rollout-gate*
+      - .github/scripts/production-source-guard*
+      - .github/workflows/tuist-ops-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -313,6 +317,8 @@ jobs:
         run: bash .github/scripts/helm-move-release-objects.test.sh
       - name: Canary waits for its macOS hosts to run the operator's tart-kubelet
         run: bash .github/scripts/tart-kubelet-rollout-gate.test.sh
+      - name: Production deploys only ship commits main contains
+        run: bash .github/scripts/production-source-guard.test.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.
