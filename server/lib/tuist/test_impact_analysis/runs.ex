@@ -390,6 +390,26 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   end
 
   @doc """
+  The tests the impact run `run_id` skipped in the modules left to decide,
+  as `Input.baseline_tests/3` returns them: the baseline's tests there it
+  didn't select. None for a fallback, whose modules run whole. The modules
+  hashing skipped aren't listed.
+  """
+  def skipped_tests(project_id, run_id) do
+    case Storage.get_run(project_id, run_id) do
+      {:ok, %{outcome: "selected"} = run} ->
+        selected_ids = project_id |> Storage.list_run_tests(run_id) |> MapSet.new(& &1.test_case_id)
+
+        project_id
+        |> Input.baseline_tests(run.baseline_run_ids, run.requested_modules)
+        |> Enum.reject(&MapSet.member?(selected_ids, &1.test_case_id))
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
   The skip list of one shard of a plan that distributes the impact run
   `run_id`:
 

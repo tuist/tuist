@@ -6,6 +6,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
   alias Tuist.TestImpactAnalysis.Input
+  alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -1418,6 +1419,38 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = reported = Reported.compute(project, "head")
     assert reasons(reported) == [:test_failed]
+  end
+
+  # Coverage-based test selection skips without skip identifiers: its runs
+  # leave the tests out, and only its impact run knows which.
+  test "carries a test coverage-based test selection skipped", %{project: project, account: account} do
+    base = base_run(project, account)
+    tests = Input.baseline_tests(project.id, [base.id], ["AppTests"])
+
+    {:ok, impact_run} =
+      Storage.create_run(
+        %{
+          project_id: project.id,
+          head_sha: "head",
+          commit_sha: "head",
+          baseline_sha: "base",
+          baseline_run_ids: [base.id],
+          build_system: "xcode",
+          requested_modules: ["AppTests"],
+          outcome: "selected"
+        },
+        for(test <- tests, test.name == "testAdd()", do: Map.put(test, :reason, "impacted"))
+      )
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      partial: true,
+      test_impact_run_id: impact_run.id,
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    assert %{kind: "reported", covered_lines: 5, skipped_tests_count: 1, carried_tests_count: 1} =
+             Reported.compute(project, "head")
   end
 
   test "evidence without lines for a file that counts is a gap", %{project: project, account: account} do

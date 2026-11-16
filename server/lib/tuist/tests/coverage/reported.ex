@@ -51,6 +51,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
+  alias Tuist.TestImpactAnalysis.Runs
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Evidence
@@ -170,7 +171,8 @@ defmodule Tuist.Tests.Coverage.Reported do
           scheme: fragment("argMax(?, ?)", t.scheme, t.inserted_at),
           build_system: fragment("any(?)", t.build_system),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
-          skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at)
+          skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
+          test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at)
         }
       ),
       settings: [select_sequential_consistency: 1]
@@ -435,28 +437,38 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # What Tuist skipped at the commit: every test of a target selective testing
-  # hit, and the tests the runs' skip identifiers name. A target's tests are
-  # those of the run recorded under the hash it was skipped with, or else
-  # those it ran at the commit's baseline while its test files are unchanged.
-  defp skipping(context, {runs, _hits, _skips, _clean} = all) do
+  # hit, the tests the runs' skip identifiers name, and the tests their
+  # coverage-based test selection skipped. A target's tests are those of the
+  # run recorded under the hash it was skipped with, or else those it ran at
+  # the commit's baseline while its test files are unchanged.
+  defp skipping(context, {runs, _hits, _skips, clean} = all) do
     selected = if caller_selected?(runs), do: [:caller_selected_tests], else: []
-    skipping = tuist_skipped(context, all)
+    impact_run_ids = impact_run_ids(runs ++ clean)
+    impact_skipped = Enum.flat_map(impact_run_ids, &Runs.skipped_tests(context.project.id, &1))
+    skipping = tuist_skipped(context, all, impact_skipped)
     %{skipping | gaps: skipping.gaps ++ selected}
   end
 
-  defp tuist_skipped(_context, {_runs, [], [], _clean}), do: %{skipped: [], gaps: [], baseline: [], indexed: %{}}
+  # The runs' impact runs. The tests they skipped in the modules they decided
+  # are left out by the client without naming them, so only the impact run
+  # says which.
+  defp impact_run_ids(runs) do
+    runs |> Enum.map(&Map.get(&1, :test_impact_run_id)) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
+  end
 
-  defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs) do
+  defp tuist_skipped(_context, {_runs, [], [], _clean}, []), do: %{skipped: [], gaps: [], baseline: [], indexed: %{}}
+
+  defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs, impact_skipped) do
     # A commit that changes a tracked file carries nothing.
     if changes_tracked_files?(context),
       do: %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}},
-      else: skipped_tests(project, repository_id, sha, runs)
+      else: skipped_tests(project, repository_id, sha, runs, impact_skipped)
   end
 
-  defp skipped_tests(_project, repository_id, _sha, _runs) when repository_id in [nil, 0],
+  defp skipped_tests(_project, repository_id, _sha, _runs, _impact_skipped) when repository_id in [nil, 0],
     do: %{skipped: [], gaps: [:no_ancestor], baseline: [], indexed: %{}}
 
-  defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}) do
+  defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}, impact_skipped) do
     # An identifier naming a test needs no target's tests to resolve it.
     {named, by_target} = Enum.split_with(skips, &match?([_module, _suite, _name], &1))
     modules = Enum.uniq(Enum.map(hits, & &1.name) ++ Enum.map(by_target, &hd/1))
@@ -477,7 +489,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       Enum.flat_map(hits, &Map.get(inventory, &1.name, [])) ++
         Enum.flat_map(by_target, fn identifier ->
           inventory |> Map.get(hd(identifier), []) |> Enum.filter(&named?(&1, identifier))
-        end) ++ named_tests(project.id, named)
+        end) ++ named_tests(project.id, named) ++ impact_skipped
 
     ran = ran(project.id, Enum.map(runs, & &1.test_run_id))
 

@@ -776,8 +776,9 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   The runs that measured the commit and count towards it: one row per run
-  with its scheme, whether it was partial, and its repository. Runs from a
-  dirty checkout are left out.
+  with its scheme, whether it was partial, its repository, and the impact
+  run that selected its tests, if any. Runs from a dirty checkout are left
+  out.
   """
   def runs(project_id, sha) when is_binary(sha), do: runs(project_id, [sha])
 
@@ -820,6 +821,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: fragment("argMax(?, ?)", t.coverage_evidence_status, t.inserted_at),
           only_test_identifiers: fragment("argMax(?, ?)", t.only_test_identifiers, t.inserted_at),
           skip_test_identifiers: fragment("argMax(?, ?)", t.skip_test_identifiers, t.inserted_at),
+          test_impact_run_id: fragment("toString(argMax(?, ?))", t.test_impact_run_id, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -848,6 +850,7 @@ defmodule Tuist.Tests.Coverage.Commits do
           coverage_evidence_status: t.coverage_evidence_status,
           only_test_identifiers: t.only_test_identifiers,
           skip_test_identifiers: t.skip_test_identifiers,
+          test_impact_run_id: t.test_impact_run_id,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines
