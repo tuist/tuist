@@ -32,9 +32,12 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     static let keyVersion = "tuist-swift-cargo-cache-v7"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
+    /// `CARGO_INCREMENTAL` is Cargo's, not the compiler's: Cargo turns it into `-C incremental` (left out of keys) and
+    /// folds it into `-C metadata` (kept) for the units it compiles incrementally. Keying the value itself made every
+    /// dependency, which Cargo never compiles incrementally, miss between CI (`CARGO_INCREMENTAL=0`) and local builds.
     static let ignoredEnvironment = Set([
         "RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS", "CI",
-        "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID",
+        "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID", "CARGO_INCREMENTAL",
     ])
     static let ignoredEnvironmentPrefixes = [
         "TUIST_", "GITHUB_", "GITLAB_", "BUILDKITE_", "CIRCLE_", "CI_", "RUNNER_", "ACTIONS_", "TRAVIS_", "TEAMCITY_",

@@ -8,6 +8,10 @@
 # foreign:  so is a snapshot holding a file its record does not list.
 # lockfile: a different `Cargo.lock` (an added path dependency) still restores the unit: the manifest is not keyed by
 #           the lockfile, and Cargo's fingerprints decide what a build uses.
+# incremental: a build without `CARGO_INCREMENTAL` restores the unit a `CARGO_INCREMENTAL=0` build (CI's usual
+#           setting, and `common.sh`'s) published: Cargo never compiles dependencies incrementally.
+# per-crate-incremental: the same for the per-crate cache, in a checkout whose Cargo configuration differs only in
+#           terminal settings, so the unit manifest misses and Cargo compiles the dependency again.
 # flags:    different rustflags in `.cargo/config.toml` miss, and Cargo compiles the dependency again.
 # native:   a `-sys` crate's build-script run that names its Cargo-home sources is restored in another checkout.
 # corrupt:  with the stored rlib corrupted and no snapshot, the unit is not restored and Cargo compiles it again.
@@ -83,6 +87,19 @@ printf 'extra = { path = "extra" }\n' >> "$lock/Cargo.toml"
 build_units "$lock" lockfile
 expect lockfile "extra tuist-cargo-cache-smoke" "$COMPILED"
 [ "$RESTORED" -ge 1 ] || fail "lockfile: nothing restored"
+
+inc=$(checkout incremental "$shared")
+export -n CARGO_INCREMENTAL
+build_units "$inc" incremental
+export CARGO_INCREMENTAL
+expect incremental tuist-cargo-cache-smoke "$COMPILED"
+
+crate=$(checkout per-crate $'[term]\nverbose = false\ncolor = "never"\n')
+export -n CARGO_INCREMENTAL
+build_units "$crate" per-crate-incremental
+export CARGO_INCREMENTAL
+expect per-crate-incremental "itoa tuist-cargo-cache-smoke" "$COMPILED"
+expect per-crate-incremental hit "$(task per-crate-incremental itoa)"
 
 c=$(checkout c $'[build]\nrustflags = ["-C", "overflow-checks=on"]\n')
 build_units "$c" flags
