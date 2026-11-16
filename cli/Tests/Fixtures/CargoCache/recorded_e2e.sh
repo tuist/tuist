@@ -309,3 +309,45 @@ printf '#define DIGIT 8\n' > "$m/helper/digit.h"
 build_tools "$m" tools-moved
 expect "tools-moved: the run must be restored and the library must hit" "438 $header hit" \
     "$VALUE $STAMP $(task tools-moved helper)"
+
+# A linked binary's debug map names the objects lldb reads by absolute path, and a restored binary's names the
+# checkout that built it. lldb must stop in a workspace library with its locals in place, in a restored binary whose
+# producing checkout is gone, and after `cargo clean`: the binary is stored with a `.dSYM`.
+debugged() {
+    local path="$ROOT/$1/ws"
+    mkdir -p "$path/dep/src" "$path/app/src"
+    printf '[workspace]\nmembers = ["dep", "app"]\nresolver = "2"\n' > "$path/Cargo.toml"
+    printf '[package]\nname = "dep"\nversion = "0.1.0"\nedition = "2021"\n' > "$path/dep/Cargo.toml"
+    printf 'pub fn add(a: u64, b: u64) -> u64 {\n    let sum = a + b;\n    sum * 2\n}\n' > "$path/dep/src/lib.rs"
+    printf '[package]\nname = "app"\nversion = "0.1.0"\nedition = "2021"\n[dependencies]\ndep = { path = "../dep" }\n' \
+        > "$path/app/Cargo.toml"
+    printf 'fn main() {\n    println!("{}", dep::add(1, 2));\n}\n' > "$path/app/src/main.rs"
+    (cd "$path" && cargo generate-lockfile --offline 2> /dev/null)
+    printf '%s' "$path"
+}
+
+# Builds scenario $2 in $1 and sets DEBUGGED to the program's output, where lldb stopped and the local `sum` there.
+build_debugged() {
+    build "$1" "$2"
+    local stop sum
+    # Failures are reported by `expect`, not by `set -e`: lldb and `grep -c` exit non-zero when lldb never stops.
+    stop=$(lldb -b -o "breakpoint set -f lib.rs -l 3" -o run -o "frame variable sum" "$1/target/debug/app" 2>&1 \
+        | tee "$ROOT/$2.lldb" || true)
+    sum=$(printf '%s\n' "$stop" | sed -nE 's/^\(unsigned long\) sum = ([0-9]+)$/\1/p')
+    DEBUGGED="$("$1/target/debug/app") $(printf '%s\n' "$stop" | grep -cE 'dep::add\(a=1, b=2\) at lib.rs:3' || true) $sum"
+    printf '%s: program, stops, sum=%s app=%s\n' "$2" "$DEBUGGED" "$(task "$2" app)"
+}
+
+d=$(debugged debug)
+build_debugged "$d" debug-cold
+expect "debug-cold: lldb must find the workspace library in a fresh link" "6 1 3 miss" "$DEBUGGED $(task debug-cold app)"
+e=$(debugged debug-moved/nested)
+build_debugged "$e" debug-moved-ready
+expect debug-moved-ready hit "$(task debug-moved-ready app)"
+rm -rf "$d"
+lldb -b -o "breakpoint set -f lib.rs -l 3" -o run -o "frame variable sum" "$e/target/debug/app" > "$ROOT/debug-moved.lldb" 2>&1 || true
+expect "debug-moved: lldb must debug a restored binary whose producing checkout is gone" 3 \
+    "$(sed -nE 's/^\(unsigned long\) sum = ([0-9]+)$/\1/p' "$ROOT/debug-moved.lldb")"
+build_debugged "$e" debug-clean
+expect "debug-clean: lldb must debug a binary restored after its target was removed" "6 1 3 hit" \
+    "$DEBUGGED $(task debug-clean app)"

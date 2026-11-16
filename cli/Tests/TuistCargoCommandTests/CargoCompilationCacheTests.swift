@@ -34,6 +34,88 @@ struct CargoCompilationCacheTests {
         let long = relocation("/tmp/a-checkout-whose-path-is-long")
         #expect(short.remapArguments.map { short.relative($0) } == long.remapArguments.map { long.relative($0) })
         #expect(short.relative("/private/tmp/w/target/debug/x /tmp/w/src") == "@@TUIST_TARGET@@/debug/x @@TUIST_WORKSPACE@@/src")
+        // An empty compilation directory drops a crate's objects from a linked binary's debug map.
+        #expect(short.remapArguments.contains("--remap-path-prefix=/tmp/w=."))
+        #expect(short.debugPrefixMapArguments.contains("-fdebug-prefix-map=/tmp/w=."))
+    }
+
+    @Test func bundlesDebugInformationOnlyForLinksWhoseDebugMapNamesObjects() {
+        let unpacked = ["rustc", "-C", "debuginfo=2", "-C", "split-debuginfo=unpacked"]
+        #expect(CargoRecordedInvocation.hasDebugMap(unpacked))
+        #expect(CargoRecordedInvocation.hasDebugMap(["rustc", "-Cdebuginfo=line-tables-only", "-Csplit-debuginfo=unpacked"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(unpacked + ["-C", "debuginfo=0"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(unpacked + ["-C", "strip=debuginfo"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(["rustc", "-C", "debuginfo=2", "-C", "split-debuginfo=packed"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(["rustc", "-C", "split-debuginfo=unpacked"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(unpacked + ["-Cstrip=symbols"]))
+        // The last of `-g` and `-C debuginfo` wins, as in rustc.
+        #expect(CargoRecordedInvocation.hasDebugMap(["rustc", "-C", "debuginfo=0", "-g", "-C", "split-debuginfo=unpacked"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(["rustc", "-g", "-C", "debuginfo=0", "-C", "split-debuginfo=unpacked"]))
+        // rustc's other spellings of the same options.
+        #expect(CargoRecordedInvocation.hasDebugMap(["rustc", "--codegen", "debuginfo=2", "--codegen=split_debuginfo=unpacked"]))
+        #expect(!CargoRecordedInvocation.hasDebugMap(unpacked + ["--codegen", "split_debuginfo=packed"]))
+    }
+
+    @Test(.inTemporaryDirectory) func leavesOnlyTheDebugBundleOutOfTheRootScan() throws {
+        let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
+        let workspace = root.appendingPathComponent("ws")
+        let output = workspace.appendingPathComponent("target/debug/build/app/out")
+        let relocation = CargoRelocation(
+            environment: ["CARGO_HOME": root.appendingPathComponent("cargo").path, "TUIST_CARGO_WORKSPACE_ROOT": workspace.path],
+            sysroot: root.appendingPathComponent("toolchain")
+        )
+        let files = ["app"] + CargoRecordedInvocation.debugBundleFiles("app") + ["app.d"]
+        let invocation = CargoRecordedInvocation(
+            arguments: ["rustc"], environment: [:], directory: try AbsolutePath(validating: workspace.path), output: output,
+            name: "app", files: files, key: REAPI.emptyBlob, declared: REAPI.emptyBlob, reads: nil, relocation: relocation,
+            inputHasher: CargoInputHasher(sessionDirectory: nil), recorder: "", toolchain: root, externs: [],
+            linksWithSystemLinker: true, debugBundle: "app.dSYM"
+        )
+        // Both name the checkout; only the binary's bytes can depend on it.
+        for file in files.prefix(3) {
+            let path = output.appendingPathComponent(file)
+            try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("comp_dir \(workspace.path)/app/src".utf8).write(to: path)
+        }
+        #expect(try invocation.unkeyedRoots(in: output.appendingPathComponent(files[2])).isEmpty)
+        // macOS names a temporary directory through `/var` and `/private/var`, so either spelling may be reported.
+        let bound = try invocation.unkeyedRoots(in: output.appendingPathComponent(files[0]))
+        #expect(!bound.isEmpty && Set(bound.map(relocation.relative)) == ["@@TUIST_WORKSPACE@@"])
+    }
+
+    @Test(.inTemporaryDirectory) func restoresALinkedBinaryWithItsDebugBundleReplacingAnEarlierOne() async throws {
+        let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
+        let output = root.appendingPathComponent("out")
+        let binary = LinkedBinary(output: output, files: ["app"] + CargoRecordedInvocation.debugBundleFiles("app") + ["app.d"])
+        for file in binary.files {
+            let path = output.appendingPathComponent(file)
+            try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(file.utf8).write(to: path)
+        }
+        let cache = try CargoCompilationCache(
+            invocation: binary, root: root.appendingPathComponent("cache"), remote: nil,
+            measurement: CargoCacheMeasurement(invocation: binary)
+        )
+        try await cache.store(stdout: Data(), stderr: Data())
+
+        // A link where the bundle goes is replaced, never written through.
+        try FileManager.default.removeItem(at: output)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let elsewhere = root.appendingPathComponent("elsewhere")
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: output.appendingPathComponent("app.dSYM"), withDestinationURL: elsewhere)
+        #expect(try await cache.restore())
+        for file in binary.files {
+            #expect(try Data(contentsOf: output.appendingPathComponent(file)) == Data(file.utf8))
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: elsewhere.path).isEmpty)
+        #expect(FileManager.default.isExecutableFile(atPath: output.appendingPathComponent("app").path))
+
+        // An earlier bundle's other files do not stay beside the restored ones.
+        let stale = output.appendingPathComponent("app.dSYM/Contents/Resources/DWARF/old")
+        try Data("stale".utf8).write(to: stale)
+        #expect(try await cache.restore())
+        #expect(!FileManager.default.fileExists(atPath: stale.path))
     }
 
     @Test func preservesStandardREAPICompilerStreamsAndSymlinkFields() throws {
@@ -1050,6 +1132,24 @@ struct CargoCompilationCacheTests {
             )
         }
     }
+}
+
+/// A linked binary's compilation, keyed by nothing but its name.
+private struct LinkedBinary: CargoCacheAction {
+    let output: URL
+    let files: [String]
+    var cacheVersion: String { "test" }
+    var arguments: [String] { ["rustc"] }
+    var key: REAPI.Digest { REAPI.digest(Data("app".utf8)) }
+    var environment: [String: String] { [:] }
+    var name: String { "app" }
+    var kind: String { "rust" }
+    var executableOutput: String? { files[0] }
+    func fingerprint() throws -> REAPI.Digest { key }
+    func validateDependencies(restoring _: Bool) async throws {}
+    func certifyOutputs(metadataOnly _: Bool) throws {}
+    func outputFiles() throws -> [String] { files }
+    func acceptsOutput(_ file: String) -> Bool { files.contains(file) }
 }
 
 private actor CargoMemoryCache: REAPICacheStoring {

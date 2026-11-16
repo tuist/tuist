@@ -152,6 +152,10 @@ final class CargoCompilerRun: CargoHookRun {
             guard let finished = recorded.recorded(log: log, started: started, explain: { reason = "it \($0)" }),
                   let reads = finished.reads, let index = finished.index
             else { return notStored(recorded.name, reason) }
+            // Only once the run is known to be cacheable: the session waits for this before the command returns.
+            guard await finished.bundleDebugInformation(process: CargoProcess(runner: runner)) else {
+                return notStored(recorded.name, "dsymutil could not bundle its debug information")
+            }
             await index.put(reads, remote: remote, environment: hookEnvironment)
             do {
                 try await CargoCompilationCache(
