@@ -64,7 +64,8 @@ defmodule Tuist.Projects do
 
   def get_project_by_full_token(full_token) do
     if legacy_token?(full_token) do
-      Repo.one(from(p in Project, where: p.token == ^full_token, preload: [:account]))
+      hash = Tuist.Tokens.legacy_token_hash(full_token)
+      Repo.one(from(p in Project, where: p.token_hash == ^hash, preload: [:account]))
     else
       case get_project_token(full_token) do
         {:error, _} -> nil

@@ -14,9 +14,13 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     let hostTarget: URL
     let output: URL
     let name: String
+    /// The rlib (unless the compilation emits metadata only, as `cargo check` and `cargo clippy` do), the metadata and
+    /// the dep-info file.
     let files: [String]
     var key: REAPI.Digest
     let inputHasher: CargoInputHasher
+    /// The driver of a `cargo clippy` compilation, whose own inputs join the key.
+    var clippy: CargoClippy?
     var compilerInputs: CargoCacheInputs?
     let relocation: CargoRelocation
     /// Selects the source list of an earlier compilation with the same arguments, environment, externs and root
@@ -28,6 +32,11 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     /// No remembered source list: the compilation runs first and is keyed afterwards from the dep-info rustc writes
     /// anyway, instead of a separate discovery run of rustc.
     var isDeferred: Bool { compilerInputs?.sources.isEmpty == true }
+
+    /// The dep-info file rustc writes beside the artifacts.
+    private var depInfo: String { files[files.count - 1] }
+    /// Whether rustc links an rlib, rather than emitting metadata only.
+    private var emitsLink: Bool { files.count == 3 }
 
     static let keyVersion = "tuist-swift-cargo-cache-v7"
     var cacheVersion: String { Self.keyVersion }
@@ -46,12 +55,15 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     static func prepare(
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, process: CargoProcess
     ) async throws -> CargoCacheInvocation? {
+        // `cargo clippy` starts the workspace's crates as `clippy-driver rustc <arguments>`, and the rest as rustc.
+        let driven = CargoClippy.compilerArguments(arguments, environment: environment)
+        let compilerArguments = driven ?? arguments
         // The one unstable option admitted: a valid front-end thread count.
-        let threads = CargoCacheInputs.withoutThreadCount(arguments)
-        let admitted = threads.normalized ? threads.arguments.filter { $0 != CargoCacheInputs.threadCount } : arguments
+        let threads = CargoCacheInputs.withoutThreadCount(compilerArguments)
+        let admitted = threads.normalized ? threads.arguments.filter { $0 != CargoCacheInputs.threadCount } : compilerArguments
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil,
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
-              environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
+              CargoClippy.admitsWorkspaceWrapper(environment),
               !admitted.contains(where: { argument in
                   argument.hasPrefix("-") && !argument.hasPrefix("--") && argument.count > 2
                       && !["-C", "-L", "-A", "-W", "-D", "-F"].contains(where: argument.hasPrefix)
@@ -63,14 +75,18 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
                       || $0.hasPrefix("--codegen") || $0.hasPrefix("--library-path")
                       || $0.hasPrefix("-l") || $0.hasPrefix("-o") || $0 == "--test"
               }),
-              let executable = arguments.first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
+              let executable = compilerArguments.first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
               let manifest = environment["CARGO_MANIFEST_DIR"],
-              let name = option("--crate-name", in: arguments),
-              let kind = option("--crate-type", in: arguments), ["lib", "rlib"].contains(kind),
-              let emit = option("--emit", in: arguments),
-              Set(emit.split(separator: ",").map(String.init)) == Set(["dep-info", "metadata", "link"]),
-              let out = option("--out-dir", in: arguments),
-              let source = arguments.dropFirst().first(where: { $0.hasSuffix(".rs") }),
+              let name = option("--crate-name", in: compilerArguments),
+              let kind = option("--crate-type", in: compilerArguments), ["lib", "rlib"].contains(kind),
+              let emit = option("--emit", in: compilerArguments),
+              case let emitted = Set(emit.split(separator: ",").map(String.init)),
+              // Metadata-only compilations (`cargo check`, `cargo clippy`) key `--emit` with their other arguments,
+              // so they never serve a compilation that links, nor the other way around.
+              emitted == ["dep-info", "metadata", "link"] || emitted == ["dep-info", "metadata"],
+              driven == nil || !emitted.contains("link"),
+              let out = option("--out-dir", in: compilerArguments),
+              let source = compilerArguments.dropFirst().first(where: { $0.hasSuffix(".rs") }),
               !name.isEmpty, name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") })
         else { return nil }
         let searches = arguments.enumerated().compactMap { index, value -> String? in
@@ -126,13 +142,24 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
             guard environment["RUSTUP_TOOLCHAIN"].map({ !$0.isEmpty }) == true,
                   launcher == resolve("rustup", environment: environment, directory: directory) else { return nil }
         }
-        let files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
+        let files = (emitted.contains("link") ? ["lib\(name)\(suffix).rlib"] : [])
+            + ["lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
+        let clippy: CargoClippy?
+        if driven != nil {
+            guard let driver = try await CargoClippy.prepare(
+                arguments, sysroot: toolchain, environment: environment, directory: directory, process: process
+            ) else { return nil }
+            clippy = driver
+        } else {
+            clippy = nil
+        }
         var candidate = CargoCacheInvocation(
             arguments: arguments, environment: environment, directory: directory, package: package,
             compiler: compiler, launcher: launcher, toolchain: toolchain, hostTarget: hostTarget,
             output: URL(fileURLWithPath: out).standardizedFileURL,
             name: name, files: files, key: REAPI.emptyBlob,
             inputHasher: inputHasher,
+            clippy: clippy,
             compilerInputs: nil,
             relocation: CargoRelocation(environment: environment, sysroot: toolchain)
         )
@@ -149,7 +176,7 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         }
         let rootSource = URL(fileURLWithPath: source, relativeTo: URL(fileURLWithPath: directory.pathString))
             .standardizedFileURL
-        let rootDigest = try candidate.inputHasher.sourceDigest(rootSource, validate: validateSource)
+        let rootDigest = try candidate.inputHasher.sourceDigest(rootSource, validate: candidate.sourceValidation)
         if let cache = environment["TUIST_CARGO_CACHE_DIR"] {
             var declared = [Self.keyVersion, "sources", directory.pathString, rootSource.path, rootDigest.hash]
             declared += candidate.keyArguments
@@ -176,8 +203,8 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         }
         // Without a cache directory there is nowhere to remember sources: discover them now.
         candidate.compilerInputs = try await CargoCacheInputs.discover(
-            arguments: arguments, environment: environment, directory: directory,
-            externs: externs, process: process
+            arguments: compilerArguments, environment: environment, directory: directory,
+            externs: externs, process: process, clippy: clippy != nil
         )
         candidate.key = try candidate.fingerprint()
         return candidate
@@ -201,7 +228,7 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     /// The sources and keyed-when-read variables rustc's dep-info names for this compilation, once rustc has written it
     /// (before its metadata).
     func depInfoInputs() -> (sources: [URL], variables: [String])? {
-        let path = output.appendingPathComponent(files[2])
+        let path = output.appendingPathComponent(depInfo)
         guard (try? path.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap({ $0 }).map({ $0 < 2_000_000 }) == true,
               let text = try? String(contentsOf: path, encoding: .utf8), let dependencies = try? Self.dependencies(text)
         else { return nil }
@@ -251,17 +278,22 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     func fingerprint() throws -> REAPI.Digest {
         var inputs = [Self.keyVersion, directory.pathString]
         inputs += keyArguments
-        // A registry leaf is keyed before rustc says what it read, so it keys every variable.
+        // A registry leaf is keyed before rustc says what it read, so it keys every variable but those that only start
+        // compilations, which its dep-info must not name.
         inputs += environment.sorted { $0.key < $1.key }
-            .filter { compilerInputs == nil ? !Self.isIgnored($0.key) : Self.isKeyed($0.key) }
+            .filter {
+                compilerInputs == nil ? !Self.isIgnored($0.key) && !Self.launchEnvironment.contains($0.key)
+                    : Self.isKeyed($0.key)
+            }
             .map { "\($0.key)=\($0.value)" }
+        if let clippy { inputs += try clippy.keyInputs(environment: environment, directory: directory, hasher: inputHasher) }
         var budget = 2_000_000_000
         if let compilerInputs {
             for name in compilerInputs.variables {
                 inputs += ["env", name, environment[name].map { "=" + $0 } ?? "unset"]
             }
             for file in compilerInputs.sources {
-                let digest = try inputHasher.sourceDigest(file, validate: Self.validateSource)
+                let digest = try inputHasher.sourceDigest(file, validate: sourceValidation)
                 inputs += [file.path, digest.hash, String(digest.sizeBytes)]
             }
             // A remembered source list cannot see a file that would now change module resolution, such as a new
@@ -314,13 +346,14 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
 
     func acceptsOutput(_ file: String) -> Bool {
         if files.contains(file) { return true }
-        let prefix = String(files[2].dropLast(2)) + "."
-        return file.hasPrefix(prefix) && ["o", "dwo", "dwp"].contains(URL(fileURLWithPath: file).pathExtension)
+        // Only a compilation that links leaves split debug objects.
+        let prefix = String(depInfo.dropLast(2)) + "."
+        return emitsLink && file.hasPrefix(prefix) && ["o", "dwo", "dwp"].contains(URL(fileURLWithPath: file).pathExtension)
             && file.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "._-".contains($0)) }
     }
 
     func outputFiles() throws -> [String] {
-        let additional = try CargoCacheInputs.entries(of: output, prefix: String(files[2].dropLast(2)) + ".")
+        let additional = try CargoCacheInputs.entries(of: output, prefix: String(depInfo.dropLast(2)) + ".")
             .filter { !files.contains($0) && acceptsOutput($0) }.sorted()
         guard files.count + additional.count <= CargoCompilationCache.maximumOutputFiles else { throw CacheError.unsupported }
         return files + additional
@@ -329,12 +362,12 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     var keyArguments: [String] { CargoCacheInputs.keyArguments(arguments) }
 
     func validateDependencies() throws {
-        let path = output.appendingPathComponent(files[2])
+        let path = output.appendingPathComponent(depInfo)
         guard (try path.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max) < 2_000_000 else {
             throw CacheError.unsupported
         }
         let text = try String(contentsOf: path, encoding: .utf8)
-        try Self.validateEnvironmentDependencies(text)
+        try Self.validateEnvironmentDependencies(text, clippy: clippy != nil)
         let dependencies = try Self.dependencies(text)
         if let compilerInputs {
             let sources = Set(dependencies.map {
@@ -345,6 +378,8 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
             else { throw CacheError.unsupported }
             return
         }
+        // A registry leaf's key leaves out the launch variables.
+        guard !Self.readVariables(text).contains(where: Self.launchEnvironment.contains) else { throw CacheError.unsupported }
         guard !dependencies.isEmpty, dependencies.allSatisfy({ dependency in
             let file = URL(fileURLWithPath: dependency, relativeTo: URL(fileURLWithPath: directory.pathString))
                 .standardizedFileURL
@@ -373,19 +408,28 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         try certify(metadataOnly: false)
     }
 
+    /// Certifies the metadata, and the rlib unless rustc emitted metadata only. A check's metadata is certified by the
+    /// same admission as a build's, under its own digest: it never stands in for the metadata of a build.
     private func certify(metadataOnly: Bool) throws {
-        for name in metadataOnly ? [files[1]] : Array(files.prefix(2)) {
+        for name in metadataOnly ? [files[files.count - 2]] : Array(files.dropLast()) {
             try CargoCacheInputs.certify(
                 inputHasher.digest(output.appendingPathComponent(name), shared: true), environment: environment
             )
         }
     }
 
-    static func validateEnvironmentDependencies(_ text: String) throws {
+    /// Refuses a compilation that read a variable its key leaves out. A Clippy compilation's key holds the driver's
+    /// variables (`CargoClippy.keyInputs`).
+    static func validateEnvironmentDependencies(_ text: String, clippy: Bool) throws {
         guard !text.split(separator: "\n").contains(where: { line in
             guard line.hasPrefix("# env-dep:") else { return false }
-            return isIgnored(String(line.dropFirst(10).prefix { $0 != "=" }))
+            return isUnkeyedRead(String(line.dropFirst(10).prefix { $0 != "=" }), clippy: clippy)
         }) else { throw CacheError.unsupported }
+    }
+
+    /// Whether a variable dep-info says the compilation read is one its key leaves out.
+    static func isUnkeyedRead(_ name: String, clippy: Bool) -> Bool {
+        isIgnored(name) && !(clippy && CargoClippy.environment.contains(name))
     }
 
     static func dependencies(_ text: String) throws -> [String] {
@@ -506,10 +550,16 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     /// from dep-info (`env!`, `option_env!`), which sees everything a crate without proc macros can read; recorded
     /// keys also from the recorder, which sees a proc macro's `std::env` reads. The name and version stay keyed: rustc
     /// reads them itself, and Cargo's `-C metadata` already changes with them.
+    /// The same holds for what only starts compilations: Cargo's workspace wrapper (a Clippy compilation keys its
+    /// driver instead) and what rustup's proxy sets when `cargo clippy` starts `cargo-clippy` (`launchEnvironment`), so
+    /// crates compiled with rustc by `cargo check` and `cargo clippy` share entries.
     static func isKeyedWhenRead(_ name: String) -> Bool {
-        name == "CARGO_PRIMARY_PACKAGE"
+        name == "CARGO_PRIMARY_PACKAGE" || launchEnvironment.contains(name)
             || (name.hasPrefix("CARGO_PKG_") && name != "CARGO_PKG_NAME" && !name.hasPrefix("CARGO_PKG_VERSION"))
     }
+
+    /// Variables that start compilations rather than change them: rustc reads none of them.
+    static let launchEnvironment: Set = ["RUSTC_WORKSPACE_WRAPPER", "RUST_RECURSION_COUNT", "CARGO_HOME"]
 
     /// Whether a declared key holds this variable's value whatever the crate reads.
     static func isKeyed(_ name: String) -> Bool {
@@ -560,6 +610,17 @@ extension CargoCacheInvocation {
     private static func validateSource(_ data: Data) throws {
         guard hasSourceWord(data) else { return }
         guard let code = code(data), !matches(sourceTokens, code) else { throw CacheError.unsupported }
+    }
+
+    /// Source admission, which for a Clippy compilation also refuses enabling the lints that run `cargo metadata`.
+    /// Each invocation has its own hasher, whose admission memo therefore never mixes the two policies.
+    private var sourceValidation: (Data) throws -> Void {
+        guard clippy != nil else { return Self.validateSource }
+        return { data in
+            try Self.validateSource(data)
+            guard data.range(of: Data("clippy".utf8)) != nil else { return }
+            guard let code = Self.code(data), !CargoClippy.refusesLints(code) else { throw CacheError.unsupported }
+        }
     }
 
     /// Compiled once: `String.range(of:options: .regularExpression)` compiles the same ICU expression on every call.

@@ -416,7 +416,7 @@ export default {
           : [];
       let candidates = [
         ...(scope ? projectDestinations(projects, scope, scope) : []),
-        ...(!scope ? catalog.filter((page) => !page.project) : []),
+        ...(!filters.project ? catalog.filter((page) => !page.project) : []),
       ];
       if (!query.trim()) {
         const recent = this.recentPages

@@ -13,7 +13,7 @@ import TuistREAPI
 /// target directory, here or on another machine, starts with them. Cargo stays the judge of freshness: restored
 /// units carry Cargo's own fingerprints, so a unit whose inputs differ here is rebuilt, never reused.
 struct CargoUnitCache {
-    static let version = "tuist-swift-cargo-units-v4"
+    static let version = "tuist-swift-cargo-units-v5"
 
     let profile: URL
     let root: URL
@@ -104,6 +104,8 @@ struct CargoUnitCache {
                   "r": "build",
                   "check": "check",
                   "c": "check",
+                  // `cargo check` with Clippy as the workspace wrapper.
+                  "clippy": "clippy",
                   "test": "test",
                   "t": "test",
                   "bench": "bench",

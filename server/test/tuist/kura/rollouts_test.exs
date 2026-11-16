@@ -135,7 +135,12 @@ defmodule Tuist.Kura.RolloutsTest do
       users =
         1..11_001
         |> Enum.map(
-          &%{email: "#{prefix}-#{&1}@example.com", token: "#{prefix}-#{&1}", created_at: naive_now, updated_at: naive_now}
+          &%{
+            email: "#{prefix}-#{&1}@example.com",
+            token_hash: Tuist.Tokens.legacy_token_hash("#{prefix}-#{&1}"),
+            created_at: naive_now,
+            updated_at: naive_now
+          }
         )
         |> Enum.chunk_every(500)
         |> Enum.flat_map(fn rows ->

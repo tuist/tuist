@@ -35,7 +35,7 @@ defmodule Tuist.Authentication do
         if is_nil(user) do
           account_or_project_token(token)
         else
-          snapshot(reject_if_inactive_user(user), nil)
+          user |> Accounts.record_legacy_token_use() |> reject_if_inactive_user() |> snapshot(nil)
         end
     end
   end
@@ -102,6 +102,7 @@ defmodule Tuist.Authentication do
           nil
       end
     else
+      if Projects.legacy_token?(token), do: Accounts.record_legacy_token_use(project_token)
       snapshot(project_token, nil)
     end
   end

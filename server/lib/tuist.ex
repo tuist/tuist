@@ -54,6 +54,7 @@ defmodule Tuist do
       Ops.Database,
       Ops.AccountPlans,
       Ops.FeatureFlags,
+      Ops.RunnerBilling,
       Ops.RunnerConcurrencyLimits,
       Observability,
       RateLimit,

@@ -145,6 +145,16 @@ defmodule Atlas.TuistServer do
     request(:put, "/api/internal/atlas/accounts/#{account_id}/plan", [json: attrs, retry: false], opts)
   end
 
+  @doc "Read an account's runner trial, prepaid grants, activation and billing revision."
+  def get_runner_billing(account_id, opts \\ []) when is_integer(account_id) do
+    request(:get, "/api/internal/atlas/accounts/#{account_id}/runner-billing", [], opts)
+  end
+
+  @doc "Activate a paid runner credit grant once; reconcile partial effects with the same change ID and payload."
+  def activate_runner_prepaid_pool(account_id, attrs, opts \\ []) when is_integer(account_id) and is_map(attrs) do
+    request(:put, "/api/internal/atlas/accounts/#{account_id}/runner-billing", [json: attrs, retry: false], opts)
+  end
+
   defp clickhouse_limit(opts) do
     case Keyword.get(opts, :limit) do
       limit when is_integer(limit) and limit > 0 -> limit

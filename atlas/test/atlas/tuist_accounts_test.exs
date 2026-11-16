@@ -4,8 +4,10 @@ defmodule Atlas.TuistAccountsTest do
 
   alias Atlas.Audit
   alias Atlas.MCP
+  alias Atlas.MCP.Tools.ActivateTuistRunnerPrepaidPool
   alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistAccountPlan
+  alias Atlas.MCP.Tools.GetTuistRunnerBilling
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.UpdateTuistAccountPlan
   alias Atlas.MCP.Tools.UpdateTuistRunnerConcurrencyLimits
@@ -363,6 +365,228 @@ defmodule Atlas.TuistAccountsTest do
       end
 
       assert MCP.list_pending_tool_approvals(writer, server_names: ["tuist-server"]) == []
+    end
+  end
+
+  describe "runner billing" do
+    defp prepaid_change(attrs \\ %{}) do
+      Map.merge(
+        %{
+          "account_id" => 42,
+          "paid_cents" => 100_000,
+          "credit_multiplier" => "1.50",
+          "platforms" => ["linux", "macos"],
+          "starts_on" => "2026-11-01",
+          "expires_on" => "2027-10-31",
+          "invoice_id" => "in_paid123",
+          "expected_revision" => "billing-1",
+          "reason" => "Activate paid runner order",
+          "change_id" => Ecto.UUID.generate()
+        },
+        attrs
+      )
+    end
+
+    defp runner_billing(args \\ nil) do
+      %{
+        "account_id" => 42,
+        "account_handle" => "acme",
+        "stripe_customer_id" => if(args, do: "cus_1"),
+        "revision" => if(args, do: "billing-2", else: "billing-1"),
+        "runner_trial" => %{"active" => is_nil(args), "started_at" => nil, "ended_at" => nil},
+        "prepaid_grants" =>
+          if(args,
+            do: [
+              %{
+                "id" => "credgr_1",
+                "currency" => "usd",
+                "amount_cents" => 150_000,
+                "available_cents" => 149_000,
+                "expires_at" => "2027-11-01T00:00:00Z",
+                "metadata" => %{"invoice_id" => args["invoice_id"]}
+              }
+            ],
+            else: []
+          ),
+        "activation" =>
+          if(args,
+            do:
+              args
+              |> Map.take(~w(change_id starts_on expires_on platforms paid_cents credit_multiplier))
+              |> Map.merge(%{
+                "status" => "active",
+                "error" => nil,
+                "grant_id" => "credgr_1",
+                "subscription_schedule_id" => "sub_sched_1"
+              })
+          )
+      }
+    end
+
+    test "reads and validates billing schemas including nullable and nested states, and audits only the revision" do
+      user = insert_user!(%{scopes: ["feature_flags:read"]})
+
+      for result <- [runner_billing(), runner_billing(prepaid_change())] do
+        expect(TuistServer, :get_runner_billing, fn 42 -> {:ok, result} end)
+        assert {:ok, ^result} = execute_tool(GetTuistRunnerBilling, mcp_conn(user), %{"account_id" => 42})
+      end
+
+      schema = ExJsonSchema.Schema.resolve(Atlas.TuistAccounts.runner_billing_output_schema())
+      assert {:error, _} = ExJsonSchema.Validator.validate(schema, Map.delete(runner_billing(), "runner_trial"))
+
+      assert {:error, _} =
+               ExJsonSchema.Validator.validate(schema, put_in(runner_billing(), ["runner_trial", "active"], "true"))
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_runner_billing.inspected")
+      assert length(activities) == 2
+      assert Enum.all?(activities, &(&1.target_id == "42" and Enum.sort(Map.keys(&1.metadata)) == ~w(revision status)))
+    end
+
+    test "activation needs single-use approval for the exact payload and forwards trusted provenance" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      args = prepaid_change()
+      result = runner_billing(args)
+
+      expect(TuistServer, :activate_runner_prepaid_pool, fn 42, attrs ->
+        assert attrs ==
+                 args
+                 |> Map.delete("account_id")
+                 |> Map.put("actor", %{"id" => user.id, "email" => user.email})
+                 |> Map.put("interface", "mcp")
+
+        {:ok, result}
+      end)
+
+      assert {:error, message} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+      assert message =~ "/approvals/"
+      [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+      assert approval.tool_name == "activate-runner-prepaid-pool"
+      {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+
+      assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, %{args | "paid_cents" => 200_000})
+      assert {:ok, ^result} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+      assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_runner_billing.activated")
+      assert [ok] = Enum.filter(activities, &(&1.metadata["status"] == "ok"))
+      assert ok.target_id == "42"
+      assert ok.interface == "mcp"
+
+      assert ok.metadata ==
+               args |> Map.delete("account_id") |> Map.merge(%{"status" => "ok", "revision" => "billing-2"})
+    end
+
+    test "read and write scopes, authentication and shared Slack refusal apply to direct execution" do
+      writer = insert_user!(%{scopes: ["feature_flags:write"]})
+      reader = %{scopes: ["feature_flags:read"]} |> insert_user!() |> mcp_conn()
+      other = %{scopes: ["admin:write"]} |> insert_user!() |> mcp_conn()
+      reject(TuistServer, :activate_runner_prepaid_pool, 2)
+      reject(TuistServer, :get_runner_billing, 1)
+
+      assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, reader, prepaid_change())
+
+      slack =
+        for context <- [
+              %{audit_interface: "slack"},
+              %{mcp_claims: %{"slack_agent" => "systems_investigator"}},
+              %{audit_interface: "mcp", mcp_claims: %{"slack_agent" => "systems_investigator"}}
+            ],
+            do: %{assigns: Map.put(context, :current_user, writer)}
+
+      for conn <- [other, %{} | slack] do
+        assert {:error, _} = execute_tool(GetTuistRunnerBilling, conn, %{"account_id" => 42})
+        assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, prepaid_change())
+      end
+
+      for interface <- ~w(worker api) do
+        conn = %{assigns: %{current_user: writer, audit_interface: interface}}
+        assert {:error, message} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, prepaid_change())
+        assert message =~ "only callable over Atlas MCP"
+      end
+    end
+
+    test "validates the entire activation before requesting approval" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      reject(TuistServer, :activate_runner_prepaid_pool, 2)
+
+      for attrs <- [
+            %{"account_id" => 0},
+            %{"account_id" => "42"},
+            %{"paid_cents" => 0},
+            %{"paid_cents" => -1},
+            %{"paid_cents" => 1.5},
+            %{"credit_multiplier" => 1.5},
+            %{"credit_multiplier" => "NaN"},
+            %{"credit_multiplier" => "1e3"},
+            %{"credit_multiplier" => "1\n"},
+            %{"credit_multiplier" => "0"},
+            %{"credit_multiplier" => "-1"},
+            %{"platforms" => []},
+            %{"platforms" => ["linux", "linux"]},
+            %{"platforms" => ["windows"]},
+            %{"starts_on" => "2026-02-30"},
+            %{"starts_on" => "2028-01-01"},
+            %{"expires_on" => "2027-10-31T00:00:00Z"},
+            %{"invoice_id" => "inv_123"},
+            %{"invoice_id" => "in_"},
+            %{"invoice_id" => "in_paid123\n"},
+            %{"expected_revision" => ""},
+            %{"expected_revision" => " "},
+            %{"reason" => " "},
+            %{"reason" => String.duplicate("a", 1001)},
+            %{"change_id" => "not-a-uuid"},
+            %{"actor" => %{"id" => user.id}},
+            %{"interface" => "mcp"}
+          ] do
+        assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, prepaid_change(attrs))
+      end
+
+      args = prepaid_change()
+
+      for field <- Map.keys(args) do
+        assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, Map.delete(args, field))
+      end
+
+      assert MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"]) == []
+
+      # Both endpoints are inclusive; a single-day, single-platform term is valid.
+      assert {:error, message} =
+               execute_tool(
+                 ActivateTuistRunnerPrepaidPool,
+                 conn,
+                 prepaid_change(%{
+                   "starts_on" => "2027-10-31",
+                   "platforms" => ["macos"],
+                   "credit_multiplier" => "1"
+                 })
+               )
+
+      assert message =~ "/approvals/"
+    end
+
+    test "remote failures remain errors and require fresh approval before reconciliation with identical payload" do
+      user = insert_user!(%{scopes: ["feature_flags:write"]})
+      conn = mcp_conn(user)
+      args = prepaid_change()
+
+      for message <- ["stale_revision", "Could not reach the Tuist server."] do
+        expect(TuistServer, :activate_runner_prepaid_pool, fn 42, attrs ->
+          assert Map.take(attrs, Map.keys(args) -- ["account_id"]) == Map.delete(args, "account_id")
+          {:error, message}
+        end)
+
+        assert {:error, _} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+        [approval] = MCP.list_pending_tool_approvals(user, server_names: ["tuist-server"])
+        {:ok, _} = MCP.decide_tool_approval(user, approval.id, "approved")
+        assert {:error, ^message} = execute_tool(ActivateTuistRunnerPrepaidPool, conn, args)
+      end
+
+      {activities, _} = Audit.list_activities(actor_id: user.id, action: "tuist_runner_billing.activated")
+      assert length(activities) == 4
+      assert Enum.all?(activities, &(&1.metadata["status"] == "error"))
+      refute Enum.any?(activities, &Map.has_key?(&1.metadata, "revision"))
     end
   end
 

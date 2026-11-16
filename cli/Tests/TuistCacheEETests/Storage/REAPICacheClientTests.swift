@@ -2157,6 +2157,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
         #expect(Array(request.metadata[stringValues: "x-tuist-account-handle"]).first == "account")
         #expect(request.message.instanceName == "project")
         #expect(request.message.digestFunction == .sha256)
+        #expect(request.message.inlineStdout && request.message.inlineStderr)
         await state.recordLookup(Array(request.metadata[stringValues: "x-tuist-lookup"]).first)
         try await Task.sleep(for: delay)
         let result = try await state.lookup(request.message.actionDigest)

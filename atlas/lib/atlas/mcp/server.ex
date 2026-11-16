@@ -14,6 +14,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.ActivateInsurancePolicy
+  alias Atlas.MCP.Tools.ActivateTuistRunnerPrepaidPool
   alias Atlas.MCP.Tools.ActOnBriefItem
   alias Atlas.MCP.Tools.AddAssetToInsurance
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
@@ -178,6 +179,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetTuistAccount
   alias Atlas.MCP.Tools.GetTuistAccountPlan
   alias Atlas.MCP.Tools.GetTuistFeatureFlag
+  alias Atlas.MCP.Tools.GetTuistRunnerBilling
   alias Atlas.MCP.Tools.GetTuistRunnerConcurrencyLimits
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
@@ -581,7 +583,9 @@ defmodule Atlas.MCP.Server do
     GetTuistRunnerConcurrencyLimits,
     UpdateTuistRunnerConcurrencyLimits,
     GetTuistAccountPlan,
-    UpdateTuistAccountPlan
+    UpdateTuistAccountPlan,
+    GetTuistRunnerBilling,
+    ActivateTuistRunnerPrepaidPool
   ]
   # Tuist account tools (runner limits, plans) share the flag tools' scopes and Slack/interface rules.
   @feature_flag_read_tools [
@@ -590,9 +594,15 @@ defmodule Atlas.MCP.Server do
     EvaluateTuistFeatureFlags,
     GetTuistAccount,
     GetTuistRunnerConcurrencyLimits,
-    GetTuistAccountPlan
+    GetTuistAccountPlan,
+    GetTuistRunnerBilling
   ]
-  @feature_flag_write_tools [UpdateTuistFeatureFlag, UpdateTuistRunnerConcurrencyLimits, UpdateTuistAccountPlan]
+  @feature_flag_write_tools [
+    UpdateTuistFeatureFlag,
+    UpdateTuistRunnerConcurrencyLimits,
+    UpdateTuistAccountPlan,
+    ActivateTuistRunnerPrepaidPool
+  ]
   @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
   @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
   @automation_read_tools Interfaces.tools(:read)
@@ -862,6 +872,8 @@ defmodule Atlas.MCP.Server do
     UpdateTuistRunnerConcurrencyLimits,
     GetTuistAccountPlan,
     UpdateTuistAccountPlan,
+    GetTuistRunnerBilling,
+    ActivateTuistRunnerPrepaidPool,
     ListAssets,
     GetAsset,
     ListAssetFinancings,

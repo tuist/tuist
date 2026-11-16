@@ -192,7 +192,8 @@ enum CargoCacheVerification {
                 URL(fileURLWithPath: $0, relativeTo: base).standardizedFileURL
             }
             let unkeyedVariables = text.split(separator: "\n").filter { $0.hasPrefix("# env-dep:") }
-                .map { String($0.dropFirst(10).prefix { $0 != "=" }) }.filter(CargoCacheInvocation.isIgnored)
+                .map { String($0.dropFirst(10).prefix { $0 != "=" }) }
+                .filter { CargoCacheInvocation.isUnkeyedRead($0, clippy: invocation.clippy != nil) }
             var finding = compareSources(
                 invocation, sources: sources, fresh: (fresh, CargoCacheInvocation.readVariables(text))
             )

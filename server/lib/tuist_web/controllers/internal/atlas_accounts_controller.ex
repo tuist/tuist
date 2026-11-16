@@ -5,6 +5,7 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Ops.AccountPlans
+  alias Tuist.Ops.RunnerBilling
   alias Tuist.Ops.RunnerConcurrencyLimits
 
   # Resolves an organization or user handle to the account ID that feature
@@ -42,6 +43,14 @@ defmodule TuistWeb.Internal.AtlasAccountsController do
 
   def update_plan(conn, %{"account_id" => account_id}) do
     respond(conn, AccountPlans.update(account_id, conn.body_params, conn.assigns.atlas_principal))
+  end
+
+  def runner_billing(conn, %{"account_id" => account_id}) do
+    respond(conn, RunnerBilling.get(account_id))
+  end
+
+  def activate_runner_prepaid_pool(conn, %{"account_id" => account_id}) do
+    respond(conn, RunnerBilling.activate(account_id, conn.body_params, conn.assigns.atlas_principal))
   end
 
   defp respond(conn, {:ok, result}), do: json(conn, result)

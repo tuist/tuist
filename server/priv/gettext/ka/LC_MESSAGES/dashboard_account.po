@@ -27,7 +27,7 @@ msgstr "%{inviter}-მ მოგიწვიათ %{organization} ორგა�
 msgid "%{month}/%{year}"
 msgstr "%{month}/%{year}"
 
-#: lib/tuist/accounts/user_notifier.ex:443
+#: lib/tuist/accounts/user_notifier.ex:444
 #: lib/tuist_web/live/accept_invitation_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -154,12 +154,12 @@ msgstr "საზოგადოების მხარდაჭერა: მ
 msgid "Completely free for open source projects"
 msgstr "სრულიად უფასო ღია კოდის პროექტებისთვის"
 
-#: lib/tuist/accounts/user_notifier.ex:281
+#: lib/tuist/accounts/user_notifier.ex:282
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
 msgstr "დაადასტურეთ თქვენი ელფოსტა"
 
-#: lib/tuist/accounts/user_notifier.ex:277
+#: lib/tuist/accounts/user_notifier.ex:278
 #, elixir-autogen, elixir-format
 msgid "Confirmation instructions"
 msgstr "დადასტურების ინსტრუქციები"
@@ -319,7 +319,7 @@ msgstr "ორგანიზაციის წაშლა წაშლის 
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr "თქვენი ანგარიშის წაშლა ასევე წაშლის მასთან დაკავშირებულ ყველა პროექტს"
 
-#: lib/tuist/accounts/user_notifier.ex:299
+#: lib/tuist/accounts/user_notifier.ex:300
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr "მოითხოვეთ პაროლის აღდგენა?"
@@ -421,18 +421,18 @@ msgstr "დაიწყეთ საკრედიტო ბარათის 
 msgid "Get started with no credit card required—try with no commitment."
 msgstr "დაიწყეთ საკრედიტო ბარათის გარეშე — სცადეთ ვალდებულებების გარეშე."
 
-#: lib/tuist/accounts/user_notifier.ex:437
+#: lib/tuist/accounts/user_notifier.ex:438
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr "გამარჯობა %{invitee_email}, შეგიძლიათ შემოუერთდეთ ორგანიზაციას ქვემოთ მოცემულ ღილაკზე დაჭერით:"
 
-#: lib/tuist/accounts/user_notifier.ex:301
+#: lib/tuist/accounts/user_notifier.ex:302
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr "გამარჯობა %{name}, პაროლის აღდგენა შეგიძლიათ ქვემოთ მოცემულ ღილაკზე დაწკაპუნებით:"
 
-#: lib/tuist/accounts/user_notifier.ex:284
-#: lib/tuist/accounts/user_notifier.ex:311
+#: lib/tuist/accounts/user_notifier.ex:285
+#: lib/tuist/accounts/user_notifier.ex:312
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr "თუ ეს მოთხოვნა თქვენ არ გაგიგზავნიათ, უბრალოდ დატოვეთ ეს წერილი ყურადღების მიღმა."
@@ -442,7 +442,7 @@ msgstr "თუ ეს მოთხოვნა თქვენ არ გაგ�
 msgid "Invitation not found"
 msgstr "მიწვევა ვერ მოიძებნა"
 
-#: lib/tuist/accounts/user_notifier.ex:427
+#: lib/tuist/accounts/user_notifier.ex:428
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr "მიწვევა ორგანიზაციაში %{organization_name}"
@@ -554,7 +554,7 @@ msgstr "ღია კოდი"
 msgid "Organization name"
 msgstr "ორგანიზაციის სახელი"
 
-#: lib/tuist/accounts/user.ex:129
+#: lib/tuist/accounts/user.ex:141
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr "პაროლები არ ემთხვევა"
@@ -667,12 +667,12 @@ msgstr "გადარქმევამ შეიძლება მოულ�
 msgid "Renaming your organization can have unintended side effects."
 msgstr "ორგანიზაციის სახელის გადარქმევამ შეიძლება დაუსაბუთებელი გვერდითი ეფექტები გამოიწვიოს."
 
-#: lib/tuist/accounts/user_notifier.ex:297
+#: lib/tuist/accounts/user_notifier.ex:298
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr "პაროლის აღდგენის ინსტრუქცია"
 
-#: lib/tuist/accounts/user_notifier.ex:305
+#: lib/tuist/accounts/user_notifier.ex:306
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr "პაროლის განახლება"
@@ -770,7 +770,7 @@ msgstr "ინდივიდუალური შეთანხმებე�
 msgid "This action cannot be undone."
 msgstr "ამ ქმედების გაუქმება შეუძლებელია."
 
-#: lib/tuist/accounts/user_notifier.ex:280
+#: lib/tuist/accounts/user_notifier.ex:281
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr "Tuist-ის გამოყენების დასაწყებად, დაადასტურეთ თქვენი ელფოსტა და მზად ხართ:"
@@ -799,7 +799,7 @@ msgstr "Tuist-ის ლოგო"
 msgid "United States"
 msgstr "აშშ"
 
-#: lib/tuist/vcs.ex:896
+#: lib/tuist/vcs.ex:907
 #: lib/tuist_web/live/account_token_helpers.ex:96
 #, elixir-autogen, elixir-format
 msgid "Unknown"
@@ -932,22 +932,22 @@ msgstr "არ გაქვთ ამ მოქმედების შეს�
 msgid "You have been invited"
 msgstr "მოწვეული ხართ"
 
-#: lib/tuist/accounts/user_notifier.ex:283
+#: lib/tuist/accounts/user_notifier.ex:284
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr "მიიღეთ ეს ელფოსტა, რადგან ბოლო დროს Tuist-ის ანგარიში გააკეთეთ."
 
-#: lib/tuist/accounts/user_notifier.ex:307
+#: lib/tuist/accounts/user_notifier.ex:308
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr "ეს ელფოსტა მიიღეთ, რადგან მოითხოვეთ პაროლის აღდგენა თქვენი Tuist ანგარიშისთვის."
 
-#: lib/tuist/accounts/user_notifier.ex:430
+#: lib/tuist/accounts/user_notifier.ex:431
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr "%{inviter_email}-მა მოგიწვიათ %{organization_name} Tuist ორგანიზაციაში."
 
-#: lib/tuist/accounts/user_notifier.ex:279
+#: lib/tuist/accounts/user_notifier.ex:280
 #, elixir-autogen, elixir-format
 msgid "You're Almost Set!"
 msgstr "თითქმის მზად ხართ!"
@@ -1725,27 +1725,27 @@ msgstr "სხეულის კოპირება"
 msgid "Copy payload"
 msgstr "პეილოადის კოპირება"
 
-#: lib/tuist/accounts/user_notifier.ex:473
+#: lib/tuist/accounts/user_notifier.ex:474
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr "გამარჯობა, %{user_email}, თქვენი ანგარიში %{organization_name} ორგანიზაციაში დაემატა თქვენი იდენტიფიკაციის პროვაიდერის ავტომატური მომხმარებლის მიწოდების (SCIM) მეშვეობით."
 
-#: lib/tuist/accounts/user_notifier.ex:488
+#: lib/tuist/accounts/user_notifier.ex:489
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr "თუ ეს მოულოდნელია, დაუკავშირდით თქვენი იდენტიფიკაციის პროვაიდერის ადმინისტრატორს (გუნდი, რომელიც მართავს თქვენს ერთჯერად შესვლას), რათა გააუქმოთ ეს მიწოდება. Tuist-ის ორგანიზაციის ადმინისტრატორს ასევე შეუძლია წაგიშალოთ %{organization_name}-დან."
 
-#: lib/tuist/accounts/user_notifier.ex:479
+#: lib/tuist/accounts/user_notifier.ex:480
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr "თუ ამას ელოდით, არანაირი ქმედება არ არის საჭირო. ორგანიზაციის გასახსნელად გადადით აქ:"
 
-#: lib/tuist/accounts/user_notifier.ex:485
+#: lib/tuist/accounts/user_notifier.ex:486
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr "%{organization_name}-ის გახსნა"
 
-#: lib/tuist/accounts/user_notifier.ex:465
+#: lib/tuist/accounts/user_notifier.ex:466
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr "თქვენ დაემატეთ %{organization_name} Tuist ორგანიზაციას"
@@ -2580,110 +2580,110 @@ msgstr "როლი რეგისტრირებული წევრე�
 msgid "The role members get when they join through automatic enrollment."
 msgstr "როლი, რომელიც ენიჭებათ წევრებს ავტომატური რეგისტრაციის გზით შემოერთებისას."
 
-#: lib/tuist/accounts/user_notifier.ex:557
+#: lib/tuist/accounts/user_notifier.ex:605
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr "Pro შეიცავს იგივე უფასო ლიმიტს, ხოლო მის გადაჭარბების შემთხვევაში მოქმედებს გამოყენებაზე დაფუძნებული ფასები."
 
-#: lib/tuist/accounts/user_notifier.ex:745
+#: lib/tuist/accounts/user_notifier.ex:793
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr "ამ ანგარიშისთვის დისტანციური ქეშის წვდომა შეჩერებულია. განაგრძეთ ქეშის გამოყენება Pro-ზე გადასვლით ან დაელოდეთ უფასო ლიმიტის განახლებას."
 
-#: lib/tuist/accounts/user_notifier.ex:554
+#: lib/tuist/accounts/user_notifier.ex:602
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr "გადახედეთ გამოყენებას და გააუმჯობესეთ პაკეტი"
 
-#: lib/tuist/accounts/user_notifier.ex:754
+#: lib/tuist/accounts/user_notifier.ex:802
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr "უახლოვდებით Air ლიმიტს"
 
-#: lib/tuist/accounts/user_notifier.ex:755
+#: lib/tuist/accounts/user_notifier.ex:803
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr "უახლოვდებით თვიურ უფასო ლიმიტს. ლიმიტის მიღწევამდე გადადით Pro-ზე, რათა დისტანციური ქეშის წვდომა შეუფერხებლად გაგრძელდეს."
 
-#: lib/tuist/accounts/user_notifier.ex:560
-#: lib/tuist/accounts/user_notifier.ex:647
-#: lib/tuist/accounts/user_notifier.ex:685
+#: lib/tuist/accounts/user_notifier.ex:608
+#: lib/tuist/accounts/user_notifier.ex:695
+#: lib/tuist/accounts/user_notifier.ex:733
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr "ეს ელფოსტა მიიღეთ, რადგან ამ Tuist ანგარიშს ადმინისტრირებთ."
 
-#: lib/tuist/accounts/user_notifier.ex:744
+#: lib/tuist/accounts/user_notifier.ex:792
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr "მიღწეული გაქვთ Air ლიმიტი"
 
-#: lib/tuist/accounts/user_notifier.ex:547
+#: lib/tuist/accounts/user_notifier.ex:595
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr "თქვენი უფასო კვოტა განახლდება %{date}-ს (UTC)."
 
-#: lib/tuist/accounts/user_notifier.ex:725
+#: lib/tuist/accounts/user_notifier.ex:773
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr "ამ ანგარიშისთვის ახალი runner-ების სამუშაოები შეჩერებულია. განაახლეთ Pro-ზე, რომ გაგრძელდეს სამუშაოების შესრულება, ან დაელოდეთ უფასო runner-ების კვოტის განახლებას."
 
-#: lib/tuist/accounts/user_notifier.ex:724
+#: lib/tuist/accounts/user_notifier.ex:772
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr "მიღწეული გაქვთ Air runner-ების ლიმიტი"
 
-#: lib/tuist/accounts/user_notifier.ex:735
+#: lib/tuist/accounts/user_notifier.ex:783
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr "აახლოვდებით თქვენს ყოველთვიურ უფასო runner-ების კვოტას. ლიმიტის მიღწევამდე განაახლეთ Pro-ზე, რომ გაგრძელდეს runner-ების გამოყენება."
 
-#: lib/tuist/accounts/user_notifier.ex:734
+#: lib/tuist/accounts/user_notifier.ex:782
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr "აახლოვდებით Air runner-ების ლიმიტს"
 
-#: lib/tuist/accounts/user_notifier.ex:530
+#: lib/tuist/accounts/user_notifier.ex:578
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
 msgstr "%{account_name}-მა მიაღწია Air ლიმიტის %{percentage}%-ს"
 
-#: lib/tuist/accounts/user_notifier.ex:525
+#: lib/tuist/accounts/user_notifier.ex:573
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
 msgstr "%{account_name}-მა მიაღწია Air-რანერების ლიმიტის %{percentage}%-ს"
 
-#: lib/tuist/accounts/user_notifier.ex:231
+#: lib/tuist/accounts/user_notifier.ex:232
 #, elixir-autogen, elixir-format
 msgid "All rights reserved."
 msgstr "ყველა უფლება დაცულია."
 
-#: lib/tuist/accounts/user_notifier.ex:772
+#: lib/tuist/accounts/user_notifier.ex:820
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
 msgstr "გამარჯობა, %{email}, ქვემოთ მოცემულ ღილაკზე დაჭერით შეგიძლიათ შეცვალოთ თქვენი ელფოსტა"
 
-#: lib/tuist/accounts/user_notifier.ex:777
+#: lib/tuist/accounts/user_notifier.ex:825
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
 msgstr "თუ ეს ცვლილება არ მოითხოვეთ, გთხოვთ, უგულებელყოთ ეს წერილი."
 
-#: lib/tuist/accounts/user_notifier.ex:228
+#: lib/tuist/accounts/user_notifier.ex:229
 #, elixir-autogen, elixir-format
 msgid "This email was sent by Tuist. By using our services, you agree to our"
 msgstr "ეს წერილი გაგზავნა Tuist-მა. ჩვენი სერვისების გამოყენებით, თქვენ ეთანხმებით ჩვენს"
 
-#: lib/tuist/accounts/user_notifier.ex:768
+#: lib/tuist/accounts/user_notifier.ex:816
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
 msgstr "ელფოსტის განახლების ინსტრუქციები"
 
-#: lib/tuist/accounts/user_notifier.ex:770
-#: lib/tuist/accounts/user_notifier.ex:776
+#: lib/tuist/accounts/user_notifier.ex:818
+#: lib/tuist/accounts/user_notifier.ex:824
 #, elixir-autogen, elixir-format
 msgid "Update your email"
 msgstr "განაახლეთ თქვენი ელფოსტა"
 
-#: lib/tuist/accounts/user_notifier.ex:229
+#: lib/tuist/accounts/user_notifier.ex:230
 #, elixir-autogen, elixir-format
 msgid "terms of service"
 msgstr "მომსახურების პირობებს"
@@ -2728,12 +2728,12 @@ msgstr "კეშიდან გადმოწერილი მონაც�
 msgid "of your usage"
 msgstr "თქვენი გამოყენების"
 
-#: lib/tuist/accounts/user_notifier.ex:708
+#: lib/tuist/accounts/user_notifier.ex:756
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
 msgstr "გამოყენებულია კეშის %{usage} მოთხოვნა %{limit}-დან"
 
-#: lib/tuist/accounts/user_notifier.ex:701
+#: lib/tuist/accounts/user_notifier.ex:749
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
 msgstr "გამოყენებულია კეშიდან გადმოწერილი მონაცემების %{usage} %{limit}-დან"
@@ -2827,8 +2827,8 @@ msgstr "ანგარიშის „%{account}“ გამოწერის
 msgid "A payment for your subscription failed"
 msgstr "თქვენი გამოწერის გადახდა ვერ მოხერხდა"
 
-#: lib/tuist/accounts/user_notifier.ex:646
-#: lib/tuist/accounts/user_notifier.ex:684
+#: lib/tuist/accounts/user_notifier.ex:694
+#: lib/tuist/accounts/user_notifier.ex:732
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2844,47 +2844,47 @@ msgstr "თქვენი გეგმა შეზღუდულია Air �
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
 msgstr "თქვენი გეგმა აქტიური რჩება, სანამ გადახდის ცდა მეორდება. გადაიხადეთ ღია ინვოისი ან განაახლეთ გადახდის მეთოდი, რათა შეინარჩუნოთ აქტიურობა."
 
-#: lib/tuist/accounts/user_notifier.ex:627
+#: lib/tuist/accounts/user_notifier.ex:675
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr "%{account_name}-ის Tuist გამოწერის გადახდა ვერ მოხერხდა"
 
-#: lib/tuist/accounts/user_notifier.ex:644
+#: lib/tuist/accounts/user_notifier.ex:692
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr "გადაიხადეთ ღია ინვოისი ან განაახლეთ გადახდის მეთოდი, რათა შეინარჩუნოთ თქვენი გეგმა:"
 
-#: lib/tuist/accounts/user_notifier.ex:634
+#: lib/tuist/accounts/user_notifier.ex:682
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
 msgstr "ვერ მოვახერხეთ %{account_name}-ის გამოწერისთვის ბარათზე არსებული გადახდის მეთოდით ჩამოჭრა. გადახდა ავტომატურად მეორდება."
 
-#: lib/tuist/accounts/user_notifier.ex:632
+#: lib/tuist/accounts/user_notifier.ex:680
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr "თქვენი გამოწერის გადახდა ვერ განხორციელდა"
 
-#: lib/tuist/accounts/user_notifier.ex:639
+#: lib/tuist/accounts/user_notifier.ex:687
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
 msgstr "გადახდის ხელახალი ცდების პერიოდში თქვენი გეგმა აქტიური რჩება. თუ ცდების დასრულების შემდეგაც ვერ განხორციელდა, %{account_name} შეიზღუდება Air გეგმის უფასო დონემდე, სანამ ინვოისი არ გადაიხდება."
 
-#: lib/tuist/accounts/user_notifier.ex:666
+#: lib/tuist/accounts/user_notifier.ex:714
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr "%{account_name} გადავიდა Air გეგმაზე, რადგან გამოწერის გადახდა ვერ განხორციელდა"
 
-#: lib/tuist/accounts/user_notifier.ex:678
+#: lib/tuist/accounts/user_notifier.ex:726
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr "ღია ინვოისის გადახდა აღადგენს თქვენს გეგმას. ასევე შეგიძლიათ გადახდამდე განაახლოთ გადახდის მეთოდი:"
 
-#: lib/tuist/accounts/user_notifier.ex:673
+#: lib/tuist/accounts/user_notifier.ex:721
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
 msgstr "ვერ მოვახერხეთ %{account_name}-ის გამოწერისთვის გადახდის მიღება და ხელახალი ცდები ამოიწურა. %{account_name} ახლა შეზღუდულია Air გეგმის უფასო დონემდე."
 
-#: lib/tuist/accounts/user_notifier.ex:671
+#: lib/tuist/accounts/user_notifier.ex:719
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr "თქვენი ანგარიში გადავიდა Air გეგმაზე"
@@ -3086,44 +3086,44 @@ msgstr "Pro გექნებათ იმ დრომდე და გამ�
 msgid "Your plan switches to Air on %{date}"
 msgstr "თქვენი გეგმა გადადის Air-ზე %{date}-დან"
 
-#: lib/tuist/accounts/user_notifier.ex:332
-#: lib/tuist/accounts/user_notifier.ex:354
-#: lib/tuist/accounts/user_notifier.ex:388
+#: lib/tuist/accounts/user_notifier.ex:333
+#: lib/tuist/accounts/user_notifier.ex:355
+#: lib/tuist/accounts/user_notifier.ex:389
 #, elixir-autogen, elixir-format
 msgid "If you did not make this change, contact Tuist support immediately and secure your account."
 msgstr "თუ ეს ცვლილება თქვენ არ გააკეთეთ, დაუყოვნებლივ დაუკავშირდით Tuist-ის მხარდაჭერას და დაიცავით თქვენი ანგარიში."
 
-#: lib/tuist/accounts/user_notifier.ex:331
+#: lib/tuist/accounts/user_notifier.ex:332
 #, elixir-autogen, elixir-format
 msgid "The two-factor authentication settings for your Tuist account were changed."
 msgstr "შეიცვალა თქვენი Tuist ანგარიშის ორეტაპიანი ავთენტიფიკაციის პარამეტრები."
 
-#: lib/tuist/accounts/user_notifier.ex:325
+#: lib/tuist/accounts/user_notifier.ex:326
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication disabled"
 msgstr "ორეტაპიანი ავთენტიფიკაცია გათიშულია"
 
-#: lib/tuist/accounts/user_notifier.ex:324
+#: lib/tuist/accounts/user_notifier.ex:325
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication enabled"
 msgstr "ორეტაპიანი ავთენტიფიკაცია ჩართულია"
 
-#: lib/tuist/accounts/user_notifier.ex:346
+#: lib/tuist/accounts/user_notifier.ex:347
 #, elixir-autogen, elixir-format
 msgid "Passkey added"
 msgstr "Passkey დამატებულია"
 
-#: lib/tuist/accounts/user_notifier.ex:347
+#: lib/tuist/accounts/user_notifier.ex:348
 #, elixir-autogen, elixir-format
 msgid "Passkey removed"
 msgstr "Passkey წაშლილია"
 
-#: lib/tuist/accounts/user_notifier.ex:353
+#: lib/tuist/accounts/user_notifier.ex:354
 #, elixir-autogen, elixir-format
 msgid "The passkeys that can sign in to your Tuist account were changed."
 msgstr "შეიცვალა passkey-ები, რომლებითაც შესაძლებელია თქვენს Tuist ანგარიშზე შესვლა."
 
-#: lib/tuist/accounts/user_notifier.ex:692
+#: lib/tuist/accounts/user_notifier.ex:740
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
 msgstr "გამოყენებულია %{usage} უფასო გამშვების წუთიდან %{limit}-მდე, დათვლილი macOS წუთებში (%{linux} Linux წუთი ითვლება როგორც %{limit})"
@@ -3395,7 +3395,7 @@ msgstr "Tuist სერვერზე OAuth-ით შედის. თქვ�
 msgid "You can add up to 25 MCP servers. Remove one to add another."
 msgstr "შეგიძლიათ დაამატოთ მაქსიმუმ 25 MCP სერვერი. ახლის დამატებამდე ერთი წაშალეთ."
 
-#: lib/tuist/accounts/user_notifier.ex:370
+#: lib/tuist/accounts/user_notifier.ex:371
 #, elixir-autogen, elixir-format
 msgid "A recovery code was used to access or change security settings on your Tuist account."
 msgstr "თქვენს Tuist ანგარიშზე უსაფრთხოების პარამეტრების მისაღებად ან შესაცვლელად გამოყენებული იქნა აღდგენის კოდი."
@@ -3410,7 +3410,7 @@ msgstr "პაროლთან ან SSO-სთან ერთად გა�
 msgid "Enabled"
 msgstr "ჩართულია"
 
-#: lib/tuist/accounts/user_notifier.ex:377
+#: lib/tuist/accounts/user_notifier.ex:378
 #, elixir-autogen, elixir-format
 msgid "New recovery codes were created for your Tuist account. All previous codes are now invalid."
 msgstr "შექმნილია Tuist ანგარიშის ახალი აღდგენის კოდები. ყველა წინა კოდი ახლა არასწორია."
@@ -3425,12 +3425,12 @@ msgstr "არ არის ჩართული"
 msgid "Passkeys"
 msgstr "გასაღებები"
 
-#: lib/tuist/accounts/user_notifier.ex:369
+#: lib/tuist/accounts/user_notifier.ex:370
 #, elixir-autogen, elixir-format
 msgid "Recovery code used"
 msgstr "აღდგენის კოდი გამოყენებულია"
 
-#: lib/tuist/accounts/user_notifier.ex:376
+#: lib/tuist/accounts/user_notifier.ex:377
 #, elixir-autogen, elixir-format
 msgid "Recovery codes regenerated"
 msgstr "აღდგენის კოდები განახლებულია"
@@ -3633,3 +3633,23 @@ msgstr "ეს შლის შენახულ გასაღებს დ�
 #, elixir-autogen, elixir-format
 msgid "This removes the configured model, not its provider. If it is the default, routing stops until you select another."
 msgstr "ეს აშორებს კონფიგურირებულ მოდელს, არა მის პროვაიდერს. თუ ის ნაგულისხმევია, რუტინგი შეწყდება, სანამ სხვას არ აირჩევთ."
+
+#: lib/tuist/accounts/user_notifier.ex:506
+#, elixir-autogen, elixir-format
+msgid "%{account_name}: prepaid runner credits %{threshold}% consumed"
+msgstr "%{account_name}: წინასწარ გადახდილი რანერის კრედიტები %{threshold}% ამოწურულია"
+
+#: lib/tuist/accounts/user_notifier.ex:540
+#, elixir-autogen, elixir-format
+msgid "%{usage} of %{budget} in runner credits consumed."
+msgstr "ამოწურულია რანერის კრედიტების %{usage} ბიუჯეტიდან %{budget}."
+
+#: lib/tuist/accounts/user_notifier.ex:518
+#, elixir-autogen, elixir-format
+msgid "You have consumed 80% of your prepaid runner credits. Jobs will continue at the standard on-demand rates after the credits are exhausted."
+msgstr "თქვენ ამოწურეთ თქვენი წინასწარ გადახდილი რანერის კრედიტების 80%. კრედიტების ამოწურვის შემდეგ ჯობები გაგრძელდება სტანდარტული მოთხოვნით გადახდის ტარიფებით."
+
+#: lib/tuist/accounts/user_notifier.ex:513
+#, elixir-autogen, elixir-format
+msgid "Your prepaid runner credits are exhausted. Further billable runner usage continues at the standard on-demand rates; jobs are not blocked."
+msgstr "თქვენი წინასწარ გადახდილი რანერის კრედიტები ამოწურულია. დამატებითი გადასახდელი რანერის გამოყენება გრძელდება სტანდარტული მოთხოვნით გადახდის ტარიფებით; ჯობები არ იბლოკება."

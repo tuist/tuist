@@ -23,6 +23,21 @@ defmodule TuistWeb.Internal.AtlasAccountsControllerTest do
     assert conn |> get("/api/internal/atlas/accounts/lookup", %{"handle" => "tuist"}) |> json_response(401)
     assert conn |> get("/api/internal/atlas/accounts/1/runner-concurrency-limits") |> json_response(401)
     assert conn |> put("/api/internal/atlas/accounts/1/runner-concurrency-limits", %{}) |> json_response(401)
+    assert conn |> get("/api/internal/atlas/accounts/1/runner-billing") |> json_response(401)
+    assert conn |> put("/api/internal/atlas/accounts/1/runner-billing", %{}) |> json_response(401)
+  end
+
+  test "runner billing reads use workload authentication and invalid activations do not mutate the account", %{conn: conn} do
+    account = AccountsFixtures.organization_fixture(customer_id: nil, preload: [:account]).account
+    path = "/api/internal/atlas/accounts/#{account.id}/runner-billing"
+
+    assert %{"account_id" => id, "prepaid_grants" => [], "activation" => nil, "revision" => revision} =
+             conn |> authed() |> get(path) |> json_response(200)
+
+    assert id == account.id
+    assert byte_size(revision) == 64
+    assert %{"error" => "invalid_request"} = conn |> authed() |> put(path, %{}) |> json_response(422)
+    assert Repo.reload!(account).runner_trial_ended_at == account.runner_trial_ended_at
   end
 
   test "lookup resolves an organization handle to its account ID, not the organization ID", %{conn: conn} do

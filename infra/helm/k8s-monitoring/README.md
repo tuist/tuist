@@ -363,6 +363,9 @@ alert and panels filter on:
   Runners dashboard's queue-time panels
 - `tuist_runner_cache_volume_operations_total` and
   `tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}`
+- `tuist_runner_actions_cache_operations_total`, whose `result` label splits
+  Actions cache lookups into mirror hits and misses and GitHub fallback hits
+  and misses (exempted 2026-11-16; before then `result` was aggregated away)
 
 ```bash
 curl -s -u "1774467:$TOKEN" $BASE/v1/recommendations/exemptions

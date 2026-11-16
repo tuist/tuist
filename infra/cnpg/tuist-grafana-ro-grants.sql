@@ -1,11 +1,12 @@
 -- Per-column privileges for the `tuist_grafana_ro` role.
 --
 -- This role backs the Grafana "Tuist Product Usage" dashboard and the
--- "Runner cache volume warm rate low" alert rule, which reach CNPG over the
+-- "Runner cache volume warm rate low" alert rule, plus runner lifecycle
+-- incident queries, which reach CNPG over the
 -- PDC tunnel (see infra/helm/tuist/templates/pdc-agent.yaml). Its
 -- password lives in Grafana Cloud, so it is the one database credential we hand
 -- to a third party — it gets the narrowest grant set that still renders the
--- dashboard, and nothing else.
+-- dashboard, alerts and incident queries, and nothing else.
 --
 -- Deliberately NOT `pg_read_all_data` (which is what `tuist_ops_ro` uses): every
 -- table this dashboard reads sits next to a secret in the same row, so even
@@ -14,8 +15,8 @@
 -- `projects.token`, `projects.slack_webhook_url`, `accounts.s3_secret_access_key`,
 -- and `organizations.oauth2_encrypted_client_secret`. Hence column-level grants.
 --
--- The grants below are an exact allowlist of the columns the dashboard's SQL
--- references. That is the point: adding a panel column is a deliberate change
+-- The grants below are an exact allowlist of dashboard, alert and incident-query
+-- columns. That is the point: adding a query column is a deliberate change
 -- here, not something a dashboard edit silently widens. If a panel starts
 -- erroring with "permission denied for table ...", a column is missing — add it
 -- here rather than reaching for a broader grant.
@@ -70,6 +71,30 @@ GRANT SELECT (user_id, role_id) ON :"tuist_schema".users_roles TO tuist_grafana_
 -- repository, pod_name and node_name.
 GRANT SELECT (volume_id, base_generation, warm, attached_at) ON :"tuist_schema".runner_cache_volume_uses TO tuist_grafana_ro;
 GRANT SELECT (id, key, platform) ON :"tuist_schema".runner_cache_volumes TO tuist_grafana_ro;
+
+-- Runner lifecycle: queue timing and shape, live admission reservations and
+-- limits, and historical sessions for limit-held exclusions after claims are
+-- deleted. Excludes repository/branch metadata, execution_identity, logs and
+-- transition-event payloads. Keep these column grants explicit, even on tables
+-- whose current columns are all operational: future columns are not approved.
+GRANT SELECT (
+  workflow_job_id, account_id, fleet_name, status, conclusion, platform, vcpus,
+  memory_gb, enqueued_at, claimed_at, executor_claimed_at, started_at, completed_at,
+  pod_name, runner_name, executed_workflow_job_id
+) ON :"tuist_schema".runner_workflow_jobs TO tuist_grafana_ro;
+GRANT SELECT (
+  pod_name, workflow_job_id, account_id, fleet_name, site, claimed_at, platform,
+  vcpus, memory_gb, lifecycle_state, runner_name, executed_workflow_job_id,
+  pod_missing_since
+) ON :"tuist_schema".runner_claims TO tuist_grafana_ro;
+GRANT SELECT (
+  account_id, platform, vcpus, memory_gb, updated_at
+) ON :"tuist_schema".runner_concurrency_limits TO tuist_grafana_ro;
+GRANT SELECT (
+  id, account_id, workflow_job_id, executed_workflow_job_id, fleet_name, platform,
+  vcpus, memory_gb, started_at, ended_at, job_started_at, job_ended_at, pod_name,
+  runner_name, node_name
+) ON :"tuist_schema".runner_sessions TO tuist_grafana_ro;
 
 -- Defense in depth: no writes, and no privileges on tables added in future
 -- migrations (the opposite of pg_read_all_data, which would pick them up

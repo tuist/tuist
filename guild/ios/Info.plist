@@ -3,7 +3,7 @@
 <plist version="1.0"><dict>
     <key>CFBundleIdentifier</key><string>dev.tuist.code</string>
     <key>CFBundleExecutable</key><string>TuistGuild</string>
-    <key>CFBundleName</key><string>TuistGuild</string>
+    <key>CFBundleName</key><string>Tuist Guild</string>
     <key>CFBundleDisplayName</key><string>Tuist Guild</string>
     <key>NSAccentColorName</key><string>AccentColor</string>
     <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict>
