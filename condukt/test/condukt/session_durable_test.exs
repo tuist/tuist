@@ -1493,6 +1493,34 @@ defmodule Condukt.SessionDurableTest do
 
   # A new owner takes the session over at a higher epoch, reads what the old
   # one journaled, and settles the tool call it cannot know the outcome of.
+  # A host runs one session per run, all at its lease epoch, and starts each
+  # through the sessions supervisor, which is where the store's reads run.
+  # Each session has to see what the one before it stored.
+  test "consecutive sessions at one epoch on the object store each see the history before them" do
+    {:ok, bucket} = ObjectStore.Memory.start_link()
+    store = {ObjectStore, bucket: {ObjectStore.Memory, bucket}, key: "one-epoch", epoch: 3}
+
+    for {prompt, answer} <- [{"first", "first answer"}, {"second", "second answer"}] do
+      {model, _} = LLMProvider.model([LLMProvider.text_response(answer)])
+      {:ok, pid} = Condukt.Sessions.start(DurableAgent, model: model, tools: [], session_store: store)
+      assert {:ok, ^answer} = Condukt.run(pid, prompt)
+      settle(pid)
+      GenServer.stop(pid)
+    end
+
+    assert {:ok, %{messages: messages}} = elem(store, 1) |> Keyword.delete(:epoch) |> ObjectStore.load()
+    assert Enum.map(messages, & &1.content) == ["first", [text: "first answer"], "second", [text: "second answer"]]
+  end
+
+  test "does not start on a snapshot from a newer version" do
+    key = {:newer, make_ref()}
+    :ok = Memory.save(%{Snapshot.new(%{messages: [Message.user("kept")]}) | version: 999}, key: key)
+    {model, _} = LLMProvider.model([])
+
+    assert {:error, {:snapshot_load_failed, {:unsupported_snapshot_version, 999}}} =
+             start_session(key, model, [], session_store: Memory)
+  end
+
   test "resumes from the object store at a new epoch" do
     test_pid = self()
     {:ok, bucket} = ObjectStore.Memory.start_link()
