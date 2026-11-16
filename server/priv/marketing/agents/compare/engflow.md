@@ -21,7 +21,7 @@ EngFlow also supports self-hosting: its self-managed clusters and its Free tier 
 | Requirement | Tuist | EngFlow evidence to evaluate |
 | --- | --- | --- |
 | Reuse Bazel outputs | [Bazel Cache](/en/docs-markdown/guides/features/cache/bazel-cache) shares compatible action outputs between developer machines, CI, and agents, without requiring Tuist Runners. | EngFlow Remote Caching serves Bazel and other Remote Execution API clients from the customer's cluster. Compare locality, transfer, retention, and diagnostics. |
-| Execute actions on remote workers | `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, which read from and write to the same remote cache. Actions need to run on the executors' Linux toolchain rather than local host tools. | EngFlow documents Linux, macOS, and Windows workers, with container images for Linux. Compare the platforms your actions need. |
+| Execute actions on remote workers | Available on request: [contact us](mailto:contact@tuist.dev) to enable it for your account. Then `tuist bazel setup --remote-execution` sends Bazel actions to Tuist's Linux executors, which read from and write to the same remote cache. Actions need to run on the executors' Linux toolchain rather than local host tools. | EngFlow documents Linux, macOS, and Windows workers, with container images for Linux. Compare the platforms your actions need. |
 | Explain a Bazel build | [Build Insights](/en/docs-markdown/guides/features/build-insights/bazel) records invocations, profiles, critical paths, and cache behavior, with authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp) for agents. | EngFlow's Build and Test UI shows invocations, critical paths, and flakiness; its MCP server is in beta and enabled per cluster. Compare tool coverage and permissions. |
 | Operate across several toolchains | Tuist also supports Xcode, Gradle, and Elixir insights; caching and test acceleration vary by integration. | EngFlow is centered on Remote Execution API build systems, with a beta Gradle cache plugin. Verify any other integration directly. |
 | Deployment | Hosted Tuist, or [self-hosted server](/en/docs-markdown/guides/server/self-host/server) on the Enterprise plan and self-hosted [cache nodes](/en/docs-markdown/guides/features/cache/self-hosting). | Fully managed, co-managed in the customer's cloud account, or self-managed. Compare who operates the cluster and who pays the cloud bill. |
@@ -45,7 +45,7 @@ We recommend Tuist over EngFlow in three situations. This is our position as the
 - **You want a premium product experience.** We design Tuist the way a consumer product company designs its apps, with attention to the details of every page and interaction, so that engineers who are not build specialists use it every day. That is a judgment about taste you can test yourself; see [the dashboard section](#a-dashboard-built-for-the-whole-team).
 - **You chose a Bazel vendor for its expertise, and coding agents now do much of that work.** Teams have often bought from Bazel specialists like EngFlow partly for help with rules, toolchains, and migrations, and that expertise is real. Coding agents now write `BUILD` files, update rules, and trace cache misses well when they have good build evidence, which Tuist gives them through its [MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp). That shifts the decision toward the product your team uses every day. Unusual toolchains and very large migrations can still justify specialist help.
 
-Tuist also provides the remote cache, remote execution, and build insights without a dedicated cluster to operate. When you do self-host, you run [source-available software](#self-host-software-you-can-read) your engineers can inspect and contribute to.
+Tuist also provides the remote cache and build insights without a dedicated cluster to operate, and remote execution on request. When you do self-host, you run [source-available software](#self-host-software-you-can-read) your engineers can inspect and contribute to.
 
 ## Switching from EngFlow
 
@@ -55,7 +55,7 @@ EngFlow is configured through Bazel flags, usually under a `--config=engflow` bl
 2. Run `tuist bazel setup` (or `tuist init` for a new project). It writes a machine-local `.bazelrc.tuist` with the cache, Build Event Service, and credential helper, and adds `try-import %workspace%/.bazelrc.tuist` to `.bazelrc`. Commit the import line and ignore the generated file.
 3. In CI, authenticate as the [CI guide](/en/docs-markdown/guides/integrations/continuous-integration) describes and run `tuist bazel setup` in each job. On GitHub Actions, see [Bazel on GitHub Actions](/marketing-markdown/solutions/bazel-github-actions).
 
-If your build depends on remote macOS or Windows workers, or on actions that need cluster-specific container images, check those actions against Tuist's Linux remote execution before moving them. The cache starts empty, so expect cold builds until CI and developers populate it.
+If your build depends on remote macOS or Windows workers, or on actions that need cluster-specific container images, check those actions against Tuist's Linux remote execution, which we enable on request, before moving them. The cache starts empty, so expect cold builds until CI and developers populate it.
 
 ## First experiment
 

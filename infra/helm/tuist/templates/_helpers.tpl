@@ -1766,3 +1766,13 @@ than routing nothing.
 {{- end -}}
 {{- join "," $routed -}}
 {{- end -}}
+
+{{/*
+The ExternalSecret template expression for a service's Pulse Sentry DSN (see
+sentryPulse in values.yaml). Pass the service name and the ExternalSecret data
+key holding the Pulse user's password.
+*/}}
+{{- define "tuist.sentryPulseDsn" -}}
+{{- $p := .root.Values.sentryPulse -}}
+http://{{ $p.user }}:{{ printf "{{ .%s | trim }}" .key }}@{{ $p.host }}/v1/sentry/{{ .service }}/1
+{{- end }}

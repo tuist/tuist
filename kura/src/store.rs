@@ -14134,6 +14134,7 @@ mod tests {
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
             sentry_dsn: None,
+            sentry_pulse_dsn: None,
             request_log_sample_rate: 0.0,
             slow_request_threshold_ms: 30_000,
             warning_log_interval_ms: 60_000,

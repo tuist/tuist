@@ -29,12 +29,15 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     /// anyway, instead of a separate discovery run of rustc.
     var isDeferred: Bool { compilerInputs?.sources.isEmpty == true }
 
-    static let keyVersion = "tuist-swift-cargo-cache-v6"
+    static let keyVersion = "tuist-swift-cargo-cache-v7"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
+    /// `CARGO_INCREMENTAL` is Cargo's, not the compiler's: Cargo turns it into `-C incremental` (left out of keys) and
+    /// folds it into `-C metadata` (kept) for the units it compiles incrementally. Keying the value itself made every
+    /// dependency, which Cargo never compiles incrementally, miss between CI (`CARGO_INCREMENTAL=0`) and local builds.
     static let ignoredEnvironment = Set([
         "RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS", "CI",
-        "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID",
+        "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID", "CARGO_INCREMENTAL",
     ])
     static let ignoredEnvironmentPrefixes = [
         "TUIST_", "GITHUB_", "GITLAB_", "BUILDKITE_", "CIRCLE_", "CI_", "RUNNER_", "ACTIONS_", "TRAVIS_", "TEAMCITY_",
@@ -43,14 +46,17 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     static func prepare(
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, process: CargoProcess
     ) async throws -> CargoCacheInvocation? {
+        // The one unstable option admitted: a valid front-end thread count.
+        let threads = CargoCacheInputs.withoutThreadCount(arguments)
+        let admitted = threads.normalized ? threads.arguments.filter { $0 != CargoCacheInputs.threadCount } : arguments
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil,
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
               environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
-              !arguments.contains(where: { argument in
+              !admitted.contains(where: { argument in
                   argument.hasPrefix("-") && !argument.hasPrefix("--") && argument.count > 2
                       && !["-C", "-L", "-A", "-W", "-D", "-F"].contains(where: argument.hasPrefix)
               }),
-              !arguments.contains(where: {
+              !admitted.contains(where: {
                   $0.hasPrefix("@") || $0.hasPrefix("-Z")
                       || $0.hasPrefix("--print") || $0.hasPrefix("--remap-path-prefix")
                       || $0.hasPrefix("--sysroot") || $0.hasPrefix("--target")
@@ -147,7 +153,8 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         if let cache = environment["TUIST_CARGO_CACHE_DIR"] {
             var declared = [Self.keyVersion, "sources", directory.pathString, rootSource.path, rootDigest.hash]
             declared += candidate.keyArguments
-            declared += environment.sorted { $0.key < $1.key }.filter { !Self.isIgnored($0.key) }.map { "\($0.key)=\($0.value)" }
+            // Variables keyed only when read are not declared: the source list names the ones the crate read.
+            declared += environment.sorted { $0.key < $1.key }.filter { Self.isKeyed($0.key) }.map { "\($0.key)=\($0.value)" }
             for file in externs {
                 let digest = try inputHasher.digest(file, shared: true)
                 declared += [file.path, digest.hash]
@@ -183,13 +190,17 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         guard !sources.isEmpty, sources.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else { return nil }
         var keyed = self
         guard let externs = compilerInputs?.externs else { return nil }
-        keyed.compilerInputs = CargoCacheInputs(sources: Set(sources).sorted { $0.path < $1.path }, externs: externs)
+        let variables = Set(listed.entries.filter { $0.kind == "env" }.map(\.name)).sorted()
+        keyed.compilerInputs = CargoCacheInputs(
+            sources: Set(sources).sorted { $0.path < $1.path }, externs: externs, variables: variables
+        )
         keyed.key = try keyed.fingerprint()
         return keyed
     }
 
-    /// The sources rustc's dep-info names for this compilation, once rustc has written it (before its metadata).
-    private func depInfoSources() -> [URL]? {
+    /// The sources and keyed-when-read variables rustc's dep-info names for this compilation, once rustc has written it
+    /// (before its metadata).
+    func depInfoInputs() -> (sources: [URL], variables: [String])? {
         let path = output.appendingPathComponent(files[2])
         guard (try? path.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap({ $0 }).map({ $0 < 2_000_000 }) == true,
               let text = try? String(contentsOf: path, encoding: .utf8), let dependencies = try? Self.dependencies(text)
@@ -197,7 +208,7 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         let base = URL(fileURLWithPath: directory.pathString)
         let sources = Set(dependencies.map { URL(fileURLWithPath: $0, relativeTo: base).standardizedFileURL })
         guard !sources.isEmpty, sources.count <= 10000 else { return nil }
-        return sources.sorted { $0.path < $1.path }
+        return (sources.sorted { $0.path < $1.path }, Self.readVariables(text))
     }
 
     /// This compilation keyed by rustc's dep-info, provided every source predates `prepared`: a file changed while
@@ -205,26 +216,30 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     func keyedFromDepInfo() -> CargoCacheInvocation? {
         // Through `stat`: Foundation on Linux has no attribute modification date, so every cold build there stored
         // nothing. A missing source fails hashing below.
-        guard let sources = depInfoSources(),
+        guard case let (sources, variables)? = depInfoInputs(),
               CargoReadSet(entries: sources.map { CargoReadSet.Entry(kind: "path", name: relocation.relative($0.path)) })
               .unchanged(since: prepared, relocation: relocation)
         else { return nil }
         guard let externs = compilerInputs?.externs else { return nil }
         var keyed = self
-        keyed.compilerInputs = CargoCacheInputs(sources: sources, externs: externs)
+        keyed.compilerInputs = CargoCacheInputs(sources: sources, externs: externs, variables: variables)
         guard let key = try? keyed.fingerprint() else { return nil }
         keyed.key = key
         return keyed
     }
 
-    /// After a successful compilation, the compilation keyed by the sources rustc actually read (`self` when the
-    /// remembered list was right, `nil` when it cannot be keyed), and those sources when they differ from the list (a
-    /// deferred compilation's first list, or a new one after a module was added or removed), for `remember`.
+    /// After a successful compilation, the compilation keyed by the sources and variables rustc actually read (`self`
+    /// when the remembered list was right, `nil` when it cannot be keyed), and those inputs when they differ from the
+    /// list (a deferred compilation's first list, or a new one after a module was added or removed or the crate started
+    /// reading package metadata), for `remember`.
     func refreshed() -> (keyed: CargoCacheInvocation?, sources: CargoReadSet?) {
         guard sourceIndex != nil else { return (self, nil) }
-        guard let sources = depInfoSources() else { return (nil, nil) }
-        guard sources != compilerInputs?.sources else { return (self, nil) }
-        let set = CargoReadSet(entries: sources.map { CargoReadSet.Entry(kind: "path", name: relocation.relative($0.path)) })
+        guard case let (sources, variables)? = depInfoInputs() else { return (nil, nil) }
+        guard sources != compilerInputs?.sources || variables != compilerInputs?.variables else { return (self, nil) }
+        let set = CargoReadSet(
+            entries: sources.map { CargoReadSet.Entry(kind: "path", name: relocation.relative($0.path)) }
+                + variables.map { CargoReadSet.Entry(kind: "env", name: $0) }
+        )
         return (keyedFromDepInfo(), set)
     }
 
@@ -236,9 +251,15 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     func fingerprint() throws -> REAPI.Digest {
         var inputs = [Self.keyVersion, directory.pathString]
         inputs += keyArguments
-        inputs += environment.sorted { $0.key < $1.key }.filter { !Self.isIgnored($0.key) }.map { "\($0.key)=\($0.value)" }
+        // A registry leaf is keyed before rustc says what it read, so it keys every variable.
+        inputs += environment.sorted { $0.key < $1.key }
+            .filter { compilerInputs == nil ? !Self.isIgnored($0.key) : Self.isKeyed($0.key) }
+            .map { "\($0.key)=\($0.value)" }
         var budget = 2_000_000_000
         if let compilerInputs {
+            for name in compilerInputs.variables {
+                inputs += ["env", name, environment[name].map { "=" + $0 } ?? "unset"]
+            }
             for file in compilerInputs.sources {
                 let digest = try inputHasher.sourceDigest(file, validate: Self.validateSource)
                 inputs += [file.path, digest.hash, String(digest.sizeBytes)]
@@ -305,24 +326,7 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         return files + additional
     }
 
-    var keyArguments: [String] {
-        let arguments = CargoCacheInputs.withoutIncremental(arguments)
-        var result: [String] = []
-        var seen = false
-        var index = 0
-        while index < arguments.count {
-            let parts = arguments[index].split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-            let option = parts.first ?? ""
-            guard option == "--diagnostic-width" else {
-                result.append(arguments[index]); index += 1; continue
-            }
-            let value = parts.count == 2 ? parts[1] : (index + 1 < arguments.count ? arguments[index + 1] : "")
-            guard !seen, !value.hasPrefix("-"), let width = Int(value, radix: 10), width >= 0 else { return arguments }
-            seen = true
-            index += parts.count == 2 ? 1 : 2
-        }
-        return result
-    }
+    var keyArguments: [String] { CargoCacheInputs.keyArguments(arguments) }
 
     func validateDependencies() throws {
         let path = output.appendingPathComponent(files[2])
@@ -336,7 +340,9 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
             let sources = Set(dependencies.map {
                 URL(fileURLWithPath: $0, relativeTo: URL(fileURLWithPath: directory.pathString)).standardizedFileURL
             })
-            guard sources == Set(compilerInputs.sources) else { throw CacheError.unsupported }
+            // A key that left out a variable the crate read would hit wherever that variable differs.
+            guard sources == Set(compilerInputs.sources), Self.readVariables(text) == compilerInputs.variables
+            else { throw CacheError.unsupported }
             return
         }
         guard !dependencies.isEmpty, dependencies.allSatisfy({ dependency in
@@ -492,6 +498,28 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
             || ["CARGO", "RUSTC", "RUSTFLAGS", "RUSTDOCFLAGS", "OUT_DIR", "SDKROOT", "RUSTUP_TOOLCHAIN"].contains(name)
             || name.hasSuffix("_DEPLOYMENT_TARGET")
         return !keyed
+    }
+
+    /// Package metadata Cargo derives from the manifest and sets for every crate, which rustc itself never reads: keys
+    /// hold it only where the crate read it, so editing a description or the authors, or building a member as part of
+    /// another selection (`CARGO_PRIMARY_PACKAGE`), misses only for crates that embed it. Strict keys learn the reads
+    /// from dep-info (`env!`, `option_env!`), which sees everything a crate without proc macros can read; recorded
+    /// keys also from the recorder, which sees a proc macro's `std::env` reads. The name and version stay keyed: rustc
+    /// reads them itself, and Cargo's `-C metadata` already changes with them.
+    static func isKeyedWhenRead(_ name: String) -> Bool {
+        name == "CARGO_PRIMARY_PACKAGE"
+            || (name.hasPrefix("CARGO_PKG_") && name != "CARGO_PKG_NAME" && !name.hasPrefix("CARGO_PKG_VERSION"))
+    }
+
+    /// Whether a declared key holds this variable's value whatever the crate reads.
+    static func isKeyed(_ name: String) -> Bool {
+        !isIgnored(name) && !isKeyedWhenRead(name)
+    }
+
+    /// The variables keyed only when read that dep-info says the crate read, set or not.
+    static func readVariables(_ depInfo: String) -> [String] {
+        Set(depInfo.split(separator: "\n").filter { $0.hasPrefix("# env-dep:") }
+            .map { String($0.dropFirst(10).prefix { $0 != "=" }) }.filter(isKeyedWhenRead)).sorted()
     }
 
     private static func option(_ name: String, in arguments: [String]) -> String? {

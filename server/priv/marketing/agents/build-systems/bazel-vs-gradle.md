@@ -34,7 +34,7 @@ Switching an established codebase is expensive in either direction. Measure wher
 | Capability | Bazel | Gradle |
 | --- | --- | --- |
 | Shared remote cache | [Bazel remote cache](/en/docs-markdown/guides/features/cache/bazel-cache) for action outputs | [Gradle build cache](/en/docs-markdown/guides/features/cache/gradle-cache) for task outputs |
-| Remote execution | Linux executors through `tuist bazel setup --remote-execution` | Not applicable; Gradle runs tasks on the build machine |
+| Remote execution | Linux executors through `tuist bazel setup --remote-execution`, on request ([contact us](mailto:contact@tuist.dev)) | Not applicable; Gradle runs tasks on the build machine |
 | Build insights | [Invocations](/en/docs-markdown/guides/features/build-insights/bazel) with timelines, critical path, and cache behavior | [Builds](/en/docs-markdown/guides/features/build-insights/gradle) with tasks, durations, and cache results |
 | Test insights and flaky tests | [Test history](/en/docs-markdown/guides/features/test-insights/bazel) and quarantine through `tuist bazel test` | [Test history](/en/docs-markdown/guides/features/test-insights/gradle) and [quarantine](/en/docs-markdown/guides/features/test-insights/flaky-tests/gradle) |
 | Test sharding | Not available today | [Balanced shards](/en/docs-markdown/guides/features/test-sharding/gradle) from historical durations |
@@ -71,7 +71,7 @@ Yes. Tuist connects each with its native integration and shows both in the same 
 
 ### Does Tuist support remote execution for Gradle?
 
-No. Remote execution is a Bazel capability in Tuist. For Gradle, Tuist shares task outputs through the remote build cache and distributes tests with test sharding.
+No. Remote execution is a Bazel capability in Tuist, available on request. For Gradle, Tuist shares task outputs through the remote build cache and distributes tests with test sharding.
 
 ## Open infrastructure you can improve
 

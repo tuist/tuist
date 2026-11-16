@@ -424,6 +424,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             "/compare/engflow",
             "/build-systems/bazel-vs-gradle",
             "/solutions/bazel-github-actions",
+            "/solutions/bazel-remote-cache",
             "/solutions/slow-builds",
             "/solutions/slow-tests",
             "/solutions/flaky-tests",

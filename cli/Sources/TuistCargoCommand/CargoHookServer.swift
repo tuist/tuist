@@ -201,10 +201,10 @@ final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_leng
             return
         }
         guard Self.write(connection, "R", Self.encode(run.command, run.environment.map { "\($0.key)=\($0.value)" })) else {
-            Self.wait { await run.finish(succeeded: false) }
+            Self.wait { await run.abandon() }
             return
         }
-        var status: Int32 = 1
+        var status: Int32?
         loop: while let (tag, bytes) = Self.read(connection) {
             switch tag {
             case UInt8(ascii: "o"): run.standardOutput(bytes)
@@ -216,6 +216,11 @@ final class CargoHookServer: Sendable { // swiftlint:disable:this type_body_leng
                 break loop
             default: break loop
             }
+        }
+        guard let status else {
+            Self.wait { await run.abandon() }
+            _ = Self.write(connection, "X", Self.status(1))
+            return
         }
         // Cargo starts dependents once the exit is reported, so publication waits only for what they need.
         let publish = Self.wait { await run.settle(succeeded: status == 0) }

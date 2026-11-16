@@ -15,6 +15,16 @@ migration:
   standalone: ""
 dashboard:
   enabled: false
+# Environments whose Pulse has the write-only `sentry` user, from
+# PULSE_SENTRY_WRITER/password, for the tuist chart's sentryPulse copies (needs
+# dashboard.enabled). Add an environment only once that item exists in its
+# vault: a missing item fails pulse-dashboard-auth and stops the deploy. Pulse
+# loads users at startup, so a deploy (which restarts the frontends) or a
+# frontend restart is needed after the item is created or rotated. Keep the
+# password to letters and digits: it is placed in DSNs unescaped and the user
+# file splits on `=`.
+sentryWriter:
+  environments: [staging]
 # Pulse, built from pulse/ by pulse-release.yml (pulse/FORK.md). Deploys use
 # the newest canary in the commit; this pin covers commits without one.
 image: ghcr.io/tuist/pulse:1.44.0-canary.4

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "cbf722fbb9b665e5d921bd45c4329f66ea400a996c602532d31510774173cfa1",
+  "hash": "8a9ad4fcf3ee55ec54c41502bbc306edc8a6f3c73f9dc372a3400a526d6792a1",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "9c6a6331a94cbd464ce12df19a703fc662bc0cbb29941128ebce816d596e8baf"
                 },
                 "## How it works {#how-it-works}": {
-                  "content_hash": "a93dc765050467850a7ed1608dfe8944d668c8f03bd038931d08e50c4b75515e"
+                  "content_hash": "167b0813a967f2ccc1e99031a1278c934f06e5a8ea21e4e72bbee02bc18ab576"
                 },
                 "## Inspect cache activity {#inspect-cache-activity}": {
                   "content_hash": "4515e623764ad725403538f9d2317ca2976cbd55be8ecc83bfddf8bf7775df4b"
@@ -26,7 +26,7 @@
                   "content_hash": "171ee6cbf2266f4436fa714104a5e408062110cd348dc2878b409cfebdb6d8ab"
                 },
                 "## Verify reuse {#verify-reuse}": {
-                  "content_hash": "47e78f266efa3b3a2ed256340264d9482c804088c6268080acf443b6d8ba3d0c"
+                  "content_hash": "4b6d2cb4df5a296f16141f5db23379eda17c069ddf4638742cc53bc1f4aea2e1"
                 },
                 "## What can be cached {#what-can-be-cached}": {
                   "content_hash": "6d77c5304b1af753a875c0da23491f5b9fd361125f842ec04097726ec9f779c5"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "47e88cad73cdf1a2b525509bcd1b5dd97e16be08a8133b328ec55b7bc0a075fd",
+          "hash": "f21d132e3a174f4c6a26a821143f0d13927499e72fb012e45c463e50eb59a13f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/cache/rust.md",
           "metadata": {
-            "content_hash": "2ad2c480c73391f3697d8becd18aecd48383ed9ebd27a366303bf5921c1e3064"
+            "content_hash": "a163da2fb1366897b947a0de28653363253eeedea1fd15c44b5fec3db8973f88"
           }
         },
         {
@@ -251,14 +251,14 @@
         }
       ],
       "details": {},
-      "hash": "cbf722fbb9b665e5d921bd45c4329f66ea400a996c602532d31510774173cfa1",
+      "hash": "8a9ad4fcf3ee55ec54c41502bbc306edc8a6f3c73f9dc372a3400a526d6792a1",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/cache/rust.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "e9a53596f5624df4842d8c45912837db7b86c835ab1329b488d856cc09e72930",
+  "output_hash": "e1a1bec32714cfebd215c75ac1aff4d1cba1b3fba8ef789feab0dbf2c019ede3",
   "output_path": "server/priv/docs/zh_Hans/guides/features/cache/rust.md",
   "protection_state": "recorded",
   "provider": "",
@@ -280,8 +280,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "91e22e9533085398a5a1824fe2283498976369ec",
+  "source_commit_sha": "c9748c81d76a768b89fbf33d9957f52bc319f1d3",
   "source_path": "server/priv/docs/en/guides/features/cache/rust.md",
-  "translated_at": "2026-11-16T11:16:05.998383Z",
-  "translation_session_id": "01a1e40f-b515-7c0f-a5e1-9b0d25aa8b62"
+  "translated_at": "2026-11-16T12:06:16.397487Z",
+  "translation_session_id": "01a1e43b-63cb-7892-83b7-7021cdc05ee1"
 }

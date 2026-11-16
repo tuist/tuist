@@ -828,4 +828,21 @@ defmodule Tuist.EnvironmentTest do
       assert Environment.license_key(%{"license" => "unified-value"}) == "unified-value"
     end
   end
+
+  describe "sentry_pulse_dsn/2" do
+    # The processors and registry sync share the web pods' config Secret, but
+    # Pulse admits only web pods, so only they may copy errors there.
+    test "returns the Pulse DSN only in web mode" do
+      secrets = %{"sentry" => %{"pulse_dsn" => "http://sentry:pw@pulse:4000/v1/sentry/server/1"}}
+
+      assert Environment.sentry_pulse_dsn(secrets, :web) ==
+               "http://sentry:pw@pulse:4000/v1/sentry/server/1"
+
+      for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
+        assert Environment.sentry_pulse_dsn(secrets, mode) == nil
+      end
+
+      assert Environment.sentry_pulse_dsn(%{"sentry" => %{"pulse_dsn" => ""}}, :web) == nil
+    end
+  end
 end

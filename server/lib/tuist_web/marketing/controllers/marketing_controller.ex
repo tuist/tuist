@@ -1015,6 +1015,12 @@ defmodule TuistWeb.Marketing.MarketingController do
          "marketing",
          "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
        )},
+      {dgettext("marketing", "Is there a free Bazel remote cache?"),
+       dgettext(
+         "marketing",
+         ~s(Yes. The Air plan includes Tuist's Bazel remote cache at no cost within the free cache allowance, with no credit card required. Uploads and storage are free, and downloads count toward the allowance. Our <a href="%{guide_url}">Bazel remote cache guide</a> explains how to set it up.),
+         guide_url: "/solutions/bazel-remote-cache"
+       )},
       {dgettext("marketing", "How are Tuist Runners billed?"),
        dgettext(
          "marketing",

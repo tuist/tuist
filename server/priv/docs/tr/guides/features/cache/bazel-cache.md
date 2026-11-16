@@ -2,12 +2,12 @@
 {
   "title": "Bazel önbelleği",
   "titleTemplate": ":title · Önbellek · Özellikler · Kılavuzlar · Tuist",
-  "description": "Tuist ile Bazel uzak önbellek girdilerini ekibiniz ve CI arasında paylaşın."
+  "description": "Bazel uzak önbellek girdilerini ekibiniz ve CI ile Tuist üzerinden paylaşın."
 }
 ---
 # Bazel önbelleği {#bazel-cache}
 
-Tuist, Bazel'in uzak önbellek olarak bağlandığı bir [Remote Execution API](https://github.com/bazelbuild/remote-apis) önbelleği sunar. Bir eylemin çıktıları zaten önbellekte olduğunda, Bazel eylemi atlar ve sonucu Tuist'in önbelleğinden çeker; bu sayede ekibiniz ve CI ortamlarınızda derleme süresi tasarrufu sağlanır. Önbellekleme ve uzak yürütme içeren bir GitHub Actions kurulumu için bkz. [Bazel on GitHub Actions](https://tuist.dev/solutions/bazel-github-actions).
+Tuist, Bazel'in uzak önbellek olarak bağlandığı bir [Remote Execution API](https://github.com/bazelbuild/remote-apis) önbelleği sunar. Bir eylemin çıktıları zaten önbellekteyse, Bazel eylemi atlar ve sonucu Tuist önbelleğinden çeker; bu sayede ekibiniz ve CI ortamlarınızda derleme süresinden tasarruf edersiniz. GitHub Actions kurulumu için bkz. [Bazel on GitHub Actions](https://tuist.dev/solutions/bazel-github-actions). Uzak önbellekleme mekanizması ve kendi kendine barındırılan ile yönetilen önbelleklerin karşılaştırılması hakkında bilgi için bkz. [Bazel remote cache](https://tuist.dev/solutions/bazel-remote-cache).
 
 ## Kurulum {#setup}
 
@@ -17,7 +17,7 @@ Bazel çalışma alanının kök dizininden şunu çalıştırın:
 tuist bazel setup
 ```
 
-Bu işlem, en yakın Tuist önbellek bölgesine bağlı ve çalışma alanı başına kimlik bilgisi yardımcısı üzerinden kimlik doğrulaması yapan bir `.bazelrc.tuist` dosyasını `.bazelrc` dosyanızın yanına yazar. Ayrıca deponuzun `.bazelrc` dosyasına bir `try-import` satırı ekler:
+Bu işlem, en yakın Tuist önbellek bölgesine bağlı ve çalışma alanı başına kimlik doğrulama yardımcısı üzerinden kimliği doğrulanmış olan `.bazelrc.tuist` dosyasını `.bazelrc` dosyanızın yanına yazar. Ayrıca depounuzun `.bazelrc` dosyasına bir `try-import` satırı ekler:
 
 ```text
 try-import %workspace%/.bazelrc.tuist
@@ -25,9 +25,9 @@ try-import %workspace%/.bazelrc.tuist
 
 İçe aktarmayı kendiniz yönetmek istiyorsanız `--no-add-bazelrc-import` parametresini iletin.
 
-`.bazelrc.tuist` dosyasını `.gitignore` dosyanıza ekleyin ve onu commitlemek yerine her makinede kurulumu çalıştırın. Oluşturulan dosya, geçerli kullanıcının Tuist yapılandırma dizini altındaki mutlak bir kimlik bilgisi yardımcısı yoluna ve dosyayı oluşturan makineye en yakın önbellek bölgesine işaret eder; bu nedenle hiçbir değer bir takım arkadaşına veya sürekli entegrasyon çalıştırıcısına taşınmaz. Her makinede aynı olan `.bazelrc` içindeki `try-import` satırını commit edin.
+`.bazelrc.tuist` öğesini `.gitignore` dosyanıza ekleyin ve dosyayı commitlemek yerine her makinede kurulumu çalıştırın. Oluşturulan dosya, geçerli kullanıcının Tuist yapılandırma dizini altındaki mutlak bir kimlik doğrulama yardımcısı yoluna ve dosyayı oluşturan makineye en yakın önbellek bölgesine işaret eder; bu nedenle hiçbir değer bir ekip arkadaşına veya sürekli entegrasyon çalıştırıcısına taşınmaz. Her makinede aynı olan `.bazelrc` içindeki `try-import` satırını commit edin.
 
-Kurulum, bir Bazel çalışma alanı işaretçisi bulamadığında, dosya bir sembolik bağlantı olduğunda veya zaten bir uzak önbellek ya da Build Event Service yapılandırdığında mevcut `.bazelrc` dosyasına dokunmaz. Bu şekilde, tekrar çalıştırmak idempotent olur.
+Kurulum, bir Bazel çalışma alanı işaretçisi bulamadığında, dosya sembolik bir bağlantı olduğunda veya zaten bir uzak önbellek ya da Build Event Service yapılandırdığında mevcut `.bazelrc` dosyasına dokunmaz. Bu sayede tekrar çalıştırmak idempotent olur.
 
 Entegrasyonu doğrulamak için normal bir Bazel komutu çalıştırın:
 
@@ -41,23 +41,23 @@ Bir komutun önbelleği nasıl kullandığını görmek için **Invocations** b�
 
 ## Uzak yürütme {#remote-execution}
 
-Tuist, Bazel eylemlerinizi Linux yürütücülerinde de çalıştırabilir; böylece önbellek isabetsizlikleri yerel makine veya CI çalıştırıcısı yerine uzaktan çalıştırılır. Kurulum için `--remote-execution` parametresini iletin:
+Tuist, Bazel eylemlerinizi Linux yürütücülerinde de çalıştırabilir; böylece önbellek isabetleri yerel makine veya CI çalıştırıcısı yerine uzaktan çalışır. Uzak yürütme, hesap başına talep üzerine etkinleştirilir: Etkinleştirmek için [bize ulaşın](mailto:contact@tuist.dev). Etkinleştirildikten sonra, kurulum için `--remote-execution` parametresini iletin:
 
 ```bash
 tuist bazel setup --remote-execution
 ```
 
-Kurulum ardından Bazel'i, uzak önbelleğin yanındaki `.bazelrc.tuist` içindeki Tuist yürütücüsüne yönlendirir. Her çalıştığında geçerli yürütücüyü ve imajı sorgular; bu nedenle oluşturulan değerleri kopyalamak yerine kurulumu yeniden çalıştırın. Eylemler, makinenizde yüklü araçlar değil, yürütücünün Linux araç zinciri ile çalışır; bu nedenle eylemlerinizin ihtiyaç duyduğu araç zincirlerini çalışma alanında bildirin.
+Kurulum daha sonra Bazel'i, uzak önbelleğin yanındaki `.bazelrc.tuist` içindeki Tuist yürütücüsüne yönlendirir. Her çalıştığında geçerli yürütücüyü ve imajı sorgular; bu nedenle oluşturulan değerleri kopyalamak yerine kurulumu yeniden çalıştırın. Eylemler, makinenizde yüklü araçlar yerine yürütücünün Linux araç zinciriyle çalışır; bu nedenle eylemlerinizin ihtiyaç duyduğu araç zincirlerini çalışma alanında bildirin.
 
 Kurulum ayrıca `--jobs` değerini, hesabınızın aynı anda çalıştırabileceği uzak eylem sayısının iki katına ayarlar; böylece her biri için sonraki eylem bekler. Bu olmadan, Bazel makinenin çekirdek sayısı kadar eylemi paralel çalıştırır ve 2 çekirdekli bir CI çalıştırıcısı yalnızca iki uzak eylemi uçuşta tutar.
 
-Farklı bir değer kullanmak için komut satırında `--jobs` parametresini iletin veya `try-import` satırından sonra `.bazelrc` içinde ayarlayın. Bazel okuduğu son değeri kullanır; bu nedenle o satırdan önce gelen bir `--jobs`, oluşturulan değerle değiştirilir.
+Farklı bir değer kullanmak için komut satırında `--jobs` parametresini iletin veya `try-import` satırından sonra `.bazelrc` içinde ayarlayın. Bazel okuduğu son değeri kullanır; bu nedenle o satırdan önce gelen bir `--jobs` değeri, oluşturulan değerle değiştirilir.
 
 ## Derleme içgörileri {#build-insights}
 
-Varsayılan olarak `tuist bazel setup`, tamamlanan komutların **Invocations** panosunda görünmesi için Bazel'in Build Event Service'ini de yapılandırır. Panonun ne gösterdiğini ve özel meta verilerin nasıl ekleneceğini öğrenmek için bkz. <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link>.
+Varsayılan olarak `tuist bazel setup`, tamamlanan komutların **Invocations** panosunda görünmesi için Bazel'in Build Event Service'ini de yapılandırır. Panonun neler gösterdiği ve özel meta verilerin nasıl ekleneceği hakkında bilgi için bkz. <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights</.localized_link>.
 
-Yalnızca uzak önbelleği istiyor ve derleme olayı akışını göndermek istemiyorsanız, şunu kullanarak devre dışı bırakın:
+Yalnızca uzak önbelleği istiyor ve derleme olayı akışını göndermek istemiyorsanız, şu şekilde devre dışı bırakın:
 
 ```bash
 tuist bazel setup --no-build-insights
@@ -65,7 +65,7 @@ tuist bazel setup --no-build-insights
 
 ## Sürekli entegrasyon {#continuous-integration}
 
-CI'yi <.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link> içindeki yöntemlerden biriyle kimlik doğrulayın, ardından `.bazelrc.tuist` dosyasının çalıştırıcı için doğru bölgeyi yansıtması amacıyla kontrol adımı kapsamında `tuist bazel setup` komutunu bir kez çalıştırın. Sağlayıcıya özel örnekler için bkz. <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link>.
+CI'yı <.localized_link href="/guides/server/authentication#continuous-integration">Authentication guide</.localized_link> içindeki yöntemlerden biriyle kimlik doğrulayın, ardından `.bazelrc.tuist` çalıştırıcısı için doğru bölgeyi yansıtması amacıyla kontrol adımı kapsamında bir kez `tuist bazel setup` çalıştırın. Sağlayıcıya özel örnekler için bkz. <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link>.
 
 ## Veri saklama {#data-retention}
 

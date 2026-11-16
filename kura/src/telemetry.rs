@@ -72,7 +72,7 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
         .as_deref()
         .map(|endpoint| build_tracer_provider(config, endpoint, node_location));
 
-    match tracer_result {
+    let guards = match tracer_result {
         Some(Ok(tracer_provider)) => {
             let tracer = tracer_provider.tracer("kura");
             if sentry_guard.is_some() {
@@ -152,7 +152,22 @@ pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryG
                 sentry_guard,
             }
         }
+    };
+
+    if config.sentry_dsn.is_some()
+        && let Some(Err(error)) = config
+            .sentry_pulse_dsn
+            .as_deref()
+            .map(str::parse::<sentry::types::Dsn>)
+    {
+        warn!(
+            event.name = "kura.telemetry.sentry_pulse_dsn_invalid",
+            error = %error,
+            "KURA_SENTRY_PULSE_DSN is not a valid Sentry DSN; errors are not copied to Pulse"
+        );
     }
+
+    guards
 }
 
 pub fn trace_export_active() -> bool {
@@ -196,6 +211,10 @@ pub fn record_trace_context(span: &Span) {
 
 fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
     let dsn = config.sentry_dsn.as_deref()?;
+    let pulse_dsn = config
+        .sentry_pulse_dsn
+        .as_deref()
+        .and_then(|dsn| dsn.parse::<sentry::types::Dsn>().ok());
 
     Some(sentry::init(ClientOptions {
         dsn: Some(
@@ -205,17 +224,99 @@ fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
         environment: Some(config.otel_deployment_environment.clone().into()),
         release: Some(format!("kura@{VERSION}").into()),
         server_name: Some(config.otel_service_name.clone().into()),
-        transport: Some(Arc::new(|options: &ClientOptions| {
-            let client = sentry_http_client_builder(options)
-                .expect("failed to configure Sentry TLS trust")
-                .build()
-                .expect("failed to build Sentry HTTP client");
-            Arc::new(sentry::transports::ReqwestHttpTransport::with_client(
-                options, client,
-            )) as Arc<dyn sentry::Transport>
+        transport: Some(Arc::new(move |options: &ClientOptions| {
+            sentry_transport(options, pulse_dsn.as_ref())
         })),
         ..Default::default()
     }))
+}
+
+/// The transport to the configured DSN, and with a Pulse DSN, a fan-out that
+/// also sends every envelope to Pulse.
+fn sentry_transport(
+    options: &ClientOptions,
+    pulse_dsn: Option<&sentry::types::Dsn>,
+) -> Arc<dyn sentry::Transport> {
+    let client = sentry_http_client_builder(options)
+        .expect("failed to configure Sentry TLS trust")
+        .build()
+        .expect("failed to build Sentry HTTP client");
+    let primary = Arc::new(sentry::transports::ReqwestHttpTransport::with_client(
+        options, client,
+    ));
+    let Some(pulse_dsn) = pulse_dsn else {
+        return primary;
+    };
+
+    let pulse_options = ClientOptions {
+        dsn: Some(pulse_dsn.clone()),
+        ..options.clone()
+    };
+    // Bounded, unlike the primary's client, so a stalled Pulse frees the copy
+    // queue's thread instead of holding it.
+    let client = sentry_http_client_builder(&pulse_options)
+        .expect("failed to configure Sentry TLS trust")
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(5))
+        .build()
+        .expect("failed to build Sentry HTTP client");
+    Arc::new(FanOutTransport {
+        primary,
+        copy: Some(Arc::new(
+            sentry::transports::ReqwestHttpTransport::with_client(&pulse_options, client),
+        )),
+    })
+}
+
+/// Sends every envelope to the primary backend (Atlas) and a copy to Pulse.
+/// Each transport hands envelopes to its own background thread through a
+/// bounded queue and drops them when that queue is full, so a slow or failing
+/// Pulse never delays, drops or fails the primary's delivery or the caller.
+struct FanOutTransport {
+    primary: Arc<dyn sentry::Transport>,
+    copy: Option<Arc<dyn sentry::Transport>>,
+}
+
+impl sentry::Transport for FanOutTransport {
+    fn send_envelope(&self, envelope: sentry::Envelope) {
+        self.primary.send_envelope(envelope.clone());
+        if let Some(copy) = &self.copy {
+            copy.send_envelope(envelope);
+        }
+    }
+
+    // Only the primary: sentry-panic flushes on the panicking thread, and the
+    // copy's flush queues with a blocking send that a stalled Pulse would hold.
+    fn flush(&self, timeout: Duration) -> bool {
+        self.primary.flush(timeout)
+    }
+
+    // The primary gets the whole timeout and the copy only what is left, waited
+    // for on another thread: the copy's shutdown queues with the same blocking
+    // send, so Pulse never shortens the primary's shutdown or lengthens it.
+    fn shutdown(&self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        let shut_down = self.primary.shutdown(timeout);
+        if let Some(copy) = self.copy.clone() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let (done, finished) = std::sync::mpsc::sync_channel(1);
+            std::thread::spawn(move || {
+                let _ = done.send(copy.shutdown(remaining));
+            });
+            let _ = finished.recv_timeout(remaining);
+        }
+        shut_down
+    }
+}
+
+impl Drop for FanOutTransport {
+    // Dropping the copy joins its thread, which first waits for room in a full
+    // queue; let that happen off the caller's thread.
+    fn drop(&mut self) {
+        if let Some(copy) = self.copy.take() {
+            std::thread::spawn(move || drop(copy));
+        }
+    }
 }
 
 fn sentry_http_client_builder(options: &ClientOptions) -> Result<reqwest::ClientBuilder, String> {
@@ -572,7 +673,7 @@ mod tests {
 
     use super::{
         OtlpHttpClient, OtlpTraceProtocol, export_timeout, otlp_http_client_builder,
-        otlp_trace_exporter_config, sentry_http_client_builder,
+        otlp_trace_exporter_config, sentry_http_client_builder, sentry_transport,
         should_warn_about_parent_context_error,
     };
 
@@ -871,6 +972,144 @@ mod tests {
         assert!(rendered.contains("application/x-protobuf"));
         assert!(rendered.contains("diagnostic-test-span"));
         assert!(logs.0.lock().unwrap().is_empty());
+    }
+
+    /// A Sentry ingest on a local port that reports each request's path,
+    /// `X-Sentry-Auth` and body. A stalled one accepts connections and never
+    /// answers.
+    fn sentry_stub(stall: bool) -> (String, std::sync::mpsc::Receiver<(String, String, Vec<u8>)>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let mut held = Vec::new();
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                if stall {
+                    held.push(stream);
+                    continue;
+                }
+                let mut request = Vec::new();
+                let mut buffer = [0; 8192];
+                let head_end = loop {
+                    let count = stream.read(&mut buffer).unwrap();
+                    request.extend_from_slice(&buffer[..count]);
+                    if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                        break end + 4;
+                    }
+                };
+                let head = String::from_utf8_lossy(&request[..head_end]).to_string();
+                let header = |name: &str| {
+                    head.lines()
+                        .find_map(|line| {
+                            let (key, value) = line.split_once(':')?;
+                            key.eq_ignore_ascii_case(name)
+                                .then(|| value.trim().to_owned())
+                        })
+                        .unwrap_or_default()
+                };
+                let length: usize = header("content-length").parse().unwrap_or(0);
+                while request.len() < head_end + length {
+                    let count = stream.read(&mut buffer).unwrap();
+                    request.extend_from_slice(&buffer[..count]);
+                }
+                let path = head.split_whitespace().nth(1).unwrap().to_owned();
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                    )
+                    .unwrap();
+                let _ = sender.send((path, header("x-sentry-auth"), request[head_end..].to_vec()));
+            }
+        });
+        (format!("127.0.0.1:{}", address.port()), receiver)
+    }
+
+    fn sentry_options(atlas: &str) -> sentry::ClientOptions {
+        sentry::ClientOptions {
+            dsn: Some(format!("http://atlas-key@{atlas}/1").parse().unwrap()),
+            ..Default::default()
+        }
+    }
+
+    fn sentry_envelope() -> sentry::Envelope {
+        sentry::protocol::Event {
+            message: Some("kura failed".into()),
+            ..Default::default()
+        }
+        .into()
+    }
+
+    #[test]
+    fn sentry_transport_copies_envelopes_to_pulse_with_its_credentials() {
+        let (atlas, atlas_requests) = sentry_stub(false);
+        let (pulse, pulse_requests) = sentry_stub(false);
+        let pulse_dsn = format!("http://sentry:pulse-secret@{pulse}/v1/sentry/kura/1")
+            .parse()
+            .unwrap();
+
+        let transport = sentry_transport(&sentry_options(&atlas), Some(&pulse_dsn));
+        transport.send_envelope(sentry_envelope());
+
+        let (path, auth, atlas_body) = atlas_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(path, "/api/1/envelope/");
+        assert!(auth.contains("sentry_key=atlas-key"), "{auth}");
+        assert!(!auth.contains("pulse-secret"), "{auth}");
+
+        let (path, auth, pulse_body) = pulse_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(path, "/v1/sentry/kura/api/1/envelope/");
+        assert!(auth.contains("sentry_key=sentry"), "{auth}");
+        assert!(auth.contains("sentry_secret=pulse-secret"), "{auth}");
+        assert_eq!(pulse_body, atlas_body);
+        assert!(String::from_utf8_lossy(&atlas_body).contains("kura failed"));
+    }
+
+    #[test]
+    fn sentry_transport_without_pulse_sends_only_to_its_dsn() {
+        let (atlas, atlas_requests) = sentry_stub(false);
+
+        let transport = sentry_transport(&sentry_options(&atlas), None);
+        transport.send_envelope(sentry_envelope());
+
+        let (path, _auth, _body) = atlas_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(path, "/api/1/envelope/");
+    }
+
+    #[test]
+    fn sentry_transport_delivers_and_flushes_while_pulse_stalls() {
+        let (atlas, atlas_requests) = sentry_stub(false);
+        let (pulse, _pulse_requests) = sentry_stub(true);
+        let pulse_dsn = format!("http://sentry:pulse-secret@{pulse}/v1/sentry/kura/1")
+            .parse()
+            .unwrap();
+        let transport = sentry_transport(&sentry_options(&atlas), Some(&pulse_dsn));
+
+        let started = Instant::now();
+        // More envelopes than Pulse's queue of 30 holds, so it fills and drops,
+        // each one delivered to Atlas before the next is sent.
+        for _ in 0..40 {
+            transport.send_envelope(sentry_envelope());
+            atlas_requests.recv_timeout(Duration::from_secs(5)).unwrap();
+        }
+        // Pulse's queue is full and its requests hang: a flush, as on a panic,
+        // must not wait for Pulse at all, and shutdown and drop only up to
+        // their timeout.
+        let flushing = Instant::now();
+        assert!(transport.flush(Duration::from_secs(2)));
+        assert!(
+            flushing.elapsed() < Duration::from_millis(500),
+            "flush took {:?}",
+            flushing.elapsed()
+        );
+        let shutting_down = Instant::now();
+        assert!(transport.shutdown(Duration::from_secs(1)));
+        drop(transport);
+        assert!(
+            shutting_down.elapsed() < Duration::from_millis(1500),
+            "shutdown took {:?}",
+            shutting_down.elapsed()
+        );
+        assert!(started.elapsed() < Duration::from_secs(4));
     }
 
     #[tokio::test]

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "3d86d4876e7181ce7996052f40180ada8aeb434117016d2469a1acabf4b5ba72",
+  "hash": "fc120c58578660027b4b39c9b48b4a403568a4c902c00d6a19a425f9b503988f",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "929b49a4488d3b2dfaccabee70dbb4329c22aa2935df88d4bbb8dfb4a3a07fdb"
                 },
                 "## Agents in Amp orbs and Claude Code cloud sessions": {
-                  "content_hash": "c79a34c9d1cd74e73daaa1cc7c8d4892b62313a9913fa811b163a44b81dfb81a"
+                  "content_hash": "618cd5023882a5fb52e0ff88ef367aeb00f914dfe869ed24ddbeb79e2083851d"
                 },
                 "## Build-system integrations use two credentials": {
                   "content_hash": "eb027d2d76f919530b579db51cec2c0032bee83c83286e029c25e3000caccfc1"
@@ -134,11 +134,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "647f24c8f6b9098b708163368105e24f099766164287a3fd2a705a50b110ed74",
+          "hash": "6d98c6b79c4385dd1b2aac6a77fe5d62bc8f71c2a9de9d50d21724f02b71401f",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
           "metadata": {
-            "content_hash": "594b05e92538f82d5abd1aef73b56d3b32bd0867be32179ebfd8e60f196415d5"
+            "content_hash": "f425d0c6c07525077c467b6e417c245d2403c3706ca01ee34324474fa2cec34a"
           }
         },
         {
@@ -377,14 +377,14 @@
         }
       ],
       "details": {},
-      "hash": "3d86d4876e7181ce7996052f40180ada8aeb434117016d2469a1acabf4b5ba72",
+      "hash": "fc120c58578660027b4b39c9b48b4a403568a4c902c00d6a19a425f9b503988f",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9b23d0a93aef7e4181b37849a09fe79e080ba89eed7f915689339185c5245d8b",
+  "output_hash": "5dfaecb9e4bd15ea9988b52c0b3b1225eb6698cbd5675933d5f609437654d742",
   "output_path": "server/priv/docs/ko/guides/features/agentic-coding/mcp.md",
   "protection_state": "recorded",
   "provider": "",
@@ -410,8 +410,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "115a797ec0b1508f1e44d3a1440592b854810afe",
+  "source_commit_sha": "c9748c81d76a768b89fbf33d9957f52bc319f1d3",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/mcp.md",
-  "translated_at": "2026-11-16T09:39:12.504171Z",
-  "translation_session_id": "01a1e3ae-9cd4-727a-8f11-524461ec0528"
+  "translated_at": "2026-11-16T12:02:44.085494Z",
+  "translation_session_id": "01a1e43b-63cb-7892-83b7-7021cdc05ee1"
 }

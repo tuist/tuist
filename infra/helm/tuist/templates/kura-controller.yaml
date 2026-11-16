@@ -609,6 +609,38 @@ spec:
       remoteRef:
         key: "{{ required "kuraController.sentry.externalSecret.item is required when sentry externalSecret is enabled" .Values.kuraController.sentry.externalSecret.item }}/{{ .Values.kuraController.sentry.externalSecret.field | default "KURA_SENTRY_DSN" }}"
 {{- end }}
+{{- if .Values.sentryPulse.services.kura }}
+---
+# KURA_SENTRY_PULSE_DSN: a copy of every Kura error to Pulse beside
+# KURA_SENTRY_DSN (sentryPulse in values.yaml). Merged into the Secret every
+# Kura pod envFroms, so enabling it rolls every Kura pod. With Merge, disabling
+# it deletes this ExternalSecret but leaves the key in kura-shared-secrets
+# until someone removes it (see sentryPulse in values.yaml for the command).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-sentry-pulse-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.sentry.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.sentry.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.sentry.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_SENTRY_PULSE_DSN: {{ include "tuist.sentryPulseDsn" (dict "root" . "service" "kura" "key" "sentry_pulse_password") | quote }}
+  data:
+    - secretKey: sentry_pulse_password
+      remoteRef:
+        key: {{ printf "%s/%s" .Values.sentryPulse.item .Values.sentryPulse.field | quote }}
+{{- end }}
 {{- if .Values.kuraController.cacheTokenPublicKey.externalSecret.enabled }}
 ---
 # The public half of the cache-token keypair. Merged into the same Secret the

@@ -104,11 +104,6 @@ jobs:
           # whatever HOME says, and that home is writable in the guest.
           docker run --rm --user user --entrypoint sh -i sandbox-guest:test -eu <<'EOF'
           tuist version
-          # The clients rewrite these files, so `user` must own them.
-          test -O /home/user/.config/amp/settings.json
-          test -O /home/user/.claude.json
-          jq -e '."amp.mcpServers".tuist.headers.Authorization == "Bearer ${amp:id-token}"' /home/user/.config/amp/settings.json
-          jq -e '.mcpServers.tuist.headers.Authorization == "Bearer ${TUIST_OIDC_TOKEN}"' /home/user/.claude.json
           test -O /home/user/.claude/skills/verifying-work-with-tuist/SKILL.md
           EOF
       # The template builds without a layer cache: importing and exporting its

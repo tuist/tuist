@@ -31,6 +31,8 @@ Before Cargo starts, Tuist restores the outputs of your registry and git depende
 2. On a local miss, queries Kura through the Remote Execution API (REAPI), downloads any missing content, and verifies the outputs before restoring them.
 3. On a cache miss, runs the compiler normally. After a successful compilation, it stores the outputs locally and uploads them to Kura through REAPI when authorized. The remote cache entry is published only after all of its referenced content is available.
 
+Builds on the same machine share the local cache, including builds in other worktrees or target directories. When another build is already compiling the same crate or running the same build script, Tuist waits for it and restores its outputs instead of doing the same work twice. If that build takes longer than 10 minutes, Tuist stops waiting and compiles the crate itself.
+
 Local and CI builds use the same remote cache protocol. Read and write access come from Tuist's server-issued cache credentials and your account's <.localized_link href="/guides/features/cache#restrict-uploads-to-ci">cache upload policy</.localized_link>. An account can allow developers to download while restricting uploads to CI and account tokens. Cache writers are trusted code producers: cached compiler outputs are executable code, so only grant write access to machines and tokens you trust.
 
 If remote setup fails, local caching remains available. Unavailable, missing, or corrupt cache entries fall back to compilation. An upload failure doesn't fail the build or discard its local cache entry.
@@ -68,6 +70,13 @@ tuist cargo build --release
 ```
 
 Eligible libraries can be restored on the second build; unsupported crates still compile. Removing Cargo's outputs doesn't remove Tuist's separate local cache. This checks reuse, not necessarily remote downloads: a local hit doesn't need a transfer from Kura. Input validation and cache operations add overhead, so avoiding compilation doesn't guarantee faster builds for small crates.
+
+To check that hits are correct, for example as a canary in CI, set either variable to `sampled` (one crate in 64, the same crates on every build) or `always`:
+
+- `TUIST_CARGO_VERIFY` checks that the inputs a hit was keyed by are still the ones the compiler or build script reads.
+- `TUIST_CARGO_VERIFY_RECOMPILE` compiles hits again and compares their outputs with the cached ones.
+
+A checked crate compiles instead of being restored, as if it were uncached, so its outputs are always fresh and verification doesn't change build results. Verification never stores or replaces the checked crate's cache entry. If its fresh outputs differ from the cached ones, crates that depend on it miss and are cached as in an uncached build. Incremental compilations aren't reproducible, so for those `TUIST_CARGO_VERIFY_RECOMPILE` compares only metadata and dependency information. With `TUIST_DEBUG=1`, each check prints a `Tuist Cargo cache: verified` line, and checks that found a difference are counted as divergences in the build's cache measurements.
 
 ## Inspect cache activity {#inspect-cache-activity}
 

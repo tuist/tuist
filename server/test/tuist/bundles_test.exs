@@ -1849,6 +1849,57 @@ defmodule Tuist.BundlesTest do
       assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
 
+    test "scopes a tagged threshold to bundles and baselines carrying the tag" do
+      project = ProjectsFixtures.project_fixture()
+
+      threshold =
+        BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 10.0, tag: "release")
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        custom_tags: ["release"],
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      # A newer untagged bundle on main must not become the baseline.
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1950,
+        git_branch: "main",
+        custom_tags: ["debug"],
+        inserted_at: ~U[2024-01-02 00:00:00Z]
+      )
+
+      tagged =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 2000,
+          git_branch: "feature",
+          custom_tags: ["debug", "release"],
+          inserted_at: ~U[2024-01-03 00:00:00Z]
+        )
+
+      untagged =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 5000,
+          git_branch: "feature",
+          custom_tags: ["debug"],
+          inserted_at: ~U[2024-01-03 00:00:00Z]
+        )
+
+      assert {:violated, ^threshold, %{baseline_size: 1000, current_size: 2000}} =
+               Bundles.evaluate_project_thresholds(project, tagged)
+
+      assert :ok == Bundles.evaluate_project_thresholds(project, untagged)
+    end
+
     test "returns :ok when no baseline bundle exists" do
       project = ProjectsFixtures.project_fixture()
       BundlesFixtures.bundle_threshold_fixture(project: project)

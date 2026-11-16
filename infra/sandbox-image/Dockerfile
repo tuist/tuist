@@ -160,11 +160,10 @@ RUN npm install -g "agent-browser@${AGENT_BROWSER_VERSION}" \
         bash -c 'cd /home/user && agent-browser install --with-deps' \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /root/.npm
 
-# Agents read the project's Tuist data with no setup: the Tuist CLI, a `tuist`
-# MCP server for Amp and Claude Code that authenticates with the sandbox's own
-# identity (`${amp:id-token}` in an Orb, the session token sbx-worker exports
-# as TUIST_OIDC_TOKEN in Claude Code), and a skill for when to use them. Amp
-# also loads skills from ~/.claude/skills.
+# Agents read the project's Tuist data with no setup: the Tuist CLI, which signs
+# in with the sandbox's own identity, and a skill for when to use it. Amp also
+# loads skills from ~/.claude/skills. No MCP server is preinstalled: users and
+# projects that want Tuist's MCP add it themselves.
 ARG TUIST_VERSION
 ARG TUIST_SHA256
 RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
@@ -173,10 +172,8 @@ RUN curl -fsSL --retry 3 -o /tmp/tuist.tar.gz \
     && tar -xzf /tmp/tuist.tar.gz -C /usr/local/bin tuist \
     && chown root:root /usr/local/bin/tuist && chmod 0755 /usr/local/bin/tuist && rm /tmp/tuist.tar.gz \
     && test "$(tuist version)" = "${TUIST_VERSION}"
-COPY agent-home/amp-settings.json /home/user/.config/amp/settings.json
-COPY agent-home/claude.json /home/user/.claude.json
 COPY agent-home/skills/ /home/user/.claude/skills/
-RUN chown -R user:user /home/user/.config /home/user/.claude /home/user/.claude.json
+RUN chown -R user:user /home/user/.claude
 
 RUN locale-gen en_US.UTF-8 && update-locale LANG=C.UTF-8 \
     && git lfs install --system --skip-repo \

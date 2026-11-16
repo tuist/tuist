@@ -39,6 +39,9 @@ for environment in staging canary; do
     (one("ExternalSecret"; "pulse-dashboard-auth") |
       .spec.data[0].remoteRef.key == "PULSE_TOKEN/password" and
       (.spec.target.template.data.passwd | contains("dashboard:ro=", "tuist:wo=")) and
+      # The Sentry writer only where values.yaml opts in: staging (see below).
+      ((.spec.data | length) == 2) == ($ns == "tuist-staging") and
+      (.spec.target.template.data.passwd | contains("sentry")) == ($ns == "tuist-staging") and
       .spec.target.template.data["ingest-username"] == "tuist" and
       (.spec.target.template.data["ingest-password"] | contains(".token"))) and
     (one("Deployment"; "pulse-frontend").spec.template.spec |
@@ -49,8 +52,27 @@ for environment in staging canary; do
         podSelector:{matchLabels:{"app.kubernetes.io/component":"server"}}}] and
       .ingress[2].from == [{namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":$ns}},
         podSelector:{matchLabels:{"app.kubernetes.io/name":"tuist","app.kubernetes.io/instance":"tuist","app.kubernetes.io/component":"pdc-agent"}}}] and
-      .ingress[2].ports == [{port:4000,protocol:"TCP"}])
+      .ingress[2].ports == [{port:4000,protocol:"TCP"}] and
+      .ingress[3] == {ports:[{port:4000,protocol:"TCP"}], from:[
+        {namespaceSelector:{matchLabels:{"kubernetes.io/metadata.name":"kura"}},
+         podSelector:{matchLabels:{"app.kubernetes.io/name":"kura"}}}]} and
+      (.ingress | length) == 4)
   ' | grep -qx true
+done
+# The Sentry writer exists only in the environments listed, so a vault without
+# PULSE_SENTRY_WRITER never blocks a deploy.
+for environment in staging canary; do
+  helm template pulse "$chart" -n observability --set-json 'sentryWriter.environments=["staging"]' \
+    --set "environment=$environment,storage.bucket=tuist-pulso-$environment,dashboard.enabled=true" |
+    yq ea -o=json -I=0 'select(.kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth")' |
+    jq -e --arg environment "$environment" '
+      if $environment == "staging" then
+        (.spec.target.template.data.passwd | contains("\nsentry:wo={{ .sentryWriter | trim }}\n")) and
+        .spec.data[1] == {secretKey:"sentryWriter",remoteRef:{key:"PULSE_SENTRY_WRITER/password"}} and
+        (.spec.data | length) == 2
+      else
+        (.spec.data | length) == 1 and (.spec.target.template.data.passwd | contains("sentry") | not)
+      end' > /dev/null || { echo "FAIL: Sentry writer opt-in for $environment" >&2; exit 1; }
 done
 # Moving an installed standalone backend: both run side by side, the standalone
 # pod keeps serving Service `pulse` until it moves to the frontends, and no
@@ -209,6 +231,9 @@ helm template pulse "$tmp/flux-chart" -n observability > "$tmp/mgmt.yaml"
 yq ea -o=json -I=0 '.' "$tmp/mgmt.yaml" | jq -s '
   map(select(. != null)) |
   all(.[]; .kind != "CiliumNetworkPolicy") and
+  # No Sentry producer reaches management, so its vault needs no writer item.
+  any(.[]; .kind == "ExternalSecret" and .metadata.name == "pulse-dashboard-auth" and
+    (.spec.data | length) == 1 and (.spec.target.template.data.passwd | contains("sentry") | not)) and
   any(.[]; .kind == "StatefulSet" and (.spec | has("volumeClaimTemplates") | not) and
     .spec.template.spec.nodeSelector == {"kubernetes.io/hostname":"tuist-mgmt"} and
     any(.spec.template.spec.volumes[]; .name == "data" and .hostPath.path == "/var/lib/tuist-pulse") and

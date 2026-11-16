@@ -204,7 +204,14 @@ routine collector upgrades.
 Existing `pulse-auth` pilot credentials are created once by CI and never
 rotated/read back. Pilot is for CI qualification only. With `dashboard.enabled`,
 ESO reads existing `PULSE_TOKEN/password` into a separate provider file containing
-`dashboard:ro=<token>` and `tuist:wo=<token>`. The same Secret
+`dashboard:ro=<token>` and `tuist:wo=<token>`. In the environments listed in
+`sentryWriter.environments` (none by default) it also holds `sentry:wo=<writer>`
+from `PULSE_SENTRY_WRITER/password`, the identity in Sentry producers' DSNs, so a
+DSN never carries the dashboard's token. List an environment only once that item
+exists in its vault, or the ExternalSecret fails and the deploy stops. Use only
+letters and digits for it (1Password's generator adds symbols by default): it
+goes into DSNs unescaped, and a `,`, `@`, `/`, `#` or `=` breaks every copy. The
+same Secret
 (`pulse-dashboard-auth`) carries `ingest-username`/`ingest-password` for the
 collectors' write-only identity. A nonroot init container combines
 projected inputs into memory without exposing Secrets to Helm or agent context.
@@ -253,8 +260,14 @@ Sentry envelopes itself (see `pulse/FORK.md`): an SDK whose DSN is
 `http://tuist:<password>@pulse.observability:4000/v1/sentry/<service>/1` posts
 to `/v1/sentry/<service>/api/1/envelope/`, authenticating as the write-only
 `tuist` identity, and Pulse runs each `event` item through the `sentry_errors`
-pipeline into `errors`, tagged with `<service>`. No producer uses such a DSN
-yet; Atlas stays the destination of every SDK until a DSN is switched. The
+pipeline into `errors`, tagged with `<service>`. Atlas stays every SDK's
+DSN. To compare the two, the tuist chart's `sentryPulse` values send a copy of
+each error to Pulse from the server's web instances and Kura, per service and
+environment and off by default, as the write-only `sentry` user (see
+[Authentication](#authentication-schema-and-network)). The
+`pulse-private` NetworkPolicy admits only those two producers on port 4000 (Kura
+from its `kura` namespace), and `pulse-host-ingress` admits hostNetwork Kura
+pods. The
 pipeline computes Atlas's fingerprint from the raw event, so an issue is
 `(service, fingerprint)` with the fingerprint Atlas has for the same event, and
 stores only a scrubbed projection (no user, request headers, cookies, bodies or

@@ -13,25 +13,68 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
 
+  require Logger
+
   @charged [:creating, :resuming, :running]
   @on_disk [:creating, :resuming, :running, :paused]
   @mib 1024 * 1024
   @free_disk_reserve_bytes 20 * 1024 * @mib
 
   def place(sandbox, node_filter \\ fn _node -> true end) do
+    darwin = Enum.filter(Nodes.connected_nodes(), &(&1[:platform] == "darwin"))
+
     # A host with a booted warm VM of this shape claims it instead of
     # cold-booting, so it is tried first.
     nodes =
-      Nodes.connected_nodes()
+      darwin
       |> Enum.filter(&(ready?(&1, sandbox.template) and node_filter.(&1)))
       |> Enum.sort_by(&(not warm?(&1, sandbox)))
 
-    Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, _acc ->
-      case reserve(sandbox, node, :creating) do
-        {:ok, _sandbox} -> {:halt, {:ok, node.name}}
-        {:error, _reason} -> {:cont, {:error, :no_capacity}}
-      end
-    end)
+    {result, refused} =
+      Enum.reduce_while(nodes, {{:error, :no_capacity}, %{}}, fn node, {_result, refused} ->
+        case reserve(sandbox, node, :creating) do
+          {:ok, _sandbox} -> {:halt, {{:ok, node.name}, refused}}
+          {:error, reason} -> {:cont, {{:error, :no_capacity}, Map.put(refused, node.name, reason)}}
+        end
+      end)
+
+    log_placement(sandbox, darwin, node_filter, result, refused)
+    result
+  end
+
+  # One line per macOS placement naming every connected host, whether it
+  # held a warm VM of the shape, and why it was or was not chosen, so a
+  # create that boots cold beside a warm VM says why.
+  defp log_placement(sandbox, darwin, node_filter, result, refused) do
+    chosen = with {:ok, name} <- result, do: name
+
+    hosts =
+      darwin
+      |> Enum.sort_by(& &1.name)
+      |> Enum.map_join(" ", fn node ->
+        warm = if warm?(node, sandbox), do: "warm:", else: ""
+
+        "#{node.name |> String.split("-") |> List.last()}=#{warm}#{host_reason(node, sandbox, node_filter, chosen, refused)}"
+      end)
+
+    Logger.info("sandboxes: macOS placement",
+      sandbox_id: sandbox.id,
+      shape: "#{sandbox.vcpus}x#{sandbox.memory_mb}",
+      node: chosen,
+      hosts: hosts
+    )
+  end
+
+  defp host_reason(%{name: chosen}, _sandbox, _node_filter, chosen, _refused), do: "chosen"
+
+  defp host_reason(node, sandbox, node_filter, _chosen, refused) do
+    cond do
+      Map.has_key?(refused, node.name) -> "refused_#{refused[node.name]}_#{room_status(node, sandbox)}"
+      not node_filter.(node) -> "excluded"
+      (status = template_status(node, sandbox.template)) != :ok -> status
+      (status = grant_status(node)) != :ok -> status
+      true -> "not_tried"
+    end
   end
 
   def admit(sandbox) do
@@ -183,7 +226,9 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     end
   end
 
-  defp room?(node, sandbox) do
+  defp room?(node, sandbox), do: room_status(node, sandbox) == :ok
+
+  defp room_status(node, sandbox) do
     id = Map.get(sandbox, :id)
     held = Repo.all(from s in Sandbox, where: s.node_name == ^node.name and (s.state in ^@charged or s.resident))
     others = Enum.reject(held, &(&1.id == id))
@@ -197,9 +242,17 @@ defmodule Tuist.Sandboxes.MacosCapacity do
     node_memory = get_in(node, [:capacity, :memory_bytes])
     node_cpus = get_in(node, [:capacity, :cpus])
 
-    Enum.all?([granted_memory, granted_cpu, granted_slots, node_memory, node_cpus], &is_integer/1) and
-      memory <= min(node_memory, granted_memory) and cpus * 1000 <= min(node_cpus * 1000, granted_cpu) and
-      length(others) < min(2, granted_slots) and (resident_pause?(sandbox) or disk_room?(node, sandbox))
+    cond do
+      not Enum.all?([granted_memory, granted_cpu, granted_slots, node_memory, node_cpus], &is_integer/1) -> :no_report
+      memory > min(node_memory, granted_memory) -> :no_memory
+      cpus * 1000 > min(node_cpus * 1000, granted_cpu) -> :no_cpu
+      length(others) >= min(2, granted_slots) -> :no_slot
+      true -> disk_status(node, sandbox)
+    end
+  end
+
+  defp disk_status(node, sandbox) do
+    if resident_pause?(sandbox) or disk_room?(node, sandbox), do: :ok, else: :no_disk
   end
 
   # A VM paused in memory resumes without touching the disk, which the

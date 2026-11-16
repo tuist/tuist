@@ -24,7 +24,12 @@ defmodule SlackWeb.Router do
   scope "/admin", SlackWeb.Admin, as: :admin do
     pipe_through [:browser, :admin]
 
-    live "/invitations", InvitationsLive, :index
+    # Live navigation skips the router's plugs, including basic auth, but only
+    # works within one live_session. Keeping admin views in their own session
+    # forces navigation from public pages into a full page load through auth.
+    live_session :admin do
+      live "/invitations", InvitationsLive, :index
+    end
   end
 
   if Application.compile_env(:slack, :dev_routes, false) do

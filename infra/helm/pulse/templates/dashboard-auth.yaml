@@ -1,4 +1,5 @@
 {{- if .Values.dashboard.enabled }}
+{{- $sentryWriter := has .Values.environment .Values.sentryWriter.environments }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -17,6 +18,9 @@ spec:
         passwd: |
           dashboard:ro={{ "{{ .token | trim }}" }}
           tuist:wo={{ "{{ .token | trim }}" }}
+          {{- if $sentryWriter }}
+          sentry:wo={{ "{{ .sentryWriter | trim }}" }}
+          {{- end }}
         # Collectors write as the write-only identity above. This Secret
         # outlives the old pulse release, whose Secret they used before.
         ingest-username: tuist
@@ -25,4 +29,11 @@ spec:
     - secretKey: token
       remoteRef:
         key: PULSE_TOKEN/password
+    {{- if $sentryWriter }}
+    # Sentry producers' write-only identity (the tuist chart's sentryPulse),
+    # with its own password so their DSNs never carry the dashboard's token.
+    - secretKey: sentryWriter
+      remoteRef:
+        key: PULSE_SENTRY_WRITER/password
+    {{- end }}
 {{- end }}
