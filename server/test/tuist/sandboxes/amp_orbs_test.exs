@@ -494,7 +494,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       expect(Nodes, :call, fn "node-a", "create", %{from_disk_snapshot: _}, _opts -> {:ok, %{}} end)
       expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
 
-      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+      assert {:ok, %Sandbox{amp_snapshot_lineage_id: "proj-0"}} =
+               AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
 
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
       expect_setup_read()

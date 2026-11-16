@@ -1,5 +1,5 @@
 defmodule Atlas.MCP.Tools.ListTuistFeatureFlags do
-  @moduledoc "Lists the Tuist server's allowlisted feature flags and persisted gates."
+  @moduledoc "Lists the Tuist server's catalog and persisted feature flags with their gates."
 
   use Atlas.MCP.Tool,
     name: "list_tuist_feature_flags",
@@ -16,7 +16,8 @@ defmodule Atlas.MCP.Tools.ListTuistFeatureFlags do
 
   @impl EMCP.Tool
   def description do
-    "List allowlisted Tuist feature flags, descriptions, revisions and persisted gates. Requires feature_flags:read. " <>
+    "List Tuist feature flags, descriptions, revisions and persisted gates: the catalog, then persisted flags outside it (actor_type any). " <>
+      "Requires feature_flags:read. " <>
       "These are persisted rules, not environment-wrapper outcomes. Read descriptions for kill-switch polarity and environment defaults. " <>
       "Use evaluate_tuist_feature_flags for effective decisions for one account or project."
   end

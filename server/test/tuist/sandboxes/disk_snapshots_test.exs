@@ -388,6 +388,33 @@ defmodule Tuist.Sandboxes.DiskSnapshotsTest do
       assert Repo.all(DiskSnapshotCopy) == []
     end
 
+    test "a refreshed snapshot is as popular as its lineage, though the snapshots it refreshed are gone" do
+      account = AccountsFixtures.account_fixture()
+
+      # One Orb spawned from each earlier snapshot of the lineage; the last
+      # saved this one, and the rows they were spawned from are deleted.
+      sandbox_fixture(account: account, amp_base_snapshot_id: "proj-1", amp_snapshot_lineage_id: "proj-0")
+      source = sandbox_fixture(account: account, amp_base_snapshot_id: "proj-2", amp_snapshot_lineage_id: "proj-0")
+      sandbox_fixture(account: account, amp_base_snapshot_id: "other-1", amp_snapshot_lineage_id: "other-0")
+
+      fresh =
+        popular_snapshot(
+          account: account,
+          amp_snapshot_id: "proj-3",
+          lineage_id: "proj-0",
+          source_sandbox_id: source.id,
+          running: 0
+        )
+
+      assert DiskSnapshots.queue_copies(fresh)
+
+      # Another lineage's single spawn does not make it popular.
+      lone =
+        popular_snapshot(account: account, amp_snapshot_id: "other-2", lineage_id: "other-0", running: 0)
+
+      refute DiskSnapshots.queue_copies(lone)
+    end
+
     test "a failed copy gives its reservation back" do
       snapshot = popular_snapshot()
       stub(Nodes, :connected_nodes, fn -> [copy_node("node-a"), copy_node("node-b")] end)

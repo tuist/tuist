@@ -492,10 +492,14 @@ defmodule Tuist.Sandboxes.Capacity do
   can take a new disk snapshot's ceiling, so a concurrent placement never
   counts on the same bytes. Answers `{:error, :no_capacity}` otherwise.
   `budget_percent:` admits only within that share of the budget.
+  `releases:` names a sandbox placed on the node and deleted right after
+  the save, whose reservation the snapshot takes over: a snapshot clones
+  its source's disks, and its ceiling is within the source's.
   """
   def reserve_disk_snapshot(%{name: node_name} = node, snapshot, apply, opts \\ []) when is_function(apply, 0) do
     ceiling = disk_snapshot_ceiling_bytes(snapshot, node)
     percent = Keyword.get(opts, :budget_percent, 100)
+    released = released_disk_bytes(opts[:releases], node)
 
     Repo.transaction(fn ->
       lock(node_name)
@@ -503,7 +507,7 @@ defmodule Tuist.Sandboxes.Capacity do
       fits_budget =
         case disk_budget_bytes(node) do
           :unbounded -> true
-          budget -> (reserved_disk_bytes(node) + ceiling) * 100 <= budget * percent
+          budget -> (reserved_disk_bytes(node) - released + ceiling) * 100 <= budget * percent
         end
 
       fits_filesystem =
@@ -522,6 +526,9 @@ defmodule Tuist.Sandboxes.Capacity do
       end
     end)
   end
+
+  defp released_disk_bytes(nil, _node), do: 0
+  defp released_disk_bytes(sandbox, node), do: disk_ceiling_bytes(sandbox, node)
 
   @doc """
   Whether the filesystem has room for the sandbox's next pause, which
