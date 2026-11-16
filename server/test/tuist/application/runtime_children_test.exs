@@ -96,6 +96,16 @@ defmodule Tuist.Application.RuntimeChildrenTest do
       end
     end
 
+    # A web pod stops its runner only after the preStop wait and the endpoint
+    # drain, so it must stop well inside the 60 s grace period.
+    test "the runner stops within its pod's budget, after waiting for its sessions" do
+      for {mode, budget} <- [agents: 30_000, web: 15_000] do
+        [_hosts, %{shutdown: shutdown, start: {_, _, [opts]}}] = RuntimeChildren.agents(mode, false, [])
+        assert shutdown == budget
+        assert Keyword.fetch!(opts, :drain_ms) < shutdown
+      end
+    end
+
     test "a disabled runner is left out" do
       refute runner?(RuntimeChildren.agents(:agents, false, enabled: false))
     end

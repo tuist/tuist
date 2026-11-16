@@ -1140,7 +1140,7 @@ agents:
       maxSurge: 1
       maxUnavailable: 0
   # Draining stops each session and releases its lease; the runner's own
-  # shutdown budget is 60 s.
+  # shutdown budget is 30 s, up to 25 s of it waiting for sessions.
   terminationGracePeriodSeconds: 90
   resources: {}
   # Added to the server's environment (including server.extraEnv), which

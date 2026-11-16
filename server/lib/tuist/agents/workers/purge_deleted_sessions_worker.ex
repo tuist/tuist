@@ -30,16 +30,23 @@ defmodule Tuist.Agents.Workers.PurgeDeletedSessionsWorker do
       select: {s.id, s.kind}
     )
     |> Repo.all()
-    |> Enum.each(&purge/1)
+    |> Enum.filter(&purged?/1)
+    |> Enum.map(&elem(&1, 0))
+    |> then(&Repo.delete_all(from(s in "agent_sessions", where: s.id in ^&1 and not is_nil(s.deleted_at))))
+
+    :ok
   end
 
-  defp purge({id, kind}) do
+  # A session whose objects could not all be deleted keeps its row, so the
+  # next pass tries again.
+  defp purged?({id, kind}) do
     case SessionStore.delete(kind, id) do
       :ok ->
-        Repo.delete_all(from(s in "agent_sessions", where: s.id == ^id and not is_nil(s.deleted_at)))
+        true
 
       {:error, reason} ->
         Logger.warning("failed to delete the stored agent session #{kind}/#{id}: #{inspect(reason)}")
+        false
     end
   end
 end

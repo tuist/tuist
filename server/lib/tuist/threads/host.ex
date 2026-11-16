@@ -68,6 +68,9 @@ defmodule Tuist.Threads.Host do
   @run_ms 3_600_000
   @finish_ms 30_000
   @answer_ms 60_000
+  # Under the previous release's recovery sweep's 60 seconds, which still runs
+  # on its pods during a rolling deploy (`Tuist.Threads.keep_alive/1`).
+  @heartbeat_ms 15_000
 
   @impl Kind
   def start(id, epoch), do: DynamicSupervisor.start_child(@supervisor, {__MODULE__, {id, epoch}})
@@ -84,6 +87,7 @@ defmodule Tuist.Threads.Host do
   def init({id, epoch}) do
     Phoenix.PubSub.subscribe(Tuist.PubSub, Lease.topic(id))
     send(self(), :work)
+    Process.send_after(self(), :heartbeat, @heartbeat_ms)
     {:ok, %{id: id, epoch: epoch, task: nil, run: nil, session: nil}}
   end
 
@@ -134,6 +138,12 @@ defmodule Tuist.Threads.Host do
   end
 
   def handle_info({:session, pid}, %{task: %Task{}} = state), do: {:noreply, %{state | session: pid}}
+
+  def handle_info(:heartbeat, state) do
+    Process.send_after(self(), :heartbeat, @heartbeat_ms)
+    if state.run, do: Threads.keep_alive(state.run)
+    {:noreply, state}
+  end
 
   def handle_info({ref, result}, %{task: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
