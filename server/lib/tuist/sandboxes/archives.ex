@@ -667,7 +667,7 @@ defmodule Tuist.Sandboxes.Archives do
 
     args =
       if sandbox.platform == :darwin,
-        do: args,
+        do: Map.put(args, :node_uid, sandbox.node_uid),
         else: Map.merge(args, %{memory: true, lazy_disks: lazy_disks_node?(sandbox.node_name)})
 
     Nodes.call(sandbox.node_name, "archive", args, timeout: @archive_timeout)
@@ -867,8 +867,11 @@ defmodule Tuist.Sandboxes.Archives do
 
   # The row is archived already, so a node that is away removes the jail
   # when its next report lists a sandbox the server keeps archived.
-  defp delete_from_node(%Sandbox{node_name: node_name, id: id}) do
-    case Nodes.call(node_name, "delete", %{sandbox_id: id}, []) do
+  # A macOS host runs only commands for its current incarnation.
+  defp delete_from_node(%Sandbox{node_name: node_name, id: id} = sandbox) do
+    args = if sandbox.platform == :darwin, do: %{sandbox_id: id, node_uid: sandbox.node_uid}, else: %{sandbox_id: id}
+
+    case Nodes.call(node_name, "delete", args, []) do
       {:ok, _data} ->
         :ok
 

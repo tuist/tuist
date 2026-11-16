@@ -1340,6 +1340,8 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       expect(Nodes, :call, fn "mac-a", "archive", args, opts ->
         assert args.sandbox_id == session.id
+        # A Mac refuses a command without the incarnation it is for.
+        assert args.node_uid == reserved.generation
         refute Map.has_key?(args, :memory) or Map.has_key?(args, :lazy_disks)
         assert opts[:timeout] >= to_timeout(minute: 30)
         archive_result()
@@ -1347,7 +1349,11 @@ defmodule Tuist.Sandboxes.ArchivesTest do
 
       expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
       expect(Storage, :object_exists?, fn _key, _account -> true end)
-      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: id}, _opts when id == session.id -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: id, node_uid: "uid-mac-a"}, _opts when id == session.id ->
+        {:ok, %{}}
+      end)
+
       assert :ok = perform_job(ArchiveSandboxesWorker, args)
 
       assert %Sandbox{state: :archived, node_name: nil, archive_memory: nil} = archived = Repo.reload!(session)
@@ -1366,6 +1372,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       expect(Nodes, :call, fn "mac-d", "create", args, opts ->
         assert args.sandbox_id == session.id
         assert args.template_tag == "image:26.1"
+        assert args.node_uid == "uid-mac-d"
         assert args.from_archive == %{url: "https://s3/get", bytes: 2 * @gib, sha256: "deadbeef"}
         assert opts[:timeout] >= to_timeout(minute: 30)
         {:ok, %{"template_tag" => "image:26.1"}}
@@ -1394,7 +1401,7 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
       stub(Storage, :delete_object, fn _key, _account -> :ok end)
 
-      expect(Nodes, :call, fn "mac-c", "create", %{template_tag: "image:26.1"}, _opts ->
+      expect(Nodes, :call, fn "mac-c", "create", %{template_tag: "image:26.1", node_uid: "uid-mac-c"}, _opts ->
         {:ok, %{"template_tag" => "image:26.1"}}
       end)
 

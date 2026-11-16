@@ -689,8 +689,10 @@ defmodule Tuist.Sandboxes do
   defp place_and_create(%Sandbox{platform: :darwin} = sandbox, args, {:archive, source}, _prefer) do
     args = Map.merge(args, %{from_archive: source, template_tag: sandbox.template_tag})
 
+    # Placement recorded the host's incarnation, which the host checks.
     with {:ok, node_name} <- place_restore(sandbox),
-         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @macos_restore_timeout) do
+         sandbox = Repo.reload!(sandbox),
+         {:ok, data} <- node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @macos_restore_timeout) do
       {:ok, node_name, data}
     end
   end
