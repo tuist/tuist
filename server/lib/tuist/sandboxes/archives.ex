@@ -444,10 +444,17 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   # Orbs and Claude Code sessions' sandboxes: their next spawn restores an
-  # archived one (`AmpOrbs`, `Router.find_or_create_sandbox/3`).
+  # archived one (`AmpOrbs`, `Router.find_or_create_sandbox/3`). On macOS,
+  # every source's: a paused VM holds its disk on a Mac it shares with CI,
+  # and a resume restores an archived one (`Sandboxes.resume/1`).
   defp idle_paused_sessions do
     claude_code = from(e in AgentEnvironment, where: e.kind == :claude_code, select: e.id)
-    where(idle_paused(), [s], not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code))
+
+    where(
+      idle_paused(),
+      [s],
+      s.platform == :darwin or not is_nil(s.amp_orb_id) or s.agent_environment_id in subquery(claude_code)
+    )
   end
 
   # Remote-execution rows belong to their scheduler and lease, never archived.

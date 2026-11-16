@@ -1442,6 +1442,31 @@ defmodule Tuist.Sandboxes.ArchivesTest do
       assert id == session.id
     end
 
+    test "the pause-age sweep archives an evicted Mac sandbox of any source, but not a resident one",
+         %{account: account} do
+      host = mac("mac-a")
+      connect([host])
+      # Created through the API: neither an Orb nor a Claude Code session.
+      plain = evicted(account, host, paused_at: hours_ago(25))
+      resident = evicted(account, host, resident: true, paused_at: hours_ago(48))
+      plain_id = plain.id
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "mac-a", "archive", %{sandbox_id: ^plain_id, node_uid: "uid-mac-a"}, _ ->
+        archive_result()
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: ^plain_id}, _opts -> {:ok, %{}} end)
+
+      Archives.run()
+
+      assert %Sandbox{state: :archived, node_name: nil} = Repo.reload!(plain)
+      assert %Sandbox{state: :paused, node_name: "mac-a"} = Repo.reload!(resident)
+    end
+
     test "a host without archives, or whose grant allows sandboxes, keeps its sessions", %{account: account} do
       older = mac("mac-a", allow: false, archives: false)
       connect([older])

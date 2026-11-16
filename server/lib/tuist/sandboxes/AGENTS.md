@@ -354,8 +354,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   minute until the build expires. Anything else logs the output's tail, deletes the
   builder and fails the build. Never save a sandbox a session used: every
   later session of the environment boots from the snapshot.
-- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs and
-  Claude Code sessions' sandboxes (other environments' sandboxes are
+- `Tuist.Sandboxes.Archives`: the archive tier of paused Amp Orbs,
+  Claude Code sessions' sandboxes and, on macOS, every evicted paused
+  sandbox, whose disk the Mac shares with CI (other Linux sandboxes are
   archived only off a node CI takes or that refused their resume; their next
   spawn restores them too, since `Router.find_or_create_sandbox/3` keeps an
   archived row and `prepare_residency/3` restores it). Before Claude Code
