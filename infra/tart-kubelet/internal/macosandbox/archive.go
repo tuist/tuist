@@ -14,6 +14,7 @@ import (
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
 // An evicted sandbox on a stacked image moves to another Mac as its disk
@@ -158,9 +159,22 @@ func (t *TartRuntime) restore(ctx context.Context, r *Record) error {
 		return err
 	}
 	dir := t.directory(r)
-	overlay, err := os.Stat(filepath.Join(dir, "overlay.asif"))
-	if err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "overlay.asif")); err != nil {
 		return fmt.Errorf("%w: the image is not stacked", ErrArchiveMismatch)
+	}
+	// An overlay's nominal size grows with the session's writes, up to the
+	// disk's capacity plus ASIF's own metadata, so the fresh clone's empty
+	// overlay is no bound for an archived one.
+	detail, err := c.Get(ctx, r.VMName())
+	if err != nil {
+		return err
+	}
+	capacity := t.rootfs.Load()
+	if detail != nil {
+		capacity = max(capacity, rootDisk([]tart.VM{*detail}))
+	}
+	if capacity <= 0 {
+		return errors.New("restoring archive: the clone's disk capacity is unknown")
 	}
 	staging := filepath.Join(dir, ".archive")
 	if err := os.RemoveAll(staging); err != nil {
@@ -170,7 +184,7 @@ func (t *TartRuntime) restore(ctx context.Context, r *Record) error {
 		return err
 	}
 	defer os.RemoveAll(staging)
-	limits := map[string]int64{"config.json": 1 << 20, "nvram.bin": 64 << 20, "overlay.asif": overlay.Size()}
+	limits := map[string]int64{"config.json": 1 << 20, "nvram.bin": 64 << 20, "overlay.asif": capacity + 1<<30}
 	var header archive.Header
 	for attempt := 1; ; attempt++ {
 		err = archive.Download(ctx, http.DefaultClient, src.URL, src.Bytes, src.SHA256, func(body io.Reader) error {
