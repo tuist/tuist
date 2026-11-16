@@ -498,8 +498,8 @@ enum CargoBuildScript { // swiftlint:disable:this type_body_length
                 keyedEnvironment: Self.isKeyed,
                 explain: { explain("it \($0)") }
             ) else { return nil }
-            guard reads.unchanged(since: started, relocation: relocation) else {
-                explain("an input changed while it ran")
+            if let changed = reads.changedInput(since: started, relocation: relocation) {
+                explain("it read \(changed), which changed while it ran")
                 return nil
             }
             return reads

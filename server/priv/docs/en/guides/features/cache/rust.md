@@ -42,14 +42,14 @@ If remote setup fails, local caching remains available. Unavailable, missing, or
 The cache supports:
 
 - Library crates, including workspace and path crates, crates with dependencies, and crates with generated sources. Tuist keys them by the sources the compiler read.
-- On Apple silicon Macs, compilations that source inspection can't key in advance, such as crates that use procedural macros, inline assembly or native libraries, procedural macros themselves, and linked executables. Tuist records the files, environment variables and read-only commands each one reads, such as `git describe`, and keys it by them.
-- On Apple silicon Macs, build-script runs, including the C compilations they perform with the default Apple compiler. A run is restored only when the files, environment and commands it read are unchanged.
+- On Apple silicon Macs and on x86_64 and arm64 Linux with glibc, compilations that source inspection can't key in advance, such as crates that use procedural macros, inline assembly or native libraries, procedural macros themselves, and linked executables. Tuist records the files, environment variables and read-only commands each one reads, such as `git describe`, and keys it by them. On Linux, the system linker, C library and startup files a link reads are part of its key.
+- On the same platforms, build-script runs, including the C compilations they perform (with the default Apple compiler on macOS, with any dynamically linked compiler on Linux). A run is restored only when the files, environment and commands it read are unchanged.
 - Warnings and other diagnostics, which a cached crate shows again.
 
 The following still build normally:
 
-- Build scripts and recorded compilations on Linux.
-- Build scripts that connect to the network, start programs Tuist can't observe, or write outside their output directory.
+- Build scripts and recorded compilations on Linux distributions without glibc, such as Alpine.
+- Build scripts that connect to the network, start programs Tuist can't observe (on Linux, statically linked programs), or write outside their output directory.
 - Incremental compilations, custom targets, and unsupported compiler arguments or source inputs.
 - Metadata-only `cargo check` invocations.
 - Compilations that emit unexpected compiler output.
