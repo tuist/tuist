@@ -181,10 +181,10 @@
 
         & th,
         & td {
+          vertical-align: top;
           border-bottom: 1px solid var(--marketing-stroke-default);
           padding: var(--noora-spacing-5) 0;
           text-align: start;
-          vertical-align: top;
         }
 
         & :is(th, td):not(:first-child) {
