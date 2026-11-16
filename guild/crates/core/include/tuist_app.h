@@ -18,4 +18,8 @@ char *tuist_app_call(const char *request_json,
                     void *context);
 void tuist_app_free(char *response_json);
 
+// Noora's semantic colors as immutable process-lifetime JSON:
+// {"light":{"<token>":"#rrggbb",...},"dark":{...}}. Never free it.
+const char *tuist_app_theme(void);
+
 #endif

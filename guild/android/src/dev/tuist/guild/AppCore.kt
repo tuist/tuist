@@ -11,6 +11,16 @@ object AppCore {
     private external fun tabCount(): Int
     private external fun tabIdByte(index: Int, offset: Int): Int
     private external fun request(input: String, host: AppHost): String
+    private external fun theme(): String
+
+    // Noora's semantic colors, the tokens the server's components use, from the Rust core.
+    private val tokens: JSONObject by lazy { JSONObject(theme()) }
+
+    /** A Noora token's color for the appearance, as an opaque ARGB int. */
+    fun color(name: String, dark: Boolean): Int {
+        val hex = tokens.optJSONObject(if (dark) "dark" else "light")?.optString(name).orEmpty()
+        return 0xFF000000.toInt() or (hex.removePrefix("#").toIntOrNull(16) ?: 0)
+    }
 
     // All engine and host work is serialized, including Activity recreation and cancellation.
     private val executor = Executors.newSingleThreadExecutor()

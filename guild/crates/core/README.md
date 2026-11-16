@@ -23,8 +23,13 @@ and the callback method from obfuscation. JNI callback exceptions become sanitiz
 errors, not exception messages. The JNI dependency is Android-only for normal
 builds, and also a test dependency to compile-check marshalling on Linux.
 
+The Noora theme is `tuist_app_theme()` on Apple (static process-lifetime JSON;
+never free it) and `AppCore.theme()` on Android
+(`Java_dev_tuist_guild_AppCore_theme`). Both return `theme::json()`:
+`{"light": {"<token>": "#rrggbb", ...}, "dark": {...}}`.
+
 The tab catalog is `threads` (index 0, the default) then `profile`; its C/JNI symbols are unchanged.
-Rust callers can instantiate `MobileClient` and implement `Host` independently.
+Rust callers can instantiate `MobileClient` and implement `Host` independently. The thread operations live in `Threads`, behind a `Transport` that sends authorized JSON requests; GPUI calls it directly with its desktop session.
 
 ## Native host actions
 
@@ -88,6 +93,9 @@ when an operation reports an error.
 | `sign_out` | none | null; removes active profile, selects first eligible fallback |
 | `organizations` | none | `[{id:<profile ID>,response:<raw organizations response>},…]` |
 | `threads` | optional nonempty `cursor` | `{available,threads:[{…,state,section},…],next_cursor}` from `/api/accounts/{personal handle}/threads`, whatever organization is selected; `state` is `queued`, `running` (also `compacting` and `shipping`), `completed` (the server's `idle`), `failed` (also `interrupted`), `outcome_unknown` or null for statuses the core doesn't know, and `section` is `in_progress`, `recent` or `archived`; a repeated cursor ends paging; a 404 returns `available:false` and no threads |
+| `start_thread` | `content` (nonempty, at most 16,000 bytes) | the created thread, as `thread` returns it; starts a server-side conversation with no repository, using the first model from `/threads/models`. A 404 reports threads unavailable; no available model asks to connect a ChatGPT subscription. A retry of the same text after a failure reuses its `request_id`, so it never creates two threads |
+| `thread` | thread `id` (UUID), optional `before` message position | the server's thread with its latest messages, plus `state`, `section` and `working` (queued or running, and not archived); frontends poll it while `working` |
+| `send_message` | thread `id`, `content` | the updated thread; retries reuse the request ID like `start_thread` |
 | `projects` | none | `{projects:[…]}`; complete enumeration, deduplicated and account-scoped |
 | `previews` | `project`: `account/project`, optional nullable `track`, `search`, `page` (default 1), `page_size` (default 20, maximum 100) | raw previews response |
 | `tracks` | `project` | raw full-project `{total_count,tracks:[{name,count}]}` |

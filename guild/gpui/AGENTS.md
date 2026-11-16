@@ -9,7 +9,8 @@ Once workspace: Cargo owns the dependency graph and `once.toml` seeds it with a
 sign in once per machine with `once auth login --provider tuist`.
 
 The app signs in with the browser and shows a Threads/Profile shell laid out like
-Zed's workspace; Threads has no server data in GPUI yet.
+Zed's workspace; Threads lists, starts and continues server-side conversations
+through the core's `Threads` operations (`gpui/src/workspace/threads.rs`).
 
 ## Crates
 
@@ -87,7 +88,9 @@ frozen contract with
   `crates/title_bar` (app shell, panes, and window chrome).
 - Use the [gpui-component](https://github.com/longbridge/gpui-component)
   components directory (`crates/ui/src`) as the reference for ready-made
-  components such as lists, inputs, tables, and sidebars.
+  components such as lists, inputs, tables, and sidebars. It cannot be a
+  dependency: it pins a `gpui` crates.io snapshot, not our Zed revision. Shared
+  controls live in `src/components/`; extend them instead of styling ad hoc.
 - GPUI and `gpui_platform` are pinned together to an AccessKit-capable Zed git
   revision in `Cargo.toml`. Check APIs against that exact checkout, not the
   published 0.2.2 crate, which lacks accessibility support. Upgrade deliberately.

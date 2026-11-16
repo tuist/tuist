@@ -6088,11 +6088,13 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml 0.8.23",
+ "tuist-app-core",
  "tuist-credentials",
  "tuist-navigation",
  "tuist-session",
  "tuist-updater",
  "url",
+ "zed-reqwest",
 ]
 
 [[package]]

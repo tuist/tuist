@@ -170,7 +170,12 @@ export default async function (amp: PluginAPI) {
 					description:
 						'Tuist account handle that owns the Mac. Needed when the repository has no tuist.toml with `project = "<account>/<project>"`, for example one configured with Tuist.swift: use the account part of its `fullHandle`.',
 				},
-				memory_gb: { type: 'number', enum: [8, 16, 24], description: 'Memory with 8 vCPUs. Default 16.' },
+				memory_gb: {
+					type: 'number',
+					enum: [8, 16, 24],
+					description:
+						'Memory with 8 vCPUs. Default 8, which claims a pre-booted Mac in about a second; 16 and 24 boot a new one, which takes about 20 seconds, so ask for them only when a build needs the memory.',
+				},
 				workspace_gb: { type: 'number', description: 'Workspace disk, 1-100 GB. Default 30.' },
 			},
 		},
@@ -189,7 +194,7 @@ export default async function (amp: PluginAPI) {
 				await persist()
 			}
 			const account = typeof input.account === 'string' && input.account.trim() ? input.account.trim() : defaultAccount()
-			const memoryGB = input.memory_gb === 8 || input.memory_gb === 24 ? input.memory_gb : 16
+			const memoryGB = input.memory_gb === 16 || input.memory_gb === 24 ? input.memory_gb : 8
 			const workspaceGB = typeof input.workspace_gb === 'number' ? Math.min(100, Math.max(1, Math.round(input.workspace_gb))) : 30
 			return withKeepAlive(async () => {
 				const started = Date.now()

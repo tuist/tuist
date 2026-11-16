@@ -61,4 +61,20 @@
     <string name="install_unavailable">"This preview has no compatible Android APK."</string>
     <string name="delete_preview">"Delete preview"</string>
     <string name="delete_preview_message">"Permanently delete this preview? This cannot be undone."</string>
+    <string name="threads">"Threads"</string>
+    <string name="start_conversation">"Start conversation"</string>
+    <string name="new_conversation">"New conversation"</string>
+    <string name="conversation_prompt">"What do you want to talk about?"</string>
+    <string name="conversation_runs_on_server">"Tuist answers on its servers. You don't need a repository or a machine."</string>
+    <string name="start">"Start"</string>
+    <string name="start_failed">"The conversation could not be started. Make sure threads are enabled and a ChatGPT subscription is connected in your Tuist account settings."</string>
+    <string name="no_threads">"No conversations yet. Start one to ask a question, explore an idea, or solve a problem with Tuist."</string>
+    <string name="thread_queued">"Queued"</string>
+    <string name="thread_running">"Running"</string>
+    <string name="thread_completed">"Ready to review"</string>
+    <string name="thread_failed">"Needs attention"</string>
+    <string name="thread_outcome_unknown">"Outcome unknown"</string>
+    <string name="thinking">"Thinking…"</string>
+    <string name="reply">"Reply"</string>
+    <string name="send">"Send"</string>
 </resources>

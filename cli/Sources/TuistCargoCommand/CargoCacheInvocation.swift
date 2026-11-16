@@ -46,7 +46,6 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil,
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
               environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
-              !environment.keys.contains(where: { $0.hasPrefix("LD_") || $0.hasPrefix("DYLD_") }),
               !arguments.contains(where: { argument in
                   argument.hasPrefix("-") && !argument.hasPrefix("--") && argument.count > 2
                       && !["-C", "-L", "-A", "-W", "-D", "-F"].contains(where: argument.hasPrefix)
@@ -99,11 +98,6 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
             let parts = $0.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             return parts.count == 2 && ["rlib", "rmeta"].contains(URL(fileURLWithPath: String(parts[1])).pathExtension)
         }) else { throw CacheError.unsupported }
-        let inputHasher = CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"]
-            .map { URL(fileURLWithPath: $0) })
-        let externs = try CargoCacheInputs.resolveExterns(
-            arguments: arguments, environment: environment, directory: directory, inputHasher: inputHasher
-        )
         // Once per Cargo command: the toolchain cannot change under a running build.
         let identity = try await CargoToolchainIdentity.resolve(
             executable, environment: environment, directory: directory, process: process
@@ -112,8 +106,14 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
         let toolchain = URL(fileURLWithPath: paths[0]).standardizedFileURL
         let hostTarget = URL(fileURLWithPath: paths[1]).standardizedFileURL.deletingLastPathComponent()
         guard hostTarget.deletingLastPathComponent() == toolchain.appendingPathComponent("lib/rustlib"),
-              hostTarget.appendingPathComponent("lib") == URL(fileURLWithPath: paths[1]).standardizedFileURL
+              hostTarget.appendingPathComponent("lib") == URL(fileURLWithPath: paths[1]).standardizedFileURL,
+              identity.admitsLoader(environment)
         else { return nil }
+        let inputHasher = CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"]
+            .map { URL(fileURLWithPath: $0) })
+        let externs = try CargoCacheInputs.resolveExterns(
+            arguments: arguments, environment: environment, directory: directory, inputHasher: inputHasher
+        )
         let compiler = toolchain.appendingPathComponent("bin/rustc")
         guard let launcher = resolve(executable, environment: environment, directory: directory) else { return nil }
         if launcher != compiler.resolvingSymlinksInPath() {
@@ -203,14 +203,12 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
     /// This compilation keyed by rustc's dep-info, provided every source predates `prepared`: a file changed while
     /// rustc read it would key new content with old output. Admission scans each source as it is hashed.
     func keyedFromDepInfo() -> CargoCacheInvocation? {
-        guard let sources = depInfoSources() else { return nil }
-        let limit = prepared.timeIntervalSince1970
-        guard sources.allSatisfy({ file in
-            guard let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .attributeModificationDateKey]),
-                  let modified = values.contentModificationDate, let changed = values.attributeModificationDate
-            else { return false }
-            return max(modified, changed).timeIntervalSince1970 < limit
-        }) else { return nil }
+        // Through `stat`: Foundation on Linux has no attribute modification date, so every cold build there stored
+        // nothing. A missing source fails hashing below.
+        guard let sources = depInfoSources(),
+              CargoReadSet(entries: sources.map { CargoReadSet.Entry(kind: "path", name: relocation.relative($0.path)) })
+              .unchanged(since: prepared, relocation: relocation)
+        else { return nil }
         guard let externs = compilerInputs?.externs else { return nil }
         var keyed = self
         keyed.compilerInputs = CargoCacheInputs(sources: sources, externs: externs)

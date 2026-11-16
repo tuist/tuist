@@ -10,6 +10,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     {"buildbuddy", "BuildBuddy"},
     {"buildjet", "BuildJet"},
     {"buildkite", "Buildkite"},
+    {"cachely", "Cachely"},
     {"circleci", "CircleCI"},
     {"cirun", "Cirun"},
     {"codemagic", "Codemagic"},
@@ -409,6 +410,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "MIT-licensed"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "not remote execution"
     assert MarketingMarkdown.get("/compare/buildbuddy") =~ "explicitly separates `enterprise/`"
+    assert MarketingMarkdown.get("/compare/cachely") =~ "enforced by the server"
+    assert MarketingMarkdown.get("/compare/cachely") =~ "Cloudflare R2"
     assert MarketingMarkdown.get("/compare/develocity") =~ "Read-only MCP servers"
     assert MarketingMarkdown.get("/compare/buildkite") =~ "hosted and self-hosted execution"
     assert MarketingMarkdown.get("/compare/circleci") =~ "OAuth organizations"

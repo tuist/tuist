@@ -7,8 +7,10 @@ use tuist_jwt::Claims;
 use tuist_oauth::{Pkce, Provider, authorization_url, endpoint};
 use url::Url;
 
+use crate::threads::{Threads, Transport};
+
 const CALLBACK: &str = "tuist-guild://oauth-callback";
-type Result<T> = std::result::Result<T, &'static str>;
+pub(crate) type Result<T> = std::result::Result<T, &'static str>;
 
 /// Called synchronously, on the caller's background thread, never reentrantly.
 /// Errors are deliberately opaque; host/server text must not leak credentials.
@@ -61,6 +63,7 @@ pub struct MobileClient {
     loaded: bool,
     dirty: bool,
     attempt: Option<Attempt>,
+    threads: Threads,
     /// Tuist's state directory, for the refresh lock; the environment's by default.
     #[cfg(target_os = "macos")]
     state: Option<std::path::PathBuf>,
@@ -169,62 +172,24 @@ impl MobileClient {
             }
             "organizations" => self.organizations(host),
             "projects" => self.projects(host),
-            "threads" => {
-                // Threads belong to the person, not the selected organization:
-                // the server lists only threads the user owns, and requires
-                // admin rights on an organization account.
+            op @ ("threads" | "start_thread" | "thread" | "send_message") => {
                 let index = self.active()?;
-                let handle = &self.vault.profiles[index].handle;
-                if !segment(handle) {
-                    return Err("Invalid account");
-                }
-                let mut url = endpoint(
-                    &server_url(&self.vault.profiles[index].server)?,
-                    &format!("api/accounts/{handle}/threads"),
+                let server = server_url(&self.vault.profiles[index].server)?;
+                let handle = self.vault.profiles[index].handle.clone();
+                let mut threads = std::mem::take(&mut self.threads);
+                let result = threads.call(
+                    &server,
+                    &handle,
+                    op,
+                    args,
+                    &mut Authorized {
+                        client: self,
+                        index,
+                        host,
+                    },
                 );
-                let cursor = args.get("cursor").and_then(Value::as_str);
-                if let Some(cursor) = cursor {
-                    if cursor.is_empty() {
-                        return Err("Invalid cursor");
-                    }
-                    url.query_pairs_mut().append_pair("cursor", cursor);
-                }
-                // The server answers 404 when threads are off for the user (the
-                // `code` flag) or it predates them.
-                let mut data = match self.api(index, "GET", url, host) {
-                    Err(NOT_FOUND) => {
-                        return Ok(json!({"available":false,"threads":[],"next_cursor":null}));
-                    }
-                    result => result?,
-                };
-                data["available"] = json!(true);
-                // A server repeating the cursor it was given would page forever.
-                if cursor.is_some() && data["next_cursor"].as_str() == cursor {
-                    data["next_cursor"] = Value::Null;
-                }
-                for thread in data["threads"].as_array_mut().ok_or("Invalid threads")? {
-                    // The server's agent statuses, as the person sees them: a run
-                    // that ended (`idle`) is ready to review, and one that stopped
-                    // early (`interrupted`) needs attention like a failure.
-                    let state = match thread["status"].as_str() {
-                        Some("queued") => Some("queued"),
-                        Some("running" | "compacting" | "shipping") => Some("running"),
-                        Some("idle") => Some("completed"),
-                        Some("failed" | "interrupted") => Some("failed"),
-                        Some("outcome_unknown") => Some("outcome_unknown"),
-                        _ => None,
-                    };
-                    let section = if thread["archive_status"] == "archived" {
-                        "archived"
-                    } else if matches!(state, Some("queued" | "running")) {
-                        "in_progress"
-                    } else {
-                        "recent"
-                    };
-                    thread["state"] = json!(state);
-                    thread["section"] = json!(section);
-                }
-                Ok(data)
+                self.threads = threads;
+                result
             }
             "previews" | "tracks" | "preview" | "delete_preview" => {
                 let index = self.active()?;
@@ -534,15 +499,24 @@ impl MobileClient {
     }
 
     fn api(&mut self, index: usize, method: &str, url: Url, host: &mut dyn Host) -> Result<Value> {
+        successful(self.send(index, method, url, None, host)?)
+    }
+
+    fn send(
+        &mut self,
+        index: usize,
+        method: &str,
+        url: Url,
+        body: Option<Value>,
+        host: &mut dyn Host,
+    ) -> Result<(u64, Value)> {
         self.refresh(index, host)?;
-        let response = http(
-            host,
-            method,
-            url,
-            json!({"Authorization":format!("Bearer {}",self.vault.profiles[index].access)}),
-            None,
-        )?;
-        successful(response)
+        let mut headers =
+            json!({"Authorization":format!("Bearer {}",self.vault.profiles[index].access)});
+        if body.is_some() {
+            headers["Content-Type"] = json!("application/json");
+        }
+        http(host, method, url, headers, body.map(|b| b.to_string()))
     }
 
     fn organizations(&mut self, host: &mut dyn Host) -> Result<Value> {
@@ -639,6 +613,19 @@ impl MobileClient {
     }
 }
 
+/// The active profile's credentials, refreshed before each request.
+struct Authorized<'a> {
+    client: &'a mut MobileClient,
+    index: usize,
+    host: &'a mut dyn Host,
+}
+
+impl Transport for Authorized<'_> {
+    fn send(&mut self, method: &str, url: Url, body: Option<Value>) -> Result<(u64, Value)> {
+        self.client.send(self.index, method, url, body, self.host)
+    }
+}
+
 fn action(host: &mut dyn Host, value: Value) -> Result<Value> {
     let response = host.perform(value).map_err(|_| "Native operation failed")?;
     if response.get("error").is_some() {
@@ -721,9 +708,8 @@ fn http(
     Ok((status, data))
 }
 
-const NOT_FOUND: &str = "Resource not found or server unsupported";
-
-fn successful((status, data): (u64, Value)) -> Result<Value> {
+pub(crate) const NOT_FOUND: &str = "Resource not found or server unsupported";
+pub(crate) fn successful((status, data): (u64, Value)) -> Result<Value> {
     match status {
         200..=299 => Ok(data),
         401 | 403 => Err("Access denied"),
@@ -755,13 +741,13 @@ fn form(pairs: &[(&str, &str)]) -> String {
         .extend_pairs(pairs.iter().copied())
         .finish()
 }
-fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
+pub(crate) fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
     v.get(key)
         .and_then(Value::as_str)
         .filter(|v| !v.trim().is_empty())
         .ok_or("Missing required argument")
 }
-fn segment(v: &str) -> bool {
+pub(crate) fn segment(v: &str) -> bool {
     !v.is_empty()
         && v != "."
         && v != ".."
