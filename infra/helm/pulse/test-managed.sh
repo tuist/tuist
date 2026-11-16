@@ -185,7 +185,7 @@ jq -e '
   (one("ExternalSecret"; "pulse-credentials").spec.target.template.data | keys ==
     ["PULSE_DATANODE__STORAGE__ACCESS_KEY_ID","PULSE_DATANODE__STORAGE__SECRET_ACCESS_KEY"]) and
   (config("pulse-kafka-config") | contains("min.insync.replicas=2", "default.replication.factor=3",
-    "unclean.leader.election.enable=false", "auto.create.topics.enable=false", "log.retention.ms=-1")) and
+    "unclean.leader.election.enable=false", "auto.create.topics.enable=false", "log.retention.ms=-1", "log.segment.bytes=134217728")) and
   (config("pulse-metasrv-config") | contains("backend = \"etcd_store\"", "provider = \"kafka\"",
     "replication_factor = 3", "enable_region_failover = true", "allow_region_failover_on_local_wal = false")) and
   (config("pulse-datanode-config") | contains("provider = \"kafka\"", "overwrite_entry_start_id = false",

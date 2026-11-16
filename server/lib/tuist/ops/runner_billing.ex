@@ -282,7 +282,8 @@ defmodule Tuist.Ops.RunnerBilling do
 
       revision =
         {json_map(state), subscription && {subscription.subscription_id, subscription.status, subscription.updated_at}}
-        |> :erlang.term_to_binary()
+        # Timestamp struct keys can have different internal atom orders on each replica.
+        |> :erlang.term_to_binary([:deterministic])
         |> then(&:crypto.hash(:sha256, &1))
         |> Base.encode16(case: :lower)
 

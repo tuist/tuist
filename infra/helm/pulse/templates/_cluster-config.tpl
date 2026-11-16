@@ -120,6 +120,10 @@ transaction.state.log.min.isr=2
 # Pulse deletes WAL records once their regions are flushed to object
 # storage. Time-based deletion could drop acknowledged, unflushed writes.
 log.retention.ms=-1
+# Kafka frees disk only by deleting whole closed segments. A topic with the
+# default 1 GiB segment keeps all its pruned records until the segment fills,
+# and 16 topics of that outgrow the volume, so roll at 128 MiB instead.
+log.segment.bytes=134217728
 {{- end }}
 
 {{- define "pulse.kafkaLog4j" -}}

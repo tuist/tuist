@@ -79,8 +79,12 @@ kuraVolumesCSI:
   enabled: true
   # Public half of the staging KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: t1i8qEBEdu1wb6Gvl7uaf5tmXwTvCQ89lxokelDjKQ8=
-  # Paris thin-ready labels were removed after the last rehearsal.
-  thinRegions: []
+  # Staging runs Kura on thin volumes only, as production does. Both cache
+  # hosts (the ca-east box and the Gravelines box serving eu-west) were
+  # reinstalled lvm-v1 with thin pools on 2026-11-16; their earlier legacy
+  # volumes were discarded rather than migrated.
+  thinRegions: [ca-east, eu-west]
+  thinEnrolledRegions: [ca-east, eu-west]
 
 registry:
   publicHost: registry-staging.tuist.dev

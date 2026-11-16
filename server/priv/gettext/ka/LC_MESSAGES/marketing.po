@@ -13,7 +13,7 @@ msgstr "Tuist-ის გუნდისგან სიახლეები: �
 msgid "About"
 msgstr "შესახებ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1006
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1012
 #, elixir-autogen, elixir-format
 msgid "Beyond expectations"
 msgstr "მოლოდინებს მიღმა"
@@ -61,7 +61,7 @@ msgstr "CI პროვაიდერი"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:6
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:5
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:103
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:109
 #: lib/tuist_web/marketing/live/marketing_cache_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Cache"
@@ -84,13 +84,13 @@ msgid "Changelog"
 msgstr "ცვლილებების ჟურნალი"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:74
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:933
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:939
 #, elixir-autogen, elixir-format
 msgid "Community"
 msgstr "საზოგადოება"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:133
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:952
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "Community forum"
 msgstr "საზოგადოების ფორუმი"
@@ -198,7 +198,7 @@ msgstr "ფუნქციები"
 msgid "Free under tier limits"
 msgstr "უფასო საფასურის პაკეტის ლიმიტებში"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:574
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:580
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Generated Projects"
@@ -218,8 +218,8 @@ msgstr "მიიღეთ დახმარება, როცა გჭი�
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:196
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:162
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1191
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:49
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1054
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:55
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1060
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:133
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:827
@@ -365,7 +365,7 @@ msgstr "გთხოვთ, შეამოწმოთ ელფოსტა �
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:18
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:31
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:558
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:564
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:200
 #: lib/tuist_web/marketing/live/marketing_previews_live.ex:43
 #, elixir-autogen, elixir-format
@@ -412,7 +412,7 @@ msgstr "პროდუქტი"
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:30
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:51
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:592
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:598
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Registry"
@@ -451,7 +451,7 @@ msgstr "iOS პროექტში Tuist-ის დანერგვის �
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:76
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:115
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:943
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:949
 #, elixir-autogen, elixir-format
 msgid "Slack"
 msgstr "Slack"
@@ -512,8 +512,8 @@ msgstr "მორგებული იურიდიული პირობ�
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:202
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:168
 #: lib/tuist_web/marketing/controllers/marketing_html/download.html.heex:1197
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:56
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1061
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:62
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1067
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:139
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:833
 #: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:36
@@ -845,7 +845,7 @@ msgstr "ხელოვნური ინტელექტი სწრაფ�
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:109
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:961
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:6
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:625
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:631
 #: lib/tuist_web/marketing/live/marketing_customers_live.ex:91
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:4
 #, elixir-autogen, elixir-format
@@ -860,18 +860,18 @@ msgstr "Tuist-ის მომხმარებლები"
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:14
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:24
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1113
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:495
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "ტესტები"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:594
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:600
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "Download only what you need — faster, lighter builds locally and on CI."
 msgstr "ჩამოტვირთეთ მხოლოდ საჭირო რესურსები — უფრო სწრაფი და მსუბუქი ბილდები ლოკალურად და CI-ზე."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:547
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Other features"
 msgstr "სხვა ფუნქციები"
@@ -966,27 +966,27 @@ msgstr "გახსენით დადასტურების ბმუ�
 msgid "Please confirm that you want %{email} to receive Tuist Digest."
 msgstr "დაადასტურეთ, რომ გსურთ %{email}-მა მიიღოს Tuist Digest."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:144
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:150
 #, elixir-autogen, elixir-format
 msgid "02m 00s"
 msgstr "02 წ 00 წმ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:978
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:984
 #, elixir-autogen, elixir-format
 msgid "10k+ teams"
 msgstr "10k+ გუნდი"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:972
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:978
 #, elixir-autogen, elixir-format
 msgid "1500+ members"
 msgstr "1500+ წევრი"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:975
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:981
 #, elixir-autogen, elixir-format
 msgid "300+ committers"
 msgstr "300+ კომიტერი"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:126
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "40m 00s"
 msgstr "40 წ 00 წმ"
@@ -1001,7 +1001,7 @@ msgstr "API დოკუმენტაცია"
 msgid "After integrating Tuist into our large-scale iOS codebase with over 160 modules, an internal survey showed developer satisfaction at 4.25/5. Developers highlighted faster compile times, smoother branch switching, and easier dependency management."
 msgstr "Tuist-ის ჩვენს მასშტაბურ iOS კოდბაზაში, რომელიც 160-ზე მეტ მოდულს შეიცავს, ინტეგრირების შემდეგ შიდა გამოკითხვამ დეველოპერების კმაყოფილება 4.25/5-ზე აჩვენა. დეველოპერებმა აღნიშნეს კომპილაციის სიჩქარის ზრდა, ბრენჩებს შორის გადასვლის გამარტივება და დამოკიდებულებების მართვის სიმარტივე."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:260
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "Build app"
 msgstr "აპლიკაციის აწყობა"
@@ -1011,24 +1011,24 @@ msgstr "აპლიკაციის აწყობა"
 msgid "Build on our REST API"
 msgstr "აწყეთ ჩვენი REST API-ით"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:124
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:142
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:130
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Build time:"
 msgstr "აწყობის დრო:"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:755
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:761
 #, elixir-autogen, elixir-format
 msgid "Built for every stack"
 msgstr "შექმნილი ნებისმიერი ტექნოლოგიური სტეკისთვის"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:818
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:824
 #, elixir-autogen, elixir-format
 msgid "Built in the open, secured for scale"
 msgstr "ღია კოდით შექმნილი, მასშტაბურობისთვის დაცული"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:130
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:158
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:136
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate:"
 msgstr "ქეშში მოხვედრის მაჩვენებელი:"
@@ -1038,24 +1038,24 @@ msgstr "ქეშში მოხვედრის მაჩვენებე�
 msgid "Check our sources, issues and PRs"
 msgstr "იხილეთ ჩვენი წყაროები, პრობლემები და PR-ები"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:253
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Checkout repository"
 msgstr "რეპოზიტორიის გადმოწერა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:269
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "Complete job"
 msgstr "დავალების დასრულება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:266
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "Create logs"
 msgstr "ლოგების შექმნა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:639
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:655
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:660
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:645
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:661
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:666
 #, elixir-autogen, elixir-format
 msgid "Customer stories"
 msgstr "მომხმარებლის ისტორიები"
@@ -1075,23 +1075,23 @@ msgstr "Tuist-ის აპლიკაციის ჩამოტვირთ�
 msgid "Download only what you need — faster, lighter builds locally and on CI"
 msgstr "ჩამოტვირთეთ მხოლოდ საჭირო რესურსები — უფრო სწრაფი და მსუბუქი ბილდები ლოკალურად და CI-ზე"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:199
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:362
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:205
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:368
 #, elixir-autogen, elixir-format
 msgid "Duration:"
 msgstr "ხანგრძლივობა:"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:550
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "Enhance mobile-specific workflows and accelerate builds across developer, CI, and agent environments."
 msgstr "გააუმჯობესეთ მობილურისთვის განკუთვნილი სამუშაო პროცესები და ააჩქარეთ ბილდები დეველოპერულ, CI-სა და აგენტურ გარემოებში."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:898
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:904
 #, elixir-autogen, elixir-format
 msgid "Enterprise-Ready Security"
 msgstr "Enterprise-რეჟიმის უსაფრთხოება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:922
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:928
 #, elixir-autogen, elixir-format
 msgid "Every customer gets their own dedicated compute environment, fully managed by us."
 msgstr "ყველა მომხმარებელს ეძლევა საკუთარი გამოყოფილი გამოთვლითი გარემო, რომელსაც სრულად ჩვენ ვმართავთ."
@@ -1102,27 +1102,27 @@ msgstr "ყველა მომხმარებელს ეძლევა 
 msgid "Explore Tuist's features on public dashboard"
 msgstr "დაათვალიერეთ Tuist-ის ფუნქციები საჯარო დაფაზე"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:496
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:502
 #, elixir-autogen, elixir-format
 msgid "Faster tests you can actually trust."
 msgstr "ტესტები, რომლებსაც ნამდვილად შეგიძლიათ ენდოთ."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:526
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:532
 #, elixir-autogen, elixir-format
 msgid "Flaky tests detected:"
 msgstr "აღმოჩენილი არასტაბილური ტესტები:"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:754
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:760
 #, elixir-autogen, elixir-format
 msgid "Frameworks"
 msgstr "ფრეიმვორკები"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:757
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:763
 #, elixir-autogen, elixir-format
 msgid "From native mobile apps to cross-platform projects, support the tools, languages, and frameworks your teams already rely on."
 msgstr "ნატიური მობილური აპლიკაციებიდან დაწყებული ჯვარედინ პლატფორმულ პროექტებამდე, დაუჭირეთ მხარი იმ ინსტრუმენტებს, ენებსა და ფრეიმვორქებს, რომლებზეც თქვენი გუნდები უკვე არიან დამოკიდებულები."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:936
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:942
 #, elixir-autogen, elixir-format
 msgid "Hear from our community about their experience with Tuist."
 msgstr "მოისმინეთ ჩვენი საზოგადოების წევრების გამოცდილება Tuist-თან მუშაობის შესახებ."
@@ -1132,7 +1132,7 @@ msgstr "მოისმინეთ ჩვენი საზოგადოე�
 msgid "How to set up and use Tuist"
 msgstr "როგორ დავაყენოთ და გამოვიყენოთ Tuist"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:256
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Install dependencies"
 msgstr "დამოკიდებულებების ინსტალაცია"
@@ -1152,7 +1152,7 @@ msgstr "ნებისმიერი მოდულისთვის კო�
 msgid "Join discussions and share ideas on our community forum"
 msgstr "შეუერთდით დისკუსიებს და გაუზიარეთ იდეები ჩვენს საზოგადოების ფორუმზე"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:934
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:940
 #, elixir-autogen, elixir-format
 msgid "Join our community"
 msgstr "შეუერთდით ჩვენს საზოგადოებას"
@@ -1163,14 +1163,14 @@ msgid "Join the community slack"
 msgstr "შეუერთდით საზოგადოების Slack-ს"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:73
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:115
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:184
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:507
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:121
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:190
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "Learn more"
 msgstr "გაიგეთ მეტი"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:264
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:270
 #, elixir-autogen, elixir-format
 msgid "Lint"
 msgstr "ლინტი"
@@ -1180,17 +1180,17 @@ msgstr "ლინტი"
 msgid "Member of Technical Staff, OpenAI"
 msgstr "ტექნიკური პერსონალი, OpenAI"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:548
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:554
 #, elixir-autogen, elixir-format
 msgid "More in the toolbox."
 msgstr "მეტი შესაძლებლობა თქვენი გუნდისთვის."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:104
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Never build the same thing twice."
 msgstr "არასდროს ააწყოთ ერთი და იგივე რამ ორჯერ."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:865
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:871
 #, elixir-autogen, elixir-format
 msgid "Open Source Since Day Zero"
 msgstr "ღია კოდი თავიდანვე"
@@ -1200,23 +1200,23 @@ msgstr "ღია კოდი თავიდანვე"
 msgid "Our workspace definition became pure Swift code. Touching the project structure used to mean editing .pbxproj files whose diffs no human can read; now each domain team declares and owns its module configuration in Swift, and structure changes are reviewable diffs. Dependencies became visible data too — with the module graph declared in code, we finally have concrete, shared data to ground our dependency discussions."
 msgstr "ჩვენი სამუშაო სივრცის განსაზღვრა სუფთა Swift კოდად იქცა. პროექტის სტრუქტურის შეცვლა ადრე .pbxproj ფაილების რედაქტირებას ნიშნავდა, რომელთა ცვლილებებსაც ვერავინ კითხულობდა; ახლა კი თითოეული დომენური გუნდი Swift-ში აღწერს და ფლობს მოდულის კონფიგურაციას, ხოლო სტრუქტურული ცვლილებები გადახედვადი diffs-ებია. დამოკიდებულებებიც ხილულ მონაცემებად იქცა — მოდულების გრაფის კოდში აღწერით, ბოლოს და ბოლოს გვაქვს კონკრეტული, საერთო მონაცემები დამოკიდებულებებზე საუბრისთვის."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:196
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:359
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:202
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:365
 #, elixir-autogen, elixir-format
 msgid "Parallel"
 msgstr "პარალელური"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:268
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Post run actions"
 msgstr "მოქმედებები გაშვების შემდეგ"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:712
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:718
 #, elixir-autogen, elixir-format
 msgid "Read the %{company} case study"
 msgstr "წაიკითხეთ %{company}-ის საქმის შესწავლა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:257
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Restore cache"
 msgstr "ქეშის აღდგენა"
@@ -1226,58 +1226,58 @@ msgstr "ქეშის აღდგენა"
 msgid "Reuse build artifacts across your team and CI to avoid recompiling the same code"
 msgstr "გამოიყენეთ ბილდის არტიფაქტები თქვენს გუნდსა და CI-ში, რათა თავიდან აიცილოთ ერთი და იგივე კოდის ხელახალი კომპილაცია"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:262
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Run UI tests"
 msgstr "UI ტესტების გაშვება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:263
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Run actions"
 msgstr "მოქმედებების გაშვება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:255
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Run jdx/mise"
 msgstr "jdx/mise-ის გაშვება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:259
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Run tuist generate"
 msgstr "tuist generate-ის გაშვება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:258
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Run tuist install"
 msgstr "tuist install-ის გაშვება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:261
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Run unit tests"
 msgstr "ერთეულოვანი ტესტების გაშვება"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:175
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Runners that spin up in seconds and scale with your team and your agents."
 msgstr "რანერები, რომლებიც წამებში იწყებენ მუშაობას და მასშტაბირდება თქვენს გუნდთან და აგენტებთან ერთად."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:192
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:355
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:198
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Runners:"
 msgstr "რანერები:"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:900
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "SOC 2 compliant with the controls expected from critical infrastructure."
 msgstr "SOC 2 შესაბამისობა კრიტიკული ინფრასტრუქტურისთვის მოსალოდნელი კონტროლით."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:267
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Save cache"
 msgstr "ქეშის შენახვა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1008
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1014
 #, elixir-autogen, elixir-format
 msgid "See how Tuist is helping teams move faster and scale confidently."
 msgstr "იხილეთ, როგორ ეხმარება Tuist გუნდებს სწრაფად მუშაობასა და დარწმუნებულ მასშტაბირებაში."
@@ -1302,22 +1302,22 @@ msgstr "უფროსი პროგრამული უზრუნვე�
 msgid "Senior iOS Engineer at Fetch"
 msgstr "უფროსი iOS ინჟინერი Fetch-ში"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:252
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Set up job"
 msgstr "დავალების კონფიგურაცია"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:254
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Set up mise"
 msgstr "mise-ის კონფიგურაცია"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:106
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Share build artifacts across your developers, CI, and agent environments, so no one waits on code that's already compiled."
 msgstr "გაუზიარეთ ბილდის არტეფაქტები თქვენს დეველოპერებს, CI-ს და აგენტების გარემოებს, რათა არავინ ელოდოს უკვე კომპილირებულ კოდს."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:560
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:566
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Share your app instantly via URL. No delays, just click and run on any device."
@@ -1333,7 +1333,7 @@ msgstr "გაუზიარეთ თქვენი აპლიკაცი�
 msgid "Simplify modular Xcode projects for easier maintenance and scaling"
 msgstr "გაამარტივეთ მოდულური Xcode პროექტები უფრო მარტივი შენარჩუნებისა და მასშტაბირებისთვის"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:577
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:583
 #, elixir-autogen, elixir-format
 msgid "Simplify modular Xcode projects to make them easier to maintain and scale."
 msgstr "გაამარტივეთ მოდულური Xcode პროექტები, რათა ისინი უფრო მარტივად შენარჩუნებადი და მასშტაბირებადი იყოს."
@@ -1348,7 +1348,7 @@ msgstr "მას შემდეგ, რაც Tuist ავირჩიეთ �
 msgid "Stay updated - subscribe to our newsletter"
 msgstr "იყავით განახლებული - გამოიწერეთ ჩვენი სიახლეები"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:173
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Stop waiting on the queue."
 msgstr "შეწყვიტეთ ლოდინი რიგში."
@@ -1358,17 +1358,17 @@ msgstr "შეწყვიტეთ ლოდინი რიგში."
 msgid "Test only what changed and catch flaky tests automatically"
 msgstr "ტესტირება მხოლოდ იმისა, რაც შეიცვალა და არასტაბილური ტესტების ავტომატური გამოვლენა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1005
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1011
 #, elixir-autogen, elixir-format
 msgid "Testimonials"
 msgstr "რეკომენდაციები"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:521
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Tests ran:"
 msgstr "გაშვებული ტესტები:"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:516
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:522
 #, elixir-autogen, elixir-format
 msgid "Tests skipped:"
 msgstr "გამოტოვებული ტესტები:"
@@ -1378,12 +1378,12 @@ msgstr "გამოტოვებული ტესტები:"
 msgid "Theme"
 msgstr "თემა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:816
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:822
 #, elixir-autogen, elixir-format
 msgid "Transparency"
 msgstr "გამჭვირვალობა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:867
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:873
 #, elixir-autogen, elixir-format
 msgid "Transparent by default. Inspect the code, contribute improvements, and stay in control."
 msgstr "ნაგულისხმევად გამჭვირვალე. შეისწავლეთ კოდი, შეიტანეთ გაუმჯობესებები და დარჩით კონტროლში."
@@ -1403,12 +1403,12 @@ msgstr "Tuist-მა მნიშვნელოვნად გაზარდ�
 msgid "Tuist has made a real difference in how we work with Fetch's large, highly modular iOS codebase. Its remote module cache has materially reduced build times and tightened feedback loops for engineers locally and in CI, while Build Insights gives us valuable visibility into build performance and where to focus next. That combination of speed and observability has made the developer experience meaningfully better."
 msgstr "Tuist-მა რეალურად შეცვალა ჩვენი მუშაობის პროცესი Fetch-ის დიდ, მაღალმოდულურ iOS კოდბაზასთან. მისმა დისტანციურმა მოდულების ქეშმა მნიშვნელოვნად შეამცირა ბილდის დრო და გააუმჯობესა უკუკავშირის ციკლი ინჟინრებისთვის როგორც ლოკალურად, ასევე CI-ში, ხოლო Build Insights გვაძლევს ღირებულ ხილვადობას ბილდის წარმადობაზე და იმაზე, თუ სად უნდა გავამახვილოთ ყურადღება შემდეგ. სიჩქარისა და დაკვირვებადობის ეს კომბინაცია მნიშვნელოვნად აუმჯობესებს დეველოპერის გამოცდილებას."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:821
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:827
 #, elixir-autogen, elixir-format
 msgid "Tuist is built in the open because we believe developer infrastructure should be transparent, extensible, and community-driven."
 msgstr "Tuist ღიადად იქმნება, რადგან ვფიქრობთ, რომ დეველოპერული ინფრასტრუქტურა უნდა იყოს გამჭვირვალე, გაფართოებადი და საზოგადოებრივად მართვადი."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:630
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "Tuist is trusted by over 300+ product teams, from fast-growing startups to global enterprises."
 msgstr "Tuist-ს ენდობა 300+ პროდუქტის გუნდი — სწრაფად მზარდი სტარტაპებიდან გლობალურ კომპანიებამდე."
@@ -1418,13 +1418,13 @@ msgstr "Tuist-ს ენდობა 300+ პროდუქტის გუნ�
 msgid "Tuist made git worktrees practical on our huge codebase. Worktrees used to be painful here — every new one ate serious disk space, opening the project over and over had real overhead, and each fresh worktree meant another clean build. Tuist shrank all of those hurdles, so now I spin up worktrees without hesitation — which is exactly what AI-assisted development needs."
 msgstr "Tuist-მა git worktrees პრაქტიკული გახადა ჩვენს უზარმაზარ კოდბაზაზე. ადრე worktrees ტკივილი იყო — ყოველი ახალი instance სერიოზულ ადგილს იკავებდა დისკზე, პროექტის მრავალჯერადი გახსნა რეალურად ზრდიდა დატვირთვას, და ყოველი ახალი worktree ნიშნავდა კიდევ ერთ სუფთა ბილდს. Tuist-მა ყველა ეს ბარიერი შეამცირა, ამიტომ ახლა worktrees-ს ყოყმანის გარეშე ვქმნი — რაც ზუსტად ის არის, რაც AI-ით დახმარებულ განვითარებას სჭირდება."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:265
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:271
 #, elixir-autogen, elixir-format
 msgid "Upload artifacts"
 msgstr "არტიფაქტების ატვირთვა"
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:159
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1049
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1055
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:128
 #: lib/tuist_web/marketing/controllers/marketing_html/runners/runners_cta.html.heex:24
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:383
@@ -1440,22 +1440,22 @@ msgstr "რას ელოდებით?"
 msgid "With Tuist's development cache and focused modules, our local feedback loop got dramatically shorter. A build that took around 4 minutes drops to about 25 seconds on the next run — 123 of 124 targets served straight from cache. The feeling of facing the entire project on every build is gone; I just iterate on the modules I'm actually changing, and I rarely think about project file conflicts anymore."
 msgstr "Tuist-ის განვითარების ქეშითა და ფოკუსირებული მოდულებით ჩვენი ლოკალური უკუკავშირის ციკლი დრამატულად შემცირდა. ბილდი, რომელიც დაახლოებით 4 წუთს იღებდა, შემდეგ გაშვებაზე დაახლოებით 25 წამამდე ეცემა — 124-დან 124 სამიზნე პირდაპირ ქეშიდან მიეწოდება. გაქრა შეგრძნება, რომ ყოველ ბილდზე მთელ პროექტს ვუპირისპირდებით; ახლა უბრალოდ ვიმეორებ იმ მოდულებზე, რომლებსაც რეალურად ვცვლი, და პროექტის ფაილების კონფლიქტებზე თითქმის აღარ ვფიქრობ."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:163
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "With cache"
 msgstr "ქეშით"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:135
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Without cache"
 msgstr "ქეშის გარეშე"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:920
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:926
 #, elixir-autogen, elixir-format
 msgid "Your Own Dedicated Infrastructure"
 msgstr "თქვენი საკუთარი გამოყოფილი ინფრასტრუქტურა"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:791
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:797
 #, elixir-autogen, elixir-format
 msgid "and more ..."
 msgstr "და სხვა..."
@@ -1497,7 +1497,7 @@ msgstr "ბრენდი"
 msgid "Brand guidelines"
 msgstr "ბრენდის სახელმძღვანელო"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:498
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:504
 #, elixir-autogen, elixir-format
 msgid "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
 msgstr "გაუშვით მხოლოდ ის ტესტები, რომლებზეც თქვენი ცვლილებები აისახება და ავტომატურად აღნიშნეთ არასტაბილური ტესტები, რათა წარმატებულმა ბილდმა ნამდვილად წარმატება ნიშნავდეს."
@@ -2138,7 +2138,7 @@ msgstr "ანიმაცია: Tuist-ის მენიუს აპლი�
 msgid "Brand assets"
 msgstr "ბრენდის რესურსები"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:941
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:947
 #, elixir-autogen, elixir-format
 msgid "Community links"
 msgstr "კომუნიკაციის ბმულები"
@@ -2170,7 +2170,7 @@ msgstr "მთავარი ნავიგაცია"
 msgid "Mobile navigation"
 msgstr "მობილური ნავიგაცია"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:64
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Organizations using Tuist"
 msgstr "ორგანიზაციები, რომლებიც იყენებენ Tuist-ს"
@@ -2252,7 +2252,7 @@ msgstr "მოგესალმებით გამოცემაში %{nu
 msgid "Worthy Five: %{name}"
 msgstr "Worthy Five: %{name}"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1050
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1056
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:130
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:384
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:386
@@ -2534,7 +2534,7 @@ msgstr "ქეშის აქტივობა"
 msgid "Cache downloads served today, including repeated and partial requests. Counters are estimated between reports using recent activity. Totals reset at midnight UTC."
 msgstr "დღეს მომსახურებული ქეშიდან ჩამოტვირთვები, მათ შორის განმეორებითი და ნაწილობრივი მოთხოვნები. მრიცხველები შეფასებულია ბოლო აქტივობის საფუძველზე ანგარიშებს შორის პერიოდში. ჯამური მაჩვენებლები ნულდება ყოველდღე შუაღამით UTC-ით."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:627
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "Powering teams that move fast"
 msgstr "გუნდებისთვის, რომლებიც სწრაფად მოძრაობენ"
@@ -2549,7 +2549,7 @@ msgstr "Delivery Hero-მ Tuist-ის გამოყენებით გა�
 msgid "Monzo reduced its pull request CI times by 71%, from 52 minutes to just 15 minutes, using Tuist's binary caching and selective testing. By eliminating redundant builds and running only relevant tests, Monzo improved development efficiency for its 45+ iOS engineers working across nearly 200 modules."
 msgstr "Monzo-მ შეამცირა pull request-ების CI-ს დრო 71%-ით, 52 წუთიდან 15 წუთამდე, Tuist-ის ბინარული ქეშისა და შერჩევითი ტესტირების გამოყენებით. ზედმეტი კომპილაციების აღმოფხვრით და მხოლოდ შესაბამისი ტესტების გაშვებით, Monzo-მ გააუმჯობესა განვითარების ეფექტურობა თავისი 45+ iOS ინჟინრისთვის, რომლებიც თითქმის 200 მოდულზე მუშაობენ."
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:710
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Read more"
 msgstr "მეტის წაკითხვა"
@@ -2936,7 +2936,7 @@ msgstr "მეტრიკა"
 msgid "Using Tuist since"
 msgstr "Tuist-ის გამოყენება დაწყებულია"
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:700
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:706
 #, elixir-autogen, elixir-format
 msgid "Using Tuist since %{date}"
 msgstr "Tuist-ის გამოყენება დაწყებულია %{date}-დან"
@@ -3050,7 +3050,7 @@ msgstr "გაუშვით Xcode-ისა და macOS-ის უახლ�
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:16
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1088
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1094
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:172
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:178
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:570
 #, elixir-autogen, elixir-format
 msgid "Runners"
@@ -3086,3 +3086,8 @@ msgstr "Tuist არის ბილდის ინფრასტრუქტ�
 #, elixir-autogen, elixir-format
 msgid "macOS and Linux CI runners · Tuist"
 msgstr "macOS და Linux CI გამშვები · Tuist"
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Faster machines run wasted work faster. Tuist helps you skip it."
+msgstr "უფრო სწრაფი მანქანები ნაგებ სამუშაოსაც უფრო სწრაფად ასრულებენ. Tuist საშუალებას გაძლევთ, ეს გამოტოვოთ."

@@ -27,6 +27,10 @@ defmodule Condukt.Sessions.Registry.Horde do
 
   @behaviour Condukt.Sessions.Registry
 
+  # Horde is optional, so hosts that use another registry compile this
+  # module without it.
+  @compile {:no_warn_undefined, Horde.Registry}
+
   @impl true
   def child_spec(opts) do
     opts

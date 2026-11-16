@@ -230,8 +230,8 @@ defmodule Condukt.Session.View do
 
   defp update_assistant(run, field, chunk) do
     case List.last(run.items) do
-      %{type: :assistant} = item ->
-        %{run | items: List.replace_at(run.items, -1, Map.update!(item, field, &(&1 <> chunk)))}
+      %{:type => :assistant, ^field => current} = item ->
+        %{run | items: List.replace_at(run.items, -1, %{item | field => current <> chunk})}
 
       _other ->
         push(run, Map.put(%{type: :assistant, text: "", thinking: ""}, field, chunk))

@@ -12,23 +12,25 @@ defmodule Condukt.Bashkit.NIF do
   # loaded NIF triggers a teardown segfault under investigation).
 
   if System.get_env("CONDUKT_BASHKIT_DISABLE") in ["1", "true"] do
-    # Disabled stubs return an :error tuple instead of raising so they
-    # don't get inferred as `none()` by the Elixir 1.19 typer (which
-    # would mark every `case`/`with` clause that matched success as
-    # unreachable, breaking --warnings-as-errors). The default test
-    # suite excludes :virtual_sandbox so these are never invoked anyway.
-    @disabled_error {:error, :nif_disabled}
-
-    def new_session(_mounts), do: @disabled_error
+    # Disabled stubs fail the way an unloaded NIF does, so
+    # `Condukt.Sandbox.Virtual.init/1` returns an error instead of a
+    # sandbox whose every call fails. `:erlang.nif_error/1` leaves their
+    # return types open, as the loaded NIF's are; a literal return or a
+    # `raise` would let the typer mark callers' success clauses unreachable,
+    # breaking --warnings-as-errors. The default test suite excludes
+    # :virtual_sandbox so these are never invoked anyway.
+    def new_session(_mounts), do: disabled()
     def shutdown(_session), do: :ok
-    def exec(_session, _command, _timeout_ms), do: @disabled_error
-    def read_file(_session, _path), do: @disabled_error
-    def write_file(_session, _path, _content), do: @disabled_error
-    def edit_file(_session, _path, _old_text, _new_text), do: @disabled_error
-    def glob(_session, _pattern, _cwd), do: @disabled_error
-    def grep(_session, _pattern, _path, _case_sensitive, _file_glob), do: @disabled_error
-    def mount(_session, _host_path, _vfs_path, _mode), do: @disabled_error
-    def unmount(_session, _vfs_path), do: @disabled_error
+    def exec(_session, _command, _timeout_ms), do: disabled()
+    def read_file(_session, _path), do: disabled()
+    def write_file(_session, _path, _content), do: disabled()
+    def edit_file(_session, _path, _old_text, _new_text), do: disabled()
+    def glob(_session, _pattern, _cwd), do: disabled()
+    def grep(_session, _pattern, _path, _case_sensitive, _file_glob), do: disabled()
+    def mount(_session, _host_path, _vfs_path, _mode), do: disabled()
+    def unmount(_session, _vfs_path), do: disabled()
+
+    defp disabled, do: :erlang.nif_error(:nif_disabled)
   else
     use RustlerPrecompiled,
       otp_app: :condukt,

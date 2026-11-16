@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "a1570432e2c9bdd02dd8ffd514ed12d543e7405b20457bbde8b71e4fd731e0a1",
+  "hash": "064e0e5c751ba2c4e05dce57e55c85119baf9f082329ef4794937d81feeb303d",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "#: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:13": {
-                  "content_hash": "b2e18b5ba756c1f045b1a7e19c6b8d973abfee64f28e15a1f7e50e83620523ee"
+                  "content_hash": "e683c000ab3241cca7a8efc4873fd46bac1ae9d5ac52cfb12341bb695f327b08"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "069a1dcd7b6ff562021e9f8374dd1f004eff3dfcb474532ce8ab82a62c53ac88",
+          "hash": "76564f89eba5aabe1698ac8427915f865b2531cd421537222d27c1de234013bd",
           "kind": "source",
           "label": "server/priv/gettext/marketing.pot",
           "metadata": {
-            "content_hash": "a5aedf29e34086fc4b080a4119e543160172db8bee2ff0315cf2737109652008"
+            "content_hash": "6fdf0910b64cb3428c87805882551db9f8a4c25ac5707cd739e29d979e38e2ee"
           }
         },
         {
@@ -226,14 +226,14 @@
         }
       ],
       "details": {},
-      "hash": "a1570432e2c9bdd02dd8ffd514ed12d543e7405b20457bbde8b71e4fd731e0a1",
+      "hash": "064e0e5c751ba2c4e05dce57e55c85119baf9f082329ef4794937d81feeb303d",
       "kind": "translation_input",
       "label": "server/priv/gettext/marketing.pot",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "bc7ffc0857c00d098b2672198ec53b21483f4abaaf0fa234e3fa04270eaff40d",
+  "output_hash": "9d6c92453bde4e5304105d0785c926b45258a8f9b65edb0cf169492603e23b77",
   "output_path": "server/priv/gettext/yue_Hant/LC_MESSAGES/marketing.po",
   "po_units": {
     "010b2dbbcc3f0e943f31b5728f385c55f0f22b2e9ac121d22eefc3629786efec": "ea29a07df50365cee66112f2b4a9be28aeff8b7da9d246b1099651ebd353fa65",
@@ -703,6 +703,7 @@
     "cf77c29dcf44d7ec2d66fc563c0af471c459a09d0ed749eb26a1f2d870d5e42e": "9977c5d8b3377faef9b6b1dacb4b160956e0f4a62d659d3db50f2a00d42cf325",
     "cfdaca4f382b5083019b6d4bd88c119a4d389bfa6a14737a97491b300634b5f9": "1d46132a9cf327bdc31b624fd4bcbc167a862c93a5158c28733b7f5a7983f5da",
     "cfe46e654796c5fc2b17610d5e1e5c9595c2c78411174b10e7667b3de5f32c48": "93c8bd64acafda1973ea88f634ec393614316c914787a17fbebd1f8dfdd54df1",
+    "d02537f7d1b492aa9b84f01dfd96fa3bb82cd7e85be91fb41aac1bfd96b34289": "36e6d725d74be9c2b68f2712f3fed2afe127e99f9c17d31d73439c069ccde03e",
     "d0e4cc2dc0c1efb7492da033d707b6cf8f6ba98c82056bd7d125a370797375b4": "00992a53b4e0dc65dea1ac684132da1e669c33fad7e4de54bd37e146984f6e74",
     "d115caaf149807b716b86535cd3394ee03b3b09f261433f410a0490d6bef8fb1": "41916b64ed0eaf70d9fcdf90eb9fabf23e3c6aacea4872d0a023bc9605727b15",
     "d1742944765b14dc3b6daada9b528e30266a21a2cb3d322263b6d7524746583c": "ede1d99b86e94eaf9a897a733fcbec329ff70eebbaaf5516d1e15d49ca4bab36",
@@ -834,8 +835,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "3b2e17b44d8f5fca68450d3153eba41c5f58b2c8",
+  "source_commit_sha": "8509a2ff43e181522aeba64aa8d43e1a1608d2db",
   "source_path": "server/priv/gettext/marketing.pot",
-  "translated_at": "2026-11-16T16:29:59.516064Z",
-  "translation_session_id": "01a1e52f-5dc9-7c1d-97b2-210817e951bb"
+  "translated_at": "2026-11-16T17:11:12.173676Z",
+  "translation_session_id": "01a1e555-b7be-7cc0-b282-2bd60b2b7896"
 }
