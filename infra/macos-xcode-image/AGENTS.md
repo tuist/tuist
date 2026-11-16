@@ -21,6 +21,7 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 
 | `xcode_version` | Pushed tag         | Bundle path                          | Alias                          |
 |-----------------|--------------------|--------------------------------------|--------------------------------|
+| 27.2            | `:27-2`            | `/Applications/Xcode_27.2.app`       | _(none — already major-minor)_ |
 | 27.1            | `:27-1`            | `/Applications/Xcode_27.1.app`       | _(none — already major-minor)_ |
 | 27.0            | `:27-0`            | `/Applications/Xcode_27.0.app`       | _(none — already major-minor)_ |
 | 26.6            | `:26-6`            | `/Applications/Xcode_26.6.app`       | _(none — already major-minor)_ |
@@ -201,6 +202,7 @@ gh workflow run macos-xcode-image.yml -f xcode_version=26.5
 gh workflow run macos-xcode-image.yml -f xcode_version=26.6
 gh workflow run macos-xcode-image.yml -f xcode_version=27.0
 gh workflow run macos-xcode-image.yml -f xcode_version=27.1
+gh workflow run macos-xcode-image.yml -f xcode_version=27.2
 ```
 
 Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.1.1 → `:26-1-1`, 26.0.1 → `:26-0-1`,
