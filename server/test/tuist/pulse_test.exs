@@ -374,6 +374,28 @@ defmodule Tuist.PulseTest do
     assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"query" => "can't", "search" => label})
   end
 
+  test "an error environment filter selects events before they are grouped into issues", ctx do
+    expect(Req, :request, 2, fn request ->
+      sql = request.options.params[:sql]
+
+      assert sql =~ "AND environment = 'production' GROUP BY service, fingerprint ORDER BY" or
+               sql =~
+                 "AND strpos(lower(coalesce(environment, '')), lower('stag')) = 0 GROUP BY service, fingerprint ORDER BY"
+
+      response(sql_body(@issue_columns, []))
+    end)
+
+    assert {:ok, %{rows: []}} = Pulse.query(ctx.user, ctx.account, "errors", %{"environment" => "production"})
+
+    assert {:ok, %{rows: []}} =
+             Pulse.query(ctx.user, ctx.account, "errors", %{
+               "environment" => "stag",
+               "environment_op" => "not_contains"
+             })
+
+    assert {:error, :invalid_params} = Pulse.query(ctx.user, ctx.account, "logs", %{"environment" => "production"})
+  end
+
   defp issue_buckets(sql) do
     assert sql =~ " AND strpos(lower(title), lower('can''t')) > 0 AND fingerprint IN ("
     assert sql =~ "'#{String.duplicate("b2", 32)}'"
@@ -813,7 +835,7 @@ defmodule Tuist.PulseTest do
         columns = Enum.reverse(ids)
 
         steps =
-          if signal == "logs",
+          if signal in ~w(logs errors),
             do: [{"15m", 900, 60}, {"1h", 3600, 60}, {"6h", 21_600, 60}, {"24h", 86_400, 240}],
             else: [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}]
 
@@ -916,7 +938,7 @@ defmodule Tuist.PulseTest do
         # With no rows in any bucket, counts are zero and durations are gaps.
         for widget <- widgets do
           empty = if widget.id == "duration_p95", do: nil, else: 0
-          assert length(widget.points) == if(signal == "logs", do: 60, else: 360)
+          assert length(widget.points) == if(signal in ~w(logs errors), do: 60, else: 360)
           assert Enum.all?(widget.points, &match?([_, ^empty], &1))
         end
 

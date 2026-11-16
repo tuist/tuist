@@ -749,8 +749,18 @@ defmodule TuistWeb.PulseLive do
     ]
 
   defp define_filters(signal) do
-    fields = if signal in ~w(logs errors), do: ~w(service level), else: ~w(service)
-    labels = %{"service" => dgettext("dashboard_pulse", "Service"), "level" => dgettext("dashboard_pulse", "Level")}
+    fields =
+      case signal do
+        "errors" -> ~w(service level environment)
+        "logs" -> ~w(service level)
+        _ -> ~w(service)
+      end
+
+    labels = %{
+      "service" => dgettext("dashboard_pulse", "Service"),
+      "level" => dgettext("dashboard_pulse", "Level"),
+      "environment" => dgettext("dashboard_pulse", "Environment")
+    }
 
     Enum.map(fields, &%Filter.Filter{id: &1, display_name: labels[&1], type: :text, operator: :==, value: ""})
   end
