@@ -1150,6 +1150,222 @@ defmodule Tuist.Sandboxes.ArchivesTest do
     end
   end
 
+  describe "macOS sessions" do
+    defp mac(name, opts \\ []) do
+      %{
+        name: name,
+        platform: "darwin",
+        archives: Keyword.get(opts, :archives, true),
+        generation: "uid-#{name}",
+        control_uid: "control-#{name}",
+        capacity: %{memory_bytes: 24 * @gib, cpus: 8},
+        templates: [%{name: "macos", ready: true, tag: Keyword.get(opts, :tag, "image:26.1"), rootfs_bytes: 100 * @gib}],
+        admission: %{
+          "allow" => Keyword.get(opts, :allow, true),
+          "memory_bytes" => 24 * @gib,
+          "cpu_milli" => 8000,
+          "slots" => 2,
+          "node_uid" => "uid-#{name}",
+          "control_uid" => "control-#{name}",
+          "observed_at" => DateTime.to_iso8601(DateTime.utc_now())
+        }
+      }
+    end
+
+    defp connect(nodes) do
+      stub(Nodes, :connected_nodes, fn -> nodes end)
+
+      stub(Nodes, :lookup, fn name ->
+        case Enum.find(nodes, &(&1.name == name)) do
+          nil -> {:error, :not_connected}
+          node -> {:ok, self(), node}
+        end
+      end)
+    end
+
+    defp evicted(account, node, opts \\ []) do
+      [
+        account: account,
+        platform: :darwin,
+        template: "macos",
+        template_tag: "image:26.1",
+        vcpus: 4,
+        memory_mb: 8192,
+        state: :paused,
+        resident: false,
+        node_name: node.name,
+        node_uid: node.generation,
+        paused_at: hours_ago(1)
+      ]
+      |> Keyword.merge(opts)
+      |> sandbox_fixture()
+    end
+
+    test "a host CI reserves moves its evicted sessions to storage, disks only, and another Mac with the image restores them",
+         %{account: account} do
+      reserved = mac("mac-a", allow: false)
+      connect([reserved])
+      session = evicted(account, reserved)
+      # Held in memory on its host: nothing to upload yet.
+      evicted(account, reserved, resident: true, paused_at: hours_ago(2))
+
+      report = %{"platform" => "darwin", "generation" => reserved.generation, "sandboxes" => []}
+      assert :ok = Sandboxes.reconcile_node_report("mac-a", report)
+      assert [%{args: %{"node_names" => ["mac-a"], "ci" => true} = args}] = all_enqueued(worker: ArchiveSandboxesWorker)
+
+      expect(Storage, :multipart_start, fn _key, _account -> {:ok, "upload-1"} end)
+
+      expect(Nodes, :call, fn "mac-a", "archive", args, opts ->
+        assert args.sandbox_id == session.id
+        refute Map.has_key?(args, :memory) or Map.has_key?(args, :lazy_disks)
+        assert opts[:timeout] >= to_timeout(minute: 30)
+        archive_result()
+      end)
+
+      expect(Storage, :multipart_complete_upload, fn _key, "upload-1", _parts, _account -> :ok end)
+      expect(Storage, :object_exists?, fn _key, _account -> true end)
+      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: id}, _opts when id == session.id -> {:ok, %{}} end)
+      assert :ok = perform_job(ArchiveSandboxesWorker, args)
+
+      assert %Sandbox{state: :archived, node_name: nil, archive_memory: nil} = archived = Repo.reload!(session)
+
+      # A Mac that restores archives and already runs the archived image goes
+      # first, ahead of one that would pull it; one without archives never.
+      connect([
+        reserved,
+        mac("mac-b", archives: false),
+        mac("mac-c", tag: "image:26.2"),
+        mac("mac-d")
+      ])
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+
+      expect(Nodes, :call, fn "mac-d", "create", args, opts ->
+        assert args.sandbox_id == session.id
+        assert args.template_tag == "image:26.1"
+        assert args.from_archive == %{url: "https://s3/get", bytes: 2 * @gib, sha256: "deadbeef"}
+        assert opts[:timeout] >= to_timeout(minute: 30)
+        {:ok, %{"template_tag" => "image:26.1"}}
+      end)
+
+      stub(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "mac-d", node_uid: "uid-mac-d", resident: true}} =
+               Sandboxes.resume(archived)
+    end
+
+    test "an archived session restores on a Mac running a newer image, which pulls the archived one",
+         %{account: account} do
+      connect([mac("mac-b", archives: false), mac("mac-c", tag: "image:26.2")])
+
+      session =
+        evicted(account, mac("mac-a"),
+          state: :archived,
+          node_name: nil,
+          archive_key: "k",
+          archive_bytes: 1,
+          archive_sha256: "s",
+          archived_at: hours_ago(1)
+        )
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      stub(Storage, :delete_object, fn _key, _account -> :ok end)
+
+      expect(Nodes, :call, fn "mac-c", "create", %{template_tag: "image:26.1"}, _opts ->
+        {:ok, %{"template_tag" => "image:26.1"}}
+      end)
+
+      assert {:ok, %Sandbox{state: :running, node_name: "mac-c", template_tag: "image:26.1"}} =
+               Sandboxes.resume(session)
+    end
+
+    test "an archived session waits while no Mac restores archives", %{account: account} do
+      connect([mac("mac-b", archives: false)])
+
+      session =
+        evicted(account, mac("mac-a"),
+          state: :archived,
+          node_name: nil,
+          archive_key: "k",
+          archive_bytes: 1,
+          archive_sha256: "s",
+          archived_at: hours_ago(1)
+        )
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3/get" end)
+      reject(&Nodes.call/4)
+
+      assert {:error, :no_capacity} = Sandboxes.resume(session)
+      assert %Sandbox{state: :archived, archive_key: "k"} = Repo.reload!(session)
+    end
+
+    test "a resume its host refuses for room queues the session's archive, unless it is still resident",
+         %{account: account} do
+      full = put_in(mac("mac-a").admission["slots"], 0)
+      connect([full])
+      session = evicted(account, full)
+      resident = evicted(account, full, resident: true)
+
+      assert {:error, :no_capacity} = Sandboxes.resume(session)
+      assert {:error, :no_capacity} = Sandboxes.resume(resident)
+      assert [%{args: %{"sandbox_id" => id}}] = all_enqueued(worker: ArchiveSandboxesWorker)
+      assert id == session.id
+    end
+
+    test "a host without archives, or whose grant allows sandboxes, keeps its sessions", %{account: account} do
+      older = mac("mac-a", allow: false, archives: false)
+      connect([older])
+      session = evicted(account, older, amp_orb_id: "orb-mac", paused_at: hours_ago(30))
+      reject(&Nodes.call/4)
+      reject(&Storage.multipart_start/2)
+
+      assert {:ok, :skipped} = Archives.archive_oldest_on(["mac-a"], ci: true)
+      # Backed off, so it does not hold the head of every run's candidates.
+      assert %Sandbox{state: :paused, archive_attempted_at: %DateTime{}} = Repo.reload!(session)
+
+      open = mac("mac-b")
+      connect([open])
+      evicted(account, open)
+      assert :ok = Sandboxes.reconcile_node_report("mac-b", %{"platform" => "darwin", "sandboxes" => []})
+      assert [] = all_enqueued(worker: ArchiveSandboxesWorker)
+    end
+
+    test "a restore downloading its disk for longer than a Linux one is not reverted", %{account: account} do
+      restoring =
+        evicted(account, mac("mac-a"), state: :creating, archive_key: "k", archived_at: hours_ago(1))
+
+      stuck = evicted(account, mac("mac-a"), state: :creating, archive_key: "k", archived_at: hours_ago(1))
+      linux = archived_orb(account, state: :creating, node_name: "node-a")
+
+      for {sandbox, minutes} <- [{restoring, 20}, {stuck, 36}, {linux, 20}] do
+        Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id),
+          set: [updated_at: DateTime.add(DateTime.utc_now(), -minutes, :minute)]
+        )
+      end
+
+      Archives.run()
+
+      assert Repo.reload!(restoring).state == :creating
+      assert Repo.reload!(stuck).state == :archived
+      assert Repo.reload!(linux).state == :archived
+    end
+
+    test "a host that still lists an archived session deletes it", %{account: account} do
+      host = mac("mac-a")
+      connect([host])
+      session = evicted(account, host, state: :archived, node_name: nil, archived_at: hours_ago(1))
+
+      expect(Nodes, :call, fn "mac-a", "delete", %{sandbox_id: id}, _opts when id == session.id -> {:ok, %{}} end)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("mac-a", %{
+                 "platform" => "darwin",
+                 "generation" => host.generation,
+                 "sandboxes" => [%{"id" => session.id, "state" => "paused", "resident" => false}]
+               })
+    end
+  end
+
   describe "node reports" do
     test "remove the jail of an archived sandbox and revert a restore the node lost", %{account: account} do
       archived = archived_orb(account)

@@ -174,6 +174,37 @@ defmodule Tuist.Sandboxes.MacosCapacity do
 
   def allowed?(node), do: grant_status(node) == :ok
 
+  @doc """
+  Whether CI holds a host reservation on the connected macOS host: its
+  fresh grant denies sandboxes, so a session paused there cannot resume
+  until the reservation ends (`Tuist.Sandboxes.Archives.move_off_node/1`).
+  A stale or missing grant says nothing about CI.
+  """
+  def ci_reserved?(node_name) do
+    case Nodes.lookup(node_name) do
+      {:ok, _pid, info} -> grant_status(info) == :grant_denied
+      {:error, _reason} -> false
+    end
+  end
+
+  @doc """
+  Whether the host can restore an archived sandbox: it archives and
+  restores disks (`archives` in its hello) and has the template. The
+  archived disk is a delta on the image it was cloned from, which a host
+  running another image of the template pulls by digest first.
+  """
+  def restores?(node, %{template: template}) do
+    Map.get(node, :archives) == true and Enum.any?(Map.get(node, :templates, []), &(&1.name == template))
+  end
+
+  @doc """
+  Whether the host's template runs the image an archived sandbox was
+  cloned from, so its restore pulls nothing.
+  """
+  def runs_image?(node, %{template: template, template_tag: tag}) do
+    Enum.any?(Map.get(node, :templates, []), &(&1.name == template and &1.tag == tag))
+  end
+
   # `:ok` for a fresh grant that allows native work on this host and its
   # current control Pod; otherwise why not.
   defp grant_status(%{platform: "darwin", generation: generation, control_uid: control, admission: grant}) do

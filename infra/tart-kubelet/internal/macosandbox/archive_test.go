@@ -158,3 +158,33 @@ func TestArchiveUploadsTheStackedVMFiles(t *testing.T) {
 		t.Fatalf("config: %q", config)
 	}
 }
+
+func TestRestoreImage(t *testing.T) {
+	const repo = "ghcr.io/tuist/runner-image"
+	old := repo + "@sha256:" + strings.Repeat("a", 64)
+	current := repo + "@sha256:" + strings.Repeat("b", 64)
+	for _, tc := range []struct {
+		name, current, archived, want string
+	}{
+		{"same image", current, current, current},
+		{"older digest of the repository", current, old, old},
+		{"current image named by tag", repo + ":macos-26-6-0.59.0-stacked", old, old},
+		{"registry with a port", "rack:5000/runner-image@sha256:" + strings.Repeat("b", 64), "rack:5000/runner-image@sha256:" + strings.Repeat("a", 64), "rack:5000/runner-image@sha256:" + strings.Repeat("a", 64)},
+		{"no recorded image", current, "", current},
+	} {
+		got, err := restoreImage(tc.current, tc.archived)
+		if err != nil || got != tc.want {
+			t.Errorf("%s: restoreImage(%q, %q) = %q, %v; want %q", tc.name, tc.current, tc.archived, got, err, tc.want)
+		}
+	}
+	for _, archived := range []string{
+		repo + ":macos-26-6-0.58.0-stacked",                           // a tag can move
+		"ghcr.io/evil/runner-image@sha256:" + strings.Repeat("a", 64), // another repository
+		"ghcr.io/tuist/runner-image-x@sha256:" + strings.Repeat("a", 64),
+		repo + "@sha256:abc", // not a digest
+	} {
+		if _, err := restoreImage(current, archived); !errors.Is(err, ErrArchiveMismatch) {
+			t.Errorf("restoreImage(%q) = %v, want ErrArchiveMismatch", archived, err)
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -83,19 +84,27 @@ func TestCorruptHostBlobIsReadFromTheCASInstead(t *testing.T) {
 	// Same length, wrong content: only the digest check can catch it.
 	host := &fakeHost{blobs: map[string][]byte{first.Hash: bytes.Repeat([]byte("x"), 200_000), second.Hash: m.blobs[second.Hash]}}
 	w.CAS.Host = host
-	inputs := &re.Directory{Directories: []*re.DirectoryNode{
-		{Name: "1", Digest: m.message(t, &re.Directory{Files: []*re.FileNode{{Name: "f", Digest: first}}})},
-		{Name: "2", Digest: m.message(t, &re.Directory{Files: []*re.FileNode{{Name: "f", Digest: second}}})},
-	}}
-	response, _ := w.Execute(context.Background(), action(t, m, "cat 1/f 2/f > output", inputs, []string{"output"}))
-	if response.Status.Code != 0 || response.Result.GetExitCode() != 0 {
-		t.Fatalf("execution: %v", response)
+	// Inputs download concurrently, so read one after the other to see that a
+	// read starting after a failed host read no longer asks the host.
+	read := func(d *re.Digest) []byte {
+		f, err := os.CreateTemp(t.TempDir(), "input")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := w.CAS.Read(context.Background(), d, f); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(f.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
 	}
-	if got := m.blobs[response.Result.OutputFiles[0].Digest.Hash]; !bytes.Equal(got, append(append([]byte{}, m.blobs[first.Hash]...), m.blobs[second.Hash]...)) {
+	if !bytes.Equal(read(first), m.blobs[first.Hash]) || !bytes.Equal(read(second), m.blobs[second.Hash]) {
 		t.Fatal("a corrupt host read reached the workspace")
 	}
-	// After a failed host read the action stops asking the host.
-	if reads, sealed := host.state(); len(reads) != 1 || !sealed {
-		t.Fatalf("host reads %v, sealed %v", reads, sealed)
+	if reads, _ := host.state(); len(reads) != 1 {
+		t.Fatalf("host reads %v", reads)
 	}
 }

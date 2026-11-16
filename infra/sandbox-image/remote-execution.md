@@ -30,6 +30,14 @@ their digests and reads anything else from Kura itself. A failed or partial read
 only means the VM fetches more. Operations queued behind the account's
 concurrency drop their prefetched blobs.
 
+The VM reads what is left in as few round trips as it can. It walks the input
+tree a level at a time, with each level's directories in parallel batches. Then
+it reads the small files of every directory together, packed into batches of up
+to 128 files and 1 MiB. Those batches and the streams of larger files run with
+at most eight reads in flight. A toolchain tree of a few hundred directories
+therefore costs a round trip per tree level, not two per directory, which is
+what made input fetch about a second for every Rust action.
+
 ### Scheduling
 
 Each account has one `Tuist.RemoteExecution.Scheduler` process in the server

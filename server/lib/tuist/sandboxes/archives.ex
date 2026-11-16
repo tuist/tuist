@@ -89,6 +89,7 @@ defmodule Tuist.Sandboxes.Archives do
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
   alias Tuist.Sandboxes.Events
+  alias Tuist.Sandboxes.MacosCapacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.ArchiveDiskSnapshotWorker
@@ -125,6 +126,8 @@ defmodule Tuist.Sandboxes.Archives do
   @abandoned_after_minutes 45
   # A restore not settled by then belongs to a caller that died.
   @stuck_restore_minutes 15
+  # A macOS restore downloads its whole disk delta for up to 31 minutes.
+  @stuck_macos_restore_minutes 35
   @archive_timeout to_timeout(minute: 31)
   @url_ttl_seconds 3600
   @readable_attempts 20
@@ -239,7 +242,8 @@ defmodule Tuist.Sandboxes.Archives do
 
   @doc """
   Moves the paused sandboxes off a node CI is taking (its controller
-  allocation asks for a reclaim), any source's, so a session that comes
+  allocation asks for a reclaim, or a macOS host's grant is revoked for a
+  CI host reservation), any source's, so a session that comes
   back resumes on any node with room instead of waiting for that one:
   queues the archive of the least recently paused one. Each allocation
   observation calls this again while the reclaim lasts, and one upload
@@ -337,7 +341,7 @@ defmodule Tuist.Sandboxes.Archives do
 
         # A reservation released meanwhile leaves the sandboxes resumable where they are.
         opts[:ci] ->
-          Enum.filter(node_names, &Capacity.ci_reclaim?/1)
+          Enum.filter(node_names, &ci_taking?/1)
 
         true ->
           node_names
@@ -352,14 +356,20 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  # A Linux node whose controller allocation asks for a reclaim, or a macOS
+  # host whose grant CI's host reservation revoked.
+  defp ci_taking?(node_name), do: Capacity.ci_reclaim?(node_name) or MacosCapacity.ci_reserved?(node_name)
+
   defp pressure_nodes do
     case Environment.sandbox_archive_disk_high_water_percent() do
       nil ->
         []
 
       percent ->
+        # macOS hosts budget their disk themselves (`MacosCapacity`).
         Enum.filter(Nodes.connected_nodes(), fn node ->
-          case Capacity.disk_budget_bytes(node) do
+          case node[:platform] != "darwin" && Capacity.disk_budget_bytes(node) do
+            false -> false
             :unbounded -> false
             budget -> Capacity.reserved_disk_bytes(node) * 100 > budget * percent
           end
@@ -402,11 +412,13 @@ defmodule Tuist.Sandboxes.Archives do
   end
 
   # Remote-execution rows belong to their scheduler and lease, never archived.
+  # A macOS VM is archived once evicted: its host saved it to disk and
+  # released its slot; a resident pause still holds the VM in memory.
   defp idle_paused do
     from(s in Sandbox,
       where:
-        s.state == :paused and s.platform == :linux and s.purpose == :agent and not is_nil(s.node_name) and
-          is_nil(s.residency_work_id) and not is_nil(s.paused_at)
+        s.state == :paused and (s.platform == :linux or (s.platform == :darwin and not s.resident)) and
+          s.purpose == :agent and not is_nil(s.node_name) and is_nil(s.residency_work_id) and not is_nil(s.paused_at)
     )
   end
 
@@ -427,6 +439,18 @@ defmodule Tuist.Sandboxes.Archives do
   """
   def archivable?(%Sandbox{
         platform: :linux,
+        state: :paused,
+        node_name: node_name,
+        paused_at: %DateTime{},
+        residency_work_id: nil,
+        archived_at: nil,
+        archive_upload_id: nil
+      })
+      when is_binary(node_name), do: true
+
+  def archivable?(%Sandbox{
+        platform: :darwin,
+        resident: false,
         state: :paused,
         node_name: node_name,
         paused_at: %DateTime{},
@@ -504,7 +528,8 @@ defmodule Tuist.Sandboxes.Archives do
          } = sandbox
          when is_binary(node_name) <- Sandboxes.get_sandbox_by_id(id),
          %Account{} = account <- Repo.get(Account, sandbox.account_id),
-         {:ok, node} <- connected_node(node_name) do
+         {:ok, node} <- connected_node(node_name),
+         :ok <- archiving_host(sandbox, node) do
       key = object_prefix(account.id) <> "#{sandbox.id}/#{Ecto.UUID.generate()}.sbxa"
 
       case start_upload(account, node, sandbox, key) do
@@ -541,6 +566,20 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  # A macOS host archives only once its tart-kubelet says so. Back off an
+  # older host's sandboxes like a failed upload, so they do not stay at the
+  # head of every run's oldest-first candidates.
+  defp archiving_host(%Sandbox{platform: :darwin} = sandbox, node) do
+    if Map.get(node, :archives) == true do
+      :ok
+    else
+      mark_attempted(Sandbox, sandbox.id)
+      :skip
+    end
+  end
+
+  defp archiving_host(_sandbox, _node), do: :ok
+
   # Starts the multipart upload of the disks of `subject` (a sandbox or a
   # disk snapshot) on `node` into the store `select_store/3` picks, and
   # presigns its part URLs for the node.
@@ -564,6 +603,8 @@ defmodule Tuist.Sandboxes.Archives do
     end
   end
 
+  defp memory_allowance(%Sandbox{platform: :darwin}), do: 0
+
   defp memory_allowance(%Sandbox{memory_mb: memory_mb}) when is_integer(memory_mb),
     do: memory_mb * @mib + @memory_state_allowance_bytes
 
@@ -580,19 +621,17 @@ defmodule Tuist.Sandboxes.Archives do
 
   # A node that restores lazy disks also writes them: the rootfs and the
   # workspace chunked after the memory, so a restore reads them by range.
+  # A macOS host archives the VM's disk delta alone: its checkpoint is
+  # encrypted for that Mac, so a moved session cold boots.
   defp transfer(%{sandbox: sandbox} = upload) do
-    Nodes.call(
-      sandbox.node_name,
-      "archive",
-      %{
-        sandbox_id: sandbox.id,
-        part_size: upload.part_size,
-        part_urls: upload.urls,
-        memory: true,
-        lazy_disks: lazy_disks_node?(sandbox.node_name)
-      },
-      timeout: @archive_timeout
-    )
+    args = %{sandbox_id: sandbox.id, part_size: upload.part_size, part_urls: upload.urls}
+
+    args =
+      if sandbox.platform == :darwin,
+        do: args,
+        else: Map.merge(args, %{memory: true, lazy_disks: lazy_disks_node?(sandbox.node_name)})
+
+    Nodes.call(sandbox.node_name, "archive", args, timeout: @archive_timeout)
   end
 
   defp lazy_disks_node?(node_name) do
@@ -1242,9 +1281,12 @@ defmodule Tuist.Sandboxes.Archives do
 
   defp revert_stuck_restores do
     before = DateTime.add(now(), -@stuck_restore_minutes, :minute)
+    macos_before = DateTime.add(now(), -@stuck_macos_restore_minutes, :minute)
 
     from(s in Sandbox,
-      where: s.state == :creating and not is_nil(s.archived_at) and s.updated_at < ^before,
+      where:
+        s.state == :creating and not is_nil(s.archived_at) and
+          ((s.platform != :darwin and s.updated_at < ^before) or s.updated_at < ^macos_before),
       select: s.id
     )
     |> Repo.all()
