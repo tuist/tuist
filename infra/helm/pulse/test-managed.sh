@@ -22,15 +22,15 @@ jq -e '
   all(.[]; .metadata.name != "pulse" or .kind == "Service") and
   all(.[]; .metadata.name != "pulse-frontend" or .kind != "Service")
 ' "$tmp/resources.json" > /dev/null
-# Staging holds its datanodes for pulse-datanode-rollout.sh; other
-# environments keep the StatefulSet's own rolling update.
+# Staging and canary hold their datanodes for pulse-datanode-rollout.sh;
+# production keeps the StatefulSet's own rolling update.
 for environment in staging canary production; do
   values="$chart/values.yaml"
   [[ "$environment" == production ]] && values="$chart/values-production.yaml"
   helm template pulse "$chart" -n observability -f "$values" \
     --set "environment=$environment,storage.bucket=tuist-pulso-$environment" |
     yq ea -o=json -I=0 'select(.kind == "StatefulSet" and .metadata.name == "pulse-datanode") | .spec.updateStrategy' |
-    jq -e --arg environment "$environment" 'if $environment == "staging"
+    jq -e --arg environment "$environment" 'if $environment != "production"
       then . == {type: "RollingUpdate", rollingUpdate: {partition: 3}} else . == null end' > /dev/null
 done
 for setting in storage.prefix=tenants/ storage.bucket=tuist-pulso-production; do

@@ -73,7 +73,7 @@ cluster:
     # moved away first (.github/scripts/pulse-datanode-rollout.sh), so reads
     # and writes do not fail while a datanode is down. Elsewhere the
     # StatefulSet rolls itself and each restart waits for region failover.
-    drainedRolloutEnvironments: [staging]
+    drainedRolloutEnvironments: [staging, canary]
     # Local data is a rebuildable cache: acknowledged writes live in the Kafka
     # WAL until flushed to object storage, so a datanode may start empty.
     cacheSize: 10Gi

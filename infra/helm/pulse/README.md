@@ -148,8 +148,8 @@ on unrelated value changes.
 
 A datanode that stops takes its regions offline until metasrv fails them over,
 so reads (Grafana alert rules, dashboards) fail in the meantime. In the
-environments listed in `cluster.datanode.drainedRolloutEnvironments` (staging
-first), the chart holds the datanode StatefulSet at `partition: replicas`, so
+environments listed in `cluster.datanode.drainedRolloutEnvironments` (staging and
+canary), the chart holds the datanode StatefulSet at `partition: replicas`, so
 no template change restarts a datanode by itself. The deployment then runs
 [`pulse-datanode-rollout.sh`](../../../.github/scripts/pulse-datanode-rollout.sh),
 which for one datanode at a time moves its leader regions to the others with
