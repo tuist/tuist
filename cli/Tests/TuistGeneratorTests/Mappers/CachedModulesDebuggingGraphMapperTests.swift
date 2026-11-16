@@ -1307,6 +1307,45 @@ struct CachedModulesDebuggingGraphMapperTests {
         }
     }
 
+    @Test(.inTemporaryDirectory)
+    func debugPrefixMapRootSurvivesAnExplicitInitializerThatReplacesTheSourceMap() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let original = compilationCacheGraph(at: root)
+        var cached = original
+        let artifactPath = root.appending(component: "Feature.xcframework")
+        let artifact = GraphDependency.testXCFramework(path: artifactPath, linking: .static)
+        cached.dependencies[.target(name: "App", path: root)] = [artifact]
+        cached.dependencies[artifact] = []
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = original
+        environment.cachedModuleSourceMappings[artifactPath] = [DebuggerSourceMapping(
+            original: try AbsolutePath(validating: "/^root/Feature.swift"), current: root.appending(component: "Feature.swift")
+        )]
+        let originalInitializer = try #require(original.projects[root]?.schemes.first?.runAction?.customLLDBInitFile)
+        let (mapped, sideEffects, _) = try await subject.map(graph: cached, environment: environment)
+        let action = try #require(mapped.projects[root]?.schemes.first?.runAction)
+        for effect in sideEffects {
+            guard case let .file(file) = effect, let contents = file.contents else { continue }
+            try await FileSystem().makeDirectory(at: file.path.parentDirectory)
+            try contents.write(to: file.path.url)
+        }
+        try await FileSystem().writeText(
+            "settings set target.source-map /custom \"\(root.pathString)\"\n", at: originalInitializer
+        )
+        let script = root.appending(component: "prepare.sh")
+        try await FileSystem().writeText(#require(action.preActions.first?.scriptText), at: script)
+        _ = try runProcess("/bin/sh", arguments: [script.pathString], environment: ["PATH": "/usr/bin:/bin"])
+
+        let output = try runProcess("/usr/bin/xcrun", arguments: [
+            "lldb", "--no-lldbinit", "--batch", "--source", #require(action.customLLDBInitFile).pathString,
+            "-o", "settings show target.source-map",
+        ], environment: ["PATH": "/usr/bin:/bin", "HOME": root.pathString], includeStandardError: true)
+        // The explicit initializer still decides first, but cached binaries keep resolving `/^root`.
+        let custom = try #require(output.range(of: "\"/custom\" -> \"\(root.pathString)\""))
+        let alias = try #require(output.range(of: "\"/^root\" -> \"\(root.pathString)\""))
+        #expect(custom.lowerBound < alias.lowerBound)
+    }
+
     private func compilationCacheGraph(
         at projectPath: AbsolutePath,
         attachDebugger: Bool = true,

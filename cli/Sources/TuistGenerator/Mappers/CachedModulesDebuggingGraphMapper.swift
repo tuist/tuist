@@ -427,8 +427,10 @@ private struct CacheDebuggerSettingsRenderer {
         debugPrefixMapRoot: String? = nil
     ) -> String {
         let moduleSettings = searchPaths.isEmpty ? "" : cachedModulesUpdateScript(searchPaths: searchPaths)
+        // An explicit initializer that replaces the source map would also drop the debug-prefix-map root, which cached
+        // binaries need for every source and which per-UUID plists no longer cover, so it is appended again afterwards.
         let sourceOriginal = originalLLDBInitFile.map {
-            "lldb_setting command-source \(shellQuoted($0.pathString))"
+            "lldb_setting command-source \(shellQuoted($0.pathString))\n  cat \"$debug_prefix_map_file\""
         } ?? ""
         let sourceHome = originalLLDBInitFile == nil ? """
         if [ -n "${HOME:-}" ]; then
@@ -476,7 +478,8 @@ private struct CacheDebuggerSettingsRenderer {
         }
 
         source_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
-        trap 'rm -f "$source_map_file"' EXIT
+        debug_prefix_map_file="$(mktemp "$lldb_init_file.XXXXXX")"
+        trap 'rm -f "$source_map_file" "$debug_prefix_map_file"' EXIT
         source_map_status=0
         \(sourceMappingScript(sourceMappingsPath: sourceMappingsPath, debugPrefixMapRoot: debugPrefixMapRoot))
 
@@ -560,7 +563,8 @@ private struct CacheDebuggerSettingsRenderer {
     private func sourceMappingScript(sourceMappingsPath: AbsolutePath?, debugPrefixMapRoot: String?) -> String {
         #"""
         /usr/bin/env -u SDKROOT /usr/bin/python3 - "$source_map_file" \#(shellQuoted(sourceMappingsPath?
-                .pathString ?? "")) \#(shellQuoted(debugPrefixMapRoot ?? "")) <<'TUIST_SOURCE_MAP' || source_map_status=$?
+                .pathString ?? "")) \#(shellQuoted(debugPrefixMapRoot ?? "")) "$debug_prefix_map_file" \
+            <<'TUIST_SOURCE_MAP' || source_map_status=$?
         import json
         import os
         import sys
@@ -631,6 +635,11 @@ private struct CacheDebuggerSettingsRenderer {
             # appending would leave earlier runs' entries, including other checkouts', ahead of these.
             with open(sys.argv[1], "w", encoding="utf-8") as output:
                 output.write("settings set target.source-map " + arguments + "\n")
+            if sys.argv[3]:
+                with open(sys.argv[4], "w", encoding="utf-8") as output:
+                    output.write("settings append target.source-map " + " ".join(
+                        lldb_quoted("/^root") + " " + lldb_quoted(spelling) for spelling in spellings(mappings["/^root"])
+                    ) + "\n")
 
         try:
             if sys.argv[2]:
