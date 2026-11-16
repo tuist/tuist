@@ -17,7 +17,7 @@ Automated continuous integration is the primary automated pre-production control
 
 Engineers use AI coding agents locally to review changes against repository guidelines before merging. Those guidelines are documented in `AGENTS.md` throughout the repository (with `CLAUDE.md` pointing to the same instructions), including project-specific review skills for Swift and Elixir. Automated agent review also runs on pull requests: GitHub Copilot code review is enabled on the repository, and CodeRabbit is configured to review pull requests.
 
-Merges and direct pushes to `main` that were not peer-reviewed are reviewed and acknowledged periodically in Vanta. Each week, newly flagged items on the `github-code-change-approved-or-justified` test are reviewed and marked ignored on the basis of this documented practice.
+Changes to `main` are traceable through git history and CI results. Failed CI checks on `main` are investigated and remediated. Peer review is not a required control.
 
 Production software is deployed through documented GitHub Actions workflows. Changes to the hosted server are deployed from `main` first to a canary environment, then through acceptance checks, and then to production. Failed Helm releases are configured to roll back automatically. A previous known-good image or chart revision can be redeployed through the Server Deployment workflow. Production systems emit application and infrastructure metrics and error events. Application errors are captured with Sentry and ingested into Tuist's telemetry pipeline. Kubernetes and application metrics are collected by the Kubernetes monitoring chart and evaluated as Grafana-managed alert rules, which route through Grafana IRM to Slack and the public status page.
 

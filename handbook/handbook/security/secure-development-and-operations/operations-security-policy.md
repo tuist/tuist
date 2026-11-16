@@ -35,7 +35,7 @@ Changes to the organization, business processes, information processing faciliti
     - Changes with substantial impact on information security and operational functionalities must obtain formal authorization before deployment.
     - Emergency changes may be expedited but must undergo a retrospective review and authorization.
     - Software changes to the production branch (`main`) may be pushed or merged directly by engineers, as described in [Standard practices](/engineering/standard-practices). Opening a pull request and obtaining peer review before merge is optional, not required. Only people with write access to the repository may push to `main`.
-    - Merges and direct pushes to `main` that were not peer-reviewed are reviewed and acknowledged periodically in Vanta. Each week, newly flagged items on the `github-code-change-approved-or-justified` test are reviewed and marked ignored on the basis of this documented practice.
+    - Changes to `main` are traceable through git history and CI results. Failed CI checks on `main` are investigated and remediated. Peer review is not a required control.
 
 3. Change Management Procedures:
     - Planning and Impact Assessment: Evaluate potential impacts of the changes considering system dependencies.
@@ -244,7 +244,7 @@ Any known violations of this policy should be reported to the IT Manager. Violat
 
 | Version | Date | Description | Author | Approver |
 | --- | --- | --- | --- | --- |
-| 3.0 | Nov 16, 2026 | Documented that engineers may merge directly to main; the same deterministic checks run in the controlled development environment and again in CI; plus agent review, compensating deployment, rollback, and monitoring controls, and periodic Vanta review of unreviewed merges | Pedro Piñera Buendía | Pending approval |
+| 3.0 | Nov 16, 2026 | Documented that engineers may merge directly to main; the same deterministic checks run in the controlled development environment and again in CI; plus agent review, compensating deployment, rollback, and monitoring controls. Changes to main are traceable through git history and CI results. Failed CI checks on main are investigated and remediated. Peer review is not a required control | Pedro Piñera Buendía | Pending approval |
 | 2.0 | Dec 11, 2025 | Version 2.0 | Pedro Piñera Buendía | Pedro Piñera Buendía |
 | 1.0 | Oct 16, 2024 | Version 1.0 | Pedro Piñera Buendía | Pedro Piñera Buendía |
 

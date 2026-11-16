@@ -39,7 +39,7 @@ The following compensating controls also apply to changes that land on `main`:
 - Deployment and rollback. Production software is deployed through documented GitHub Actions workflows. Changes to the hosted server are deployed from `main` first to a canary environment, then through acceptance checks, and then to production. Failed Helm releases are configured to roll back automatically. A previous known-good image or chart revision can be redeployed through the Server Deployment workflow.
 - Monitoring and alerting. Production systems emit application and infrastructure metrics and error events. Application errors are captured with Sentry and ingested into Tuist's telemetry pipeline. Kubernetes and application metrics are collected by the Kubernetes monitoring chart and evaluated as Grafana-managed alert rules, which route through Grafana IRM to Slack and the public status page.
 
-Merges and direct pushes to `main` that were not peer-reviewed are reviewed and acknowledged periodically in Vanta. Each week, newly flagged items on the `github-code-change-approved-or-justified` test are reviewed and marked ignored on the basis of this documented practice.
+Changes to `main` are traceable through git history and CI results. Failed CI checks on `main` are investigated and remediated. Peer review is not a required control.
 
 ## Software version control
 
@@ -145,6 +145,6 @@ Any known violations of this policy should be reported to the IT Manager. Violat
 
 | Version | Date | Description | Author | Approver |
 | --- | --- | --- | --- | --- |
-| 3.0 | Nov 16, 2026 | Documented that engineers may merge directly to main; the same deterministic checks run in the controlled development environment and again in CI; plus agent review, compensating deployment, rollback, and monitoring controls, and periodic Vanta review of unreviewed merges | Pedro Piñera Buendía | Pending approval |
+| 3.0 | Nov 16, 2026 | Documented that engineers may merge directly to main; the same deterministic checks run in the controlled development environment and again in CI; plus agent review, compensating deployment, rollback, and monitoring controls. Changes to main are traceable through git history and CI results. Failed CI checks on main are investigated and remediated. Peer review is not a required control | Pedro Piñera Buendía | Pending approval |
 | 2.0 | Dec 11, 2025 | Version 2.0 | Pedro Piñera Buendía | Pedro Piñera Buendía |
 | 1.0 | Oct 14, 2024 | Version 1.0 | Pedro Piñera Buendía | Pedro Piñera Buendía |
