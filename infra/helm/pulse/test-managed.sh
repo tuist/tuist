@@ -228,8 +228,14 @@ for environment in staging canary production; do
       map(select(.kind == "ConfigMap")) | INDEX(.metadata.name) |
       (.["pulse-metasrv-config"].data | to_entries[0].value | test("\\[gc\\]\nenable = true\n")) as $meta |
       (.["pulse-datanode-config"].data | to_entries[0].value | test("\\[region_engine\\.mito\\.gc\\]\nenable = true\n")) as $data |
-      $meta == $data and $meta == ($env == "staging")
+      $meta == $data and $meta == ($env == "staging" or $env == "canary")
     ' | grep -qx true || { echo "FAIL: GC setting for $environment" >&2; exit 1; }
+done
+# pulse-gc-flip.sh's deploy stops the frontends; every other render runs them.
+for stopped in false true; do
+  helm template pulse "$chart" -n observability --set "cluster.frontend.stopped=$stopped" |
+    yq ea -o=json -I=0 'select(.kind == "Deployment" and .metadata.name == "pulse-frontend") | .spec.replicas' |
+    grep -qx "$([[ $stopped == true ]] && echo 0 || echo 2)" || { echo "FAIL: frontend replicas when stopped=$stopped" >&2; exit 1; }
 done
 # Management: standalone on one node's hostPath, its own bucket, no Cilium
 # policy, readers limited to its own PDC agent, and no unsafe overrides.

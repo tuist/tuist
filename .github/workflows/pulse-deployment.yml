@@ -102,6 +102,7 @@ jobs:
           bash -n .github/scripts/pulse-datanode-rollout.sh
           bash -n .github/scripts/pulse-probe.sh
           bash -n .github/scripts/pulse-metric-split.sh
+          bash -n .github/scripts/pulse-gc-flip.sh
           node --check .github/scripts/pulse-smoke.mjs
           node --check .github/scripts/pulse-live-smoke.mjs
           node --test .github/scripts/openobserve-preflight.test.mjs
@@ -481,6 +482,13 @@ jobs:
             fi
           }
           if [[ "${MIGRATE_STANDALONE:-}" != true ]]; then
+            # A GC switch stops the frontends while metasrv and every datanode
+            # restart on it; a rerun resumes an interrupted switch.
+            if [[ "$(bash .github/scripts/pulse-gc-flip.sh needed "$dir/resources.json")" == true ]]; then
+              bash .github/scripts/pulse-gc-flip.sh begin
+              upgrade --set cluster.frontend.stopped=true
+              bash .github/scripts/pulse-gc-flip.sh finish
+            fi
             upgrade
           else
             # 1. Start the cluster beside the standalone pod, which keeps serving

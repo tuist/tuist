@@ -480,7 +480,7 @@ kind: Deployment
 metadata:
   name: pulse-frontend
 spec:
-  replicas: {{ .Values.cluster.frontend.replicas }}
+  replicas: {{ if .Values.cluster.frontend.stopped }}0{{ else }}{{ .Values.cluster.frontend.replicas }}{{ end }}
   strategy:
     rollingUpdate: {maxSurge: 0, maxUnavailable: 1}
   selector:
