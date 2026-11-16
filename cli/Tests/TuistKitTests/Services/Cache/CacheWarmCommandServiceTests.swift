@@ -556,6 +556,77 @@
                 .called(2)
         }
 
+        @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [nil, "1"] as [String?])
+        func run_recordsTheRootAsAnAliasInDebugInformation(coverageVariable: String?) async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory).pathString
+            stubFrameworkBuilds()
+            stubXCFrameworkCreation()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: .test(defaultSettings: .recommended),
+                coverageVariable: coverageVariable
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .matching { arguments in
+                        // Command-line settings replace each other, so coverage and prefix-map flags share one value.
+                        let swiftFlags = arguments.filter { $0.hasPrefix("OTHER_SWIFT_FLAGS=") }
+                        return arguments.contains("CLANG_ENABLE_MODULE_DEBUGGING=NO")
+                            && arguments.contains { $0.hasPrefix("TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_SWIFT_FLAGS=")
+                                && $0.contains("-no-clang-module-breadcrumbs")
+                                && $0.contains("-debug-prefix-map \"\(root)=/^root\"")
+                            }
+                            && arguments.contains { $0.hasPrefix("TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_CFLAGS=")
+                                && $0.contains("\"-fdebug-prefix-map=\(root)=/^root\"")
+                            }
+                            && swiftFlags.count == 1
+                            && swiftFlags[0].hasSuffix(" $(TUIST_BINARY_CACHE_DEBUG_PREFIX_MAP_SWIFT_FLAGS)")
+                            && swiftFlags[0].contains("TUIST_BINARY_CACHE_COVERAGE_SWIFT_FLAGS") == (coverageVariable != nil)
+                    }
+                )
+                .called(2)
+        }
+
+        @Test(.inTemporaryDirectory)
+        func run_leavesDebugInformationToTheCompilationCachePrefixMapping() async throws {
+            stubFrameworkBuilds()
+            stubXCFrameworkCreation()
+
+            try await run(
+                noUpload: true,
+                schemes: [.test(name: "Binaries-Cache-iOS")],
+                targetProduct: .framework,
+                projectSettings: Settings.test(defaultSettings: .recommended)
+                    .with(base: ["TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/checkout")])
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .matching { arguments in
+                        !arguments.contains { $0.contains("DEBUG_PREFIX_MAP") || $0.hasPrefix("CLANG_ENABLE_MODULE_DEBUGGING=") }
+                    }
+                )
+                .called(2)
+        }
+
         @Test(.inTemporaryDirectory, .withMockedEnvironment())
         func run_buildsRepositoryTargetsWithCoverage_whenTheConfigTurnsCoverageOn() async throws {
             stubFrameworkBuilds()
@@ -743,6 +814,31 @@
             #expect(try await !fileSystem.exists(unsupported.artifact.appending(
                 components: "macos-arm64", CachedModuleDebuggingMetadata.fileName
             )))
+        }
+
+        @Test(.inTemporaryDirectory, arguments: [true, false])
+        func metadataMatchesSourcesRecordedThroughTheDebugPrefixMap(passesTheAlias: Bool) async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            // Without compilation-cache prefix mapping, Xcode stages no per-target map naming `/^root`.
+            try await fileSystem.remove(fixture.products.appending(component: "tuist-prefix-maps"))
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { _, _, _ in
+                AsyncThrowingStream { continuation in
+                    continuation.yield(.standardOutput(Array("/^root/Sources/Feature.swift\n".utf8)))
+                    continuation.finish()
+                }
+            }
+            #expect(try await subject.writeDebuggingMetadata(
+                fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products],
+                debugPrefixMappings: passesTheAlias ? [["/^root": root.pathString]] : []
+            ) == passesTheAlias)
+            if passesTheAlias {
+                let path = fixture.artifact.appending(components: "macos-arm64", CachedModuleDebuggingMetadata.fileName)
+                let recorded = try JSONDecoder().decode(
+                    CachedModuleDebuggingMetadata.self, from: await fileSystem.readFile(at: path)
+                )
+                #expect(recorded.debugPaths["Sources/Feature.swift"] == ["/^root/Sources/Feature.swift"])
+            }
         }
 
         @Test(.inTemporaryDirectory)
@@ -1107,8 +1203,8 @@
             if coverageVariable != nil || coverageOption {
                 Environment.mocked?.variables["TUIST_COVERAGE_ENABLED"] = coverageVariable
                 given(gitController).isInGitRepository(workingDirectory: .any).willReturn(false)
-                given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
             }
+            given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
             let target = Target.test(name: "Fixtures", product: targetProduct, sources: targetSources, foreignBuild: foreignBuild)
             let cached = Target.test(name: "Cached", product: .bundle)
@@ -1242,7 +1338,8 @@
                 coverageBuildSourcesService: CoverageBuildSourcesService(
                     gitController: gitController,
                     rootDirectoryLocator: rootDirectoryLocator
-                )
+                ),
+                rootDirectoryLocator: rootDirectoryLocator
             )
         }
     }
