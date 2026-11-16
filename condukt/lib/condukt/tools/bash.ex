@@ -48,6 +48,10 @@ defmodule Condukt.Tools.Bash do
 
     * `:park_after` - milliseconds a command runs in the foreground before the
       call parks
+    * `:replay_safe` - `true` declares calls replay-safe (see the Sessions
+      and Persistence guide), so a resumed run reruns an interrupted call,
+      which then follows the command it started. Set it only on a sandbox
+      whose processes outlive the session's node. Defaults to `false`.
 
   Elsewhere, such as on `Virtual`, or when the tool runs outside a session,
   the call runs the command with `c:Condukt.Sandbox.exec/3` and returns when it
@@ -71,6 +75,13 @@ defmodule Condukt.Tools.Bash do
 
   @impl true
   def name(opts), do: Keyword.get(opts, :name, "Bash")
+
+  # A rerun follows the command its interrupted call started instead of
+  # starting it twice, but only on a sandbox whose processes outlive the
+  # node, such as `Kubernetes` or a host's remote sandbox. The host that
+  # knows its sandbox opts in with `{Condukt.Tools.Bash, replay_safe: true}`.
+  @impl true
+  def replay_safe?(opts), do: Keyword.get(opts, :replay_safe, false)
 
   @impl true
   def description(_opts) do
