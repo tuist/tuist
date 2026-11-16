@@ -26,7 +26,7 @@ struct CargoRecordedInvocation: CargoCacheAction {
     /// The `.dSYM` a linked binary is stored with when its debug map names objects (`hasDebugMap`).
     let debugBundle: String?
 
-    static let keyVersion = "tuist-swift-cargo-recorded-v1"
+    static let keyVersion = "tuist-swift-cargo-recorded-v2"
     var cacheVersion: String { Self.keyVersion }
     var kind: String { "rust" }
     /// A linked binary, the only output without an extension.
@@ -105,8 +105,9 @@ struct CargoRecordedInvocation: CargoCacheAction {
         var inputs = [
             keyVersion, CargoReadRecorder.version, directory.pathString, identity.version,
         ]
-        inputs += CargoCacheInputs.withoutIncremental(Array(arguments.dropFirst())).filter { !$0.hasPrefix("--diagnostic-width") }
-        inputs += environment.sorted { $0.key < $1.key }.filter { !CargoCacheInvocation.isIgnored($0.key) }
+        inputs += CargoCacheInputs.keyArguments(Array(arguments.dropFirst()))
+        // Package metadata the run reads is keyed with its reads.
+        inputs += environment.sorted { $0.key < $1.key }.filter { CargoCacheInvocation.isKeyed($0.key) }
             .map { "\($0.key)=\($0.value)" }
         var externs: [URL] = []
         for value in CargoCacheInputs.values("--extern", in: arguments) {
@@ -274,12 +275,12 @@ struct CargoRecordedInvocation: CargoCacheAction {
                 // rustc finds the SDK with `xcrun` and links with `cc`; both are keyed by `CargoToolchainIdentity.linker`.
                 return ["cc", "xcrun"].contains(program) || program == linker
             },
-            keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) },
+            keyedEnvironment: CargoCacheInvocation.isKeyed,
             explain: explain
         ),
             let depInfo = try? String(contentsOf: output.appendingPathComponent(files.last!), encoding: .utf8)
         else { return nil }
-        reads.addEnvironmentDependencies(depInfo, keyedEnvironment: { !CargoCacheInvocation.isIgnored($0) })
+        reads.addEnvironmentDependencies(depInfo, keyedEnvironment: CargoCacheInvocation.isKeyed)
         guard reads.unchanged(since: started, relocation: relocation) else {
             explain("read an input that changed while it ran")
             return nil
