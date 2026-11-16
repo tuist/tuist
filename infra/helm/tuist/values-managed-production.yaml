@@ -2591,3 +2591,11 @@ redis:
 ampOrbProvider:
   enabled: true
   url: https://tuist.dev
+
+# A copy of every error from the server's web instances to Pulse, beside
+# Atlas, to compare the two (sentryPulse in values.yaml). Needs
+# PULSE_SENTRY_WRITER/password in this vault and production in the Pulse
+# chart's sentryWriter.environments.
+sentryPulse:
+  services:
+    server: true
