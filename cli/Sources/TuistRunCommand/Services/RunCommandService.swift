@@ -631,6 +631,7 @@ struct RunCommandService {
         guard let packageName = preview.bundle_identifier else {
             throw RunCommandServiceError.missingPackageName
         }
+        try AdbController.validatePackageName(packageName)
 
         try await Noora.current.progressStep(
             message: "Installing \(displayName) on \(androidDevice.name)",

@@ -10,6 +10,7 @@ public enum AdbControllerError: LocalizedError, Equatable {
     case noDevicesFound
     case installFailed(device: String, reason: String)
     case launchFailed(device: String, reason: String)
+    case invalidPackageName(String)
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +22,8 @@ public enum AdbControllerError: LocalizedError, Equatable {
             return "Failed to install app on device \(device): \(reason)"
         case let .launchFailed(device, reason):
             return "Failed to launch app on device \(device): \(reason)"
+        case let .invalidPackageName(packageName):
+            return "'\(packageName)' is not a valid Android package name."
         }
     }
 }
@@ -100,7 +103,16 @@ public protocol AdbControlling: Sendable {
             }
         }
 
+        /// `adb shell` joins its arguments into a command line that the device's shell interprets,
+        /// so values that come from the server or the APK must not contain shell syntax.
+        public static func validatePackageName(_ packageName: String) throws {
+            guard packageName.wholeMatch(of: #/[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+/#) != nil else {
+                throw AdbControllerError.invalidPackageName(packageName)
+            }
+        }
+
         public func launchApp(packageName: String, device: AndroidDevice) async throws {
+            try Self.validatePackageName(packageName)
             let adb = try await resolveAdbPath()
             let output: String
             do {
@@ -129,6 +141,14 @@ public protocol AdbControlling: Sendable {
                 )
             }
             let activity = lastLine.trimmingCharacters(in: .whitespaces)
+            guard activity.hasPrefix("\(packageName)/"),
+                  activity.dropFirst(packageName.count + 1).wholeMatch(of: #/[A-Za-z0-9_.]+/#) != nil
+            else {
+                throw AdbControllerError.launchFailed(
+                    device: device.id,
+                    reason: "Unexpected launcher activity '\(activity)' for \(packageName)"
+                )
+            }
 
             do {
                 try await commandRunner
