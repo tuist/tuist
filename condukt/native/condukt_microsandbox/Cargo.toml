@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rustler = { version = "0.36", default-features = false, features = ["derive"] }
-microsandbox = { version = "0.4.6", default-features = false, features = ["prebuilt"] }
+microsandbox = { version = "0.5.0", default-features = false, features = ["prebuilt"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "time"] }
 
 [features]
