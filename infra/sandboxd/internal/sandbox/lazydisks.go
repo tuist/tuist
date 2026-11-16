@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuist/tuist/infra/sandboxd/internal/archive"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/lazydisk"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
