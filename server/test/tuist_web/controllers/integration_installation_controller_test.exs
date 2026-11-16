@@ -16,7 +16,14 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
   setup :register_and_log_in_user
 
   setup %{conn: conn, user: user} do
-    pending = %{provider: :github, proof: "12345", user_id: user.id, issued_at: System.system_time(:second)}
+    pending = %{
+      provider: :github,
+      proof: "12345",
+      github_account: %{type: :organization, login: "acme-inc"},
+      user_id: user.id,
+      issued_at: System.system_time(:second)
+    }
+
     %{conn: put_session(conn, :integration_installation, pending), pending: pending}
   end
 
@@ -42,9 +49,54 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
-  test "skips the chooser when only the personal account is eligible", %{conn: conn, user: user} do
+  test "asks before connecting a GitHub organization installation to the only eligible, personal account", %{
+    conn: conn,
+    user: user
+  } do
+    member = AccountsFixtures.organization_fixture(name: "member-org")
+    Accounts.add_user_to_organization(user, member)
+
+    conn = get(conn, ~p"/integrations/installation")
+    html = html_response(conn, 200)
+
+    assert html =~ "acme-inc GitHub organization"
+    assert html =~ user.account.name
+    refute html =~ member.account.name
+    assert html =~ "Don&#39;t see your organization?"
+    assert html =~ ~s(href="/organizations/new?return_to=integration_installation")
+    assert get_session(conn, :integration_installation)
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
+  end
+
+  test "connects a GitHub organization installation to the personal account only when chosen", %{
+    conn: conn,
+    user: user
+  } do
+    conn = post(conn, ~p"/integrations/installation", account_id: to_string(user.account.id))
+
+    assert redirected_to(conn) == "/#{user.account.name}/settings/integrations"
+    assert {:ok, %{installation_id: "12345"}} = VCS.get_github_app_installation_for_account(user.account.id)
+  end
+
+  test "pending installations without a verified GitHub owner show the chooser", %{
+    conn: conn,
+    user: user,
+    pending: pending
+  } do
+    conn = put_session(conn, :integration_installation, Map.delete(pending, :github_account))
+
+    assert html_response(get(conn, ~p"/integrations/installation"), 200) =~ "Choose an organization"
+    assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
+  end
+
+  test "skips the chooser for a personal GitHub installation when only the personal account is eligible", %{
+    conn: conn,
+    user: user,
+    pending: pending
+  } do
     member = AccountsFixtures.organization_fixture()
     Accounts.add_user_to_organization(user, member)
+    conn = put_personal_github_installation(conn, pending)
 
     conn = get(conn, ~p"/integrations/installation")
 
@@ -55,9 +107,14 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
-  test "rechecks authorization before automatically connecting the only eligible account", %{conn: conn, user: user} do
+  test "rechecks authorization before automatically connecting the only eligible account", %{
+    conn: conn,
+    user: user,
+    pending: pending
+  } do
     account_id = user.account.id
     user_id = user.id
+    conn = put_personal_github_installation(conn, pending)
 
     expect(Authorization, :authorize, fn :account_update, %{id: ^user_id}, %{id: ^account_id} -> :ok end)
 
@@ -69,36 +126,17 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert {:error, :not_found} = VCS.get_github_app_installation_for_account(account_id)
   end
 
-  test "automatically connects Origin only after revalidating the receipt", %{conn: conn, user: user, pending: pending} do
-    stub(Environment, :origin_app_id, fn -> "app_tuist" end)
-    conn = put_session(conn, :integration_installation, %{pending | provider: :origin, proof: "receipt"})
+  test "Origin installations always show the chooser without connecting", %{conn: conn, user: user, pending: pending} do
+    conn =
+      put_session(conn, :integration_installation, %{pending | provider: :origin, proof: "receipt", github_account: nil})
 
-    expect(Signatures, :verify_receipt, fn "receipt", nil ->
-      {:ok, %{"sub" => "i_verified", "namespace_id" => "ns_test"}}
-    end)
-
-    expect(Client, :get_installation, fn "i_verified" ->
-      {:ok,
-       %{"id" => "i_verified", "appId" => "app_tuist", "target" => %{"id" => "ns_test"}, "scopes" => Client.scopes()}}
-    end)
-
-    conn = get(conn, ~p"/integrations/installation")
-
-    assert redirected_to(conn) == "/#{user.account.name}/settings/integrations"
-    assert get_session(conn, :integration_installation) == nil
-    assert [%{installation_id: "i_verified"}] = Origin.list_installations(user.account.id)
-  end
-
-  test "rejects expired Origin receipts even when the chooser would be skipped", %{
-    conn: conn,
-    user: user,
-    pending: pending
-  } do
-    conn = put_session(conn, :integration_installation, %{pending | provider: :origin, proof: "expired"})
-    expect(Signatures, :verify_receipt, fn "expired", nil -> {:error, :invalid_origin_receipt} end)
+    reject(&Signatures.verify_receipt/2)
     reject(&Client.get_installation/1)
 
-    assert_raise BadRequestError, fn -> get(conn, ~p"/integrations/installation") end
+    html = conn |> get(~p"/integrations/installation") |> html_response(200)
+
+    assert html =~ "Cursor Origin"
+    assert html =~ user.account.name
     assert Origin.list_installations(user.account.id) == []
   end
 
@@ -111,7 +149,13 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
   end
 
-  test "explains host conflicts without modifying an existing GHES registration", %{conn: conn, user: user} do
+  test "explains host conflicts without modifying an existing GHES registration", %{
+    conn: conn,
+    user: user,
+    pending: pending
+  } do
+    conn = put_personal_github_installation(conn, pending)
+
     existing =
       VCSFixtures.github_app_installation_fixture(
         account_id: user.account.id,
@@ -182,7 +226,12 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert {:error, :not_found} = VCS.get_github_app_installation_for_account(org.account.id)
   end
 
-  test "does not transfer installations already attached to another account", %{conn: conn, user: user} do
+  test "does not transfer installations already attached to another account", %{
+    conn: conn,
+    user: user,
+    pending: pending
+  } do
+    conn = put_personal_github_installation(conn, pending)
     other = AccountsFixtures.account_fixture()
     VCSFixtures.github_app_installation_fixture(account_id: other.id, installation_id: "12345")
 
@@ -212,5 +261,9 @@ defmodule TuistWeb.IntegrationInstallationControllerTest do
     assert redirected_to(conn) == "/dashboard"
     assert get_session(conn, :integration_installation) == nil
     assert {:error, :not_found} = VCS.get_github_app_installation_for_account(user.account.id)
+  end
+
+  defp put_personal_github_installation(conn, pending) do
+    put_session(conn, :integration_installation, %{pending | github_account: %{type: :user, login: "octocat"}})
   end
 end

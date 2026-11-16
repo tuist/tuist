@@ -595,7 +595,7 @@ Grant the **Members: read-only** organization permission as well. During github.
 
 Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
 
-Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization; installs started in Tuist retain their organization.
+Keep **Request user authorization (OAuth) during installation** disabled so GitHub sends installers to the Setup URL. Tuist starts a separate authorization step using the additional `/integrations/github/authorize` callback to verify installation ownership. When installation starts on GitHub, the installer then selects a Tuist organization. Installations on a GitHub organization always show this choice; installs started in Tuist retain their organization.
 
 ##### Configuring the server {#platform-github-configuring-the-server}
 

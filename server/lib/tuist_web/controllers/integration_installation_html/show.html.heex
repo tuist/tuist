@@ -9,9 +9,17 @@
       <div data-part="header">
         <h1 data-part="title">{dgettext("dashboard_auth", "Choose an organization")}</h1>
         <span data-part="subtitle">
-          {dgettext("dashboard_auth", "Select the Tuist organization to connect to %{provider}.",
-            provider: @provider
-          )}
+          <%= if match?(%{type: :organization}, @github_account) do %>
+            {dgettext(
+              "dashboard_auth",
+              "Select the Tuist organization to connect to the %{github_organization} GitHub organization.",
+              github_organization: @github_account.login
+            )}
+          <% else %>
+            {dgettext(
+              "dashboard_auth",
+              "Select the Tuist organization to connect to %{provider}.", provider: @provider)}
+          <% end %>
         </span>
       </div>
       <div data-part="organizations">
@@ -45,6 +53,24 @@
           label={dgettext("dashboard_auth", "Cancel")}
         />
       </form>
+    </div>
+    <div data-part="bottom-link">
+      <span data-part="bottom-link-title">
+        {dgettext("dashboard_auth", "Don't see your organization?")}
+      </span>
+      <span data-part="bottom-link-description">
+        {dgettext(
+          "dashboard_auth",
+          "Only organizations you administer are listed. Create one, or ask an administrator of your team's organization to make you an admin, then start the connection again from %{provider}.",
+          provider: @provider
+        )}
+      </span>
+      <.link_button
+        href={~p"/organizations/new?#{%{return_to: "integration_installation"}}"}
+        variant="primary"
+        size="large"
+        label={dgettext("dashboard_auth", "Create an organization")}
+      />
     </div>
   </div>
   <div data-part="background">

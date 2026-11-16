@@ -14,7 +14,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
 
   setup do
     stub(Environment, :github_app_client_id, fn -> "app-client" end)
-    stub(InstallationAuthorization, :verify, fn _, _, _ -> :ok end)
+    stub(InstallationAuthorization, :verify, fn _, _, _ -> {:ok, %{type: :organization, login: "acme"}} end)
     :ok
   end
 
@@ -146,13 +146,16 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
 
     expect(InstallationAuthorization, :verify, fn "code", "12345", callback ->
       assert String.ends_with?(callback, "/integrations/github/authorize")
-      :ok
+      {:ok, %{type: :organization, login: "acme"}}
     end)
 
     conn = get(recycle(conn), ~p"/integrations/github/authorize", code: "code", state: pending.state)
     assert redirected_to(conn) == "/integrations/installation"
     assert get_session(conn, :github_installation_authorization) == nil
-    assert %{provider: :github, proof: "12345", user_id: user_id} = get_session(conn, :integration_installation)
+
+    assert %{provider: :github, proof: "12345", user_id: user_id, github_account: %{type: :organization, login: "acme"}} =
+             get_session(conn, :integration_installation)
+
     assert user_id == user.id
   end
 

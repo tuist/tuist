@@ -11,13 +11,18 @@ defmodule TuistWeb.IntegrationInstallationController do
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.BadRequestError
 
-  def select(conn, provider, proof) when provider in [:github, :origin] do
+  @doc """
+  Stores verified provider proof for the chooser. `github_account` is the GitHub account that owns
+  the installation, as verified by `Tuist.GitHub.InstallationAuthorization`.
+  """
+  def select(conn, provider, proof, github_account \\ nil) when provider in [:github, :origin] do
     user = Authentication.current_user(conn)
 
     conn
     |> put_session(:integration_installation, %{
       provider: provider,
       proof: proof,
+      github_account: github_account,
       user_id: user.id,
       issued_at: System.system_time(:second)
     })
@@ -42,18 +47,16 @@ defmodule TuistWeb.IntegrationInstallationController do
       |> put_resp_header("cache-control", "no-store")
       |> put_resp_header("referrer-policy", "no-referrer")
 
-    case accounts do
-      [account] ->
+    # Only an installation on a personal GitHub account connects without asking, and only when the
+    # personal Tuist account is the sole choice. GitHub organization installations and Origin receipts
+    # (which don't say whether the namespace is personal) always ask: a new user's personal account is
+    # usually the only choice until they're added to their team's organization.
+    case {accounts, pending} do
+      {[%{organization_id: nil} = account], %{provider: :github, github_account: %{type: :user}}} ->
         complete_installation(conn, pending, user, account)
 
       _ ->
-        conn
-        |> put_view(html: TuistWeb.IntegrationInstallationHTML)
-        |> render(:show,
-          head_title: dgettext("dashboard_auth", "Choose an organization · Tuist"),
-          provider: provider_name(pending.provider),
-          accounts: accounts
-        )
+        render_chooser(conn, pending, accounts)
     end
   end
 
@@ -73,6 +76,17 @@ defmodule TuistWeb.IntegrationInstallationController do
 
   def delete(conn, _params) do
     conn |> delete_session(:integration_installation) |> redirect(to: ~p"/dashboard")
+  end
+
+  defp render_chooser(conn, pending, accounts) do
+    conn
+    |> put_view(html: TuistWeb.IntegrationInstallationHTML)
+    |> render(:show,
+      head_title: dgettext("dashboard_auth", "Choose an organization · Tuist"),
+      provider: provider_name(pending.provider),
+      github_account: Map.get(pending, :github_account),
+      accounts: accounts
+    )
   end
 
   defp complete_installation(conn, pending, user, account) do
