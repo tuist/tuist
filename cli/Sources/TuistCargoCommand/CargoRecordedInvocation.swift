@@ -73,24 +73,22 @@ struct CargoRecordedInvocation: CargoCacheAction {
             guard emitted == ["dep-info", "metadata", "link"] else { return nil }
             files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
         case "proc-macro":
+            guard emitted == ["dep-info", "link"] else { return nil }
             #if os(macOS)
-                guard emitted == ["dep-info", "link"] else { return nil }
                 files = ["lib\(name)\(suffix).dylib", "\(name)\(suffix).d"]
             #else
-                return nil
+                files = ["lib\(name)\(suffix).so", "\(name)\(suffix).d"]
             #endif
         case "bin":
             // Linking reads every rlib of the dependency closure through `-L dependency=`, which the read set keys.
             // A build script's binary is stored before `CargoBuildScript` replaces it with a shim, and a hit installs one.
+            guard emitted == ["dep-info", "link"] else { return nil }
+            files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
             #if os(macOS)
-                guard emitted == ["dep-info", "link"] else { return nil }
-                files = ["\(name)\(suffix)", "\(name)\(suffix).d"]
                 if hasDebugMap(arguments) {
                     debugBundle = "\(name)\(suffix).dSYM"
                     files.insert(contentsOf: debugBundleFiles("\(name)\(suffix)"), at: 1)
                 }
-            #else
-                return nil
             #endif
         default:
             return nil
@@ -124,7 +122,14 @@ struct CargoRecordedInvocation: CargoCacheAction {
         }
         let linksWithSystemLinker = kind == "proc-macro" || kind == "bin"
         if linksWithSystemLinker {
-            inputs += try await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
+            // macOS's linker runs from protected programs the recorder cannot load into, so the declared key names it.
+            // On Linux `cc`, `collect2` and `ld` load the recorder: the read set holds their binaries, CRT objects and
+            // the C library they link against.
+            #if os(macOS)
+                inputs += try await CargoToolchainIdentity.linker(
+                    environment: environment, directory: directory, process: process
+                )
+            #endif
             // The linker runs unrecorded and searches these directories for the native libraries build scripts built
             // or found, so what it can find there is keyed by content.
             for value in CargoCacheInputs.values("-L", in: arguments) {
@@ -270,10 +275,16 @@ struct CargoRecordedInvocation: CargoCacheAction {
             allowedWrites: [output.path] + temporary
                 + [CargoCacheInputs.incrementalDirectory(arguments, directory: directory)?.path].compactMap { $0 },
             allowedSpawn: { [linksWithSystemLinker] path in
-                guard linksWithSystemLinker else { return false }
-                let program = URL(fileURLWithPath: path).lastPathComponent
-                // rustc finds the SDK with `xcrun` and links with `cc`; both are keyed by `CargoToolchainIdentity.linker`.
-                return ["cc", "xcrun"].contains(program) || program == linker
+                #if os(macOS)
+                    guard linksWithSystemLinker else { return false }
+                    let program = URL(fileURLWithPath: path).lastPathComponent
+                    // rustc finds the SDK with `xcrun` and links with `cc`; both are keyed by `CargoToolchainIdentity.linker`.
+                    return ["cc", "xcrun"].contains(program) || program == linker
+                #else
+                    // On Linux every program the link starts must load the recorder.
+                    _ = (path, linker, linksWithSystemLinker)
+                    return false
+                #endif
             },
             keyedEnvironment: CargoCacheInvocation.isKeyed,
             explain: explain
@@ -281,8 +292,8 @@ struct CargoRecordedInvocation: CargoCacheAction {
             let depInfo = try? String(contentsOf: output.appendingPathComponent(files.last!), encoding: .utf8)
         else { return nil }
         reads.addEnvironmentDependencies(depInfo, keyedEnvironment: CargoCacheInvocation.isKeyed)
-        guard reads.unchanged(since: started, relocation: relocation) else {
-            explain("read an input that changed while it ran")
+        if let changed = reads.changedInput(since: started, relocation: relocation) {
+            explain("read \(changed), which changed while it ran")
             return nil
         }
         // Outputs that name a root behave the same only at that root, so their key names it too.

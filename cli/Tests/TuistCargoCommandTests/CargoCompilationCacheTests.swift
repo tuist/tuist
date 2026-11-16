@@ -255,6 +255,59 @@ struct CargoCompilationCacheTests {
         #expect(try parse(finished + ["100\tZ\t/usr/bin/missing", "100\tF\t"]) != nil)
     }
 
+    @Test(.inTemporaryDirectory) func recordedRunsKeyWhatTheyReadAsOfTheirStart() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory).pathString
+        let workspace = directory + "/workspace"
+        let git = workspace + "/.git"
+        try FileManager.default.createDirectory(atPath: git, withIntermediateDirectories: true)
+        try Data("7\n".utf8).write(to: URL(fileURLWithPath: workspace + "/value.txt"))
+        let relocation = CargoRelocation(
+            environment: ["TUIST_CARGO_WORKSPACE_ROOT": workspace], sysroot: URL(fileURLWithPath: "/toolchain")
+        )
+        #if os(Linux)
+            // A placeholder must give back the path that was read: Linux has no `/private` spelling of a checkout.
+            #expect(relocation.absolute(relocation.relative(workspace + "/value.txt")) == workspace + "/value.txt")
+        #endif
+        let log = URL(fileURLWithPath: directory + "/reads.log")
+        func parse(_ lines: [String]) throws -> CargoReadSet? {
+            try Data((["100\tP\t/toolchain/bin/rustc", "100\tp\t99"] + lines + ["100\tF\t"]).joined(separator: "\n").utf8
+                + Data("\n".utf8)).write(to: log)
+            return CargoReadSet.parse(
+                log: log, relocation: relocation, excludedRoots: [], targetDirectory: nil, allowedWrites: [],
+                keyedEnvironment: { _ in true }
+            )
+        }
+        let reads = try #require(try parse([
+            "100\tR\t\(workspace)/value.txt", "100\tS\t\(git)",
+            // Thread-pool sizing on Linux, whose times are always now.
+            "100\tR\t/proc/self/cgroup", "100\tD\t/proc/self/fd", "100\tA\t/sys/fs/cgroup/cpu.max", "100\tR\t/proc/cpuinfo",
+            // The process's own variables, read as a file.
+            "100\tR\t/proc/thread-self/environ",
+        ]))
+        #expect(reads.entries.map { "\($0.kind) \($0.name)" }.sorted() == [
+            "environment *", "path /proc/cpuinfo", "path @@TUIST_WORKSPACE@@/.git", "path @@TUIST_WORKSPACE@@/value.txt",
+        ])
+        // Another process's view of the file system, which a lookup here would not see.
+        #expect(try parse(["100\tR\t/proc/self/cwd/value.txt"]) == nil)
+        #expect(try parse(["100\tS\t/proc/4242/root\(workspace)/value.txt"]) == nil)
+        let created = workspace + "/created"
+        let files = CargoReadSet(
+            entries: reads.entries.filter { $0.name != "/proc/cpuinfo" }
+                + [CargoReadSet.Entry(kind: "path", name: "@@TUIST_WORKSPACE@@/created")]
+        )
+        let started = Date()
+        Thread.sleep(forTimeInterval: 0.01)
+        // git creates files in `.git` while a query runs; a directory only looked up is not what the run read.
+        try Data().write(to: URL(fileURLWithPath: git + "/index.lock"))
+        #expect(files.changedInput(since: started, relocation: relocation) == nil)
+        // A directory that appeared while the run read its path, which may then have named something else.
+        try FileManager.default.createDirectory(atPath: created, withIntermediateDirectories: false)
+        #expect(files.changedInput(since: started, relocation: relocation) == "@@TUIST_WORKSPACE@@/created")
+        try FileManager.default.removeItem(atPath: created)
+        try Data("9\n".utf8).write(to: URL(fileURLWithPath: workspace + "/value.txt"))
+        #expect(files.changedInput(since: started, relocation: relocation) == "@@TUIST_WORKSPACE@@/value.txt")
+    }
+
     @Test(.inTemporaryDirectory) func remembersOutputScansOnlyWhileTheOutputIsUnchanged() throws {
         // Publication and unit collection scan the same outputs; a rewritten output must be scanned again.
         let directory = try #require(FileSystem.temporaryTestDirectory).pathString

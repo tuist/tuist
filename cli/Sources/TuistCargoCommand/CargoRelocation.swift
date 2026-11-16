@@ -41,8 +41,11 @@ struct CargoRelocation: Equatable {
         }
         roots = roots.filter { $0.path.count > 1 && $0.path.hasPrefix("/") }
         // macOS's `/var`, `/tmp` and `/etc` are links into `/private`; tools name a checkout under `$TMPDIR` either way.
-        roots += roots.filter { Self.canonical("/private" + $0.path) == $0.path }
-            .map { Root(path: "/private" + $0.path, placeholder: $0.placeholder, remapped: $0.remapped) }
+        // Linux has no `/private`: placeholders would give back paths that do not exist, which read as absent inputs.
+        #if os(macOS)
+            roots += roots.filter { Self.canonical("/private" + $0.path) == $0.path }
+                .map { Root(path: "/private" + $0.path, placeholder: $0.placeholder, remapped: $0.remapped) }
+        #endif
         let contained = roots.map { root in roots.filter { $0.path != root.path && root.path.contains($0.path) }.count }
         self.roots = zip(roots, contained).sorted { first, second in
             if first.1 != second.1 { return first.1 > second.1 }
