@@ -12,7 +12,8 @@ defmodule Atlas.MCP.Tools.ActivateTuistRunnerPrepaidPool do
 
   @impl EMCP.Tool
   def description do
-    "Activate a prepaid runner order as a real paid Stripe credit grant for the selected linux/macos platforms. " <>
+    "Activate a prepaid runner order as one shared paid Stripe credit grant for the selected linux/macos platforms, " <>
+      "not a separate grant per platform. Each platform consumes the shared credit at its own usage rate. " <>
       "paid_cents is the upfront price in cents; credit_multiplier is a decimal string from 1 to 2 with at most " <>
       "four fractional digits (for example 1.5). starts_on and expires_on are inclusive ISO dates. " <>
       "invoice_id identifies the existing upfront Stripe invoice (in_...), which may be draft, open or paid. " <>
