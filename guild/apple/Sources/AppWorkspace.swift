@@ -127,9 +127,6 @@ private struct ProfileView: View {
                         Text(verbatim: "@\(account.handle ?? account.email ?? "")")
                             .font(.body.weight(.medium))
                             .foregroundStyle(.secondary)
-                        if account.shared == true {
-                            Text("From the Tuist app").font(.caption).foregroundStyle(.secondary)
-                        }
                     }
                     .frame(maxWidth: .infinity)
                 }

@@ -6057,7 +6057,6 @@ dependencies = [
  "jni",
  "serde",
  "serde_json",
- "tuist-credentials",
  "tuist-jwt",
  "tuist-oauth",
  "url",

@@ -10,8 +10,6 @@ struct AppProfile: Decodable, Identifiable {
     let handle: String?
     let email: String?
     let rejected: Bool
-    /// Uses the Tuist app's session on this Mac.
-    let shared: Bool?
 }
 
 struct AppSessionView: Decodable {
@@ -84,19 +82,6 @@ private final class NativeHost: NSObject, URLSessionTaskDelegate, @unchecked Sen
                 result = ["ok": true]
             case "http":
                 result = try http(action)
-            #if os(macOS)
-                case "shared_list":
-                    result = ["servers": try TuistAppSession.list()]
-                case "shared_read":
-                    guard let key = action["server"] as? String else { throw AppClientError(message: "Invalid server") }
-                    result = ["value": try TuistAppSession.read(key) ?? NSNull()]
-                case "shared_write":
-                    guard let key = action["server"] as? String, let access = action["access_token"] as? String,
-                          let refresh = action["refresh_token"] as? String
-                    else { throw AppClientError(message: "Invalid session") }
-                    try TuistAppSession.write(key, access: access, refresh: refresh)
-                    result = ["ok": true]
-            #endif
             default:
                 throw AppClientError(message: "Invalid host operation")
             }

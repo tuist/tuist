@@ -32,8 +32,6 @@
 "Delete Account" = "Delete Account";
 "Delete" = "Delete";
 "Are you sure you want to delete your account? This action cannot be undone." = "Are you sure you want to delete your account? This action cannot be undone.";
-"From the Tuist app" = "From the Tuist app";
-"The Tuist app's session could not be read or updated." = "The Tuist app's session could not be read or updated.";
 "Threads" = "Threads";
 "Active" = "Active";
 "Archived" = "Archived";

@@ -2,7 +2,7 @@
 
 Tuist Guild is a client developed alongside the shipping apps in `../app/` and `../android/`, not a replacement or a store release. Its independent Once graph reports to [tuist/guild](https://tuist.dev/tuist/guild); GPUI provides the Linux/Windows UI, SwiftUI provides iOS/macOS interfaces, and Kotlin provides the Android interface. Native profiles, OAuth, session selection, and preview API operations are implemented in `crates/core`, reusing the existing Rust OAuth/PKCE and JWT logic.
 
-The native apps use the Android package ID `dev.tuist.guild` and the iOS/macOS bundle ID `dev.tuist.code` (kept so the existing App ID and signing profiles keep working), display as **Tuist Guild**, and register only `tuist-guild://oauth-callback`, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. On iOS and Android they do not read or modify shipping-client credentials; on macOS they share the Tuist app's session (see [Tuist app session on macOS](#tuist-app-session-on-macos)). The GPUI client uses the `dev.tuist.guild` application ID and retains its existing credential interoperability with the CLI.
+The native apps use the Android package ID `dev.tuist.guild` and the iOS/macOS bundle ID `dev.tuist.code` (kept so the existing App ID and signing profiles keep working), display as **Tuist Guild**, and register only `tuist-guild://oauth-callback`, not the shipping `tuist:` scheme, associated domains, push capabilities or updater feeds. They do not read or modify shipping-client credentials, so they never trigger Keychain prompts for the Tuist app's items or sign anyone out of it. The GPUI client uses the `dev.tuist.guild` application ID and retains its existing credential interoperability with the CLI.
 
 ## Build
 
@@ -45,11 +45,7 @@ Session storage follows the existing platform boundaries, but not the shipping a
 
 Rust treats the vault as private, never sends credentials in view snapshots, binds refreshes to the issuing origin/client, persists selection before publication, and retains rotated credentials in memory until a failed durable write can be retried. An interrupted process cannot preserve a memory-only rotation. Profile/organization changes discard stale native navigation and API results. There is no credential migration from current clients.
 
-### Tuist app session on macOS
-
-The macOS client lists one profile, labeled **From the Tuist app**, for each server the shipping Tuist app is signed in to. It uses the Tuist app's Keychain items directly: internet passwords for the server's host with accounts `<canonical server URL>_access_token`, `_refresh_token`, `_oauth_client_id` and `_rejected` (`ServerCredentialsStore`'s Keychain backend). Their tokens never enter the Tuist Guild vault. Before every refresh both apps take `~/.local/state/tuist/cached_value_store/credential-refresh-<fnv1a64(canonical server URL)>.lock` (for `https://tuist.dev`, `credential-refresh-d79fb54a63e03cb2.lock`), reread the items, and refresh only when no peer already did. Tuist Guild updates the token items in place and never creates or deletes them. A rejected refresh disables the profile in Tuist Guild only; the Tuist app marks its own items when it next refreshes. Signing out of that profile in Tuist Guild unlinks it and leaves the Tuist app signed in; a different user signing in to the Tuist app is offered again.
-
-macOS asks for the login keychain password the first time Tuist Guild reads those items. Choose **Always Allow**: a Developer ID signed build (`mise run bundle:macos`) keeps that permission across updates, while ad-hoc local builds change signature and ask again after each rebuild.
+Earlier macOS previews used the Tuist app's Keychain session, which made macOS ask for the login keychain password once per item. Profiles from that session are dropped when the vault loads, so those users sign in to Tuist Guild once; the Tuist app stays signed in.
 
 CI authenticates trusted builds through GitHub OIDC for hosted caches and insights; forks use local caches without login. The isolated optimized Linux/Windows packaging step still uses a local cache. CI retains unsigned/unprovisioned workflow artifacts. There are no store uploads, public release jobs or enabled new-client updater keys. The private hosted project is linked to `tuist/tuist`.
 
