@@ -57,11 +57,11 @@
     display: flex;
     align-items: center;
     gap: var(--noora-spacing-3);
+    transition: color 150ms ease;
     color: var(--noora-surface-label-tertiary);
     font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
     text-decoration: none;
     white-space: nowrap;
-    transition: color 150ms ease;
 
     &:hover,
     &:focus-visible {
