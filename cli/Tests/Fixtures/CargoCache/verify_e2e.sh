@@ -121,7 +121,8 @@ expect "after-outputs: the cache must still hold the cold run" "$cold" "$STAMP"
 
 # Incremental codegen names its units after the session, so two incremental compilations of the same sources write
 # different objects and rlibs. Recompiling them compares metadata and dep-info, which must still agree, and says so.
-# `CARGO_INCREMENTAL` is keyed, so these entries live in a cache of their own.
+# Cargo folds the incremental setting into each workspace crate's `-C metadata`, so these entries live in a cache of
+# their own.
 export XDG_CACHE_HOME="$ROOT/xdg-incremental" CARGO_INCREMENTAL=1
 build_verified "$a" incremental-cold
 TUIST_CARGO_VERIFY_RECOMPILE=always build_verified "$a" incremental

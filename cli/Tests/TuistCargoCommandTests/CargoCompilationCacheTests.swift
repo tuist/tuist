@@ -485,6 +485,8 @@ struct CargoCompilationCacheTests {
             "TUIST_TOKEN", "TUIST_DEBUG", "TUIST_CACHE_ENDPOINT", "GITHUB_RUN_ID", "GITLAB_USER_ID",
             "CI_JOB_ID", "CI", "BUILDKITE_BUILD_ID", "CIRCLE_WORKFLOW_ID", "RUNNER_TRACKING_ID", "ACTIONS_RUNTIME_TOKEN",
             "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID",
+            // CI commonly sets it; Cargo already folds it into `-C metadata` where it changes outputs.
+            "CARGO_INCREMENTAL",
         ] {
             var environment = fixture.invocation.environment
             environment[variable] = "another-invocation"
@@ -494,7 +496,9 @@ struct CargoCompilationCacheTests {
 
     @Test(.inTemporaryDirectory) func neverCachesCratesThatReadExcludedCredentialsOrCIMetadata() async throws {
         let fixture = try await fixture()
-        for variable in ["TUIST_TOKEN", "TUIST_DEBUG", "GITHUB_RUN_ID", "CI_JOB_ID", "CI", "RUNNER_TRACKING_ID", "SHLVL"] {
+        for variable in [
+            "TUIST_TOKEN", "TUIST_DEBUG", "GITHUB_RUN_ID", "CI_JOB_ID", "CI", "RUNNER_TRACKING_ID", "SHLVL", "CARGO_INCREMENTAL",
+        ] {
             for value in ["", "=observed-value"] {
                 try "artifact: \(fixture.source.path)\n# env-dep:\(variable)\(value)\n".write(
                     to: fixture.output.appendingPathComponent(fixture.invocation.files[2]),
