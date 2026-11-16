@@ -175,6 +175,21 @@ affinity:
     {{- if include "pulse.postgres" . }}
     - {port: 4003, protocol: TCP}
     {{- end }}
+{{- if ne .Values.environment "management" }}
+# Kura posts its copy of each error to /v1/sentry/ (the tuist chart's
+# sentryPulse). The server's web pods already have the rule above; no other
+# producer is admitted. hostNetwork Kura pods carry a node's identity and come
+# in through pulse-host-ingress.
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kura
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: kura
+  ports:
+    - {port: 4000, protocol: TCP}
+{{- end }}
 {{- end }}
 {{- end }}
 
