@@ -309,6 +309,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         .with {
                             $0.instanceName = instanceName
                             $0.actionDigest = digest
+                            // Callers read standard output and error from the result itself. Servers such as
+                            // bazel-remote otherwise answer with their digests only.
+                            $0.inlineStdout = true
+                            $0.inlineStderr = true
                             $0.digestFunction = .sha256
                         }, metadata: try await metadata(presenceLookup: presenceLookup), options: options
                     )
