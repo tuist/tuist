@@ -37,7 +37,7 @@ extension CargoCacheAction {
     func unkeyedRoots(in _: URL) throws -> [String] { [] }
 }
 
-struct CargoCompilationCache {
+struct CargoCompilationCache { // swiftlint:disable:this type_body_length
     let invocation: any CargoCacheAction
     let root: URL
     var remote: (any REAPICacheStoring)?
