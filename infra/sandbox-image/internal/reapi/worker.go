@@ -107,7 +107,7 @@ func (w *Worker) execute(ctx context.Context, digest *re.Digest) (*re.ActionResu
 		return nil, false, err
 	}
 	w.streamed = nil
-	if err = w.materialize(ctx, root, ".", &input, 0); err != nil {
+	if err = w.materialize(ctx, root, &input); err != nil {
 		return nil, false, err
 	}
 	// Never start the command with the host's blob channel open.
@@ -428,170 +428,250 @@ func (w *Worker) mkdir(root *os.Root, p string) error {
 	return nil
 }
 
-func (w *Worker) materialize(ctx context.Context, root *os.Root, p string, dir *re.Directory, depth int) error {
-	if depth > 128 {
-		return status.Error(codes.ResourceExhausted, "input tree too deep")
-	}
-	if err := w.count(); err != nil {
-		return err
-	}
-	seen := map[string]bool{}
-	check := func(n string) error {
-		if !name(n) || seen[n] {
-			return status.Error(codes.InvalidArgument, "invalid or duplicate directory entry")
+// inputFile is one file of the input tree at its path below the input root.
+type inputFile struct {
+	path string
+	node *re.FileNode
+}
+
+type inputDirectory struct {
+	path string
+	dir  *re.Directory
+}
+
+// materialize lays out the input tree in two passes. The walk reads the tree a
+// level at a time, the level's distinct directories in parallel batches, so a
+// tree costs one round trip per level rather than one per directory. Then the
+// files of every directory download together (see materializeFiles). Symlinks
+// come last, once nothing is written below the root any more.
+func (w *Worker) materialize(ctx context.Context, root *os.Root, input *re.Directory) error {
+	var files []inputFile
+	var links [][2]string
+	level := []inputDirectory{{path: ".", dir: input}}
+	for depth := 0; len(level) > 0; depth++ {
+		if depth > 128 {
+			return status.Error(codes.ResourceExhausted, "input tree too deep")
 		}
-		seen[n] = true
-		return w.count()
-	}
-	for _, f := range dir.Files {
-		if err := check(f.Name); err != nil {
-			return err
-		}
-	}
-	if err := w.materializeFiles(ctx, root, p, dir.Files); err != nil {
-		return err
-	}
-	for _, d := range dir.Directories {
-		if err := check(d.Name); err != nil {
-			return err
-		}
-	}
-	// Sibling directories are read together, a bounded batch at a time, so
-	// at most one batch per level is held while descending.
-	for start := 0; start < len(dir.Directories); {
-		end := start
-		var size int64
-		for end < len(dir.Directories) && end-start < inputBatchEntries && size+dir.Directories[end].Digest.GetSizeBytes() <= inputBatchBytes {
-			size += dir.Directories[end].Digest.GetSizeBytes()
-			end++
-		}
-		end = max(end, start+1)
-		nodes := dir.Directories[start:end]
-		digests := make([]*re.Digest, len(nodes))
-		children := make([]proto.Message, len(nodes))
-		for i, d := range nodes {
-			digests[i] = d.Digest
-			children[i] = &re.Directory{}
-		}
-		if err := w.CAS.Messages(ctx, digests, children); err != nil {
-			return err
-		}
-		for i, d := range nodes {
-			child := path.Join(p, d.Name)
-			if err := w.mkdir(root, child); err != nil {
+		var children []inputDirectory
+		var digests []*re.Digest
+		unique := map[string]int{}
+		var childDigest []int
+		for _, n := range level {
+			if err := w.count(); err != nil {
 				return err
 			}
-			if err := w.materialize(ctx, root, child, children[i].(*re.Directory), depth+1); err != nil {
-				return err
+			seen := map[string]bool{}
+			check := func(n string) error {
+				if !name(n) || seen[n] {
+					return status.Error(codes.InvalidArgument, "invalid or duplicate directory entry")
+				}
+				seen[n] = true
+				return w.count()
+			}
+			for _, f := range n.dir.Files {
+				if err := check(f.Name); err != nil {
+					return err
+				}
+				files = append(files, inputFile{path: path.Join(n.path, f.Name), node: f})
+			}
+			for _, d := range n.dir.Directories {
+				if err := check(d.Name); err != nil {
+					return err
+				}
+				child := path.Join(n.path, d.Name)
+				if err := w.mkdir(root, child); err != nil {
+					return err
+				}
+				key := d.Digest.GetHash() + "/" + strconv.FormatInt(d.Digest.GetSizeBytes(), 10)
+				i, ok := unique[key]
+				if !ok {
+					i = len(digests)
+					unique[key] = i
+					digests = append(digests, d.Digest)
+				}
+				children = append(children, inputDirectory{path: child})
+				childDigest = append(childDigest, i)
+			}
+			for _, s := range n.dir.Symlinks {
+				if err := check(s.Name); err != nil {
+					return err
+				}
+				link := path.Join(n.path, s.Name)
+				if !safeLink(link, s.Target) {
+					return status.Error(codes.InvalidArgument, "escaping symlink")
+				}
+				links = append(links, [2]string{link, s.Target})
 			}
 		}
-		start = end
-	}
-	for _, s := range dir.Symlinks {
-		if err := check(s.Name); err != nil {
+		dirs, err := w.readDirectories(ctx, digests)
+		if err != nil {
 			return err
 		}
-		link := path.Join(p, s.Name)
-		if !safeLink(link, s.Target) {
-			return status.Error(codes.InvalidArgument, "escaping symlink")
+		for i := range children {
+			children[i].dir = dirs[childDigest[i]]
 		}
-		if err := root.Symlink(s.Target, link); err != nil {
+		level = children
+	}
+	if err := w.materializeFiles(ctx, root, files); err != nil {
+		return err
+	}
+	for _, link := range links {
+		if err := root.Symlink(link[1], link[0]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// readDirectories reads directory messages in bounded batches, several at once.
+func (w *Worker) readDirectories(ctx context.Context, digests []*re.Digest) ([]*re.Directory, error) {
+	dirs := make([]*re.Directory, len(digests))
+	for i := range dirs {
+		dirs[i] = &re.Directory{}
+	}
+	runs := inputBatches(len(digests), func(i int) int64 { return digests[i].GetSizeBytes() })
+	err := inParallel(ctx, len(runs), inputDownloadConcurrency, func(ctx context.Context, r int) error {
+		messages := make([]proto.Message, 0, len(runs[r]))
+		batch := make([]*re.Digest, 0, len(runs[r]))
+		for _, i := range runs[r] {
+			batch = append(batch, digests[i])
+			messages = append(messages, dirs[i])
+		}
+		return w.CAS.Messages(ctx, batch, messages)
+	})
+	return dirs, err
+}
+
+// inputBatches groups inputs into runs that one BatchReadBlobs carries: at
+// most inputBatchEntries inputs and inputBatchBytes, in input order. An input
+// over inputBatchFileBytes gets a run of its own.
+func inputBatches(n int, size func(int) int64) [][]int {
+	var runs [][]int
+	var run []int
+	var total int64
+	for i := range n {
+		s := size(i)
+		if s > inputBatchFileBytes {
+			runs = append(runs, []int{i})
+			continue
+		}
+		if len(run) == inputBatchEntries || total+s > inputBatchBytes {
+			runs = append(runs, run)
+			run, total = nil, 0
+		}
+		run = append(run, i)
+		total += s
+	}
+	if len(run) > 0 {
+		runs = append(runs, run)
+	}
+	return runs
+}
+
 const inputDownloadConcurrency = 8
 
-// Batch small inputs to amortize RPC overhead. Large files and peers without
-// BatchReadBlobs retain bounded streaming. Batches are serial so only one
-// response buffer is live, regardless of directory size.
-func (w *Worker) materializeFiles(ctx context.Context, root *os.Root, p string, files []*re.FileNode) error {
+// materializeFiles downloads the input files of the whole tree. Small files
+// share batches across directories; large files, and every file when the CAS
+// has no BatchReadBlobs, stream one blob per call. Batches and streams share
+// one bound, so at most inputDownloadConcurrency batch responses are live.
+// It returns only after every download stopped, before any command starts.
+func (w *Worker) materializeFiles(ctx context.Context, root *os.Root, files []inputFile) error {
 	for _, f := range files {
-		if !ValidDigest(f.Digest) {
+		if !ValidDigest(f.node.Digest) {
 			return status.Error(codes.InvalidArgument, "invalid input digest")
 		}
 	}
-	var streaming []*re.FileNode
-	for start := 0; start < len(files); {
-		end := start
-		var size int64
-		for end < len(files) && end-start < inputBatchEntries && files[end].Digest.SizeBytes <= inputBatchFileBytes && size+files[end].Digest.SizeBytes <= inputBatchBytes {
-			size += files[end].Digest.SizeBytes
-			end++
+	batchable := w.CAS.Blobs != nil && !w.CAS.noBatch.Load()
+	var small, streamed []inputFile
+	for _, f := range files {
+		if batchable && f.node.Digest.SizeBytes <= inputBatchFileBytes {
+			small = append(small, f)
+		} else {
+			streamed = append(streamed, f)
 		}
-		if end == start {
-			streaming = append(streaming, files[start])
-			start++
-			continue
-		}
-		digests := make([]*re.Digest, end-start)
-		for i, f := range files[start:end] {
-			digests[i] = f.Digest
-		}
-		data, err := w.CAS.ReadBatch(ctx, digests)
-		if errors.Is(err, errBatchUnsupported) {
-			streaming = append(streaming, files[start:]...)
-			break
-		}
-		if err != nil {
-			return err
-		}
-		for i, f := range files[start:end] {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if err := w.materializeContent(root, path.Join(p, f.Name), f, func(out io.Writer) error {
-				_, err := io.Copy(out, bytes.NewReader(data[i]))
-				return err
-			}); err != nil {
-				return err
-			}
-		}
-		start = end
 	}
-	return w.streamFiles(ctx, root, p, streaming)
+	runs := inputBatches(len(small), func(i int) int64 { return small[i].node.Digest.SizeBytes })
+	return inParallel(ctx, len(runs)+len(streamed), inputDownloadConcurrency, func(ctx context.Context, i int) error {
+		if i >= len(runs) {
+			f := streamed[i-len(runs)]
+			return w.materializeFile(ctx, root, f.path, f.node)
+		}
+		batch := make([]inputFile, len(runs[i]))
+		for j, k := range runs[i] {
+			batch[j] = small[k]
+		}
+		return w.materializeBatch(ctx, root, batch)
+	})
 }
 
-// Directory traversal and entry accounting stay serial. Only independent files
-// within one directory download concurrently, with a fixed per-action bound.
-// Wait for every reader to close before returning an error or starting a command.
-func (w *Worker) streamFiles(ctx context.Context, root *os.Root, p string, files []*re.FileNode) error {
-	if len(files) == 0 {
+func (w *Worker) materializeBatch(ctx context.Context, root *os.Root, files []inputFile) error {
+	digests := make([]*re.Digest, len(files))
+	for i, f := range files {
+		digests[i] = f.node.Digest
+	}
+	data, err := w.CAS.ReadBatch(ctx, digests)
+	if errors.Is(err, errBatchUnsupported) {
+		for _, f := range files {
+			if err := w.materializeFile(ctx, root, f.path, f.node); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for i, f := range files {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := w.materializeContent(root, f.path, f.node, func(out io.Writer) error {
+			_, err := io.Copy(out, bytes.NewReader(data[i]))
+			return err
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// inParallel calls fn for 0 to n-1, at most limit at a time. The first error
+// cancels the calls still running and skips the rest; it is returned once
+// every started call has returned.
+func inParallel(ctx context.Context, n, limit int, fn func(context.Context, int) error) error {
+	if n == 0 {
 		return ctx.Err()
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	jobs := make(chan *re.FileNode)
+	next := make(chan int)
 	var workers sync.WaitGroup
 	var once sync.Once
 	var firstErr error
-	for range min(inputDownloadConcurrency, len(files)) {
+	for range min(limit, n) {
 		workers.Go(func() {
-			for f := range jobs {
-				if err := ctx.Err(); err != nil {
-					return
+			for i := range next {
+				if ctx.Err() != nil {
+					continue
 				}
-				if err := w.materializeFile(ctx, root, path.Join(p, f.Name), f); err != nil {
+				if err := fn(ctx, i); err != nil {
 					once.Do(func() {
 						firstErr = err
 						cancel()
 					})
-					return
 				}
 			}
 		})
 	}
 enqueue:
-	for _, f := range files {
+	for i := range n {
 		select {
-		case jobs <- f:
+		case next <- i:
 		case <-ctx.Done():
 			break enqueue
 		}
 	}
-	close(jobs)
+	close(next)
 	workers.Wait()
 	if firstErr != nil {
 		return firstErr
