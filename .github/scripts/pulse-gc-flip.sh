@@ -59,7 +59,9 @@ case $mode in
     # Every datanode restarts together: the StatefulSet is Parallel, and the
     # next upgrade holds the partition again.
     k patch statefulset pulse-datanode --type merge -p '{"spec":{"updateStrategy":{"rollingUpdate":{"partition":0}}}}'
-    k delete pod -l app.kubernetes.io/instance=pulse,app.kubernetes.io/component=datanode --wait=false
+    # Waiting for the deletion keeps a resumed switch, whose datanodes may
+    # already be on the update revision, from reading the old pods as rolled.
+    k delete pod -l app.kubernetes.io/instance=pulse,app.kubernetes.io/component=datanode --wait=true --timeout=300s
     k rollout status statefulset/pulse-datanode --timeout=900s
     # Readiness follows region opening (init_regions_in_background = false).
     # Give heartbeats a few intervals to fail before checking they did not.
