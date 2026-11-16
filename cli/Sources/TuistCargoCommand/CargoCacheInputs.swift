@@ -50,7 +50,7 @@ struct CargoCacheInputs {
 
     static func discover(
         arguments: [String], environment: [String: String], directory: AbsolutePath,
-        externs: [URL], process: CargoProcess
+        externs: [URL], process: CargoProcess, clippy: Bool
     ) async throws -> CargoCacheInputs {
         let base = URL(fileURLWithPath: directory.pathString)
         return try await FileSystem().runInTemporaryDirectory(prefix: "tuist-cargo-inputs") { temporary in
@@ -72,7 +72,7 @@ struct CargoCacheInputs {
             guard try depInfo.resourceValues(forKeys: [.fileSizeKey]).fileSize.map({ $0 < 2_000_000 }) == true
             else { throw CargoCacheInvocation.CacheError.unsupported }
             let text = try String(contentsOf: depInfo, encoding: .utf8)
-            try CargoCacheInvocation.validateEnvironmentDependencies(text)
+            try CargoCacheInvocation.validateEnvironmentDependencies(text, clippy: clippy)
             let sources = try CargoCacheInvocation.dependencies(text).map {
                 URL(fileURLWithPath: $0, relativeTo: base).standardizedFileURL
             }

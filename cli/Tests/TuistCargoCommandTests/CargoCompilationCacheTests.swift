@@ -69,7 +69,7 @@ struct CargoCompilationCacheTests {
             arguments: ["rustc"], environment: [:], directory: try AbsolutePath(validating: workspace.path), output: output,
             name: "app", files: files, key: REAPI.emptyBlob, declared: REAPI.emptyBlob, reads: nil, relocation: relocation,
             inputHasher: CargoInputHasher(sessionDirectory: nil), recorder: "", toolchain: root, externs: [],
-            linksWithSystemLinker: true, debugBundle: "app.dSYM"
+            linksWithSystemLinker: true, debugBundle: "app.dSYM", program: "rustc"
         )
         // Both name the checkout; only the binary's bytes can depend on it.
         for file in files.prefix(3) {
@@ -951,6 +951,77 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.prepare(environment: unknown) == nil)
     }
 
+    @Test(.inTemporaryDirectory) func metadataOnlyCompilationsHaveTheirOwnCertifiedEntries() async throws {
+        let fixture = try await fixture()
+        let check = try #require(await fixture.prepare(arguments: fixture.checkArguments))
+        #expect(check.files == ["libtiny-123.rmeta", "tiny-123.d"])
+        #expect(check.key != fixture.invocation.key)
+        try Data("check metadata".utf8).write(to: fixture.output.appendingPathComponent(check.files[0]))
+        try await fixture.cache(invocation: check).store(stdout: Data(), stderr: Data())
+        try fixture.removeOutputs()
+        // A check never serves a compilation that links.
+        #expect(try await fixture.cache().restoreLocally() == false)
+        var environment = check.environment
+        environment["TUIST_CARGO_SESSION"] = fixture.root.appendingPathComponent("next-session").path
+        let restored = try #require(await fixture.prepare(arguments: fixture.checkArguments, environment: environment))
+        #expect(try await fixture.cache(invocation: restored).restoreLocally())
+        let metadata = fixture.output.appendingPathComponent(check.files[0])
+        #expect(try Data(contentsOf: metadata) == Data("check metadata".utf8))
+        #expect(!FileManager.default.fileExists(atPath: fixture.output.appendingPathComponent("libtiny-123.rlib").path))
+        // Dependents in the new session accept the restored metadata as an extern.
+        #expect(CargoCacheInputs.isCertified(try CargoInputHasher().digest(metadata), environment: environment))
+    }
+
+    @Test(.inTemporaryDirectory) func clippyCompilationsKeyTheDriverAndWhatItReads() async throws {
+        let fixture = try await fixture()
+        let driver = fixture.invocation.toolchain.appendingPathComponent("bin/clippy-driver")
+        try "#!/bin/sh\necho 'clippy 0.1.99 (test)'\n".write(to: driver, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: driver.path)
+        let check = try #require(await fixture.prepare(arguments: fixture.checkArguments))
+        var environment = fixture.invocation.environment
+        environment["RUSTC_WORKSPACE_WRAPPER"] = driver.path
+        environment["CLIPPY_ARGS"] = "-W__CLIPPY_HACKERY__clippy::pedantic__CLIPPY_HACKERY__"
+        // Cargo starts dependencies as rustc, which reads neither variable: they keep the entries of `cargo check`.
+        #expect(try await fixture.prepare(arguments: fixture.checkArguments, environment: environment)?.key == check.key)
+        func clippy(_ environment: [String: String], emit: [String]? = nil) async throws -> REAPI.Digest? {
+            try await fixture.prepare(
+                arguments: [environment["RUSTC_WORKSPACE_WRAPPER"] ?? driver.path] + (emit ?? fixture.checkArguments),
+                environment: environment
+            )?.key
+        }
+        var keys = [check.key, try #require(await clippy(environment))]
+        environment["CLIPPY_ARGS"] = "-D__CLIPPY_HACKERY__clippy::pedantic__CLIPPY_HACKERY__"
+        keys.append(try #require(await clippy(environment)))
+        environment["CLIPPY_DISABLE_DOCS_LINKS"] = "1"
+        keys.append(try #require(await clippy(environment)))
+        // The configuration Clippy finds above the package, then a changed one.
+        let configuration = fixture.invocation.package.deletingLastPathComponent().appendingPathComponent("clippy.toml")
+        try "msrv = \"1.70\"\n".write(to: configuration, atomically: true, encoding: .utf8)
+        keys.append(try #require(await clippy(environment)))
+        try "msrv = \"1.80\"\n".write(to: configuration, atomically: true, encoding: .utf8)
+        keys.append(try #require(await clippy(environment)))
+        #expect(Set(keys).count == keys.count)
+        #expect(try await clippy(environment) == keys.last)
+        // Lints that run `cargo metadata`, a driver that links, and other workspace wrappers stay uncached.
+        for lints in [
+            "-W__CLIPPY_HACKERY__clippy::cargo__CLIPPY_HACKERY__", "-Wclippy::cargo__CLIPPY_HACKERY__",
+            "-D__CLIPPY_HACKERY__clippy::multiple-crate-versions__CLIPPY_HACKERY__",
+        ] {
+            var cargoLints = environment
+            cargoLints["CLIPPY_ARGS"] = lints
+            #expect(try await clippy(cargoLints) == nil)
+        }
+        // The driver would compile against the standard library `SYSROOT` names.
+        var sysroot = environment
+        sysroot["SYSROOT"] = fixture.root.path
+        #expect(try await clippy(sysroot) == nil)
+        #expect(try await clippy(environment, emit: fixture.invocation.arguments) == nil)
+        var other = environment
+        other["RUSTC_WORKSPACE_WRAPPER"] = fixture.root.appendingPathComponent("clippy-driver").path
+        try FileManager.default.copyItem(at: driver, to: URL(fileURLWithPath: try #require(other["RUSTC_WORKSPACE_WRAPPER"])))
+        #expect(try await clippy(other) == nil)
+    }
+
     @Test(.inTemporaryDirectory) func rejectsSourceAndOutputSymlinks() async throws {
         let fixture = try await fixture()
         let link = fixture.invocation.package.appendingPathComponent("linked.rs")
@@ -1412,6 +1483,11 @@ struct CargoCompilationCacheTests {
         let source: URL
         let output: URL
         let invocation: CargoCacheInvocation
+
+        /// The invocation's arguments as `cargo check` passes them.
+        var checkArguments: [String] {
+            invocation.arguments.map { $0 == "--emit=dep-info,metadata,link" ? "--emit=dep-info,metadata" : $0 }
+        }
 
         func cache(
             invocation: CargoCacheInvocation? = nil, remote: (any REAPICacheStoring)? = nil, directory: String = "cache"

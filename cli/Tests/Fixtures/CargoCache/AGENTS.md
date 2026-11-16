@@ -73,7 +73,7 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 
 Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; the next build restores the absent profile from the snapshot that restoration left, and a snapshot whose files were rewritten, or that holds a file its record does not list, is discarded; a checkout whose `Cargo.lock` differs (an added path dependency) still restores it; a build without `CARGO_INCREMENTAL` restores it after `CARGO_INCREMENTAL=0` builds, and so does the per-crate cache when a different Cargo configuration makes the unit manifest miss; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib, with no snapshot to fall back on, is not restored and Cargo compiles it again. Every build's program must print `42`. A second project depends on `lzma-sys`, whose build script prints its include directory inside Cargo home: a checkout at another path must restore that run instead of compiling the C library again, and its program must print `true`. Fetch `lzma-sys 0.1.20` with ordinary Cargo first; the script builds offline.
 
-`units_e2e.sh`, `recorded_e2e.sh` and `sources_e2e.sh` share `common.sh`, which isolates the cache and clears inherited Tuist, GitHub and loader settings. Write new fixtures in shell, not Python.
+`units_e2e.sh`, `recorded_e2e.sh`, `sources_e2e.sh` and `check_e2e.sh` share `common.sh`, which isolates the cache and clears inherited Tuist, GitHub and loader settings. Write new fixtures in shell, not Python.
 
 ## Recorded compilations and build-script runs
 
@@ -105,3 +105,12 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 ```
 
 Offline and local-only on arm64 macOS, through the public command with `TUIST_DEBUG=1`. A workspace has a strict path library, a proc-macro user with a deterministic build script, and a library whose build script writes the current time. Under `TUIST_CARGO_VERIFY=always` the strict hit's source list must agree and still restore, and every recorded compilation and build-script run must read what keyed it. Under `TUIST_CARGO_VERIFY_RECOMPILE=always` every hit compiles and only the timestamped run may differ, as `content`; with `CARGO_INCREMENTAL=1` (in a cache of its own, since Cargo folds it into workspace crates' `-C metadata`) the comparison must agree on metadata and dep-info and say it skipped codegen. A build after each must restore the cold build's timestamp, because verification never stores anything. `sampled` selects too few of these units to test here; its selection is unit-tested.
+
+## Check and Clippy
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/check_e2e.sh
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`, with Clippy installed for the toolchain. A warm `cargo check` restores a workspace library and the library it depends on, whose restored metadata must be certified for the first to hit, and replays its rustc warning; a build afterwards must miss every library, since check entries never serve a build. A path library outside the workspace, which `cargo clippy` compiles with rustc, keeps its check entry. Clippy compilations miss on their first run, hit and replay Clippy's warning on the next, and miss when `CLIPPY_ARGS`, the `clippy.toml` Clippy finds above the package (a new file or edited content) or the package's `Cargo.toml` change; a comment in that manifest must not invalidate `cargo check`. Enabling the `cargo` lints, from the command line (including a joined, hyphenated `-Wclippy::multiple-crate-versions`) or in a crate's source, must never be restored. A library that calls a workspace proc macro is cached only by the read recorder (arm64 macOS, x86_64/aarch64 Linux), under both commands.
