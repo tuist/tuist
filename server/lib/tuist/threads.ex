@@ -706,6 +706,12 @@ defmodule Tuist.Threads do
      "The repository or workspace changed since review. Review the current changes again before approving Ship.", []}
   end
 
+  defp run_outcome(_thread, _run, {false, {:error, {failure, _reason}}})
+       when failure in [:snapshot_load_failed, :journal_load_failed] do
+    {"failed",
+     "This thread's saved conversation could not be read, so it cannot continue. Start a new thread to keep working.", []}
+  end
+
   defp run_outcome(_thread, _run, {false, _}) do
     {"failed",
      "The run could not complete. Check the connected AI account and workspace, then send a new message to retry.", []}

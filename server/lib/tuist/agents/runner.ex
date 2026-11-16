@@ -18,8 +18,8 @@ defmodule Tuist.Agents.Runner do
       with the want count the renewal read; a session that stops replies, and
       is released as no longer wanted unless a want arrived since.
     * Its process ended. It is released as still wanted, and a host resumes
-      it from its journal. One that ended with `{:shutdown, :store_unavailable}`
-      could not reach its session store; it is claimable again only after
+      it from its journal. One that ended with `{:shutdown, :unavailable}` could
+      not reach its session store or the database; it is claimable again only after
       `:store_retry_ms`, so an outage is not retried at the pace of the poll.
     * Its lease was lost on renewal. The runner asks it to drain and forgets
       it without releasing it: another host already holds it, and the store
@@ -83,33 +83,22 @@ defmodule Tuist.Agents.Runner do
   def handle_info(:renew, state) do
     Process.send_after(self(), :renew, @renew_ms)
     leases = Enum.map(state.sessions, fn {id, session} -> {id, session.epoch} end)
-    held = Lease.renew(state.host, leases)
 
-    state =
-      Enum.reduce(state.sessions, state, fn {id, session}, state ->
-        case Map.fetch(held, {id, session.epoch}) do
-          {:ok, seq} ->
-            # The token is the want count read before the session decides.
-            session.kind.stop_if_idle(session.pid, self(), {id, session.epoch, seq})
-            state
-
-          :error ->
-            # Another host holds it now; stopping it must not release it.
-            Logger.warning("agent session #{id} lost its lease, draining it")
-            Process.demonitor(session.ref, [:flush])
-            session.kind.drain(session.pid)
-            forget(state, id)
-        end
-      end)
-
-    {:noreply, state}
+    case safely(fn -> Lease.renew(state.host, leases) end) do
+      {:ok, held} -> {:noreply, renewed(state, held)}
+      # Leases outlive a failed renewal by most of their TTL; the next tick
+      # tries again, and a session whose lease lapses meanwhile is fenced.
+      :error -> {:noreply, state}
+    end
   end
 
   def handle_info({Kind, :idle, pid, {id, epoch, seq}}, state) do
     case state.sessions do
       %{^id => %{pid: ^pid, epoch: ^epoch} = session} ->
         Process.demonitor(session.ref, [:flush])
-        Lease.release(id, epoch, wanted: false, seen: seq)
+        # A release that fails leaves the lease to lapse, after which a host
+        # claims the session and finds it idle.
+        safely(fn -> Lease.release(id, epoch, wanted: false, seen: seq) end)
         {:noreply, forget(state, id)}
 
       _ ->
@@ -123,8 +112,8 @@ defmodule Tuist.Agents.Runner do
         if reason not in [:normal, :shutdown] and not match?({:shutdown, _}, reason),
           do: Logger.warning("agent session #{id} exited: #{inspect(reason, limit: 5)}")
 
-        delay_ms = if reason == {:shutdown, :store_unavailable}, do: state.store_retry_ms, else: 0
-        Lease.release(id, session.epoch, delay_ms: delay_ms)
+        delay_ms = if reason == {:shutdown, :unavailable}, do: state.store_retry_ms, else: 0
+        safely(fn -> Lease.release(id, session.epoch, delay_ms: delay_ms) end)
         {:noreply, forget(state, id)}
 
       nil ->
@@ -134,6 +123,24 @@ defmodule Tuist.Agents.Runner do
 
   def handle_info(_message, state), do: {:noreply, state}
 
+  defp renewed(state, held) do
+    Enum.reduce(state.sessions, state, fn {id, session}, state ->
+      case Map.fetch(held, {id, session.epoch}) do
+        {:ok, seq} ->
+          # The token is the want count read before the session decides.
+          session.kind.stop_if_idle(session.pid, self(), {id, session.epoch, seq})
+          state
+
+        :error ->
+          # Another host holds it now; stopping it must not release it.
+          Logger.warning("agent session #{id} lost its lease, draining it")
+          Process.demonitor(session.ref, [:flush])
+          session.kind.drain(session.pid)
+          forget(state, id)
+      end
+    end)
+  end
+
   @impl true
   def terminate(_reason, state) do
     Enum.each(state.sessions, fn {_id, session} -> session.kind.drain(session.pid) end)
@@ -141,7 +148,7 @@ defmodule Tuist.Agents.Runner do
 
     # Released even if a session did not exit in time: its writes are fenced
     # by the next host's claim.
-    Enum.each(state.sessions, fn {id, session} -> Lease.release(id, session.epoch) end)
+    Enum.each(state.sessions, fn {id, session} -> safely(fn -> Lease.release(id, session.epoch) end) end)
   end
 
   defp await_down(refs, _left) when map_size(refs) == 0, do: :ok
@@ -157,12 +164,14 @@ defmodule Tuist.Agents.Runner do
     end
   end
 
+  # A failed claim is retried by the next poll.
   defp claim(state) do
     room = room(state)
 
-    state.host
-    |> Lease.claim(room)
-    |> Enum.reduce(state, &host/2)
+    case safely(fn -> Lease.claim(state.host, room) end) do
+      {:ok, claimed} -> Enum.reduce(claimed, state, &host/2)
+      :error -> state
+    end
   end
 
   defp room(state) do
@@ -180,16 +189,28 @@ defmodule Tuist.Agents.Runner do
     else
       :error ->
         Logger.error("agent session #{id} has unknown kind #{inspect(kind)}")
-        Lease.release(id, epoch, wanted: false)
+        safely(fn -> Lease.release(id, epoch, wanted: false) end)
         state
 
       {:error, reason} ->
         # Wanted again by the next host to poll, which may have what this
         # one lacked; a session that can never start is the kind's to end.
         Logger.warning("agent session #{id} failed to start: #{inspect(reason, limit: 5)}")
-        Lease.release(id, epoch)
+        safely(fn -> Lease.release(id, epoch) end)
         state
     end
+  end
+
+  # The runner is a permanent child of the application's supervisor: a
+  # database error, as during a failover, must not crash it, or a few in a
+  # row would take the whole application down. Every lease operation is
+  # retried by a later tick or covered by the lease's TTL.
+  defp safely(fun) do
+    {:ok, fun.()}
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("agent runner database call failed: #{Exception.message(error)}")
+      :error
   end
 
   defp forget(state, id), do: %{state | sessions: Map.delete(state.sessions, id)}

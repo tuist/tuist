@@ -95,11 +95,22 @@ defmodule Tuist.Threads.Host do
   def handle_cast({:stop_if_idle, reply_to, token}, state) do
     # One step of this process: work that arrives later finds it gone, and
     # its want keeps the thread wanted (`Tuist.Agents.Lease.release/3`).
-    if is_nil(state.task) and is_nil(Threads.next_run(state.id)) do
-      send(reply_to, {Kind, :idle, self(), token})
-      {:stop, :normal, state}
-    else
+    if state.task do
       {:noreply, state}
+    else
+      case next_run(state) do
+        {:ok, nil} ->
+          send(reply_to, {Kind, :idle, self(), token})
+          {:stop, :normal, state}
+
+        # Work this host was not woken for, as when the wake was lost.
+        {:ok, _run_id} ->
+          send(self(), :work)
+          {:noreply, state}
+
+        :error ->
+          {:stop, {:shutdown, :unavailable}, state}
+      end
     end
   end
 
@@ -112,11 +123,14 @@ defmodule Tuist.Threads.Host do
 
   @impl GenServer
   def handle_info(message, %{task: nil} = state) when message in [:work, {Lease, :wake}] do
-    case Threads.next_run(state.id) do
-      nil ->
+    case next_run(state) do
+      {:ok, nil} ->
         {:noreply, state}
 
-      run_id ->
+      :error ->
+        {:stop, {:shutdown, :unavailable}, state}
+
+      {:ok, run_id} ->
         case Threads.claim(run_id, state.epoch) do
           {:ok, {run, thread}} ->
             {epoch, host} = {state.epoch, self()}
@@ -141,18 +155,18 @@ defmodule Tuist.Threads.Host do
 
   def handle_info(:heartbeat, state) do
     Process.send_after(self(), :heartbeat, @heartbeat_ms)
-    if state.run, do: Threads.keep_alive(state.run)
+    if state.run, do: keep_alive(state)
     {:noreply, state}
   end
 
   def handle_info({ref, result}, %{task: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
 
-    if store_unavailable?(result) do
+    if store_failure(result) == :unavailable do
       # The run stays running at this epoch, for the host that claims the
       # thread once the store is back to resume from what it stored.
       Logger.warning("thread #{state.id} could not reach its session store: #{inspect(result, limit: 5)}")
-      {:stop, {:shutdown, :store_unavailable}, %{state | task: nil, session: nil}}
+      {:stop, {:shutdown, :unavailable}, %{state | task: nil, session: nil}}
     else
       # A finish that fails was fenced: the run was ended meanwhile, as by an
       # archive, or this attempt lost it, as when the owner lost access. The
@@ -175,13 +189,45 @@ defmodule Tuist.Threads.Host do
 
   def handle_info(_message, state), do: {:noreply, state}
 
-  # The session store could not load the session or journal the run's start,
-  # as during an object storage outage. A fenced store means another host
-  # holds the thread, which the finish's own fencing settles.
-  defp store_unavailable?({:error, {failure, reason}})
-       when failure in [:snapshot_load_failed, :journal_load_failed, :journal_failed], do: reason != :fenced
+  # A database that fails while this host has no run hands the thread on, as
+  # an unreachable store does, so a later host retries after a backoff.
+  defp next_run(state) do
+    {:ok, Threads.next_run(state.id)}
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("thread #{state.id} could not look for work: #{Exception.message(error)}")
+      :error
+  end
 
-  defp store_unavailable?(_result), do: false
+  # A heartbeat that fails while the run's task works must not crash this
+  # process and leave the task running unowned; the next one tries again.
+  defp keep_alive(state) do
+    Threads.keep_alive(state.run)
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("thread #{state.id} heartbeat failed: #{Exception.message(error)}")
+  end
+
+  # Whether the session store failed to load the session or journal the
+  # run's start. What it stored but cannot be read, such as an object that
+  # does not decrypt or a segment that is gone, stays that way, so the run
+  # ends; anything else, as during an object storage outage, is retried by a
+  # later host. A fenced store means another host holds the thread, which the
+  # finish's own fencing settles.
+  defp store_failure({:error, {failure, reason}})
+       when failure in [:snapshot_load_failed, :journal_load_failed, :journal_failed] do
+    cond do
+      reason == :fenced -> nil
+      unreadable?(reason) -> :unreadable
+      true -> :unavailable
+    end
+  end
+
+  defp store_failure(_result), do: nil
+
+  defp unreadable?(reason) when reason in [:undecodable, :missing, :invalid_snapshot, :invalid_journal], do: true
+  defp unreadable?({:unsupported_snapshot_version, _version}), do: true
+  defp unreadable?(_reason), do: false
 
   defp execute(run, %{repository: nil} = thread, epoch, host), do: infer(run, thread, nil, epoch, host)
 

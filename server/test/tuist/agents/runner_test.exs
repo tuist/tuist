@@ -1,6 +1,7 @@
 defmodule Tuist.Agents.RunnerTest do
   # The runner is its own process, so it shares the test's sandbox connection.
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
   alias Tuist.Agents.Kind
   alias Tuist.Agents.Lease
@@ -44,6 +45,8 @@ defmodule Tuist.Agents.RunnerTest do
 
     def session(id), do: Agent.get(state(), & &1[id])
   end
+
+  setup :set_mimic_global
 
   setup do
     start_supervised!(%{id: FakeKind.State, start: {Agent, :start_link, [fn -> %{} end, [name: FakeKind.State]]}})
@@ -130,6 +133,26 @@ defmodule Tuist.Agents.RunnerTest do
     assert %{host: ^host, epoch: ^epoch} = row(id)
   end
 
+  # The runner is a permanent child of the application: a database failover
+  # must not crash it, and the sessions it hosts keep running.
+  test "a renewal that fails on the database leaves the runner and its sessions running" do
+    id = "s-" <> Ecto.UUID.generate()
+    Lease.want(id, "fake")
+    {runner, host} = start_runner()
+    eventually(fn -> Runner.hosted(runner) == [id] end)
+
+    stub(Lease, :renew, fn _host, _leases -> raise DBConnection.ConnectionError, "connection lost" end)
+    ref = Process.monitor(runner)
+    send(runner, :renew)
+    assert Runner.hosted(runner) == [id]
+    refute_received {:DOWN, ^ref, :process, ^runner, _reason}
+
+    stub(Lease, :renew, &Mimic.call_original(Lease, :renew, [&1, &2]))
+    send(runner, :renew)
+    assert Runner.hosted(runner) == [id]
+    assert %{host: ^host} = row(id)
+  end
+
   test "honours the session cap" do
     ids = for _ <- 1..3, do: "s-" <> Ecto.UUID.generate()
     Enum.each(ids, &Lease.want(&1, "fake"))
@@ -170,7 +193,7 @@ defmodule Tuist.Agents.RunnerTest do
     {runner, _host} = start_runner(store_retry_ms: 60_000)
     eventually(fn -> Runner.hosted(runner) == [id] end)
 
-    Agent.stop(FakeKind.session(id).pid, {:shutdown, :store_unavailable})
+    Agent.stop(FakeKind.session(id).pid, {:shutdown, :unavailable})
     eventually(fn -> Runner.hosted(runner) == [] and row(id).host == nil end)
 
     assert row(id).wanted

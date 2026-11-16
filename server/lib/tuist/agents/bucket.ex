@@ -33,15 +33,6 @@ defmodule Tuist.Agents.Bucket do
   end
 
   @impl true
-  def head(_config, key) do
-    case bucket() |> ExAws.S3.head_object(key) |> ExAws.request() do
-      {:ok, _} -> :ok
-      {:error, {:http_error, 404, _}} -> :not_found
-      {:error, reason} -> {:error, reason(reason)}
-    end
-  end
-
-  @impl true
   def list(_config, prefix, start_after) do
     opts = if start_after, do: [prefix: prefix, start_after: start_after], else: [prefix: prefix]
 
