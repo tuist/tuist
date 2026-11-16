@@ -9,12 +9,17 @@ import TuistServer
 
     @main
     struct TuistApp: App {
+        /// Sign-in continues after SwiftUI finishes `body`, so this has to be in place before any view.
+        /// A task-local binding around the menu would not reach that task, and the session would be
+        /// written into the CLI credentials file.
+        private let credentialsStore = ServerCredentialsStore.installAppKeychainStore()
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
         @StateObject private var bootstrapper = AppBootstrapper()
 
         private let updaterController: SPUStandardUpdaterController
 
         init() {
+            _ = credentialsStore
             updaterController = SPUStandardUpdaterController(
                 startingUpdater: true,
                 updaterDelegate: nil,
@@ -58,17 +63,13 @@ import TuistServer
 
         var body: some View {
             if bootstrapper.isReady {
-                ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
-                ) {
-                    // File locks serialize Keychain session refreshes with Luft, which takes
-                    // the same `credential-refresh-<hash>` lock under ~/.local/state/tuist.
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                        MenuBarView(
-                            appDelegate: appDelegate,
-                            updaterController: updaterController
-                        )
-                    }
+                // File locks serialize Keychain session refreshes with Luft, which takes
+                // the same `credential-refresh-<hash>` lock under ~/.local/state/tuist.
+                CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                    MenuBarView(
+                        appDelegate: appDelegate,
+                        updaterController: updaterController
+                    )
                 }
             } else {
                 ProgressView()

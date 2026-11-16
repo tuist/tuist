@@ -1,10 +1,13 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import TestCoverageAttribution
 import Testing
 import TuistAppStorage
 import TuistAuthentication
-import TuistServer
+
+@testable import TuistServer
 
 @Suite(.coverageAttribution) struct AuthenticationServiceTests {
     private let serverURL = URL(string: "https://tuist.dev")!
@@ -121,6 +124,56 @@ import TuistServer
 
         #expect(subject.authenticationState == .loggedIn(account: account, server: server))
         #expect(try appStorage.get(AuthenticationStateKey.self) == .loggedIn(account: account, server: server))
+    }
+
+    @Test(.inTemporaryDirectory) func sign_in_keeps_credentials_out_of_the_cli_file() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let cliDirectory = root.appending(component: "cli")
+        let appDirectory = root.appending(component: "app")
+        try await fileSystem.makeDirectory(at: cliDirectory)
+        try await fileSystem.makeDirectory(at: appDirectory)
+        let cliStore = ServerCredentialsStore(backend: .fileSystem, configDirectory: cliDirectory)
+        let appStore = ServerCredentialsStore(backend: .fileSystem, configDirectory: appDirectory)
+        let account = Account(email: "tuist@tuist.dev", handle: "tuist")
+        let appStorage = TestAppStorage(authenticationState: .loggedOut)
+        let serverURL = AppServerEnvironmentService(appStorage: appStorage).url()
+        let accessToken = try JWT.make(
+            expiryDate: Date().addingTimeInterval(600),
+            email: account.email,
+            preferredUsername: account.handle,
+            type: "account"
+        ).token
+        let refreshToken = try JWT.make(
+            expiryDate: Date().addingTimeInterval(3600),
+            email: account.email,
+            preferredUsername: account.handle,
+            type: "account"
+        ).token
+        let body = try JSONSerialization.data(withJSONObject: [
+            "access_token": accessToken,
+            "refresh_token": refreshToken,
+        ])
+        let response = try #require(
+            HTTPURLResponse(url: serverURL, statusCode: 200, httpVersion: nil, headerFields: nil)
+        )
+
+        try await withUnboundCredentialsStore(appStore) {
+            ServerCredentialsStore.$current.withValue(cliStore) {}
+            let subject = AuthenticationService(appStorage: appStorage) { _ in
+                (body, response)
+            }
+            await Task.yield()
+            try await subject.signInWithEmailAndPassword(email: account.email, password: "secret")
+
+            try await waitUntil {
+                subject.authenticationState == .loggedIn(account: account)
+            }
+
+            #expect(subject.authenticationState == .loggedIn(account: account))
+            #expect(try await appStore.read(serverURL: serverURL)?.accessToken == accessToken)
+            #expect(try await cliStore.read(serverURL: serverURL) == nil)
+        }
     }
 
     private func makeAuthenticationService(

@@ -1,5 +1,8 @@
 import FileSystem
 import Foundation
+#if os(macOS)
+    import Synchronization
+#endif
 #if !os(Linux)
     import KeychainAccess
 #endif
@@ -127,10 +130,100 @@ public enum ServerCredentialsStoreBackend: Sendable {
     #endif
 }
 
+/// Storage key of the credential refresh lock. Task-local CLI bindings keep the
+/// credentials-file path; the app's installed Keychain store keeps the canonical URL.
+func credentialRefreshStorageKey(serverURL: URL) throws -> String {
+    let current = ServerCredentialsStore.current
+    if let store = current as? ServerCredentialsStore {
+        return try store.storageKey(serverURL: serverURL)
+    }
+    #if os(macOS)
+        if let store = (current as? UnboundServerCredentialsStore)?.resolved as? ServerCredentialsStore {
+            return try store.storageKey(serverURL: serverURL)
+        }
+    #endif
+    return serverURL.absoluteString
+}
+
+#if os(macOS)
+    /// macOS default for `ServerCredentialsStore.current` when no task has bound a store.
+    /// The CLI leaves it on the credentials file. The app installs its Keychain store here
+    /// because a binding made while SwiftUI builds a view does not reach the later sign-in task.
+    public final class UnboundServerCredentialsStore: ServerCredentialsStoring, Sendable {
+        static let shared = UnboundServerCredentialsStore()
+
+        private struct State: Sendable {
+            var installed: ServerCredentialsStoring?
+            var fallback: ServerCredentialsStoring?
+        }
+
+        private let state = Mutex(State())
+
+        private init() {}
+
+        @discardableResult
+        func install(_ store: ServerCredentialsStoring?) -> ServerCredentialsStoring? {
+            state.withLock { state in
+                let previous = state.installed
+                state.installed = store
+                return previous
+            }
+        }
+
+        var resolved: ServerCredentialsStoring {
+            state.withLock { state in
+                if let installed = state.installed { return installed }
+                if let fallback = state.fallback { return fallback }
+                let created = ServerCredentialsStore(backend: .fileSystem)
+                state.fallback = created
+                return created
+            }
+        }
+
+        public func store(credentials: ServerCredentials, serverURL: URL) async throws {
+            try await resolved.store(credentials: credentials, serverURL: serverURL)
+        }
+
+        public func get(serverURL: URL) async throws -> ServerCredentials {
+            try await resolved.get(serverURL: serverURL)
+        }
+
+        public func read(serverURL: URL) async throws -> ServerCredentials? {
+            try await resolved.read(serverURL: serverURL)
+        }
+
+        public func delete(serverURL: URL) async throws {
+            try await resolved.delete(serverURL: serverURL)
+        }
+
+        public var credentialsChanged: AsyncStream<ServerCredentials?> {
+            resolved.credentialsChanged
+        }
+    }
+
+    func withUnboundCredentialsStore<T>(
+        _ store: ServerCredentialsStoring,
+        operation: () async throws -> T
+    ) async rethrows -> T {
+        let previous = UnboundServerCredentialsStore.shared.install(store)
+        defer { _ = UnboundServerCredentialsStore.shared.install(previous) }
+        return try await operation()
+    }
+#endif
+
 #if !os(Linux)
     public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
         #if os(macOS)
-            @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .fileSystem)
+            @TaskLocal public static var current: ServerCredentialsStoring = UnboundServerCredentialsStore.shared
+
+            /// Installs the Keychain store used by every app task that has not bound its own.
+            /// Call once at startup, before any read, write, or `credentialsChanged` subscription.
+            @discardableResult
+            public static func installAppKeychainStore() -> ServerCredentialsStore {
+                let store = ServerCredentialsStore(backend: .keychain)
+                UnboundServerCredentialsStore.shared.install(store)
+                return store
+            }
         #else
             @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .keychain)
         #endif

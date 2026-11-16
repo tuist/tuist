@@ -666,8 +666,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
         value: AuthenticationToken, expiresAt: Date?
     )? {
-        let credentialKey = try (ServerCredentialsStore.current as? ServerCredentialsStore)?
-            .storageKey(serverURL: serverURL) ?? serverURL.absoluteString
+        let credentialKey = try credentialRefreshStorageKey(serverURL: serverURL)
 
         // Background helpers and forced refreshes use different outer locks, but must
         // serialize rotation and credential cleanup against the same credential store.

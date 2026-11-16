@@ -28,6 +28,7 @@ xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp
 
 ## Authentication
 
+- On macOS, `TuistApp` calls `ServerCredentialsStore.installAppKeychainStore()` before building any view. Sign-in continues in a later task, so a task-local binding around `body` does not cover it and the app would write the CLI credentials file.
 - Both login screens keep hosted sign-in buttons and a separate self-hosted HTTPS URL prompt. Hosted sign-in clears saved selection; closing the prompt leaves the screen unchanged, and a saved URL only prefills it.
 - Persist URL and client ID together in `AppServerConfigurationKey`, then bind them to `AuthenticationState.loggedIn(account:server:)`. Resolve signed-in requests and credential cleanup with `AppServerEnvironmentService`, not the CLI service. Sign-out retains the prompt selection.
 - Self-hosted login reads same-origin `registration_endpoint` from `/.well-known/oauth-authorization-server` and registers a public PKCE client with `tuist://oauth-callback`. Servers without dynamic registration show an update error, never use the hosted client ID. Preserve issuing client IDs during token rotation; never bypass certificate checks or add broad ATS exceptions.
