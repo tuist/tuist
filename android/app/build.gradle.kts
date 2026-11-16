@@ -99,17 +99,6 @@ kotlin {
     }
 }
 
-// The Tuist plugin applies JaCoCo when coverage is on. Robolectric defines the app's classes in
-// its own class loader without a code source, which JaCoCo skips unless told to include them.
-pluginManager.withPlugin("jacoco") {
-    tasks.withType<Test>().configureEach {
-        extensions.configure<JacocoTaskExtension> {
-            isIncludeNoLocationClasses = true
-            excludes = listOf("jdk.internal.*")
-        }
-    }
-}
-
 play {
     isolatedSingleProject.set(true)
     val serviceAccountJsonPath = System.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")

@@ -62,16 +62,7 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      # settings.gradle.kts turns coverage on, so the unit tests report it to tuist/android.
-      - id: test
-        run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
-      # Tells the server the commit's coverage is all in once the run reported,
-      # failing tests included. A failed signal leaves the commit in progress
-      # without turning the run red.
-      - name: Signal that the commit's coverage is complete
-        if: success() || steps.test.outcome == 'failure'
-        continue-on-error: true
-        run: ./gradlew tuistCoverageComplete
+      - run: ./gradlew testDebugUnitTest assembleDebugAndroidTest
 
   test-fork:
     name: Test Fork
