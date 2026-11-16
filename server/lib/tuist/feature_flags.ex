@@ -188,8 +188,12 @@ defmodule Tuist.FeatureFlags do
   Production requires the `:runner_actions_cache` flag for the account during
   the rollout; other environments default to enabled.
   """
-  def runner_actions_cache_enabled?(account) do
-    Environment.env() != :prod or FunWithFlags.enabled?(:runner_actions_cache, for: account)
+  def runner_actions_cache_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_actions_cache,
+      account,
+      Environment.env() != :prod or flag_enabled?(:runner_actions_cache, account, flags)
+    )
   end
 
   @doc """
