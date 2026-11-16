@@ -2,7 +2,7 @@
 {
   "title": "Amp",
   "titleTemplate": ":title · Sandboxes · 功能 · Guides · Tuist",
-  "description": "喺 Tuist Sandboxes（Linux 或 macOS）上執行你 Amp workspace 嘅 orbs，或者透過 Tuist Mac 插件為任何 Amp thread 提供 Mac 環境以進行 Xcode 建構。"
+  "description": "喺 Tuist Sandboxes（Linux 或 macOS）上運行你 Amp workspace 嘅 orbs，或者透過 Tuist Mac plugin 為任何 Amp thread 提供 Mac 環境以進行 Xcode 構建。"
 }
 ---
 # Amp {#amp}
@@ -10,94 +10,105 @@
 > [!IMPORTANT]
 > **僅限邀請**
 >
-> Tuist Sandboxes（包括 Linux 同 macOS）目前只接受邀請。[聯絡我哋](mailto:contact@tuist.dev)或者喺[社區 Slack](https://slack.tuist.dev)通知我哋，為你嘅帳戶申請存取權限。
+> Tuist Sandboxes（包括 Linux 和 macOS）目前僅限邀請使用。[聯絡我們](mailto:contact@tuist.dev)或在[社群 Slack](https://slack.tuist.dev)中聯絡我們，以申請存取你的帳戶。
 
-[Amp](https://ampcode.com) 會喺 [orb](https://ampcode.com/docs/orbs)（一部已檢出該 thread 儲存庫嘅機器）入面執行每個 thread 嘅工具。Tuist 可以成為你 Amp workspace 嘅 [自託管 orb 供應商](https://ampcode.com/docs/orbs/self-hosted)：每個揀選佢嘅 thread 都會喺自己專屬嘅 Tuist <.localized_link href="/guides/features/sandboxes">sandbox</.localized_link> 中運行，支援 Linux 或 macOS。你無須自行運行或託管任何服務。
+[Amp](https://ampcode.com) 在一個 [orb](https://ampcode.com/docs/orbs)（已檢出該執行緒儲存庫的機器）中執行每個執行緒的工具。Tuist 可以成為你 Amp 工作區的 [自託管 orb 提供者](https://ampcode.com/docs/orbs/self-hosted)：每個選擇它的執行緒都會在其專屬的 Tuist <.localized_link href="/guides/features/sandboxes">sandbox</.localized_link> 中運行，支援 Linux 或 macOS。你無須自行運行或託管任何服務。
 
-如果你想讓執行緒留喺現有嘅 orbs 上面，並且只喺 Mac 上編譯、測試同運行 Apple 平台代碼，請改用[Tuist Mac 插件](#remote-mac)。
+若要讓執行緒保持在現有的 orb 上，並只在 Mac 上建置、測試和執行 Apple 平台程式碼，請改用 [Tuist Mac 外掛程式](#remote-mac)。
 
 ## 連接 Amp {#connect}
 
-你需要同時係 Amp 工作區同 Tuist 帳戶嘅管理員。
+你需要同時是 Amp 工作區和 Tuist 帳戶的管理員。
 
-1. 喺 Amp 入面，打開你工作區嘅**Settings → Orbs**，點擊**Add Orb Provider**，並為佢命名，例如`tuist`。成員會根據呢個名稱選擇提供者。複製`aop_live_…` token；Amp 只會顯示一次。
-2. 喺 Amp 提供者嘅**Edit**對話框中，加入你想提供嘅**Orb types**並選擇預設值。Linux 類型對應[Amp 自家 orbs](https://ampcode.com/docs/orbs/sizes-and-costs)嘅規格：
+1. 在 Amp 中，開啟工作區的 **Settings → Orbs**，點擊 **Add Orb Provider**，並為其命名，例如 `tuist`。成員會根據此名稱選擇提供者。複製 `aop_live_…` token；Amp 只會顯示一次。
+2. 在 Amp 中提供者的 **Edit** 對話框中，新增你想要提供的 **Orb types** 並選擇預設值。Linux 類型對應 [Amp 自身的 orbs](https://ampcode.com/docs/orbs/sizes-and-costs) 大小：
 
    | 類型 | 平台 | 規格 |
    | --- | --- | --- |
    | `linux` | Linux | 4 vCPU、8 GiB RAM、10 GB 工作區 |
    | `linux-tiny` | Linux | 1 vCPU、2 GiB RAM、10 GB 工作區 |
    | `linux-small` | Linux | 2 vCPU、4 GiB RAM、10 GB 工作區 |
-   | `linux-medium` | Linux | 4 vCPU、8 GiB RAM、10 GB 工作區（同`linux`一樣） |
+   | `linux-medium` | Linux | 4 vCPU、8 GiB RAM、10 GB 工作區（與 `linux` 相同） |
    | `linux-large` | Linux | 8 vCPU、16 GiB RAM、10 GB 工作區 |
    | `linux-xxlarge` | Linux | 16 vCPU、32 GiB RAM、10 GB 工作區 |
    | `linux-3xlarge` | Linux | 16 vCPU、44 GiB RAM、10 GB 工作區 |
-   | `macos` | macOS（連 Xcode） | 8 vCPU、8 GiB RAM、10 GB 工作區 |
+   | `macos` | macOS（配備預設 Xcode） | 8 vCPU、8 GiB RAM、10 GB 工作區 |
+   | `macos-xcode-<version>` | macOS（配備該版本 Xcode，例如 `macos-xcode-26-1-1` 代表 Xcode 26.1.1） | 8 vCPU、8 GiB RAM、10 GB 工作區 |
 
-3. 喺 Tuist 入面，打開你帳戶儀表板中嘅**Sandboxes**，點擊 Amp 卡片上嘅**Connect**，然後貼上 token。
+3. 在 Tuist 中，開啟帳戶儀表板的 **Sandboxes**，點擊 Amp 卡片上的 **Connect**，並貼上 token。
 
-當 Tuist 開始服務該提供者時，卡片會顯示**Connected**。一個 Tuist 帳戶對應一個提供者。任何喺 Amp 中使用該提供者嘅人，都會喺已連接嘅 Tuist 帳戶上運行 orbs 並由該帳戶計費。要停止服務，請點擊卡片上嘅**Disconnect**，或者喺 Amp 中關閉該提供者。
+當 Tuist 開始服務該提供者時，卡片會顯示 **Connected**。一個 Tuist 帳戶對應一個提供者。任何能在 Amp 中使用該提供者的人，其運行的 orb 都會計入並向已連接的 Tuist 帳戶收費。若要停止，請點擊卡片上的 **Disconnect**，或在 Amp 中關閉該提供者。
 
-## 開始一個執行緒 {#start-a-thread}
+## 啟動執行緒 {#start-a-thread}
 
-喺 Amp 嘅新執行緒建立器中，點擊**Orb**，喺**Self-Hosted**下面選擇 Tuist 提供者，然後揀一個類型，例如對於需求少過`linux`嘅儲存庫選`linux-small`，對於需求更大嘅選`linux-large`。從 Amp CLI 執行：
+在 Amp 的新執行緒編輯器中，點擊 **Orb**，在 **Self-Hosted** 下選擇 Tuist 提供者，並挑選類型，例如對於需求低於 `linux` 的儲存庫選擇 `linux-small`，或對於需求更高的選擇 `linux-large`。從 Amp CLI 執行：
 
 ```bash
 amp -ox "Fix the failing snapshot tests" --orb-provider tuist --orb-size macos
 ```
 
-執行緒會終身保留其 orb 類型。如果無指定類型，就會使用提供者嘅預設值。如果想讓每個新執行緒都使用同一種類型，請喺 Amp 嘅**Settings → Orbs**中嘅**Default Orb**下面選擇提供者及其類型。
+執行緒會終身保持其 orb 類型。若未指定類型，則使用提供者的預設值。若要為每個新執行緒使用同一類型，請在 Amp 的 **Settings → Orbs** 中的 **Default Orb** 下選擇提供者及其類型。
 
-Amp 會克隆儲存庫，運行你嘅`.agents/setup`腳本並設定 Git 憑證，就像對待每個 orb 一樣。每個 orb 亦都可以讀取你帳戶嘅 Tuist <.localized_link href="/guides/features/cache">cache</.localized_link>。
+### 選擇 Xcode {#xcode}
+
+`macos` 會執行預設的 <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link>。若要使用其他版本，請新增以其命名的 orb 類型，並將點號替換為連字號：`macos-xcode-26-1-1` 執行 Xcode 26.1.1，`macos-xcode-27-0` 執行 Xcode 27.0。為你的儲存庫鎖定的每個 Xcode 版本新增一個類型，並像其他類型一樣為每個執行緒選擇：
+
+```bash
+amp -ox "Fix the failing snapshot tests" --orb-provider tuist --orb-size macos-xcode-26-1-1
+```
+
+若 Tuist 不提供某個 Xcode 版本，針對該版本的類型在新 orb 啟動時會失敗。若 orb 已在該版本上啟動，即使 Tuist 停止提供該 Xcode，它仍會繼續恢復執行。
+
+Amp 會複製儲存庫、執行你的 `.agents/setup` 腳本並設定 Git 憑證，這與處理每個 orb 的方式相同。每個 orb 也可以讀取你帳戶的 Tuist <.localized_link href="/guides/features/cache">cache</.localized_link>。
 
 ## 暫停與保留 {#retention}
 
-當執行緒閒置時，Amp 會暫停其 orb。下一條訊息會恢復它，並且文件保持完整。
+當執行緒進入閒置狀態時，Amp 會暫停其 orb。下一則訊息會恢復它，且檔案保持完整。
 
-- **Linux：** 運行中嘅進程喺暫停後仍然存活。長期暫停嘅 orb 會移入歸檔存儲，並喺收到下一條訊息時恢復，但唔會恢復進程。Linux orbs 會保留文件，直到 Amp 刪除該執行緒嘅 orb。
-- **macOS：** 處於暫停狀態或錯誤狀態達 7 日嘅 orb 會被刪除。執行緒嘅下一條訊息會啟動一個全新嘅 orb，並且 Amp 會再次運行`.agents/setup`。機器上第一個 macOS orb 會安裝 Amp CLI，所以啟動可能需要長達兩分鐘。
+- **Linux：** 運行中的進程在暫停後仍能存活。若 orb 被暫停很長時間，它會移至歸檔儲存空間，並在收到下一則訊息時恢復，但不會恢復其進程。Linux orb 會保留其檔案，直到 Amp 刪除該執行緒的 orb。
+- **macOS：** 若 orb 處於暫停或錯誤狀態達 7 天，則會被刪除。執行緒的下一則訊息會啟動一個全新的 orb，且 Amp 會再次運行 `.agents/setup`。機器上的第一個 macOS orb 會安裝 Amp CLI，因此啟動可能需要長達兩分鐘。
 
-如果 orb 閒置而 Amp 無暫停它（例如因為暫停指令從未到達），十分鐘後它會被暫停，此時幾乎唔使用 CPU。
+若 orb 保持閒置而未被 Amp 暫停（例如因為從未收到暫停指令），它會在十分鐘後被暫停，此時幾乎不消耗 CPU。
 
-## 喺任何 Amp 執行緒中使用 Mac {#remote-mac}
+## 從任何 Amp 執行緒使用 Mac {#remote-mac}
 
-Tuist Mac 插件為 Amp 執行緒提供一個包含 Xcode、iOS 模擬器同 Homebrew 嘅 macOS sandbox，而執行緒會繼續喺原位運行，例如喺 Amp 自己嘅其中一個 Linux orb 上。向 Amp 指派工作，佢會喺需要時啟動一台 Mac：
+Tuist Mac 外掛程式為 Amp 執行緒提供一個配備 Xcode、iOS 模擬器和 Homebrew 的 macOS 沙盒，同時執行緒繼續在其原本的位置運行，例如在 Amp 自身的 Linux orb 上。向 Amp 指派工作，它會在需要時啟動一台 Mac：
 
-> 喺設定畫面加入深色模式切換掣，喺 iOS Simulator 中運行應用程式，並向我展示截圖。
+> 在設定畫面新增深色模式切換按鈕，在 iOS 模擬器中運行應用程式，並向我顯示截圖。
 
-Amp 會喺運行位置繼續編輯代碼。喺 Mac 上執行每個命令之前，插件會運行 `tuist sandbox sync`，複製 Git 無忽略嘅文件（無論有無 commit），之後只複製已更改嘅文件。Mac 建立嘅構建產物同其他被忽略嘅文件會留喺嗰度，令構建保持增量。插件會加入呢啲工具，以及一個告訴 Amp 何時同如何使用佢哋嘅 `remote-mac` 技能：
+Amp 會在其運行位置繼續編輯程式碼。在 Mac 上執行每個命令之前，外掛程式會運行 `tuist sandbox sync`，這會複製 Git 未忽略的檔案（無論是否已提交），之後則只複製變更過的檔案。Mac 產生的建構產物和其他被忽略的檔案會保留在那裡，因此建構保持增量。外掛程式會新增這些工具，以及一個 `remote-mac` 技能，告訴 Amp 何時及如何使用它們：
 
 | 工具 | 功能 |
 | --- | --- |
-| `tuist_mac_start` | 建立執行緒嘅 Mac，或重用現有嘅，並進行同步 |
-| `tuist_mac_shell` | 同步後，喺 Mac 上執行命令 |
-| `tuist_mac_screenshot` | 喺執行緒中顯示模擬器或螢幕 |
-| `tuist_mac_download` | 將文件複製回來，例如已構建嘅 `.app` |
-| `tuist_mac_stop` | 刪除執行緒嘅 Mac |
+| `tuist_mac_start` | 建立執行緒的 Mac，或重複使用它，並進行同步 |
+| `tuist_mac_shell` | 同步，然後在 Mac 上運行命令 |
+| `tuist_mac_screenshot` | 在執行緒中顯示模擬器或螢幕 |
+| `tuist_mac_download` | 將檔案複製回來，例如已建構的 `.app` |
+| `tuist_mac_stop` | 刪除執行緒的 Mac |
 
-Mac 本身無 Tuist CLI：第一次同步後，Amp 會喺儲存庫根目錄運行 `mise install` 以安裝項目指定嘅 Tuist 版本，而 `tuist_mac_shell` 會將 mise 嘅 shims 加入 `PATH`。Mac 上嘅每個命令都會使用 Tuist 4.218.0 或更高版本自行<.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">登入你帳戶嘅 cache</.localized_link>；如果使用 4.215.0 至 4.217.x 版本，Amp 會先運行 `tuist auth login`。
+Mac 本身沒有 Tuist CLI：在首次同步後，Amp 會在儲存庫根目錄運行 `mise install`，以安裝專案鎖定的 Tuist 版本，而 `tuist_mac_shell` 會將 mise 的 shims 加入 `PATH`。Mac 上的每個命令都會使用 Tuist 4.218.0 或更高版本自行<.localized_link href="/guides/features/sandboxes#tuist-in-sandbox">登入你帳戶的快取</.localized_link>；若使用 4.215.0 至 4.217.x 版本，Amp 會先運行 `tuist auth login`。
 
-一個執行緒使用一台 Mac。當它閒置時，Tuist 會暫停它，下一個命令會恢復它。任務完成後，Amp 會刪除它；遺留嘅 Mac 會喺暫停 14 日後被刪除。Mac 會計入你嘅 Tuist 帳戶用量，就好似其他 sandbox 一樣。
+一個執行緒使用一台 Mac。Amp 會將儲存庫鎖定的 <.localized_link href="/guides/features/sandboxes#xcode">Xcode</.localized_link>（例如在 `.xcode-version` 中指定）傳遞給 `tuist_mac_start`，或者你可以要求特定版本（「使用 Xcode 26.1.1」）；若未指定，Mac 會運行預設版本。Mac 會保留其 Xcode，因此切換意味著停止它並啟動另一台。Tuist 會在閒置時暫停它，下一個命令會恢復它。Amp 會在任務完成後刪除它；遺留的 Mac 在暫停 14 天後會被刪除。Mac 會像其他沙盒一樣計入你的 Tuist 帳戶用量。
 
 ### 設定 {#remote-mac-setup}
 
-1. **安裝插件。** 它只係一個文件：[`tuist-mac.ts`](https://github.com/tuist/tuist/blob/main/.amp/plugins/tuist-mac.ts)。要讓 Amp 工作區中嘅所有人都可以使用，工作區管理員需要喺執行緒中向 Amp 請求：
+1. **安裝外掛程式。** 它只有一個檔案：[`tuist-mac.ts`](https://github.com/tuist/tuist/blob/main/.amp/plugins/tuist-mac.ts)。若要讓 Amp 工作區中的所有成員都能使用它，工作區管理員需在執行緒中要求 Amp：
 
-   > 將 https://raw.githubusercontent.com/tuist/tuist/main/.amp/plugins/tuist-mac.ts 加入我哋嘅工作區插件。
+   > 將 https://raw.githubusercontent.com/tuist/tuist/main/.amp/plugins/tuist-mac.ts 加入我們的工作區外掛程式。
 
-   Amp 會將其提交到工作區嘅 [plugin repository](https://ampcode.com/docs/customize/global-plugins-and-skills)，並在推送前詢問。如果想只為自己安裝，可以改為請求「my personal plugins」，或者將文件保存為儲存庫中嘅 `.amp/plugins/tuist-mac.ts` 以僅喺該處使用。插件係一份副本：要更新它，請要求 Amp 用同一 URL 嘅最新版本替換它。
-2. **安裝 Tuist CLI** 喺 Amp 運行嘅地方。喺 orbs 上，將其加入儲存庫嘅 [`.agents/setup`](https://ampcode.com/docs/orbs/customizing) 腳本，例如 `mise use -g tuist@latest`，或者 `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`。
-3. **允許 CLI 使用你帳戶嘅 sandboxes。** 喺 orbs 上，按照 <.localized_link href="/guides/server/authentication#amp-orbs">Amp orbs</.localized_link> 中嘅描述，將你嘅 Amp 工作區連接到你嘅 Tuist 帳戶。Orbs 隨後會自行登入，並擁有訪問 sandboxes 嘅權限。喺其他地方，例如 Linux 機器上嘅 Amp CLI，請以帳戶成員身份運行 `tuist auth login`，或者將 `TUIST_MAC_TOKEN` 設置為具有 `account:sandboxes:write` 範圍嘅 <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>，並加上 `ci` 以便 Mac 使用 cache。插件會將 `TUIST_MAC_TOKEN` 傳遞給 CLI 以代替 `TUIST_TOKEN`，所以即使你嘅 orbs 已經有無該範圍嘅 `TUIST_TOKEN`，都要設置它。
-4. **告訴它使用哪個帳戶**，如果儲存庫中無包含 `project = "<account>/<project>"` 嘅 `tuist.toml`。喺 Linux 上，CLI 無法從 `Tuist.swift` 讀取帳戶資訊。請喺你 Amp 項目嘅環境變數中將 `TUIST_MAC_ACCOUNT` 設置為你嘅帳戶 handle。如果無設置，Amp 會將 `Tuist.swift` 中嘅 `fullHandle` 傳遞給 `tuist_mac_start`。
+   Amp 會將其提交至工作區的 [外掛程式儲存庫](https://ampcode.com/docs/customize/global-plugins-and-skills)，並在推送前詢問。若只想為自己安裝，請改為要求「my personal plugins」，或將檔案儲存為儲存庫中的 `.amp/plugins/tuist-mac.ts` 以僅在該處使用。此外掛程式是副本：若要更新，請要求 Amp 用同一 URL 的最新版本替換它。
+2. **安裝 Tuist CLI** 於 Amp 運行的位置。在 orb 上，將其加入儲存庫的 [`.agents/setup`](https://ampcode.com/docs/orbs/customizing) 腳本，例如 `mise use -g tuist@latest`，或 `curl -fsSL https://github.com/tuist/tuist/releases/download/<version>/tuist-linux-x86_64.tar.gz | tar -xz -C /usr/local/bin tuist`。
+3. **允許 CLI 使用你帳戶的沙盒。** 在 orb 上，按照 <.localized_link href="/guides/server/authentication#amp-orbs">Amp orbs</.localized_link> 中的說明將你的 Amp 工作區連接至 Tuist 帳戶。orb 隨後會自行登入，並擁有沙盒存取權限。在其他地方（例如 Linux 機器上的 Amp CLI），請以帳戶成員身份運行 `tuist auth login`，或將 `TUIST_MAC_TOKEN` 設定為具有 `account:sandboxes:write` 範圍的 <.localized_link href="/guides/server/authentication#account-tokens">帳戶 token</.localized_link>，並加上 `ci` 以便 Mac 使用快取。外掛程式會將 `TUIST_MAC_TOKEN` 傳遞給 CLI 以取代 `TUIST_TOKEN`，因此即使你的 orb 已有不含該範圍的 `TUIST_TOKEN`，也需設定它。
+4. **告知它要使用哪個帳戶**，前提是儲存庫中沒有包含 `project = "<account>/<project>"` 的 `tuist.toml`。在 Linux 上，CLI 無法從 `Tuist.swift` 讀取帳戶資訊。請在 Amp 專案的環境變數中將 `TUIST_MAC_ACCOUNT` 設定為你的帳戶名稱。若未設定，Amp 會將 `Tuist.swift` 的 `fullHandle` 傳遞給 `tuist_mac_start`。
 
-CLI 只會通過 `tuist.dev` 連接 Mac，所以限制網絡訪問嘅環境需要允許該域名。要使用無喺 `PATH` 中嘅 CLI，請將 `TUIST_MAC_CLI` 設置為其路徑。
+CLI 僅透過 `tuist.dev` 連接 Mac，因此限制網路存取的環境只需允許該網域。若要使用不在 `PATH` 上的 CLI，請將 `TUIST_MAC_CLI` 設定為其路徑。
 
-唔支持 Amp 插件嘅代理（例如 Claude Code 或 Cursor）可以通過 Tuist MCP 伺服器同 CLI 執行相同操作，詳情請參閱 <.localized_link href="/guides/features/sandboxes#coding-agents">Build on a Mac from a coding agent</.localized_link>。
+不支持 Amp 外掛程式的代理程式（例如 Claude Code 或 Cursor）可以透過 Tuist MCP 伺服器和 CLI 執行相同操作，詳情請參閱 <.localized_link href="/guides/features/sandboxes#coding-agents">從編碼代理程式在 Mac 上建構</.localized_link>。
 
-### 使用 Tuist Macs 代替 Amp 嘅 macOS Satellites {#remote-mac-satellites}
+### 使用 Tuist Mac 而非 Amp 的 macOS Satellites {#remote-mac-satellites}
 
-Amp 亦有自己嘅雲端 Mac，即 [macOS Satellites](https://ampcode.com/docs/orbs/mac)，目前處於測試階段，供加入其等候名單嘅工作區使用。當執行緒可以同時啟動兩者時，Amp 嘅內置指令會將 macOS 工作發送畀其 satellites，因此好少會選擇插件。要讓執行緒使用 Tuist Macs，請執行以下其中一項操作：
+Amp 也有自己的雲端 Mac，即 [macOS Satellites](https://ampcode.com/docs/orbs/mac)，目前針對加入等候名單的工作區提供測試版。當執行緒可以同時啟動兩者時，Amp 的內建指令會將 macOS 工作發送到其 satellites，因此很少選擇此外掛程式。若要讓執行緒使用 Tuist Mac，請執行以下其中一項操作：
 
-- **為自己關閉 macOS Satellites。** 每個成員都可以喺 Amp 嘅 [Settings → Experimental Features](https://ampcode.com/settings/experimental-features) 中嘅 **Mac Satellites** 下關閉它們。
-- **為工作區關閉它們。** 當你工作區嘅 orbs [run on Tuist](#connect) 時，工作區管理員可以喺 Amp 工作區設定中嘅 **Orbs** 下，將 **Where Orbs Run** 設置為 **Self-Hosted Only**。代理隨後無法啟動 Amp 託管嘅 satellites，但成員亦無法使用 Amp 嘅內置 orbs，所以只有當你所有執行緒都喺你自己嘅 orb 提供者上運行時，才執行此操作。
-- **請求使用 Tuist Macs。** 喺提示詞中加入「Use the `tuist_mac_*` tools for macOS work, not macOS Satellites.」，或者加入 Amp 工作區設定中嘅工作區代理指引，令每個執行緒都遵循它。
+- **為自己關閉 macOS Satellites。** 每位成員需在 Amp 的 [Settings → Experimental Features](https://ampcode.com/settings/experimental-features) 中的 **Mac Satellites** 下關閉它們。
+- **為工作區關閉它們。** 當你的工作區 orb [在 Tuist 上運行](#connect) 時，工作區管理員可以在 Amp 工作區設定的 **Orbs** 下，將 **Where Orbs Run** 設定為 **Self-Hosted Only**。這樣代理程式就無法啟動 Amp 託管的 satellites，但成員也無法使用 Amp 內建的 orb，因此僅在所有執行緒都運行在你自己的 orb 提供者上時才執行此操作。
+- **要求使用 Tuist Mac。** 在提示詞中加入「Use the `tuist_mac_*` tools for macOS work, not macOS Satellites.」，或將其加入 Amp 工作區設定中的代理程式指導方針，以便每個執行緒都遵循。

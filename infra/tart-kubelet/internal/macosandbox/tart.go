@@ -326,7 +326,11 @@ func (t *TartRuntime) Save(ctx context.Context, r *Record) error {
 	if _, err := t.control(ctx, r, "save"); err != nil {
 		return err
 	}
-	return t.fence(ctx, r)
+	if err := t.fence(ctx, r); err != nil {
+		return err
+	}
+	logStoredBytes(t.directory(r), r.SandboxID)
+	return nil
 }
 func (t *TartRuntime) fence(ctx context.Context, r *Record) error {
 	c := t.client(r)
