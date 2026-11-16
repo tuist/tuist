@@ -923,6 +923,33 @@ struct CachedModulesDebuggingGraphMapperTests {
         }
     }
 
+    @Test(.inTemporaryDirectory, arguments: [
+        (["CI": "true"], false),
+        (["CI": "1"], false),
+        (["JENKINS_URL": "https://jenkins.example.com"], false),
+        (["CI": "false"], true),
+        ([:], true),
+    ])
+    func generatedScript_doesNothingOnCI(ciEnvironment: [String: String], writesInitializer: Bool) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let graph = compilationCacheGraph(at: projectPath, customLLDBInitFiles: false)
+        let subject = CachedModulesDebuggingGraphMapper(compilationCachingEnabled: true)
+        let (mapped, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let action = try #require(mapped.projects[projectPath]?.schemes.first?.testAction)
+        let scriptPath = projectPath.appending(component: "debugger.sh")
+        try await FileSystem().writeText(try #require(action.preActions.first?.scriptText), at: scriptPath)
+        try writeCompilationPrefixMap(["/^root": projectPath.pathString], at: projectPath)
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "COMPILATION_CACHE_ENABLE_CACHING": "YES",
+            "TARGET_TEMP_DIR": projectPath.pathString,
+        ].merging(ciEnvironment) { $1 }
+
+        _ = try runProcess("/bin/sh", arguments: [scriptPath.pathString], environment: environment)
+
+        #expect(try await FileSystem().exists(try #require(action.customLLDBInitFile)) == writesInitializer)
+    }
+
     @Test(.inTemporaryDirectory)
     func generatedScript_ordersSourceMapTheWayTheCompilersResolvePrefixes() async throws {
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
