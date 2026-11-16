@@ -34,6 +34,7 @@ type fakeCAS struct {
 	reads   map[string]int    // instance/hash -> reads
 	corrupt map[string]bool   // hash -> serve wrong bytes once
 	release chan struct{}     // when set, reads wait for it
+	pace    time.Duration     // when set, reads send one byte per pace
 }
 
 func (f *fakeCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
@@ -43,7 +44,7 @@ func (f *fakeCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 	f.mu.Lock()
 	f.reads[instance+"/"+hash]++
 	ok := len(md.Get("authorization")) == 1 && md.Get("authorization")[0] == "Bearer "+f.tokens[instance]
-	data, corrupt, release := f.blobs[hash], f.corrupt[hash], f.release
+	data, corrupt, release, pace := f.blobs[hash], f.corrupt[hash], f.release, f.pace
 	delete(f.corrupt, hash)
 	f.mu.Unlock()
 	if release != nil {
@@ -54,6 +55,12 @@ func (f *fakeCAS) Read(r *bs.ReadRequest, s bs.ByteStream_ReadServer) error {
 	}
 	if corrupt {
 		data = []byte(strings.Repeat("x", len(data)))
+	}
+	for ; pace > 0 && len(data) > 1; data = data[1:] {
+		if err := s.Send(&bs.ReadResponse{Data: data[:1]}); err != nil {
+			return err
+		}
+		time.Sleep(pace)
 	}
 	return s.Send(&bs.ReadResponse{Data: data})
 }
@@ -203,6 +210,41 @@ func TestCorruptDownloadIsNotCached(t *testing.T) {
 	}
 	if got, err := readAll(t, c, s, hash, size); err != nil || got != "verified content" || cas.readCount("a", hash) != 2 {
 		t.Fatalf("after a corrupt download: %q %v, %d reads", got, err, cas.readCount("a", hash))
+	}
+}
+
+func TestStalledDownloadFailsButSlowOneFinishes(t *testing.T) {
+	c, cas, endpoint := setup(t, 1<<20)
+	c.stall = 300 * time.Millisecond
+	s := Scope{Endpoint: endpoint, Instance: "a", Token: "token-a"}
+
+	// A CAS that keeps sending finishes, however long the whole blob takes.
+	slow, slowSize := cas.put("0123456789")
+	cas.mu.Lock()
+	cas.pace = 100 * time.Millisecond
+	cas.mu.Unlock()
+	if got, err := readAll(t, c, s, slow, slowSize); err != nil || got != "0123456789" {
+		t.Fatalf("slow but steady download: %q %v", got, err)
+	}
+
+	// One that stops sending fails long before fillTimeout, so the guests
+	// waiting on it read the blob from the CAS themselves.
+	hash, size := cas.put("stalled content")
+	release := make(chan struct{})
+	cas.mu.Lock()
+	cas.pace, cas.release = 0, release
+	cas.mu.Unlock()
+	started := time.Now()
+	_, err := readAll(t, c, s, hash, size)
+	if !errors.Is(err, errStalled) || time.Since(started) > 5*time.Second {
+		t.Fatalf("stalled download: %v after %s", err, time.Since(started))
+	}
+	cas.mu.Lock()
+	cas.release = nil
+	cas.mu.Unlock()
+	close(release)
+	if got, err := readAll(t, c, s, hash, size); err != nil || got != "stalled content" || cas.readCount("a", hash) != 2 {
+		t.Fatalf("after a stalled download: %q %v, %d reads", got, err, cas.readCount("a", hash))
 	}
 }
 

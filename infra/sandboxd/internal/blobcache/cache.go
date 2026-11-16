@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -35,6 +36,18 @@ const MaxBlob = 1 << 30
 // fillTimeout bounds one CAS download. It does not depend on the requesting
 // action, whose cancellation must not fail the other actions waiting on it.
 const fillTimeout = 5 * time.Minute
+
+// stallTimeout fails a download that receives nothing for this long, so the
+// actions waiting on it read the blob from the CAS themselves instead of
+// waiting out fillTimeout behind a stalled stream.
+const stallTimeout = 30 * time.Second
+
+var errStalled = errors.New("CAS download stalled")
+
+// keepaliveParams ping a CAS connection while downloads run on it, so one
+// that died silently fails its downloads within seconds and reconnects,
+// instead of hanging every download on the node until TCP gives up.
+var keepaliveParams = keepalive.ClientParameters{Time: 15 * time.Second, Timeout: 10 * time.Second}
 
 // minFreeFraction is the share of the data filesystem the cache leaves free.
 // It shares the filesystem with runner cache volumes, containerd and kubelet,
@@ -107,6 +120,7 @@ type Cache struct {
 	// Filesystem reports the data filesystem's size and free bytes; tests
 	// replace it.
 	Filesystem func(path string) (total, available uint64, err error)
+	stall      time.Duration // stallTimeout; tests shorten it
 
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -129,7 +143,7 @@ func New(dir string, budget int64, log *slog.Logger, metrics *Metrics) (*Cache, 
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
+	return &Cache{dir: dir, budget: budget, log: log, metrics: metrics, Dial: Dial, Filesystem: diskusage.Filesystem, stall: stallTimeout, entries: map[string]*entry{}, conns: map[string]*grpc.ClientConn{}}, nil
 }
 
 // Dir is where the cache keeps its files, for disk accounting.
@@ -289,6 +303,10 @@ func (c *Cache) download(ctx context.Context, e *entry, s Scope, hash string) (e
 			os.Remove(tmp)
 		}
 	}()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	stall := time.AfterFunc(c.stall, func() { cancel(errStalled) })
+	defer stall.Stop()
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+s.Token, "x-tuist-account-handle", s.Account))
 	stream, err := bs.NewByteStreamClient(conn).Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/blobs/%s/%d", s.Instance, hash, e.size)})
 	if err != nil {
@@ -302,8 +320,12 @@ func (c *Cache) download(ctx context.Context, e *entry, s Scope, hash string) (e
 			break
 		}
 		if err != nil {
+			if cause := context.Cause(ctx); errors.Is(cause, errStalled) {
+				return cause
+			}
 			return err
 		}
+		stall.Reset(c.stall)
 		n += int64(len(part.Data))
 		if n > e.size {
 			return errors.New("CAS blob exceeds digest size")
@@ -358,7 +380,7 @@ func Dial(endpoint string) (*grpc.ClientConn, error) {
 	default:
 		return nil, ErrInvalid
 	}
-	return grpc.NewClient(endpoint, grpc.WithTransportCredentials(transport))
+	return grpc.NewClient(endpoint, grpc.WithTransportCredentials(transport), grpc.WithKeepaliveParams(keepaliveParams))
 }
 
 func validHash(h string) bool {

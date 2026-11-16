@@ -253,7 +253,10 @@ project. The cache comes out of the workers' disk budget and leaves 20% of
 the host's data filesystem free, evicting its own blobs first, so it never
 crowds out runner cache volumes or pushes kubelet into evictions. Any failure,
 or no room, falls back to reading that blob, and the rest of the action's
-inputs, from Kura.
+inputs, from Kura. A node download that receives nothing for 30 seconds
+counts as a failure, and sandboxd's connection to Kura pings while downloads
+run, so one stalled stream or dead connection costs the actions waiting on it
+seconds rather than minutes.
 
 The host serves only while the action exec runs, only VMs of the template the
 worker is configured with, and only until the executor seals the channel

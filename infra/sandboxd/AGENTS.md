@@ -322,7 +322,10 @@ One request per connection, a JSON line:
 A read answers `{"ok":true}` and exactly `L` bytes of the blob from `O`, or
 `{"error":"..."}`, and the guest then reads that blob from the CAS. A miss
 downloads the whole blob with the exec's credential, verifies its digest, and
-serves every concurrent request for it from that one download. Blobs are kept
+serves every concurrent request for it from that one download. A download that
+receives nothing for 30 seconds fails, and the CAS connection pings while
+downloads run, so a stalled stream or a silently dead connection fails its
+waiting reads within seconds instead of holding them for minutes. Blobs are kept
 per CAS scope (endpoint, account, instance), so a hit never serves another
 project's blob. The least recently used are evicted to stay within the
 budget and to leave 20% of the data filesystem free, which the cache shares
