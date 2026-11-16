@@ -67,7 +67,7 @@ enum CargoCacheReport {
         var payload: [String: Any] = result.mapValues { $0 as Any }
         payload["version"] = 1
         if var details = CargoCacheDetailsReport.read(root: root) {
-            let expected = ["hits", "misses", "unconsulted"].reduce(UInt64(0)) { $0 + result[$1, default: 0] }
+            let expected = ["hits", "misses", "unconsulted", "verifications"].reduce(UInt64(0)) { $0 + result[$1, default: 0] }
             if truncated { details["truncated"] = true }
             if let tasks = details["tasks"] as? [[String: Any]], UInt64(tasks.count) < expected { details["truncated"] = true }
             payload["details"] = details

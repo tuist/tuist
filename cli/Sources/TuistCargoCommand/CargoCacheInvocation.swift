@@ -197,7 +197,7 @@ struct CargoCacheInvocation: CargoCacheAction { // swiftlint:disable:this type_b
 
     /// The sources and keyed-when-read variables rustc's dep-info names for this compilation, once rustc has written it
     /// (before its metadata).
-    private func depInfoInputs() -> (sources: [URL], variables: [String])? {
+    func depInfoInputs() -> (sources: [URL], variables: [String])? {
         let path = output.appendingPathComponent(files[2])
         guard (try? path.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap({ $0 }).map({ $0 < 2_000_000 }) == true,
               let text = try? String(contentsOf: path, encoding: .utf8), let dependencies = try? Self.dependencies(text)

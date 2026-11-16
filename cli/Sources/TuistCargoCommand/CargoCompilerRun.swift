@@ -19,9 +19,16 @@ protocol CargoHookRun: AnyObject {
     func finish(succeeded: Bool) async
     /// Like `finish`, but returns the part Cargo need not wait for, which the caller runs after reporting the exit.
     func settle(succeeded: Bool) async -> @Sendable () async -> Void
+    /// Finishes a run whose process never reported an exit: it did not start, or its client went away. A failure, but
+    /// not one a verified hit would have hidden.
+    func abandon() async
 }
 
 extension CargoHookRun {
+    func abandon() async {
+        await finish(succeeded: false)
+    }
+
     func settle(succeeded: Bool) async -> @Sendable () async -> Void {
         await finish(succeeded: succeeded)
         return {}
@@ -48,10 +55,13 @@ final class CargoCompilerRun: CargoHookRun {
     private let strict: Bool
     /// Held until the result is stored, so another build compiling the same key restores it instead.
     private let flight: CargoFlight?
+    /// A sampled hit compiled to verify it: compared with its stored entry instead of published.
+    private let verification: CargoCacheVerification.Plan?
     private let started = Date()
     private var stdout = Data()
     private var stderr = Data()
     private var bounded = true
+    private var abandoned = false
     private var diagnostics: [CargoDiagnostic] = []
     private var pending = Data()
 
@@ -59,7 +69,8 @@ final class CargoCompilerRun: CargoHookRun {
         command: [String], environment: [String: String], arguments: [String], hookEnvironment: [String: String],
         directory: AbsolutePath, native: Bool, runner: CommandRunning, invocation: (any CargoCacheAction)?,
         recorded: CargoRecordedInvocation?, cache: CargoCompilationCache?, measurement: CargoCacheMeasurement?,
-        remote: (any REAPICacheStoring)?, log: URL?, strict: Bool, flight: CargoFlight? = nil
+        remote: (any REAPICacheStoring)?, log: URL?, strict: Bool, flight: CargoFlight? = nil,
+        verification: CargoCacheVerification.Plan? = nil
     ) {
         self.command = command
         self.environment = environment
@@ -76,6 +87,7 @@ final class CargoCompilerRun: CargoHookRun {
         self.log = log
         self.strict = strict
         self.flight = flight
+        self.verification = verification
     }
 
     func standardOutput(_ bytes: Data) {
@@ -98,8 +110,21 @@ final class CargoCompilerRun: CargoHookRun {
         await settle(succeeded: succeeded)()
     }
 
+    func abandon() async {
+        abandoned = true
+        await finish(succeeded: false)
+    }
+
     func settle(succeeded: Bool) async -> @Sendable () async -> Void {
         let finished = Date()
+        // A hit whose fresh compilation fails would have hidden the failure.
+        if !succeeded, verification != nil {
+            let finding: CargoCacheVerification.Finding = abandoned
+                ? .init(check: "outputs", outcome: .failed, detail: "the compilation did not report an exit")
+                : .init(check: "outputs", outcome: .content, detail: "the compilation failed, but its cached entry succeeded")
+            CargoCacheVerification.report([finding], name: invocation?.name ?? "unknown", environment: hookEnvironment)
+            if finding.divergent { measurement?.diverged() }
+        }
         let publish = succeeded ? await admit() : nil
         let script = succeeded && !native
             && CargoCacheInputs.values("--crate-name", in: arguments).first?.hasPrefix("build_script_") == true
@@ -127,7 +152,17 @@ final class CargoCompilerRun: CargoHookRun {
 
     /// Admits the compilation, certifying its outputs for strict dependents, and returns its publication.
     private func admit() async -> (() async -> Void)? {
-        guard bounded, let root = hookEnvironment["TUIST_CARGO_CACHE_DIR"] else { return nil }
+        guard let root = hookEnvironment["TUIST_CARGO_CACHE_DIR"] else { return nil }
+        guard bounded else {
+            if verification != nil {
+                CargoCacheVerification.report(
+                    [.init(check: "outputs", outcome: .failed, detail: "its messages exceed what the cache keeps")],
+                    name: invocation?.name ?? "unknown", environment: hookEnvironment
+                )
+            }
+            return nil
+        }
+        if let verification { return await verify(verification, root: URL(fileURLWithPath: root)) }
         var refreshed = strict ? invocation : nil
         // A changed source list is remembered after Cargo hears the compiler exited: only later builds read it.
         var remember: (@Sendable () async -> Void)?
@@ -166,6 +201,47 @@ final class CargoCompilerRun: CargoHookRun {
                     invocation: finished, root: URL(fileURLWithPath: root), remote: remote, measurement: measurement
                 ).store(stdout: stdout, stderr: stderr, keyedAfterCompiling: true)
             } catch { notStored(recorded.name, "its outputs could not be stored (\(error))") }
+        }
+    }
+
+    /// Admits a verifying compilation as any other, so strict dependents stay cacheable, and returns its comparison with
+    /// the entry the hit would have restored. Nothing is published: the cache stays as it was.
+    private func verify(_ plan: CargoCacheVerification.Plan, root: URL) async -> () async -> Void {
+        var findings = plan.findings
+        if let rust = invocation as? CargoCacheInvocation, let measurement {
+            let keyed = rust.refreshed().keyed
+            if let keyed, let cache = try? CargoCompilationCache(
+                invocation: keyed, root: root, remote: nil, measurement: measurement
+            ) {
+                _ = try? await cache.admit(keyedAfterCompiling: keyed.key != rust.key)
+            }
+            if plan.selection.inputs, findings.isEmpty, let sources = plan.sources {
+                if let fresh = rust.depInfoInputs() {
+                    findings.append(CargoCacheVerification.compareSources(rust, sources: sources, fresh: fresh))
+                } else {
+                    findings.append(.init(check: "sources", outcome: .failed, detail: "its dep-info cannot be read"))
+                }
+            }
+        }
+        return { [self, findings] in
+            var findings = findings
+            if plan.selection.inputs, let used = plan.reads {
+                var reason = "its reads were not fully recorded"
+                if let recorded, let log,
+                   let fresh = recorded.recorded(log: log, started: started, explain: { reason = "it \($0)" })?.reads
+                {
+                    findings.append(CargoCacheVerification.compare(used: used, fresh: fresh))
+                } else {
+                    findings.append(.init(check: "reads", outcome: .failed, detail: reason))
+                }
+            }
+            if plan.selection.outputs, let invocation {
+                findings.append(await CargoCacheVerification.compareOutputs(
+                    plan.entry, invocation: invocation, root: root, remote: remote
+                ))
+            }
+            CargoCacheVerification.report(findings, name: invocation?.name ?? "unknown", environment: hookEnvironment)
+            if findings.contains(where: \.divergent) { measurement?.diverged() }
         }
     }
 

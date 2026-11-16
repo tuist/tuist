@@ -48,7 +48,11 @@ struct CargoCompilerObserver {
                     }
                 }
             } catch {
-                await compilation.finish(succeeded: false)
+                if case CommandError.terminated = error {
+                    await compilation.finish(succeeded: false)
+                } else {
+                    await compilation.abandon()
+                }
                 throw error
             }
             await compilation.finish(succeeded: true)
@@ -156,7 +160,25 @@ struct CargoCompilerObserver {
             )
             cache?.replay = { replayed.stdout = $0; replayed.stderr = $1 }
         } else { cache = nil }
-        if !deferred, let cache, try await cache.restoreLocally() {
+        // A hit the opt-in verification samples compiles in place instead, and is compared after compiling.
+        var verification: CargoCacheVerification.Plan?
+        if !native, !deferred, let invocation, var probe = cache, let checks = CargoCacheVerification.checks(
+            CargoCacheVerification.selection(
+                identity: CargoCacheVerification.identity(arguments, environment: environment, directory: directory),
+                environment: environment
+            ),
+            invocation: invocation
+        ) {
+            if !remoteResolved { remote = await Self.connect(environment, session: sessionRemote) }
+            remoteResolved = true
+            probe.remote = remote
+            verification = await CargoCacheVerification.plan(
+                invocation: invocation, checks: checks, entry: await probe.entry(), process: CargoProcess(runner: runner)
+            )
+            // A failed lookup is not repeated by `restoreRemotely`.
+            if measurement?.hasRemoteFailure == true { remote = nil }
+        }
+        if verification == nil, !deferred, let cache, try await cache.restoreLocally() {
             measurement?.outcome(hit: true)
             measurement?.write()
             await installBuildScript(arguments, environment: environment, directory: directory, native: native)
@@ -166,7 +188,7 @@ struct CargoCompilerObserver {
             remote = await Self.connect(environment, session: sessionRemote)
         }
         cache?.remote = remote
-        if !deferred, let cache, try await cache.restoreRemotely() {
+        if verification == nil, !deferred, let cache, try await cache.restoreRemotely() {
             measurement?.outcome(hit: true)
             measurement?.write()
             await installBuildScript(arguments, environment: environment, directory: directory, native: native)
@@ -177,8 +199,9 @@ struct CargoCompilerObserver {
         // it, then look in the local store again, which also finds a key such a build stored after this one looked.
         // Deferred and recorded compilations learn their key only from the compiler, so their flight is the key that
         // finds their inputs.
+        // Not a verified hit: it compiles although the store holds its key, and stores nothing for a waiter to restore.
         var flight: CargoFlight?
-        if let root = environment["TUIST_CARGO_CACHE_DIR"].map({ URL(fileURLWithPath: $0) }),
+        if verification == nil, let root = environment["TUIST_CARGO_CACHE_DIR"].map({ URL(fileURLWithPath: $0) }),
            let key = (invocation as? CargoCacheInvocation)?.sourceIndex?.declaredKey ?? recorded?.declared ?? invocation?.key,
            let claim = try await CargoFlight.join(root: root, key: key.hash)
         {
@@ -223,7 +246,12 @@ struct CargoCompilerObserver {
             remote = nil
             if let marker = Self.remoteFailureMarker(environment) { try? Data().write(to: marker, options: .atomic) }
         }
-        measurement?.outcome(hit: false)
+        if let verification {
+            measurement?.verifying()
+            if verification.findings.contains(where: \.divergent) { measurement?.diverged() }
+        } else {
+            measurement?.outcome(hit: false)
+        }
         // A strict invocation runs as it was keyed; any other cacheable compilation runs recorded.
         let strict = invocation is CargoCacheInvocation || invocation is CargoClangInvocation
         let log = recorded.flatMap { _ in environment["TUIST_CARGO_SESSION"] }
@@ -253,7 +281,8 @@ struct CargoCompilerObserver {
         return .compile(CargoCompilerRun(
             command: command, environment: compileEnvironment, arguments: arguments, hookEnvironment: environment,
             directory: directory, native: native, runner: runner, invocation: invocation, recorded: recorded,
-            cache: cache, measurement: measurement, remote: remote, log: log, strict: strict, flight: flight
+            cache: cache, measurement: measurement, remote: remote, log: log, strict: strict, flight: flight,
+            verification: verification
         ))
     }
 
