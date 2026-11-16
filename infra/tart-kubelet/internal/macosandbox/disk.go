@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"syscall"
 	"time"
@@ -53,6 +54,38 @@ func diskReport(home string) protocol.DiskReport {
 	}
 	total := uint64(fs.Blocks) * uint64(fs.Bsize)
 	return protocol.DiskReport{TotalBytes: total, AvailableBytes: uint64(fs.Bavail) * uint64(fs.Bsize), BudgetBytes: total / 2}
+}
+
+// logStoredBytes logs what a saved sandbox VM's files hold on the host's
+// disk, to size an archive of it. A clone of a stacked image gets an empty
+// `overlay.asif` and reads everything else from the content store, so its
+// allocated bytes are the session's own writes; the checkpoint is beside it.
+func logStoredBytes(dir, id string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	fields := []any{"sandbox_id", id}
+	var total int64
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			continue
+		}
+		allocated := int64(stat.Blocks) * 512
+		total += allocated
+		if allocated >= 1<<20 {
+			fields = append(fields, entry.Name(), allocated)
+		}
+		if entry.Name() == "overlay.asif" {
+			fields = append(fields, "overlay_size", info.Size())
+		}
+	}
+	slog.Info("macOS sandbox saved disk usage", append(fields, "total_bytes", total)...)
 }
 
 // rootDisk is the root disk ceiling diskRoom reserves per sandbox, the
