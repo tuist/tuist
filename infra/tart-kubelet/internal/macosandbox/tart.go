@@ -65,6 +65,9 @@ type TartRuntime struct {
 	// Templates maps each prepared template to the image its VMs clone.
 	Templates *Templates
 	Tools     string
+	// CIStore is the CI VMs' TART_HOME, which an archived image a restore
+	// needs is seeded from before it is pulled (ensureImage).
+	CIStore string
 	// Checkouts gives each VM its checkout share; nil without the runner cache.
 	Checkouts Checkouts
 	// rootfs is the root disk ceiling diskRoom reserves per sandbox, as

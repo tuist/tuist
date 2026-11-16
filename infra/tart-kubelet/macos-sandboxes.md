@@ -151,7 +151,10 @@ and `nvram.bin` in sandboxd's archive format (`infra/sandboxd/pkg/archive`, hole
 left out) through the server's presigned part URLs, and changes nothing on the
 host; the server deletes the sandbox once the upload completes, and a resume or
 delete meanwhile interrupts it. A create with `from_archive` clones the same
-image on another host, puts the archived files in place (the archived config
+image on another host (the create's `template_tag`; when the template has moved
+to a newer release, the host seeds or pulls that earlier digest of the same
+repository, usually only its runner layer since releases share the base chunks,
+and keeps it for later restores), puts the archived files in place (the archived config
 keeps the guest install's machine identity), cold boots and remounts the
 workspace volume at `/Users/runner/work`. Processes, simulators and memory are
 lost. Only a sandbox whose guest flushed its disks (`/bin/sync` through

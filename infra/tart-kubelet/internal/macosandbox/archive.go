@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/pkg/archive"
@@ -130,14 +131,28 @@ func (t *TartRuntime) restore(ctx context.Context, r *Record) error {
 	if src.URL == "" || src.Bytes <= 0 || src.SHA256 == "" || src.TailOffset != 0 || src.LazyDisks {
 		return errors.New("from_archive needs a URL, a size and a checksum, and no memory")
 	}
-	image, ok := t.Templates.Image(r.Template)
-	if !ok || r.TemplateTag != image {
-		return fmt.Errorf("%w: it needs image %s of template %s, the host runs %s", ErrArchiveMismatch, r.TemplateTag, r.Template, image)
+	current, ok := t.Templates.Image(r.Template)
+	if !ok {
+		return fmt.Errorf("%w: the host has no template %s", ErrArchiveMismatch, r.Template)
+	}
+	image, err := restoreImage(current, r.TemplateTag)
+	if err != nil {
+		return err
 	}
 	start := time.Now()
 	c := t.client(r)
 	if err := t.roomForClone(ctx, c, r.MemoryMB); err != nil {
 		return err
+	}
+	// The overlay holds only the blocks the session wrote, so it needs the
+	// exact image it was cloned from. A release since then moved the
+	// template on; the old image comes from the CI store or the registry,
+	// where its base chunks are usually shared with the current one, and
+	// stays in the sandbox store for the next restore.
+	if image != current {
+		if err := ensureImage(ctx, t.Client, t.CIStore, image); err != nil {
+			return fmt.Errorf("preparing archived image %s: %w", image, err)
+		}
 	}
 	if err := c.Clone(ctx, image, r.VMName()); err != nil {
 		return err
@@ -209,8 +224,34 @@ func (t *TartRuntime) restore(ctx context.Context, r *Record) error {
 	}
 	r.WorkspaceVolumeGB = r.WorkspaceGB
 	_, err = t.control(ctx, r, "status")
-	slog.Info("macOS sandbox restored from its archive", "sandbox_id", r.SandboxID, "source_sandbox", header.SourceSandbox, "bytes", src.Bytes, "download_ms", downloaded.Milliseconds(), "total_ms", time.Since(start).Milliseconds())
+	slog.Info("macOS sandbox restored from its archive", "sandbox_id", r.SandboxID, "source_sandbox", header.SourceSandbox, "image", image, "current_image", image == current, "bytes", src.Bytes, "download_ms", downloaded.Milliseconds(), "total_ms", time.Since(start).Milliseconds())
 	return err
+}
+
+// restoreImage is the image an archive made on archived restores on: the
+// template's current image, or an earlier image of the same repository named
+// by digest. A tag can move to other content, which the overlay would not
+// match, and another repository is not an image this host was given.
+func restoreImage(current, archived string) (string, error) {
+	if archived == "" || archived == current {
+		return current, nil
+	}
+	repo, digest, pinned := strings.Cut(archived, "@")
+	if !pinned || !strings.HasPrefix(digest, "sha256:") || len(digest) != len("sha256:")+64 || repo != repository(current) {
+		return "", fmt.Errorf("%w: it needs image %s, not a digest of %s", ErrArchiveMismatch, archived, repository(current))
+	}
+	return archived, nil
+}
+
+// repository is an image reference without its digest or tag.
+func repository(image string) string {
+	if repo, _, ok := strings.Cut(image, "@"); ok {
+		return repo
+	}
+	if i := strings.LastIndex(image, ":"); i > strings.LastIndex(image, "/") {
+		return image[:i]
+	}
+	return image
 }
 
 const remountWorkspace = `set -eu

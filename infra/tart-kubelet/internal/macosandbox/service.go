@@ -314,7 +314,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		cap := &KubeCapacity{Kube: s.Kube, Node: s.Node, NodeUID: string(node.UID), Namespace: Namespace, ControlUID: controlID}
 		// No template is prepared until a control Pod's preparation below.
 		templates := NewTemplates(nil)
-		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), Templates: templates, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Templates: templates, Tools: s.Tools, Checkouts: s.Checkouts}}
+		m = &Manager{Root: filepath.Join(s.Root, "records"), NodeUID: string(node.UID), Templates: templates, RuntimePath: binary, ToolsPath: s.Tools, Capacity: cap, Checkouts: s.Checkouts, Runtime: &TartRuntime{Client: c, Templates: templates, Tools: s.Tools, CIStore: s.CIStore, Checkouts: s.Checkouts}}
 		if err = m.Load(ctx); err != nil {
 			return err
 		}
