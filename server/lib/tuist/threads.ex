@@ -409,6 +409,26 @@ defmodule Tuist.Threads do
     )
   end
 
+  @doc """
+  Refreshes an inference run's heartbeat while its host runs it. The lease,
+  not the heartbeat, fences inference runs; the heartbeat only keeps the
+  previous release's recovery sweep, which treats a run without a heartbeat
+  in the last 60 seconds as abandoned, from interrupting it or giving it to
+  an Oban job during a rolling deploy. It can go once no pod runs that
+  release.
+  """
+  def keep_alive(run) do
+    Repo.update_all(
+      from(r in Run,
+        where: r.id == ^run.id and r.attempt == ^run.attempt and r.status == "running" and r.kind != "ship"
+      ),
+      [set: [heartbeat_at: now()]],
+      log: false
+    )
+
+    :ok
+  end
+
   def heartbeat(run) do
     query =
       from r in Run,
@@ -887,7 +907,10 @@ defmodule Tuist.Threads do
   # The run and the session's want commit together; the host is told on
   # commit, and once more by `wake/1` after it.
   defp enqueue!(thread, message_id) do
-    Repo.insert!(%Run{thread_id: thread.id, message_id: message_id})
+    # Fresh, so the previous release's recovery sweep, which still runs on its
+    # pods during a rolling deploy, does not give the run to an Oban job
+    # before a host claims it (`keep_alive/1`).
+    Repo.insert!(%Run{thread_id: thread.id, message_id: message_id, heartbeat_at: now()})
     Lease.want(thread.id, "thread")
     update_thread!(Repo.reload!(thread), %{agent_status: "queued"})
   end

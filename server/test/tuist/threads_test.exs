@@ -35,6 +35,26 @@ defmodule Tuist.ThreadsTest do
     %{user: user, account: user.account}
   end
 
+  # The previous release's recovery sweep, still running on its pods during a
+  # rolling deploy, interrupts or re-queues runs without a heartbeat in the
+  # last 60 seconds. Hosts keep their run's fresh; a queued run starts fresh.
+  test "queued runs start with a heartbeat that only the run's host refreshes", %{user: user, account: account} do
+    {:ok, thread} = Threads.create(user, account, request())
+    run = Repo.one!(from r in Run, where: r.thread_id == ^thread.id)
+    assert run.heartbeat_at
+
+    [%{epoch: epoch}] = Enum.filter(Lease.claim("host", 100), &(&1.id == to_string(thread.id)))
+    assert {:ok, {run, _thread}} = Threads.claim(run.id, epoch)
+    stale = DateTime.utc_now() |> DateTime.add(-300, :second) |> DateTime.truncate(:second)
+    Repo.update_all(from(r in Run, where: r.id == ^run.id), set: [heartbeat_at: stale])
+
+    assert :ok = Threads.keep_alive(%{run | attempt: run.attempt - 1})
+    assert Repo.reload!(run).heartbeat_at == stale
+
+    assert :ok = Threads.keep_alive(run)
+    assert DateTime.diff(DateTime.utc_now(), Repo.reload!(run).heartbeat_at) < 5
+  end
+
   test "creation is durable, private and replay-safe", %{user: user, account: account} do
     attrs = request("Explain this codebase")
     assert {:ok, thread} = Threads.create(user, account, attrs)

@@ -95,12 +95,21 @@ defmodule Tuist.Application.RuntimeChildren do
   goes last of the two so it stops first and drains its sessions while
   their supervisor is up. `runner_opts` with `enabled: false` (tests) leaves
   it out.
+
+  A web pod's runner stops after the preStop wait and the endpoint drain, so
+  it gets 15 seconds, up to 10 of them waiting for sessions, instead of an
+  agents pod's 30 and 25: a session still draining when the pod is killed
+  only waits out its lease before another host resumes it.
   """
   def agents(mode, delegated?, runner_opts) do
     hosts = {DynamicSupervisor, name: Tuist.Agents.Hosts, strategy: :one_for_one}
+    {shutdown, drain_ms} = if mode == :web, do: {15_000, 10_000}, else: {30_000, 25_000}
 
     runner =
-      Supervisor.child_spec({Tuist.Agents.Runner, Keyword.delete(runner_opts, :enabled)}, shutdown: 30_000)
+      runner_opts
+      |> Keyword.delete(:enabled)
+      |> Keyword.put_new(:drain_ms, drain_ms)
+      |> then(&Supervisor.child_spec({Tuist.Agents.Runner, &1}, shutdown: shutdown))
 
     runner? = mode == :agents or (mode == :web and not delegated?)
 
