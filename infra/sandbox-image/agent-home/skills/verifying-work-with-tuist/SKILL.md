@@ -19,9 +19,12 @@ Only read: do not change test cases, quarantine tests, or upload anything
 unless the user asks.
 
 Find the project handle (`account/project`) in the repository's `Tuist.swift`
-(`fullHandle`) or `tuist.toml` (`project`). If neither exists, run
-`tuist project list --json` and match the repository. Pass it as `--project` to the CLI
-when you run it outside the project directory.
+(`fullHandle`) or `tuist.toml` (`project`), and pass it as `--project`. If
+neither file exists, the repository is not set up for Tuist; skip this check.
+
+If a command prints a decoding or other client error instead of results, the
+sandbox's CLI is older than the server. Its exit status can still be 0, so read
+the output. Say so once and continue without this check.
 
 If the CLI reports that you are not authenticated, the
 sandbox's account has not connected it to Tuist. Say so once and continue
@@ -54,8 +57,9 @@ tuist test list --git-branch main --json --page-size 10
 tuist build list --git-branch main --json --page-size 10
 ```
 
-Compare durations with your local run only when both ran the same scheme or
-task set; a sandbox is slower than CI hardware, so report large differences
+Skip runs whose `status` is `in_progress`, `processing` or
+`failed_processing`; they have no final result yet. Compare durations with your
+local run only when both ran the same scheme or task set; a sandbox is slower than CI hardware, so report large differences
 (over about 20%) as worth checking, not as proof.
 
 ## Before you say the work is done
