@@ -170,6 +170,15 @@ defmodule Tuist.FeatureFlags do
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
+  @doc "Enabling the pause flag holds current runner limits, globally or for one account."
+  def runner_concurrency_growth_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_concurrency_growth_paused,
+      account,
+      not flag_enabled?(:runner_concurrency_growth_paused, account, flags)
+    )
+  end
+
   @doc """
   Whether the account's Linux jobs get a persistent Docker data root per
   repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Production

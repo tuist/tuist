@@ -36,6 +36,8 @@ defmodule Tuist.Ops.FeatureFlags do
      "Opt-in thin encrypted Kura volumes in regions listed in TUIST_KURA_THIN_REGIONS; other regions ignore it."},
     {:kura_stable_hostname, "account", "Stable cache hostname opt-in; canary enables automatically."},
     {:runners, "account", "Managed runners opt-in on canary/production; enabled elsewhere."},
+    {:runner_concurrency_growth_paused, "account",
+     "Enabling pauses automatic runner concurrency growth, globally or for one account; existing limits are preserved."},
     {:runner_site_cache, "account", "Opt-in site-local runner caches."},
     {:runner_site_cache_pinned, "account",
      "Gives a site account its site-local runner cache without site cache traffic; capacity still applies."},
@@ -78,6 +80,7 @@ defmodule Tuist.Ops.FeatureFlags do
     kura_thin_volumes: {FeatureFlags, :kura_thin_volumes_enabled?},
     kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},
     runners: {FeatureFlags, :runners_enabled?},
+    runner_concurrency_growth_paused: {FeatureFlags, :runner_concurrency_growth_enabled?},
     runner_site_cache: {FeatureFlags, :runner_site_cache_enabled?},
     runner_site_cache_pinned: {FeatureFlags, :runner_site_cache_pinned?},
     runner_site_cache_excluded: {FeatureFlags, :runner_site_cache_excluded?},
@@ -92,6 +95,7 @@ defmodule Tuist.Ops.FeatureFlags do
     public_page_challenge_kill_switch: {FeatureFlags, :public_page_challenge_enabled?}
   }
   @effective_names %{
+    runner_concurrency_growth_paused: :runner_concurrency_growth,
     kura_rollout_orchestration_kill_switch: :kura_rollout_orchestration,
     turnstile_kill_switch: :turnstile,
     public_page_challenge_kill_switch: :public_page_challenge

@@ -47,7 +47,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => excluded.id})
     assert result.resource == %{account_id: excluded.id, project_id: nil}
     assert result.environment == "prod"
-    assert length(result.evaluations) == 23
+    assert length(result.evaluations) == 24
     refute enabled?(result, "runner_shard_storage")
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
     refute enabled?(result, "runners")
@@ -60,6 +60,20 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert enabled?(result, "runner_site_cache")
     assert enabled?(result, "kura_thin_volumes")
     assert enabled?(result, "runner_actions_cache")
+  end
+
+  test "runner concurrency growth can be held globally or per account without disabling runners" do
+    account = AccountsFixtures.user_fixture().account
+    gate(:runners, :actor, "account:#{account.id}", true)
+    assert {:ok, initial} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    assert enabled?(initial, "runner_concurrency_growth_paused")
+    gate(:runner_concurrency_growth_paused, :boolean, nil, true)
+    assert {:ok, paused} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    refute enabled?(paused, "runner_concurrency_growth_paused")
+    assert enabled?(paused, "runners")
+    gate(:runner_concurrency_growth_paused, :actor, "account:#{account.id}", false)
+    assert {:ok, resumed} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    assert enabled?(resumed, "runner_concurrency_growth_paused")
   end
 
   test "the persisted batch excludes other actors and flags outside the catalog" do
@@ -91,7 +105,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"project_id" => project.id})
     assert result.resource == %{account_id: project.account_id, project_id: project.id}
-    assert length(result.evaluations) == 24
+    assert length(result.evaluations) == 25
     assert enabled?(result, "build_entities")
     assert enabled?(result, "runner_site_cache")
     assert Enum.find(result.evaluations, &(&1.name == "runner_site_cache")).actor_id == project.account_id

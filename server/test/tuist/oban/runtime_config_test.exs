@@ -19,6 +19,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
+  alias Tuist.Runners.Workers.ConcurrencySizingWorker
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
@@ -129,6 +130,16 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         crontab = RuntimeConfig.crontab(:web, :prod, hosted?)
         assert {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}} in crontab
         assert {"@daily", CacheVolumeCleanupWorker} in crontab
+      end
+    end
+
+    test "automatic runner concurrency sizing only runs on hosted web instances" do
+      for env <- [:prod, :stag, :can] do
+        hosted = RuntimeConfig.crontab(:web, env, true)
+        assert {"*/5 * * * *", ConcurrencySizingWorker} in hosted
+        assert {"30 * * * *", ConcurrencySizingWorker, args: %{"mode" => "daily"}} in hosted
+
+        refute Enum.any?(RuntimeConfig.crontab(:web, env, false), &(cron_worker(&1) == ConcurrencySizingWorker))
       end
     end
 

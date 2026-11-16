@@ -20,6 +20,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.OpenGraph.Workers.DeleteExpiredImagesWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
+  alias Tuist.Runners.Workers.ConcurrencySizingWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
@@ -87,6 +88,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
     {"* * * * *", Tuist.Runners.Workers.SiteSpilloverWorker},
+    {"*/5 * * * *", ConcurrencySizingWorker},
+    {"30 * * * *", ConcurrencySizingWorker, args: %{"mode" => "daily"}},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
