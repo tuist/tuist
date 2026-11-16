@@ -138,7 +138,8 @@ jobs:
   apple:
     name: Swift client (${{ matrix.target }})
     needs: [macos, core]
-    runs-on: macos-15
+    # Xcode 26 or later: the SwiftUI sources use Liquid Glass APIs behind availability checks.
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     strategy:
       fail-fast: false
