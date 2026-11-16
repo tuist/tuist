@@ -102,13 +102,27 @@ contracted limit` (`eg1eawacfhkaoe`) now do. `and on (...)` against an empty
 right side fails the same way; `Linux fleet cannot seat a shape`
 (`bfxmy59vtljpca`) multiplies by `(... == bool 0)` instead.
 
+`absent()` and `absent_over_time()` return nothing on Pulse where Prometheus
+returns 1, so a missing-telemetry rule on Pulse never fires. Count the series
+instead and alert below 1:
+
+```promql
+(sum(count_over_time(up{job="kura"}[15m])) or vector(0)) + 0
+```
+
+`+ 0` drops the metric name Pulse leaves on `sum()`. Since November 16 the
+Kura (`ffvvcpp359qm8d`) and xcresult guest (`dg1ew04a5qfwge`) telemetry rules
+run this way once per environment, with a static `cluster` label, and
+`Remote processing queue telemetry missing` (`bg1ewhe80qosgc`) counts each
+queue in its own query and fires when either is 0.
+
 ### Still on Grafana Cloud
 
 - The Cloud originals of split rules, for clusters outside Pulse (see above).
-- Missing-telemetry rules built on `absent_over_time`: `ffvvcpp359qm8d`,
-  `dg1ew04a5qfwge`, `bg1ewhe80qosgc` and `kura-thin-pool-metrics-missing`.
-  Pulse returns nothing where Prometheus returns 1 for an absent series, so
-  on Pulse they could never fire.
+- `kura-thin-pool-metrics-missing`, whose `unless` against a missing right side
+  Pulse fails to plan.
+- `Pulse datanode telemetry missing` and `Pulse rejecting scans for lack of
+  memory`, which must not depend on Pulse.
 - Long windows Pulse does not hold yet: `cfyi8f0lyqayof`, `dfygid92hevi8d` (3
   days) and `fg1c6ql650pvka` (7 days, also `label_replace(vector(...))`, which
   Pulse rejects).
