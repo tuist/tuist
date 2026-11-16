@@ -584,7 +584,7 @@ defmodule TuistWeb.RunnersLive do
       },
       %{
         data: limits,
-        name: dgettext("dashboard_runners", "Limit at bucket start"),
+        name: dgettext("dashboard_runners", "Concurrency limit"),
         type: "line",
         step: "end",
         connectNulls: false,
@@ -611,10 +611,12 @@ defmodule TuistWeb.RunnersLive do
   """
   def concurrency_chart_options(analytics_preset) do
     %{
-      grid: %{left: 34, right: 24, top: 8, bottom: 36},
+      grid: %{left: 34, right: 24, top: 8, bottom: 48},
       legend: %{
         left: "left",
-        top: "bottom",
+        top: "auto",
+        bottom: 0,
+        padding: 0,
         orient: "horizontal",
         textStyle: %{
           color: "var:noora-surface-label-secondary",

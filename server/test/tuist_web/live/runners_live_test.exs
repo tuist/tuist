@@ -196,7 +196,7 @@ defmodule TuistWeb.RunnersLiveTest do
     assert limit.data == [nil, 12, 12, 24, 24, nil]
     assert limit.step == "end"
     refute limit.connectNulls
-    assert limit.name == "Limit at bucket start"
+    assert limit.name == "Concurrency limit"
     assert limit.itemStyle.color == "var:noora-chart-destructive"
     assert limit.lineStyle.type == "dashed"
 
