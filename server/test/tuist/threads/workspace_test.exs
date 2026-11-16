@@ -5,6 +5,7 @@ defmodule Tuist.Threads.WorkspaceTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.VCSFixtures
 
+  alias Tuist.Agents.Lease
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
   alias Tuist.Sandboxes
@@ -39,6 +40,9 @@ defmodule Tuist.Threads.WorkspaceTest do
       })
 
     run = Repo.insert!(%Run{thread_id: id, status: "running", attempt: 1, heartbeat_at: DateTime.utc_now(:second)})
+    # The run's host holds the thread's session lease at the run's attempt.
+    Lease.want(id, "thread")
+    [%{epoch: 1}] = Lease.claim("test-host", 1)
 
     stub(Client, :list_installation_repositories, fn _, _ ->
       {:ok, %{meta: %{next_url: nil}, repositories: [%{full_name: "Tuist/Example", default_branch: "main"}]}}

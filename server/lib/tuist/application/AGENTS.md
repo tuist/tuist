@@ -17,6 +17,7 @@
 
 Use the standard [application shutdown callback](https://hexdocs.pm/elixir/Application.html#c:prep_stop/1) and [socket drainer specifications](https://hexdocs.pm/phoenix/Phoenix.Socket.Transport.html#c:drainer_spec/1). The server child identifiers follow Bandit's Phoenix adapter.
 
+- `RuntimeChildren.agents/3` starts `Tuist.Agents.Hosts` in every mode and, in `:agents` and in `:web` without `TUIST_DELEGATE_AGENTS`, the session runner after it and after Oban, so on shutdown the runner stops first and drains and releases its sessions while their supervisor, the repositories and PubSub are still up. Keep its shutdown (30 s, of which up to 25 s waiting for sessions to drain) within both the agents pod's grace period and what a web pod has left after its preStop wait and endpoint drain.
 - `RuntimeChildren.readiness_server/1` starts `Tuist.Readiness.Plug` on port 9092 for `:xcresult_processor` only, after Oban so it stops first. tart-kubelet probes `GET /ready`, which checks Postgres, ClickHouse (and the shadow ClickHouse when configured) and the `:process_xcresult` queue. Keep the port in sync with `infra/helm/tuist/templates/xcresult-processor-deployment.yaml`.
 
 ## Replica-safety rollout

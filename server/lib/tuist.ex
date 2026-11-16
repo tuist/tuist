@@ -12,7 +12,6 @@ defmodule Tuist do
     deps: [Once],
     exports: [
       Threads,
-      Threads.Checkpoints,
       Threads.Thread,
       Threads.RecoveryWorker,
       # Marketing

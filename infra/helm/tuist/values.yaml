@@ -1120,6 +1120,41 @@ server:
     # to keep the Job name stable for existing self-hosted installs.
     namePerRevision: false
 
+agents:
+  # Durable agent sessions (`Tuist.Agents`), such as Threads', hosted on their
+  # own pods: the same image booted with TUIST_MODE=agents, which starts no
+  # Phoenix endpoint and no Oban queues. Pods claim sessions from Postgres
+  # under leases while they have memory and session headroom, so scale them
+  # on memory. A pod that stops drains its sessions and hands them back, and
+  # another pod resumes each from its stored journal; a pod that dies loses
+  # its leases after 20 s and the same happens. When enabled, server pods
+  # stop hosting sessions (TUIST_DELEGATE_AGENTS=1). Disabled by default:
+  # without these pods the server hosts sessions itself.
+  enabled: false
+  replicaCount: 2
+  # Surge before terminating, so a deploy always has a pod to take the
+  # drained sessions.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # Draining stops each session and releases its lease; the runner's own
+  # shutdown budget is 60 s.
+  terminationGracePeriodSeconds: 90
+  resources: {}
+  # Added to the server's environment (including server.extraEnv), which
+  # agents pods share.
+  extraEnv: []
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
   # server with TUIST_MODE=processor, which (a) disables the Phoenix

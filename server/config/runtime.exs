@@ -835,6 +835,10 @@ oban_queues =
     Tuist.Environment.swift_registry_sync_mode?() ->
       swift_registry_sync_queues
 
+    # Agents pods host sessions, not jobs. They still insert jobs.
+    Tuist.Environment.agents_mode?() ->
+      []
+
     true ->
       base = base_queues
       base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
@@ -891,6 +895,8 @@ config :tuist, Oban,
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron, crontab: crontab}
   ]
+
+config :tuist, Tuist.Agents.Runner, memory_limit_bytes: Tuist.Environment.agents_memory_limit_bytes()
 
 if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false

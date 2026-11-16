@@ -86,6 +86,28 @@ defmodule Tuist.Application.RuntimeChildren do
   def marketing_stats(_), do: []
 
   @doc """
+  Child specs for hosting durable agent sessions, gated on pod mode.
+
+  `Tuist.Agents.Hosts` always starts, as the supervisor kinds start their
+  session processes under. The runner that claims sessions starts in
+  `:agents`, and in `:web` unless `delegated?` (dedicated agents pods
+  exist), so a self-hosted install without them still runs its agents. It
+  goes last of the two so it stops first and drains its sessions while
+  their supervisor is up. `runner_opts` with `enabled: false` (tests) leaves
+  it out.
+  """
+  def agents(mode, delegated?, runner_opts) do
+    hosts = {DynamicSupervisor, name: Tuist.Agents.Hosts, strategy: :one_for_one}
+
+    runner =
+      Supervisor.child_spec({Tuist.Agents.Runner, Keyword.delete(runner_opts, :enabled)}, shutdown: 30_000)
+
+    runner? = mode == :agents or (mode == :web and not delegated?)
+
+    if runner? and Keyword.get(runner_opts, :enabled, true), do: [hosts, runner], else: [hosts]
+  end
+
+  @doc """
   Child spec for the readiness listener, gated on pod mode.
 
   Returns a listener serving `Tuist.Readiness.Plug` on

@@ -1,4 +1,4 @@
-defmodule Tuist.Threads.WorkerTest do
+defmodule Tuist.Threads.HostTest do
   # Condukt owns its session and tool processes. A shared SQL owner lets this
   # integration test exercise those real processes, not mock the agent loop.
   use TuistTestSupport.Cases.DataCase, async: false
@@ -6,16 +6,32 @@ defmodule Tuist.Threads.WorkerTest do
 
   alias Tuist.Accounts.AISubscriptions
   alias Tuist.Accounts.MCPServers
+  alias Tuist.Agents.Lease
+  alias Tuist.Agents.SessionStore
   alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Threads
-  alias Tuist.Threads.Approval
+  alias Tuist.Threads.Host
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
-  alias Tuist.Threads.Shipping
   alias Tuist.Threads.ToolCall
-  alias Tuist.Threads.Worker
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  defmodule UnreachableBucket do
+    @moduledoc false
+    @behaviour Condukt.SessionStore.ObjectStore.Bucket
+
+    @impl true
+    def create(_config, _key, _body), do: {:error, :econnrefused}
+    @impl true
+    def get(_config, _key), do: {:error, :econnrefused}
+    @impl true
+    def head(_config, _key), do: {:error, :econnrefused}
+    @impl true
+    def list(_config, _prefix, _start_after), do: {:error, :econnrefused}
+    @impl true
+    def delete(_config, _key), do: {:error, :econnrefused}
+  end
 
   # Supervised Condukt tool tasks do not retain the test's caller chain.
   # This suite already runs synchronously with the shared SQL sandbox.
@@ -27,7 +43,7 @@ defmodule Tuist.Threads.WorkerTest do
     :ok
   end
 
-  test "a durable job searches a large MCP catalog, calls its tool and persists its final reply" do
+  test "a hosted thread searches a large MCP catalog, calls its tool and persists its final reply" do
     user = AccountsFixtures.user_fixture()
     calls = start_supervised!({Agent, fn -> 0 end})
     server_id = Ecto.UUID.generate()
@@ -156,14 +172,13 @@ defmodule Tuist.Threads.WorkerTest do
              Threads.create(user, user.account, request("Explain caching"))
 
     run = Repo.one!(Run)
-    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    host_until_idle(thread.id)
     assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
     assert fresh.title == "Understand the cache"
     assert fresh.agent_status == "idle"
     assert List.last(fresh.messages).body == "Here is the explanation."
     assert List.last(fresh.messages).suggestions == ["Explain invalidation"]
     assert Repo.reload!(run).status == "succeeded"
-    assert Repo.reload!(run).checkpoint == nil
     assert %{status: "completed", result: result} = Repo.one!(ToolCall)
     assert result =~ "Remote cache evidence"
     assert Agent.get(calls, & &1) == 3
@@ -215,8 +230,7 @@ defmodule Tuist.Threads.WorkerTest do
 
     assert {:ok, thread} = Threads.create(user, user.account, request("Reply without MCP"))
     run = Repo.one!(Run)
-
-    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    host_until_idle(thread.id)
     assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
     assert List.last(fresh.messages).body == "Still available."
     assert Repo.reload!(run).status == "succeeded"
@@ -233,36 +247,17 @@ defmodule Tuist.Threads.WorkerTest do
     end)
 
     reject(MCPServers, :list, 1)
-
-    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    host_until_idle(thread.id)
     assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
     assert fresh.status == :archived
     assert Repo.reload!(run).status == "cancelled"
     refute Enum.any?(fresh.messages, &(&1.kind == "agent"))
   end
 
-  test "an unreadable checkpoint never silently starts a fresh model conversation" do
-    user = AccountsFixtures.user_fixture()
-    stub(Provider, :client_opts, fn _, _ -> {:ok, []} end)
-
-    assert {:ok, thread} =
-             Threads.create(user, user.account, request("Continue work"))
-
-    run = Repo.one!(Run)
-    Repo.update!(Ecto.Changeset.change(run, checkpoint: "unreadable snapshot"))
-    reject(Provider, :client_opts, 2)
-
-    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
-    assert Repo.reload!(run).status == "failed"
-    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
-    assert fresh.agent_status == "failed"
-    refute Enum.any?(fresh.messages, &(&1.kind == "agent"))
-  end
-
   test "each model dispatch refreshes only the bound provider and never falls back" do
     user = AccountsFixtures.user_fixture()
     {:ok, _} = Threads.create(user, user.account, request("Inspect"))
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run))
 
     conn = fn ->
       :post
@@ -310,7 +305,7 @@ defmodule Tuist.Threads.WorkerTest do
   test "ownership revoked during credential refresh prevents upstream inference" do
     user = AccountsFixtures.user_fixture()
     {:ok, thread} = Threads.create(user, user.account, request("Inspect"))
-    {:ok, {run, _}} = Threads.claim(Repo.one!(Run).id)
+    {:ok, {run, _}} = claim(Repo.one!(Run))
 
     conn =
       :post
@@ -326,92 +321,236 @@ defmodule Tuist.Threads.WorkerTest do
     assert %{status: 409} = Provider.call(conn, user_id: user.id, model: "selected-model")
   end
 
-  test "model-process notifications cannot postpone the lease heartbeat" do
+  test "a run drained mid tool call resumes on the next host without repeating its stored steps" do
     user = AccountsFixtures.user_fixture()
-    stub(Provider, :client_opts, fn _, _ -> {:ok, []} end)
-    {:ok, _} = Threads.create(user, user.account, request("Keep working"))
-    run = Repo.one!(Run)
+    requests = start_supervised!({Agent, fn -> 0 end}, id: :requests)
+    renames = start_supervised!({Agent, fn -> 0 end}, id: :renames)
     test = self()
-    old_heartbeat = DateTime.add(DateTime.utc_now(:second), -30)
+
+    plug = fn conn ->
+      {:ok, raw, conn} = Plug.Conn.read_body(conn)
+      request = JSON.decode!(raw)
+      turn = Agent.get_and_update(requests, &{&1, &1 + 1})
+
+      {message, finish} =
+        case turn do
+          0 ->
+            {%{
+               role: "assistant",
+               content: nil,
+               tool_calls: [
+                 %{
+                   id: "name-call",
+                   type: "function",
+                   function: %{name: "set_thread_name", arguments: ~s({"name":"Resumed"})}
+                 }
+               ]
+             }, "tool_calls"}
+
+          1 ->
+            assert Enum.any?(request["messages"], &(&1["role"] == "tool" and &1["tool_call_id"] == "name-call"))
+
+            {%{role: "assistant", content: JSON.encode!(%{reply: "Finished after the handoff.", suggestions: []})},
+             "stop"}
+        end
+
+      response = %{
+        id: "completion-#{turn}",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [%{index: 0, message: message, finish_reason: finish}],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
 
     stub(Provider, :client_opts, fn _, _ ->
-      Repo.update!(Ecto.Changeset.change(Repo.get!(Run, run.id), heartbeat_at: old_heartbeat))
-      send(test, {:model_waiting, self()})
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    # The first host's call hangs until it is drained, as a deploy would.
+    stub(Threads, :rename, fn run, name ->
+      if Agent.get_and_update(renames, &{&1, &1 + 1}) == 0 do
+        send(test, :renaming)
+        receive do: (:never -> :ok), after: (10_000 -> :ok)
+      end
+
+      Mimic.call_original(Threads, :rename, [run, name])
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Name this thread"))
+    run = Repo.one!(Run)
+
+    first = host(thread.id)
+    assert_receive :renaming, 5_000
+    drain(first)
+    assert Repo.reload!(run).status == "running"
+
+    # The drained host's lease lapses; the next host takes the thread over.
+    lapse(thread.id)
+    host_until_idle(thread.id)
+
+    run = Repo.reload!(run)
+    assert run.status == "succeeded"
+    assert run.attempt == 2
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert fresh.title == "Resumed"
+    assert [%{body: "Finished after the handoff."}] = Enum.filter(fresh.messages, &(&1.kind == "agent"))
+    # The stored model response was not requested again; the replay-safe call ran again.
+    assert Agent.get(requests, & &1) == 2
+    assert Agent.get(renames, & &1) == 2
+  end
+
+  test "a run whose process crashes ends interrupted instead of crashing the next host" do
+    user = AccountsFixtures.user_fixture()
+    stub(Provider, :client_opts, fn _, _ -> raise "boom" end)
+    {:ok, thread} = Threads.create(user, user.account, request("Crash"))
+    run = Repo.one!(Run)
+
+    host_until_idle(thread.id)
+
+    assert Repo.reload!(run).status == "interrupted"
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert fresh.agent_status == "interrupted"
+    assert Threads.next_run(thread.id) == nil
+  end
+
+  test "a host whose run is fenced mid-run exits, and the next claim ends the run" do
+    user = AccountsFixtures.user_fixture()
+    test = self()
+
+    # The owner loses access while the model is called; the run's writes are
+    # fenced from then on.
+    stub(Provider, :client_opts, fn _, _ ->
+      Repo.update!(Ecto.Changeset.change(Repo.reload!(user), active: false))
+      send(test, :revoked)
+      {:error, :not_connected}
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Revoke"))
+    run = Repo.one!(Run)
+    pid = host(thread.id)
+    ref = Process.monitor(pid)
+
+    assert_receive :revoked, 5_000
+    assert_receive {:DOWN, ^ref, :process, ^pid, {:shutdown, :stale}}, 5_000
+    assert Repo.reload!(run).status == "running"
+
+    lapse(thread.id)
+    [%{epoch: epoch}] = Enum.filter(Lease.claim("test-host", 100), &(&1.id == thread.id))
+    assert {:error, :forbidden} = Threads.claim(run.id, epoch)
+    assert Repo.reload!(run).status == "interrupted"
+  end
+
+  # An object storage outage: the session cannot load, so the host hands the
+  # thread back with its run still running, and a later host finishes it.
+  test "a host that cannot reach the session store leaves the run for a later host" do
+    user = AccountsFixtures.user_fixture()
+
+    plug = fn conn ->
+      response = %{
+        id: "completion",
+        object: "chat.completion",
+        created: 0,
+        model: Provider.default_model(:chatgpt),
+        choices: [
+          %{
+            index: 0,
+            message: %{role: "assistant", content: JSON.encode!(%{reply: "Back online.", suggestions: []})},
+            finish_reason: "stop"
+          }
+        ],
+        usage: %{prompt_tokens: 10, completion_tokens: 10, total_tokens: 20}
+      }
+
+      conn |> Plug.Conn.put_resp_content_type("application/json") |> Plug.Conn.send_resp(200, JSON.encode!(response))
+    end
+
+    stub(AISubscriptions, :list, fn _ -> [%{provider: :chatgpt, connected: true}] end)
+    {:ok, opts} = Provider.client_opts(user, %{provider: "chatgpt", model: "selected-model"})
+
+    stub(Provider, :client_opts, fn _, _ ->
+      {:ok, Keyword.put(opts, :llm_request_options, req_http_options: [plug: plug])}
+    end)
+
+    stub(SessionStore, :store, fn kind, id, epoch ->
+      {module, store} = Mimic.call_original(SessionStore, :store, [kind, id, epoch])
+      {module, Keyword.put(store, :bucket, {UnreachableBucket, []})}
+    end)
+
+    {:ok, thread} = Threads.create(user, user.account, request("Answer when you can"))
+    run = Repo.one!(Run)
+    pid = host(thread.id)
+    ref = Process.monitor(pid)
+
+    assert_receive {:DOWN, ^ref, :process, ^pid, {:shutdown, :store_unavailable}}, 5_000
+    assert Repo.reload!(run).status == "running"
+
+    stub(SessionStore, :store, &Mimic.call_original(SessionStore, :store, [&1, &2, &3]))
+    lapse(thread.id)
+    host_until_idle(thread.id)
+
+    assert %{status: "succeeded", attempt: 2} = Repo.reload!(run)
+    assert {:ok, fresh} = Threads.get(user, user.account, thread.id)
+    assert [%{body: "Back online."}] = Enum.filter(fresh.messages, &(&1.kind == "agent"))
+  end
+
+  # Takes the thread's session lease as an agents runner does and hosts it.
+  defp host(thread_id) do
+    [%{epoch: epoch}] = Enum.filter(Lease.claim("test-host", 100), &(&1.id == thread_id))
+    {:ok, pid} = Host.start(thread_id, epoch)
+    pid
+  end
+
+  # Asks the host to stop once idle, as the runner does after each renewal,
+  # until it does.
+  defp host_until_idle(thread_id) do
+    pid = host(thread_id)
+    ref = Process.monitor(pid)
+
+    eventually(fn ->
+      Host.stop_if_idle(pid, self(), :token)
 
       receive do
-        :complete -> {:error, :disconnected}
+        {Tuist.Agents.Kind, :idle, ^pid, :token} -> true
+      after
+        50 -> false
       end
     end)
 
-    stub(Threads, :heartbeat, fn current ->
-      result = Mimic.call_original(Threads, :heartbeat, [current])
-      send(test, {:heartbeat, result, Repo.reload!(current).heartbeat_at})
-      result
-    end)
-
-    model = spawn(fn -> receive do: (:stop -> :ok) end)
-    worker = Task.async(fn -> Worker.perform(%Oban.Job{args: %{"run_id" => run.id}}) end)
-    {:ok, timer} = :timer.send_interval(100, worker.pid, {:thread_model_process, model})
-
-    try do
-      assert_receive {:model_waiting, inference}, 5_000
-      # The old receive-after implementation never reaches renewal while these
-      # notifications keep arriving, even though the model remains active.
-      assert_receive {:heartbeat, :ok, renewed}, 10_000
-      assert DateTime.after?(renewed, old_heartbeat)
-      assert Threads.owns_run?(run.id, 1)
-      send(inference, :complete)
-      assert :ok = Task.await(worker, 5_000)
-      assert Repo.reload!(run).status == "failed"
-      refute Process.alive?(model)
-    after
-      :timer.cancel(timer)
-      Task.shutdown(worker, :brutal_kill)
-      Process.exit(model, :kill)
-    end
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 5_000
   end
 
-  test "Ship receives the claimed attempt and an uncertain result is never replayed" do
-    user = AccountsFixtures.user_fixture()
-    stub(Provider, :client_opts, fn _, _ -> {:ok, []} end)
-    {:ok, thread} = Threads.create(user, user.account, request("Ship the review"))
+  defp drain(pid) do
+    ref = Process.monitor(pid)
+    Host.drain(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, {:shutdown, :drain}}, 10_000
+  end
 
-    approval =
-      Repo.insert!(%Approval{
-        thread_id: thread.id,
-        account_id: user.account.id,
-        request_id: Ecto.UUID.generate(),
-        repository: "example/repo",
-        head_sha: String.duplicate("a", 40),
-        diff: "+ reviewed",
-        target_branch: "threads/example",
-        mode: :branch,
-        status: :approved,
-        approved_by_id: user.id,
-        approved_at: DateTime.utc_now(:second)
-      })
+  defp claim(run) do
+    [%{epoch: epoch}] = Enum.filter(Lease.claim("test-host", 100), &(&1.id == run.thread_id))
+    Threads.claim(run.id, epoch)
+  end
 
-    run = Repo.update!(Ecto.Changeset.change(Repo.one!(Run), kind: "ship", approval_id: approval.id))
-    test = self()
+  defp lapse(thread_id) do
+    Repo.update_all(from(s in "agent_sessions", where: s.id == ^thread_id),
+      set: [lease_expires_at: DateTime.add(DateTime.utc_now(), -1)]
+    )
+  end
 
-    expect(Shipping, :execute, fn bound_thread, bound_approval, bound_run ->
-      send(test, {:ship_attempt, bound_thread.id, bound_approval, bound_run})
-      {:error, :shipping_uncertain}
-    end)
-
-    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
-    assert_receive {:ship_attempt, thread_id, bound_approval, bound_run}
-    assert thread_id == thread.id
-    assert bound_approval.id == approval.id
-    assert bound_approval.status == :executing
-    assert bound_run.id == run.id
-    assert bound_run.attempt == 1
-    assert bound_run.status == "running"
-    assert Repo.reload!(run).status == "outcome_unknown"
-    assert :ok = Threads.recover()
-    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
-    refute_receive {:ship_attempt, _, _, _}
-    assert Repo.reload!(run).status == "outcome_unknown"
+  defp eventually(fun, attempts \\ 300) do
+    cond do
+      fun.() -> :ok
+      attempts == 0 -> flunk("condition never held")
+      true -> Process.sleep(50) && eventually(fun, attempts - 1)
+    end
   end
 
   defp request(body),

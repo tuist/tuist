@@ -83,7 +83,6 @@ defmodule Tuist.Application do
 
   defp start_telemetry do
     Tuist.Observability.attach_oban()
-    Tuist.Threads.Checkpoints.attach()
     Oban.Telemetry.attach_default_logger(events: [:notifier, :peer, :plugin, :queue, :stager])
     TuistCommon.ObanLogger.attach()
     TuistCommon.ObanTelemetry.attach()
@@ -184,6 +183,7 @@ defmodule Tuist.Application do
       :processor -> "tuist-processor"
       :xcresult_processor -> "tuist-xcresult-processor"
       :swift_registry_sync -> "tuist-swift-registry-sync"
+      :agents -> "tuist-agents"
     end
   end
 
@@ -412,6 +412,11 @@ defmodule Tuist.Application do
           {Task.Supervisor, name: Tuist.Threads.Tasks},
           {Oban, Application.fetch_env!(:tuist, Oban)}
         ] ++
+        RuntimeChildren.agents(
+          Environment.mode(),
+          Environment.delegate_agents?(),
+          Application.get_env(:tuist, Tuist.Agents.Runner, [])
+        ) ++
         once_events_grpc_children() ++
         RuntimeChildren.readiness_server(Environment.mode())
 

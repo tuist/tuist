@@ -552,6 +552,21 @@ postgresql:
     backup:
       destinationPath: s3://tuist-stag-pg-backups/
 
+agents:
+  enabled: true
+  # One pod: it fits next to the server on the small staging cluster, and a
+  # deploy still surges the new pod before draining the old one.
+  replicaCount: 1
+  # TUIST_DEPLOY_ENV and the OTLP endpoint come from server.extraEnv, which
+  # agents pods share with the server.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
 processor:
   # Single replica on staging — 2-replica redundancy isn't needed for a
   # pre-prod env, and a second pod doesn't fit on the 2-worker cluster

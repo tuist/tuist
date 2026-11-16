@@ -522,6 +522,9 @@ config :tuist, Oban,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
+# Durable agent sessions by kind (`Tuist.Agents.Runner`).
+config :tuist, Tuist.Agents.Runner, kinds: %{"thread" => Tuist.Threads.Host}
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
