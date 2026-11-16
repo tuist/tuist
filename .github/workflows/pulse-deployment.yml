@@ -517,6 +517,10 @@ jobs:
             kubectl -n observability delete pod pulse-0 --wait=true --timeout=120s
             echo "Moved Service pulse from the standalone pod to the cluster frontends." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
+          # Spread regions over the datanodes before they restart: region
+          # failover never moves regions back, and every restart below keeps
+          # the placement it finds.
+          bash .github/scripts/pulse-datanode-rollout.sh rebalance
           # Held datanodes do not restart with the upgrade; this restarts them
           # one at a time with their regions moved away first.
           bash .github/scripts/pulse-datanode-rollout.sh

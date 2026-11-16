@@ -148,9 +148,10 @@ on unrelated value changes.
 
 A datanode that stops takes its regions offline until metasrv fails them over,
 so reads (Grafana alert rules, dashboards) fail in the meantime. In the
-environments listed in `cluster.datanode.drainedRolloutEnvironments` (staging and
-canary), the chart holds the datanode StatefulSet at `partition: replicas`, so
-no template change restarts a datanode by itself. The deployment then runs
+environments listed in `cluster.datanode.drainedRolloutEnvironments` (staging,
+canary and production), the chart holds the datanode StatefulSet at
+`partition: replicas`, so no template change restarts a datanode by itself.
+The deployment then runs
 [`pulse-datanode-rollout.sh`](../../../.github/scripts/pulse-datanode-rollout.sh),
 which for one datanode at a time moves its leader regions to the others with
 `ADMIN migrate_region`, lowers the partition to it, waits for it to be Ready on
@@ -164,7 +165,13 @@ Pulse, so the fork carries no code for it.
   revision, which `pulse-readiness.sh` rejects. Rerun the deployment: the
   script skips datanodes already on the update revision. Regions it moved away
   before failing stay where they are.
-- Region failover still covers unplanned stops (node failure, eviction).
+- Region failover still covers unplanned stops (node failure, eviction), but
+  it never moves regions back, so placement drifts toward the datanodes that
+  stayed up. Before restarting anything, every deployment runs the script with
+  `rebalance`. That spreads leader regions by stored bytes and moves regions
+  only while the fullest and emptiest datanode differ by more than a quarter
+  of the mean. To rebalance without a code change, dispatch `Pulse Deployment`
+  for that environment.
 
 ## Deployment order and gates
 

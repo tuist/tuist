@@ -9031,9 +9031,11 @@ To respond:
 
 1. `pulse_mito_scan_memory_usage_bytes` per pod shows which datanode is full.
 2. Find what it serves: `SELECT * FROM information_schema.region_peers`.
-3. Check the L0 file count below before adding memory. Raise the datanode
-   memory limit in `infra/helm/pulse/values-production.yaml` (the budget
-   follows it), or migrate other regions off that datanode.
+3. Check the L0 file count below before adding memory. If one datanode leads
+   most regions, dispatch `Pulse Deployment` for the environment: it
+   rebalances regions by stored bytes before restarting anything. Otherwise
+   raise the datanode memory limit in `infra/helm/pulse/values-production.yaml`
+   (the budget follows it).
 4. The lasting fix is partitioning the metric table so reads spread over
    every datanode.
 

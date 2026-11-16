@@ -12,7 +12,22 @@
 # StatefulSet rolls itself. Datanodes already on the update revision are
 # skipped, so a rerun resumes a failed rollout. It ends holding the partition
 # again, so later template changes wait for the next run.
+#
+# `pulse-datanode-rollout.sh rebalance` moves no datanode onto a new revision.
+# It spreads leader regions so each datanode holds a similar share of the
+# stored bytes (SST plus memtable). Restarts here keep placement, but region
+# failover after an unplanned stop never moves regions back, so placement
+# drifts toward the datanodes that stayed up: on 2026-11-16 production's
+# datanode-0 led nothing while datanode-2 led the metric, logs and most trace
+# regions. While the fullest and emptiest datanode differ by more than a
+# quarter of the mean, it moves the fullest datanode's region closest to half
+# that gap to the emptiest one.
 set -euo pipefail
+mode=${1:-rollout}
+if [[ "$mode" != rollout && "$mode" != rebalance ]]; then
+  echo "usage: $0 [rollout|rebalance]" >&2
+  exit 2
+fi
 namespace=${PULSE_NAMESPACE:-observability}
 statefulset=pulse-datanode
 probe=${PULSE_ROLLOUT_POD:-pulse-rollout-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}}
@@ -23,7 +38,7 @@ k() { kubectl -n "$namespace" "$@"; }
 
 read -r replicas partition < <(k get statefulset "$statefulset" -o json | jq -r '
   [.spec.replicas, (.spec.updateStrategy.rollingUpdate.partition // 0)] | @tsv')
-if [[ "$partition" -lt "$replicas" ]]; then
+if [[ "$mode" == rollout && "$partition" -lt "$replicas" ]]; then
   echo "pulse-datanode is not held (partition ${partition} of ${replicas} replicas); the StatefulSet rolls itself."
   exit 0
 fi
@@ -36,18 +51,23 @@ pod_current() {
     any(.status.conditions[]?; .type == "Ready" and .status == "True")' > /dev/null
 }
 stale=()
-for ((ordinal = replicas - 1; ordinal >= 0; ordinal--)); do
-  pod_current "$ordinal" || stale+=("$ordinal")
-done
-if [[ ${#stale[@]} -eq 0 ]]; then
-  echo "Every datanode runs revision $(revision)."
-  exit 0
+if [[ "$mode" == rollout ]]; then
+  for ((ordinal = replicas - 1; ordinal >= 0; ordinal--)); do
+    pod_current "$ordinal" || stale+=("$ordinal")
+  done
+  if [[ ${#stale[@]} -eq 0 ]]; then
+    echo "Every datanode runs revision $(revision)."
+    exit 0
+  fi
 fi
 
 # SQL goes through a probe pod that mounts the pilot login, as the smoke
 # probes do, so the credential never reaches this runner.
 cleanup() { k delete pod "$probe" --ignore-not-found --wait=false > /dev/null 2>&1 || true; }
 trap cleanup EXIT
+# A deployment runs this script more than once with the same probe name, and
+# the previous run deletes its probe without waiting.
+k delete pod "$probe" --ignore-not-found --wait=true --timeout=120s > /dev/null
 jq -n --arg name "$probe" '
   {apiVersion:"v1",kind:"Pod",metadata:{name:$name,namespace:"observability"},spec:{
     restartPolicy:"Never",activeDeadlineSeconds:5400,automountServiceAccountToken:false,
@@ -125,6 +145,52 @@ migrate() {
 all_ready() {
   k get statefulset "$statefulset" -o json | jq -e '.status.readyReplicas == .spec.replicas' > /dev/null
 }
+
+# Reads [region_id, peer_id, bytes] rows and prints "region from to" moves.
+# Each move takes a region smaller than the gap off the fullest datanode, so
+# the spread shrinks every time; 32 moves bounds one run.
+plan_moves() {
+  jq -s -r --argjson replicas "$replicas" '
+    def abs: if . < 0 then -. else . end;
+    reduce range(0; 32) as $_ ({regions: map({id: .[0], peer: .[1], bytes: .[2]}), moves: []};
+      if .done then . else
+        .regions as $regions
+        | [range(0; $replicas) as $peer
+            | {peer: $peer, load: ([$regions[] | select(.peer == $peer) | .bytes] | add // 0)}] as $loads
+        | ($loads | max_by(.load)) as $full | ($loads | min_by(.load)) as $empty
+        | ($full.load - $empty.load) as $gap
+        | ([$regions[] | select(.peer == $full.peer and .bytes > 0 and .bytes < $gap)]
+            | min_by(($gap - 2 * .bytes) | abs)) as $region
+        | if $gap <= ($loads | map(.load) | add) / $replicas / 4 or $region == null then .done = true
+          else .moves += [[$region.id, $full.peer, $empty.peer]]
+            | .regions |= map(if .id == $region.id then .peer = $empty.peer else . end)
+          end
+      end)
+    | .moves[] | @tsv'
+}
+
+if [[ "$mode" == rebalance ]]; then
+  if ! all_ready; then
+    echo "::error::A datanode is not Ready; refusing to move regions."
+    exit 1
+  fi
+  # Captured first: a failed query inside a process substitution would read as
+  # "already balanced".
+  rows=$(sql "SELECT p.region_id, p.peer_id,
+      COALESCE(s.sst_size, 0) + COALESCE(s.memtable_size, 0)
+    FROM information_schema.region_peers p
+    JOIN information_schema.tables t ON p.table_catalog = t.table_catalog
+      AND p.table_schema = t.table_schema AND p.table_name = t.table_name
+    LEFT JOIN information_schema.region_statistics s ON s.region_id = p.region_id
+    WHERE p.is_leader = 'Yes' AND t.create_options NOT LIKE '%on_physical_table=%'")
+  mapfile -t moves < <(plan_moves <<< "$rows")
+  for move in "${moves[@]}"; do
+    read -r region from to <<< "$move"
+    migrate "$region" "$from" "$to"
+  done
+  echo "Rebalanced Pulse datanodes with ${#moves[@]} region moves." | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
+  exit 0
+fi
 
 for ordinal in "${stale[@]}"; do
   if ! all_ready; then
