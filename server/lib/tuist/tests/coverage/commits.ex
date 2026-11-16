@@ -29,7 +29,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.FeatureFlags
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -136,9 +135,9 @@ defmodule Tuist.Tests.Coverage.Commits do
       TargetSources.record(project.id, runs)
       TestSources.record(project.id, runs)
 
-      # The test maps coverage-based test selection decides from.
-      project = Repo.preload(project, :account)
-      if FeatureFlags.test_impact_analysis_enabled?(project.account, project), do: Snapshots.record(project, runs)
+      # The test maps coverage-based test selection and coverage carry
+      # will read, for every project with coverage.
+      Snapshots.record(project, runs)
 
       summary = summary(project.id, sha)
       if Deltas.complete?(summary), do: Deltas.enqueue(project.id, sha)

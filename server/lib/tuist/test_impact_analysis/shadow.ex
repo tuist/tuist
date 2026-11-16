@@ -1,8 +1,9 @@
 defmodule Tuist.TestImpactAnalysis.Shadow do
   @moduledoc """
   Decides an impact run again from snapshots (`Tuist.TestImpactAnalysis.Snapshots`),
-  beside the decision the runs request made from per-test versions, and
-  records it for comparison before reads switch to snapshots.
+  beside the decision the runs request made from per-test versions. Nothing
+  calls it in production yet: the runs request is to serve this decision
+  in place of the versions' once the snapshots are backfilled.
 
   Two candidates decide each test, newest first:
 

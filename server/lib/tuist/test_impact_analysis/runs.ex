@@ -44,7 +44,6 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   alias Tuist.TestImpactAnalysis.Baselines
   alias Tuist.TestImpactAnalysis.Input
   alias Tuist.TestImpactAnalysis.Storage
-  alias Tuist.TestImpactAnalysis.Workers.ShadowWorker
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.TestCase
 
@@ -355,8 +354,6 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       })
 
     with {:ok, run} <- Storage.create_run(attrs, selected) do
-      # A dirty checkout's diff isn't stored, so it can't be decided again.
-      if !run.dirty, do: ShadowWorker.enqueue(run.project_id, run.id)
       {:ok, %{run: run, skipped_tests: skip_entries(input.tests, MapSet.new(selected, & &1.test_case_id))}}
     end
   end

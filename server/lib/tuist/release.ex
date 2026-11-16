@@ -10,6 +10,7 @@ defmodule Tuist.Release do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
   alias Tuist.Sandboxes.Archives
+  alias Tuist.TestImpactAnalysis.Snapshots
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Workers.RunSelectionsBackfillWorker
 
@@ -126,6 +127,24 @@ defmodule Tuist.Release do
       end)
 
     :ok
+  end
+
+  @doc """
+  Writes the test maps of a project's commits measured in the last `days`
+  days (31 by default, the maps' retention) from their runs' retained
+  evidence (`Tuist.TestImpactAnalysis.Snapshots.backfill/2`), as their folds
+  would have. The migration that ships the maps queues it per project on its
+  own (`Tuist.TestImpactAnalysis.Workers.SnapshotBackfillWorker`); this runs
+  it again by hand. It reads through the application's repositories, so it
+  runs on a live node, and repeating it writes nothing already written:
+
+      bin/tuist rpc "Tuist.Release.backfill_test_impact_snapshots(<project id>)"
+      bin/tuist rpc "Tuist.Release.backfill_test_impact_snapshots(<project id>, <days>)"
+  """
+  def backfill_test_impact_snapshots(project_id, days \\ 31) do
+    project = Tuist.Projects.get_project_by_id(project_id)
+    :ok = Snapshots.backfill(project, days)
+    Logger.info("Test maps of project #{project_id} for the last #{days} days recorded")
   end
 
   @doc """
