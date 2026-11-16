@@ -70,6 +70,11 @@ defmodule TuistWeb.API.SandboxesController do
       name: %Schema{type: :string, nullable: true},
       platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
       template: %Schema{type: :string},
+      xcode_version: %Schema{
+        type: :string,
+        nullable: true,
+        description: "The Xcode a macOS environment's sandboxes boot; null is the default Xcode."
+      },
       vcpus: %Schema{type: :integer},
       memory_mb: %Schema{type: :integer},
       workspace_gb: %Schema{type: :integer},
@@ -110,6 +115,7 @@ defmodule TuistWeb.API.SandboxesController do
       :anthropic_environment_id,
       :platform,
       :template,
+      :xcode_version,
       :vcpus,
       :memory_mb,
       :workspace_gb,
@@ -333,6 +339,7 @@ defmodule TuistWeb.API.SandboxesController do
         :name,
         :platform,
         :template,
+        :xcode_version,
         :vcpus,
         :memory_mb,
         :workspace_gb,
@@ -352,14 +359,24 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt and a Claude Code environment's setup script. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model, the system prompt, a Claude Code environment's setup script and a macOS environment's Xcode. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
         [agent_environment_id: [in: :path, type: :integer, required: true, description: "The agent environment id."]],
     request_body:
       {"Agent environment params", "application/json",
-       %Schema{title: "UpdateSandboxAgentEnvironment", type: :object, properties: @agent_properties}},
+       %Schema{
+         title: "UpdateSandboxAgentEnvironment",
+         type: :object,
+         properties:
+           Map.put(@agent_properties, :xcode_version, %Schema{
+             type: :string,
+             nullable: true,
+             description:
+               "A macOS environment's Xcode, one of those the server's macOS sandboxes serve; null is the default Xcode. Sessions that already have a sandbox keep theirs."
+           })
+       }},
     responses:
       Map.merge(@error_responses, %{
         ok: {"Agent environment", "application/json", @agent_environment_schema},
@@ -381,7 +398,8 @@ defmodule TuistWeb.API.SandboxesController do
         :anthropic_api_key,
         :agent_model,
         :agent_system_prompt,
-        :setup_script | AgentEnvironment.federation_fields()
+        :setup_script,
+        :xcode_version | AgentEnvironment.federation_fields()
       ])
 
     with {:ok, agent_environment} <- Sandboxes.get_agent_environment(account, agent_environment_id),
@@ -1066,6 +1084,7 @@ defmodule TuistWeb.API.SandboxesController do
       :name,
       :platform,
       :template,
+      :xcode_version,
       :vcpus,
       :memory_mb,
       :workspace_gb,

@@ -40,7 +40,7 @@ tuist auth login
 tuist sandbox create --platform macos
 ```
 
-Omit `--platform` for Linux. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
+Omit `--platform` for Linux. Pass `--xcode` with a version, such as `--xcode 26.1.1`, for a Mac with that [Xcode](#xcode); it implies `--platform macos`. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
 
 ### 3. Run commands {#cli-exec}
 
@@ -86,7 +86,7 @@ A coding agent that runs on Linux, such as a cloud agent session, can build, tes
 3. Authenticate the CLI. The MCP server's sign-in doesn't carry over to it, so either run `tuist auth login` as an account member, or set `TUIST_TOKEN` to an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `account:sandboxes:write` scope.
 4. If the environment restricts network access, allow `tuist.dev`. The CLI uploads files to the Mac through it, so it needs no other domain.
 
-The agent creates one Mac per task and, before each command, runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. After the first sync it runs `mise install` in the repository root on the Mac, so the [project's pinned Tuist](#tuist-in-sandbox) is there, signed in to your account's cache. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses and is deleted after 14 days paused.
+The agent creates one Mac per task, with the [Xcode](#xcode) the project pins: `create_sandbox` lists the Xcodes it can pick and tells the agent to read the project's pin, such as `.xcode-version`. Before each command, it runs `tuist sandbox sync`. It copies the files Git doesn't ignore, committed or not, and afterwards only the ones that changed. After the first sync it runs `mise install` in the repository root on the Mac, so the [project's pinned Tuist](#tuist-in-sandbox) is there, signed in to your account's cache. The agent then runs commands such as `xcodebuild` with `tuist sandbox exec`, copies results such as screenshots or a built app back with `tuist sandbox cp`, and deletes the Mac when the task is done. A Mac stays running for 10 minutes after its last command, so the next one starts at once; `tuist sandbox pause` gives it back sooner. A Mac left behind then pauses and is deleted after 14 days paused.
 
 ## Linux and macOS {#platforms}
 
@@ -101,6 +101,31 @@ The agent creates one Mac per task and, before each command, runs `tuist sandbox
 - 8 vCPU, 8 GiB RAM (default)
 - 8 vCPU, 16 GiB RAM
 - 8 vCPU, 24 GiB RAM
+
+### Choose an Xcode {#xcode}
+
+Each macOS sandbox runs one Xcode, which you choose when it's created. It boots the same image as the <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> profile for that Xcode, so an agent builds with the same toolchain and simulators as your CI. On tuist.dev, macOS sandboxes currently offer:
+
+- `26.6` (default)
+- `26.1.1`
+- `27.0`
+- `27.1`
+- `27.2`
+
+Choose one with `xcode_version` (`--xcode` in the CLI), using the exact version, as runner profiles do:
+
+| Where | How |
+| --- | --- |
+| CLI | `tuist sandbox create --xcode 26.1.1` |
+| API and MCP `create_sandbox` | `"xcode_version": "26.1.1"` |
+| Tuist Mac plugin for Amp | `tuist_mac_start` with `xcode` |
+| Amp orbs | The orb type `macos-xcode-26-1-1` (see <.localized_link href="/guides/features/sandboxes/amp#xcode">Amp</.localized_link>) |
+| Claude Code and Claude Managed Agents | `xcode_version` on the environment, or per Managed Agents session (see <.localized_link href="/guides/features/sandboxes/claude#xcode">Claude</.localized_link>) |
+
+- **Without a version**, a Mac gets the default.
+- **A version Tuist doesn't offer is refused**, and the error lists the versions you can choose, so you know what is available right now.
+- **Tuist doesn't read your repository's `.xcode-version`.** You, or the agent that asks for the Mac, choose the version. The MCP tool and the Tuist Mac plugin tell agents to match the version the project pins.
+- **A sandbox keeps its Xcode for life.** To build with another Xcode, create a new sandbox. `xcodebuild -version` shows which Xcode a Mac runs.
 
 ## Security {#security}
 

@@ -65,6 +65,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       model: Keyword.get(opts, :model, "claude-sonnet-5"),
       budget_cents: Keyword.get(opts, :budget_cents),
       platform: Keyword.get(opts, :platform),
+      xcode_version: Keyword.get(opts, :xcode_version),
       last_status: Keyword.get(opts, :last_status, "running"),
       last_stop_reason: Keyword.get(opts, :last_stop_reason),
       created_by_user_id: Keyword.get(opts, :created_by_user_id)

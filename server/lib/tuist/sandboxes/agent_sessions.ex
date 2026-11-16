@@ -36,7 +36,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
   `attrs` may also carry `agent_environment_id` (defaults to the account's
   single enabled Managed Agents environment), `title`, `repository_url`, `repository_ref`,
   `model` (defaults to the environment's), `budget_cents`, `platform`
-  (`:linux` or `:darwin`, defaults to the environment's) and `agent_id`
+  (`:linux` or `:darwin`, defaults to the environment's), `xcode_version`
+  (a served Xcode for a macOS session's sandbox) and `agent_id`
   (skips the cached agent). `opts` takes `:created_by_user_id`.
 
   The row id is generated before the Anthropic call so it can travel in
@@ -65,6 +66,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
         model: model,
         budget_cents: params.budget_cents,
         platform: params.platform,
+        xcode_version: params.xcode_version,
         last_status: remote["status"],
         created_by_user_id: Keyword.get(opts, :created_by_user_id)
       })

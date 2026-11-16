@@ -137,6 +137,23 @@ Fix the build."
                })
     end
 
+    test "an xcode_version asks for macOS and is refused before the session exists when it is not served" do
+      stub(Tuist.Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+      account = account_fixture()
+      agent_environment_fixture(account: account, anthropic_api_key: "sk-ant-api", anthropic_agent_id: "agent_cached")
+
+      expect(ControlPlane, :create_session, fn _credential, %{metadata: metadata} ->
+        assert metadata["tuist_platform"] == "darwin"
+        {:ok, %{"id" => "sesn_xcode", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{platform: :darwin, xcode_version: "26.1.1"}} =
+               Sandboxes.start_agent_session(account, %{prompt: "Build the app.", xcode_version: "26.1.1"})
+
+      assert {:error, %Ecto.Changeset{errors: [xcode_version: {"must be one of: %{versions}", _opts}]}} =
+               Sandboxes.start_agent_session(account, %{prompt: "Build the app.", xcode_version: "15.4"})
+    end
+
     test "creates a one-off agent for a model override without caching it" do
       account = account_fixture()
 

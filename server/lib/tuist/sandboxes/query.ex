@@ -14,7 +14,7 @@ defmodule Tuist.Sandboxes.Query do
 
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
-  @create_fields ~w(platform template vcpus memory_mb workspace_gb)
+  @create_fields ~w(platform template xcode_version vcpus memory_mb workspace_gb)
 
   def run(:list, %Account{} = account, params) do
     with {:ok, page, size} <- pagination(params),

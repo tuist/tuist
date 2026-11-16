@@ -72,6 +72,31 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     assert response["memory_mb"] == 24_576
   end
 
+  test "an xcode_version boots that Xcode's macOS template and an unserved one is refused with the served list",
+       %{conn: conn, account: account} do
+    stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+
+    expect(Capacity, :place, fn %Sandbox{platform: :darwin, template: "macos-xcode-26-1-1", vcpus: 8} = sandbox ->
+      sandbox |> Ecto.Changeset.change(node_name: "mac-1", node_uid: "node-uid") |> Repo.update!()
+      {:ok, "mac-1"}
+    end)
+
+    expect(Nodes, :call, fn "mac-1", "create", %{template: "macos-xcode-26-1-1"}, _opts -> {:ok, %{}} end)
+
+    response =
+      conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{xcode_version: "26.1.1"}) |> json_response(:created)
+
+    assert %{"platform" => "darwin", "template" => "macos-xcode-26-1-1"} = response
+
+    assert %{"message" => "xcode_version must be one of: 26.6, 26.1.1"} =
+             conn |> post(~p"/api/accounts/#{account.name}/sandboxes", %{xcode_version: "26.1"}) |> json_response(400)
+
+    assert %{"message" => "xcode_version is only supported on macOS (platform darwin)"} =
+             conn
+             |> post(~p"/api/accounts/#{account.name}/sandboxes", %{platform: "linux", xcode_version: "26.6"})
+             |> json_response(400)
+  end
+
   describe "Amp Orb dispatch" do
     test "marks only admission refusals as retryable", %{conn: conn, account: account} do
       for {reason, status, hint} <- [
@@ -206,6 +231,23 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
       assert %{"kind" => "claude_code", "platform" => "darwin", "template" => "macos", "max_idle_seconds" => 1800} =
                response
+
+      stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+
+      assert %{"id" => id, "platform" => "darwin", "template" => "macos-xcode-26-1-1", "xcode_version" => "26.1.1"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+                 kind: "claude_code",
+                 anthropic_environment_id: "ccpool_01mac_xcode",
+                 environment_key: "sk-ant-cc-secret",
+                 xcode_version: "26.1.1"
+               })
+               |> json_response(:created)
+
+      assert %{"template" => "macos", "xcode_version" => nil} =
+               conn
+               |> patch(~p"/api/accounts/#{account.name}/sandboxes/agent-environments/#{id}", %{xcode_version: nil})
+               |> json_response(:ok)
 
       assert_enqueued(worker: Tuist.Sandboxes.ClaudeCodeReconciler)
 

@@ -26,7 +26,6 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Anthropic.Client
-  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
 
   require Logger
@@ -67,7 +66,7 @@ defmodule Tuist.Sandboxes.Workers.DispatchWorkItemWorker do
          deadline_ms,
          attempt
        ) do
-    case Capacity.admission(Router.session_environment(agent_environment, item), session_id) do
+    case Router.admission(agent_environment, item) do
       :ok ->
         _ = Router.dispatch(agent_environment, item)
         :ok

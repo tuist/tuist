@@ -43,6 +43,9 @@ defmodule Tuist.Sandboxes.Sandbox do
     field :amp_creator_email, :string
     field :creator_actor, :map, virtual: true
     field :template, :string
+    # The Xcode a create asked for, which picked `template`; not stored, the
+    # template is what a macOS sandbox keeps (`Tuist.Sandboxes.Xcode`).
+    field :xcode_version, :string, virtual: true
     field :template_tag, :string
     field :vcpus, :integer
     field :memory_mb, :integer
@@ -122,12 +125,14 @@ defmodule Tuist.Sandboxes.Sandbox do
       :amp_integration_id,
       :provider_environment_id,
       :template,
+      :xcode_version,
       :vcpus,
       :memory_mb,
       :workspace_gb
     ])
     |> validate_required([:account_id, :template, :vcpus, :memory_mb, :workspace_gb])
     |> validate_format(:template, ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/)
+    |> Tuist.Sandboxes.Xcode.validate()
     |> validate_shape()
     |> unique_constraint([:agent_environment_id, :anthropic_session_id])
     |> unique_constraint([:account_id, :amp_orb_id])

@@ -158,15 +158,31 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `{:global, {Poller, agent_environment_id}}`), kept in sync with the
   table by `Manager` every 30s. Started on web pods outside tests
   (`sandboxes_children/0` in `Tuist.Application`).
-- `Router.session_environment/2` decides the OS a session runs on, for
-  the poller's admission and the router alike: an existing sandbox keeps
-  its platform; a new one takes the `AgentSession` row's `platform`, else
-  the `tuist_platform` session metadata key (`linux`, `darwin`, `macos`),
-  else the environment's. Work items carry only the session id, so that
-  key is read with `ControlPlane.get_session/2` and the environment's
-  `anthropic_api_key`; a failed read falls back to the environment's. A
-  platform other than the environment's runs that platform's default
-  template and shape (`Sandboxes.platform_defaults/1`).
+- `Router.session_environment/2` decides the OS and Xcode a session runs
+  on, for the poller's admission (`Router.admission/2`) and the router
+  alike: an existing sandbox keeps its platform and template; a new one
+  takes the `AgentSession` row's `platform` and `xcode_version`, else the
+  `tuist_platform` (`linux`, `darwin`, `macos`) and `tuist_xcode_version`
+  session metadata keys, else the environment's. An Xcode without a
+  platform means macOS, and the environment's Xcode applies only on its own
+  platform. Work items carry only the session id, so the keys are read with
+  `ControlPlane.get_session/2` and the environment's credential. A failed
+  read falls back to the environment's platform, except on a macOS
+  environment, where it would boot the environment's Xcode in place of one
+  the session may have asked for: the item is held
+  (`:session_metadata_unavailable`) like an item without capacity. An
+  unserved Xcode is admitted so `dispatch/2` logs the served list and stops
+  the item without a sandbox. A platform other than the environment's runs
+  that platform's default template and shape
+  (`Sandboxes.platform_defaults/1`).
+- `Tuist.Sandboxes.Xcode`: the Xcodes macOS sandboxes serve
+  (`TUIST_MACOS_SANDBOX_XCODE_VERSIONS`, the default first) and the template
+  each boots (`macos-xcode-<xcode-dashes>`; `macos` is the default). Create,
+  agent environments, agent sessions and `create_sandbox` take an exact
+  `xcode_version`, validated like a runner profile's; the template is what a
+  sandbox keeps, so `Sandbox.xcode_version` is virtual. Amp orb types
+  `macos-xcode-*` map to the same templates. See
+  `infra/tart-kubelet/macos-sandboxes.md#xcode-templates`.
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the

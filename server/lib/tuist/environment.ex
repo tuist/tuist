@@ -2419,6 +2419,21 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  The Xcodes macOS sandboxes serve, the default first, from
+  `TUIST_MACOS_SANDBOX_XCODE_VERSIONS` (comma-separated), which the chart
+  renders from `sandboxes.macos.xcodeVersion` and `xcodeVersions`. Empty
+  when unset: sandboxes then boot only the `macos` template's Xcode.
+  `Tuist.Sandboxes.Xcode` validates `xcode_version` against it.
+  """
+  def macos_sandbox_xcode_versions do
+    "TUIST_MACOS_SANDBOX_XCODE_VERSIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
   Runner platforms whose fleets can resolve and reach the cluster's
   internal Service network (`*.svc.cluster.local`) — the per-environment
   input behind `Tuist.Runners.Catalog.fleet_on_cluster_network?/1`.

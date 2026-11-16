@@ -63,6 +63,19 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:ok, %{vcpus: 16, memory_mb: 45_056}} = AmpOrbs.orb_type("linux-3xlarge")
   end
 
+  test "each served Xcode is a macOS orb type, and a type stays usable after its Xcode is dropped" do
+    stub(Environment, :macos_sandbox_xcode_versions, fn -> ["26.6", "26.1.1"] end)
+
+    assert "macos-xcode-26-1-1" in AmpOrbs.orb_types()
+    assert "macos" in AmpOrbs.orb_types()
+
+    assert {:ok, %{platform: :darwin, template: "macos-xcode-26-1-1", vcpus: 8, memory_mb: 8192}} =
+             AmpOrbs.orb_type("macos-xcode-26-1-1")
+
+    assert {:ok, %{template: "macos-xcode-15-4"}} = AmpOrbs.orb_type("macos-xcode-15-4")
+    assert {:error, :unknown_orb_type} = AmpOrbs.orb_type("macos-xcode-latest")
+  end
+
   test "creates once and bootstraps repeated spawn with a protected residency", %{account: account} do
     expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)

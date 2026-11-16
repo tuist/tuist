@@ -55,8 +55,18 @@ defmodule Tuist.Sandboxes.Schemas do
   @doc "The shape a sandbox or agent environment is created with; every field is optional."
   def shape do
     %{
-      platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
+      platform: %Schema{
+        type: :string,
+        enum: ["linux", "darwin"],
+        description: "Omitted: `darwin` when `xcode_version` is set, otherwise `linux`."
+      },
       template: %Schema{type: :string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", description: "Sandbox template name."},
+      xcode_version: %Schema{
+        type: :string,
+        nullable: true,
+        description:
+          "macOS only: the exact Xcode version the sandbox boots, such as `26.1.1`, one of those the server's macOS sandboxes serve. Implies `platform: darwin`. Omitted, macOS sandboxes boot the default Xcode. A sandbox keeps its Xcode for life."
+      },
       vcpus: %Schema{
         type: :integer,
         enum: [2, 4, 8],
