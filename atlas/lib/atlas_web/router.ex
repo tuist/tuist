@@ -148,6 +148,7 @@ defmodule AtlasWeb.Router do
     pipe_through [:browser]
 
     get "/authorize", AuthorizeController, :authorize
+    post "/authorize", AuthorizeController, :authorize
   end
 
   scope "/oauth2", AtlasWeb.Oauth do

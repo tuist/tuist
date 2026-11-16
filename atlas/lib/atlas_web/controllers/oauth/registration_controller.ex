@@ -5,6 +5,7 @@ defmodule AtlasWeb.Oauth.RegistrationController do
 
   import Ecto.Changeset, only: [traverse_errors: 2]
 
+  alias AtlasWeb.Oauth.RedirectURIs
   alias Boruta.Oauth.Client
   alias Boruta.Openid
   alias Boruta.Openid.DynamicRegistrationApplication
@@ -34,8 +35,22 @@ defmodule AtlasWeb.Oauth.RegistrationController do
   end
 
   def register(%Plug.Conn{} = conn, params) do
-    Openid.register_client(conn, normalize(params), __MODULE__)
+    if allowed_redirect_uris?(params["redirect_uris"]) do
+      Openid.register_client(conn, normalize(params), __MODULE__)
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{
+        error: "invalid_redirect_uri",
+        error_description: "redirect_uris must be loopback, native app, or supported MCP client callbacks."
+      })
+    end
   end
+
+  # Registration is anonymous, so only redirects an outsider cannot receive codes
+  # at are accepted. See `AtlasWeb.Oauth.RedirectURIs`.
+  defp allowed_redirect_uris?([_ | _] = uris), do: Enum.all?(uris, &RedirectURIs.allowed?/1)
+  defp allowed_redirect_uris?(_uris), do: false
 
   @impl DynamicRegistrationApplication
   def client_registered(conn, %Client{} = client) do

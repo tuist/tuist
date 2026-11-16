@@ -111,6 +111,16 @@ Credentials remain until reconnect/replacement, disconnect or user deletion. Rec
 
 For a verified export, select **all** `user_connections` and `user_connection_authorizations` by `user_id`, with related `audit_activities` by actor/connection target and `mcp.tool_called` records for `manage_account_connections`. Export non-secret identity, scope, lifecycle metadata and authorization expiry, never live tokens, PKCE verifiers, tickets or native handoff secrets through dashboard/API/MCP/email. Offer disconnect/reconnect instead of copying credentials. No object-storage paths or Tuist Server customer tables are added; Atlas's separate database and encrypted backups retain these records under the existing backup policy. The three-row settings/API metadata listing is not a complete legal export.
 
+## Client → Atlas OAuth consent
+
+Approving an MCP or native client on the `/oauth2/authorize` consent page records
+an `oauth.client_authorized` audit event with the approving user (actor
+ID/email/name, `dashboard` interface), the OAuth client ID and self-reported
+name, the redirect destination host or scheme, and the granted scope. It never
+contains codes, tokens, state, PKCE values or full redirect URLs. It follows
+existing audit retention and is exported with the user's `audit_activities` by
+actor. The issued codes and tokens remain in the existing `oauth_tokens` table.
+
 ## OVH invoices
 
 `ovh_list_invoices` reads invoice IDs on demand through the caller's own `ovh-orders` OAuth session and requires `finance:read`. `ovh_save_invoice` also requires `documents:write` and copies a selected PDF into the shared document library: an ordinary `documents` row with `source = "upload"`, the caller as `uploaded_by_id`, and `attributes.provider = "ovh"` plus `attributes.invoice_id`. The PDF uses the existing documents object-storage bucket, processing pipeline, deletion and backup retention. No signed download link, invoice password or OVH credential is stored in the document. Shared Slack, Orbit and Automation identities cannot use these personal tools.

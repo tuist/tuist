@@ -1,0 +1,51 @@
+<main id="oauth-consent" data-part="oauth-consent">
+  <div data-part="frame">
+    <img src={~p"/images/tuist-logo.svg"} alt="Atlas" data-part="logo" />
+    <div data-part="header">
+      <h1 data-part="title">{gettext("Authorize access to Atlas?")}</h1>
+      <p data-part="subtitle">
+        {gettext(
+          "An application is asking to act as you in Atlas, with every permission you have. Only continue if you started this connection yourself."
+        )}
+      </p>
+    </div>
+    <dl data-part="details">
+      <div data-part="detail">
+        <dt>{gettext("Application (self-reported name)")}</dt>
+        <dd id="oauth-consent-client">{@client_name}</dd>
+      </div>
+      <div data-part="detail">
+        <dt>{gettext("Access will be sent to")}</dt>
+        <dd id="oauth-consent-destination">{@destination}</dd>
+      </div>
+      <div data-part="detail">
+        <dt>{gettext("Signed in as")}</dt>
+        <dd id="oauth-consent-user">{@user.email}</dd>
+      </div>
+    </dl>
+    <div data-part="actions">
+      <form id="oauth-consent-allow-form" method="post" action={@action}>
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="decision" value="allow" />
+        <.button
+          id="oauth-consent-allow"
+          type="submit"
+          variant="primary"
+          size="large"
+          label={gettext("Allow access")}
+        />
+      </form>
+      <form id="oauth-consent-deny-form" method="post" action={@action}>
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="decision" value="deny" />
+        <.button
+          id="oauth-consent-deny"
+          type="submit"
+          variant="secondary"
+          size="large"
+          label={gettext("Deny")}
+        />
+      </form>
+    </div>
+  </div>
+</main>

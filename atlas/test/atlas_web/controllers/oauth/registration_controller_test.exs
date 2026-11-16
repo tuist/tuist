@@ -6,6 +6,7 @@ defmodule AtlasWeb.Oauth.RegistrationControllerTest do
   alias Atlas.Repo
   alias Boruta.Ecto.Admin
   alias Boruta.Ecto.Client
+  alias Ueberauth.Auth.Extra
   alias Ueberauth.Auth.Info
 
   @redirect_uri "dev.tuist.atlas://oauth-callback"
@@ -40,15 +41,9 @@ defmodule AtlasWeb.Oauth.RegistrationControllerTest do
 
     callback =
       conn
-      |> get(~p"/oauth2/authorize", %{
-        "response_type" => "code",
-        "client_id" => client_id,
-        "redirect_uri" => @redirect_uri,
-        "scope" => "mcp",
-        "state" => state,
-        "code_challenge" => challenge,
-        "code_challenge_method" => "S256"
-      })
+      |> approve_oauth_authorization(
+        ~p"/oauth2/authorize?#{%{"response_type" => "code", "client_id" => client_id, "redirect_uri" => @redirect_uri, "scope" => "mcp", "state" => state, "code_challenge" => challenge, "code_challenge_method" => "S256"}}"
+      )
       |> redirected_to()
       |> URI.parse()
 
@@ -140,7 +135,10 @@ defmodule AtlasWeb.Oauth.RegistrationControllerTest do
       expect(Ueberauth, :call, fn conn, _opts ->
         assign(conn, :ueberauth_auth, %Ueberauth.Auth{
           provider: :google,
-          info: %Info{email: user.email, name: user.name}
+          info: %Info{email: user.email, name: user.name},
+          extra: %Extra{
+            raw_info: %{user: %{"email" => user.email, "email_verified" => true, "hd" => "tuist.dev"}}
+          }
         })
       end)
 
@@ -149,7 +147,7 @@ defmodule AtlasWeb.Oauth.RegistrationControllerTest do
       assert get_session(conn, :user_id) == user.id
       assert get_session(conn, :return_to) == nil
 
-      callback = conn |> recycle() |> get(return_to) |> redirected_to() |> URI.parse()
+      callback = conn |> recycle() |> approve_oauth_authorization(return_to) |> redirected_to() |> URI.parse()
       assert callback.scheme == "dev.tuist.atlas"
       assert callback.host == "oauth-callback"
       assert %{"state" => ^state, "code" => code} = URI.decode_query(callback.query)

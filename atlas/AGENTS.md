@@ -55,6 +55,22 @@ Do not add README entries for internal operational details such as env var names
   allowlisted `provider=google` authorization parameter skips the login page but
   keeps the same client, callback, state, and PKCE flow. Browser-continuation tests
   mock only the Google provider boundary and exchange the resulting native code.
+- A signed-in `GET /oauth2/authorize` only renders a consent page naming the
+  client's self-reported name and redirect destination; it never issues a code.
+  The code is issued after a CSRF-protected `POST` with `decision=allow`, which
+  revalidates the request from the query string only (body params are ignored)
+  and records `oauth.client_authorized`. Signed-in requests carrying `request` or
+  `request_uri` are refused before Boruta sees them: Boruta fetches remote
+  request objects on every call, so one could differ between consent and approval. Any other decision redirects with
+  `access_denied`. Anonymous registration accepts only redirects in
+  `AtlasWeb.Oauth.RedirectURIs` (loopback, native/editor schemes, and the exact
+  callback paths of hosted MCP clients, never a whole host, so other pages on
+  those hosts cannot receive codes); add a hosted client's callback there to
+  support it.
+  Existing registrations keep their stored redirects but still require consent.
+- Google sign-in requires `email_verified: true` and the userinfo `hd` claim to
+  equal `ATLAS_ALLOWED_EMAIL_DOMAIN`; the `hd` authorization parameter is only an
+  account-picker hint, and personal Google accounts using a work address lack `hd`.
 - Client → Atlas OAuth stores opaque `state` in `oauth_tokens.state` as PostgreSQL `text`, not Boruta's default `varchar(255)`. Preserve it verbatim in authorization-code storage and redirects; MCP clients may send longer values. PKCE and long-state exchange coverage lives in `test/atlas_web/controllers/oauth/authorize_controller_test.exs`.
 - `Atlas.MCP.Proxy` discovers tools using the current caller's upstream OAuth session and MCP tool groups. Client → Atlas authorization is separate from Atlas → upstream authorization; reconnect the specific upstream at `/admin/mcps` only when diagnostics support doing so.
 - `get_mcp_connection_status` performs fresh discovery for one permitted upstream. Discovery failures also expose `<server>__atlas_connection_status` instead of silently removing every trace of that upstream. Both return sanitized failure categories/stages or currently permitted tool schemas; neither calls an upstream business tool.
