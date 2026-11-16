@@ -39,8 +39,8 @@ defmodule Tuist.Release do
   @grafana_query_log_view "grafana_query_log"
 
   # Exact column allowlist for the Grafana role behind the "Tuist Product Usage"
-  # dashboard and the "Runner cache volume warm rate low" alert rule.
-  # Column-level rather than table-level because every table below sits next to a
+  # dashboard, runner cache warm-rate alert and runner lifecycle incident queries.
+  # Column-level rather than table-level because application data sits next to a
   # secret in the same row: table-level SELECT would hand the dashboard's
   # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
   # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
@@ -60,6 +60,19 @@ defmodule Tuist.Release do
     {"roles", ~w(id resource_id resource_type)},
     {"runner_cache_volume_uses", ~w(volume_id base_generation warm attached_at)},
     {"runner_cache_volumes", ~w(id key platform)},
+    # Admission uses live claims and limits; historical limit-held exclusions
+    # use sessions overlapping enqueue-to-executor-claim, not deleted claims.
+    # Exclude repository/branch metadata, execution_identity and outbox payloads.
+    {"runner_claims",
+     ~w(pod_name workflow_job_id account_id fleet_name site claimed_at platform vcpus memory_gb lifecycle_state
+        runner_name executed_workflow_job_id pod_missing_since)},
+    {"runner_concurrency_limits", ~w(account_id platform vcpus memory_gb updated_at)},
+    {"runner_sessions",
+     ~w(id account_id workflow_job_id executed_workflow_job_id fleet_name platform vcpus memory_gb started_at ended_at
+        job_started_at job_ended_at pod_name runner_name node_name)},
+    {"runner_workflow_jobs",
+     ~w(workflow_job_id account_id fleet_name status conclusion platform vcpus memory_gb enqueued_at claimed_at
+        executor_claimed_at started_at completed_at pod_name runner_name executed_workflow_job_id)},
     {"subscriptions", ~w(account_id status)},
     {"users", ~w(created_at)},
     {"users_roles", ~w(user_id role_id)}
