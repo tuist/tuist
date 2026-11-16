@@ -117,7 +117,7 @@ defmodule Tuist.TestImpactAnalysis.Candidate do
     changed_files
     |> Enum.map(& &1.path)
     |> Enum.uniq()
-    |> Enum.chunk_every(Snapshots.paths_per_query())
+    |> Snapshots.path_chunks()
     |> Enum.flat_map(fn paths ->
       Snapshots.query!(
         """

@@ -48,10 +48,13 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   alias Tuist.Tests.TestCaseRun
 
   @retention_days 31
-  @paths_per_query 1_000
   @insert_chunk_size 10_000
   # Ranges per query, under ClickHouse's 128 KiB limit on a parameter.
   @ranges_chunk 5_000
+  # Bytes of a `{…:Array(String)}` parameter per query, under that limit,
+  # which open-source ClickHouse keeps by default and counts on the
+  # URL-encoded value.
+  @param_bytes 120_000
   @zero_uuid "00000000-0000-0000-0000-000000000000"
   @settings [
     insert_quorum: "auto",
@@ -900,7 +903,38 @@ defmodule Tuist.TestImpactAnalysis.Snapshots do
   end
 
   @doc false
-  def paths_per_query, do: @paths_per_query
+  # Paths as a query's worth each, measured as the driver sends them in the
+  # request URL: each quoted, its quotes and backslashes doubled, then
+  # URL-encoded, where a `/` takes three bytes, and a comma. Long paths make a
+  # fixed count of them too large for one parameter.
+  def path_chunks(paths) do
+    Enum.chunk_while(
+      paths,
+      {[], 0},
+      fn path, {chunk, size} ->
+        bytes = encoded_size(path, 9)
+
+        if chunk != [] and size + bytes > @param_bytes,
+          do: {:cont, Enum.reverse(chunk), {[path], bytes}},
+          else: {:cont, {[path | chunk], size + bytes}}
+      end,
+      fn
+        {[], _size} -> {:cont, {[], 0}}
+        {chunk, _size} -> {:cont, Enum.reverse(chunk), {[], 0}}
+      end
+    )
+  end
+
+  # The path's bytes once quoted and URL-encoded, counted without building
+  # either (`acc` starts with its quotes and comma, 3 bytes each): a byte
+  # `URI.encode_www_form/1` keeps, or turns into `+`, is 1, a quote or
+  # backslash 6 once doubled, any other 3.
+  defp encoded_size(<<c, rest::binary>>, acc)
+       when c in ?a..?z or c in ?A..?Z or c in ?0..?9 or c in [?-, ?., ?_, ?~, ?\s], do: encoded_size(rest, acc + 1)
+
+  defp encoded_size(<<c, rest::binary>>, acc) when c in [?', ?\\], do: encoded_size(rest, acc + 6)
+  defp encoded_size(<<_c, rest::binary>>, acc), do: encoded_size(rest, acc + 3)
+  defp encoded_size(<<>>, acc), do: acc
 
   @doc false
   def query!(sql, params), do: IngestRepo.query!(sql, params, settings: [select_sequential_consistency: 1]).rows

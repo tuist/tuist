@@ -143,6 +143,19 @@ defmodule Tuist.TestImpactAnalysis.ShadowTest do
     assert by_name(project, result)["testCore()"] == {:selected, :owned_without_evidence}
   end
 
+  # 5,000 paths of 250 bytes are 1.3 MB, ten times what open-source
+  # ClickHouse accepts in one parameter by default.
+  test "reads a diff of long paths in parameters ClickHouse accepts", %{project: project} do
+    snapshot = Snapshots.at(project.id, "c1", "App", "")
+    deep = for i <- 1..5_000, do: changed("Sources/#{String.duplicate("Deep/", 46)}File#{i}'s.swift", "d#{i}", [])
+    tests = Candidate.evaluate(project.id, snapshot, deep ++ [changed("Sources/Math.swift", "m2")])
+
+    assert tests |> Enum.reject(&(&1.reason == :unaffected)) |> Enum.map(& &1.reason) |> Enum.sort() == [
+             :impacted,
+             :no_evidence
+           ]
+  end
+
   test "decides nothing, without a diff, when hashing skipped every module", %{project: project} do
     modules = [%{name: "AppTests", skipped: true}, %{name: "CoreTests", skipped: true}]
     {:ok, %{run: run}} = Runs.create(project, %{params("c2", nil) | modules: modules})
