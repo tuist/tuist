@@ -57,7 +57,9 @@ defmodule Condukt.SessionStore.Snapshot do
   Returns `{last_run_id, requests}` as recorded by `put_runs/3`, or
   `{nil, []}` for a snapshot without them or whose record cannot be read.
   """
-  def runs(%__MODULE__{} = snapshot) do
+  # Matches the struct as an open map: the runs record is a key the struct
+  # type does not declare.
+  def runs(%{__struct__: __MODULE__} = snapshot) do
     case Map.get(snapshot, @runs_key) do
       nil -> {nil, []}
       binary -> decode_runs(binary)
