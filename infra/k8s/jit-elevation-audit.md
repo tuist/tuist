@@ -76,7 +76,7 @@ ORDER BY timestamp
 
 This follows the privileged-access query in [`infra/log-review.md`](../log-review.md), which explains the `host` filter. Tighten it to the calls a forensics request is about, for example `AND regexp_like(body, '"method":"DELETE"')` to list everything the user destroyed during the window, or `AND NOT regexp_like(body, '"path":"[^"]*selfsubject')` to drop `kubectl auth whoami` and `kubectl auth can-i`. A denied call (`allow` false) is an attempt the policy blocked, which is worth reading rather than filtering out.
 
-If apiserver audit logging is enabled (see the follow-up in the PR description), join on the apiserver's per-resource audit events for full request/response bodies. Pomerium's log gives you "what URL and whether it was allowed"; apiserver audit gives you "what the request body looked like."
+Where the API server audit log is enabled ([credential-rotation.md → API server audit log](../credential-rotation.md#api-server-audit-log)), it records Secret reads and ServiceAccount token requests at Metadata level, including those made by ServiceAccounts and nodes that never pass Pomerium. It records no request or response bodies, and nothing for other resources.
 
 ## What stopped being a trail
 
