@@ -1274,7 +1274,8 @@ processor:
   # Build archives are unzipped into the pod's /tmp. Scale to match the
   # largest archive plus headroom for CAS metadata. 16 GiB gives ~3 GiB per
   # slot at queueConcurrency = 5, which is enough for any realistic build
-  # archive plus its CAS sidecar files.
+  # archive plus its CAS sidecar files. `Tuist.Processor.BuildProcessor`
+  # rejects archives that extract past that 3 GiB share; raise both together.
   tmpSizeLimit: 16Gi
 
 swiftRegistrySync:

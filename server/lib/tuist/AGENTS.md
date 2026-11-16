@@ -79,8 +79,12 @@
   `System.cmd` in a timed task, collecting the parser's inherited stderr without
   MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
   while retaining process cleanup when the task times out or its caller dies.
+- Build and xcresult zip uploads are extracted with `Processor.ZipExtractor`,
+  never `:zip.unzip`, which does not stop an entry that inflates past its
+  declared size. It rejects archives over the caller's declared byte and entry
+  limits as `:archive_too_large`, and both workers fail those runs without retrying.
 - `Processor.BuildProcessor` maps known archive-corruption errors from
-  `:zip.unzip` (`:bad_eocd`, `:bad_eocd64`, `:bad_central_directory`,
+  extraction (`:bad_eocd`, `:bad_eocd64`, `:bad_central_directory`,
   `:bad_local_file_header`, and per-entry `:bad_crc`) to
   `{:error, :corrupt_archive}`. `ProcessBuildWorker` discards those jobs on
   the first attempt and marks the build as `failed_processing` right away,
