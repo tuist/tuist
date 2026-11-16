@@ -432,7 +432,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   running without a residency (re)schedules `PauseSandboxWorker` after
   the grace period with the current epoch, so API-driven sandboxes are
   paused once idle like agent ones; a residency starting meanwhile bumps
-  the epoch and the pending job does nothing.
+  the epoch and the pending job does nothing. A node refuses to pause a
+  warm restore whose lazy disks still load, which can outlast the job's
+  retries, so its `memory_loaded` event schedules the idle pause again.
 
 Shared-fleet admission requires a fresh controller allocation on `sandbox_nodes`.
 CI reservation revocation, zero extra warm memory, timestamp ordering and resize
