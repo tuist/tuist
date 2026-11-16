@@ -420,6 +420,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
             "/compare/nx",
             "/compare/swift-package-manager",
             "/compare/buildbuddy",
+            "/compare/cachely",
             "/compare/engflow",
             "/build-systems/bazel-vs-gradle",
             "/solutions/bazel-github-actions",
