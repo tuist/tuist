@@ -183,6 +183,9 @@ if [[ "$mode" == rebalance ]]; then
       AND p.table_schema = t.table_schema AND p.table_name = t.table_name
     LEFT JOIN information_schema.region_statistics s ON s.region_id = p.region_id
     WHERE p.is_leader = 'Yes' AND t.create_options NOT LIKE '%on_physical_table=%'")
+  # The HTTP API returns the byte sum as a JSON string; jq's add would
+  # concatenate those.
+  rows=$(jq -c '[.[0], (.[1] | tonumber), (.[2] // 0 | tonumber)]' <<< "$rows")
   jq -s -r --argjson replicas "$replicas" '
     "Datanode leader regions and stored bytes: " + ([range(0; $replicas) as $peer
       | [.[] | select(.[1] == $peer)] | "\($peer)=\(length)/\(map(.[2]) | add // 0)"] | join(" "))' <<< "$rows"
