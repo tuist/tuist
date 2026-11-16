@@ -1,6 +1,6 @@
 # Compare Tuist with other developer tools
 
-Choose build infrastructure by the work your team needs to do. Compare Tuist with Develocity, Namespace, and Buildkite across setup, execution environments, caching, test visibility, and the way people, agents, and CI work together.
+Faster runners run wasted work faster. Tuist helps you skip that work, then size machines for what remains. Choose build infrastructure by the work your team needs to do. Compare Tuist with Develocity, Namespace, and Buildkite across setup, execution environments, caching, test visibility, and the way people, agents, and CI work together.
 
 ## What is Tuist?
 
