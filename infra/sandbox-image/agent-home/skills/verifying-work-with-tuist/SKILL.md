@@ -11,22 +11,19 @@ failure real, a test fixed, or a task done.
 
 ## Access
 
-In this sandbox, both ways of reading Tuist sign in on their own:
+In this sandbox the `tuist` CLI signs in on its own. Pass `--json` to read its
+output. If a Tuist MCP server is configured, its tools (`list_test_runs`,
+`get_test_case`, `list_test_case_runs` and so on) answer the same questions.
 
-- The `tuist` MCP server (tools such as `list_test_runs`, `list_test_cases`,
-  `get_test_case`, `list_test_case_runs`, `list_xcode_builds`,
-  `list_gradle_builds`, `list_previews`).
-- The `tuist` CLI. Pass `--json` to read its output.
-
-Access is read-only in practice: do not change test cases, quarantine tests,
-or upload anything unless the user asks.
+Only read: do not change test cases, quarantine tests, or upload anything
+unless the user asks.
 
 Find the project handle (`account/project`) in the repository's `Tuist.swift`
-(`fullHandle`) or `tuist.toml` (`project`). If neither exists, call
-`list_projects` and match the repository. Pass it as `--project` to the CLI
+(`fullHandle`) or `tuist.toml` (`project`). If neither exists, run
+`tuist project list --json` and match the repository. Pass it as `--project` to the CLI
 when you run it outside the project directory.
 
-If both the MCP server and the CLI report that you are not authenticated, the
+If the CLI reports that you are not authenticated, the
 sandbox's account has not connected it to Tuist. Say so once and continue
 without this check.
 

@@ -19,7 +19,7 @@ node only covers what is inside the VM and how the template reaches a node.
 | `internal/guest` | The Linux implementation of `System`: `clock_settime`, `sethostname`, neighbour flush, workspace disk. Stubs elsewhere. |
 | `internal/sysconfig` | Rendering of the hostname, hosts and resolver files and kernel command line parsing. |
 | `Dockerfile`, `install-template.sh` | Template image and its entrypoint. |
-| `agent-home` | Tuist MCP configuration for Amp and Claude Code and the skill installed into `user`'s home. |
+| `agent-home` | The skill installed into `user`'s home. |
 
 The rootfs is Ubuntu 24.04 with the apt toolchain listed in the Dockerfile plus
 Node.js 22 (nodesource), the GitHub CLI, `mise` (activated from
@@ -41,13 +41,12 @@ which Amp's app installer locks.
 Agents get the project's Tuist data without setup. The Tuist CLI is at
 `/usr/local/bin/tuist`, pinned by `TUIST_VERSION`/`TUIST_SHA256` to a release
 that signs in with the sandbox's workload identity.
-`.github/workflows/update-tuist-cli.yml` bumps both with `mise.toml`'s pin. `agent-home/` holds what
-`user`'s home receives: `amp-settings.json` becomes
-`~/.config/amp/settings.json` and `claude.json` becomes `~/.claude.json`, each
-declaring a `tuist` MCP server at `${TUIST_URL}/mcp` that authenticates with
-`${amp:id-token}` or `${TUIST_OIDC_TOKEN}`; `skills/` becomes
-`~/.claude/skills/`, which both Amp and Claude Code read. Claude Code rewrites
-`~/.claude.json` and Amp writes its settings, so both stay owned by `user`.
+`.github/workflows/update-tuist-cli.yml` bumps both with `mise.toml`'s pin.
+`agent-home/skills/` becomes `~/.claude/skills/`, which both Amp and Claude
+Code read. The image deliberately ships no MCP configuration: a preinstalled
+server adds its tools to every session, fails for accounts that did not connect
+the sandbox, and duplicates connectors users already have. The server still
+accepts sandbox identity tokens at `/mcp` for anyone who adds it themselves.
 
 ## Boot contract
 
