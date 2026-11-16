@@ -430,10 +430,10 @@ defmodule TuistWeb.PreviewControllerTest do
       assert get_resp_header(conn, "content-type") == ["image/png"]
     end
 
-    test "returns 404 when the icon does not exist", %{conn: conn} do
+    test "returns 404 when the icon does not exist", %{conn: conn, user: user} do
       # Given
       preview =
-        [type: :ipa]
+        [type: :ipa, project: ProjectsFixtures.project_fixture(account_id: user.account.id)]
         |> AppBuildsFixtures.preview_fixture()
         |> Tuist.Repo.preload(project: :account)
 
@@ -551,6 +551,59 @@ defmodule TuistWeb.PreviewControllerTest do
       conn = get(build_conn(), "#{base_path}/#{preview.id}/manifest.plist")
 
       assert response(conn, 200) =~ "https://storage.tuist.dev/previews/build.zip?X-Amz-Signature=abc"
+    end
+
+    test "icon.png redirects signed-out visitors without an install token to log in", %{
+      preview: preview,
+      base_path: base_path
+    } do
+      reject(&Storage.stream_object/2)
+
+      conn = get(build_conn(), "#{base_path}/#{preview.id}/icon.png")
+
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "#{base_path}/#{preview.id}/icon.png"}}"
+    end
+
+    test "icon.png raises not found for signed-in users who cannot read the project", %{
+      conn: conn,
+      preview: preview,
+      base_path: base_path
+    } do
+      assert_raise NotFoundError, fn ->
+        get(conn, "#{base_path}/#{preview.id}/icon.png")
+      end
+    end
+
+    test "icon.png is served to signed-out visitors with a valid icon token", %{
+      preview: preview,
+      base_path: base_path
+    } do
+      stub(Storage, :stream_object, fn _object_key, _actor -> ["icon-content"] end)
+      token = AppBuilds.preview_icon_token(preview)
+
+      conn = get(build_conn(), "#{base_path}/#{preview.id}/icon.png?token=#{token}")
+
+      assert response(conn, 200) == "icon-content"
+    end
+
+    test "icon tokens and install tokens only open their own endpoints", %{preview: preview, base_path: base_path} do
+      icon_token = AppBuilds.preview_icon_token(preview)
+      install_token = AppBuilds.preview_install_token(preview)
+
+      assert redirected_to(get(build_conn(), "#{base_path}/#{preview.id}/icon.png?token=#{install_token}")) =~
+               "/users/log_in"
+
+      assert redirected_to(get(build_conn(), "#{base_path}/#{preview.id}/app.ipa?token=#{icon_token}")) =~
+               "/users/log_in"
+    end
+
+    test "icon.png is served without a token for public previews", %{project: project, base_path: base_path} do
+      stub(Storage, :stream_object, fn _object_key, _actor -> ["icon-content"] end)
+      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
+
+      conn = get(build_conn(), "#{base_path}/#{preview.id}/icon.png")
+
+      assert response(conn, 200) == "icon-content"
     end
 
     test "app.ipa redirects signed-out visitors without an install token to log in", %{

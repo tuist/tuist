@@ -135,7 +135,9 @@ defmodule Tuist.MCP.Components.Tools.PreviewSerializer do
       url: preview_url(account_handle, project_handle, preview.id),
       device_url: device_url(preview, account_handle, project_handle, supported_platforms),
       qr_code_url: preview_url(account_handle, project_handle, preview.id, "/qr-code.png"),
-      icon_url: preview_url(account_handle, project_handle, preview.id, "/icon.png"),
+      icon_url:
+        preview_url(account_handle, project_handle, preview.id, "/icon.png") <>
+          "?" <> URI.encode_query(token: AppBuilds.preview_icon_token(preview)),
       version: preview.version,
       bundle_identifier: preview.bundle_identifier,
       display_name: preview.display_name,

@@ -11,6 +11,8 @@ defmodule Tuist.AppBuilds do
 
   @preview_install_salt "preview_install"
   @preview_install_token_ttl_seconds 24 * 60 * 60
+  @preview_icon_salt "preview_icon"
+  @preview_icon_token_period_seconds 24 * 60 * 60
   @latest_preview_dimensions [:bundle_identifier, :platform, :artifact_type]
 
   def create_preview(attrs) do
@@ -460,6 +462,30 @@ defmodule Tuist.AppBuilds do
   end
 
   def verify_preview_install_token(_preview, _token), do: {:error, :invalid_preview_install_token}
+
+  @doc """
+  Signs a token that grants access to a preview's icon, and nothing else.
+
+  Native clients cache icons by URL, so the token is signed at the start of the
+  current UTC day and stays the same for the whole day. It is accepted for two
+  days from then, so a token is valid for at least one day after it is handed out.
+  """
+  def preview_icon_token(%Preview{id: preview_id}, now \\ System.system_time(:second)) do
+    signed_at = now - rem(now, @preview_icon_token_period_seconds)
+
+    Phoenix.Token.sign(Tuist.Web.endpoint(), @preview_icon_salt, preview_id, signed_at: signed_at)
+  end
+
+  def verify_preview_icon_token(%Preview{id: preview_id}, token) when is_binary(token) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @preview_icon_salt, token,
+           max_age: 2 * @preview_icon_token_period_seconds
+         ) do
+      {:ok, ^preview_id} -> :ok
+      _ -> {:error, :invalid_preview_icon_token}
+    end
+  end
+
+  def verify_preview_icon_token(_preview, _token), do: {:error, :invalid_preview_icon_token}
 
   def desktop_preview?(%Preview{supported_platforms: [_ | _] = platforms}) do
     Enum.all?(platforms, &(&1 in [:macos, :linux]))
