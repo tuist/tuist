@@ -16,6 +16,12 @@ defmodule Condukt.Tools.BashTest do
     %{context: %{sandbox: sandbox, opts: []}}
   end
 
+  test "is replay-safe only when its host opts in" do
+    refute Condukt.Tool.replay_safe?(Bash)
+    refute Condukt.Tool.replay_safe?({Bash, []})
+    assert Condukt.Tool.replay_safe?({Bash, replay_safe: true})
+  end
+
   test "executes simple command", %{tmp_dir: tmp_dir, context: context} do
     expect_sandbox_bash("echo hello", tmp_dir, "hello\n", 0, fn opts ->
       assert opts[:timeout] == 120_000
