@@ -6,6 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
@@ -60,6 +61,53 @@ func TestMacosGrantsAllowQueuedCIButRevokeForReservedUnknownAndUnhealthyHosts(t 
 				t.Fatalf("bad grant: %+v", grant)
 			}
 		})
+	}
+}
+
+// A conflict on one host used to end the tick, so every later host kept a
+// grant that aged past 15 s and the server refused creates on an idle rack.
+func TestMacosGrantConflictRecomputesFromTheFreshNodeAndKeepsPublishing(t *testing.T) {
+	first := linuxNodeWithResources("mac-1", "mac-fleet", 16, 48*1024)
+	second := linuxNodeWithResources("mac-2", "mac-fleet", 16, 48*1024)
+	var pods []corev1.Pod
+	for _, node := range []*corev1.Node{first, second} {
+		node.Labels[corev1.LabelOSStable] = "darwin"
+		node.UID = types.UID(node.Name + "-uid")
+		pods = append(pods, corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: node.Name + "-control", Namespace: "tuist-sandboxes", UID: types.UID(node.Name + "-control"), Labels: map[string]string{macosSandboxRole: "control"}}, Spec: corev1.PodSpec{NodeName: node.Name}})
+	}
+	r, c := sandboxFixture(t, first, second)
+	ctx := context.Background()
+	var listed corev1.NodeList
+	if err := c.List(ctx, &listed); err != nil {
+		t.Fatal(err)
+	}
+	// CI reserves mac-1 after the tick read it.
+	var live corev1.Node
+	if err := c.Get(ctx, client.ObjectKey{Name: "mac-1"}, &live); err != nil {
+		t.Fatal(err)
+	}
+	live.Spec.Taints = append(live.Spec.Taints, corev1.Taint{Key: podtemplate.ReservationTaintKey, Value: "ci", Effect: corev1.TaintEffectNoSchedule})
+	if err := c.Update(ctx, &live); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := r.publishMacosGrants(ctx, listed.Items, pods, &fleetAllocation{}, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]bool{"mac-1": false, "mac-2": true} {
+		var node corev1.Node
+		if err := c.Get(ctx, client.ObjectKey{Name: name}, &node); err != nil {
+			t.Fatal(err)
+		}
+		var grant struct {
+			Allow bool `json:"allow"`
+		}
+		if err := json.Unmarshal([]byte(node.Annotations[macosSandboxGrant]), &grant); err != nil {
+			t.Fatalf("%s has no grant: %v", name, err)
+		}
+		if grant.Allow != want {
+			t.Fatalf("%s allow = %v, want %v", name, grant.Allow, want)
+		}
 	}
 }
 

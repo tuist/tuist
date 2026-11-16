@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -175,6 +177,7 @@ const macosSandboxGrant = "tuist.dev/macos-sandbox-grant"
 // for uncommitted capacity, a host reservation still protects a waiting CI
 // shape, and unknown fleet demand denies every grant.
 func (r *AutoscalerReconciler) publishMacosGrants(ctx context.Context, nodes []corev1.Node, pods []corev1.Pod, fleet *fleetAllocation, observed time.Time) error {
+	var errs []error
 	for i := range nodes {
 		node := &nodes[i]
 		for j := range pods {
@@ -182,27 +185,57 @@ func (r *AutoscalerReconciler) publishMacosGrants(ctx context.Context, nodes []c
 			if pod.Namespace != r.SandboxesNamespace || pod.Spec.NodeName != node.Name || pod.Labels[macosSandboxRole] != "control" {
 				continue
 			}
-			allow := fleet != nil && nodeFilterReason(node) == "" && !isReserved(node) && pod.DeletionTimestamp.IsZero()
-			for _, condition := range node.Status.Conditions {
-				if (condition.Type == corev1.NodeMemoryPressure || condition.Type == corev1.NodeDiskPressure || condition.Type == corev1.NodePIDPressure) && condition.Status != corev1.ConditionFalse {
-					allow = false
-				}
-			}
-			room := nativeSandboxRoom(node, pods, fleet, observed)
-			allow = allow && room.cpu > 0 && room.memory > 0 && room.slots > 0
-			grant, _ := json.Marshal(map[string]any{"cpu_milli": room.cpu, "memory_bytes": room.memory, "slots": room.slots, "node_uid": string(node.UID), "control_uid": string(pod.UID), "observed_at": observed, "allow": allow})
-			before := node.DeepCopy()
-			if node.Annotations == nil {
-				node.Annotations = map[string]string{}
-			}
-			node.Annotations[macosSandboxGrant] = string(grant)
-			// Optimistic locking cannot overwrite a concurrent CI reservation/taint.
-			if err := r.Patch(ctx, node, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})); err != nil {
-				return err
+			// One host failing must not stop the rest: a grant lives 15 s and
+			// a host reports it every 5 s, so a skipped tick left every later
+			// host's grant stale on the server and creates found no host.
+			if err := r.publishMacosGrant(ctx, node, pod, pods, fleet, observed); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// macosGrantConflictRetries bounds the re-reads of a Node whose patch
+// conflicted. tart-kubelet updates its Node every few seconds, so a
+// conflict almost always clears on the first retry.
+const macosGrantConflictRetries = 3
+
+// publishMacosGrant writes one host's grant. Optimistic locking keeps a grant
+// computed before a concurrent CI reservation or taint from reopening the
+// host, so on a conflict the grant is recomputed from the Node as it is now.
+func (r *AutoscalerReconciler) publishMacosGrant(ctx context.Context, node *corev1.Node, control *corev1.Pod, pods []corev1.Pod, fleet *fleetAllocation, observed time.Time) error {
+	var reader client.Reader = r.Client
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+	for attempt := 0; ; attempt++ {
+		before := node.DeepCopy()
+		if node.Annotations == nil {
+			node.Annotations = map[string]string{}
+		}
+		node.Annotations[macosSandboxGrant] = macosGrant(node, control, pods, fleet, observed)
+		err := r.Patch(ctx, node, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{}))
+		if err == nil || !apierrors.IsConflict(err) || attempt >= macosGrantConflictRetries {
+			return err
+		}
+		if err := reader.Get(ctx, client.ObjectKeyFromObject(node), node); err != nil {
+			return err
+		}
+	}
+}
+
+func macosGrant(node *corev1.Node, control *corev1.Pod, pods []corev1.Pod, fleet *fleetAllocation, observed time.Time) string {
+	allow := fleet != nil && nodeFilterReason(node) == "" && !isReserved(node) && control.DeletionTimestamp.IsZero()
+	for _, condition := range node.Status.Conditions {
+		if (condition.Type == corev1.NodeMemoryPressure || condition.Type == corev1.NodeDiskPressure || condition.Type == corev1.NodePIDPressure) && condition.Status != corev1.ConditionFalse {
+			allow = false
+		}
+	}
+	room := nativeSandboxRoom(node, pods, fleet, observed)
+	allow = allow && room.cpu > 0 && room.memory > 0 && room.slots > 0
+	grant, _ := json.Marshal(map[string]any{"cpu_milli": room.cpu, "memory_bytes": room.memory, "slots": room.slots, "node_uid": string(node.UID), "control_uid": string(control.UID), "observed_at": observed, "allow": allow})
+	return string(grant)
 }
 
 // Grants include native capacity only: busy CI and other bound workloads are
